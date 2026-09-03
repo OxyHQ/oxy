@@ -1,0 +1,8 @@
+-- oxy:deploy-phase=pre
+ALTER TABLE "inference_provider_credential_validations" DROP CONSTRAINT "inference_provider_credential_validations_deployment_check";--> statement-breakpoint
+ALTER TABLE "inference_provider_credential_validations" DROP CONSTRAINT "inference_provider_credential_validations_connection_id_inference_provider_connections_id_fk";
+--> statement-breakpoint
+ALTER TABLE "inference_provider_credential_validations" ADD COLUMN "kaana_deployment_id" text NOT NULL;--> statement-breakpoint
+ALTER TABLE "inference_provider_credential_validations" ADD CONSTRAINT "inference_provider_credential_validations_deployment_id_inference_deployments_id_fk" FOREIGN KEY ("deployment_id") REFERENCES "public"."inference_deployments"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "inference_provider_credential_validations" ADD CONSTRAINT "inference_provider_credential_validations_connection_identity_fk" FOREIGN KEY ("connection_id","provider","owner_account_id","environment") REFERENCES "public"."inference_provider_connections"("id","provider","owner_account_id","environment") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "inference_provider_credential_validations" ADD CONSTRAINT "inference_provider_credential_validations_deployment_check" CHECK (length("inference_provider_credential_validations"."kaana_deployment_id") between 1 and 128 and "inference_provider_credential_validations"."kaana_deployment_id" = btrim("inference_provider_credential_validations"."kaana_deployment_id") and "inference_provider_credential_validations"."kaana_deployment_id" !~ E'[\r\n]');

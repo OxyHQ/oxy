@@ -29,15 +29,8 @@
  * production. That is not an oversight to be tidied away by wiring it to the
  * nearest plausible endpoint.
  *
- * The nearest plausible endpoint would be `POST /alia/chat/completions`
- * (`routes/alia.ts`), and mounting it there would be wrong for a reason a rate
- * limit cannot fix: that route forwards the caller's body verbatim to Alia on ONE
- * static `ALIA_API_KEY`, and `max_tokens` is the caller's to choose — so a cap
- * of N requests per window bounds requests, never cost. Worse, the cost lands on
- * a single shared Oxy budget with no per-account attribution, so one key cannot
- * be stopped without stopping all of them. The epic's invariant is "reserve spend
- * before the request enters the data plane", and that reservation lives on the
- * `/v1` edge, which is where this lane already is.
+ * It deliberately authenticates only the metered `/v1` inference edge. Product
+ * agent and voice APIs are not infrastructure inference surfaces.
  *
  * ## Its own lane, and its own request property
  *

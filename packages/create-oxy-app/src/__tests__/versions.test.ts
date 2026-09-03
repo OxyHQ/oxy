@@ -46,4 +46,16 @@ describe('VERSIONS drift guard', () => {
   test('oxyAppPreset matches the current workspace release', () => {
     expect(VERSIONS.oxyAppPreset).toBe(`^${readWorkspaceVersion('app-preset')}`);
   });
+
+  test('scaffold smoke consumes every generated Oxy workspace package from a HEAD tarball', () => {
+    const workflowPath = path.join(__dirname, '..', '..', '..', '..', '.github', 'workflows', 'scaffold-smoke.yml');
+    const workflow = readFileSync(workflowPath, 'utf8');
+
+    for (const pkg of ['contracts', 'core', 'services', 'app-preset']) {
+      expect(workflow).toContain(`packages/${pkg}/**`);
+      expect(workflow).toContain(`packages/$package`);
+      expect(workflow).toContain(`@oxyhq/${pkg}`);
+      expect(workflow).toContain(`oxyhq-${pkg}-`);
+    }
+  });
 });

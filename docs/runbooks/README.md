@@ -1,7 +1,12 @@
 # Runbooks
 
-Rotation and break-glass procedures for the credential classes **Oxy issues or
-operates**. One file per credential, and each one states the same five things
+- [Bootstrap the Kaana catalogue reviewer](./bootstrap-catalogue-reviewer.md)
+- [Bootstrap or retire the native product agents](./native-product-agent-bootstrap.md)
+- [Cut over the exact-ID Kaana request v2](./kaana-request-v2-cutover.md)
+
+Rotation and break-glass procedures for credentials Oxy issues or operates
+through its control surfaces, including customer BYOK keys held only by Kaana.
+One file per credential, and each one states the same five things
 because the fifth is the one nobody writes down:
 
 1. **The trigger** — what makes you run this, including the difference between a
@@ -24,17 +29,16 @@ because the fifth is the one nobody writes down:
 |---|---|---|
 | Application credential secret (`oxy_dk_…` + secret) | Oxy | [application-credential-rotation.md](./application-credential-rotation.md) |
 | Machine API key (`oxy_sk_…`) | Oxy | [machine-credential-rotation.md](./machine-credential-rotation.md) |
-| A customer's BYOK provider credential | the customer owns the upstream account; Kaana holds KMS ciphertext in PostgreSQL | [byok-provider-connection-rotation.md](./byok-provider-connection-rotation.md) |
+| A customer's BYOK provider credential | the customer; encrypted custody in Kaana PostgreSQL/KMS | [byok-provider-connection-rotation.md](./byok-provider-connection-rotation.md) |
+| Oxy → Kaana edge-signing key | Oxy private key; Kaana public verification set | [kaana-edge-signing-key-rotation.md](./kaana-edge-signing-key-rotation.md) |
 | Service-token signing key, and `ACCESS_TOKEN_SECRET` / `REFRESH_TOKEN_SECRET` | Oxy | [service-token-signing-key-rotation.md](./service-token-signing-key-rotation.md) |
-| The Oxy→Kaana edge signing key | Oxy | [kaana-edge-signing-key-rotation.md](./kaana-edge-signing-key-rotation.md) |
 | AWS access keys, RDS credentials, the ECS task role, the ALB certificate, KMS keys | infra | **`~/Oxy/oxy-infra`**, `docs/runbooks/` there |
-| `ALIA_API_KEY` — legacy Oxy→Alia product-proxy credential | **Alia**, not provider custody | no runbook here; it remains only as a cutover/rollback credential for the legacy product routes |
-
-`ALIA_API_KEY` is not a provider key and must not be described as an alternate
-inference data plane. It authenticates only the explicitly legacy Alia product
-proxy while the named Oxy→Kaana and Alia→Oxy→Kaana cutover gates remain open.
-Alia owns its rotation; retiring the Oxy copy waits for the live product-route
-cutover and rollback decision in [the Alia integration guide](../inference/alia.md).
+The retired Oxy-to-Alia proxy credential has no live consumer and therefore no
+rotation runbook. Deployment explicitly removes its historical task binding.
+Inbox point inference, automatic labelling and card extraction use the metered
+Oxy-to-Kaana path; Alia agent/chat/voice clients address Alia directly. Keep the
+old name only in removal/audit records so a stale task definition cannot retain
+it accidentally.
 
 **The infra half is deliberately not duplicated here.** `oxy-infra` owns the
 terraform, the task definitions, the IAM policies and the AWS procedures, and a
@@ -66,11 +70,11 @@ the tokens signed under the retired key cannot be re-signed.
   (the lifecycle and both CHECK biconditionals), `packages/api/src/utils/credentialUsability.ts`
   (the single usability predicate), `packages/api/src/routes/applications.ts`.
 - BYOK: [ADR 0019](../adr/0019-kaana-byok-custody.md),
-  [the BYOK guide](../inference/byok.md), and Kaana's merged customer-credential
-  control boundary. The coordinated Oxy cut and live rollout remain pending;
-  ADR 0013 remains the historical fail-closed refusal.
+  `packages/api/src/services/inferenceProviderConnection.service.ts`,
+  `packages/api/src/services/kaanaCredentialControl.ts`.
+- Oxy → Kaana edge signing: [ADR 0015](../adr/0015-oxy-kaana-envelope-signing.md),
+  `packages/api/src/config/kaanaDataPlane.ts`,
+  `packages/api/src/services/httpKaanaClient.ts`.
 - Service tokens: [ADR 0012](../adr/0012-service-token-signing-key-model.md).
-- The Oxy→Kaana boundary: [ADR 0006](../adr/0006-oxy-kaana-boundary.md) and
-  ADR 0015.
 - Platform secret delivery: `.github/workflows/deploy-aws.yml` and
   `scripts/check-deploy-secrets-sync.mjs`.

@@ -144,6 +144,7 @@ import {
   resolveCatalogueViewer,
   resolveEdgeRoute,
   resolveRoutingProfileForEdge,
+  resolveRoutingProfileForEdgeById,
   routingConstraintsOf,
   TEXT_COMPLETION_MODALITY,
   UNCONSTRAINED_ROUTING,
@@ -277,13 +278,14 @@ export const PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER = false;
 /**
  * A caller the edge has authenticated, in the ONE shape both lanes produce.
  *
- * `scopes` is already `credential ∩ application` on both lanes — never the
- * credential's own list, and never the token's claim taken on trust. A service
- * token lives an hour; a credential can be revoked and an application can lose a
- * scope inside that hour, and both must lock the caller out on the next request.
+ * `scopes` is current database authority, never an unverified token claim. For
+ * machine/service callers it is `credential ∩ application`. For the private
+ * product-session lane, the human session is the authorization and scopes are
+ * the pinned application's current grants; its exact credential is a revocable
+ * attribution anchor only.
  */
 export interface EdgePrincipal {
-  readonly lane: 'machine_credential' | 'service_token';
+  readonly lane: 'machine_credential' | 'service_token' | 'product_session';
   readonly applicationId: string;
   readonly credentialId: string;
   /** `applications.owner_account_id` — the billing principal (ADR 0007). */
@@ -788,16 +790,20 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
         ? 0
         : requestedOutput ?? ('model-maximum' as const),
   };
+  const authenticatedRoutingContext = {
+    applicationId: principal.applicationId,
+    environment: principal.environment,
+  };
   const fallbackEnabled =
     policy.status === 'resolved' && !policy.stored.policy.fallback.disabled;
   const authorizesSameModelFailover =
-    target.kind === 'routing_profile'
+    target.kind !== 'model'
       ? true
       : policy.status === 'resolved'
       ? fallbackEnabled && policy.stored.policy.fallback.sameModelDeployment
       : PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER;
   const authorizesCrossModelFallback =
-    target.kind === 'routing_profile' || fallbackEnabled;
+    target.kind !== 'model' || fallbackEnabled;
 
   type ResolvedRoutes = Extract<
     Awaited<ReturnType<typeof resolveEdgeRoute>>,
@@ -840,6 +846,14 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   };
 
   const routeGroups: RouteGroup[] = [];
+  const requestedTargetReference =
+    target.kind === 'model'
+      ? target.modelReference
+      : target.kind === 'routing_profile_legacy'
+        ? target.routingProfile
+        : target.routingProfileId;
+  let admittedRoutingTarget: RoutingTarget | undefined =
+    target.kind === 'model' ? target : undefined;
   let requestedModelReference = target.kind === 'model' ? target.modelReference : '';
   let implicitOutputCeiling: number | undefined;
   let sawOutputLimit = false;
@@ -869,6 +883,11 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     const rankedAtPriority = resolutions
       .flatMap((resolution) => [resolution.route, ...resolution.alternates])
       .sort((left, right) => {
+        if (routingConstraints.byokPreference === 'prefer') {
+          const leftIsByok = left.availabilityScope === 'byok_only';
+          const rightIsByok = right.availabilityScope === 'byok_only';
+          if (leftIsByok !== rightIsByok) return leftIsByok ? -1 : 1;
+        }
         const byScore = right.routingScore - left.routingScore;
         if (byScore !== 0) return byScore;
         return compareExactDeploymentIds(left.deploymentId, right.deploymentId);
@@ -966,7 +985,8 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       routingConstraints,
       requiredModality,
       optimiseFor,
-      capacityForNextPriority()
+      capacityForNextPriority(),
+      authenticatedRoutingContext
     );
     if (primary.status === 'routing-evidence-unavailable') {
       return routingEvidenceRefusal(target.modelReference, primary.reason);
@@ -995,7 +1015,8 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
           routingConstraints,
           requiredModality,
           optimiseFor,
-          capacityForNextPriority()
+          capacityForNextPriority(),
+          authenticatedRoutingContext
         );
         if (fallback.status === 'routing-evidence-unavailable') {
           return routingEvidenceRefusal(target.modelReference, fallback.reason);
@@ -1011,17 +1032,26 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       }
     }
   } else {
-    const profileResolution = await resolveRoutingProfileForEdge(target.routingProfile);
+    const exactIdTarget = target.kind === 'routing_profile_id';
+    const profileResolution = exactIdTarget
+      ? await resolveRoutingProfileForEdgeById(target.routingProfileId)
+      : await resolveRoutingProfileForEdge(target.routingProfile);
     if (profileResolution.status === 'unknown-profile') {
       return refuse('no_route_available', 'No route is currently available.', {
-        param: 'routingProfile',
-        reason: 'unknown_routing_profile',
+        param: exactIdTarget ? 'routingProfileId' : 'routingProfile',
+        reason: exactIdTarget ? 'unknown_routing_profile_id' : 'unknown_routing_profile',
       });
     }
     if (profileResolution.status === 'routing-evidence-unavailable') {
-      return routingEvidenceRefusal(target.routingProfile, profileResolution.reason);
+      return routingEvidenceRefusal(requestedTargetReference, profileResolution.reason);
     }
     const { profile } = profileResolution;
+    // The deprecated public slug is resolved here and cannot cross the signed
+    // boundary. Both public selectors emit the exact canonical catalogue PK.
+    admittedRoutingTarget = {
+      kind: 'routing_profile_id',
+      routingProfileId: profile.routingProfileId,
+    };
 
     const priorities = [...new Set(profile.candidates.map((candidate) => candidate.priority))].sort(
       (left, right) => left - right
@@ -1035,7 +1065,8 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
           routingConstraints,
           requiredModality,
           profile.optimiseFor,
-          capacityForNextPriority()
+          capacityForNextPriority(),
+          authenticatedRoutingContext
         );
         if (resolution.status === 'routing-evidence-unavailable') {
           return routingEvidenceRefusal(candidate.modelReference, resolution.reason);
@@ -1081,6 +1112,11 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   rankedCandidates.sort((left, right) => {
     const byPriority = left.priority - right.priority;
     if (byPriority !== 0) return byPriority;
+    if (routingConstraints.byokPreference === 'prefer') {
+      const leftIsByok = left.route.availabilityScope === 'byok_only';
+      const rightIsByok = right.route.availabilityScope === 'byok_only';
+      if (leftIsByok !== rightIsByok) return leftIsByok ? -1 : 1;
+    }
     const byScore = right.route.routingScore - left.route.routingScore;
     if (byScore !== 0) return byScore;
     return compareExactDeploymentIds(left.route.deploymentId, right.route.deploymentId);
@@ -1105,7 +1141,7 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       const refusedReference =
         requestedModelReference ||
         routeGroups[0]?.resolution.route.modelReference ||
-        (target.kind === 'routing_profile' ? target.routingProfile : target.modelReference);
+        requestedTargetReference;
       await recordEdgeTelemetry(context, {
         requestedModelReference: refusedReference,
         statusCode: inferenceErrorStatus('policy_violation'),
@@ -1163,13 +1199,20 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       );
     }
     return refuse('no_route_available', 'No route is currently available.', {
-      ...(target.kind === 'routing_profile' ? { param: 'routingProfile' } : {}),
+      ...(target.kind === 'routing_profile_legacy'
+        ? { param: 'routingProfile' }
+        : target.kind === 'routing_profile_id'
+          ? { param: 'routingProfileId' }
+          : {}),
       reason: 'no_ordinary_candidate',
     });
   }
 
   const route = primaryCandidate.route;
-  if (target.kind === 'routing_profile') requestedModelReference = route.modelReference;
+  if (target.kind !== 'model') requestedModelReference = route.modelReference;
+  if (admittedRoutingTarget === undefined) {
+    return routingEvidenceRefusal(requestedTargetReference, 'missing-resolved-routing-target');
+  }
   const maxOutputTokens = outputTokenBudget(
     request.operation,
     requestedOutput ?? route.maxOutputTokens
@@ -1370,7 +1413,7 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     status: 'admitted',
     admitted: {
       route,
-      routingTarget: target,
+      routingTarget: admittedRoutingTarget,
       authorizedRoutes,
       requestedModelReference,
       maxOutputTokens,
@@ -1542,6 +1585,7 @@ export async function executeInferenceRequest(
       resolvedModelReference: servedRoute.modelReference,
       servingProvider,
       priceVersionId: servedRoute.priceVersionId,
+      platformFeeOnly: servedRoute.availabilityScope === 'byok_only',
       ...(admitted.routingPolicyVersionId === undefined
         ? {}
         : { routingPolicyVersionId: admitted.routingPolicyVersionId }),
@@ -2189,6 +2233,7 @@ async function recordShadowMetering(
     resolvedModelReference: route.modelReference,
     servingProvider: measured.servingProvider,
     priceVersionId: route.priceVersionId,
+    platformFeeOnly: route.availabilityScope === 'byok_only',
     ...(measured.routingPolicyVersionId === undefined
       ? {}
       : { routingPolicyVersionId: measured.routingPolicyVersionId }),
@@ -2354,6 +2399,7 @@ async function settleMeasured(
       resolvedModelReference: servedRoute.modelReference,
       servingProvider: settlement.servingProvider,
       priceVersionId: servedRoute.priceVersionId,
+      platformFeeOnly: servedRoute.availabilityScope === 'byok_only',
       ...(admitted.routingPolicyVersionId === undefined
         ? {}
         : { routingPolicyVersionId: admitted.routingPolicyVersionId }),
@@ -2644,7 +2690,7 @@ function buildEnvelope(
   );
 
   return inferenceRequestSchema.parse({
-    schemaVersion: 1,
+    schemaVersion: 2,
     attribution: {
       principal: {
         billing: { accountId: principal.ownerAccountId },
@@ -2663,7 +2709,7 @@ function buildEnvelope(
     // policy authorized a cross-model fallback; otherwise pin the admitted
     // model revision itself.
     target:
-      routingTarget.kind === 'routing_profile' || authorizesCrossModel
+      routingTarget.kind === 'routing_profile_id' || authorizesCrossModel
         ? routingTarget
         : { kind: 'model', modelReference: route.modelReference },
     modality: 'text',
@@ -2719,6 +2765,9 @@ function buildEnvelope(
         modelReference: authorized.modelReference,
         provider: authorized.provider,
         regions: authorized.regions,
+        ...(authorized.customerProviderCredential === undefined
+          ? {}
+          : { customerProviderCredential: authorized.customerProviderCredential }),
       };
     }),
     routingPolicy,

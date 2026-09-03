@@ -13,29 +13,14 @@
  * SAME router that serves `/models`, so the catalogue cannot answer one thing at
  * one path and another at the other.
  *
- * ## What this does to the Alia proxy, and why
- *
- * ADR 0010 decided that `/v1` becomes the Oxy inference edge rather than a proxy
- * to a product, and it names `POST /v1/chat/completions` as the compatibility
- * surface. This router is therefore mounted at `/v1` BEFORE `aliaRoutes`, and it
- * takes exactly three paths from it: `/v1/responses` and `/v1/generations/:id`
- * (which the proxy never served) and `/v1/chat/completions` (which it did).
- *
- * **The proxy itself is untouched and still reachable at `/alia/chat/completions`**
- * — the same router, the same `#981` first-party gate, the same behaviour — so
- * platform-trusted callers keep a separate product path, one base URL apart.
- * `/v1/voice/token` and `/v1/voice/transcribe` still fall through to
- * it unchanged: ADR 0010 says explicitly that those are Alia product endpoints
- * which happen to live under `/v1`, that they are not part of the inference edge,
- * and that where they end up is workstream 14's decision rather than this one's.
- *
- * The visible consequence is honest and intended: a caller that posts to
+ * ADR 0010 decided that `/v1` is the Oxy inference edge rather than a proxy to
+ * a product, and names `POST /v1/chat/completions` as the compatibility surface.
+ * Alia agent and voice product traffic addresses Alia directly. A caller that posts to
  * `/v1/chat/completions` reaches the inference edge. Without a complete, enabled
  * Kaana binding it receives a typed `service_unavailable`; it is never silently
  * proxied to Alia on one shared upstream key with no reservation or attribution. The
  * epic's own invariant is that generic inference is served through the Oxy edge,
- * not through Alia as infrastructure; keeping the old behaviour on the new path
- * would be the fallback that makes the invariant untrue.
+ * not through Alia as infrastructure.
  *
  * ## Which deployments serve it at all
  *

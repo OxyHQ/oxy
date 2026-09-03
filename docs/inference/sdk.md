@@ -107,10 +107,11 @@ contains DNS, TLS, both network legs and your own parse. Report them side by
 side: this one has no network in it, and yours cannot be attributed to the model.
 Their difference is not a fourth measurement — neither clock took it.
 
-Nothing on this page names a model Oxy serves because main contains no merged
-model bootstrap and these docs do not invent one. `listModels()` may answer
-`[]`; that is a normal audience-scoped result to render rather than an error to
-retry or proof of current production contents. See [catalogue.md](./catalogue.md).
+Nothing on this page names a model Oxy serves because the reviewed bootstrap's
+presence in source does not prove it ran or that a model is visible to this
+caller. These docs do not invent one. `listModels()` may answer `[]`; that is a
+normal audience-scoped result to render rather than an error to retry or proof
+of current production contents. See [catalogue.md](./catalogue.md).
 
 ### Errors
 
@@ -333,11 +334,10 @@ plane does not teach every client to retry forever
 - `model` must name a catalogue entry visible to the caller.
 - Missing, stale, mismatched or colliding route identity, price or score evidence
   refuses before reservation and before an inference POST. The signed read-only
-  deployment attestation can precede the final hold quote, so a child-unit price
-  gap discovered there may follow that preflight while still producing no hold
-  and no execution.
-- A deployment with Kaana execution disabled returns the typed, non-retryable
-  unconfigured-path refusal and keeps no charge.
+  deployment attestation can precede the final hold quote while still producing
+  no hold and no execution.
+- With `INFERENCE_KAANA_EXECUTION=disabled`, every invoke returns the typed,
+  non-retryable unconfigured-path refusal and keeps no charge.
 - Streaming and cancellation require the same live end-to-end verification as a
   non-streamed request; source support alone is not production evidence.
 

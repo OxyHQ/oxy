@@ -783,6 +783,10 @@ describe('a routing-profile target', () => {
     );
 
     expect(seen).toHaveLength(1);
+    expect(seen[0]?.target).toEqual({
+      kind: 'routing_profile_id',
+      routingProfileId: profile.id,
+    });
     expect(seen[0].authorizedRoutes).toHaveLength(6);
     expect(seen[0].authorizedRoutes[0]).toMatchObject({
       deploymentId: fixture.otherPrimaryDeploymentId,

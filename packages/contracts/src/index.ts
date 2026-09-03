@@ -200,9 +200,7 @@ export {
     oxySignedRecordTypeSchema,
 } from './oxyRecordTypes';
 
-export type {
-    OxySignedRecordType,
-} from './oxyRecordTypes';
+export type { OxySignedRecordType } from './oxyRecordTypes';
 
 export {
     // Schemas
@@ -210,11 +208,7 @@ export {
     logPageResponseSchema,
 } from './protocol';
 
-export type {
-    LexiconRecord,
-    ChainHeadResponse,
-    LogPageResponse,
-} from './protocol';
+export type { LexiconRecord, ChainHeadResponse, LogPageResponse } from './protocol';
 
 export {
     // Schemas
@@ -503,15 +497,9 @@ export type {
     DeviceDirectorySync,
 } from './deviceDirectory';
 
-export {
-    oauthConsentDecisionSchema,
-    oauthAuthorizeCodeResponseSchema,
-} from './oauth';
+export { oauthConsentDecisionSchema, oauthAuthorizeCodeResponseSchema } from './oauth';
 
-export type {
-    OauthConsentDecision,
-    OauthAuthorizeCodeResponse,
-} from './oauth';
+export type { OauthConsentDecision, OauthAuthorizeCodeResponse } from './oauth';
 
 export {
     BROWSER_HUB_COOKIE_NAME,
@@ -725,6 +713,7 @@ export {
     modelIdSchema,
     modelRevisionLabelSchema,
     modelReferenceSchema,
+    routingProfileIdSchema,
     routingProfileSlugSchema,
     inferenceProviderSlugSchema,
     deploymentIdSchema,
@@ -805,11 +794,7 @@ export {
     priceSnapshotSchema,
 } from './inference/priceVersion';
 
-export type {
-    PriceVersionStatus,
-    PriceVersion,
-    PriceSnapshot,
-} from './inference/priceVersion';
+export type { PriceVersionStatus, PriceVersion, PriceSnapshot } from './inference/priceVersion';
 
 export {
     // The six distinct catalogue objects + the customer-safe projection.
@@ -1006,9 +991,29 @@ export type {
 
 export {
     // BYOK connection metadata that structurally cannot carry a secret.
-    PROVIDER_SECRET_REFERENCE_NAMESPACE,
     providerConnectionScopeSchema,
-    providerSecretReferenceSchema,
+    kaanaCredentialHandleSchema,
+    kaanaCredentialOperationIdSchema,
+    kaanaCredentialOperationActionSchema,
+    kaanaCredentialIdentitySchema,
+    kaanaCredentialCreateMutationSchema,
+    kaanaCredentialRotateMutationSchema,
+    kaanaCredentialRevokeMutationSchema,
+    kaanaCredentialMutationSchema,
+    kaanaCredentialCreateOutcomeRequestSchema,
+    kaanaCredentialRotateOutcomeRequestSchema,
+    kaanaCredentialRevokeOutcomeRequestSchema,
+    kaanaCredentialOutcomeRequestSchema,
+    kaanaCredentialAppliedOutcomeSchema,
+    kaanaCredentialConflictOutcomeSchema,
+    kaanaCredentialOutcomeSchema,
+    kaanaCredentialValidationTaskSchema,
+    kaanaCredentialValidationOutcomeStateSchema,
+    kaanaCredentialValidationFailureCodeSchema,
+    kaanaCredentialValidationOutcomeSchema,
+    providerCredentialValidationOperationSchema,
+    providerCredentialValidationDeploymentSchema,
+    providerCredentialCustodyStateSchema,
     providerConnectionValidationSchema,
     providerConnectionStatusSchema,
     providerConnectionSchema,
@@ -1016,8 +1021,18 @@ export {
 
 export type {
     ProviderConnectionScope,
+    KaanaCredentialOperationAction,
+    KaanaCredentialIdentity,
+    KaanaCredentialMutation,
+    KaanaCredentialOutcomeRequest,
+    KaanaCredentialOutcome,
+    KaanaCredentialValidationTask,
+    KaanaCredentialValidationOutcome,
+    ProviderCredentialValidationOperation,
+    ProviderCredentialValidationDeployment,
     ProviderConnectionValidation,
     ProviderConnectionStatus,
+    ProviderCredentialCustodyState,
     ProviderConnection,
 } from './inference/providerConnection';
 
@@ -1162,3 +1177,24 @@ export type {
     EmailContextMessage,
     EmailAgentContext,
 } from './emailAgentContext';
+
+export {
+    inboxComposeRequestSchema,
+    inboxDailyBriefRequestSchema,
+    inboxNaturalSearchRequestSchema,
+    inboxMessageInferenceParamsSchema,
+    inboxInferenceTextResponseSchema,
+    inboxNaturalSearchResponseSchema,
+    inboxSmartRepliesResponseSchema,
+    inboxThreadSummaryResponseSchema,
+    inboxInferenceStreamEventSchema,
+} from './inference/inbox';
+
+export type {
+    InboxComposeRequest,
+    InboxInferenceTextResponse,
+    InboxNaturalSearchResponse,
+    InboxSmartRepliesResponse,
+    InboxThreadSummaryResponse,
+    InboxInferenceStreamEvent,
+} from './inference/inbox';

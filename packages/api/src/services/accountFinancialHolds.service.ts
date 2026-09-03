@@ -42,10 +42,14 @@
  * not change while the process runs; a migration means a new process.
  */
 
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { executeRows } from '@oxyhq/db';
 import { getDb } from '../config/postgres';
 import { LIVE_PRODUCT_PLAN_STATUSES } from '@oxyhq/contracts';
+import { inferenceProviderConnections } from '../db/schema/inferenceProviderConnections';
+import { users } from '../db/schema/users';
+import { accountClosureFences } from '../db/schema/accountClosureFences';
+import { ConflictError, NotFoundError } from '../utils/error';
 
 /** A foreign key into `users` whose delete action blocks the delete. */
 export interface RestrictingReference {
@@ -107,7 +111,7 @@ export interface AccountFinancialHolds {
   /** Reservations still `held` — money neither spent nor returned. */
   readonly heldReservations: number;
   /**
-   * BYOK connections whose CREDENTIAL IS STILL IN THE SECRET STORE, by id.
+   * BYOK connections whose credential is still active in Kaana custody, by id.
    *
    * The one arm of this answer that is not financial, and it is here because it
    * is the same question: what must a person deal with before their account can
@@ -115,14 +119,12 @@ export interface AccountFinancialHolds {
    * rather than `CASCADE` on purpose, and its schema comment states the reason
    * and the obligation:
    *
-   *   > A cascade here would delete the metadata while leaving the credential
-   *   > sitting in the secret store with nothing left in Oxy that knows it
-   *   > exists — an orphaned secret nobody can find to destroy. Account deletion
-   *   > must revoke these first, which is a deliberate, loud step.
+   *   > A cascade here would delete the metadata while leaving Kaana ciphertext
+   *   > with no Oxy record carrying the opaque handle needed to revoke it.
    *
    * The delete route never performed that step. So an account with a live
    * connection archived — correctly, nothing leaked, the account could no longer
-   * act — while the row stayed live with its credential in the store, and the
+   * act — while the row stayed live with its credential in Kaana, and the
    * connection appeared in {@link retainedRecords} as though it were a financial
    * record it must legally keep. This makes the promised step exist.
    *
@@ -134,12 +136,12 @@ export interface AccountFinancialHolds {
    * believes is in use — and destroying it as a side effect of a delete is the
    * same class of act as cancelling somebody's payment agreement.
    *
-   * ## Why "not revoked" and not `LIVE_PROVIDER_CONNECTION_STATUSES`
+   * ## Why "not revoked" and not the routable-status test
    *
-   * That constant answers "may a request be served through this connection", and
-   * excludes `disabled`. This asks whether a credential is still held in the
-   * secret store, and only `revoke` destroys one — `disabled` is explicitly
-   * reversible and keeps its secret. Using the serving constant here would let a
+   * Routability answers "may a request be served through this connection" and
+   * excludes `disabled`. This asks whether Kaana still holds a credential,
+   * and only `revoke` retires one — `disabled` is explicitly reversible and keeps
+   * its ciphertext. Using the serving rule here would let a
    * disabled connection's credential survive its owner's account.
    */
   readonly liveProviderConnections: readonly string[];
@@ -156,7 +158,7 @@ export interface AccountFinancialHolds {
   readonly retainedRecords: readonly RetainedRecordCount[];
   /** True when Stripe would keep charging a deleted customer. */
   readonly hasLiveSubscription: boolean;
-  /** True when a credential of this account's is still in the secret store. */
+  /** True when a credential of this account is still active in Kaana custody. */
   readonly hasLiveProviderConnection: boolean;
   /** True when a `DELETE FROM users` would raise a foreign key violation. */
   readonly blocksHardDelete: boolean;
@@ -215,15 +217,16 @@ export async function describeAccountFinancialHolds(
     `
   );
 
-  // `status <> 'revoked'` rather than the serving statuses: `disabled` is
-  // reversible and keeps its credential in the secret store, and only `revoke`
-  // destroys one. See `liveProviderConnections`.
+  // The local serving status is fenced to `revoked` BEFORE the signed Kaana
+  // operation, so it cannot prove the secret was removed. Only terminal
+  // `custody_state = 'revoked'` is an acknowledged deletion by Kaana;
+  // pending/reconcile/ready all keep the account on hold.
   const providerConnections = await executeRows<{ id: string }>(
     db,
     sql`
       select id
       from inference_provider_connections
-      where owner_account_id = ${accountId} and status <> 'revoked'
+      where owner_account_id = ${accountId} and custody_state <> 'revoked'
       order by id
     `
   );
@@ -270,11 +273,56 @@ function quoteIdentifier(identifier: string): string {
  * inference would be the kind of scope creep that is discovered later as data
  * loss. The boundary is stated rather than implied.
  */
+async function establishAccountClosureFence(accountId: string, archive: boolean): Promise<void> {
+  await getDb().transaction(async (tx) => {
+    // Provider-connection creation takes this same row lock before it commits
+    // metadata. Whichever operation locks first therefore decides the outcome:
+    // the archive sees the new custody row, or the create sees `archived`.
+    const [account] = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, accountId))
+      .limit(1)
+      .for('update');
+    if (!account) {
+      throw new NotFoundError('Account not found');
+    }
+
+    const outstandingCustody = await tx
+      .select({ id: inferenceProviderConnections.id })
+      .from(inferenceProviderConnections)
+      .where(
+        sql`${inferenceProviderConnections.ownerAccountId} = ${account.id}
+          and ${inferenceProviderConnections.custodyState} <> 'revoked'`
+      )
+      .orderBy(inferenceProviderConnections.id);
+    if (outstandingCustody.length > 0) {
+      throw new ConflictError(
+        'This account still holds provider credentials. Revoke every connection and wait for Kaana custody acknowledgement before closing it.',
+        { providerConnections: outstandingCustody.map((row) => row.id) }
+      );
+    }
+
+    await tx
+      .insert(accountClosureFences)
+      .values({ accountId: account.id })
+      .onConflictDoNothing({ target: accountClosureFences.accountId });
+
+    if (archive) {
+      await tx
+        .update(users)
+        .set({ accountStatus: 'archived' })
+        .where(eq(users.id, account.id));
+    }
+  });
+}
+
+/** Fence a retryable self-delete without locking the person out mid-cleanup. */
+export async function beginAccountClosure(accountId: string): Promise<void> {
+  await establishAccountClosureFence(accountId, false);
+}
+
+/** Fence and archive atomically for retained or managed-account closure. */
 export async function archiveAccountForRetention(accountId: string): Promise<void> {
-  await getDb().execute(sql`
-    update users
-    set account_status = 'archived',
-        updated_at = date_trunc('milliseconds', now())
-    where id = ${accountId}
-  `);
+  await establishAccountClosureFence(accountId, true);
 }

@@ -35,12 +35,14 @@ and holds each of them exactly once:
 - **One customer console.** `packages/console/src/routes/_layout/` — apps,
   models, playground, usage, billing, settings, documentation.
 
-One thing in the repo already contradicts that picture, and it is the thing this
-epic exists to replace: `app.use('/v1', userRateLimiter, aliaRoutes)`
+At the time of this decision one thing contradicted that picture:
+`app.use('/v1', userRateLimiter, aliaRoutes)`
 (`packages/api/src/server.ts:647`) forwards `POST /v1/chat/completions` to
 `https://api.alia.onl/v1` under a single static `ALIA_API_KEY`
-(`packages/api/src/routes/alia.ts:7-8`, `:65-81`). Oxy is currently a proxy in
-front of somebody else's control plane for the exact surface it should own.
+(`packages/api/src/routes/alia.ts:7-8`, `:65-81`). That transitional proxy is
+now removed; generic inference and Inbox point inference use Oxy-to-Kaana.
+Putting Oxy in front of somebody else's control plane for the exact surface it
+should own was the contradiction this decision removed.
 
 A second control plane is not a hypothetical risk here. It is what happens by
 default when a data-plane team needs to answer "who is calling and can they
@@ -100,7 +102,7 @@ The epic's non-negotiable invariants, each with what it forbids in this repo:
    only writes about a customer are its own request/usage records keyed by Oxy
    ids.
 7. **Generic inference endpoints are served through the Oxy public API edge, not
-   through Alia as an infrastructure proxy.** Forbids the current
+   through Alia as an infrastructure proxy.** Forbids the retired
    `packages/api/src/routes/alia.ts` shape surviving the migration: a shared
    static upstream key with no per-customer attribution.
 8. **Availability inside Alia does not imply permission to resell publicly.**

@@ -33,26 +33,24 @@
  * The dispatch is byte-for-byte the arrangement in `inferenceRoutingPolicies.ts`
  * and defines no third parsing path.
  *
- * `POST /:connectionId/validation` is inside that refusal, and the consequence is
- * deliberate: the credential check runs where the credential is, so the verdict's
- * natural reporter is the data plane, and an `invalid` verdict also DISABLES the
- * connection. Leaving the lane open for it would have left a disable-equivalent
- * open to exactly the credential this refusal exists to stop. When the data plane
- * needs to report a verdict it needs a principal designed for that, not a
- * customer-mintable service token — recorded in `docs/inference/byok.md`.
+ * `POST /:connectionId/validation` is a third, deliberately narrower case: only
+ * a live trusted service principal holding BOTH `inference:byok:validate` and
+ * the staff-controlled `kaana:provider-credential-validation` application
+ * capability may report Kaana's verdict. It cannot create, rotate, disable,
+ * enable, reconcile or revoke a connection. An ordinary customer service token
+ * remains inside the refusal above.
  *
  * ## Order of checks on a write, and why it is this order
  *
  * 1. **Authorise.** A caller with no authority gets 403 or 404 — never a 503
  *    that tells them what this deployment is configured with.
- * 2. **Resolve the secret store.** With none configured the request is refused
- *    HERE, `503 provider_secret_store_unavailable`, before step 3.
+ * 2. **Resolve the signed Kaana custody client.** With none configured the request is refused
+ *    HERE, `503 kaana_credential_control_unavailable`, before step 3.
  * 3. **Read the credential out of the body.**
  *
- * Step 2 before step 3 is the whole point: in a deployment with no secret
- * backend — which is every deployment today — a customer credential is never
- * read out of a request at all. See `services/providerSecretStore.ts` for what
- * is and is not wired, and what would wire it.
+ * Step 2 before step 3 is the whole point: without the dedicated signed Kaana
+ * authority a customer credential is never
+ * read out of a request at all.
  *
  * ## Not found, not forbidden
  *
@@ -60,10 +58,10 @@
  * the id space an existence oracle for other tenants' BYOK setup.
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
-import { validate } from '../middleware/validate';
+import { parseValidatedRequestValue, validate } from '../middleware/validate';
 import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
 import {
   providerConnectionAccountBody,
@@ -73,7 +71,12 @@ import {
   providerConnectionEffectiveQuery,
   providerConnectionEmptyBody,
   providerConnectionParams,
+  providerConnectionReconcileResponseSchema,
+  providerConnectionReconcileBody,
   providerConnectionRotateBody,
+  providerCredentialValidationApplicationQuery,
+  providerCredentialValidationBootstrapBody,
+  providerCredentialValidationOutcomeBody,
   providerConnectionValidationBody,
   providerCredentialBody,
 } from '../schemas/inferenceProviderConnection.schemas';
@@ -89,6 +92,7 @@ import {
   getProviderConnectionRow,
   listProviderConnectionAuditEvents,
   listProviderConnectionsForAccount,
+  reconcileProviderConnection,
   recordProviderConnectionUse,
   recordProviderConnectionValidation,
   resolveProviderConnectionForApplication,
@@ -99,12 +103,21 @@ import {
   type ProviderConnectionStatusResult,
 } from '../services/inferenceProviderConnection.service';
 import {
-  ProviderSecretStoreUnavailableError,
-  ProviderSecretValue,
-  requireProviderSecretStore,
-  resolveProviderSecretStore,
-  type ProviderSecretStore,
-} from '../services/providerSecretStore';
+  getLatestProviderCredentialValidation,
+  listProviderCredentialValidationDeployments,
+  recordProviderCredentialValidationOutcome,
+  startProviderCredentialValidation,
+} from '../services/providerCredentialValidation.service';
+import {
+  requireKaanaCredentialValidationDispatcher,
+  type KaanaCredentialValidationDispatcher,
+} from '../services/kaanaCredentialValidation';
+import {
+  KaanaCredentialControlUnavailableError,
+  ProviderCredentialValue,
+  requireKaanaCredentialControl,
+  type KaanaCredentialControl,
+} from '../services/kaanaCredentialControl';
 import type { InferenceProviderConnectionRow } from '../db/schema/inferenceProviderConnections';
 import type { ProviderConnectionActor } from '../db/schema/inferenceProviderConnectionAuditEvents';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -117,6 +130,8 @@ import {
   UnauthorizedError,
 } from '../utils/error';
 import type { AccountPermission, ApplicationPermission } from '../utils/accountRoles';
+import { KAANA_PROVIDER_CREDENTIAL_VALIDATOR_CAPABILITY } from '../utils/applicationCapabilities';
+import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 
 const router = Router();
 
@@ -129,12 +144,48 @@ const providerReadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 600,
   prefix: 'rl:inference:providers:read:',
+  skip: (req) => Boolean((req as ProviderRequest).serviceApp),
 });
 
 const providerWriteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
   prefix: 'rl:inference:providers:write:',
+  skip: (req) => Boolean((req as ProviderRequest).serviceApp),
+});
+
+export const PROVIDER_SERVICE_READS_PER_15_MINUTES = 300_000;
+export const PROVIDER_SERVICE_WRITES_REFUSED_PER_15_MINUTES = 600;
+export const PROVIDER_VALIDATION_REPORTS_PER_15_MINUTES = 6_000;
+
+/** Exact live service credential bucket; never a shared NAT/IP bucket. */
+export function providerServiceRateLimitKey(req: Request): string {
+  const service = (req as ProviderRequest).serviceApp;
+  return service ? `${service.appId}:${service.credentialId}` : 'missing-service-principal';
+}
+
+const providerServiceReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: PROVIDER_SERVICE_READS_PER_15_MINUTES,
+  prefix: 'rl:inference:providers:service-read:',
+  keyGenerator: providerServiceRateLimitKey,
+  skip: (req) => !Boolean((req as ProviderRequest).serviceApp),
+});
+
+const providerServiceWriteRefusalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: PROVIDER_SERVICE_WRITES_REFUSED_PER_15_MINUTES,
+  prefix: 'rl:inference:providers:service-write-refusal:',
+  keyGenerator: providerServiceRateLimitKey,
+  skip: (req) => !Boolean((req as ProviderRequest).serviceApp),
+});
+
+const providerValidationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: PROVIDER_VALIDATION_REPORTS_PER_15_MINUTES,
+  prefix: 'rl:inference:providers:validation:',
+  keyGenerator: providerServiceRateLimitKey,
+  skip: (req) => !Boolean((req as ProviderRequest).serviceApp),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -160,7 +211,7 @@ type ProviderScope = 'inference:providers:read' | 'inference:providers:write';
 const providerConnectionPrincipal = (
   req: ProviderRequest,
   res: Response,
-  next: (error?: unknown) => void
+  next: (error?: unknown) => void,
 ): void => {
   const header = req.headers.authorization;
   if (header !== undefined && header.startsWith('Bearer ')) {
@@ -210,7 +261,9 @@ function principalOf(req: ProviderRequest): ProviderPrincipal {
  * the point: reopening the lane must not silently produce an unattributable row.
  */
 function actorOf(principal: ProviderPrincipal): ProviderConnectionActor {
-  return principal.kind === 'user' ? { kind: 'user', userId: principal.userId } : { kind: 'service' };
+  return principal.kind === 'user'
+    ? { kind: 'user', userId: principal.userId }
+    : { kind: 'service' };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -278,14 +331,18 @@ async function authorizeAccount(
   principal: ProviderPrincipal,
   accountId: string,
   permission: AccountPermission,
-  scope: ProviderScope
+  scope: ProviderScope,
 ): Promise<void> {
   if (principal.kind === 'service') {
-    if (!principal.service.scopes.includes(scope)) {
+    const live = await resolveLiveAgencyServicePrincipal(principal.service);
+    if (!live) {
+      throw new NotFoundError('No provider connection is available for that account');
+    }
+    if (!live.scopes.includes(scope)) {
       throw new ForbiddenError(`This credential does not carry the ${scope} scope`);
     }
     refuseServiceWrite(permission);
-    if (principal.service.ownerAccountId !== accountId) {
+    if (live.ownerAccountId !== accountId) {
       throw new NotFoundError('No provider connection is available for that account');
     }
     return;
@@ -305,10 +362,14 @@ async function authorizeApplication(
   principal: ProviderPrincipal,
   applicationId: string,
   permission: ApplicationPermission,
-  scope: ProviderScope
+  scope: ProviderScope,
 ): Promise<void> {
   if (principal.kind === 'service') {
-    if (!principal.service.scopes.includes(scope)) {
+    const live = await resolveLiveAgencyServicePrincipal(principal.service);
+    if (!live) {
+      throw new NotFoundError('No provider connection is available for that application');
+    }
+    if (!live.scopes.includes(scope)) {
       throw new ForbiddenError(`This credential does not carry the ${scope} scope`);
     }
     // Same refusal as the account lane, and it has to be on both: an
@@ -317,7 +378,7 @@ async function authorizeApplication(
     refuseServiceWrite(permission);
     // A service token reaches only its OWN application. Without this, any
     // credential holding the scope could read or repoint any tenant's BYOK.
-    if (principal.service.appId !== applicationId) {
+    if (live.applicationId !== applicationId) {
       throw new NotFoundError('No provider connection is available for that application');
     }
     return;
@@ -343,8 +404,11 @@ async function authorizeApplication(
 async function authorizeConnection(
   principal: ProviderPrincipal,
   connectionId: string,
-  permissions: { readonly application: ApplicationPermission; readonly account: AccountPermission },
-  scope: ProviderScope
+  permissions: {
+    readonly application: ApplicationPermission;
+    readonly account: AccountPermission;
+  },
+  scope: ProviderScope,
 ): Promise<InferenceProviderConnectionRow> {
   const row = await getProviderConnectionRow(connectionId);
   if (row === undefined) {
@@ -357,17 +421,59 @@ async function authorizeConnection(
     await authorizeAccount(principal, row.ownerAccountId, permissions.account, scope);
   }
 
+  if (principal.kind === 'service' && row.environment !== principal.service.environment) {
+    throw new NotFoundError('No such provider connection');
+  }
+
+  return row;
+}
+
+/**
+ * Authorise Kaana's one-way credential-verdict callback.
+ *
+ * This is intentionally not an arm of `authorizeConnection`: Kaana reports
+ * across customer tenants, while every ordinary service read is owner/app
+ * bounded and every ordinary service write is refused. The independent narrow
+ * scope plus staff-controlled capability keep that authority from implying any
+ * other provider-connection mutation.
+ */
+async function authorizeKaanaValidation(
+  principal: ProviderPrincipal,
+  connectionId: string,
+): Promise<InferenceProviderConnectionRow> {
+  if (principal.kind !== 'service') {
+    throw new ForbiddenError('Credential validation may only be reported by Kaana');
+  }
+  const live = await resolveLiveAgencyServicePrincipal(principal.service);
+  if (!live) {
+    throw new NotFoundError('No such provider connection');
+  }
+  if (!live.scopes.includes('inference:byok:validate')) {
+    throw new ForbiddenError(
+      'This credential does not carry the inference:byok:validate scope',
+    );
+  }
+  if (!live.capabilities.includes(KAANA_PROVIDER_CREDENTIAL_VALIDATOR_CAPABILITY)) {
+    throw new ForbiddenError('This service principal is not Kaana credential validation');
+  }
+  const row = await getProviderConnectionRow(connectionId);
+  if (row === undefined || row.environment !== principal.service.environment) {
+    throw new NotFoundError('No such provider connection');
+  }
   return row;
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Secret store                                                              */
+/*  Kaana credential control                                                  */
 /* -------------------------------------------------------------------------- */
 
 /**
- * The store, or a 503 naming the reason.
+ * The dedicated signed Kaana control client, or a 503.
  *
- * Called BEFORE the body is read on every path that would accept a credential.
+ * Called before credential validation, wrapping or any service/control handoff
+ * on every path that would accept a credential. Express has already parsed the
+ * bounded JSON body globally; Oxy never persists, logs or derives data from the
+ * credential and discards the request when this check fails.
  * `503` rather than `500` or `400`: nothing is wrong with the request, and the
  * condition is expected to change — the same shape the inference edge uses when
  * its data plane is absent (`service_unavailable`, `utils/inferenceEdgeErrors.ts`).
@@ -379,18 +485,31 @@ async function authorizeConnection(
  * `/inference/*`. Importing `inferenceEdgeErrors` here would put a public-API
  * contract on a Console endpoint that is not part of it.
  */
-function providerSecretStoreOr503(): ProviderSecretStore {
+function kaanaCredentialControlOr503(): KaanaCredentialControl {
   try {
-    return requireProviderSecretStore();
+    return requireKaanaCredentialControl();
   } catch (error) {
-    if (error instanceof ProviderSecretStoreUnavailableError) {
-      // `error.code` is the machine-readable half a client branches on; the
-      // `reason` says which of the three unavailable states it is, so an
-      // operator reading a support ticket knows whether to set a variable, fix a
-      // typo, or ship a build with a client in it.
-      throw new ApiError(503, error.message, error.code, { reason: error.resolution.status });
+    if (error instanceof KaanaCredentialControlUnavailableError) {
+      throw new ApiError(503, error.message, error.code);
     }
     throw error;
+  }
+}
+
+/**
+ * Validation creation is durable even while dispatch is unavailable. Returning
+ * a throwing dispatcher lets the service commit first and answer
+ * `retry_required`; a later explicit POST resumes the same operation id.
+ */
+function kaanaCredentialValidationDispatcher(): KaanaCredentialValidationDispatcher {
+  try {
+    return requireKaanaCredentialValidationDispatcher();
+  } catch (error) {
+    return {
+      dispatch: async () => {
+        throw error;
+      },
+    };
   }
 }
 
@@ -400,24 +519,40 @@ function respondToCreate(res: Response, result: CreateProviderConnectionResult):
     case 'created':
       res.status(201).json({ data: result.connection });
       return;
+    case 'custody-reconcile':
+      throw new ApiError(
+        503,
+        'Kaana may have accepted the credential, but Oxy could not prove the final state. The connection is quarantined for reconciliation.',
+        'kaana_credential_reconcile_required',
+        { connectionId: result.connectionId },
+      );
+    case 'custody-manual':
+      throw new ConflictError(
+        'Kaana recorded a conflicting credential operation. The connection remains quarantined for manual resolution.',
+        { connectionId: result.connectionId },
+      );
     case 'unknown-provider':
       throw new BadRequestError(
-        `Oxy does not serve ${result.provider}, so it cannot hold a connection for it`
+        `Oxy does not serve ${result.provider}, so it cannot hold a connection for it`,
       );
     case 'terms-not-acknowledged':
       throw new BadRequestError(
         `${result.provider} requires each customer to accept its own terms before a third ` +
           'party may present their credential. BYOK does not override those terms and does not ' +
           'permit sharing a credential; acknowledge them to continue.',
-        { termsUrl: result.termsUrl }
+        { termsUrl: result.termsUrl },
       );
     case 'scope-taken':
       throw new ConflictError(
         'This scope already has a live connection for that provider and environment; ' +
-          'rotate it, or disable it first'
+          'rotate it, or disable it first',
       );
     case 'scope-mismatch':
       throw new BadRequestError('An application-scoped connection must name an application');
+    case 'application-unavailable':
+      throw new NotFoundError('No provider connection is available for that application');
+    case 'account-unavailable':
+      throw new NotFoundError('No provider connection is available for that account');
   }
 }
 
@@ -452,37 +587,50 @@ router.use(providerConnectionPrincipal);
 /**
  * `GET /inference/provider-connections/accounts/:accountId`
  *
- * Every connection the account owns. Prefixes, fingerprints and validation
- * state; no credential, by construction.
+ * Every connection the account owns. Lifecycle and validation state only; no
+ * credential or credential-derived recognition hint, by construction.
  */
 router.get(
   '/accounts/:accountId',
   providerReadLimiter,
+  providerServiceReadLimiter,
   validate({ params: providerConnectionAccountParams }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { accountId } = providerConnectionAccountParams.parse(req.params);
+    const principal = principalOf(req);
     await authorizeAccount(
-      principalOf(req),
+      principal,
       accountId,
       'inference:providers:read',
-      'inference:providers:read'
+      'inference:providers:read',
     );
 
-    const connections = await listProviderConnectionsForAccount(accountId);
+    const connections = await listProviderConnectionsForAccount(
+      accountId,
+      principal.kind === 'service'
+        ? {
+            applicationId: principal.service.appId,
+            environment: principal.service.environment,
+          }
+        : undefined,
+    );
     res.json({ data: connections, count: connections.length });
-  })
+  }),
 );
 
 /**
  * `POST /inference/provider-connections/accounts/:accountId`
  *
- * Register a credential at account or project scope. The store is resolved
- * before the body is read — see the module header.
+ * Register a credential at account or project scope. Kaana control is resolved
+ * before the parsed credential is validated, wrapped or handed to a service.
+ *
+ * @requestBody providerConnectionAccountBody
  */
 router.post(
   '/accounts/:accountId',
   providerWriteLimiter,
-  validate({ params: providerConnectionAccountParams, body: providerConnectionAccountBody }),
+  providerServiceWriteRefusalLimiter,
+  validate({ params: providerConnectionAccountParams }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { accountId } = providerConnectionAccountParams.parse(req.params);
     const principal = principalOf(req);
@@ -490,11 +638,11 @@ router.post(
       principal,
       accountId,
       'inference:providers:write',
-      'inference:providers:write'
+      'inference:providers:write',
     );
 
-    const store = providerSecretStoreOr503();
-    const body = providerConnectionAccountBody.parse(req.body);
+    const control = kaanaCredentialControlOr503();
+    const body = parseValidatedRequestValue(providerConnectionAccountBody, req.body);
 
     const result = await createProviderConnection(
       {
@@ -502,14 +650,14 @@ router.post(
         ownerAccountId: accountId,
         scopeKind: body.scope,
         environment: body.environment,
-        secret: new ProviderSecretValue(body.secret),
+        secret: new ProviderCredentialValue(body.secret),
         acknowledgeProviderTerms: body.acknowledgeProviderTerms,
         actor: actorOf(principal),
       },
-      store
+      control,
     );
     respondToCreate(res, result);
-  })
+  }),
 );
 
 /**
@@ -524,6 +672,7 @@ router.post(
 router.get(
   '/applications/:applicationId',
   providerReadLimiter,
+  providerServiceReadLimiter,
   validate({
     params: providerConnectionApplicationParams,
     query: providerConnectionEffectiveQuery,
@@ -536,8 +685,11 @@ router.get(
       principal,
       applicationId,
       'inference:byok:read',
-      'inference:providers:read'
+      'inference:providers:read',
     );
+    if (principal.kind === 'service' && environment !== principal.service.environment) {
+      throw new NotFoundError('No provider connection is available for that application');
+    }
 
     const resolution = await resolveProviderConnectionForApplication({
       applicationId,
@@ -558,7 +710,7 @@ router.get(
       await recordProviderConnectionUse(resolution.row);
     }
     res.json({ data: resolution.connection, source: resolution.source });
-  })
+  }),
 );
 
 /**
@@ -567,11 +719,14 @@ router.get(
  * Register a credential scoped to one application. The owning account is
  * resolved SERVER-side from the application, never taken from the request — an
  * account id in a body would be the whole attribution chain replaced by a claim.
+ *
+ * @requestBody providerCredentialBody
  */
 router.post(
   '/applications/:applicationId',
   providerWriteLimiter,
-  validate({ params: providerConnectionApplicationParams, body: providerCredentialBody }),
+  providerServiceWriteRefusalLimiter,
+  validate({ params: providerConnectionApplicationParams }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { applicationId } = providerConnectionApplicationParams.parse(req.params);
     const principal = principalOf(req);
@@ -579,7 +734,7 @@ router.post(
       principal,
       applicationId,
       'inference:byok:write',
-      'inference:providers:write'
+      'inference:providers:write',
     );
 
     const owner = await resolveApplicationOwnerAccount(applicationId);
@@ -587,8 +742,8 @@ router.post(
       throw new NotFoundError('No provider connection is available for that application');
     }
 
-    const store = providerSecretStoreOr503();
-    const body = providerCredentialBody.parse(req.body);
+    const control = kaanaCredentialControlOr503();
+    const body = parseValidatedRequestValue(providerCredentialBody, req.body);
 
     const result = await createProviderConnection(
       {
@@ -597,156 +752,431 @@ router.post(
         scopeKind: 'application',
         applicationId,
         environment: body.environment,
-        secret: new ProviderSecretValue(body.secret),
+        secret: new ProviderCredentialValue(body.secret),
         acknowledgeProviderTerms: body.acknowledgeProviderTerms,
         actor: actorOf(principal),
       },
-      store
+      control,
     );
     respondToCreate(res, result);
-  })
+  }),
 );
 
 /**
  * `POST /inference/provider-connections/:connectionId/rotate`
  *
  * Replace the credential. The reference is unchanged, so a data plane holding it
- * keeps working and the previous credential is gone the instant the store write
- * lands.
+ * keeps working and the previous generation becomes unavailable once Kaana
+ * acknowledges the exact revision transition.
+ *
+ * @requestBody providerConnectionRotateBody
  */
 router.post(
   '/:connectionId/rotate',
   providerWriteLimiter,
-  validate({ params: providerConnectionParams, body: providerConnectionRotateBody }),
+  providerServiceWriteRefusalLimiter,
+  validate({ params: providerConnectionParams }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { connectionId } = providerConnectionParams.parse(req.params);
     const principal = principalOf(req);
     await authorizeConnection(
       principal,
       connectionId,
-      { application: 'inference:byok:write', account: 'inference:providers:write' },
-      'inference:providers:write'
+      {
+        application: 'inference:byok:write',
+        account: 'inference:providers:write',
+      },
+      'inference:providers:write',
     );
 
-    const store = providerSecretStoreOr503();
-    const body = providerConnectionRotateBody.parse(req.body);
+    const control = kaanaCredentialControlOr503();
+    const body = parseValidatedRequestValue(providerConnectionRotateBody, req.body);
 
     const result = await rotateProviderConnection(
       {
         connectionId,
-        secret: new ProviderSecretValue(body.secret),
+        secret: new ProviderCredentialValue(body.secret),
         actor: actorOf(principal),
       },
-      store
+      control,
     );
     switch (result.status) {
       case 'rotated':
         res.json({ data: result.connection });
         return;
+      case 'custody-reconcile':
+        throw new ApiError(
+          503,
+          'The credential rotation outcome is uncertain and this connection is quarantined.',
+          'kaana_credential_reconcile_required',
+        );
+      case 'custody-manual':
+        throw new ConflictError(
+          'Kaana recorded a conflicting credential rotation. The connection remains quarantined for manual resolution.',
+        );
       case 'unknown-connection':
         throw new NotFoundError('No such provider connection');
       case 'revoked':
         throw new ConflictError('This connection is revoked and can no longer be rotated');
-      case 'unchanged-credential':
-        throw new ConflictError(
-          'That is the credential this connection already holds; a rotation must supply a new one'
-        );
     }
-  })
+  }),
 );
 
 /**
  * `POST /inference/provider-connections/:connectionId/disable`
  *
- * Immediate and reversible. Pure database work — no store round trip — so
+ * Immediate and reversible. Pure database work — no Kaana round trip — so
  * "immediate" does not depend on the availability of the thing being stopped.
  */
 router.post(
   '/:connectionId/disable',
   providerWriteLimiter,
-  validate({ params: providerConnectionParams, body: providerConnectionEmptyBody }),
+  providerServiceWriteRefusalLimiter,
+  validate({
+    params: providerConnectionParams,
+    body: providerConnectionEmptyBody,
+  }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { connectionId } = providerConnectionParams.parse(req.params);
     const principal = principalOf(req);
     await authorizeConnection(
       principal,
       connectionId,
-      { application: 'inference:byok:write', account: 'inference:providers:write' },
-      'inference:providers:write'
+      {
+        application: 'inference:byok:write',
+        account: 'inference:providers:write',
+      },
+      'inference:providers:write',
     );
 
     respondToTransition(
       res,
-      await disableProviderConnection({ connectionId, actor: actorOf(principal) })
+      await disableProviderConnection({
+        connectionId,
+        actor: actorOf(principal),
+      }),
     );
-  })
+  }),
 );
 
 /** `POST /inference/provider-connections/:connectionId/enable` — undo a disable. */
 router.post(
   '/:connectionId/enable',
   providerWriteLimiter,
-  validate({ params: providerConnectionParams, body: providerConnectionEmptyBody }),
+  providerServiceWriteRefusalLimiter,
+  validate({
+    params: providerConnectionParams,
+    body: providerConnectionEmptyBody,
+  }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { connectionId } = providerConnectionParams.parse(req.params);
     const principal = principalOf(req);
     await authorizeConnection(
       principal,
       connectionId,
-      { application: 'inference:byok:write', account: 'inference:providers:write' },
-      'inference:providers:write'
+      {
+        application: 'inference:byok:write',
+        account: 'inference:providers:write',
+      },
+      'inference:providers:write',
     );
 
     respondToTransition(
       res,
-      await enableProviderConnection({ connectionId, actor: actorOf(principal) })
+      await enableProviderConnection({
+        connectionId,
+        actor: actorOf(principal),
+      }),
     );
-  })
+  }),
 );
 
 /**
  * `POST /inference/provider-connections/:connectionId/revoke`
  *
- * Terminal, and it destroys the stored credential. A destroy failure does NOT
- * block the revoke — retiring a connection is a safety operation, often because
- * the key leaked — so the response and the audit row both state whether the
- * secret was actually destroyed. There is deliberately no DELETE: a deleted
+ * Terminal. Oxy fences it locally before asking Kaana to revoke the exact
+ * generation, and the response states whether Kaana acknowledged that change.
+ * There is deliberately no DELETE: a deleted
  * connection would make a past charge unexplainable and would take its own audit
  * trail with it.
  */
 router.post(
   '/:connectionId/revoke',
   providerWriteLimiter,
-  validate({ params: providerConnectionParams, body: providerConnectionEmptyBody }),
+  providerServiceWriteRefusalLimiter,
+  validate({
+    params: providerConnectionParams,
+    body: providerConnectionEmptyBody,
+  }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { connectionId } = providerConnectionParams.parse(req.params);
     const principal = principalOf(req);
     await authorizeConnection(
       principal,
       connectionId,
-      { application: 'inference:byok:write', account: 'inference:providers:write' },
-      'inference:providers:write'
+      {
+        application: 'inference:byok:write',
+        account: 'inference:providers:write',
+      },
+      'inference:providers:write',
     );
 
-    // Optional here, unlike create and rotate: a deployment whose secret backend
-    // has since been unconfigured must still be able to revoke. The audit row
-    // then records that the secret was not destroyed, which is the true
-    // statement — refusing the revoke would leave the connection resolvable.
-    const resolution = resolveProviderSecretStore();
+    // Optional here, unlike create and rotate: local fencing must still happen
+    // when the Kaana control authority is temporarily unavailable.
+    let control: KaanaCredentialControl | undefined;
+    try {
+      control = requireKaanaCredentialControl();
+    } catch (error) {
+      if (!(error instanceof KaanaCredentialControlUnavailableError)) throw error;
+    }
     const result = await revokeProviderConnection(
       { connectionId, actor: actorOf(principal) },
-      resolution.status === 'available' ? resolution.store : undefined
+      control,
     );
     switch (result.status) {
       case 'revoked':
-        res.json({ data: result.connection, secretDestroyed: result.secretDestroyed });
+        res.json({
+          data: result.connection,
+          credentialRevoked: result.credentialRevoked,
+        });
         return;
+      case 'custody-reconcile':
+        throw new ApiError(
+          503,
+          'The credential revocation outcome is uncertain and this connection remains quarantined.',
+          'kaana_credential_reconcile_required',
+        );
+      case 'custody-manual':
+        throw new ConflictError(
+          'Kaana recorded a conflicting credential revocation. The connection remains quarantined for manual resolution.',
+        );
       case 'unknown-connection':
         throw new NotFoundError('No such provider connection');
       case 'already-revoked':
         throw new ConflictError('This connection is already revoked');
     }
-  })
+  }),
+);
+
+/**
+ * `POST /inference/provider-connections/:connectionId/reconcile`
+ *
+ * Ask for Kaana's signed exact outcome first. An explicit 404 may resume the
+ * SAME operation id; create/rotate then require the original credential again,
+ * while revoke retries without one. No path mints or substitutes an id.
+ *
+ * @requestBody providerConnectionReconcileBody
+ * @response 200 providerConnectionReconcileResponseSchema The exact applied operation and its metadata-only connection.
+ */
+router.post(
+  '/:connectionId/reconcile',
+  providerWriteLimiter,
+  providerServiceWriteRefusalLimiter,
+  validate({
+    params: providerConnectionParams,
+  }),
+  asyncHandler(async (req: ProviderRequest, res: Response) => {
+    const { connectionId } = providerConnectionParams.parse(req.params);
+    const principal = principalOf(req);
+    await authorizeConnection(
+      principal,
+      connectionId,
+      {
+        application: 'inference:byok:write',
+        account: 'inference:providers:write',
+      },
+      'inference:providers:write',
+    );
+
+    const control = kaanaCredentialControlOr503();
+    const body = parseValidatedRequestValue(providerConnectionReconcileBody, req.body);
+    const result = await reconcileProviderConnection(
+      connectionId,
+      control,
+      body.secret === undefined ? undefined : new ProviderCredentialValue(body.secret),
+    );
+    switch (result.status) {
+      case 'reconciled':
+        res.json(
+          providerConnectionReconcileResponseSchema.parse({
+            data: result.connection,
+            reconciledAction: result.action,
+          }),
+        );
+        return;
+      case 'reconciliation-required':
+        throw new ApiError(
+          503,
+          'Kaana still has no exact outcome for this operation. The connection remains quarantined.',
+          'kaana_credential_reconcile_required',
+        );
+      case 'manual-required':
+        throw new ConflictError(
+          'Kaana recorded a conflict for this operation. The connection requires manual resolution.',
+        );
+      case 'credential-required':
+        throw new ConflictError(
+          `Recovering this ${result.action} requires the original provider credential`,
+          { action: result.action },
+        );
+      case 'credential-not-applicable':
+        throw new BadRequestError('A credential is not accepted when recovering a revoke');
+      case 'no-unresolved-operation':
+        throw new ConflictError('This connection has no unresolved credential operation');
+      case 'unknown-connection':
+        throw new NotFoundError('No such provider connection');
+    }
+  }),
+);
+
+/** Exact customer-selectable Oxy catalogue ids. No implicit route is chosen. */
+router.get(
+  '/:connectionId/validation-deployments',
+  providerReadLimiter,
+  validate({
+    params: providerConnectionParams,
+    query: providerCredentialValidationApplicationQuery,
+  }),
+  asyncHandler(async (req: ProviderRequest, res: Response) => {
+    const { connectionId } = providerConnectionParams.parse(req.params);
+    await authorizeConnection(
+      principalOf(req),
+      connectionId,
+      {
+        application: 'inference:byok:read',
+        account: 'inference:providers:read',
+      },
+      'inference:providers:read',
+    );
+    const { applicationId } = providerCredentialValidationApplicationQuery.parse(req.query);
+    const result = await listProviderCredentialValidationDeployments({
+      connectionId,
+      applicationId,
+    });
+    switch (result.status) {
+      case 'available':
+        res.json({ data: result.deployments, count: result.deployments.length });
+        return;
+      case 'unknown-connection':
+        throw new NotFoundError('No such provider connection');
+      case 'application-unavailable':
+      case 'application-not-applicable':
+        throw new NotFoundError('No provider connection is available for that application');
+    }
+  }),
+);
+
+/** Latest exact attempt for this connection/application pair. */
+router.get(
+  '/:connectionId/validation-bootstrap',
+  providerReadLimiter,
+  validate({
+    params: providerConnectionParams,
+    query: providerCredentialValidationApplicationQuery,
+  }),
+  asyncHandler(async (req: ProviderRequest, res: Response) => {
+    const { connectionId } = providerConnectionParams.parse(req.params);
+    await authorizeConnection(
+      principalOf(req),
+      connectionId,
+      {
+        application: 'inference:byok:read',
+        account: 'inference:providers:read',
+      },
+      'inference:providers:read',
+    );
+    const { applicationId } = providerCredentialValidationApplicationQuery.parse(req.query);
+    const operation = await getLatestProviderCredentialValidation({
+      connectionId,
+      applicationId,
+    });
+    res.json({ data: operation ?? null });
+  }),
+);
+
+/**
+ * Create or resume one durable exact-generation bootstrap. Repeating a pending
+ * operation resends the same operation id; an inconclusive terminal attempt may
+ * be followed by a new operation without rotating the credential.
+ */
+router.post(
+  '/:connectionId/validation-bootstrap',
+  providerWriteLimiter,
+  providerServiceWriteRefusalLimiter,
+  validate({
+    params: providerConnectionParams,
+    body: providerCredentialValidationBootstrapBody,
+  }),
+  asyncHandler(async (req: ProviderRequest, res: Response) => {
+    const { connectionId } = providerConnectionParams.parse(req.params);
+    const principal = principalOf(req);
+    await authorizeConnection(
+      principal,
+      connectionId,
+      {
+        application: 'inference:byok:write',
+        account: 'inference:providers:write',
+      },
+      'inference:providers:write',
+    );
+    const body = providerCredentialValidationBootstrapBody.parse(req.body);
+    const result = await startProviderCredentialValidation(
+      { connectionId, ...body },
+      kaanaCredentialValidationDispatcher(),
+    );
+    switch (result.status) {
+      case 'accepted':
+        res.status(202).json({ data: result.operation, dispatch: result.dispatch });
+        return;
+      case 'unknown-connection':
+        throw new NotFoundError('No such provider connection');
+      case 'generation-not-ready':
+        throw new ConflictError('This credential generation is not ready for validation');
+      case 'revoked':
+        throw new ConflictError('This connection is revoked and can no longer be validated');
+      case 'application-unavailable':
+      case 'application-not-applicable':
+        throw new NotFoundError('No provider connection is available for that application');
+      case 'deployment-unavailable':
+        throw new BadRequestError(
+          'That exact deployment is not an approved BYOK route for this provider',
+        );
+      case 'operation-conflict':
+        throw new ConflictError(
+          'This credential generation already has a pending validation with different exact selectors',
+        );
+    }
+  }),
+);
+
+/** Service-authenticated exact terminal callback from Kaana. */
+router.post(
+  '/:connectionId/validation-bootstrap/outcome',
+  providerWriteLimiter,
+  providerValidationLimiter,
+  validate({
+    params: providerConnectionParams,
+    body: providerCredentialValidationOutcomeBody,
+  }),
+  asyncHandler(async (req: ProviderRequest, res: Response) => {
+    const { connectionId } = providerConnectionParams.parse(req.params);
+    await authorizeKaanaValidation(principalOf(req), connectionId);
+    const outcome = providerCredentialValidationOutcomeBody.parse(req.body);
+    const result = await recordProviderCredentialValidationOutcome(outcome);
+    switch (result.status) {
+      case 'recorded':
+        res.json({ data: result.operation });
+        return;
+      case 'unknown-operation':
+        throw new NotFoundError('No such credential validation operation');
+      case 'selector-mismatch':
+        throw new ConflictError('The validation outcome does not match its exact operation');
+      case 'outcome-conflict':
+        throw new ConflictError('The validation operation already has a different outcome');
+      case 'pending-outcome':
+        throw new BadRequestError('A callback must carry a terminal validation outcome');
+    }
+  }),
 );
 
 /**
@@ -762,27 +1192,25 @@ router.post(
 router.post(
   '/:connectionId/validation',
   providerWriteLimiter,
-  validate({ params: providerConnectionParams, body: providerConnectionValidationBody }),
+  providerValidationLimiter,
+  validate({
+    params: providerConnectionParams,
+    body: providerConnectionValidationBody,
+  }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { connectionId } = providerConnectionParams.parse(req.params);
     const principal = principalOf(req);
-    await authorizeConnection(
-      principal,
-      connectionId,
-      { application: 'inference:byok:write', account: 'inference:providers:write' },
-      'inference:providers:write'
-    );
+    await authorizeKaanaValidation(principal, connectionId);
 
     const verdict = providerConnectionValidationBody.parse(req.body);
     const result = await recordProviderConnectionValidation({
       connectionId,
+      credentialHandle: verdict.credentialHandle,
+      credentialRevision: verdict.credentialRevision,
       state: verdict.state,
       failureCode: verdict.failureCode,
-      // A verdict a member asked for names them; one a service token reported has
-      // no person behind it and now SAYS so, rather than leaving the row's actor
-      // blank in a way indistinguishable from a row written before the kind
-      // existed.
-      actor: actorOf(principal),
+      // Kaana is platform machinery, not the customer's service credential.
+      actor: { kind: 'platform' },
     });
     switch (result.status) {
       case 'recorded':
@@ -790,10 +1218,18 @@ router.post(
         return;
       case 'unknown-connection':
         throw new NotFoundError('No such provider connection');
+      case 'generation-not-ready':
+        throw new ConflictError(
+          'This credential generation is not ready to accept validation verdicts',
+        );
+      case 'stale-generation':
+        throw new ConflictError(
+          'This validation verdict targets a stale credential generation',
+        );
       case 'revoked':
         throw new ConflictError('This connection is revoked and can no longer be validated');
     }
-  })
+  }),
 );
 
 /**
@@ -806,20 +1242,27 @@ router.post(
 router.get(
   '/:connectionId/audit',
   providerReadLimiter,
-  validate({ params: providerConnectionParams, query: providerConnectionAuditQuery }),
+  providerServiceReadLimiter,
+  validate({
+    params: providerConnectionParams,
+    query: providerConnectionAuditQuery,
+  }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { connectionId } = providerConnectionParams.parse(req.params);
     const { limit } = providerConnectionAuditQuery.parse(req.query);
     await authorizeConnection(
       principalOf(req),
       connectionId,
-      { application: 'inference:byok:read', account: 'inference:providers:read' },
-      'inference:providers:read'
+      {
+        application: 'inference:byok:read',
+        account: 'inference:providers:read',
+      },
+      'inference:providers:read',
     );
 
     const events = await listProviderConnectionAuditEvents(connectionId, limit);
     res.json({ data: events, count: events.length });
-  })
+  }),
 );
 
 /**
@@ -831,17 +1274,21 @@ router.get(
 router.get(
   '/:connectionId',
   providerReadLimiter,
+  providerServiceReadLimiter,
   validate({ params: providerConnectionParams }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { connectionId } = providerConnectionParams.parse(req.params);
     const row = await authorizeConnection(
       principalOf(req),
       connectionId,
-      { application: 'inference:byok:read', account: 'inference:providers:read' },
-      'inference:providers:read'
+      {
+        application: 'inference:byok:read',
+        account: 'inference:providers:read',
+      },
+      'inference:providers:read',
     );
     res.json({ data: toProviderConnection(row) });
-  })
+  }),
 );
 
 export default router;

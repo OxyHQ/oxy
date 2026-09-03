@@ -43,10 +43,10 @@ async function insertUser(): Promise<string> {
   return row.id;
 }
 
-async function insertApplication(owner: string, name: string): Promise<string> {
+async function insertApplication(owner: string, name: string, icon = 'file-icon-id'): Promise<string> {
   const [row] = await getDb()
     .insert(applications)
-    .values({ name, ownerAccountId: owner, icon: 'file-icon-id' })
+    .values({ name, ownerAccountId: owner, icon })
     .returning({ id: applications.id });
   return row.id;
 }
@@ -85,6 +85,26 @@ describe('a listing is served with what the application knows', () => {
     expect(listing!.name).toBe(name);
     expect(listing!.icon).toBe('file-icon-id');
     expect(listing!.tagline).toBe('One line');
+  });
+
+  it('removes legacy credential query parameters from cards and listing details', async () => {
+    const owner = await insertUser();
+    const applicationId = await insertApplication(
+      owner,
+      `Legacy ${randomUUID().slice(0, 8)}`,
+      '/icons/app.svg?size=64&token=secret-marker&authorization=second-marker#logo'
+    );
+    const { slug } = await insertListing(applicationId);
+
+    const [detail, page] = await Promise.all([
+      getPublishedListing(slug),
+      listPublishedListings({ limit: 50, offset: 0 }),
+    ]);
+
+    expect(detail?.icon).toBe('/icons/app.svg?size=64#logo');
+    expect(page.items.find((item) => item.slug === slug)?.icon).toBe(
+      '/icons/app.svg?size=64#logo'
+    );
   });
 
   it('answers null for a draft, the same as for a slug that does not exist', async () => {

@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import {
   inferenceDeploymentRoutingScores,
@@ -32,6 +32,13 @@ export type InferenceRoutingReadinessAssessment =
     }
   | { readonly status: 'ready' };
 
+/** The immutable billing version the edge would use for this route. */
+const BILLING_PRICE_VERSION_ID = sql<string | null>`case
+  when ${inferenceDeployments.availabilityScope} = 'byok_only'
+    then ${inferenceDeployments.platformFeePriceVersionId}
+  else ${inferenceDeployments.priceVersionId}
+end`;
+
 /** The exact selectable census the deploy gate evaluates. */
 export async function readInferenceRoutingReadinessRows(): Promise<
   readonly InferenceRoutingReadinessRow[]
@@ -39,7 +46,7 @@ export async function readInferenceRoutingReadinessRows(): Promise<
   return getDb()
     .select({
       deploymentId: inferenceDeployments.internalRouteId,
-      currentPriceVersionId: inferenceDeployments.priceVersionId,
+      currentPriceVersionId: BILLING_PRICE_VERSION_ID,
       requestUnitPriceVersionId: priceVersionUnitPrices.priceVersionId,
       scorePriceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
       price: inferenceDeploymentRoutingScores.priceScore,
@@ -65,7 +72,7 @@ export async function readInferenceRoutingReadinessRows(): Promise<
     .leftJoin(
       priceVersionUnitPrices,
       and(
-        eq(inferenceDeployments.priceVersionId, priceVersionUnitPrices.priceVersionId),
+        eq(BILLING_PRICE_VERSION_ID, priceVersionUnitPrices.priceVersionId),
         eq(priceVersionUnitPrices.unit, 'requests')
       )
     )
@@ -77,6 +84,7 @@ export async function readInferenceRoutingReadinessRows(): Promise<
           'public_payg',
           'oxy_hosted',
           'internal_alia',
+          'byok_only',
         ]),
         isNull(inferenceModelRevisions.retiredAt)
       )

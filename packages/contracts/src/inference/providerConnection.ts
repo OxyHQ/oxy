@@ -3,21 +3,18 @@
  * upstream provider credential.
  *
  * The credential itself is NOT here and cannot be put here. This shape carries
- * a locator (`secretRef`) into Vault/KMS/managed secret storage, a prefix short
- * enough to be useless, a fingerprint, and validation state. Three mechanisms
+ * an opaque Kaana credential handle, its exact revision and validation state.
+ * Three mechanisms
  * make that structural rather than a convention somebody must remember:
  *
  *  - The object is `.strict()`. A producer that attaches `apiKey`, `secret`,
  *    `token`, `privateKey` or `headers` fails the parse. Nothing is silently
  *    stripped, because a stripped field is one that still exists upstream of
  *    the parse, in a log line or an error report.
- *  - `keyPrefix` is capped at 12 characters — shorter than any provider's
- *    usable credential — so the one field designed to show part of a key cannot
- *    be widened into showing all of it without changing the contract.
- *  - `secretRef` is DERIVED, not free text: the grammar is closed and the
- *    refinement below requires it to be this connection's own environment,
- *    owner account and id under one namespace. A field with no free span is a
- *    field a credential cannot be smuggled through.
+ *  - No prefix or digest derived from the credential exists in this contract;
+ *    even a partial value can make a short credential recoverable by guessing.
+ *  - `credentialHandle` is an opaque, closed-format identifier minted by Kaana.
+ *    Oxy cannot resolve it and never stores either plaintext or ciphertext.
  *
  * BYOK does not move the billing relationship: the upstream provider bills the
  * customer's own account directly, and Oxy charges only its platform fee. The
@@ -29,6 +26,7 @@
 
 import { z } from 'zod';
 import {
+  deploymentIdSchema,
   inferenceEnvironmentSchema,
   inferenceProviderSlugSchema,
   inferenceTimestampSchema,
@@ -58,69 +56,349 @@ export const providerConnectionScopeSchema = z.discriminatedUnion('kind', [
     .strict(),
 ]);
 
-/**
- * The managed secret stores a reference may point into.
- *
- * A closed set, because the scheme is the half of a locator that says who can
- * resolve it: a scheme nothing in this system can dereference is not a
- * reference. Restated as a SQL alternation in
- * `packages/api/src/db/schema/inferenceProviderConnections.ts`, and that file's
- * schema test holds the two equal.
- */
-const SECRET_STORE_NAMES = ['vault', 'kms', 'ssm', 'secretsmanager'] as const;
-
-/**
- * The namespace every Oxy BYOK locator lives under, whichever store holds it.
- *
- * Part of the grammar rather than an implementation detail of the writer: it is
- * the prefix a store-side IAM or Vault policy is scoped to, so a locator outside
- * it is one Oxy's own credentials could not resolve anyway.
- */
-export const PROVIDER_SECRET_REFERENCE_NAMESPACE = 'oxy/inference/byok';
-
-/**
- * The two id segments, bounded exactly as the fields they must equal are:
- * `oxyAccountIdSchema` caps an account id at 64 characters and
- * `providerConnectionSchema.connectionId` caps a connection id at 128. A tighter
- * bound here would refuse a reference to a connection the same contract accepts.
- */
-const ACCOUNT_SEGMENT = '[A-Za-z0-9_-]{1,64}';
-const CONNECTION_SEGMENT = '[A-Za-z0-9_-]{1,128}';
-
-/**
- * A locator for the credential in managed secret storage — never the credential.
- *
- * The grammar is CLOSED, and that is the whole of its value: a store from a
- * four-name set, one fixed namespace, an environment from a three-name set, and
- * two bounded id segments. Nothing may precede, follow or be interpolated
- * between them, so there is no free-form span for credential material to occupy:
- * the only places anything a producer chooses can sit are the two ids, and
- * `providerConnectionSchema` below pins those to THIS connection's own owner
- * account and id.
- *
- * ## It was not always closed, and the difference was measured
- *
- * The previous grammar was `<store>:<anything from a wide charset>`, under a
- * comment claiming that meant "a producer cannot pass a raw key through this
- * field and have it look like a reference". It did not. Splicing a credential in
- * after the store name —
- * `vault:sk-ant-api03-…/oxy/inference/byok/production/<account>/<id>` — satisfied
- * that regex, satisfied the storage partition CHECK (which pins the END of the
- * string and said nothing about its start), and parsed cleanly. Both mechanisms
- * constrained the SHAPE of the locator; neither constrained what could be put in
- * front of it. `packages/api`'s `providerSecretLeak.test.ts` plants exactly that
- * value, and it is now refused here, by the CHECK, and by the refinement below.
- */
-export const providerSecretReferenceSchema = z
+/** Opaque reference minted by Kaana. It is not a KMS/Vault/SSM locator. */
+export const kaanaCredentialHandleSchema = z
   .string()
-  .regex(
-    new RegExp(
-      `^(?:${SECRET_STORE_NAMES.join('|')}):${PROVIDER_SECRET_REFERENCE_NAMESPACE}/` +
-        `(?:${inferenceEnvironmentSchema.options.join('|')})/${ACCOUNT_SEGMENT}/${CONNECTION_SEGMENT}$`,
-    ),
-    'a secret reference is <store>:oxy/inference/byok/<environment>/<accountId>/<connectionId>, ' +
-      'never credential material',
+  .regex(/^kcred_[a-z2-7]{26}$/, 'a Kaana credential handle is kcred_ plus 26 base32 characters');
+
+/** Oxy-minted, case-sensitive replay identity for one exact Kaana mutation. */
+export const kaanaCredentialOperationIdSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{1,128}$/, 'a Kaana credential operation id is 1-128 opaque characters');
+
+export const kaanaCredentialOperationActionSchema = z.enum(['create', 'rotate', 'revoke']);
+
+/** Exact immutable Oxy identity repeated by both mutation and reconciliation. */
+export const kaanaCredentialIdentitySchema = z
+  .object({
+    provider: inferenceProviderSlugSchema,
+    ownerAccountId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+    connectionId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+    environment: inferenceEnvironmentSchema,
+  })
+  .strict();
+
+const kaanaCredentialOperationActorSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (value) =>
+      new TextEncoder().encode(value).byteLength <= 256 &&
+      value === value.trim() &&
+      !/[\r\n]/.test(value),
+    {
+      message: 'a credential operation actor is one trimmed line of at most 256 bytes',
+    },
   );
+
+const base64Alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/**
+ * Decode only enough of a strict base64 value to prove every output byte is
+ * visible ASCII. Keeping this implementation local avoids a Node Buffer or
+ * browser atob dependency in the universal contracts package.
+ */
+function isVisibleASCIIProviderCredential(value: string): boolean {
+  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0;
+  const decodedLength = (value.length / 4) * 3 - padding;
+  if (decodedLength < 1 || decodedLength > 4096) return false;
+
+  for (let offset = 0, output = 0; offset < value.length; offset += 4, output += 3) {
+    const first = base64Alphabet.indexOf(value[offset] ?? '');
+    const second = base64Alphabet.indexOf(value[offset + 1] ?? '');
+    const third = value[offset + 2] === '=' ? 0 : base64Alphabet.indexOf(value[offset + 2] ?? '');
+    const fourth = value[offset + 3] === '=' ? 0 : base64Alphabet.indexOf(value[offset + 3] ?? '');
+    if (first < 0 || second < 0 || third < 0 || fourth < 0) return false;
+    const finalQuartet = offset + 4 === value.length;
+    if (
+      finalQuartet &&
+      ((padding === 2 && (second & 0x0f) !== 0) ||
+        (padding === 1 && (third & 0x03) !== 0))
+    ) {
+      return false;
+    }
+
+    const packed = (first << 18) | (second << 12) | (third << 6) | fourth;
+    const bytes = [(packed >> 16) & 0xff, (packed >> 8) & 0xff, packed & 0xff];
+    const count = Math.min(3, decodedLength - output);
+    for (let index = 0; index < count; index += 1) {
+      const byte = bytes[index];
+      if (byte === undefined || byte < 0x21 || byte > 0x7e) return false;
+    }
+  }
+  return true;
+}
+
+const kaanaCredentialSecretBase64Schema = z
+  .string()
+  .min(1)
+  .max(8192)
+  .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)
+  .refine(isVisibleASCIIProviderCredential, {
+    message: 'a decoded provider credential is 1-4096 visible ASCII bytes',
+  });
+
+export const kaanaCredentialCreateMutationSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    action: z.literal('create'),
+    operationId: kaanaCredentialOperationIdSchema,
+    operationActor: kaanaCredentialOperationActorSchema,
+    secretBase64: kaanaCredentialSecretBase64Schema,
+  })
+  .strict();
+
+export const kaanaCredentialRotateMutationSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    action: z.literal('rotate'),
+    operationId: kaanaCredentialOperationIdSchema,
+    operationActor: kaanaCredentialOperationActorSchema,
+    credentialHandle: kaanaCredentialHandleSchema,
+    expectedRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER - 1),
+    secretBase64: kaanaCredentialSecretBase64Schema,
+  })
+  .strict();
+
+export const kaanaCredentialRevokeMutationSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    action: z.literal('revoke'),
+    operationId: kaanaCredentialOperationIdSchema,
+    operationActor: kaanaCredentialOperationActorSchema,
+    credentialHandle: kaanaCredentialHandleSchema,
+    expectedRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER - 1),
+  })
+  .strict();
+
+export const kaanaCredentialMutationSchema = z.discriminatedUnion('action', [
+  kaanaCredentialCreateMutationSchema,
+  kaanaCredentialRotateMutationSchema,
+  kaanaCredentialRevokeMutationSchema,
+]);
+
+export const kaanaCredentialCreateOutcomeRequestSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    action: z.literal('create'),
+    operationId: kaanaCredentialOperationIdSchema,
+  })
+  .strict();
+
+export const kaanaCredentialRotateOutcomeRequestSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    action: z.literal('rotate'),
+    operationId: kaanaCredentialOperationIdSchema,
+    credentialHandle: kaanaCredentialHandleSchema,
+    expectedRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER - 1),
+  })
+  .strict();
+
+export const kaanaCredentialRevokeOutcomeRequestSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    action: z.literal('revoke'),
+    operationId: kaanaCredentialOperationIdSchema,
+    credentialHandle: kaanaCredentialHandleSchema,
+    expectedRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER - 1),
+  })
+  .strict();
+
+export const kaanaCredentialOutcomeRequestSchema = z.discriminatedUnion('action', [
+  kaanaCredentialCreateOutcomeRequestSchema,
+  kaanaCredentialRotateOutcomeRequestSchema,
+  kaanaCredentialRevokeOutcomeRequestSchema,
+]);
+
+export const kaanaCredentialAppliedOutcomeSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    operationId: kaanaCredentialOperationIdSchema,
+    action: kaanaCredentialOperationActionSchema,
+    status: z.literal('applied'),
+    credentialHandle: kaanaCredentialHandleSchema,
+    revision: z.number().int().positive().safe(),
+  })
+  .strict();
+
+export const kaanaCredentialConflictOutcomeSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    operationId: kaanaCredentialOperationIdSchema,
+    action: kaanaCredentialOperationActionSchema,
+    status: z.literal('conflict'),
+  })
+  .strict();
+
+export const kaanaCredentialOutcomeSchema = z.discriminatedUnion('status', [
+  kaanaCredentialAppliedOutcomeSchema,
+  kaanaCredentialConflictOutcomeSchema,
+]);
+
+/**
+ * One separately authenticated check of a quarantined BYOK generation.
+ *
+ * This is deliberately not an inference request. It carries no prompt, user
+ * response, routing policy or billing principal, and it can select only one
+ * exact Kaana deployment plus one exact credential generation.
+ */
+export const kaanaCredentialValidationTaskSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    operationId: kaanaCredentialOperationIdSchema,
+    applicationId: oxyApplicationIdSchema,
+    credentialHandle: kaanaCredentialHandleSchema,
+    credentialRevision: z.number().int().positive().safe(),
+    deploymentId: deploymentIdSchema,
+  })
+  .strict();
+
+export const kaanaCredentialValidationOutcomeStateSchema = z.enum([
+  'pending',
+  'valid',
+  'invalid',
+  'inconclusive',
+]);
+
+export const kaanaCredentialValidationFailureCodeSchema = z.enum([
+  'unauthorized',
+  'forbidden',
+  'not_found',
+  'rate_limited',
+  'network',
+  'unknown',
+]);
+
+/**
+ * Durable result for one exact validation operation. `inconclusive` is a
+ * terminal answer about the attempt, never evidence that the credential is
+ * invalid; Oxy leaves the generation quarantined and may start a new exact
+ * operation. Kaana reports terminal outcomes through its service principal.
+ */
+export const kaanaCredentialValidationOutcomeSchema = kaanaCredentialValidationTaskSchema
+  .extend({
+    state: kaanaCredentialValidationOutcomeStateSchema,
+    failureCode: kaanaCredentialValidationFailureCodeSchema.optional(),
+  })
+  .strict()
+  .superRefine((outcome, ctx) => {
+    if (
+      (outcome.state === 'pending' || outcome.state === 'valid') &&
+      outcome.failureCode !== undefined
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['failureCode'],
+        message: 'a valid credential validation carries no failure code',
+      });
+    }
+    if (
+      (outcome.state === 'invalid' || outcome.state === 'inconclusive') &&
+      outcome.failureCode === undefined
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['failureCode'],
+        message: 'a failed credential validation must state its closed failure code',
+      });
+    }
+    if (outcome.state === 'invalid' && outcome.failureCode !== 'unauthorized') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['failureCode'],
+        message: 'only a provider authentication refusal proves invalidity',
+      });
+    }
+    if (outcome.state === 'inconclusive' && outcome.failureCode === 'unauthorized') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['failureCode'],
+        message: 'an explicit authentication refusal is invalid, not inconclusive',
+      });
+    }
+  });
+
+/**
+ * Customer-safe view of one explicit bootstrap attempt.
+ *
+ * `deploymentId` is the exact Oxy catalogue row selected by the customer. The
+ * internal Kaana route id remains protected; Oxy binds the two in its durable
+ * ledger and signs the latter to Kaana.
+ */
+export const providerCredentialValidationOperationSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    operationId: kaanaCredentialOperationIdSchema,
+    connectionId: z.string().min(1).max(128),
+    applicationId: oxyApplicationIdSchema,
+    deploymentId: deploymentIdSchema,
+    state: kaanaCredentialValidationOutcomeStateSchema,
+    failureCode: kaanaCredentialValidationFailureCodeSchema.optional(),
+    createdAt: inferenceTimestampSchema,
+    completedAt: inferenceTimestampSchema.optional(),
+  })
+  .strict()
+  .superRefine((operation, ctx) => {
+    const terminal = operation.state !== 'pending';
+    if (terminal !== (operation.completedAt !== undefined)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['completedAt'],
+        message: 'only a terminal validation operation has a completion time',
+      });
+    }
+    if (
+      (operation.state === 'pending' || operation.state === 'valid') &&
+      operation.failureCode !== undefined
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['failureCode'],
+        message: 'pending and valid validation operations carry no failure code',
+      });
+    }
+    if (
+      (operation.state === 'invalid' || operation.state === 'inconclusive') &&
+      operation.failureCode === undefined
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['failureCode'],
+        message: 'a failed validation operation must state its closed failure code',
+      });
+    }
+    if (operation.state === 'invalid' && operation.failureCode !== 'unauthorized') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['failureCode'],
+        message: 'only a provider authentication refusal proves invalidity',
+      });
+    }
+    if (operation.state === 'inconclusive' && operation.failureCode === 'unauthorized') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['failureCode'],
+        message: 'an explicit authentication refusal is invalid, not inconclusive',
+      });
+    }
+  });
+
+/** Exact customer-selectable catalogue ids; no internal Kaana route is exposed. */
+export const providerCredentialValidationDeploymentSchema = z
+  .object({ deploymentId: deploymentIdSchema })
+  .strict();
+
+/**
+ * Oxy's view of the cross-service mutation. Only `ready` may be routed.
+ * `reconcile` is the fail-closed state after an outcome could not be proven.
+ */
+export const providerCredentialCustodyStateSchema = z.enum([
+  'pending',
+  'ready',
+  'reconcile',
+  'revoked',
+]);
 
 /** Why a credential check failed, as a closed set the Console can render. */
 export const providerConnectionValidationSchema = z
@@ -134,7 +412,10 @@ export const providerConnectionValidationSchema = z
   })
   .strict();
 
-/** Lifecycle of a connection. `revoked` is terminal; `disabled` is reversible. */
+/**
+ * Lifecycle of a connection. `pending_validation` is quarantined from normal
+ * serving, `revoked` is terminal, and `disabled` is reversible.
+ */
 export const providerConnectionStatusSchema = z.enum([
   'pending_validation',
   'active',
@@ -147,14 +428,12 @@ export const providerConnectionStatusSchema = z.enum([
  *
  * This is the whole of what Oxy stores, and the whole of what the data plane
  * is given.
- * Resolving `secretRef` to credential material happens in the secret store, at
- * use time, in the data plane — never in a database row, an API response, a
- * Console screen or a log line.
+ * Resolving the opaque handle to plaintext happens only inside Kaana inference.
  */
 export const providerConnectionSchema = z
   .object({
     /** See `version.ts`: exchanged with the data plane and rendered by Console. */
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     connectionId: z.string().min(1).max(128),
     provider: inferenceProviderSlugSchema,
     /** The Oxy account that owns the connection and answers for its use. */
@@ -162,16 +441,9 @@ export const providerConnectionSchema = z
     scope: providerConnectionScopeSchema,
     environment: inferenceEnvironmentSchema,
     status: providerConnectionStatusSchema,
-    secretRef: providerSecretReferenceSchema,
-    /**
-     * The leading characters of the credential, for recognition only. Capped at
-     * 12 — long enough to tell two keys apart, far too short to be one.
-     */
-    keyPrefix: z.string().min(1).max(12),
-    /** SHA-256 of the credential, so rotation is verifiable without the key. */
-    fingerprint: z
-      .string()
-      .regex(/^[a-f0-9]{64}$/, 'fingerprint must be 64 lowercase hex characters'),
+    custodyState: providerCredentialCustodyStateSchema,
+    credentialHandle: kaanaCredentialHandleSchema.optional(),
+    credentialRevision: z.number().int().positive().safe().optional(),
     validation: providerConnectionValidationSchema,
     /**
      * Always `true` for a BYOK connection: the provider bills the customer's own
@@ -197,46 +469,69 @@ export const providerConnectionSchema = z
       });
     }
 
-    // A credential the provider has rejected cannot be the one live requests are
-    // routed through: leaving it active turns every request on this route into a
-    // customer-visible upstream failure.
-    if (connection.status === 'active' && connection.validation.state === 'invalid') {
+    // `active` is evidence that this exact credential generation passed the
+    // provider check. Pending, expired or rejected credentials cannot be
+    // represented as active.
+    if (connection.status === 'active' && connection.validation.state !== 'valid') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['status'],
-        message: 'a connection whose credential failed validation cannot be active',
+        message: 'only a successfully validated credential can be active',
       });
     }
 
-    // The reference is a FUNCTION of this record, not a value a producer chooses:
-    // the store, then the namespace, then this connection's own environment,
-    // owner account and id. `providerSecretReferenceSchema` already refuses
-    // anything outside the grammar; this is what closes the two id segments, the
-    // only spans left that a producer picks the contents of.
-    //
-    // The same rule the `inference_provider_connections_secret_ref_partition`
-    // CHECK enforces on the row. Both exist because they cover different
-    // producers: the CHECK protects the TABLE from a backfill or a service that
-    // skipped the parse, and this protects the WIRE from a producer that never
-    // touches the table — the data plane echoing a connection back, or a future
-    // service building a DTO by hand.
-    const expected = SECRET_STORE_NAMES.map(
-      (store) =>
-        `${store}:${PROVIDER_SECRET_REFERENCE_NAMESPACE}/${connection.environment}/` +
-        `${connection.ownerAccountId}/${connection.connectionId}`,
-    );
-    if (!expected.includes(connection.secretRef)) {
+    const hasReference =
+      connection.credentialHandle !== undefined && connection.credentialRevision !== undefined;
+    if (
+      (connection.custodyState === 'ready' || connection.custodyState === 'revoked') &&
+      !hasReference
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['secretRef'],
-        message:
-          'a secret reference must name this connection: ' +
-          '<store>:oxy/inference/byok/<environment>/<ownerAccountId>/<connectionId>',
+        path: ['credentialHandle'],
+        message: 'ready and revoked custody states require an exact Kaana handle and revision',
+      });
+    }
+    if (connection.custodyState === 'pending' && hasReference) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['custodyState'],
+        message: 'a pending create cannot claim a Kaana reference before Kaana acknowledges it',
+      });
+    }
+    if (
+      (connection.credentialHandle === undefined) !==
+      (connection.credentialRevision === undefined)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['credentialRevision'],
+        message: 'a Kaana credential handle and revision are present or absent together',
       });
     }
   });
 
 export type ProviderConnectionScope = z.infer<typeof providerConnectionScopeSchema>;
+export type KaanaCredentialOperationAction = z.infer<
+  typeof kaanaCredentialOperationActionSchema
+>;
+export type KaanaCredentialIdentity = z.infer<typeof kaanaCredentialIdentitySchema>;
+export type KaanaCredentialMutation = z.infer<typeof kaanaCredentialMutationSchema>;
+export type KaanaCredentialOutcomeRequest = z.infer<typeof kaanaCredentialOutcomeRequestSchema>;
+export type KaanaCredentialOutcome = z.infer<typeof kaanaCredentialOutcomeSchema>;
+export type KaanaCredentialValidationTask = z.infer<
+  typeof kaanaCredentialValidationTaskSchema
+>;
+export type KaanaCredentialValidationOutcome = z.infer<
+  typeof kaanaCredentialValidationOutcomeSchema
+>;
+export type ProviderCredentialValidationOperation = z.infer<
+  typeof providerCredentialValidationOperationSchema
+>;
+export type ProviderCredentialValidationDeployment = z.infer<
+  typeof providerCredentialValidationDeploymentSchema
+>;
 export type ProviderConnectionValidation = z.infer<typeof providerConnectionValidationSchema>;
 export type ProviderConnectionStatus = z.infer<typeof providerConnectionStatusSchema>;
+export type ProviderCredentialCustodyState = z.infer<typeof providerCredentialCustodyStateSchema>;
 export type ProviderConnection = z.infer<typeof providerConnectionSchema>;

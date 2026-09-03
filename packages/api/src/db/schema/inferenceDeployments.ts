@@ -25,8 +25,9 @@
  *
  * ## What is NOT here, and must never be
  *
- * - **Provider credentials of any kind.** BYOK secrets live in managed secret
- *   storage (workstream 10); Oxy's own upstream keys are the data plane's.
+ * - **Provider credentials of any kind.** Kaana encrypts BYOK credentials in
+ *   its PostgreSQL database with KMS and resolves them only inside inference;
+ *   Oxy stores only metadata plus the opaque exact handle/revision.
  * - **Route health.** Kaana owns technical deployment health and availability
  *   (ADR 0006). `status` here is the CATALOGUE's decision about whether a route
  *   may be offered at all, which is a different question from whether it is
@@ -241,6 +242,20 @@ export const inferenceDeployments = pgTable(
     priceVersionId: text().references(() => priceVersions.id, { onDelete: 'restrict' }),
 
     /**
+     * The separately reviewed Oxy platform-fee price used only when
+     * `availability_scope = 'byok_only'`.
+     *
+     * The upstream provider still bills the customer directly, so
+     * `price_version_id` remains NULL for BYOK. This pointer names only Oxy's
+     * own fee schedule and is nullable so a draft route can exist before an
+     * operator publishes and associates that schedule. An active/approved
+     * route without a usable fee remains fail-closed in the edge resolver.
+     */
+    platformFeePriceVersionId: text().references(() => priceVersions.id, {
+      onDelete: 'restrict',
+    }),
+
+    /**
      * PROTECTED. The data plane's own identifier for this route.
      *
      * Stored so operations can correlate a catalogue row with what Kaana is
@@ -361,6 +376,11 @@ export const inferenceDeployments = pgTable(
     check(
       'inference_deployments_byok_has_no_price_version',
       sql`${t.availabilityScope} <> 'byok_only' or ${t.priceVersionId} is null`
+    ),
+    /** A platform-fee pointer has meaning only on a BYOK-only route. */
+    check(
+      'inference_deployments_platform_fee_only_for_byok',
+      sql`${t.platformFeePriceVersionId} is null or ${t.availabilityScope} = 'byok_only'`
     ),
 
     /* ---- the approval gate (workstream 11) ------------------------------ */

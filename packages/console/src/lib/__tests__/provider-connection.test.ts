@@ -2,13 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { providerConnectionSchema, providerConnectionScopeSchema } from '@oxyhq/contracts';
 import type { ProviderConnection } from '@oxyhq/contracts';
 import {
-  PROVIDER_SECRET_STORE_UNAVAILABLE,
+  KAANA_CREDENTIAL_CONTROL_UNAVAILABLE,
   connectionAppliesToApplication,
   connectionStatusVariant,
-  isSecretStoreUnavailable,
+  isKaanaCredentialControlUnavailable,
   providerConnectionAuditAttribution,
   providerConnectionScopeLabel,
-  shortFingerprint,
   toProviderConnectionView,
 } from '@/lib/provider-connection';
 
@@ -17,56 +16,49 @@ import {
  * hand-written literal.
  *
  * That is the point of the test: a field the contract adds appears here without
- * anybody editing the fixture, so the "no secretRef reaches the view" assertion
+ * anybody editing the fixture, so the "no Kaana handle reaches the view" assertion
  * below is made against the real shape and not against a copy that stopped
  * matching it.
  *
- * `secretRef` is DERIVED from the environment, owner account and connection id
- * rather than written out, because the contract requires it to name this
- * connection — a fixture that overrides the owner and leaves the reference behind
- * fails the parse, which is the rule working rather than a fixture to patch.
+ * The Kaana handle is opaque and valid only as a paired handle/revision.
  */
 function connection(overrides: Record<string, unknown> = {}): ProviderConnection {
   const fields = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     connectionId: 'conn_1',
     provider: 'example-provider',
     ownerAccountId: 'acct_1',
     scope: { kind: 'application', accountId: 'acct_1', applicationId: 'app_1' },
     environment: 'production',
     status: 'active',
-    keyPrefix: 'sk-live-abc',
-    fingerprint: 'a'.repeat(64),
+    custodyState: 'ready',
+    credentialHandle: `kcred_${'a'.repeat(26)}`,
+    credentialRevision: 1,
     validation: { state: 'valid', lastValidatedAt: '2026-08-01T00:00:00.000Z' },
     upstreamBillsCustomerDirectly: true,
     createdAt: '2026-07-01T00:00:00.000Z',
     ...overrides,
   };
 
-  return providerConnectionSchema.parse({
-    secretRef:
-      `vault:oxy/inference/byok/${String(fields.environment)}/` +
-      `${String(fields.ownerAccountId)}/${String(fields.connectionId)}`,
-    ...fields,
-  });
+  return providerConnectionSchema.parse(fields);
 }
 
 describe('toProviderConnectionView', () => {
-  it('drops secretRef entirely — not to undefined, but off the object', () => {
+  it('drops the Kaana handle and revision entirely', () => {
     const view = toProviderConnectionView(connection());
 
-    expect(Object.hasOwn(view, 'secretRef')).toBe(false);
-    expect(Object.keys(view)).not.toContain('secretRef');
+    expect(Object.hasOwn(view, 'credentialHandle')).toBe(false);
+    expect(Object.hasOwn(view, 'credentialRevision')).toBe(false);
     // The whole point: no property anywhere on the view holds the reference,
     // however it might have been renamed on the way through.
-    expect(JSON.stringify(view)).not.toContain('vault:');
+    expect(JSON.stringify(view)).not.toContain('kcred_');
   });
 
-  it('keeps the two fields the contract exists to make showable', () => {
+  it('keeps validation state without any credential-derived recognition field', () => {
     const view = toProviderConnectionView(connection());
 
-    expect(view.keyPrefix).toBe('sk-live-abc');
-    expect(view.fingerprint).toBe('a'.repeat(64));
+    expect(Object.hasOwn(view, 'keyPrefix')).toBe(false);
+    expect(Object.hasOwn(view, 'fingerprint')).toBe(false);
     expect(view.validation.state).toBe('valid');
   });
 
@@ -83,21 +75,21 @@ describe('toProviderConnectionView', () => {
   });
 });
 
-describe('isSecretStoreUnavailable', () => {
+describe('isKaanaCredentialControlUnavailable', () => {
   it('is true only for the API code, never for a lookalike message', () => {
     const refused = Object.assign(new Error('no store configured'), {
-      code: PROVIDER_SECRET_STORE_UNAVAILABLE,
+      code: KAANA_CREDENTIAL_CONTROL_UNAVAILABLE,
     });
     const somethingElse = Object.assign(
-      new Error('provider_secret_store_unavailable happened, apparently'),
+      new Error('kaana_credential_control_unavailable happened, apparently'),
       { code: 'internal_error' }
     );
 
-    expect(isSecretStoreUnavailable(refused)).toBe(true);
-    expect(isSecretStoreUnavailable(somethingElse)).toBe(false);
-    expect(isSecretStoreUnavailable(new Error('boom'))).toBe(false);
-    expect(isSecretStoreUnavailable('provider_secret_store_unavailable')).toBe(false);
-    expect(isSecretStoreUnavailable(undefined)).toBe(false);
+    expect(isKaanaCredentialControlUnavailable(refused)).toBe(true);
+    expect(isKaanaCredentialControlUnavailable(somethingElse)).toBe(false);
+    expect(isKaanaCredentialControlUnavailable(new Error('boom'))).toBe(false);
+    expect(isKaanaCredentialControlUnavailable('kaana_credential_control_unavailable')).toBe(false);
+    expect(isKaanaCredentialControlUnavailable(undefined)).toBe(false);
   });
 });
 
@@ -156,11 +148,6 @@ describe('presentation helpers', () => {
     expect(connectionStatusVariant('pending_validation')).toBe('secondary');
   });
 
-  it('shortens a fingerprint without ever lengthening it', () => {
-    const full = 'a'.repeat(64);
-    expect(shortFingerprint(full)).toHaveLength(12);
-    expect(full.startsWith(shortFingerprint(full))).toBe(true);
-  });
 });
 
 /**

@@ -39,16 +39,31 @@ function verdict(name, root, expectedCode, expectedText) {
 
 verdict('real workflow', fixture(), 0, 'Kaana DNS boundary is exact');
 verdict(
-  'unproxied apex',
+  'DNS-only apex',
   fixture((value) => value.replace('KAANA_ALB_DNS"].rstrip("."), True', 'KAANA_ALB_DNS"].rstrip("."), False')),
   1,
-  'apex must stay Cloudflare-proxied',
+  'apex must stay proxied through Cloudflare',
 );
 verdict(
   'proxied validation',
   fixture((value) => value.replace('VAL_VALUE"].rstrip("."), False', 'VAL_VALUE"].rstrip("."), True')),
   1,
   'validation CNAME must stay DNS-only',
+);
+verdict(
+  'stale read-back proxy variable',
+  fixture((value) => value.replace('for kind, name, value, proxied in wanted:', 'for kind, name, value, _ in wanted:')),
+  1,
+  'read-back must retain each record\'s exact proxy mode',
+);
+verdict(
+  'Cloudflare API error swallowed',
+  fixture((value) => value.replace(
+    'sys.exit(f"{method} {path} -> HTTP {error.code}: {payload[:400]}")',
+    'return json.loads(payload)',
+  )),
+  1,
+  'Cloudflare API errors must fail closed',
 );
 
 for (const root of fixtures) rmSync(root, { recursive: true, force: true });

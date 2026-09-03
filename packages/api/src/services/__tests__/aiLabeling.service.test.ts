@@ -19,8 +19,8 @@
  *
  * ## Why every case reloads the module
  *
- * `AI_LABELING_CONFIG` and `ALIA_API_KEY` are both read at module load, so the
- * service cannot be reconfigured after import. Each case therefore builds a
+ * `AI_LABELING_CONFIG` is read at module load, so the service cannot be
+ * reconfigured after import. Each case therefore builds a
  * fresh module registry — including a fresh `config/postgres`, which the loaded
  * service resolves `getDb()` through and which must therefore be connected
  * inside that registry. Seeding and verification go through this file's OWN
@@ -84,25 +84,22 @@ interface Loaded {
 
 /** The `user` half of the prompt the service posted on call `index`. */
 function promptOf(axiosPost: jest.Mock, index = 0): string {
-  const payload = axiosPost.mock.calls[index]?.[1] as
-    | { messages?: { role: string; content: string }[] }
+  const payload = axiosPost.mock.calls[index]?.[0] as
+    | { messages?: { role: string; content: Array<{ type: string; text: string }> }[] }
     | undefined;
-  return payload?.messages?.find((entry) => entry.role === 'user')?.content ?? '';
+  return payload?.messages?.find((entry) => entry.role === 'user')?.content[0]?.text ?? '';
 }
 
 /** An upstream reply carrying `labels` as the model's JSON array answer. */
-function aiReply(labels: string[]): { data: unknown } {
-  return { data: { choices: [{ message: { content: JSON.stringify(labels) } }] } };
+function aiReply(labels: string[]): { text: string } {
+  return { text: JSON.stringify(labels) };
 }
 
 async function loadService(overrides: AiLabelingConfigOverrides = {}): Promise<Loaded> {
   jest.resetModules();
-  process.env.ALIA_API_KEY = 'test-alia-key';
-
   jest.doMock('../../config/email.config', () => ({
     AI_LABELING_CONFIG: {
       enabled: true,
-      model: 'alia-lite',
       timeout: 10000,
       maxBodyChars: 1500,
       maxConcurrent: 2,
@@ -115,7 +112,10 @@ async function loadService(overrides: AiLabelingConfigOverrides = {}): Promise<L
   }));
 
   const axiosPost = jest.fn();
-  jest.doMock('axios', () => ({ __esModule: true, default: { post: axiosPost } }));
+  jest.doMock('../inboxInference.service', () => ({
+    executeInboxPointInference: axiosPost,
+    inboxCompletionText: (completion: { text: string }) => completion.text,
+  }));
 
   // The reloaded service resolves `getDb()` through a reloaded
   // `config/postgres`, which therefore has to be connected in this registry.

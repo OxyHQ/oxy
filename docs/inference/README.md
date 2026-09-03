@@ -1,21 +1,26 @@
 # Oxy inference platform
 
-Read [request-routing.md](./request-routing.md) first for the canonical
-Oxy/Kaana/Alia boundary and product paths. This page describes the Oxy
-control-plane mechanisms and their rollout gates. Whether a public or internal
-invoke succeeds is live deployment state; verify the deployed Oxy configuration,
-Kaana tasks and a real signed request instead of treating a dated prose status as
-an availability check. [rollout.md](./rollout.md) defines the gates and rollback
-plan.
+**This page is the status board.** Everything else under `docs/inference/`
+documents a mechanism that is already in the repository; this page is where the
+gaps live, so a reader who finds a topic missing elsewhere finds the reason here
+rather than assuming it was overlooked.
+
+Read this first. The public Oxy inference endpoint and Kaana data plane are
+separate deployment facts: code in either repository does not prove that an
+audience, catalogue route, signing lane or charging stage is live. Verify the
+current rollout readout and the exact deployed Kaana binding before invoking.
+[rollout.md](./rollout.md) has the flags, gates and rollback plan.
+Inbox's product-specific point-inference contract and bootstrap are in
+[inbox-point-inference.md](./inbox-point-inference.md).
 
 Tracking issue: [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972).
 Design decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md) ·
-[0006](../adr/0006-oxy-kaana-boundary.md) ·
 [0007](../adr/0007-canonical-request-attribution.md) ·
 [0008](../adr/0008-catalogue-concept-separation.md) ·
 [0009](../adr/0009-usage-reservation-and-settlement.md) ·
 [0010](../adr/0010-public-api-compatibility.md) ·
 [0013](../adr/0013-byok-secret-custody.md) ·
+[0019](../adr/0019-kaana-byok-custody.md) ·
 [0014](../adr/0014-account-billing-and-entitlements.md).
 
 ---
@@ -24,12 +29,11 @@ Design decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md) ·
 
 Oxy is the **control plane**: accounts, applications, credentials, scopes,
 attribution, the model catalogue, routing policy, BYOK metadata, the financial
-ledger, the usage API and the Console. The data plane, **Kaana** — the
-production name, settled by [ADR 0011](../adr/0011-inference-data-plane-name.md) —
-owns provider adapters, routing execution, streaming and upstream cost
-measurement. Alia remains the agent runtime and consumes this path; it is not a
-provider proxy. Source implementation and production reachability are separate
-claims, so use the live cutover gates before calling the end-to-end path ready.
+ledger, the usage API and the Console. **Kaana** is the inference data plane:
+provider adapters, routing execution, streaming, measurement and the encrypted
+PostgreSQL/KMS custody of customer provider keys. Alia remains the agent
+runtime. Kaana's only canonical signed origin is `https://kaana.ai`; it never
+uses a hostname under `oxy.so`.
 
 ---
 
@@ -42,10 +46,10 @@ claims, so use the live cutover gates before calling the end-to-end path ready.
 | The `oxy_sk_*` bearer middleware | `packages/api/src/middleware/machineCredential.ts` | Mounted on the edge with its per-credential and per-application limiters, and **the lane is shut by default** (`INFERENCE_MACHINE_CREDENTIAL_AUTH`) |
 | Native service tokens (`clientId + clientSecret` → 1h JWT) | `POST /auth/service-token` | Yes |
 | The `inference:*` scope family | `packages/api/src/utils/applicationScopes.ts` | Yes — see the caveat on `inference:models:read` below |
-| Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. Merged source has no model bootstrap; draft #1147 proposes the first exact routes. Public visibility remains gated by `INFERENCE_CATALOGUE_AUDIENCE` |
+| Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. The reviewed exact-route bootstrap is `packages/api/scripts/bootstrap-kaana-catalogue.ts`; public visibility remains gated by `INFERENCE_CATALOGUE_AUDIENCE` and its presence in source is not evidence that it ran in production |
 | Exact financial ledger: reserve → settle → refund | `packages/api/src/services/inferenceLedger.service.ts` | Yes — the edge reserves before forwarding and settles on every path out, **once charging is authorized**. Unset, it shadow meters: prices the request, records the amount, writes no financial record |
-| Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, filtered by the thirteen qualification controls and ranked from reviewed scorecards using the exact deployment identity contract |
-| BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts` | Merged metadata reads exist; create and rotate still refuse `503`. Kaana PostgreSQL/KMS custody is merged in Kaana source, but opaque-handle Oxy control and production gates remain pending |
+| Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, and **enforced against the candidate routes** (thirteen controls, the two price ceilings included; only `optimiseFor` is not) |
+| BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts`, `.../services/kaanaCredentialControl.ts` | Yes when the signed Kaana control lane is configured; every uncertain mutation is quarantined and recovered under the same operation ID |
 | Usage, spend, balance, charges, budgets | `packages/api/src/routes/inferenceReporting.ts` | Yes |
 | Account billing profile, Stripe boundary, entitlements | `packages/api/src/routes/accountBilling.ts` | Yes |
 | Inference usage telemetry + daily rollups | `packages/api/src/db/schema/inferenceUsageEvents.ts` | Yes — written by the edge, read by the reporting API |
@@ -54,12 +58,13 @@ claims, so use the live cutover gates before calling the end-to-end path ready.
 | Console: models, usage, billing, routing policy, BYOK | `packages/console` | Yes |
 | Rollout flags + the staff readout | `packages/api/src/config/rolloutFlags.ts`, `GET /inference/admin/rollout` | Yes — [rollout.md](./rollout.md) |
 
-**Merged source publishes no models by itself.** The tables and read API exist;
-the publisher seed writes five publisher slugs and no model rows. The last
-production readback recorded in the responsibility matrix (2026-08-17) was
-empty, while draft #1147 proposes the first exact routes. `GET /models` returning
-`[]` is valid for an empty or withheld audience, not proof of current production
-contents. Nothing here invents a model id to make an example look complete.
+**Merged source publishes no models merely by deploying the API.** The reviewed
+`bootstrap:kaana-catalogue` command validates a fresh signed Kaana inventory and
+exact reviewed facts before it can apply model, revision, deployment, pricing,
+score and routing-profile rows. The last production readback recorded in the
+responsibility matrix (2026-08-17) was empty; that is dated evidence, and the
+bootstrap's presence is not proof it ran. `GET /models` returning `[]` is valid
+for an empty or withheld audience, not proof of current production contents.
 
 **`inference:models:read` is checked nowhere.** The catalogue is audience-scoped
 by application type, not by scope: an anonymous caller, a user bearer and an
@@ -76,22 +81,27 @@ control planes.
 The sections below identify rollout dependencies. They are not a substitute for
 the live checks in [request-routing.md](./request-routing.md#a-cutover-is-complete-only-when-measured).
 
-### The data plane — workstream 13
+### The Kaana data plane — workstream 13
 
-`OxyHQ/Kaana` implements the signed data-plane endpoint, streaming adapters,
-authorized routing, health/circuit breakers, PostgreSQL/KMS provider-key pools,
-inventory publication and technical receipts. That is a source-code fact, not a
-production claim. The production gate is a healthy serving deployment at
-`https://kaana.ai`, complete Oxy signing configuration and a real signed request
-with settlement and negative-policy checks. The edge never falls back to Alia
-as an infrastructure provider and never fabricates a completion.
+The implementation lives in `~/Oxy/Kaana` and the signed service origin is
+`https://kaana.ai`. This repository owns the Oxy half of the contracts and
+deployment gates, not Kaana's runtime internals. A successful build or merge is
+not reachability evidence: verify the exact deployed Kaana revision, signed
+binding, catalogue route and audience before declaring inference live.
+
+Past the rollout gates, the edge authenticates, attributes, authorizes, resolves
+policy and route, reserves spend when charging is authorized, and forwards only
+an exact signed request to Kaana. It never falls back to the Alia proxy, derives
+an opaque ID from a name/order, or fabricates a completion.
 
 ### The catalogue's contents — workstream 5
 
-No model bootstrap is merged; draft #1147 is the proposed first publication.
-Until a route has reviewed commercial permission it is not publicly exposed,
-and default-deny is the starting state. Re-check the live audience rather than
-turning the dated empty readback into a standing production claim.
+The exact reviewed model bootstrap is merged, but it is safe-by-default and
+applies nothing unless an authorized operator sets `APPLY=1` with a live signed
+Kaana inventory and catalogue reviewer. Until a route has reviewed commercial
+permission it is not publicly exposed, and default-deny is the starting state.
+Re-check the live catalogue and audience rather than treating source or the
+dated empty readback as production evidence.
 
 ### Route selection — workstream 6
 
@@ -126,15 +136,24 @@ is refused with `policy_violation` rather than downgraded.
 is also held in code by a `tsc` gate that fails naming any control in neither
 list.
 
-### BYOK custody — workstream 10, [ADR 0019](../adr/0019-kaana-byok-custody.md)
+### Kaana BYOK custody — workstream 10, [ADR 0019](../adr/0019-kaana-byok-custody.md)
 
-The accepted architecture puts every provider credential, including BYOK, in
-Kaana PostgreSQL encrypted by KMS. Oxy keeps only metadata plus an opaque handle
-and revision. Kaana #48 implements its half in merged source; the coordinated
-Oxy cut is still draft and the combined path is not production-verified. The merged Oxy path therefore
-still refuses create and rotate with `503 provider_secret_store_unavailable`
-before reading the credential. [byok.md](./byok.md) separates the target
-contract, current refusal and live rollout gates.
+Kaana is the sole credential custodian: KMS ciphertext is stored in Kaana
+PostgreSQL and decrypted only inside inference. Oxy stores exact opaque
+handle/revision metadata plus a durable same-operation recovery ledger; it
+stores no provider credential plaintext/ciphertext and persists no prefix,
+suffix, fingerprint, hash or other credential-derived hint.
+Provider keys never come from environment variables or MongoDB. Create/rotate
+accept exactly 1–4096 visible ASCII bytes, and an uncertain mutation remains
+non-routable until the exact Kaana outcome is reconciled. In source, the
+authenticated edge resolves and signs only an exact `ready + active + valid`
+generation, applies `prefer`/`require`/`disabled`, and uses a separately linked
+platform-fee version for BYOK settlement. A `pending_validation + unvalidated`
+generation is never eligible for a normal authorized route. The dedicated
+authenticated bootstrap that could validate that initial generation is absent,
+so BYOK remains a fail-closed production launch gate alongside fee publication
+and association, migrations, matching image deployment and live probes.
+[byok.md](./byok.md) has the state machine, recovery rules and launch gates.
 
 ### Streaming and observable cancellation — workstream 4
 
@@ -240,11 +259,11 @@ read it back rather than inferring it from this repository.
 [alia.md](./alia.md) is the runbook, the argument for each scope granted and
 withheld, and the list of what remains blocked.
 
-Alia is the agent runtime and an ordinary Oxy inference consumer. Retire any
-static infrastructure proxy only after the live Oxy→Kaana and Alia→Oxy→Kaana
-paths pass the cutover gates. Alia product endpoints such as voice or assistant
-chat remain Alia surfaces; they must not be confused with generic provider
-execution. See [request-routing.md](./request-routing.md) and
+Alia also remains the upstream of the proxy above. That does not change here:
+removing it is conditioned on Kaana being LIVE, which is a claim about a
+deployment Oxy can reach and not about a repository. The proxy kept a working
+path when the edge took `/v1/chat/completions`; retiring it requires a verified
+Kaana production route and a dated notice. See
 [deprecation.md](./deprecation.md#the-alia-proxy-now-at-alia).
 
 ### A Python SDK — workstream 15
@@ -263,7 +282,7 @@ gives the two reasons.
 | [attribution.md](./attribution.md) | `accountId`, `applicationId`, `credentialId`, delegated `userId`, `requestId` — and why the delegated user never pays |
 | [catalogue.md](./catalogue.md) | Model vs. revision vs. provider vs. deployment vs. routing profile, the canonical id forms, and the SDK's read methods |
 | [routing.md](./routing.md) | Routing controls, fallback semantics, and exactly which controls are enforced |
-| [byok.md](./byok.md) | Kaana PostgreSQL/KMS custody, Oxy opaque-handle metadata, the current `503`, and coordinated rollout gates |
+| [byok.md](./byok.md) | Kaana PostgreSQL/KMS custody, provider connections, exact-ID mutations, same-operation recovery and closure fencing |
 | [billing.md](./billing.md) | Reserve → settle → refund, exact amounts, price snapshots, and why dashboard usage is eventually consistent while a bill is not |
 | [streaming.md](./streaming.md) | Streaming, cancellation, retries and idempotency |
 | [data-policy.md](./data-policy.md) | What is retained, for how long, and where — plus what a route does with your payload |

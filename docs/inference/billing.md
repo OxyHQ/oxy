@@ -256,7 +256,7 @@ database CHECK is the second line, for anything reaching the table another way.
 | A reservation with no settlement by its deadline | Expired after 15 minutes and released as a refund carrying a `reservation_expiry` journal entry — never a silent release. The sweep that does this runs every minute, so a hold is released within about a minute of its deadline; every path out of the edge settles its own hold, so no reservation reaches its deadline today. |
 | Retry of a settled request | Idempotent no-op returning the original receipt. |
 | Redelivered webhook or data-plane event | Idempotent no-op on the provider event id. |
-| BYOK route | Your upstream provider bills you directly; Oxy settles only its own platform fee, and the receipt says so. |
+| BYOK route | Your upstream provider bills you directly. Oxy source selects only the separately linked `platform_fee_price_version_id`, quotes/reserves/settles it with `platformFeeOnly = true`, and records that fact on the receipt. The upstream provider `price_version_id` remains null and is never reused. Production remains fail-closed until an exact immutable fee amount/version is approved, published and associated and the matching migration, images and live probes are verified. |
 
 One refusal is worth calling out because it looks like a bug: if the exact charge
 comes out **above** the hold that authorised it, the settlement is refused and

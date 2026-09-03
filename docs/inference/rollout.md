@@ -47,11 +47,10 @@ also report. Flipping any default in the module turns that file red.
 never opens anything, and the readout reports `unreadable` rather than echoing an
 operator's text back over HTTP.
 
-Kaana's `KAANA_ASSUME_FAILOVER_AUTHORIZED` — this ecosystem's precedent for a
-dangerous switch — makes a malformed value a hard boot failure instead. That is
-proportionate for a data plane whose whole job is the thing being gated; it is
-not proportionate for `oxy-api`, which also serves authentication, email, storage
-and federation, and must not be taken down by a typo in an inference flag.
+A dedicated execution service may reasonably make a malformed safety switch a
+hard boot failure. That is not proportionate for `oxy-api`, which also serves
+authentication, email, storage and federation and must not be taken down by a
+typo in an inference flag.
 
 ### Why charging refuses a bare `true`
 
@@ -62,11 +61,11 @@ picks up, and what somebody types to see whether a flag does anything.
 `commercial-launch:2026-08-16` is not typed by accident, and it records the two
 things an auditor asks about a charge — who accepted it, and when.
 
-It does not expire, and Kaana's does not either. Expiry would be wrong in both
-directions here: at public scale an expired authorization either serves the world
-for free or refuses every request, and both are expensive. What the date buys
-instead is an age reported beside the flag in the readout, which is the question
-a self-disarming timer was only ever a proxy for.
+It does not expire. Expiry would be wrong in both directions here: at public
+scale an expired authorization either serves the world for free or refuses every
+request, and both are expensive. What the date buys instead is an age reported
+beside the flag in the readout, which is the question a self-disarming timer was
+only ever a proxy for.
 
 ### A public launch is gated on charging
 
@@ -80,6 +79,20 @@ at internet scale.
 
 A closed beta is deliberately NOT gated on it: a bounded, named audience may run
 unpriced, and that is what the shadow period is for.
+
+### BYOK has a separate accounting gate
+
+The general charging flag does not make a BYOK route billable. A `byok_only`
+deployment intentionally keeps its upstream provider `price_version_id` null
+and has a separate nullable `platform_fee_price_version_id`. Source code refuses
+a missing, mismatched, inactive or ineffective fee version before reservation,
+then quotes and settles the selected exact version with
+`platformFeeOnly = true`. It does not author or approve the amount. Until a
+reviewed Oxy platform-fee product, rate and immutable price version are actually
+published and associated — and migration `0069`, the matching images and live
+probes are verified — BYOK inference remains closed in production. Reusing a
+provider token price or silently making BYOK free are both accounting defects,
+never launch shortcuts. See [byok.md](./byok.md#launch-gates), gate 9.
 
 ---
 
@@ -127,15 +140,15 @@ this repository, so the review is a re-check rather than a survey:
 
 | What | Where it stands today |
 |---|---|
-| Debug payload retention: opt-in, time-limited, encrypted, audited | **Not built, and there is nothing to opt into** — no table carries a prompt or completion. Kaana's narrow provider-credential KMS boundary is not a payload vault and must not be reused as one; [ADR 0016](../adr/0016-no-inference-payload-persistence.md) keeps all four controls as preconditions. |
+| Debug payload retention: opt-in, time-limited, encrypted, audited | **Not built, and there is nothing to opt into** — no table in this schema carries a prompt or a completion. [data-policy.md](./data-policy.md) states it. Kaana's KMS role/store is restricted to provider-key custody and is not a payload-retention backend. |
 | PII redaction for opted-in traces | No traces exist to redact. The adjacent control that DOES exist is the credential refusal in free error text (`@oxyhq/contracts`' `safeErrorTextSchema`, enforced at `utils/inferenceEdgeErrors.ts`). |
-| Deletion and export preserve legally required financial records | `DELETE /users/me` refuses a live subscription, a held reservation and a live BYOK connection, then erases everything optional and ARCHIVES rather than deletes when financial history blocks. `GET /users/me/export` carries the account's own receipts, ledger entries and holds. **Open: an archived account is not anonymised** — it keeps its username, email and display name, and that is an owner decision, not a code gap. |
-| No upstream provider key in logs, traces, metrics, errors or responses | The target boundary is structural: all provider plaintext, including BYOK, exists only inside Kaana's credential-control/inference paths and ciphertext is in Kaana PostgreSQL/KMS. Oxy stores only an opaque handle. The legacy Alia proxy is a clearly transitional product route, not alternate provider custody; its error-body refusal remains defence in depth until the live cutover retires it. |
-| Secret scanning and accidental-serialization tests | Both exist: the CI secret scanner has mutation-tested signatures and vacuity floors, while serialization tests prove provider material cannot escape through common string/JSON/logger paths. |
-| Rotation runbooks and break-glass | [The BYOK runbook](../runbooks/byok-provider-connection-rotation.md) records the exact opaque-handle/KMS procedure and labels it pending until the Oxy cut and live gates pass. The general inference rollback remains [below](#the-rollback-plan). |
+| Deletion and export preserve legally required financial records | `DELETE /users/me` refuses a live subscription, a held reservation and any BYOK connection whose Kaana custody is not `revoked`, then writes a durable closure fence before destructive cleanup. A failed cleanup remains retryable without allowing a new BYOK create. `GET /users/me/export` carries the account's own receipts, ledger entries and holds. **Open: an archived account is not anonymised** — it keeps its username, email and display name, and that is an owner decision, not a code gap. |
+| No upstream provider key or derived hint in logs, traces, metrics, errors or responses | Structural for BYOK transit: `ProviderCredentialValue` keeps plaintext in a runtime-private `#value` and overrides string, JSON and inspection serialisation; Oxy connection/audit storage and contracts expose no prefix, suffix, fingerprint or hash. Kaana alone stores KMS ciphertext in its PostgreSQL database. Free-form upstream error text is filtered through `safeErrorTextSchema`. |
+| Secret scanning and accidental-serialization tests | Serialization tests exist and are strong. Secret scanning in CI is a separate workstream. |
+| Rotation runbooks and break-glass | [The BYOK runbook](../runbooks/byok-provider-connection-rotation.md) covers rotate, disable, revoke and same-operation recovery. KMS/IAM infrastructure procedures remain in `oxy-infra`. |
 | Least-privilege admin roles | Graded staff capabilities (`users.staff_capabilities`) on the highest-value writes: catalogue publication, balance adjustment, cost centres. Read-only staff surfaces stay on the plain `is_staff` flag. |
 | Rate limits and fraud controls | See [Fraud controls](#fraud-controls-and-what-is-deliberately-left-open) below. |
-| Provider-key custody | Accepted architecture, not production proof: every provider credential, including BYOK, is KMS ciphertext in Kaana PostgreSQL; Oxy stores only metadata plus an opaque handle/revision. Kaana #48 is merged in Kaana source, but the coordinated Oxy cut remains draft, so merged Oxy still refuses BYOK writes. |
+| Provider secrets in Kaana PostgreSQL encrypted by KMS, never Oxy/product storage or env | Implemented by the signed Kaana custody lane. Oxy stores exact opaque handle/revision metadata and no provider plaintext, ciphertext, fingerprint or hash. Production enablement remains gated on the exact deployment/IAM/network checks in [byok.md](./byok.md). |
 
 ### Ordering
 
@@ -356,12 +369,11 @@ their rollups — is NEW, was created by this epic, and holds no production rows
 There is no previous inference ledger to read from, no previous catalogue to keep
 in step, and no previous credential store to write through to.
 
-The one thing that could be mistaken for a migration is the Alia proxy, and it is
-not one: `POST /alia/chat/completions` and `POST /v1/chat/completions` are two
-different systems reachable at two different paths, not one system being moved.
-The proxy keeps working unchanged; the edge does not read or write anything the
-proxy touches; retiring the proxy is a deprecation with a notice
-([deprecation.md](./deprecation.md#the-alia-proxy-now-at-alia)), not a cutover.
+The former Alia compatibility proxy was not dual-written. A caller census split
+its responsibilities: point inference moved to authenticated Oxy endpoints and
+Kaana, while legitimate Alia product features call Alia directly. The Oxy
+`/alia/*` and `/v1/voice/*` mounts are retired, and negative route tests keep
+them closed. See [deprecation.md](./deprecation.md#the-alia-proxy-retirement-is-complete).
 
 The two places where a genuine dual-something exists are already built and are
 not migrations either: `usage_receipts` carries a **price snapshot** copied off
@@ -464,7 +476,8 @@ rest on the rollback being done carefully:
 - **The database.** There is no migration to reverse. The flags are read at
   request time from the environment; rolling back changes no schema and drops no
   table.
-- **The Alia proxy.** It was never in this path.
+- **The retired Alia proxy.** Rollback must not restore its shared-key routes;
+  direct Alia product integrations and Oxy→Kaana point inference are separate.
 
 ### What to check after a rollback
 

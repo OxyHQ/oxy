@@ -161,8 +161,8 @@ connection metadata and policy but stores only the opaque Kaana
 PostgreSQL/KMS, bound to provider, owner account, connection, environment,
 handle and revision. The signed authorized route must carry that exact binding;
 no component may resolve BYOK by provider name or an Oxy/Vault locator. This is
-the accepted architecture in [ADR 0019](../adr/0019-kaana-byok-custody.md), while
-Kaana #48 is merged in source, while the coordinated Oxy cut remains draft and
+the accepted architecture in [ADR 0019](../adr/0019-kaana-byok-custody.md).
+Kaana and Oxy source support are implemented; Oxy execution remains disabled and
 the combined path is unverified in production.
 
 ## Provider and model discovery

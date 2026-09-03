@@ -18,9 +18,17 @@ requireExact(
 );
 requireExact(
   'wanted.append(("CNAME", ZONE, os.environ["KAANA_ALB_DNS"].rstrip("."), True))',
-  'the kaana.ai apex must stay Cloudflare-proxied and point only at the supplied dedicated ALB',
+  'the kaana.ai apex must stay proxied through Cloudflare and point only at the supplied dedicated ALB',
 );
 requireExact('ZONE = "kaana.ai"', 'the workflow must edit only the canonical kaana.ai zone');
+requireExact(
+  'sys.exit(f"{method} {path} -> HTTP {error.code}: {payload[:400]}")',
+  'Cloudflare API errors must fail closed instead of becoming empty successful responses',
+);
+requireExact(
+  'for kind, name, value, proxied in wanted:',
+  'read-back must retain each record\'s exact proxy mode',
+);
 
 for (const retired of ['kaana.oxy.so', 'api.kaana.ai', 'oxy-alb-']) {
   if (workflow.includes(retired)) problems.push(`retired/shared DNS identity ${retired} returned to the Kaana DNS workflow`);
@@ -32,4 +40,4 @@ if (problems.length) {
   process.exit(1);
 }
 
-console.log('Kaana DNS boundary is exact: validation is DNS-only and kaana.ai is proxied to the dedicated ALB.');
+console.log('Kaana DNS boundary is exact: validation is DNS-only and the dedicated kaana.ai apex stays proxied through Cloudflare.');

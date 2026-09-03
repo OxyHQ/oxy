@@ -5,39 +5,25 @@
  * ## THE ONE RULE
  *
  * **A provider secret never reaches this table.** Not encrypted, not hashed,
- * not "temporarily". What is stored is a LOCATOR (`secret_ref`) into managed
- * secret storage, a prefix short enough to be useless, a SHA-256 fingerprint,
- * and lifecycle state. `providerConnectionSchema` in `@oxyhq/contracts` is
+ * not "temporarily". What is stored is Kaana's opaque `credential_handle`, its
+ * exact revision and lifecycle state.
+ * `providerConnectionSchema` in `@oxyhq/contracts` is
  * `.strict()` and carries no field a credential could occupy, and this table is
  * its storage shape column for column — so a producer that tries to attach one
  * fails the parse rather than being silently stripped.
  *
- * That rule is why the columns below are so plain. There is nothing here worth
- * encrypting, because the only thing worth encrypting is somewhere else.
+ * Kaana alone stores KMS ciphertext and resolves plaintext inside inference.
  *
  * ## What isolates what — stated exactly, because "encrypted per account" is
  * the kind of claim that reads as a guarantee and is usually a hope
  *
- * Oxy holds no ciphertext, so it enforces no cipher. What it CAN enforce, and
- * does, is three structural partitions:
+ * Oxy holds no ciphertext, so it enforces no cipher. It enforces three exact
+ * control-plane properties:
  *
- *  1. **Every reference lies inside its own account's and environment's
- *     partition of the secret store.** `inference_provider_connections_secret_ref_partition`
- *     requires `secret_ref` to END with `/<environment>/<owner_account_id>/<id>`.
- *     A row naming another account's or another environment's locator cannot be
- *     written at all — not "is filtered out by a WHERE clause somebody must
- *     remember", refused by the database. It is also what makes a per-partition
- *     IAM/Vault policy at the store expressible: the partition is in the path.
- *  2. **A stored secret belongs to exactly one connection.** This follows FROM
- *     (1) rather than standing beside it, and the distinction is worth stating
- *     because the obvious reading is wrong: since the partition suffix ends with
- *     the row's OWN id, two rows cannot hold the same `secret_ref` at all, so
- *     `inference_provider_connections_secret_ref_key` can never actually fire.
- *     It is kept anyway — it is the index a lookup BY reference reads, and it is
- *     the constraint that would still hold if the partition rule were ever
- *     relaxed — but it is not independent evidence of anything, and a test
- *     asserting it refuses a duplicate would be asserting the partition CHECK
- *     under another name.
+ *  1. **Only a Kaana-minted opaque handle is admissible.** The closed format
+ *     check rejects secret-store locators and credential-shaped strings.
+ *  2. **One handle belongs to one connection.** The unique constraint prevents
+ *     two metadata rows from authorizing the same Kaana credential.
  *  3. **At most one LIVE connection per (scope, provider, environment).** The
  *     partial unique index below. Without it "which of this customer's OpenAI
  *     keys served the request" has no answer, and a development key can silently
@@ -90,6 +76,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  bigint,
   check,
   foreignKey,
   index,
@@ -98,7 +85,6 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { PROVIDER_SECRET_REFERENCE_NAMESPACE } from '@oxyhq/contracts';
 import { createdAt, generatedId, inList, timestamptz } from '@oxyhq/db';
 import { applications } from './applications';
 import { inferenceProviders } from './inferenceProviders';
@@ -122,8 +108,19 @@ export const PROVIDER_CONNECTION_STATUSES = [
 
 export type ProviderConnectionStatusValue = (typeof PROVIDER_CONNECTION_STATUSES)[number];
 
-/** The statuses a request may be served through. The partial index reads it. */
-export const LIVE_PROVIDER_CONNECTION_STATUSES = ['pending_validation', 'active'] as const;
+/** Cross-service custody state. Only `ready` is eligible for routing. */
+export const PROVIDER_CREDENTIAL_CUSTODY_STATES = [
+  'pending',
+  'ready',
+  'reconcile',
+  'revoked',
+] as const;
+
+export type ProviderCredentialCustodyStateValue =
+  (typeof PROVIDER_CREDENTIAL_CUSTODY_STATES)[number];
+
+/** Statuses that claim a scope key and therefore prevent a parallel replacement. */
+export const EXCLUSIVE_PROVIDER_CONNECTION_STATUSES = ['pending_validation', 'active'] as const;
 
 /** Outcome of the last credential check. */
 export const PROVIDER_CONNECTION_VALIDATION_STATES = [
@@ -154,49 +151,6 @@ export const PROVIDER_CONNECTION_ENVIRONMENTS = ['development', 'staging', 'prod
 
 export type ProviderConnectionEnvironment = (typeof PROVIDER_CONNECTION_ENVIRONMENTS)[number];
 
-/**
- * The stores `providerSecretReferenceSchema` admits, as a SQL alternation.
- *
- * Derived from one tuple so the CHECK and `services/providerSecretStore.ts`
- * cannot come to different answers about what a reference may name.
- */
-export const PROVIDER_SECRET_STORE_NAMES = ['vault', 'kms', 'ssm', 'secretsmanager'] as const;
-
-export type ProviderSecretStoreName = (typeof PROVIDER_SECRET_STORE_NAMES)[number];
-
-/**
- * The reference grammar, restated for Postgres — the same closed grammar
- * `providerSecretReferenceSchema` admits, segment for segment.
- *
- * Restated as a CHECK rather than left to the zod parse because the parse
- * protects the WIRE and this protects the TABLE: a seed script, a backfill or a
- * future service that skipped the contract cannot put credential material in
- * this column and have it look like a locator. Together with the partition CHECK
- * below — which pins the two id segments to this row's own owner account and id
- * — the column admits exactly one string per row, per store.
- *
- * **That was not true until migration `0054`.** The tail used to be
- * `[A-Za-z0-9/_.:@-]+`, which accepts a credential spliced in after the store
- * name (`vault:sk-ant-api03-…/oxy/inference/byok/<env>/<account>/<id>`); it still
- * ends with the partition suffix, so the partition CHECK passed as well. Measured
- * against a real Postgres, the row was written and read back credential and all —
- * see the note on `providerSecretReferenceSchema` and the case in
- * `services/__tests__/providerSecretLeak.test.ts`.
- *
- * The restatement is deliberate rather than a shared string, for the reason
- * `inferenceSlug.ts` gives: a zod regex is a JavaScript `RegExp` and a CHECK is a
- * POSIX ARE, so there is no one literal both can use. `__tests__/inferenceProviderConnections.test.ts`
- * runs the same table of references through both and is what holds them equal.
- * Postgres rejects any repetition bound above 255, which the segment bounds here
- * stay under; the grammar itself now caps the whole string, so no separate length
- * assertion is left to drift.
- */
-export const PROVIDER_SECRET_REFERENCE_PATTERN = `'^(?:${PROVIDER_SECRET_STORE_NAMES.join(
-  '|'
-)}):${PROVIDER_SECRET_REFERENCE_NAMESPACE}/(?:${PROVIDER_CONNECTION_ENVIRONMENTS.join(
-  '|'
-)})/[A-Za-z0-9_-]{1,64}/[A-Za-z0-9_-]{1,128}$'`;
-
 export const inferenceProviderConnections = pgTable(
   'inference_provider_connections',
   {
@@ -214,13 +168,12 @@ export const inferenceProviderConnections = pgTable(
 
     /**
      * The account that owns the connection, answers for its use, and whose
-     * partition of the secret store the reference lies in. Also the account the
-     * SCOPE names — see the header for why that is one column and not two.
+     * exact Kaana KMS context names. Also the account the SCOPE names — see the
+     * header for why that is one column and not two.
      *
      * `RESTRICT`, unlike `applications.owner_account_id`'s `CASCADE`. A cascade
-     * here would delete the metadata while leaving the credential sitting in the
-     * secret store with nothing left in Oxy that knows it exists — an orphaned
-     * secret nobody can find to destroy. Account deletion must revoke these
+     * here would delete the metadata while leaving Kaana ciphertext with no Oxy
+     * record that can revoke it. Account deletion must revoke these
      * first, which is a deliberate, loud step.
      */
     ownerAccountId: text()
@@ -239,31 +192,28 @@ export const inferenceProviderConnections = pgTable(
      * `revokeProviderConnection`, which is why an application delete is not a
      * silent way to strand one.
      */
-    applicationId: text().references(() => applications.id, { onDelete: 'cascade' }),
+    applicationId: text().references(() => applications.id, {
+      onDelete: 'cascade',
+    }),
 
     environment: text({ enum: PROVIDER_CONNECTION_ENVIRONMENTS }).notNull(),
     status: text({ enum: PROVIDER_CONNECTION_STATUSES }).notNull(),
 
-    /**
-     * The locator, never the credential. See the header, and the two CHECKs
-     * below: one holds the grammar, the other holds the partition.
-     */
-    secretRef: text().notNull(),
+    /** Kaana-minted opaque handle; never a secret-store locator. */
+    credentialHandle: text(),
+    /** Exact immutable Kaana generation paired with the handle (JS safe int64 range). */
+    credentialRevision: bigint({ mode: 'number' }),
+    /** Cross-service commit state. Anything except `ready` is non-routable. */
+    custodyState: text({ enum: PROVIDER_CREDENTIAL_CUSTODY_STATES }).notNull().default('pending'),
 
-    /**
-     * The leading characters of the credential, for recognition only. Capped at
-     * 12 by the CHECK — long enough to tell two keys apart, far too short to be
-     * one. The cap is the contract's, restated where the write happens.
-     */
-    keyPrefix: text().notNull(),
-
-    /** SHA-256 of the credential, so a rotation is verifiable without the key. */
-    fingerprint: text().notNull(),
-
-    validationState: text({ enum: PROVIDER_CONNECTION_VALIDATION_STATES }).notNull(),
+    validationState: text({
+      enum: PROVIDER_CONNECTION_VALIDATION_STATES,
+    }).notNull(),
 
     /** Required when `invalid`: a failure nobody can act on is not a result. */
-    validationFailureCode: text({ enum: PROVIDER_CONNECTION_VALIDATION_FAILURE_CODES }),
+    validationFailureCode: text({
+      enum: PROVIDER_CONNECTION_VALIDATION_FAILURE_CODES,
+    }),
 
     lastValidatedAt: timestamptz(),
 
@@ -312,7 +262,15 @@ export const inferenceProviderConnections = pgTable(
      * accounts cannot name the same credential, because the second write
      * collides.
      */
-    unique('inference_provider_connections_secret_ref_key').on(t.secretRef),
+    unique('inference_provider_connections_credential_handle_key').on(t.credentialHandle),
+
+    /** Composite target for the durable operation ledger's exact identity FK. */
+    unique('inference_provider_connections_operation_identity_key').on(
+      t.id,
+      t.provider,
+      t.ownerAccountId,
+      t.environment,
+    ),
 
     /**
      * At most one LIVE connection per scope, provider and environment.
@@ -326,8 +284,10 @@ export const inferenceProviderConnections = pgTable(
      * be PARTIAL, which this must be. The empty string is safe as the sentinel:
      * an application id is a uuid v7 or a 24-character ObjectId hex, never `''`.
      *
-     * Partial on the live statuses so a revoked or disabled connection never
-     * blocks its own replacement.
+     * Partial on the scope-claiming statuses so a revoked or disabled connection
+     * never blocks its own replacement. `pending_validation` is deliberately in
+     * this index even though it is not routable for serving: validation must
+     * finish before a second credential may claim the same scope.
      *
      * `scope_kind` is IN the key: an account-scoped and a project-scoped
      * connection on the same account for the same provider would both apply to
@@ -339,39 +299,43 @@ export const inferenceProviderConnections = pgTable(
         t.scopeKind,
         sql`coalesce(${t.applicationId}, '')`,
         t.provider,
-        t.environment
+        t.environment,
       )
-      .where(sql`${t.status} in (${sql.raw(inList(LIVE_PROVIDER_CONNECTION_STATUSES))})`),
+      .where(sql`${t.status} in (${sql.raw(inList(EXCLUSIVE_PROVIDER_CONNECTION_STATUSES))})`),
 
     // "This account's connections, newest first" — the Console list.
     index('inference_provider_connections_owner_account_id_created_at_idx').on(
       t.ownerAccountId,
-      t.createdAt.desc()
+      t.createdAt.desc(),
     ),
     // …and the resolver's read, narrowed to one application.
     index('inference_provider_connections_application_id_idx').on(t.applicationId),
 
     check(
       'inference_provider_connections_scope_kind_check',
-      sql`${t.scopeKind} in (${sql.raw(inList(PROVIDER_CONNECTION_SCOPE_KINDS))})`
+      sql`${t.scopeKind} in (${sql.raw(inList(PROVIDER_CONNECTION_SCOPE_KINDS))})`,
     ),
     check(
       'inference_provider_connections_status_check',
-      sql`${t.status} in (${sql.raw(inList(PROVIDER_CONNECTION_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(PROVIDER_CONNECTION_STATUSES))})`,
     ),
     check(
       'inference_provider_connections_environment_check',
-      sql`${t.environment} in (${sql.raw(inList(PROVIDER_CONNECTION_ENVIRONMENTS))})`
+      sql`${t.environment} in (${sql.raw(inList(PROVIDER_CONNECTION_ENVIRONMENTS))})`,
+    ),
+    check(
+      'inference_provider_connections_custody_state_check',
+      sql`${t.custodyState} in (${sql.raw(inList(PROVIDER_CREDENTIAL_CUSTODY_STATES))})`,
     ),
     check(
       'inference_provider_connections_validation_state_check',
-      sql`${t.validationState} in (${sql.raw(inList(PROVIDER_CONNECTION_VALIDATION_STATES))})`
+      sql`${t.validationState} in (${sql.raw(inList(PROVIDER_CONNECTION_VALIDATION_STATES))})`,
     ),
     check(
       'inference_provider_connections_validation_failure_code_check',
       sql`${t.validationFailureCode} is null or ${t.validationFailureCode} in (${sql.raw(
-        inList(PROVIDER_CONNECTION_VALIDATION_FAILURE_CODES)
-      )})`
+        inList(PROVIDER_CONNECTION_VALIDATION_FAILURE_CODES),
+      )})`,
     ),
 
     /**
@@ -383,7 +347,7 @@ export const inferenceProviderConnections = pgTable(
      */
     check(
       'inference_provider_connections_application_scope_check',
-      sql`(${t.scopeKind} = 'application') = (${t.applicationId} is not null)`
+      sql`(${t.scopeKind} = 'application') = (${t.applicationId} is not null)`,
     ),
 
     /**
@@ -393,68 +357,47 @@ export const inferenceProviderConnections = pgTable(
      */
     check(
       'inference_provider_connections_failure_code_required',
-      sql`${t.validationState} <> 'invalid' or ${t.validationFailureCode} is not null`
+      sql`${t.validationState} <> 'invalid' or ${t.validationFailureCode} is not null`,
     ),
 
     /**
-     * A credential the provider has REJECTED cannot be the one live requests are
-     * routed through. `providerConnectionSchema` refines the same rule; leaving
-     * it to the parse alone would mean a direct write could store a row the
-     * serializer then refuses to read back.
+     * `active` means the exact current credential generation passed validation.
+     * `providerConnectionSchema` refines the same rule; leaving it to the parse
+     * alone would mean a direct write could store a row the serializer then
+     * refuses to read back.
      */
     check(
       'inference_provider_connections_active_requires_valid',
-      sql`${t.status} <> 'active' or ${t.validationState} <> 'invalid'`
+      sql`${t.status} <> 'active' or ${t.validationState} = 'valid'`,
     ),
 
     /** Where the provider's own terms require an acknowledgement, it exists. */
     check(
       'inference_provider_connections_terms_acknowledged',
-      sql`not ${t.providerTermsAcknowledgementRequired} or ${t.termsAcknowledgedAt} is not null`
+      sql`not ${t.providerTermsAcknowledgementRequired} or ${t.termsAcknowledgedAt} is not null`,
     ),
 
-    /**
-     * The reference is `<store>:oxy/inference/byok/<environment>/<id>/<id>` and
-     * nothing else — no prefix, no suffix, no extra segment. Whitespace and a
-     * pasted credential are both outside the grammar rather than merely unlikely
-     * to be mistaken for a locator.
-     */
     check(
-      'inference_provider_connections_secret_ref_format',
-      sql`${t.secretRef} ~ ${sql.raw(PROVIDER_SECRET_REFERENCE_PATTERN)}`
+      'inference_provider_connections_credential_handle_format',
+      sql`${t.credentialHandle} is null or ${t.credentialHandle} ~ '^kcred_[a-z2-7]{26}$'`,
     ),
-
-    /**
-     * Partition (1) in the header, and the reason this table can claim
-     * account/environment separation at all: the locator ENDS with this
-     * connection's own environment, owner account and id.
-     *
-     * `right(...)` rather than `like`, deliberately — `like` would read `_` and
-     * `%` in an id as wildcards, and a constraint that is ALMOST exact is worse
-     * than none because it reads as exact.
-     *
-     * On its own this pins only the END of the string, which is why it did not
-     * stop a credential spliced in at the FRONT; the format CHECK above now fixes
-     * every other span, so the two together admit exactly one value per row and
-     * per store.
-     */
     check(
-      'inference_provider_connections_secret_ref_partition',
-      sql`right(${t.secretRef}, length('/' || ${t.environment} || '/' || ${t.ownerAccountId} || '/' || ${t.id})) = '/' || ${t.environment} || '/' || ${t.ownerAccountId} || '/' || ${t.id}`
+      'inference_provider_connections_credential_reference_pair',
+      sql`(${t.credentialHandle} is null) = (${t.credentialRevision} is null)`,
     ),
-
-    /** The contract's cap, where the write happens. */
     check(
-      'inference_provider_connections_key_prefix_length',
-      sql`length(${t.keyPrefix}) between 1 and 12`
+      'inference_provider_connections_credential_revision_positive',
+      sql`${t.credentialRevision} is null or ${t.credentialRevision} between 1 and 9007199254740991`,
     ),
-
-    /** 64 lowercase hex characters — a SHA-256 digest and nothing else. */
     check(
-      'inference_provider_connections_fingerprint_format',
-      sql`${t.fingerprint} ~ '^[a-f0-9]{64}$'`
+      'inference_provider_connections_custody_reference_required',
+      sql`${t.custodyState} not in ('ready', 'revoked') or ${t.credentialHandle} is not null`,
     ),
-  ]
+    check(
+      'inference_provider_connections_pending_has_no_reference',
+      sql`${t.custodyState} <> 'pending' or ${t.credentialHandle} is null`,
+    ),
+  ],
 );
 
 export type InferenceProviderConnectionRow = typeof inferenceProviderConnections.$inferSelect;

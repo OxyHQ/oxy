@@ -1,14 +1,13 @@
 # ADR 0019 — Kaana holds every provider credential in PostgreSQL/KMS, including BYOK
 
-- Status: accepted architecture; Kaana source merged, Oxy cut and production rollout pending
+- Status: accepted architecture; Kaana and Oxy source implemented, production execution disabled and unverified
 - Date: 2026-09-02
 - Supersedes: [ADR 0013](0013-byok-secret-custody.md) for the custody backend.
-  ADR 0013 remains the record of why the existing Oxy build refuses a BYOK write
-  instead of accepting material it cannot store safely.
+  ADR 0013 remains the historical record of the prior fail-closed refusal.
 - Issue: #972 (workstream 10)
 - Source changes: [Kaana #48](https://github.com/OxyHQ/Kaana/pull/48) and the
-  coordinated Oxy custody cut. Kaana #48 is merged; the Oxy cut remains draft.
-  Neither fact is production evidence.
+  coordinated Oxy custody cut. Both source implementations exist; neither fact
+  is production evidence, and Oxy keeps execution explicitly disabled.
 
 ## Context
 
@@ -59,10 +58,10 @@ The canonical mutation and inference origin is exactly `https://kaana.ai`.
 
 ## Rollout status and gates
 
-The architecture is decided; availability is not. Kaana #48 is merged in Kaana
-source, while the coordinated Oxy cut remains draft. The Kaana merge alone does
-not establish the Oxy wire/storage contract, migrated production rows, task IAM,
-a live database principal or a working customer request.
+The architecture and both source implementations exist; availability is not
+proven. Source alone does not establish migrated production rows, task IAM, a
+live database principal or a working customer request. Oxy therefore keeps
+`INFERENCE_KAANA_EXECUTION=disabled` until the coordinated rollout passes.
 
 BYOK remains fail closed until all of these pass together:
 

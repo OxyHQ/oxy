@@ -1,5 +1,12 @@
 # Inference platform — responsibility matrix
 
+> **Naming supersession applied 2026-09-02:** every live inference row and path
+> in this matrix uses Kaana. Its only canonical signed origin is
+> `https://kaana.ai`; no `oxy.so` hostname is an alias. The old proper name is
+> retained only in ADR 0011's explicit historical record and the deployment
+> allow-list that removes old task bindings. Legitimate SMTP, ATProto, device,
+> OAuth and MCP/TNP relay roles are unrelated and remain unchanged.
+
 - Issue: #972 (workstream 0/A)
 - Date: 2026-08-15. **§15 was re-verified and updated on 2026-08-16**, when the
   SDK catalogue client and the `docs/inference/` doc set landed; one §5 row was
@@ -162,15 +169,24 @@ rather than relying on the reader noticing that the Item is a verb. The general
 rule: on a removal row, `planned` = not yet removed = **still live**, and
 `removed` = done.
 
-`Kaana` is the production name and `https://kaana.ai` is the canonical signed
-data-plane origin. ADR 0011 retires the former inference identity with no
-compatibility aliases while preserving genuine SMTP, federation and transport
-uses of the ordinary word "relay".
+`Kaana` is the production name. ADR 0011 now records the supersession of the old
+inference name rather than authorizing it. The repository is `OxyHQ/Kaana`, the
+only canonical signed origin is exactly `https://kaana.ai`, and the signed wire
+uses `KAANA_*` configuration with `X-Oxy-Kaana-*` headers. No compatibility DNS,
+header or environment-variable alias is part of the architecture.
 
-`OxyHQ/Kaana` is a public Go repository and was audited for the rows in §13.
-That establishes source implementation, not production reachability. A built
-wire, a registered task definition and a healthy signed request are three
-separate facts; §4.1 keeps their live gates explicit.
+The unrelated role terms SMTP relay, ATProto Relay, device/OAuth relay and
+MCP/TNP relay remain valid. None denotes inference and none is a Kaana alias.
+
+**`OxyHQ/Kaana` exists.** This establishes repository identity, not deployment
+or feature completeness.
+
+That settles existence and nothing else. **§13's rows are about what is BUILT
+inside that repository, and this document cannot answer them**: they describe an
+external codebase nobody has audited from here, so they are marked
+`unverified` rather than flipped to `exists`. Reading a repository's existence as
+evidence that its contents are done is the same error as reading a built wire as
+evidence that it is deployed (§4.1).
 
 ---
 
@@ -270,10 +286,10 @@ appears beside `application_credentials`.
 
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
-| `POST /v1/chat/completions` | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts`, mounted `server.ts:690` BEFORE the Alia router | exists — owned by the inference edge, no longer an Alia proxy. Mount order is gated by `routes/__tests__/inferenceEdgeMount.test.ts` |
-| `POST /v1/voice/token`, `POST /v1/voice/transcribe` (Alia product endpoints) | Alia | OxyHQServices `packages/api/src/routes/alia.ts:322,327` | exists — behind `requireFirstPartyInferenceCaller` since #972 w2.3; see §3.1 |
-| `/alia` mount (same router) | Alia | OxyHQServices `packages/api/src/server.ts:643` | exists |
-| Static `ALIA_API_KEY` upstream forwarding (to be removed, epic §4, §14) | Alia | OxyHQServices `packages/api/src/routes/alia.ts:8,46-50,75-81` | exists |
+| `POST /v1/chat/completions` | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts` | exists — owned by the metered inference edge, no Alia proxy fallback |
+| Transitional `/v1/voice/token`, `/v1/voice/transcribe` Oxy mounts | Alia product | removed from Oxy `server.ts` | removed — Alia SDK clients address Alia directly |
+| Transitional `/alia` mount | Alia product | removed from Oxy `server.ts` | removed |
+| Static Oxy-to-Alia upstream forwarding | Alia product | deployment removal list only | removed — the old secret name survives only so stale ECS task bindings are deleted |
 | `POST /v1/responses` (preferred endpoint) | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts` | exists — asserted served by the edge in `routes/__tests__/inferenceEdgeMount.test.ts` |
 | `GET /v1/models`, `GET /v1/models/:id` | Oxy | OxyHQServices `packages/api/src/routes/inferenceCatalogue.ts`, mounted `server.ts:694` | exists |
 | `GET /v1/generations/:id` (receipt lookup) | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts` | exists — asserted served by the edge in `routes/__tests__/inferenceEdgeMount.test.ts` |
@@ -293,14 +309,19 @@ appears beside `application_credentials`.
 | Request-size, context-size, output-token limits | Oxy | OxyHQServices `packages/api/src/services/inferenceEdge.service.ts:715-728` | partial — context and maximum output are checked TOGETHER before forwarding, so a request that cannot fit is refused rather than paid for. A request-BODY size limit specific to this edge is absent |
 | Abuse / fraud / anomaly controls before public launch | Oxy | OxyHQServices `packages/api/src/server.ts:1188-1210` | partial — spend-anomaly detection is wired and running over `inference_spend_anomalies`, and every inference route carries its own rate limiter (§12). Abuse and fraud controls beyond those two are absent |
 
-### 3.1 The remaining shared-upstream-key paths — an exception list, counted
+### 3.1 Historical shared-upstream-key audit — removed 2026-09-03
+
+Everything in this subsection through section 4 is retained as the historical
+measurement that justified removal. It is not a current route inventory: all
+three paths and the shared key were removed from Oxy, and the mount test now
+asserts 404 for both legacy namespaces.
 
 The epic's §1 checkbox is that an application inherits access and billing
-responsibility from `Application.ownerAccountId`. Three routes still forward a
-caller-supplied body to Alia on one static `ALIA_API_KEY`, where the financially
-responsible principal is Oxy's shared upstream budget and no `ownerAccountId` at
-all. They are listed here **exhaustively and by count**, because an exception list
-without an exact count grows silently:
+responsibility from `Application.ownerAccountId`. At audit time, three routes
+forwarded a caller-supplied body to Alia on one static `ALIA_API_KEY`, where the
+financially responsible principal was Oxy's shared upstream budget and no
+`ownerAccountId` at all. They are retained here **exhaustively and by count**,
+because this measurement explains the removal:
 
 | Route | Gate | Reference |
 |---|---|---|
@@ -308,19 +329,18 @@ without an exact count grows silently:
 | `POST /v1/voice/token` | `requireFirstPartyInferenceCaller` (#972 w2.3) | `packages/api/src/routes/alia.ts:322` |
 | `POST /v1/voice/transcribe` | `requireFirstPartyInferenceCaller` (#972 w2.3) | `packages/api/src/routes/alia.ts:327` |
 
-**Exactly three, and zero of them ungated.** Both halves are asserted in
-`packages/api/src/routes/__tests__/inferenceEdgeMount.test.ts` against the route
-declarations in `routes/alia.ts`, as two independent cases: a fourth shared-key
-route fails the second one even when written in a form the first cannot see (an
-inline handler with no named middleware — measured, and the reason the census is
-two regexes rather than one).
+**Exactly three, and zero of them were ungated.** The current
+`packages/api/src/routes/__tests__/inferenceEdgeMount.test.ts` instead asserts
+that both legacy namespaces return 404, so this inventory cannot become live
+again accidentally.
 
-All three offer no reservation and no metering, so the exposure the gate closes is
-the one that route's header states: "no per-caller stop — `max_tokens` and the
-prompt are the caller's, so a request limiter bounds the COUNT of requests and
-never their cost" (`alia.ts:96-108`). Gating bounds WHO may spend, not how much.
+All three offered no reservation and no metering, so the exposure the old gate
+closed was the one that route's header stated: "no per-caller stop — `max_tokens`
+and the prompt are the caller's, so a request limiter bounds the COUNT of requests
+and never their cost" (`alia.ts:96-108`). Gating bounded WHO could spend, not how
+much.
 
-**Why the voice routes were exempt until now, and why the reason was false.** #981
+**Why the voice routes were exempt until removal, and why the reason was false.** #981
 left them on `authMiddleware` on the stated grounds that they "are reached by
 signed-in users of Oxy's own voice surfaces, which hold no service credential", so
 gating them would remove a working feature. A read-only census across every
@@ -329,7 +349,8 @@ repository under `~/Oxy` found **no caller of either route anywhere**:
 - Inbox's voice feature is `VoiceSession` from `@alia.onl/sdk`, and the INSTALLED
   package (5.1.0 — not the sibling source tree) builds `/v1/voice/token` and
   `/v1/voice/transcribe` against `https://api.alia.onl`, naming no Oxy host at all.
-  Inbox's only Oxy-routed Alia call is `/alia/chat/completions`.
+  At audit time, Inbox's only Oxy-routed Alia call was
+  `/alia/chat/completions`; it now uses the Inbox point-inference endpoints.
 - Alia's own `alia-chat` hooks and `integrations` client target
   `EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl'` and Alia's own API port —
   Alia has its OWN `/v1/voice/*` routes, which is what those call.
@@ -343,20 +364,16 @@ So the exemption was protecting nothing while leaving the exposure open. The
 `(inbox, etc.)` attribution in the old route comment was the specific claim that
 did not survive checking.
 
-Separately, two server-side services call Alia on the same key —
+Separately, two server-side services called Alia on the same key at audit time —
 `services/aiLabeling.service.ts` and `services/cardExtraction.service.ts`. They
-are not customer-reachable inference paths (no caller-supplied body, no
-per-customer attribution question), so they are not in the count above, but they
-are on the same key and a rotation touches them. Both are bounded product AI and
-therefore named legacy exceptions: the target is product → Oxy inference SDK →
-Kaana, not Alia as a provider runtime. Moving them waits for an exact published
-catalogue route and the live Kaana gates; changing only their model string would
-be an unverified alias.
+were not customer-reachable inference paths, so they are not in the count above.
+Both now use the same attributed Oxy-to-Kaana execution path as other point
+inference; neither reads `ALIA_API_KEY`.
 
 `POST /v1/chat/completions` is **not** in this list: the inference edge owns that
-path, mounted before the Alia router, which the same test file gates by mount
-order. Retiring these three is workstream 14 (ADR 0010); until then, the §1
-checkbox is honest only if it is explicitly scoped to `/v1` minus `/v1/voice/*`.
+path. Workstream 14 (ADR 0010) retired the three legacy routes. The §1 checkbox
+is now backed by the negative mount tests instead of an exception for
+`/v1/voice/*`.
 
 ## 4. Oxy↔Kaana contracts (epic §0 "Contract package")
 
@@ -375,26 +392,22 @@ suite, which needs agreement from the other side rather than more code here.
 | `@oxyhq/contracts` package | Oxy | OxyHQServices `packages/contracts` | exists |
 | Authenticated principal and attribution schema | Oxy | `packages/contracts/src/inference/attribution.ts` (`authenticatedPrincipalSchema`, `billingPrincipalSchema`, `inferenceAttributionSchema`) | exists |
 | Normalized inference request schema (internal envelope, ADR 0010) | Oxy | `packages/contracts/src/inference/request.ts` | exists |
-| Normalized stream event schemas | Kaana (shape agreed with Oxy) | `packages/contracts/src/inference/streamEvents.ts` (`inferenceStreamStartEventSchema`, `…DeltaEvent…`, `…ToolCallEvent…`, `…UsageEvent…`) | v2 contract — every partial `usage` event requires the exact `deploymentId`; production agreement still requires the cross-repo compatibility gate |
-| Model catalogue descriptor schemas | Oxy | `packages/contracts/src/inference/catalogue.ts` | v2 contract — route policy is aggregated conservatively and singular price/scope/permission fields are optional when visible deployments disagree; no representative route is selected by name |
+| Normalized stream event schemas | Kaana (shape agreed with Oxy) | `packages/contracts/src/inference/streamEvents.ts` (`inferenceStreamStartEventSchema`, `…DeltaEvent…`, `…ToolCallEvent…`, `…UsageEvent…`) | exists — Oxy has defined the shape. Whether Kaana produces it is unaudited from here, and "agreed" is a cross-repo fact this document cannot settle either way |
+| Model catalogue descriptor schemas | Oxy | `packages/contracts/src/inference/catalogue.ts` | exists |
 | Routing policy schema | Oxy | `packages/contracts/src/inference/routingPolicy.ts` | exists |
 | Usage reservation schema | Oxy | `packages/contracts/src/inference/usage.ts` (`usageReservationRequestSchema`, `usageReservationSchema`) | exists |
 | Usage settlement / receipt schema | Oxy | `packages/contracts/src/inference/usage.ts` (`usageReceiptSchema`, `normalizedUsageReportSchema`) | v2 contract — every terminal normalized usage report requires the exact `deploymentId`, which must resolve to one signed authorized route rather than being inferred from names or position |
 | Refund / reversal schema | Oxy | `packages/contracts/src/inference/usage.ts` §4 (`usageRefundSubjectSchema`) — compensating entries, never deletions | exists |
-| Provider / BYOK connection metadata schema (no secrets) | Oxy | `packages/contracts/src/inference/providerConnection.ts` | merged metadata contract exists; the opaque Kaana `credentialHandle` + revision cut is draft and unpublished. ADR 0019 forbids a resolvable Oxy `secretRef` in the target contract |
+| Provider / BYOK connection metadata schema (no secrets) | Oxy | `packages/contracts/src/inference/providerConnection.ts` (`providerConnectionSchema` carries only exact opaque `credentialHandle` + `credentialRevision` custody metadata — ADR 0019) | exists |
 | Price-version schema | Oxy | `packages/contracts/src/inference/priceVersion.ts` | exists |
 | Error and retryability schema | Oxy | `packages/contracts/src/inference/errors.ts` (`inferenceErrorCodeSchema`, `upstreamErrorCategorySchema`, `safeErrorTextSchema`) | exists |
 | Envelope/event version fields on every externally consumed shape | Oxy | `packages/contracts/src/inference/version.ts` (`INFERENCE_CONTRACT_VERSION`) | exists |
-| Schema-version compatibility tests (Oxy ↔ Kaana) | Oxy + Kaana | OxyHQServices `packages/contracts/src/__tests__/inference.compatibility.test.ts`; Kaana `tools/contract`, `internal/contract/descriptor_test.go` | exists on both sides — Oxy freezes and round-trips every published shape; Kaana pins the package, regenerates the descriptor in CI, compares the diff and parses emitted fixtures through the published Zod schemas |
+| Schema-version compatibility tests (Oxy ↔ Kaana) | Oxy + Kaana | OxyHQServices `packages/contracts/src/__tests__/inference.compatibility.test.ts` + OxyHQ/Kaana | partial — Oxy's half EXISTS, and is not a thin scan: a frozen version map asserted with EXACT equality, a census over `readdirSync` of `src/inference/` so a new file cannot hide, a frozen list of the exported unions, and a round-trip fixture per versioned shape. The CROSS-REPO half needs Kaana and is `unverified` from here, not `planned` |
 
-### 4.1 The Oxy→Kaana wire is built; deployment is live state
+### 4.1 The Oxy→Kaana wire is BUILT and NOT DEPLOYED — two facts, kept apart
 
-#1034 shipped the signed hop. Runtime contract v2 adds a signed, non-cacheable
-`POST /internal/v1/deployments/query` that reconciles Oxy's complete exact-ID
-authorization set against one live Kaana inventory snapshot before reservation.
-Any cardinality or identity mismatch refuses with no hold and no inference call;
-the query never selects by provider/model name or array order. The same client
-sends the inference envelope with `X-Oxy-Kaana-Key-Id` and
+#1034 shipped the signed hop. `packages/api/src/services/httpKaanaClient.ts` sends
+the envelope with `X-Oxy-Kaana-Key-Id` and
 `X-Oxy-Kaana-Signature: v1=<base64 Ed25519 signature>`, signs a hash of the
 **exact serialized bytes** that go on the wire (re-serializing between signing and
 sending is how a signature check becomes decorative — ADR 0015), streams
@@ -402,11 +415,12 @@ sending is how a signature check becomes decorative — ADR 0015), streams
 cancellation to the hop via `AbortController` (`:239-241`). Ed25519 key rotation
 has a runbook (`docs/runbooks/kaana-edge-signing-key-rotation.md`).
 
+**No deployment is configured, and that is a different fact.**
 `createHttpKaanaClient()` returns `undefined` unless all three of `KAANA_BASE_URL`,
 `KAANA_EDGE_SIGNING_KEY_ID` and `KAANA_EDGE_SIGNING_PRIVATE_KEY` are set
-(`config/kaanaDataPlane.ts`, `services/httpKaanaClient.ts:202-204`). Whether they
-are set is answered from the live task definition, not this file. The same rule
-applies to Kaana desired count, target health and the canonical DNS origin.
+(`config/kaanaDataPlane.ts`, `services/httpKaanaClient.ts:202-204`). None is set,
+so every invoke still answers a typed `service_unavailable` and `stream: true` is
+refused — byte-for-byte the behaviour from before the hop existed.
 
 Both halves are stated because merging them is a real failure mode, not a
 stylistic preference: "the wire works" and "requests reach a data plane" have
@@ -416,10 +430,10 @@ while the edge was calling its resolver. A row that says only `exists` invites
 somebody to close the workstream; a row that says only `planned` invites somebody
 to rebuild the wire.
 
-The far side is a third fact, and also not a consequence of configuration.
-`OxyHQ/Kaana` implements the signed endpoint, provider adapters, authorized
-routing, streaming and PostgreSQL/KMS credential pools (see §13). Only a real
-Oxy-signed request proves that the two deployed halves agree.
+The far side is a THIRD fact, and also not a consequence of configuration.
+`OxyHQ/Kaana` exists (public, Go, last pushed 2026-08-16), so "Kaana does not
+exist" is no longer the reason an invoke refuses — the three unset variables are.
+What that repository actually implements has not been audited from here; see §13.
 
 ## 5. Model catalogue (epic §5, ADR 0008)
 
@@ -428,17 +442,16 @@ thirteen were wrong.** They had stood at `planned` — which this file's legend
 defines as *confirmed absent* — while every field they name was present in the
 migrated schema (`meta/0051_snapshot.json`, created by
 `drizzle/0035_inference_catalogue.sql`) and read by the customer projection.
-Eleven are now `contract only` and two are `exists`; each says which file and
-line settles it.
+The reviewed initial bootstrap can now write the first exact rows for the fields
+it covers. A general catalogue-authoring surface still does not exist; each row
+below distinguishes those two facts and says which file settles it.
 
-`contract only` rather than `exists` is the whole point of the re-judgement, and
-it is a stronger statement than either neighbour would have been. The columns are
-real and the read path is real, and **nothing in the repository can write them**:
-outside tests, the only writer of any catalogue table is
-`packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers
-only. `exists` would have read as a working feature; `planned` claimed an absent
-one; the state that actually misleads is a schema field a reviewer takes as
-evidence of the behaviour it describes.
+`contract only` rather than `exists` was the point of the original
+re-judgement. The columns and read path are real. The later
+`bootstrap-kaana-catalogue.ts` adds one tightly reviewed, exact initial writer;
+it does not turn those columns into a general authoring feature, and its
+presence does not prove production application. `exists` would still overstate
+the general feature; `planned` would claim absent schema and enforcement.
 
 Two traps produced false readings during these reviews, and both are worth
 keeping:
@@ -468,28 +481,28 @@ Console.
 | Same fake ids in Console model docs | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/models.tsx:13-43` | removed — gone from this page as DATA. The two surviving lines (`:15-16`, four occurrences) are the comment explaining what was retired, which is exactly why this row read `exists` after #982/#991 deleted the array: a grep returns hits in both worlds |
 | Same fake ids in quickstart / chat-completions examples | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/quickstart.tsx:127`, `documentation/chat-completions.tsx:109` | removed — **0 occurrences** in either file, measured comment-aware and boundary-anchored so `alia-v1-voice` is not counted as `alia-v1` |
 | Playground default model string | Oxy | OxyHQServices `packages/console/src/routes/_layout/playground.tsx:103` | removed — **0 occurrences**; the playground selects from the real catalogue |
-| `AI_LABELING_MODEL` default `alia-lite` (internal consumer) | Oxy | OxyHQServices `packages/api/src/config/email.config.ts` | legacy, off-by-default exception — it is the only production-code occurrence of the retired tier names and is not an Oxy model identity. The bounded workload must move to Oxy SDK → Kaana after an exact route is published and live gates pass; the existing string is not renamed into a guessed model alias |
+| Historical `AI_LABELING_MODEL` default | Oxy | removed from `packages/api/src/config/email.config.ts` | removed — automatic labelling and card extraction use the exact Inbox routing-profile ID through Oxy-to-Kaana |
 | `Publisher` descriptor | Oxy | OxyHQServices `packages/api/src/db/schema/inferencePublishers.ts` | exists — table present in the migrated schema (`meta/0049_snapshot.json`) and in production (0 rows) |
 | `Model` descriptor, canonical id `<publisher>/<model>` | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts` | exists — table present in the migrated schema and in production (0 rows) |
 | `ModelRevision` (immutable), id `<publisher>/<model>@<revision>` | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModelRevisions.ts` | exists — table present in the migrated schema and in production (0 rows) |
 | `InferenceProvider` identity | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceProviders.ts` | exists — table present in the migrated schema and in production (0 rows) |
 | `Deployment` / endpoint identity and region | Kaana (health/availability); Oxy (customer-safe projection) | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:124,140-155` + `services/inferenceCatalogue.service.ts:560` | exists — the table and its `regions` column are in the migrated schema, and the customer-safe projection is an explicit allow-list. This row was `planned` while Oxy's half was built, which rule 1 forbids: on a row Oxy part-owns, `planned` claims Oxy owes something |
-| Deployment HEALTH and route availability | Kaana | OxyHQ/Kaana `internal/rotation`, `internal/provider` | exists in source — circuit breakers, provider health and customer-safe projections are implemented. `inference_deployments.status` is still the CATALOGUE's offerability decision and deliberately not a health signal |
+| Deployment HEALTH and route availability | Kaana | OxyHQ/Kaana | unverified — Kaana-owned and not audited from here (rule 1). `inference_deployments.status` is the CATALOGUE's offerability decision and deliberately not a health signal |
 | `RoutingProfile` (`auto`, `fast`, `quality`, customer-defined) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceRoutingProfiles.ts` | exists — table present in the migrated schema and in production (0 rows) |
-| Capability fields (tools, vision, audio, structured output, reasoning, context, max output, caching, modalities) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:135-146` | contract only — `input_modalities`, `output_modalities`, seven `supports_*` flags, `max_context_tokens` and `max_output_tokens`, all in the migrated schema and all read by `services/inferenceCatalogue.service.ts:899-911`; `max_context_tokens` is additionally ENFORCED at `services/inferenceEdge.service.ts:715`. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing. Vision and audio are modality MEMBERS, not `supports_*` flags — a search for either column name finds nothing while the capability is fully expressible |
-| Publisher and model licence | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:151-162,174` | contract only — `license_id`, `license_display_name`, `license_url`, `commercial_use_allowed`, `requires_attribution`, `acceptable_use_policy_url`, plus `base_model_attribution_required`. Licence attaches to the MODEL and never to the publisher: `inference_publishers` has no licence column and `modelPublisherSchema` no licence field, deliberately. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
-| Provenance / base model | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:178-187`, `inferenceModelProvenance.ts:98-170` | contract only — `release_kind`, `base_model_reference` and `training_organization`, with the two content-provenance triggers beside them. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
-| Knowledge cutoff and release date | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:197-198` | contract only — `knowledge_cutoff` and `released_on`, both `date` rather than `timestamptz`, because a cutoff is published as a DAY and inventing a timezone makes two records of one published fact compare unequal. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
-| Regions and deployment providers | Kaana (truth); Oxy (projection) | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts`, `inferenceProviders.ts`, `services/inferenceCatalogue.service.ts` | v2 projection — catalogue regions and customer-safe providers are unions across visible deployments; per-provider regions are unions across that provider's visible deployments |
-| Deployment availability and provider health as the source of REGION truth | Kaana | OxyHQ/Kaana `internal/inventory`, `internal/provider` | partial — availability and health exist; `regions: []` is no attestation, never global availability, and any explicit allowed/denied-region policy excludes it |
-| Data-retention and training-on-customer-data policy | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts`, `inferenceProviders.ts` | v2 projection — routing evaluates each route's own evidence; catalogue summaries aggregate conservatively: any retention/training, maximum retention, all-routes ZDR, union of subprocessors, and a policy URL only on unanimous agreement |
-| Zero-data-retention availability | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:162`, `inferenceProviders.ts:69` | contract only — and the capability-versus-actual distinction is already enforced: `services/inferenceCatalogue.service.ts:432-439` excludes a route that merely OFFERS zero retention while still retaining. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
+| Capability fields (tools, vision, audio, structured output, reasoning, context, max output, caching, modalities) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:135-146` | contract plus reviewed initial writer — `input_modalities`, `output_modalities`, seven `supports_*` flags, `max_context_tokens` and `max_output_tokens`, all in the migrated schema and read by `services/inferenceCatalogue.service.ts:899-911`; `max_context_tokens` is additionally ENFORCED at `services/inferenceEdge.service.ts:715`. `bootstrap-kaana-catalogue.ts` writes the reviewed initial values only; a general authoring surface remains absent. Vision and audio are modality MEMBERS, not `supports_*` flags |
+| Publisher and model licence | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:151-162,174` | contract plus reviewed initial writer — `license_id`, `license_display_name`, `license_url`, `commercial_use_allowed`, `requires_attribution`, `acceptable_use_policy_url`, plus `base_model_attribution_required`. Licence attaches to the MODEL and never to the publisher. `bootstrap-kaana-catalogue.ts` writes the reviewed initial values only; a general authoring surface remains absent |
+| Provenance / base model | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:178-187`, `inferenceModelProvenance.ts:98-170` | contract plus reviewed initial writer — `release_kind`, `base_model_reference` and `training_organization`, with the two content-provenance triggers beside them. `bootstrap-kaana-catalogue.ts` writes the reviewed initial values only; a general authoring surface remains absent |
+| Knowledge cutoff and release date | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:197-198` | contract plus reviewed initial writer — `knowledge_cutoff` and `released_on`, both `date` rather than `timestamptz`, because a cutoff is published as a DAY. `bootstrap-kaana-catalogue.ts` writes the reviewed initial values only; a general authoring surface remains absent |
+| Regions and deployment providers | Kaana (truth); Oxy (projection) | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:155`, `inferenceProviders.ts:61`, `services/inferenceCatalogue.service.ts:869-884` | exists — Oxy's projection is built: the union of the routes' regions and the customer-safe serving providers, both on the catalogue entry. Was `planned` while built, which rule 1 forbids on a row Oxy part-owns |
+| Deployment availability and provider health as the source of REGION truth | Kaana | OxyHQ/Kaana | unverified — Kaana-owned and not audited from here (rule 1). Oxy consumes a customer-safe projection; it does not own the availability fact |
+| Data-retention and training-on-customer-data policy | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:159-164,314-321`, `inferenceProviders.ts:65-72` | contract plus reviewed initial writer — the ROUTE's own policy and the PROVIDER's published one, deliberately two copies, with coherence CHECKs on both. Already enforced against a customer routing policy wherever rows exist (`services/inferenceCatalogue.service.ts:432-443`). `bootstrap-kaana-catalogue.ts` writes the reviewed initial values only; a general authoring surface remains absent |
+| Zero-data-retention availability | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:162`, `inferenceProviders.ts:69` | contract plus reviewed initial writer — the capability-versus-actual distinction is enforced: `services/inferenceCatalogue.service.ts:432-439` excludes a route that merely OFFERS zero retention while still retaining. `bootstrap-kaana-catalogue.ts` writes the reviewed initial values only; a general authoring surface remains absent |
 | Customer pricing by unit and price version | Oxy | OxyHQServices `packages/api/src/db/schema/priceVersions.ts` + `inferenceDeployments.ts` | v2 projection — a catalogue entry publishes one price snapshot only when every visible deployment names the same resolvable version; disagreement or missing evidence omits it rather than choosing a route by name. Admission still requires the exact active/effective price for every eligible route |
-| Deprecation status and replacement pointer | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:202-210,272-275` | contract only — `deprecation_status`, `replacement_model_reference`, `deprecation_announced_at`, `deprecation_sunset_at`, with the CHECK refusing a sunset date on an `active` model, so the deprecation must be announced first. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
-| Model card, evaluation summary, safety metadata | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModelRevisions.ts:111,121-129,168-171`, `inferenceModelEvaluations.ts:26-70` | contract only — `model_card_url`, the safety group with a CHECK making it present-or-absent as a WHOLE, and evaluations as a child table keyed on `(revision, suite, metric)` rather than `jsonb`. All three hang off the REVISION, because they describe specific weights. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
-| Upstream provider secrets, internal route ids, wholesale cost | Kaana — **never exposed** to customers (ADR 0006) | OxyHQServices protected deployment projection + OxyHQ/Kaana | provider secrets and measured upstream cost are never customer fields. ADR 0019 extends Kaana PostgreSQL/KMS custody to BYOK; Oxy's opaque-handle cut remains draft, so production proof is still a rollout gate |
-| `alia/*` namespace, reserved for real Alia-owned releases | Alia (publisher), Oxy (registry) | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:294-297` | contract only — the reservation is a live CHECK in the database (`inference_models_reserved_namespace_is_first_party`, present in `meta/0051_snapshot.json`), mirrored by the contract refinement at `packages/contracts/src/inference/catalogue.ts:283-293` and driven against real rows by `schema/__tests__/inferenceCatalogue.test.ts:211-270`. The enforcement works; what is absent is any model row for it to constrain. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
-| Catalogue SEEDED in production (`inference_publishers` non-empty) | Oxy | OxyHQServices `packages/api/scripts/seed-inference-catalogue.ts`, `bun run seed:inference-catalogue` | **verified 2026-08-17: NOT seeded.** `inference_publishers` was 0 rows in production, as was every other inference table (models, revisions, evaluations, providers, deployments, routing profiles and policies, provider connections and their audit events, route-switch events, usage events, receipts, reservations, price versions), read-only from a one-shot Fargate task on `oxy-oxy-api:206`. Controls: `users` 69,465, `applications` 31, 47 migrations applied, a nonexistent table 0. At that snapshot no workflow invoked the publisher-only seed, and with publishers empty the model FK prevented model insertion. This is dated evidence, not current state: draft #1147 proposes the first exact-route bootstrap, and production must be read again before claiming empty or seeded. The reserved-namespace CHECK remains independent of publisher rows |
+| Deprecation status and replacement pointer | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:202-210,272-275` | contract plus reviewed initial writer — `deprecation_status`, `replacement_model_reference`, `deprecation_announced_at`, `deprecation_sunset_at`, with the CHECK refusing a sunset date on an `active` model. `bootstrap-kaana-catalogue.ts` writes the reviewed initial state only; a general authoring surface remains absent |
+| Model card, evaluation summary, safety metadata | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModelRevisions.ts:111,121-129,168-171`, `inferenceModelEvaluations.ts:26-70` | contract plus reviewed initial writer — `model_card_url`, the safety group with a CHECK making it present-or-absent as a WHOLE, and evaluations as a child table keyed on `(revision, suite, metric)`. `bootstrap-kaana-catalogue.ts` writes the reviewed initial revision metadata only; a general authoring surface and evaluation writer remain absent |
+| Upstream provider secrets, internal route ids, wholesale cost | Kaana — **never exposed** to customers (ADR 0006) | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:239,259-265`, `protectedColumns.ts:172-179`, `services/inferenceCatalogue.service.ts:560-614` + OxyHQ/Kaana | exists — and this row was in the wrong repository. `internal_route_id` and the four `upstream_wholesale_cost_*` columns are OXY columns: Kaana owns the MEASURED upstream cost (ADR 0006) while Oxy stores a contracted rate for margin review, and the NON-EXPOSURE is enforced here twice — a default-DENY allow-list (`CUSTOMER_SAFE_DEPLOYMENT_COLUMNS`) plus the protected-column registry, with `schema/__tests__/inferenceCatalogue.test.ts:555-585` failing on any deployment column classified in neither list. Upstream provider SECRETS are genuinely absent from Oxy: ADR 0019 leaves Oxy only an opaque Kaana handle/revision, never provider material. |
+| `alia/*` namespace, reserved for real Alia-owned releases | Alia (publisher), Oxy (registry) | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:294-297` | contract only — the reservation is a live CHECK in the database (`inference_models_reserved_namespace_is_first_party`, present in `meta/0051_snapshot.json`), mirrored by the contract refinement at `packages/contracts/src/inference/catalogue.ts:283-293` and driven against real rows by `schema/__tests__/inferenceCatalogue.test.ts:211-270`. The reviewed initial bootstrap publishes a third-party model, not an `alia/*` release; a real Alia-owned release writer remains absent |
+| Catalogue SEEDED in production (`inference_publishers` non-empty) | Oxy | OxyHQServices `packages/api/scripts/seed-inference-catalogue.ts`, `packages/api/scripts/bootstrap-kaana-catalogue.ts` | **verified 2026-08-17: NOT seeded.** `inference_publishers` was 0 rows in production, as was every other inference table, read-only from a one-shot Fargate task on `oxy-oxy-api:206`. Controls: `users` 69,465, `applications` 31, 47 migrations applied. This is dated evidence, not current state: the reviewed exact-route bootstrap is now merged, but its safe-by-default source is not evidence it was applied. Production must be read again before claiming empty or seeded. The reserved-namespace CHECK remains independent of publisher rows |
 
 ## 6. Routing policy (epic §6)
 
@@ -515,19 +528,21 @@ a revision-pinned model, a provider and its regions, with cross-model
 substitution expressible only through an entry carrying
 `authorizedByPolicy: true`.
 
-**Re-verified 2026-08-18.** The field is OPTIONAL and `inferenceEdge.service.ts`
-now POPULATES it, for the `same_model` half. `resolveEdgeRoute` returns
+**Re-verified through contract v2.** The field remains optional in the parser so
+an absent list can only narrow behavior to no failover; the Oxy v2 producer
+always populates the complete authorized set. `resolveEdgeRoute` returns
 `permitted.kept[0]` as the route and the rest as `alternates`; `buildEnvelope`
 sends `[primary, ...alternates]` as `authorizedRoutes` when the customer's
 `fallback` controls authorize failover among them, and `[primary]` alone when they
-do not — always as an explicit list, never by omitting the field, so absence keeps
-exactly one meaning (an envelope built before ADR 0017). Two consequences worth
+do not. Two consequences worth
 reading as rows in their own right: `fallback.sameModelDeployment` acquired its
 FIRST enforcement point here (`recordRouteSwitch` reads only `fallbackDisabled`
 for a deployment-scope switch), and the hold is now sized at the dearest
 AUTHORIZED route rather than at the admitted one, which is what makes ADR 0017's
 "no failover among them can exceed the hold" true of the code. The `cross_model`
-half is still unpopulated.
+half resolves later candidates of an explicitly selected routing profile and
+each pinned `authorizedCrossModel` destination to exact deployments, then
+re-applies viewer, modality, policy, capacity and pricing filters before signing.
 
 Every control of `routingPolicySchema` is either enforced by
 `violatedConstraints` or named with its reason in `UNFILTERED_ROUTING_CONTROLS`;
@@ -541,19 +556,19 @@ the contract.
 | Region / data-residency constraints | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
 | Zero-retention requirement | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
 | Prohibit-training-on-customer-data constraint | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
-| Maximum customer price per unit/request | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/db/schema/inferenceRoutingPolicyPriceCaps.ts`, `inferenceRoutingPolicyVersions.ts`, `packages/api/src/services/inferenceCatalogue.service.ts` | exists — qualification reads the candidate's pinned price version; no price means the route cannot prove the ceiling |
-| Price / latency / throughput / balanced ranking | Oxy (score evidence and signed order), Kaana (execute order) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts`, `inferenceEdge.service.ts`; Kaana `internal/kaana/executor.go` | v2 source contract — profile priority precedes score descending; exact deployment ID ECMAScript UTF-16 code units are the only deterministic tie-break. Missing, stale, mismatched or colliding identity/price/score evidence refuses before reservation; names and database order never select |
+| Maximum customer price per unit/request — stored, versioned, pinned on the receipt, enforced by NEITHER side (named inert in `UNFILTERED_ROUTING_CONTROLS`, issue #1011) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceRoutingPolicyPriceCaps.ts` (the per-UNIT half) + `inferenceRoutingPolicyVersions.ts` (`max_price_per_request_amount`, the per-REQUEST half) | exists |
+| Sort by price / latency / throughput / balanced — the one routing decision the data plane makes | Oxy (policy), Kaana (execution) | OxyHQServices `packages/api/src/db/schema/inferenceRoutingPolicyVersions.ts` + `services/inferenceCatalogue.service.ts:277-298` + OxyHQ/Kaana | partial — Oxy's half is stored and versioned (`optimise_for`) and deliberately classified INERT on this side in `UNFILTERED_ROUTING_CONTROLS`, because ranking among routes that already qualify is the data plane's (ADR 0006). Oxy owes nothing further here; the execution half is `unverified`, not `planned` |
 | Oxy-hosted-only option | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
 | Licence / usage-right constraints | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
 | Fallback-disabled option | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceRoutingPolicy.service.ts` | exists |
-| The ordered list of PRE-AUTHORIZED ROUTES the envelope carries — the candidates that survived the policy, in preference order (ADR 0017) | Oxy (authorization), Kaana (execution: take the next entry) | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` + `inferenceEdge.service.ts`; Kaana `internal/kaana` | exists in source on both sides — Kaana resolves only signed `authorizedRoutes`, emits the switch at the replacement attempt and cannot derive permission from global inventory. Production proof remains a signed negative-policy test |
+| The ordered list of PRE-AUTHORIZED ROUTES the envelope carries — the candidates that survived the policy, in preference order (ADR 0017) | Oxy (authorization), Kaana (execution: take the next entry) | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` + `inferenceEdge.service.ts`; Kaana `internal/kaana` | exists in source on both sides — Oxy emits an explicit non-empty exact-ID list and Kaana resolves only those signed entries. Production proof remains a signed negative-policy test with execution enabled in a later rollout |
 | Same-model deployment fallback option | Oxy (policy + authorization), Kaana (execution) | OxyHQServices `packages/api/src/services/inferenceEdge.service.ts` + OxyHQ/Kaana | exists on Oxy's side — a policy permitting it puts every other surviving deployment in `authorizedRoutes` as a `same_model` entry, and one refusing it puts none there. This is the control's FIRST enforcement point: `recordRouteSwitch` reads only `fallbackDisabled` for a deployment-scope switch, so `sameModelDeployment: false` was enforced nowhere before. An application on the platform default authorizes none, because there is no policy version a switch could be recorded against (`PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER`) |
-| Explicitly authorized cross-model fallback option | Oxy (policy + authorization), Kaana (execution) | OxyHQServices + OxyHQ/Kaana | contract only — expressible ONLY as a `cross_model` entry carrying `authorizedByPolicy: true`, and never for a request that pinned a revision; the edge emits no such entry, so no envelope it builds can express a cross-model substitution. Populating it needs each `inference_routing_policy_fallbacks` destination resolved to concrete deployments and re-filtered |
-| Dedicated endpoint / capacity for enterprise accounts | Oxy (entitlement + candidate filter), Kaana (capacity) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts:254,347,369` + OxyHQ/Kaana | partial — `dedicated_capacity` is a real Oxy candidate filter; Kaana has no dedicated-capacity runtime in the audited source |
+| Explicitly authorized cross-model fallback option | Oxy (policy + authorization), Kaana (execution) | OxyHQServices `inferenceEdge.service.ts`; OxyHQ/Kaana `internal/kaana` | exists in source — expressible only as a `cross_model` entry carrying `authorizedByPolicy: true`, derived from later explicit profile candidates or the pinned policy version's authorized destinations, independently resolved and filtered; a request that pinned a model revision authorizes no substitution |
+| Dedicated endpoint / capacity for enterprise accounts | Oxy (entitlement + candidate filter), Kaana (capacity) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts:254,347,369` + OxyHQ/Kaana | exists — `dedicated_capacity` is a real candidate FILTER, not merely a stored preference. The capacity itself is Kaana's and is `unverified` from here |
 | Routing-policy versioning; the request envelope and the receipt record a REFERENCE to the exact policy revision used, as provenance rather than as instructions | Oxy | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` (`routingPolicyReferenceSchema`) + `packages/api/src/db/schema/inferenceRoutingPolicyVersions.ts` + `usageReceipts.ts:181` (`routing_policy_version_id`) | exists |
 | Customer-visible route-switch event/receipt | Oxy (emission to customer), Kaana (source) | OxyHQServices `packages/api/src/db/schema/inferenceRouteSwitchEvents.ts` + `services/inferenceEdge.service.ts:157,1042` + OxyHQ/Kaana | partial — the event is RECORDED: the table exists and the edge writes it. No customer-visible surface renders it yet, and the switch itself is the data plane's to report |
 | Contradictory-policy validation | Oxy | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` | exists |
-| Circuit breakers, health scoring, provider failover execution | Kaana | OxyHQ/Kaana `internal/rotation`, `internal/kaana` | exists in source and is covered through the real executor; production failover remains a live canary/soak gate |
+| Circuit breakers, health scoring, provider failover execution | Kaana | OxyHQ/Kaana | unverified — Kaana-owned and not audited from here (rule 1); `planned` would claim Oxy owes something here, and it does not |
 
 ## 7. Financial ledger and billing (epic §7, ADR 0009)
 
@@ -591,7 +606,7 @@ the contract.
 | Safe deletion of an account with live subscriptions or retained financial history | Oxy | OxyHQServices `packages/api/src/services/accountFinancialHolds.service.ts`, used by `routes/users.ts` | exists |
 | Entitlement interface consumed by Alia product plans | Oxy | OxyHQServices `packages/api/src/services/entitlement.service.ts`, `GET /billing/accounts/:accountId/entitlements` | exists |
 | Internal cost-center attribution (Alia, Codea, research, voice, evaluations) | Oxy | OxyHQServices `packages/api/src/db/schema/internalCostCenters.ts` + `routes/costCenters.ts` | exists (table empty; the five centres are workstream 14's to register) |
-| Upstream provider cost measurement and reconciliation | Kaana | OxyHQ/Kaana `internal/providercost` | measurement exists; reconciliation into the customer ledger remains Oxy's responsibility and must be proven end to end |
+| Upstream provider cost measurement and reconciliation | Kaana | OxyHQ/Kaana | unverified — Kaana-owned and not audited from here (rule 1); `planned` would claim Oxy owes something here, and it does not |
 | Kaana balance, quota counter or customer-visible credit | **forbidden** (ADR 0005 invariant 4) | — | must never exist |
 
 ## 8. Usage telemetry and reporting (epic §8)
@@ -609,7 +624,7 @@ the contract.
 | Endpoint, status, latency columns | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:112-120` | exists |
 | Normalized unit totals (tokens/time/images, separate from money) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceUsageEvents.ts` | exists — `inference_usage_events` carries `input_tokens`, `output_tokens`, `cached_input_tokens`, `reasoning_tokens`, `audio_input_milliseconds`, `audio_output_milliseconds`, `images`, `embeddings`, `characters` and `video_milliseconds`, and NO money column at all — the amount lives on `usage_receipts`, which is the separation this row asks for |
 | Requested model, resolved model revision, customer-safe serving provider/deployment | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceUsageEvents.ts` | exists — `requested_model_reference`, `resolved_model_reference`, `serving_provider` and `deployment_id`, all four on `inference_usage_events` |
-| Upstream wholesale cost kept out of customer responses | Kaana | OxyHQ/Kaana `internal/providercost`, `internal/contract/descriptor_test.go` | exists — cost is an operator-only package and architecture tests prevent the response contract from importing it |
+| Upstream wholesale cost kept out of customer responses | Kaana | OxyHQ/Kaana | unverified — Kaana-owned and not audited from here (rule 1); `planned` would claim Oxy owes something here, and it does not |
 | Telemetry retention separated from financial receipt retention | Oxy | OxyHQServices `packages/api/src/db/expiry.ts:263-268` | exists — ninety days of inference telemetry, with `usage_receipts`, `usage_refunds` and `usage_reservations` deliberately EXCLUDED from the sweep registry and the reason written beside them: a receipt swept on a telemetry schedule is a destroyed financial record |
 | Aggregates by account, project, application, credential, model, provider, status, day | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceUsageDailyRollups.ts` | partial — `inference_usage_daily_rollups` aggregates by account, application, credential, `requested_model_reference`, `serving_provider`, `outcome`, `environment` and `day`. There is no PROJECT dimension of its own; a project is an account KIND, so say which reading is intended before treating this as closed |
 | Customer-visible usage with documented eventual consistency | Oxy | OxyHQServices `packages/console/src/routes/_layout/usage.tsx:32,44,154` | exists — the page tags its own source `{ source: 'usage_telemetry_rollups', consistency: 'eventual' }` and says so to the reader in the empty state, rather than letting a lag read as a missing charge |
@@ -662,16 +677,18 @@ ADR 0005 invariant 5.
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
 | Provider connection metadata (provider, owner account, application scope, environment, status) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceProviderConnections.ts` | exists — `provider`, `owner_account_id`, `application_id`, `scope_kind`, `environment` and `status`, all in the migrated schema |
-| Provider secret material | Kaana | OxyHQ/Kaana PostgreSQL credential store + KMS | accepted architecture in ADR 0019 and merged in Kaana #48: all provider credentials, including BYOK, are KMS ciphertext in Kaana PostgreSQL. The combined Oxy path and production deployment remain pending |
-| Opaque credential handle and revision stored with metadata | Oxy | coordinated Oxy custody cut | draft — Oxy stores `credentialHandle`, revision and fail-closed custody state, never plaintext, ciphertext or an independently resolvable locator |
-| Environment/account encryption separation | Kaana | Kaana KMS encryption context and exact resolver | merged in Kaana source — ciphertext binds provider, owner account, connection, environment, handle and revision; production IAM/database-role proof remains pending |
-| Safe prefixes / fingerprints / validation status in responses | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceProviderConnections.ts` | exists — `key_prefix`, `fingerprint`, `validation_state`, `validation_failure_code` and `last_validated_at`, and no response carries the secret |
-| Credential validation via a dedicated provider check (never logged) | Kaana | OxyHQ/Kaana `internal/provider`, `/internal/v1/health` | exists — provider health and pool state expose non-secret position/status only; adapters redact the exact credential before any safe diagnostic |
-| Rotation, replacement, immediate disable | Oxy control; Kaana custody | Oxy provider-connection routes + Kaana signed mutation endpoint | Kaana mutation source merged, Oxy cut draft — disable remains immediate Oxy metadata; target create/rotate/revoke use exact expected revision and uncertain outcomes remain unroutable for reconciliation |
+| Provider credential custody | Kaana | `~/Oxy/Kaana` PostgreSQL + customer-BYOK KMS key | exists by contract — Kaana stores encrypted provider credentials; control has Encrypt-only and inference has Decrypt-only. Production use still requires the deployment/IAM/network gates in `docs/inference/byok.md` |
+| Opaque credential reference stored in Oxy PostgreSQL | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceProviderConnections.ts` (`credential_handle`, `credential_revision`) | exists — exact Kaana-minted handle/revision only; no plaintext, ciphertext, locator, fingerprint or hash column |
+| Environment/account encryption separation | Kaana + Oxy | Kaana KMS context + Oxy signed identity in `packages/api/src/services/kaanaCredentialControl.ts` | exists by contract — the signed request and encryption context bind exact provider, owner account, connection and environment; rotate/revoke add exact handle/revision. IDs are never inferred from names or ordering |
+| No credential-derived recognition metadata in Oxy | Oxy | OxyHQServices connection schema + public contract | exists — no prefix, suffix, fingerprint or hash column/field; Console renders credential hidden and Kaana custody without a hint |
+| Credential validation via a dedicated provider check | Kaana (check), Oxy (verdict record) | `packages/api/src/routes/inferenceProviderConnections.ts` (`/:connectionId/validation`) + `~/Oxy/Kaana` | partial — Oxy's normal resolver refuses `pending_validation + unvalidated` and admits only `ready + active + valid`; a more-specific non-routable row shadows its parent. The receiver requires a live trusted service principal with exact scope `inference:byok:validate` and staff-controlled capability `kaana:provider-credential-validation`; it binds exact current handle/revision, rejects stale generations, promotes an exact `valid` verdict to `active`, disables `invalid`/`expired`, has no free-form error, rate-limits by `appId:credentialId` rather than IP, and audits actor `platform`. The separately authenticated initial-validation bootstrap that could use a pending generation does not exist and remains a launch gate alongside compatible Kaana callback deployment |
+| Rotation, replacement, immediate disable and same-operation recovery | Oxy + Kaana | OxyHQServices `packages/api/src/routes/inferenceProviderConnections.ts`, `.../services/inferenceProviderConnection.service.ts` | exists — outcome first; only explicit 404 replays the same operation ID, create/rotate with re-entered secret and revoke without one |
 | Audit log: create, validate, rotate, use, revoke | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceProviderConnectionAuditEvents.ts:123-126` | exists — the event vocabulary covers all five plus `disabled`/`enabled`, and the table is append-only (see §12) |
-| Connection scope decision (account-wide / project-wide / application-only) | Oxy | OxyHQServices `docs/inference/byok.md:54,63,80` + `inference_provider_connections.scope_kind` | exists — the decision is recorded and the column implements it |
-| Routing policy "prefer/require BYOK" | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceRoutingPolicyVersions.ts` (`byok_preference`) | exists — stored on the versioned policy and applied as a candidate filter |
-| BYOK usage still produces Oxy usage receipts and platform-fee charges | Oxy | OxyHQServices `packages/api/src/db/schema/usageReceipts.ts` (`platform_fee_only`) + `schemas/inferenceEdge.schemas.ts:298-303` | exists — a BYOK request settles a receipt flagged `platform_fee_only`, so `billed_amount` is Oxy's fee rather than the cost of the tokens, and reporting and the CSV export both carry the flag |
+| Connection scope decision (account-wide / project-wide / application-only) | Oxy | OxyHQServices `docs/inference/byok.md` + `inference_provider_connections.scope_kind` | exists — the decision is recorded and the column implements it; any more-specific pending, disabled, reconciling, invalid or expired row shadows broader ones fail-closed and is never returned by the normal resolver |
+| Account/application closure fencing | Oxy | OxyHQServices `packages/api/src/db/schema/accountClosureFences.ts` + connection/application services | exists — closure and create serialize on exact row locks; any custody state other than `revoked` blocks closure, including lifecycle-revoked but still-reconciling rows |
+| Routing policy `prefer` / `require` / `disabled` for BYOK | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceRoutingPolicyVersions.ts` (`byok_preference`) + `services/inferenceCatalogue.service.ts` | exists — `require` excludes platform routes, `disabled` excludes BYOK and `prefer` ranks a usable connected BYOK route before platform candidates while retaining platform fallback |
+| Exact connection generation bound to an authorized route | Oxy | `packages/contracts/src/inference/routingPolicy.ts` (`customerProviderCredential`) + `packages/api/src/services/inferenceCatalogue.service.ts` + `inferenceEdge.service.ts` | exists in source — the authenticated edge calls `resolveProviderConnectionForApplication`, admits only `ready + active + valid`, and writes that exact opaque generation only on the selected BYOK route. It never exposes a pending generation; the missing dedicated validation bootstrap and production release/probe evidence keep launch fail-closed |
+| BYOK usage still produces Oxy usage receipts and platform-fee charges | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts` (`platform_fee_price_version_id`) + `services/inferenceCatalogue.service.ts` + `services/inferenceEdge.service.ts` + `usageReceipts.ts` (`platform_fee_only`) | partial — migration `0069` and source add a separate nullable fee pointer, authenticated resolution refuses missing/mismatched/inactive/ineffective versions before reservation, and settlement records the actually served route with `platform_fee_only = true`. Oxy still must author, approve, publish and associate each exact immutable production fee version and deploy/probe the matching schema and images. BYOK keeps the upstream provider `price_version_id` null; that price is never reused |
 | Provider-terms acknowledgement record | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceProviders.ts:76-115` + `inference_provider_connections.terms_acknowledged_at` | exists — and it is structural: a composite foreign key refuses an un-acknowledged connection for a provider whose terms require one, and refuses turning the requirement ON while such connections exist |
 | BYOK secret in an application table | **forbidden** (ADR 0005 invariant 12) | — | must never exist |
 
@@ -694,13 +711,13 @@ ADR 0005 invariant 5.
 |---|---|---|---|
 | No-user-IPs-at-rest invariant (platform-wide) | Oxy | OxyHQServices `packages/api/src/db/schema/securityActivities.ts:6-19`, `packages/api/src/utils/ipKey.ts` | exists |
 | `security_activities` (account's own audit trail) | Oxy | OxyHQServices `packages/api/src/db/schema/securityActivities.ts` | exists |
-| No prompt/response persistence by default | Oxy + Kaana | OxyHQServices `docs/adr/0016-no-inference-payload-persistence.md`, `scripts/check-no-payload-persistence.mjs`; Kaana `internal/httpapi`, `internal/credentialstore` | exists in source on both sides — Oxy's schema census forbids payload columns; Kaana streams request/response data and its PostgreSQL credential stores contain provider ciphertext/audit only, never payloads |
-| Opt-in, time-limited, encrypted, audited debug payload retention | Oxy | OxyHQServices `docs/adr/0016-no-inference-payload-persistence.md` | refused, not planned — Kaana's provider-credential KMS path is deliberately not a general payload vault; all four capture properties remain preconditions |
+| No prompt/response persistence by default | Oxy + Kaana | OxyHQServices `docs/adr/0016-no-inference-payload-persistence.md`, `scripts/check-no-payload-persistence.mjs` + OxyHQ/Kaana | exists for Oxy — no column in the schema can hold a prompt, a completion, a chat message body or a tool argument, enforced by a census over the drizzle barrel in the `Schema Payload Policy` CI job; for Kaana, **unverified** — the repository exists and its payload handling has not been audited from here, which is a different claim from `planned` |
+| Opt-in, time-limited, encrypted, audited debug payload retention | Oxy | OxyHQServices `docs/adr/0016-no-inference-payload-persistence.md` | refused, not planned — ADR 0016 makes the four properties PRECONDITIONS on building capture rather than follow-up work. Kaana's KMS key/store is purpose-limited to provider credentials and cannot be reused for payload retention |
 | PII/redaction controls for opted-in traces | Oxy | OxyHQServices `docs/adr/0016-no-inference-payload-persistence.md` | blocked on the row above, and vacuous until then — no trace or span infrastructure exists in this repository, so there is nothing to redact PII from |
-| Deployment policy fields (retention, training, region, subprocessors, ZDR) | Oxy (catalogue), Kaana/provider evidence (truth) | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:155-164`; Kaana `internal/inventory` | partial — Oxy stores and filters the fields; Kaana inventory can carry regions but the audited provider catalogues commonly declare none and do not establish retention, training, subprocessors or ZDR. Unknown must fail closed, never become a guessed permissive value |
+| Deployment policy fields (retention, training, region, subprocessors, ZDR) | Oxy (catalogue), Kaana (truth) | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:155-164` + OxyHQ/Kaana | exists as columns, enforced against a routing policy at `services/inferenceCatalogue.service.ts:432-443`; see §5 for the absent writer. The TRUTH of a route's policy is Kaana's and is `unverified` from here |
 | Deletion/export preserving legally required financial records | Oxy | OxyHQServices `packages/api/src/db/expiry.ts:263-269` + `routes/users.ts:1590-1617` | partial — the retention side is done: financial tables are excluded from the telemetry sweep, with the reason recorded. Whether an EXPORT of those records exists for a deletion request is not established here |
 | Secret-scanning and accidental-serialization tests | Oxy | OxyHQServices `scripts/check-secret-scan.mjs` (scanning), `packages/api/src/services/__tests__/inferenceProviderConnection.service.test.ts` (serialization) | exists — twelve issued-token grammars plus a tracked-dotenv refusal over every tracked file, in the `Secret Scan` CI job, each rule verified against its own sample on every run; the serialization half walks a returned DTO to every leaf, its `JSON.stringify`, its exact key set, every stored column and the audit trail, with a positive control proving the credential really passed through |
-| Rotation runbooks and break-glass procedures | Oxy control, Kaana custody, infra IAM/KMS | OxyHQServices `docs/runbooks/` + Kaana/oxy-infra runbooks | the BYOK runbook now describes opaque-handle/revision rotation and marks it pending; live database-principal, KMS and end-to-end proofs remain gates rather than claims |
+| Rotation runbooks and break-glass procedures | Oxy (credentials Oxy issues), infra (AWS) | OxyHQServices `docs/runbooks/` + oxy-infra `docs/runbooks/` | exists for the five credential classes Oxy issues — application credential, `oxy_sk_…` machine key, BYOK provider connection, the token signing keys, and the Oxy→Kaana edge signing key (that one written against ADR 0015 and pending it); `planned` for the AWS half, which is oxy-infra's and is deliberately not duplicated here |
 | Immutable audit events for credential, billing, routing, provider-connection changes | Oxy | OxyHQServices `packages/api/src/db/schema/applicationCredentialAuditImmutability.ts`, `ledgerImmutability.ts`, `accountBillingImmutability.ts`, `inferenceRoutingImmutability.ts`, `inferenceProviderConnectionImmutability.ts` | exists — all four domains: `application_credential_audit_events`, `billing_ledger_entries`, `inference_routing_policy_versions` and `inference_provider_connection_audit_events`, each with its immutability enforced by a trigger rather than by convention |
 | Staff vs customer action distinction in audit | Oxy | OxyHQServices `packages/api/src/db/schema/billingLedgerEntries.ts:249,316-318`, `inferenceProviderConnectionAuditEvents.ts:144,300-303` | partial — `actor_kind` + `actor_user_id` exist on TWO of the four audit surfaces, each with a CHECK pairing the kind against the presence of a user id. `application_credential_audit_events` carries `actor_user_id` and NO kind, and `inference_routing_policy_versions` only `created_by_user_id`. A null `actor_kind` means "written before the column existed", which is why both CHECKs are written with `is not distinct from` |
 | Least-privilege admin roles | Oxy | OxyHQServices `packages/api/src/routes/inferenceAdmin.ts:6,51` | exists — every catalogue-admin action is behind a staff capability gate, and the staff-only application fields are gated separately |
@@ -711,28 +728,38 @@ ADR 0005 invariant 5.
 | EU AI Act / GPAI documentation metadata | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModelRevisions.ts:121-129`, `inferenceModels.ts:178-187` | partial — the FIELDS the regime expects beside a served model exist (safety metadata, model card, provenance, licence). There is no dedicated GPAI documentation artifact, and the only textual reference to the regime in the repository is a doc comment in `packages/contracts/src/inference/catalogue.ts:214` |
 | Content-provenance / marking metadata | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModelProvenance.ts` + `drizzle/0050_inference_model_provenance_marking.sql` | exists — `provenance_marking` on a revision, and two triggers make an unmarked revision under a non-text-output model unreachable from either direction: inserting or updating the revision, and widening the model's output modalities afterwards. `text` is the only exemption, and `none` counts as a declaration |
 
-## 13. Kaana data plane (epic §13 — external repository)
+## 13. Kaana data plane (epic §13 — external dependency)
 
-The rows below were reconciled against `OxyHQ/Kaana` source. `exists` means the
-mechanism and its tests are in the repository; it does not mean the production
-service is scaled, reachable or through its soak window. Those are the §4.1 and
-`docs/inference/request-routing.md` gates.
+**The repository EXISTS** — re-verified 2026-08-17 (`OxyHQ/Kaana`: public,
+non-empty, Go, last pushed 2026-08-16). The previous note here said it did not,
+which was true on 2026-08-15.
+
+Every row below is `unverified` EXCEPT the repository row itself, which is
+`exists`: each of the others describes what is built INSIDE an external
+repository, and nothing in this document has read it. `planned` would assert
+absence, which is an unsupported claim now that the repository is there; `exists`
+would assert presence, which is equally unsupported. The repository row is the
+exception because its evidence — `gh repo view` — is obtainable without auditing
+any contents. Whoever closes the rest should audit that repository and say so.
+
+Workstream 13 remains an external dependency of this epic, and none of
+workstreams 0–12 may block on it.
 
 | Item | Owner | Repo | Status |
 |---|---|---|---|
-| Kaana repository and ownership model | Kaana | [OxyHQ/Kaana](https://github.com/OxyHQ/Kaana) | exists — public Go data-plane repository with the Oxy boundary enforced in `AGENTS.md`, `internal/contract` and architecture tests |
-| Streaming data plane | Kaana | OxyHQ/Kaana `internal/httpapi`, `internal/sse`, `internal/kaana` | exists in source; production concurrency/capacity remains a load and soak measurement |
-| Provider adapter interface (translation, streaming, cancellation, usage normalization, errors, health) | Kaana | OxyHQ/Kaana `internal/provider` | exists, with OpenAI-compatible and Anthropic protocol implementations |
-| Provider adapters migrated out of Alia | Kaana | OxyHQ/Kaana `cmd/kaana`, `internal/provider` | exists for the declared built-in origins; migrating each live credential is a separate PostgreSQL/KMS cutover gate |
-| Same-model deployment fallback, circuit breakers, health scoring | Kaana | OxyHQ/Kaana `internal/kaana`, `internal/rotation` | exists and is exercised through the real executor in tests |
-| Cross-model fallback, only when Oxy policy allows | Kaana | OxyHQ/Kaana `authorizedRoutes` executor path | exists only for an explicitly signed `cross_model` route; inventory alone grants nothing |
-| Configuration snapshots for control-plane outage | Kaana | OxyHQ/Kaana `cmd/kaana-publisher`, `internal/inventory`, `internal/publisher` | exists; publisher re-issues inside the staleness horizon and serving retains the last valid snapshot |
-| Technical usage receipts with stable request/event ids | Kaana | OxyHQ/Kaana `internal/contract`, `internal/kaana` | v2 contract — final reports and partial streamed usage both name the exact `deploymentId`; Oxy accepts evidence only when it resolves to exactly one signed authorized route |
-| Provider-cost measurement and reconciliation | Kaana | OxyHQ/Kaana `internal/providercost` | measurement exists and is kept out of the customer contract; Oxy owns customer pricing and settlement |
-| Oxy-hosted deployments on established runtimes (vLLM/SGLang) | Kaana | OxyHQ/Kaana | not built — explicitly out of scope in Kaana's current architecture |
-| Orchestration (e.g. KServe), only when scale justifies it | Kaana | OxyHQ/Kaana | not built — explicitly out of scope until Oxy-hosted GPU serving exists |
-| Internal health/status exposure to Oxy (no secrets, no unsafe route detail) | Kaana | OxyHQ/Kaana `/internal/v1/health`, `/livez` | exists; credential health exposes positions and state, never key material |
-| Per-provider conformance tests before public availability | Kaana | OxyHQ/Kaana `internal/provider/conformance` | exists and drives each protocol through the real executor and a protocol-accurate fake upstream |
+| Kaana repository and ownership model | Kaana | [OxyHQ/Kaana](https://github.com/OxyHQ/Kaana) | **exists** — `gh repo view OxyHQ/Kaana` on 2026-08-17: PUBLIC, non-empty, primary language Go, last pushed 2026-08-16. This is the one row in this section whose evidence can be gathered from outside the repo without auditing its contents (rule 1), which is why it is `exists` while its siblings are `unverified` |
+| High-concurrency streaming data plane | Kaana | OxyHQ/Kaana | unverified — external repository, not audited from here |
+| Provider adapter interface (translation, streaming, cancellation, usage normalization, errors, health) | Kaana | OxyHQ/Kaana | unverified — external repository, not audited from here |
+| Provider adapters migrated out of Alia | Kaana | OxyHQ/Kaana | unverified — external repository, not audited from here |
+| Same-model deployment fallback, circuit breakers, health scoring | Kaana | OxyHQ/Kaana | unverified — external repository, not audited from here |
+| Cross-model fallback, only when Oxy policy allows | Kaana | OxyHQ/Kaana | unverified — external repository, not audited from here |
+| Configuration snapshots for control-plane outage | Kaana | OxyHQ/Kaana | unverified — external repository, not audited from here |
+| Technical usage receipts with stable request/event ids | Kaana | OxyHQ/Kaana | unverified — external repository, not audited from here |
+| Provider-cost measurement and reconciliation | Kaana | OxyHQ/Kaana | unverified — external repository, not audited from here |
+| Oxy-hosted deployments on established runtimes (vLLM/SGLang) | Kaana | OxyHQ/Kaana | unverified — external repository, not audited from here |
+| Orchestration (e.g. KServe), only when scale justifies it | Kaana | OxyHQ/Kaana | unverified — external repository, not audited from here |
+| Internal health/status exposure to Oxy (no secrets, no unsafe route detail) | Kaana | OxyHQ/Kaana | unverified — external repository, not audited from here |
+| Per-provider conformance tests before public availability | Kaana | OxyHQ/Kaana | unverified — external repository, not audited from here |
 
 ## 14. Alia integration (epic §14)
 
@@ -744,7 +771,7 @@ service is scaled, reachable or through its soak window. Those are the §4.1 and
 | Alia delegating an end-user id while billing the Alia account/cost center | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts:261-266` + `db/schema/inferenceUsageEvents.ts` (`delegated_user_id`) | exists — the header is parsed and length-bounded, the delegated id is recorded on the usage event and the receipt, and the BILLING principal stays the caller's own account (ADR 0007) |
 | Internal cost centers: Alia production chat, Codea, research, voice, evaluations | Oxy | OxyHQServices `packages/api/src/db/schema/internalCostCenters.ts` + `scripts/internalCostCenterSpecs.ts:85,93,99,105,111` | exists — the table plus all five specifications, each addressed by a slug that IS the project account's username |
 | Entitlement/billing API consumed by Alia product plans | Oxy | OxyHQServices `packages/api/src/routes/accountBilling.ts:88,816`, `routes/costCenters.ts:46`, `packages/contracts/src/inference/entitlement.ts` | exists — the contract and the routes. Whether Alia consumes them is Alia's half and is `unverified` from here |
-| Removal of the static Oxy→Alia infrastructure proxy | Oxy | OxyHQServices `packages/api/src/routes/alia.ts` | planned — **a removal row, so this means the proxy is STILL LIVE** (rule 2). All three of its routes are mounted and now gated by `requireFirstPartyInferenceCaller`; see §3.1. Workstream 14 owns retiring them |
+| Removal of the static Oxy→Alia infrastructure proxy | Oxy | OxyHQServices `packages/api/src/server.ts`, deployment removal list | removed — no `/alia` or `/v1/voice/*` mount; Inbox point inference uses Oxy-to-Kaana |
 | Deprecation of Alia-owned developer keys, provider billing, generic `/v1` endpoints | Alia | Alia repo | unverified — **a removal row on a non-Oxy owner**, which is what rules 1 and 2 together make of it: `planned` would claim Oxy owes something, and no reading of it would say whether Alia has done the work. `alia_sk_…` keys are still Alia-issued as far as this repository can see, and that is the limit of what it can see |
 | Alia assistant product, conversations, memory, agents, tools, approvals | Alia | Alia repo | exists (outside this repo) |
 
@@ -768,9 +795,9 @@ service is scaled, reachable or through its soak window. Those are the §4.1 and
 | Model vs deployment vs routing profile documentation | Oxy | OxyHQServices `docs/inference/catalogue.md` | exists |
 | Routing controls and fallback semantics documentation | Oxy | OxyHQServices `docs/inference/routing.md` | v2 contract — qualification fails closed, explicit profile priority precedes score descending, exact deployment ID UTF-16 code units are the sole tie-break, and Kaana executes only the signed order |
 | Exact billing / reservations / usage-dashboard documentation | Oxy | OxyHQServices `docs/inference/billing.md` | exists — including why dashboard usage is eventually consistent while the billed amount comes from the ledger, and the `/inference/reporting` surface |
-| BYOK behaviour and limits documentation | Oxy | OxyHQServices `docs/inference/byok.md` | accepted architecture documented — all provider credentials are KMS ciphertext in Kaana PostgreSQL; Oxy retains metadata plus an opaque handle/revision. Kaana #48 is merged, but the coordinated Oxy cut remains draft, so the merged create/rotate path still refuses with `503` rather than pretending the custody boundary is live |
+| BYOK behaviour and limits documentation | Oxy | OxyHQServices `docs/inference/byok.md` | exists — Kaana PostgreSQL/KMS custody, 1–4096 visible ASCII input, zero credential-derived Oxy metadata, exact opaque IDs, same-operation recovery, validation authority and closure fencing |
 | Data retention and regional policy documentation | Oxy | OxyHQServices `docs/inference/data-policy.md` | exists — what Oxy retains and for how long (including that neither the 90-day telemetry sweep nor the reservation-expiry sweep is scheduled), the no-user-IP invariant, the per-route `dataPolicy` fields, and the residency/retention routing controls, which ARE enforced against the candidate routes since [#1012](https://github.com/OxyHQ/oxy/pull/1012) — subset-not-overlap for regions, actually-not-retaining for zero retention |
-| Migration guides for `chat:completions`, `models:read`, `alia_sk_*`, `oxy_dk_*` | Oxy | OxyHQServices `docs/inference/migration.md` | exists — `alia_sk_*` established as an Alia-issued key with zero references in this repo, cited to the Alia repo; plus the Alia proxy's move from `/v1/chat/completions` to `/alia/chat/completions` |
+| Migration guides for `chat:completions`, `models:read`, `alia_sk_*`, `oxy_dk_*` | Oxy | OxyHQServices `docs/inference/migration.md` | exists — `alia_sk_*` remains an Alia-issued key with zero Oxy-runtime references; the shared Oxy-to-Alia proxy is retired and Inbox point inference uses Oxy-to-Kaana |
 | Status board naming what is NOT built and what tracks it | Oxy | OxyHQServices `docs/inference/README.md` | exists |
 | Published deprecation and sunset dates | Oxy | OxyHQServices `docs/inference/deprecation.md` | policy written, no date published, and none invented. Notice windows are relative to events rather than calendar dates, and are PROPOSED pending the owner's confirmation. Nothing an external developer can reach has been deprecated; the things retired so far did nothing, and each is recorded with why no notice was owed |
 
@@ -778,7 +805,7 @@ service is scaled, reachable or through its soak window. Those are the §4.1 and
 
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
-| Oxy↔Kaana schema compatibility tests | Oxy + Kaana | OxyHQServices `packages/contracts/src/__tests__/inference.compatibility.test.ts`; Kaana `tools/contract`, `internal/contract` | exists on both sides; Kaana's CI regenerates from the pinned package and validates its produced fixtures with the published Zod schemas |
+| Oxy↔Kaana schema compatibility tests | Oxy + Kaana | OxyHQServices `packages/contracts/src/__tests__/inference.compatibility.test.ts` + OxyHQ/Kaana | partial — Oxy's half exists (frozen version map with exact equality, a `readdirSync` census so a new contract file cannot hide, a frozen union list, a round-trip fixture per shape). The cross-repo half is `unverified` |
 | Attribution tests (account/application/credential) | Oxy | OxyHQServices `packages/api/src/services/__tests__/attribution.service.test.ts` | exists |
 | Scope and RBAC tests | Oxy | OxyHQServices `packages/api/src/routes/__tests__/inferenceEdgeCredentialLanes.test.ts`, `accountsMemberPermissions.test.ts`, `applicationPermissionOverrides.test.ts`, `accountBillingAuthorization.test.ts` | exists |
 | Credential create/rotate/revoke/expiry tests | Oxy | OxyHQServices `packages/api/src/routes/__tests__/machineCredentials.test.ts:370-535`, `credentialAuditTrail.test.ts`, `serviceTokenCredentials.test.ts` | exists — including the inference cases this row's earlier note called planned: the machine token is returned exactly once, the stored hash is asserted never to be the plaintext WITH a control proving that check can fail, an unscoped or over-scoped credential is refused, and an expired one is refused on the bearer lane |
@@ -790,7 +817,7 @@ service is scaled, reachable or through its soak window. Those are the §4.1 and
 | E2E: non-streaming, SSE streaming, disconnect-cancels, same-model failover, forbidden cross-model fallback | Oxy + Kaana | OxyHQServices `packages/api/src/routes/__tests__/kaanaStreaming.test.ts`, `inferenceEdge.test.ts`, `inferenceEdgeRouteSwitchEvents.test.ts` + OxyHQ/Kaana | exists against the injected data-plane fake, which is what makes these runnable with no Kaana. End to end against a live Kaana is a different claim and is `unverified` |
 | E2E: Alia service token with delegated user, external machine key, BYOK route | Oxy + Kaana | OxyHQServices `packages/api/src/routes/__tests__/inferenceEdgeCredentialLanes.test.ts:4-28` | partial — that file states in its own header which halves it covers: the delegated user IS covered on the machine lane, and what is not is that the delegated user is never the BILLING principal on that lane |
 | E2E: insufficient balance, partial stream settlement, retry with no duplicate charge, rotation during traffic | Oxy | OxyHQServices `packages/api/src/routes/__tests__/inferenceEdgeRollout.test.ts:847`, `kaanaStreaming.test.ts`, `services/__tests__/inferenceLedger.service.test.ts` | exists — the refusal is asserted on the error CODE (`insufficient_balance`), not on a phrase |
-| `requestId` correlation across edge, Kaana, ledger and receipt | Oxy + Kaana | OxyHQServices `packages/api/src/routes/__tests__/inferenceEdge.test.ts:424,623`; Kaana `internal/kaana`, `internal/provider/conformance` | exists in source across both halves; live settlement correlation remains an end-to-end cutover gate |
+| `requestId` correlation across edge, Kaana, ledger and receipt | Oxy + Kaana | OxyHQServices `packages/api/src/routes/__tests__/inferenceEdge.test.ts:424,623` + OxyHQ/Kaana | exists for Oxy's three hops (edge → ledger → receipt); the Kaana hop is `unverified` |
 | Metrics: request rate, error rate, TTFT, total latency, cancellation, fallback | Oxy + Kaana | OxyHQServices `packages/api/src/services/inferenceMetrics.service.ts:24,32,318` + OxyHQ/Kaana | exists on Oxy's side; whether Kaana emits its half is `unverified` |
 | Metrics: reserve failures, settlement lag, reconciliation drift | Oxy | OxyHQServices `packages/api/src/services/inferenceMetrics.service.ts:345-347` | exists |
 | Alerts: ledger imbalance, duplicate event ids, provider error/cost spikes | Oxy | OxyHQServices + oxy-infra | planned |

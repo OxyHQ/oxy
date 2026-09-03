@@ -9,9 +9,8 @@
 
 ## Pre-rotation inspection
 
-Source implementation and live key configuration are different facts. Read the
-running Oxy task definition and Kaana verifier key set before deciding whether
-there is a key to rotate:
+**The scheme and deployment bindings are implemented; live serving is not
+proven.** Those are different facts and the difference decides what you do:
 
 - `packages/api/src/services/httpKaanaClient.ts` signs each inference envelope
   with Ed25519 and forwards it to `POST <KAANA_BASE_URL>/internal/v1/inference`.
@@ -19,11 +18,15 @@ there is a key to rotate:
 - The data plane exists — [`OxyHQ/Kaana`](https://github.com/OxyHQ/Kaana), a
   public Go repository — and holds only PUBLIC keys, so it cannot construct an
   envelope it would itself accept.
-- **A deployment that has not set all three of `KAANA_BASE_URL`,
+- The deployment workflow declares `KAANA_BASE_URL`,
+  `KAANA_EDGE_SIGNING_KEY_ID` and the SSM-backed
+  `KAANA_EDGE_SIGNING_PRIVATE_KEY`, but `INFERENCE_KAANA_EXECUTION` remains
+  explicitly disabled. A repository declaration is not evidence that a running
+  task loaded the values or that Kaana trusts the matching public key.
+- **A running task that has not loaded all three of `KAANA_BASE_URL`,
   `KAANA_EDGE_SIGNING_KEY_ID` and `KAANA_EDGE_SIGNING_PRIVATE_KEY` has no data
   plane**: every invoke resolves to `DataPlaneNotConfiguredError` and the edge
-  answers a typed `service_unavailable`. This is a conditional failure mode, not
-  a claim about the current deployment.
+  answers a typed `service_unavailable`.
 - **All three or none.** A partial configuration resolves to the same
   no-data-plane state and is reported once at `error` level as
   `inference.kaana.config_unreadable`, naming the variable and never its value.
@@ -34,6 +37,7 @@ levers are the **rollout flags**, not key material:
 
 | Flag | Default | Effect |
 |---|---|---|
+| `INFERENCE_KAANA_EXECUTION` | disabled | whether Oxy constructs and invokes the signed Kaana client |
 | `INFERENCE_EDGE_AUDIENCE` | closed | who may reach the public inference edge at all |
 | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | off | whether an `oxy_sk_…` key authenticates the edge |
 | `INFERENCE_CHARGING_AUTHORIZED` | unauthorized | whether spend may be charged |
@@ -63,8 +67,8 @@ Generate a pair with `openssl genpkey -algorithm ed25519`. Oxy holds the private
 half and never logs or serializes it — it is kept as a Node `KeyObject`, so an
 accidental interpolation yields `[object Object]` rather than a PEM.
 
-**The first key pair exists. It is not wired into the deploy, and that is
-deliberate — see the ordering hazard below.**
+**The first key id and its deployment bindings are declared.** Treat them as
+live only after the running-task and Kaana trust-set checks below pass.
 
 | | Value |
 |---|---|
@@ -81,17 +85,15 @@ transcription of it. Negative control: the same signature over a body with one
 byte appended does not verify. The local private half was shredded once the
 secret was stored.
 
-**Do not add it to the deploy on its own.** `resolveKaanaDataPlane` treats all
+**Never change one binding on its own.** `resolveKaanaDataPlane` treats all
 three variables as all-or-nothing: with none set it returns `absent` and is
-silent. With only the private key
-injected it returns `unreadable(KAANA_BASE_URL)` and logs
+silent. With only the private key injected it returns
+`unreadable(KAANA_BASE_URL)` and logs
 `inference.kaana.config_unreadable` at **error** level on every boot — a
-production error line asserting the configuration is broken when nothing is
-broken. That is how a log people should read becomes a log people skip. So the
-private key stays available-but-unwired until there is a `KAANA_BASE_URL` to set
-beside it, and all three land together.
+production error line identifying a genuinely partial configuration. The URL,
+key id and private key must land together.
 
-**When that moment comes**, adding it means editing BOTH hand-maintained
+Rotating or replacing it means editing BOTH hand-maintained
 allowlists in `.github/workflows/deploy-aws.yml` — the `SYNC_<NAME>` env block
 and the `API_SECRETS` list — in the same change;
 `scripts/check-deploy-secrets-sync.mjs` fails the build if the two disagree. A

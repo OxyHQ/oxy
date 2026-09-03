@@ -66,4 +66,12 @@ describe('live agency service principal', () => {
 
     await expect(resolveLiveAgencyServicePrincipal(fixture.token)).resolves.toBeNull();
   });
+
+  it('rejects an application whose platform trust is removed after mint', async () => {
+    const fixture = await principalFixture();
+    await getDb().update(applications).set({ isInternal: false, type: 'third_party' })
+      .where(eq(applications.id, fixture.application.id));
+
+    await expect(resolveLiveAgencyServicePrincipal(fixture.token)).resolves.toBeNull();
+  });
 });

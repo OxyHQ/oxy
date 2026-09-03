@@ -40,9 +40,11 @@
  * retired `models-stats.ts` did with its literal `isHealthy: true`.
  */
 
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type {
+  AuthorizedRoute,
   AvailabilityScope,
+  InferenceEnvironment,
   ModelCatalogueEntry,
   PriceSnapshot,
   RoutingPolicy,
@@ -77,6 +79,7 @@ import {
   classifyApplicationTier,
   type ApplicationClassification,
 } from '../utils/applicationTier';
+import { resolveProviderConnectionForApplication } from './inferenceProviderConnection.service';
 
 /* -------------------------------------------------------------------------- */
 /*  1. The audience                                                           */
@@ -116,13 +119,12 @@ export const PUBLIC_CATALOGUE_SCOPES: readonly AvailabilityScope[] = ['public_pa
  * - `enterprise` needs a per-account entitlement, which is the billing
  *   workstream's (7) to define. Granting it on the strength of "the account
  *   looks big" would be a commercial decision made by a heuristic.
- * - `byok_only` needs a validated BYOK provider connection for the calling
- *   account, which is workstream 10 and does not exist. A BYOK route with no
- *   connection behind it cannot be served at all, so offering it would be a
- *   catalogue entry that 500s.
+ * - `byok_only` is never a public catalogue entitlement. The authenticated
+ *   edge considers it request-locally only after it has the exact application
+ *   and environment needed to resolve a ready, active, valid connection.
  *
- * `schema/__tests__`/the service tests assert no viewer produces either, so
- * this stays true until somebody deliberately changes it.
+ * `schema/__tests__`/the service tests assert no catalogue viewer produces
+ * either. The edge's separate authenticated widening does not alter that.
  */
 export const UNGRANTABLE_SCOPES: readonly AvailabilityScope[] = ['enterprise', 'byok_only'];
 
@@ -319,8 +321,8 @@ export const EVERY_ROUTING_CONTROL_IS_CLASSIFIED: [UnclassifiedRoutingControl] e
  *
  * The two enums have no "unset" member, so their neutral value is `'disabled'`,
  * which reads as a prohibition — see {@link violatedConstraints}. Neither
- * prohibition can withhold a route a request could otherwise be served today:
- * `byok_only` is in {@link UNGRANTABLE_SCOPES}, and a deployment with
+ * prohibition can withhold a route from an unconstrained/public catalogue read:
+ * `byok_only` is in {@link UNGRANTABLE_SCOPES} there, and a deployment with
  * `dedicated_capacity` holds capacity reserved for ONE enterprise account, which
  * an application with no policy of its own was never entitled to.
  *
@@ -419,9 +421,15 @@ const CONSTRAINT_COLUMNS = {
   commercialUseAllowed: inferenceModels.commercialUseAllowed,
   // The price CEILINGS are evaluated against the version this route is actually
   // charged at, so the key belongs in the shared selection like every other
-  // constraint input. It stays out of `CUSTOMER_SAFE_DEPLOYMENT_COLUMNS`: what a
-  // customer is shown is the price snapshot it resolves to, never the key.
-  priceVersionId: inferenceDeployments.priceVersionId,
+  // constraint input. BYOK uses only its separately reviewed platform-fee
+  // version; its provider price remains NULL because the provider bills the
+  // customer directly. It stays out of `CUSTOMER_SAFE_DEPLOYMENT_COLUMNS`: what
+  // a customer is shown is the price snapshot it resolves to, never the key.
+  priceVersionId: sql<string | null>`case
+    when ${inferenceDeployments.availabilityScope} = 'byok_only'
+      then ${inferenceDeployments.platformFeePriceVersionId}
+    else ${inferenceDeployments.priceVersionId}
+  end`,
 } as const;
 
 /**
@@ -928,6 +936,8 @@ export const INTERNAL_DEPLOYMENT_COLUMNS: Readonly<Record<string, string>> = {
     'Whether capacity is reserved for one enterprise account. Discloses another customer’s commercial arrangement.',
   priceVersionId:
     'The ledger’s identifier for the price. The customer sees the price SNAPSHOT (`pricing`), copied onto the entry; the version id is the ledger’s internal handle.',
+  platformFeePriceVersionId:
+    'The ledger’s identifier for a BYOK platform fee. It is operational billing configuration, not a public catalogue field.',
   internalRouteId: 'PROTECTED. The data plane’s own route identifier.',
   upstreamWholesaleCostAmount: 'PROTECTED. What Oxy pays upstream.',
   upstreamWholesaleCostCurrency: 'PROTECTED. Half of the wholesale rate.',
@@ -1136,13 +1146,11 @@ async function loadPriceSnapshots(
  * complete price snapshot: they may disagree on the price version, or the only
  * version may be absent/incomplete. The edge does not infer from this projection;
  * it validates the exact selected deployment's price independently and fails
- * closed when that evidence is missing or mismatched. The other case the schema
- * allows, a `byok_only` route whose
- * price version the CHECK `inference_deployments_byok_has_no_price_version`
- * forces to null, is NOT reachable here: `byok_only` is in
- * {@link UNGRANTABLE_SCOPES}, so no viewer is served such a route and none is
- * ever listed. An invented price would be quoted back to us, so there is still
- * none.
+ * closed when that evidence is missing or mismatched. A `byok_only` route keeps
+ * its upstream provider `price_version_id` NULL and is NOT reachable through
+ * this customer catalogue: `byok_only` remains in {@link UNGRANTABLE_SCOPES}.
+ * Its separately reviewed platform-fee version is internal edge configuration,
+ * never a reason to publish the BYOK row or its identifier here.
  */
 function buildCatalogueEntry(
   model: CatalogueModelRow,
@@ -1515,7 +1523,8 @@ export async function selectRouteForViewer(
     constraints,
     TEXT_COMPLETION_MODALITY,
     'balanced',
-    UNCONSTRAINED_EDGE_CAPACITY
+    UNCONSTRAINED_EDGE_CAPACITY,
+    undefined
   );
   if (resolution.status !== 'resolved') return undefined;
   return {
@@ -1579,6 +1588,10 @@ export interface EdgeRoute {
   readonly availabilityScope: AvailabilityScope;
   /** The price version a hold is sized against and a receipt is settled at. */
   readonly priceVersionId: string;
+  /** Exact Kaana generation; present only on an authenticated BYOK route. */
+  readonly customerProviderCredential?: NonNullable<
+    AuthorizedRoute['customerProviderCredential']
+  >;
   readonly maxContextTokens: number;
   readonly maxOutputTokens: number;
   /**
@@ -1646,6 +1659,16 @@ export const TEXT_COMPLETION_MODALITY: EdgeModalityRequirement = {
   input: 'text',
   output: 'text',
 };
+
+/**
+ * Exact authenticated request identity required before a BYOK-only catalogue
+ * row may even be considered. Public catalogue reads pass `undefined` and can
+ * never widen themselves into the BYOK audience.
+ */
+export interface AuthenticatedEdgeRoutingContext {
+  readonly applicationId: string;
+  readonly environment: InferenceEnvironment;
+}
 
 /**
  * Outcome of {@link resolveEdgeRoute}.
@@ -1729,6 +1752,10 @@ export type EdgeRouteResolution =
       readonly modelReference: string;
       readonly outputLimitExceeded: boolean;
       readonly contextLimitExceeded: boolean;
+    }
+  | {
+      readonly status: 'customer-provider-credential-unavailable';
+      readonly modelReference: string;
     };
 
 /**
@@ -1780,7 +1807,8 @@ export async function resolveEdgeRoute(
   constraints: RoutingConstraints,
   modality: EdgeModalityRequirement,
   optimiseFor: RoutingPolicy['optimiseFor'] | RoutingProfile['optimiseFor'],
-  capacity: EdgeCapacityRequirement
+  capacity: EdgeCapacityRequirement,
+  requestContext: AuthenticatedEdgeRoutingContext | undefined
 ): Promise<EdgeRouteResolution> {
   if (viewer.scopes.length === 0) {
     return { status: 'unknown-model', modelReference };
@@ -1791,6 +1819,13 @@ export async function resolveEdgeRoute(
   const pinnedRevision = separator === -1 ? undefined : modelReference.slice(separator + 1);
 
   const db = getDb();
+  const deploymentViewer: CatalogueViewer =
+    requestContext === undefined
+      ? viewer
+      : {
+          ...viewer,
+          scopes: [...new Set([...viewer.scopes, 'byok_only' as const])],
+        };
   const rows = await db
     .select({
       ...CONSTRAINT_COLUMNS,
@@ -1833,8 +1868,8 @@ export async function resolveEdgeRoute(
       inferenceDeploymentRoutingScores,
       eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId)
     )
-    .leftJoin(priceVersions, eq(inferenceDeployments.priceVersionId, priceVersions.id))
-    .where(and(selectableDeploymentWhere(viewer), eq(inferenceModels.modelId, modelId)));
+    .leftJoin(priceVersions, eq(CONSTRAINT_COLUMNS.priceVersionId, priceVersions.id))
+    .where(and(selectableDeploymentWhere(deploymentViewer), eq(inferenceModels.modelId, modelId)));
 
   const candidates = rows.filter((row) => {
     if (row.retiredAt !== null) return false;
@@ -1878,11 +1913,60 @@ export async function resolveEdgeRoute(
     return { status: 'policy-excluded', modelReference, constraints: permitted.excludedBy };
   }
 
+  type ConnectedCandidate = (typeof permitted.kept)[number] & {
+    readonly customerProviderCredential?: NonNullable<
+      AuthorizedRoute['customerProviderCredential']
+    >;
+  };
+  const connected: ConnectedCandidate[] = [];
+  const connectionByProvider = new Map<
+    string,
+    ReturnType<typeof resolveProviderConnectionForApplication>
+  >();
+  for (const candidate of permitted.kept) {
+    if (candidate.availabilityScope !== 'byok_only') {
+      connected.push(candidate);
+      continue;
+    }
+    if (requestContext === undefined) continue;
+    let resolution = connectionByProvider.get(candidate.providerSlug);
+    if (resolution === undefined) {
+      resolution = resolveProviderConnectionForApplication({
+        applicationId: requestContext.applicationId,
+        provider: candidate.providerSlug,
+        environment: requestContext.environment,
+      });
+      connectionByProvider.set(candidate.providerSlug, resolution);
+    }
+    const providerConnection = await resolution;
+    if (providerConnection.status !== 'resolved') continue;
+    const { connection } = providerConnection;
+    if (
+      connection.credentialHandle === undefined ||
+      connection.credentialRevision === undefined
+    ) {
+      continue;
+    }
+    connected.push({
+      ...candidate,
+      customerProviderCredential: {
+        credentialHandle: connection.credentialHandle,
+        credentialRevision: connection.credentialRevision,
+        ownerAccountId: connection.ownerAccountId,
+        connectionId: connection.connectionId,
+        environment: connection.environment,
+      },
+    });
+  }
+  if (connected.length === 0) {
+    return { status: 'customer-provider-credential-unavailable', modelReference };
+  }
+
   // Capacity is an ordinary availability fact, so it narrows the set BEFORE
   // exact identity, price and score evidence are validated. A too-small
   // cross-model fallback is never authorized for this request and therefore
   // cannot poison the otherwise complete envelope with irrelevant evidence.
-  const capacityCompatible = permitted.kept.filter((candidate) => {
+  const capacityCompatible = connected.filter((candidate) => {
     const outputTokens =
       capacity.outputTokens === 'model-maximum'
         ? candidate.maxOutputTokens
@@ -1900,8 +1984,8 @@ export async function resolveEdgeRoute(
       modelReference,
       outputLimitExceeded:
         explicitOutput !== undefined &&
-        permitted.kept.every((candidate) => candidate.maxOutputTokens < explicitOutput),
-      contextLimitExceeded: permitted.kept.every((candidate) => {
+        connected.every((candidate) => candidate.maxOutputTokens < explicitOutput),
+      contextLimitExceeded: connected.every((candidate) => {
         const outputTokens =
           capacity.outputTokens === 'model-maximum'
             ? candidate.maxOutputTokens
@@ -1949,7 +2033,10 @@ export async function resolveEdgeRoute(
   }
 
   const now = Date.now();
-  const ranked: { readonly candidate: (typeof capable)[number]; readonly score: number }[] = [];
+  const ranked: {
+    readonly candidate: (typeof capacityCompatible)[number];
+    readonly score: number;
+  }[] = [];
   for (const candidate of capacityCompatible) {
     if (candidate.priceVersionId === null) {
       return {
@@ -2004,6 +2091,11 @@ export async function resolveEdgeRoute(
   }
 
   ranked.sort((left, right) => {
+    if (constraints.byokPreference === 'prefer') {
+      const leftIsByok = left.candidate.availabilityScope === 'byok_only';
+      const rightIsByok = right.candidate.availabilityScope === 'byok_only';
+      if (leftIsByok !== rightIsByok) return leftIsByok ? -1 : 1;
+    }
     const byScore = right.score - left.score;
     if (byScore !== 0) return byScore;
     const leftId = left.candidate.internalRouteId;
@@ -2018,7 +2110,7 @@ export async function resolveEdgeRoute(
   // read off the row because each caller has already narrowed them from
   // `string | null`, in the way its own arm requires.
   const edgeRouteOf = (
-    row: (typeof capable)[number],
+    row: (typeof capacityCompatible)[number],
     resolvedModelId: string,
     internalRouteId: string,
     priceVersionId: string,
@@ -2031,6 +2123,9 @@ export async function resolveEdgeRoute(
     regions: row.regions,
     availabilityScope: row.availabilityScope as AvailabilityScope,
     priceVersionId,
+    ...(row.customerProviderCredential === undefined
+      ? {}
+      : { customerProviderCredential: row.customerProviderCredential }),
     maxContextTokens: row.maxContextTokens,
     maxOutputTokens: row.maxOutputTokens,
     inputModalities: row.inputModalities,
@@ -2320,8 +2415,8 @@ export type EdgeRoutingProfileResolution =
  * candidate is therefore converted explicitly here, and one unresolvable row
  * refuses the whole profile before a reservation or Kaana call.
  */
-export async function resolveRoutingProfileForEdge(
-  slug: string
+async function resolveRoutingProfileForEdgeWhere(
+  profileWhere: SQL<unknown>
 ): Promise<EdgeRoutingProfileResolution> {
   const db = getDb();
   const [profile] = await db
@@ -2334,7 +2429,7 @@ export async function resolveRoutingProfileForEdge(
       isProductPreset: inferenceRoutingProfiles.isProductPreset,
     })
     .from(inferenceRoutingProfiles)
-    .where(eq(inferenceRoutingProfiles.slug, slug))
+    .where(profileWhere)
     .limit(1);
   if (profile === undefined) return { status: 'unknown-profile' };
 
@@ -2408,4 +2503,26 @@ export async function resolveRoutingProfileForEdge(
   return parsed.success
     ? { status: 'resolved', profile: parsed.data }
     : { status: 'routing-evidence-unavailable', reason: 'invalid-profile-candidate' };
+}
+
+/** Resolve the existing public compatibility selector by its canonical slug. */
+export function resolveRoutingProfileForEdge(
+  slug: string
+): Promise<EdgeRoutingProfileResolution> {
+  return resolveRoutingProfileForEdgeWhere(eq(inferenceRoutingProfiles.slug, slug));
+}
+
+/**
+ * Resolve a product integration's exact opaque routing-profile database ID.
+ *
+ * This is deliberately a primary-key equality lookup. It never falls back to a
+ * slug, display name, sort position, or "first" profile when the supplied ID is
+ * unknown — an unknown or whitespace-modified ID therefore fails closed.
+ */
+export function resolveRoutingProfileForEdgeById(
+  routingProfileId: string
+): Promise<EdgeRoutingProfileResolution> {
+  return resolveRoutingProfileForEdgeWhere(
+    eq(inferenceRoutingProfiles.id, routingProfileId)
+  );
 }

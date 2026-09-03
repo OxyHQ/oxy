@@ -1,5 +1,20 @@
 # Changelog: `@oxyhq/contracts`
 
+## 0.40.0
+
+### Added
+
+- `routingProfileIdSchema` is the shared opaque-ID bound used by catalogue
+  projections and Oxy's exact product-routing selector. It applies only length
+  bounds and never trims, case-folds, parses, or otherwise substitutes an ID.
+- Signed inference requests and canonical routing-policy snapshots now carry
+  only `{ kind: "routing_profile_id", routingProfileId }`. The former slug arm
+  is removed from the cross-service boundary. Consequently
+  `inferenceRequestSchema` and `routingPolicySchema` advance to wire
+  `schemaVersion: 2`; the contract-set version is `2.0.0`. Oxy may still accept
+  the deprecated public `routingProfile` request field, but must resolve it to
+  one exact profile PK before constructing either canonical shape.
+
 ## 0.36.0
 
 ### Added
@@ -21,7 +36,7 @@ nothing about the value beside them. An upstream echoing a request header sends
 the SPAN it matched emitted `{x-[redacted] <the key>}`, which no longer matched
 and was therefore **accepted**. The unredacted string was refused and the
 redacted one was not, and both carried the key. Measured by the second outside
-implementation of this contract (OxyHQ/Relay#3), not theorised.
+implementation of this contract (OxyHQ/Kaana#3), not theorised.
 
 The refinement now checks four independent signals, so removing one does not
 clear a string: a credential-bearing name (the whole `x-…`/`…-api-key` family,

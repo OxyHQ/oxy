@@ -1,49 +1,151 @@
 import {
+  authorizedRouteSchema,
+  kaanaCredentialMutationSchema,
+  kaanaCredentialOutcomeRequestSchema,
+  kaanaCredentialOutcomeSchema,
+  kaanaCredentialHandleSchema,
+  kaanaCredentialValidationOutcomeSchema,
+  providerCredentialValidationOperationSchema,
   providerConnectionSchema,
-  providerSecretReferenceSchema,
   safeParseContract,
 } from '../index';
 
-/**
- * A credential the length and shape of a real one, for the splicing cases below.
- *
- * COMPOSED rather than written out: `scripts/check-secret-scan.mjs` refuses any
- * `sk-` literal of 40 characters or more anywhere in the tree, and that floor is
- * what separates an issued key from a fixture without a name filter. A fixture
- * spelled in full would have to be excused by an allow-list entry, which erodes
- * the floor for every real key after it.
- */
-const CREDENTIAL = `sk-ant-api03-${'9f2Ab_cD3e'.repeat(6)}AA`;
-
+const handle = `kcred_${'a'.repeat(26)}`;
 const connection = {
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   connectionId: 'pcx_1',
   provider: 'openai',
   ownerAccountId: 'acc_1',
-  scope: { kind: 'application' as const, accountId: 'acc_1', applicationId: 'app_1' },
+  scope: {
+    kind: 'application' as const,
+    accountId: 'acc_1',
+    applicationId: 'app_1',
+  },
   environment: 'production' as const,
   status: 'active' as const,
-  secretRef: 'vault:oxy/inference/byok/production/acc_1/pcx_1',
-  keyPrefix: 'sk-proj-4f',
-  fingerprint: 'b'.repeat(64),
-  validation: { state: 'valid' as const, lastValidatedAt: '2026-08-15T08:00:00.000Z' },
+  custodyState: 'ready' as const,
+  credentialHandle: handle,
+  credentialRevision: 2,
+  validation: {
+    state: 'valid' as const,
+    lastValidatedAt: '2026-08-15T08:00:00.000Z',
+  },
   upstreamBillsCustomerDirectly: true as const,
   createdAt: '2026-08-01T10:00:00.000Z',
 };
 
-describe('providerConnectionSchema', () => {
-  it('parses a validated, active connection', () => {
-    expect(safeParseContract(providerConnectionSchema, connection)).toEqual(connection);
+describe('Kaana provider credential contracts', () => {
+  it('accepts only opaque Kaana handles', () => {
+    expect(kaanaCredentialHandleSchema.safeParse(handle).success).toBe(true);
+    for (const invalid of [
+      'vault:oxy/inference/byok/production/acc_1/pcx_1',
+      'ssm:/customer/key',
+      'sk-live-credential',
+      `kcred_${'A'.repeat(26)}`,
+    ]) {
+      expect(kaanaCredentialHandleSchema.safeParse(invalid).success).toBe(false);
+    }
   });
 
-  it('cannot carry credential material under any field name', () => {
+  it('binds mutations to one exact operation, identity, actor and action shape', () => {
+    const create = {
+      schemaVersion: 1,
+      operationId: 'op_create_1',
+      action: 'create',
+      provider: 'openai',
+      ownerAccountId: 'acc_1',
+      connectionId: 'pcx_1',
+      environment: 'production',
+      operationActor: 'user:user_1',
+      secretBase64: Buffer.from('customer-provider-key').toString('base64'),
+    };
+    expect(kaanaCredentialMutationSchema.safeParse(create).success).toBe(true);
+    expect(
+      kaanaCredentialMutationSchema.safeParse({ ...create, credentialHandle: handle }).success,
+    ).toBe(false);
+    expect(
+      kaanaCredentialMutationSchema.safeParse({ ...create, ownerAccountId: 'acc/guessed' }).success,
+    ).toBe(false);
+    expect(kaanaCredentialMutationSchema.safeParse({ ...create, actor: {} }).success).toBe(false);
+
+    for (const invalidSecret of [
+      Buffer.from([0]),
+      Buffer.from(' customer-provider-key '),
+      Buffer.from('customer\tprovider'),
+      Buffer.from('credencial-ñ'),
+      Buffer.from('a'.repeat(4097)),
+    ]) {
+      expect(
+        kaanaCredentialMutationSchema.safeParse({
+          ...create,
+          secretBase64: invalidSecret.toString('base64'),
+        }).success,
+      ).toBe(false);
+    }
+    expect(
+      kaanaCredentialMutationSchema.safeParse({
+        ...create,
+        secretBase64: Buffer.from('a'.repeat(4096)).toString('base64'),
+      }).success,
+    ).toBe(true);
+    expect(
+      kaanaCredentialMutationSchema.safeParse({ ...create, secretBase64: 'YR==' }).success,
+    ).toBe(false);
+    expect(
+      kaanaCredentialMutationSchema.safeParse({ ...create, secretBase64: 'YWJ=' }).success,
+    ).toBe(false);
+    expect(
+      kaanaCredentialMutationSchema.safeParse({ ...create, secretBase64: 'YQ==' }).success,
+    ).toBe(true);
+    expect(
+      kaanaCredentialMutationSchema.safeParse({ ...create, secretBase64: 'YWI=' }).success,
+    ).toBe(true);
+  });
+
+  it('keeps outcome queries metadata-only and conflicts reference-free', () => {
+    const request = {
+      schemaVersion: 1,
+      operationId: 'op_rotate_1',
+      action: 'rotate',
+      provider: 'openai',
+      ownerAccountId: 'acc_1',
+      connectionId: 'pcx_1',
+      environment: 'production',
+      credentialHandle: handle,
+      expectedRevision: 2,
+    };
+    expect(kaanaCredentialOutcomeRequestSchema.safeParse(request).success).toBe(true);
+    expect(
+      kaanaCredentialOutcomeRequestSchema.safeParse({ ...request, secretBase64: 'c2VjcmV0' })
+        .success,
+    ).toBe(false);
+    expect(
+      kaanaCredentialOutcomeSchema.safeParse({
+        schemaVersion: 1,
+        operationId: 'op_rotate_1',
+        action: 'rotate',
+        status: 'conflict',
+      }).success,
+    ).toBe(true);
+    expect(
+      kaanaCredentialOutcomeSchema.safeParse({
+        schemaVersion: 1,
+        operationId: 'op_rotate_1',
+        action: 'rotate',
+        status: 'conflict',
+        credentialHandle: handle,
+        revision: 3,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('parses an exact handle and revision without credential material', () => {
+    expect(safeParseContract(providerConnectionSchema, connection)).toEqual(connection);
     for (const secretBearing of [
-      { apiKey: 'sk-live-4f9c2a7b1e6d8f3a5c0b' },
-      { secret: 'sk-live-4f9c2a7b1e6d8f3a5c0b' },
-      { token: 'sk-live-4f9c2a7b1e6d8f3a5c0b' },
-      { privateKey: '-----BEGIN PRIVATE KEY-----' },
-      { headers: { Authorization: 'Bearer sk-live-4f9c2a7b1e6d8f3a5c0b' } },
-      { credentials: { apiKey: 'sk-live-4f9c2a7b1e6d8f3a5c0b' } },
+      { apiKey: 'secret' },
+      { secret: 'secret' },
+      { token: 'secret' },
+      { secretRef: 'vault:anything' },
     ]) {
       expect(providerConnectionSchema.safeParse({ ...connection, ...secretBearing }).success).toBe(
         false,
@@ -51,168 +153,111 @@ describe('providerConnectionSchema', () => {
     }
   });
 
-  it('caps the recognisable prefix below any usable credential length', () => {
+  it.each(['unvalidated', 'expired'] as const)(
+    'rejects an active connection whose current generation is %s',
+    (state) => {
+      expect(
+        providerConnectionSchema.safeParse({
+          ...connection,
+          validation: { state },
+        }).success,
+      ).toBe(false);
+    },
+  );
+
+  it('rejects secret-derived metadata additions', () => {
     expect(
-      providerConnectionSchema.safeParse({ ...connection, keyPrefix: 'sk-proj-4f9c' }).success,
-    ).toBe(true);
+      providerConnectionSchema.safeParse({ ...connection, fingerprint: 'b'.repeat(64) }).success,
+    ).toBe(false);
     expect(
-      providerConnectionSchema.safeParse({
-        ...connection,
-        keyPrefix: 'sk-live-4f9c2a7b1e6d8f3a5c0b',
-      }).success,
+      providerConnectionSchema.safeParse({ ...connection, keyPrefix: 'sk-partial' }).success,
     ).toBe(false);
   });
 
-  it('takes a store locator, not a key, as the secret reference', () => {
-    for (const reference of [
-      'vault:oxy/inference/byok/production/acc_1/pcx_1',
-      'kms:oxy/inference/byok/staging/acc_1/pcx_1',
-      'ssm:oxy/inference/byok/development/acc_1/pcx_1',
-      'secretsmanager:oxy/inference/byok/production/acc_1/pcx_1',
-    ]) {
-      expect(providerSecretReferenceSchema.safeParse(reference).success).toBe(true);
-    }
-
-    for (const notAReference of [
-      'sk-live-4f9c2a7b1e6d8f3a5c0b',
-      'Bearer sk-live-4f9c2a7b1e6d8f3a5c0b',
-      'https://example.test/secret',
-      'vault: oxy/byok',
-      // Right namespace, wrong store.
-      's3:oxy/inference/byok/production/acc_1/pcx_1',
-      // Right store, a namespace no Oxy policy is scoped to.
-      'vault:oxy/byok/acc_1/pcx_1',
-      // An environment outside the closed set.
-      'vault:oxy/inference/byok/prod/acc_1/pcx_1',
-      // One segment too few, and one too many.
-      'vault:oxy/inference/byok/production/acc_1',
-      'vault:oxy/inference/byok/production/acc_1/pcx_1/extra',
-    ]) {
-      expect(providerSecretReferenceSchema.safeParse(notAReference).success).toBe(false);
-    }
-  });
-
-  /**
-   * THE CASE THIS GRAMMAR EXISTS FOR.
-   *
-   * The previous grammar was `<store>:<anything from a wide charset>`, and its
-   * comment claimed a producer could not pass a raw key through the field and
-   * have it look like a reference. Measured, it could: splicing the credential in
-   * after the store name left a string that matched, and one that still ENDED
-   * with `/<environment>/<account>/<connection>`, so `packages/api`'s partition
-   * CHECK passed as well and the row was written.
-   *
-   * Both halves are asserted — that the spliced value still satisfies the
-   * partition rule, and that it is nonetheless refused. Without the first, this
-   * case would pass against a grammar that merely rejected some arbitrary string,
-   * which is not what went wrong.
-   */
-  it('refuses a credential spliced into an otherwise well-formed reference', () => {
-    const spliced = `vault:${CREDENTIAL}/oxy/inference/byok/production/acc_1/pcx_1`;
-
-    expect(spliced.endsWith('/production/acc_1/pcx_1')).toBe(true);
-    expect(providerSecretReferenceSchema.safeParse(spliced).success).toBe(false);
-    expect(providerConnectionSchema.safeParse({ ...connection, secretRef: spliced }).success).toBe(
-      false,
-    );
-  });
-
-  /**
-   * The one span the grammar alone cannot judge: a credential occupying an id
-   * segment is still a well-formed reference to SOME connection. What refuses it
-   * is that the reference must name THIS one — the contract's half of the rule
-   * `inference_provider_connections_secret_ref_partition` keeps on the row.
-   */
-  it('requires the reference to name this connection, not merely to be well-formed', () => {
-    const asAccount = `vault:oxy/inference/byok/production/${CREDENTIAL.slice(0, 64)}/pcx_1`;
-    const asConnection = `vault:oxy/inference/byok/production/acc_1/${CREDENTIAL}`;
-
-    // Well-formed on their own: the grammar has nothing left to object to.
-    expect(providerSecretReferenceSchema.safeParse(asAccount).success).toBe(true);
-    expect(providerSecretReferenceSchema.safeParse(asConnection).success).toBe(true);
-
-    for (const secretRef of [asAccount, asConnection]) {
-      const result = providerConnectionSchema.safeParse({ ...connection, secretRef });
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.issues.map((issue) => issue.path.join('.'))).toContain('secretRef');
-      }
-    }
-
-    // …and the same fields with the RIGHT reference parse, so the refusals above
-    // are about the reference and not about a fixture the contract never accepted.
-    expect(providerConnectionSchema.safeParse(connection).success).toBe(true);
-  });
-
-  it('refuses a reference to another account, another environment or another connection', () => {
-    for (const secretRef of [
-      'vault:oxy/inference/byok/production/acc_2/pcx_1',
-      'vault:oxy/inference/byok/staging/acc_1/pcx_1',
-      'vault:oxy/inference/byok/production/acc_1/pcx_2',
-    ]) {
-      expect(providerConnectionSchema.safeParse({ ...connection, secretRef }).success).toBe(false);
-    }
-  });
-
-  it('validates the fingerprint as a full sha256 hex digest', () => {
-    expect(providerConnectionSchema.safeParse({ ...connection, fingerprint: 'abc' }).success).toBe(
-      false,
-    );
-    expect(
-      providerConnectionSchema.safeParse({ ...connection, fingerprint: 'B'.repeat(64) }).success,
-    ).toBe(false);
-  });
-
-  it('cannot leave a rejected credential routing live traffic', () => {
+  it('requires handle and revision together for ready/revoked and neither for pending', () => {
     expect(
       providerConnectionSchema.safeParse({
         ...connection,
-        validation: { state: 'invalid', failureCode: 'unauthorized' },
-      }).success,
-    ).toBe(false);
-
-    expect(
-      providerConnectionSchema.safeParse({
-        ...connection,
-        status: 'disabled',
-        validation: { state: 'invalid', failureCode: 'unauthorized' },
+        custodyState: 'pending',
+        credentialHandle: undefined,
+        credentialRevision: undefined,
       }).success,
     ).toBe(true);
-  });
-
-  it('requires a reason when a credential check failed', () => {
-    expect(
-      providerConnectionSchema.safeParse({
-        ...connection,
-        status: 'disabled',
-        validation: { state: 'invalid' },
-      }).success,
-    ).toBe(false);
-  });
-
-  it('records the connection as account-wide, project-wide or application-only', () => {
-    for (const scope of [
-      { kind: 'account', accountId: 'acc_1' },
-      { kind: 'project', accountId: 'acc_project_1' },
-      { kind: 'application', accountId: 'acc_1', applicationId: 'app_1' },
+    for (const invalid of [
+      { ...connection, credentialHandle: undefined },
+      { ...connection, credentialRevision: undefined },
+      { ...connection, custodyState: 'pending' },
     ]) {
-      expect(providerConnectionSchema.safeParse({ ...connection, scope }).success).toBe(true);
+      expect(providerConnectionSchema.safeParse(invalid).success).toBe(false);
     }
+  });
 
+  it('carries the full exact identity on a customer-authorized route', () => {
+    const route = {
+      substitution: 'same_model',
+      deploymentId: 'dep_1',
+      modelReference: 'openai/gpt@2026-09-01',
+      provider: 'openai',
+      regions: ['us-west-2'],
+      customerProviderCredential: {
+        credentialHandle: handle,
+        credentialRevision: 2,
+        ownerAccountId: 'acc_1',
+        connectionId: 'pcx_1',
+        environment: 'production',
+      },
+    };
+    expect(authorizedRouteSchema.safeParse(route).success).toBe(true);
     expect(
-      providerConnectionSchema.safeParse({
-        ...connection,
-        scope: { kind: 'application', accountId: 'acc_1' },
+      authorizedRouteSchema.safeParse({
+        ...route,
+        customerProviderCredential: {
+          ...route.customerProviderCredential,
+          credentialRevision: 0,
+        },
       }).success,
     ).toBe(false);
   });
 
-  it('states that the upstream bills the customer directly', () => {
-    // BYOK does not move the billing relationship; Oxy charges its platform fee
-    // only. A record cannot claim otherwise.
+  it('separates exact internal bootstrap binding from the customer-safe operation', () => {
+    const task = {
+      schemaVersion: 1,
+      operationId: 'operation_exact',
+      applicationId: 'app_1',
+      provider: 'openai',
+      ownerAccountId: 'acc_1',
+      connectionId: 'pcx_1',
+      environment: 'production',
+      credentialHandle: handle,
+      credentialRevision: 2,
+      deploymentId: 'kaana_deployment_exact',
+    };
     expect(
-      providerConnectionSchema.safeParse({ ...connection, upstreamBillsCustomerDirectly: false })
-        .success,
+      kaanaCredentialValidationOutcomeSchema.safeParse({
+        ...task,
+        state: 'inconclusive',
+        failureCode: 'forbidden',
+      }).success,
+    ).toBe(true);
+    expect(
+      kaanaCredentialValidationOutcomeSchema.safeParse({
+        ...task,
+        state: 'invalid',
+        failureCode: 'forbidden',
+      }).success,
     ).toBe(false);
+    expect(
+      providerCredentialValidationOperationSchema.safeParse({
+        schemaVersion: 1,
+        operationId: task.operationId,
+        applicationId: task.applicationId,
+        connectionId: task.connectionId,
+        deploymentId: 'oxy_catalogue_deployment_exact',
+        state: 'inconclusive',
+        failureCode: 'forbidden',
+        createdAt: '2026-09-03T00:00:00.000Z',
+        completedAt: '2026-09-03T00:00:01.000Z',
+      }).success,
+    ).toBe(true);
   });
 });

@@ -62,6 +62,36 @@ Nothing outside the `inference:*` family and `user:read` is granted. Alia is not
 a federation peer, does not move reputation, writes no signals, sends no
 notifications and touches no follow graph.
 
+### Native product-agent identities
+
+Sindi and Clarity are product agents hosted by Alia, not free-standing inference
+clients and not public agents. Oxy's internal bootstrap reconciles these opaque
+primary keys byte for byte; runtimes must not trim, normalize, discover by
+display name, take the first list result or substitute a fallback.
+
+| Product agent | Project account | Bot account | Alia agent | Bound service app | Service credential |
+|---|---|---|---|---|---|
+| Sindi / Homiio | `01a0646a-078f-72ea-8759-86326484a7e0` | `01a0646a-078f-7974-9645-a5e8be237f47` | `01a0646a-078f-7514-9800-9f43ceed7df8` | `6a2f851751b784a86fd0e922` | `01a0648e-ad3f-7608-aa8b-c07bfef6cf73` |
+| Clarity | `01a0646a-078f-7f53-848d-a0f82d9f7fa6` | `01a0646a-078f-7120-a993-a03c180c81b0` | `01a0646a-078f-7642-95ef-439952f4f3f9` | `01a0648b-8d73-70ad-8e67-1c07ddc5eb6e` | `01a0648b-8d74-7240-adba-80707fdfdf9c` |
+
+Each agent's `oxyAccountId` is its exact bot-account primary key, and each
+service application is owned by the corresponding project account so billing
+lands on that product. Sindi's capability grant is exactly `web`; Clarity's is
+exactly `web`, `artifacts`, and `memory`. A client cannot create or rebind these
+relationships through the public agent API.
+
+Clarity's public sign-in application remains separate:
+`01a0646a-2382-74a3-a795-788924d55722`, with only `user:read`. Its agent is bound
+to the backend service application above, whose exact scopes are `user:read`
+and `inference:invoke`. Sindi's bound service credential has exactly
+`inference:invoke` and `acting-as:offline`. The products authenticate with those
+Oxy service credentials and delegate the verified human through
+`X-Oxy-User-Id`; a human bearer is never forwarded to Alia.
+
+These Oxy application credentials identify product services. They are not
+provider keys. Provider keys exist only encrypted in Kaana's PostgreSQL/KMS
+custody, and Kaana's only canonical signed origin is `https://kaana.ai`.
+
 ---
 
 ## Delegated end users never pay
@@ -242,22 +272,16 @@ never register a GitHub secret with a placeholder value.
 
 ---
 
-## Not done, and what blocks each
+## Remaining work
 
-- **Removing the static Oxy→Alia infrastructure proxy.** `packages/api/src/routes/alia.ts`
-  still forwards to `api.alia.onl` on one static `ALIA_API_KEY`, over three
-  routes: `POST /alia/chat/completions` (the edge now owns `/v1/chat/completions`),
-  `POST /v1/voice/token` and `POST /v1/voice/transcribe`. #972 conditions the
-  removal on the Oxy→Kaana and Alia→Oxy→Kaana paths passing their live cutover
-  gates. Repository code or a registered task definition does not satisfy that
-  condition; verify the running tasks, signed request, settlement and negative
-  policy tests described in [request-routing.md](./request-routing.md). The proxy
-  is already closed to every credential an external developer can obtain
-  (`requireFirstPartyInferenceCaller`).
-- **Where the two voice routes end up.** `server.ts` records this as workstream
-  14's decision, and ADR [0010](../adr/0010-public-api-compatibility.md) calls
-  them Alia PRODUCT endpoints that happen to live under `/v1` rather than part of
-  the inference edge. It is left OPEN here rather than decided quietly: moving a
+- **Production point-inference routing.** The static Oxy-to-Alia infrastructure
+  proxy and its voice mounts are removed. Inbox's five point-inference features
+  and its two background classifiers now use Oxy-to-Kaana. Production remains
+  fail-closed until the catalogue bootstrap creates a routing profile and its
+  exact primary key is configured; see
+  [inbox-point-inference.md](./inbox-point-inference.md).
+- **Alia voice remains an Alia product capability.** Published Alia SDK clients
+  address Alia directly rather than traversing an Oxy infrastructure proxy. Moving a
   route somebody's client calls is a compatibility change that needs a
   deprecation notice addressed to named callers, and the `alia-voice` cost centre
   above is about the spend of a voice workload, not about where its HTTP surface
@@ -271,8 +295,9 @@ never register a GitHub secret with a placeholder value.
   by them are Alia-side surfaces whose registration belongs with whoever ships
   them. Registering four more applications now would mint four sets of
   credentials nobody has asked for.
-- **Alia actually invoking Oxy inference.** The edge and Kaana runtime exist in
-  merged source, but no model bootstrap is merged and live audience/execution
-  gates still require a real signed canary (see [README.md](./README.md)). The
+- **Alia actually invoking Oxy inference.** The edge, Kaana runtime and reviewed
+  bootstrap exist in merged source, but bootstrap application, live
+  audience/execution gates and a real signed canary still require production
+  evidence (see [README.md](./README.md)). The
   registration, scopes, credentials, cost centres and entitlement interface do
   not prove that Alia has made that production call.

@@ -10,7 +10,7 @@
  *
  * It is NOT a claim that a credential cannot reach a log. `utils/logger.ts` says
  * why at length: this is a floor over field NAMES at one level of nesting, while
- * the actual control for a BYOK credential is `ProviderSecretValue`'s private
+ * the actual control for a BYOK credential is `ProviderCredentialValue`'s private
  * `#value` and its three overridden serialisers. A test that asserted "no secret
  * can be logged" would be asserting something no path-based redaction can
  * deliver.

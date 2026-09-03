@@ -72,6 +72,15 @@ test('anchors README blocking and converts extra path blocks to escaped regexes'
   assert.equal(isBlocked('/repo/.claude/worktrees/a/node_modules/react/index.js'), true);
 });
 
+test('does not block a project whose checkout lives inside a worktrees directory', () => {
+  const projectRoot = '/repo/.worktrees/feature/packages/frontend';
+  const config = createOxyMetroConfig(projectRoot);
+  const isBlocked = (candidate) => config.resolver.blockList.some((pattern) => pattern.test(candidate));
+
+  assert.equal(isBlocked('/repo/.worktrees/feature/node_modules/expo-router/entry.js'), false);
+  assert.equal(isBlocked('/repo/.worktrees/feature/.worktrees/sibling/node_modules/react/index.js'), true);
+});
+
 test('keeps svg as an asset and console calls by default', () => {
   const config = createOxyMetroConfig(path.resolve('/repo/packages/frontend'));
   assert.equal(config.resolver.assetExts.includes('svg'), true);

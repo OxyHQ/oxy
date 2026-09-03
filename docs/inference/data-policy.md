@@ -36,11 +36,10 @@ built, so there is no way — for you or for Oxy — to turn payload retention o
 [ADR 0016](../adr/0016-no-inference-payload-persistence.md) turns that state from
 a fact about today's code into a decision with a lock on it: **the four properties
 are PRECONDITIONS on introducing capture, not work to do afterwards**. Kaana's
-provider-credential KMS path is intentionally too narrow to satisfy the
-encryption precondition: it is not a payload vault, gives Oxy no payload key and
-must not be reused for prompts. Capture therefore cannot honestly land today;
-ADR 0016 requires a separately approved store, key, redaction boundary and
-audited retention lifecycle before revisiting the decision.
+KMS role and encrypted PostgreSQL store are deliberately scoped to provider-key
+custody; they are not an Oxy payload-retention backend and must not be widened
+into one. Capture cannot honestly land until it has its own reviewed,
+time-bounded encryption and deletion design.
 
 `scripts/check-no-payload-persistence.mjs` is what makes the refusal survive the
 next person who has a reason. It is a census over the drizzle schema barrel — the
@@ -175,11 +174,12 @@ a route that retains nothing cannot train on customer data. A route claiming
 either is reporting one of its own fields wrongly, and a customer constraint
 would then be enforced against a value that is not true.
 
-Merged source contains no model bootstrap; the last recorded production readback
-was empty on 2026-08-17 and draft #1147 proposes the first exact routes. For any
-entry visible to the caller now, `oxy.inference().getModel(id)` returns its
-conservative policy projection. Query the live audience rather than assuming
-the dated empty state still holds.
+Merged source contains the reviewed exact-route bootstrap, but its presence does
+not prove an operator applied it. The last recorded production readback was
+empty on 2026-08-17. For any entry visible to the caller now,
+`oxy.inference().getModel(id)` returns its conservative policy projection. Query
+the live audience rather than assuming either the dated empty state or source
+bootstrap reflects current production.
 
 ---
 
@@ -272,18 +272,16 @@ the survivors from reviewed deployment scorecards — see
   The enterprise route is unchanged and remains a different thing: it is an
   account-billing surface with its own authorization, over an account the caller
   administers. This is the subject's own copy.
-- **A live BYOK connection now BLOCKS account deletion, loudly.**
-  `inference_provider_connections.owner_account_id` is `RESTRICT` so that deleting
-  an account can never orphan a credential under Kaana custody, and the schema
-  comment always promised that "account deletion must revoke these first, which is
-  a deliberate, loud step". The step now exists: `DELETE /users/me` answers `409`
-  naming every connection whose credential is still live, and the customer
-  revokes each one — which is what schedules destruction of Kaana's KMS
-  ciphertext under the accepted ADR 0019 contract. That control mutation is
-  still a coordinated draft, so current merged BYOK writes remain fail-closed.
+- **Non-revoked Kaana custody now BLOCKS account deletion, loudly.**
+  `inference_provider_connections.owner_account_id` is `RESTRICT`, and account
+  closure writes a durable fence before external cleanup so a retry cannot race
+  a new BYOK connection. `DELETE /users/me` answers `409` naming every exact
+  connection whose `custody_state` is not `revoked`; the customer revokes and,
+  if necessary, reconciles that same operation until Kaana acknowledges it.
 
   It is refused rather than revoked automatically for the same reason a live
   subscription is refused: revoking a BYOK credential is a declaration to a THIRD
   PARTY, whose own console still shows a key the customer believes is in use.
-  "Still live" means any status other than `revoked` — `disabled` is reversible
-  and retains the credential, so the serving statuses are the wrong test here.
+  Lifecycle `status = revoked` alone is insufficient while custody is still
+  `reconcile`. `disabled` is reversible and Kaana still holds the credential, so
+  serving status is deliberately not the closure test.

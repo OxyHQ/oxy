@@ -9,11 +9,8 @@
  * script — it is the answer to "which models can Oxy actually serve today?",
  * and the answer is that this repository does not know.
  *
- * What the repository does record: `routes/alia.ts` forwards generic chat to
- * `https://api.alia.onl/v1` behind four product tiers (`alia-lite`, `alia-v1`,
- * `alia-v1-pro`, `alia-v1-pro-max`), and something on the far side decides what
- * actually runs. ADR 0008 retires those four as model identities precisely
- * because they never named a model. Nothing here records which upstream weights
+ * Historical Alia product tiers never named models, so ADR 0008 retired them
+ * as catalogue identities. Nothing here records which upstream weights
  * they resolve to, which providers Oxy holds contracts with, what any customer
  * price is, or whether any commercial review has happened.
  *

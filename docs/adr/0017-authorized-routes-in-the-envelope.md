@@ -224,10 +224,12 @@ means.
   same report: when a list is present, Oxy picked, and the entry is
   revision-pinned so the `start` event's required pinned reference is available
   without the data plane choosing one.
-- **`routingProfile` targets are unblocked without resolving the profile in the
-  envelope.** A profile target with an authorized list is servable: the customer
-  named no model, every destination is named and authorized one entry each, and
-  the data plane still never chooses a candidate Oxy did not send.
+- **Exact `routing_profile_id` targets are unblocked without sending a profile
+  slug.** Oxy resolves any deprecated public slug to one opaque profile primary
+  key before it builds the envelope. A profile target with an authorized list is
+  servable: the customer named no model, every destination is named and authorized
+  one entry each, and the data plane still never chooses a candidate Oxy did not
+  send or resolves a name on its own.
 - Nothing here gives the data plane a policy value, so a Kaana-side schema review
   stays a boundary review: a column holding a policy CONTROL is still forbidden;
   a write-once copy of an authorized route is the intended shape.
@@ -249,7 +251,7 @@ means.
 
 ## What this changes in ADR 0010
 
-- The `InferenceEnvelope v1` block gains
+- The `InferenceEnvelope v2` block gains
   `authorizedRoutes?  [{ substitution, deploymentId, modelReference, provider,
   regions, authorizedByPolicy? }]`, optional, in preference order.
 - The sentence *"The envelope carries a routing-policy REFERENCE, not a snapshot"*

@@ -119,6 +119,10 @@ const ALLOWED: ReadonlyMap<string, string> = new Map([
     'packages/contracts/src/__tests__/usernamePolicySingleSource.test.ts',
     'This gate: it must name the character classes it hunts for.',
   ],
+  [
+    'packages/contracts/src/inference/providerConnection.ts',
+    'Opaque Kaana credential operation and cross-service identity ids, not Oxy account usernames.',
+  ],
 ]);
 
 /** The one file that may DECLARE the policy. */

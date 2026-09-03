@@ -74,6 +74,7 @@ import {
   inferenceModels,
   inferenceProviders,
   inferencePublishers,
+  priceVersionUnitPrices,
   priceVersions,
 } from '../../db/schema';
 import { users, type StaffCapability } from '../../db/schema/users';
@@ -291,10 +292,28 @@ async function readDeployment(deploymentId: string) {
       legalReviewStatus: inferenceDeployments.legalReviewStatus,
       legalReviewEvidenceRef: inferenceDeployments.legalReviewEvidenceRef,
       legalReviewedByUserId: inferenceDeployments.legalReviewedByUserId,
+      platformFeePriceVersionId: inferenceDeployments.platformFeePriceVersionId,
     })
     .from(inferenceDeployments)
     .where(eq(inferenceDeployments.id, deploymentId));
   return row;
+}
+
+async function makeDeploymentByok(fixture: DeploymentFixture): Promise<void> {
+  await getDb()
+    .update(inferenceDeployments)
+    .set({
+      availabilityScope: 'byok_only',
+      commercialPermission: 'customer_byok',
+      priceVersionId: null,
+    })
+    .where(eq(inferenceDeployments.id, fixture.deploymentId));
+  await getDb().insert(priceVersionUnitPrices).values({
+    priceVersionId: fixture.priceVersionId,
+    unit: 'requests',
+    amount: '0.010000000000',
+    per: 1,
+  });
 }
 
 async function readRoutingScorecard(kaanaDeploymentId: string) {
@@ -606,7 +625,148 @@ describe('publishing a catalogue route requires the graded staff capability', ()
 });
 
 /* -------------------------------------------------------------------------- */
-/*  1c. A routing scorecard uses the exact Kaana identity and full provenance */
+/*  1c. Associating an existing BYOK platform-fee version                    */
+/* -------------------------------------------------------------------------- */
+
+describe('the BYOK platform-fee pointer endpoint is exact and staff-authorized', () => {
+  const feePath = (deploymentId: string) =>
+    `${ADMIN}/deployments/${deploymentId}/platform-fee-price-version`;
+
+  it('refuses unauthenticated, non-staff and capability-less callers without mutating the pointer', async () => {
+    const fixture = await insertPendingDeployment();
+    await makeDeploymentByok(fixture);
+    const body = { platformFeePriceVersionId: fixture.priceVersionId };
+
+    currentUserId = '';
+    expect((await request('PUT', feePath(fixture.deploymentId), body)).status).toBe(403);
+
+    currentUserId = await seedStaffUser();
+    currentUserIsStaff = false;
+    expect((await request('PUT', feePath(fixture.deploymentId), body)).status).toBe(403);
+
+    currentUserId = await seedStaffUser([]);
+    currentUserIsStaff = true;
+    const withoutCapability = await request('PUT', feePath(fixture.deploymentId), body);
+    expect(withoutCapability.status).toBe(403);
+    expect(withoutCapability.body.message).toEqual(
+      expect.stringContaining('requires the inference:catalogue:publish staff capability')
+    );
+    expect((await readDeployment(fixture.deploymentId)).platformFeePriceVersionId).toBeNull();
+  });
+
+  it('associates the exact existing version without changing its price or rates', async () => {
+    const fixture = await insertPendingDeployment();
+    await makeDeploymentByok(fixture);
+    const [priceBefore] = await getDb()
+      .select()
+      .from(priceVersions)
+      .where(eq(priceVersions.id, fixture.priceVersionId));
+    const ratesBefore = await getDb()
+      .select()
+      .from(priceVersionUnitPrices)
+      .where(eq(priceVersionUnitPrices.priceVersionId, fixture.priceVersionId));
+
+    const response = await request('PUT', feePath(fixture.deploymentId), {
+      platformFeePriceVersionId: fixture.priceVersionId,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        deploymentId: fixture.deploymentId,
+        platformFeePriceVersionId: fixture.priceVersionId,
+      },
+    });
+    expect((await readDeployment(fixture.deploymentId)).platformFeePriceVersionId).toBe(
+      fixture.priceVersionId
+    );
+    const [priceAfter] = await getDb()
+      .select()
+      .from(priceVersions)
+      .where(eq(priceVersions.id, fixture.priceVersionId));
+    const ratesAfter = await getDb()
+      .select()
+      .from(priceVersionUnitPrices)
+      .where(eq(priceVersionUnitPrices.priceVersionId, fixture.priceVersionId));
+    expect(priceAfter).toEqual(priceBefore);
+    expect(ratesAfter).toEqual(ratesBefore);
+  });
+
+  it('rejects a non-BYOK deployment', async () => {
+    const fixture = await insertPendingDeployment();
+
+    const response = await request('PUT', feePath(fixture.deploymentId), {
+      platformFeePriceVersionId: fixture.priceVersionId,
+    });
+
+    expect(response.status).toBe(409);
+    expect((await readDeployment(fixture.deploymentId)).platformFeePriceVersionId).toBeNull();
+  });
+
+  it.each(['provider', 'model revision'] as const)(
+    'rejects an existing price version for another %s',
+    async (mismatch) => {
+      const fixture = await insertPendingDeployment();
+      await makeDeploymentByok(fixture);
+      let provider = fixture.providerSlug;
+      if (mismatch === 'provider') {
+        provider = `other${suffix()}`;
+        await getDb().insert(inferenceProviders).values({
+          slug: provider,
+          displayName: 'Other fee provider',
+          kind: 'customer_byok',
+          retainsPayloads: false,
+          retentionDays: 0,
+          trainsOnCustomerData: false,
+          zeroDataRetentionAvailable: true,
+        });
+      }
+      const [wrong] = await getDb()
+        .insert(priceVersions)
+        .values({
+          modelReference:
+            mismatch === 'model revision'
+              ? `${fixture.modelId}@other-${suffix()}`
+              : (
+                  await getDb()
+                    .select({ modelReference: priceVersions.modelReference })
+                    .from(priceVersions)
+                    .where(eq(priceVersions.id, fixture.priceVersionId))
+                )[0].modelReference,
+          provider,
+          status: 'active',
+          effectiveFrom: new Date(Date.now() - 60_000),
+        })
+        .returning({ id: priceVersions.id });
+
+      const response = await request('PUT', feePath(fixture.deploymentId), {
+        platformFeePriceVersionId: wrong.id,
+      });
+
+      expect(response.status).toBe(409);
+      expect((await readDeployment(fixture.deploymentId)).platformFeePriceVersionId).toBeNull();
+    }
+  );
+
+  it('rejects whitespace and unknown fields instead of normalizing an opaque id', async () => {
+    const fixture = await insertPendingDeployment();
+    await makeDeploymentByok(fixture);
+
+    const padded = await request('PUT', feePath(fixture.deploymentId), {
+      platformFeePriceVersionId: ` ${fixture.priceVersionId}`,
+    });
+    expect(padded.status).toBe(400);
+    const widened = await request('PUT', feePath(fixture.deploymentId), {
+      platformFeePriceVersionId: fixture.priceVersionId,
+      amount: '0.00',
+    });
+    expect(widened.status).toBe(400);
+    expect((await readDeployment(fixture.deploymentId)).platformFeePriceVersionId).toBeNull();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  1d. A routing scorecard uses the exact Kaana identity and full provenance */
 /* -------------------------------------------------------------------------- */
 
 describe('the Kaana routing scorecard endpoint is a full, attributed replacement', () => {

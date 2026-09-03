@@ -265,8 +265,8 @@ const VIEWER_PERMISSIONS: readonly AccountPermission[] = [
   'children:read',
   'apps:read',
   // Routing and usage, deliberately NOT `inference:providers:read`. BYOK read
-  // returns no credential material, but it does return which provider an account
-  // uses, a key prefix, a fingerprint and the validation failures — security
+  // returns no credential material or derived hint, but it does return which
+  // provider an account uses and its validation failures — security
   // configuration rather than the app description a viewer is entitled to. It
   // used to be inherited from `account:read`, which every role holds; withholding
   // it here is the decision that inheritance was standing in for.

@@ -105,6 +105,7 @@ import {
 import { normaliseOrigin, isLoopbackOrigin } from '../utils/origin';
 import { deriveCoarseClientLabel } from '../utils/deviceUtils';
 import { serializePublicApplication } from '../utils/serializeApplication';
+import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
 import { composeDisplayName, formatUserNameResponse } from '../utils/displayName';
 import { normalizeUsername } from '../utils/username';
 
@@ -2847,7 +2848,7 @@ router.get(
       data.push({
         applicationId: grant.applicationId,
         name: app.name,
-        logoUrl: app.icon ?? undefined,
+        logoUrl: app.icon === null ? undefined : stripSensitiveUrlQueryParams(app.icon),
         scopes: grant.scopes,
         firstGrantedAt: grant.firstGrantedAt.toISOString(),
         lastUsedAt: grant.lastUsedAt.toISOString(),

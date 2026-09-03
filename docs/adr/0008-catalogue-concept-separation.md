@@ -128,10 +128,9 @@ whichever of the six concepts it actually meant:
 - `packages/console/src/routes/_layout/playground.tsx:103` — the default becomes
   a real catalogue entry resolved from the active account's configuration, not a
   hardcoded string.
-- `packages/api/src/config/email.config.ts:100` (`AI_LABELING_MODEL`) — an
-  internal first-party consumer; it names a real model or a first-party routing
-  profile, and the change is a deployment-configuration change, not only a code
-  change.
+- `packages/api/src/config/email.config.ts:100` (`AI_LABELING_MODEL`) — removed.
+  Automatic labelling now uses Inbox's exact application id and exact configured
+  routing-profile id through the authenticated Oxy-to-Kaana point-inference lane.
 
 Workstream 15's migration guides own the customer-facing notice and the sunset
 dates.

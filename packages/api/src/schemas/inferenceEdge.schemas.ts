@@ -38,6 +38,7 @@ import {
   inferenceMessageSchema,
   modelReferenceSchema,
   responseFormatSchema,
+  routingProfileIdSchema,
   routingPolicyReferenceSchema,
   routingProfileSlugSchema,
   toolChoiceSchema,
@@ -86,8 +87,9 @@ const responsesInputSchema = z.union([
 export const responsesRequestSchema = z
   .object({
     /**
-     * `model` and `routingProfile` are two optional fields with a refinement
-     * forbidding both, rather than the discriminated union the shape deserves.
+     * `model`, `routingProfile`, and `routingProfileId` are optional fields with
+     * a refinement allowing at most one, rather than the discriminated union
+     * the shape deserves.
      * An intersection of `.strict()` objects is what a union would need here,
      * and zod parses BOTH sides of an intersection against the whole payload —
      * so every ordinary field (`input`, `stream`, …) would be an unknown key on
@@ -103,6 +105,8 @@ export const responsesRequestSchema = z
      */
     model: modelReferenceSchema.optional(),
     routingProfile: routingProfileSlugSchema.optional(),
+    /** Exact opaque database identity; never trimmed, normalized, or resolved by slug. */
+    routingProfileId: routingProfileIdSchema.optional(),
     input: responsesInputSchema,
     maxOutputTokens: z.number().int().positive().safe().optional(),
     stream: z.boolean().optional(),
@@ -122,11 +126,14 @@ export const responsesRequestSchema = z
   })
   .strict()
   .superRefine((request, ctx) => {
-    if (request.model !== undefined && request.routingProfile !== undefined) {
+    const targetFields = [request.model, request.routingProfile, request.routingProfileId].filter(
+      (value) => value !== undefined
+    );
+    if (targetFields.length > 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['model'],
-        message: 'name at most one of model or routingProfile',
+        message: 'name at most one of model, routingProfile, or routingProfileId',
       });
     }
   });
@@ -594,7 +601,7 @@ export interface NormalizedEdgeRequest {
   /** Which endpoint's ceiling arithmetic applies. */
   readonly operation: EdgeOperation;
   /** Absent when the caller named none and the routing policy's default applies. */
-  readonly target?: RoutingTarget;
+  readonly target?: EdgeRoutingTarget;
   readonly input: InferenceInput;
   readonly stream: boolean;
   readonly maxOutputTokens?: number;
@@ -607,6 +614,17 @@ export interface NormalizedEdgeRequest {
   /** OpenAI's `user`, when the compatibility surface carried one. */
   readonly delegatedUserId?: string;
 }
+
+/**
+ * A public edge target before admission resolves an exact routing-profile PK.
+ *
+ * The legacy slug arm deliberately stays local to Oxy's public dialect. Oxy
+ * resolves it to one exact catalogue PK before building the signed envelope;
+ * Kaana therefore never receives or interprets a slug.
+ */
+export type EdgeRoutingTarget =
+  | RoutingTarget
+  | { readonly kind: 'routing_profile_legacy'; readonly routingProfile: string };
 
 /** Drop the keys whose value is `undefined`, so `.strict()` schemas accept. */
 function defined<T extends Record<string, unknown>>(value: T): T {
@@ -624,11 +642,13 @@ export function normalizeResponsesRequest(request: ResponsesRequest): Normalized
 
   // The refinement guarantees at most one is present. Neither leaves `target`
   // absent, which is the edge's signal to use the routing policy's default.
-  const target: RoutingTarget | undefined =
+  const target: EdgeRoutingTarget | undefined =
     request.model !== undefined
       ? { kind: 'model', modelReference: request.model }
       : request.routingProfile !== undefined
-        ? { kind: 'routing_profile', routingProfile: request.routingProfile }
+        ? { kind: 'routing_profile_legacy', routingProfile: request.routingProfile }
+        : request.routingProfileId !== undefined
+          ? { kind: 'routing_profile_id', routingProfileId: request.routingProfileId }
         : undefined;
 
   return defined({

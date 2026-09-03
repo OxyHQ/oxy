@@ -52,7 +52,6 @@ import emailInboundRoutes, {
   inboundRateLimit,
   verifyEmailInboundWebhookSecret,
 } from './routes/emailInbound';
-import aliaRoutes from './routes/alia';
 import creditsRoutes from './routes/credits';
 import billingRoutes from './routes/billing';
 import accountBillingRoutes from './routes/accountBilling';
@@ -722,9 +721,8 @@ app.use('/subscription', userRateLimiter, csrfProtection, subscriptionRoutes);
 app.use('/email/proxy', emailProxyRoutes); // public, no auth — must be before /email
 app.use('/email/inbound', emailInboundRoutes); // Cloudflare Email Routing webhook — must be before /email
 app.use('/email', userRateLimiter, csrfProtection, emailRoutes);
-app.use('/alia', userRateLimiter, aliaRoutes);
 // The public inference edge (issue #972 workstream 4, ADR 0010). Mounted at
-// `/v1` BEFORE `aliaRoutes` and BEFORE `/v1/models`, so it owns `/v1/responses`,
+// `/v1` BEFORE `/v1/models`, so it owns `/v1/responses`,
 // `/v1/chat/completions` and `/v1/generations/:id`. It carries no
 // `userRateLimiter`: its callers are application credentials, not users, and it
 // applies its own per-credential and per-application budgets (`rl:machine:*`,
@@ -734,13 +732,6 @@ app.use('/v1', inferenceEdgeRoutes);
 // `GET /models` can never diverge — one selectability predicate, one audience
 // rule, one code path.
 app.use('/v1/models', inferenceCatalogueRoutes);
-// What the Alia proxy still owns under `/v1`: `/v1/voice/token` and
-// `/v1/voice/transcribe`. ADR 0010 states these are Alia PRODUCT endpoints that
-// happen to live here and are not part of the inference edge; where they end up
-// is workstream 14's decision. `/v1/chat/completions` is no longer among them —
-// the edge above takes it, and the proxy's own mount at `/alia/chat/completions`
-// keeps every platform-trusted caller working, one base URL apart.
-app.use('/v1', userRateLimiter, aliaRoutes);
 app.use('/credits', userRateLimiter, csrfProtection, creditsRoutes);
 // Account-scoped billing (issue #972, sections 7.1/7.4/7.5). Mounted BEFORE
 // `/billing`, or Express hands `accounts` and `cost-centers` to the

@@ -1,0 +1,421 @@
+name: Bootstrap native product agents
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Review or execute the exact native-agent plan
+        required: true
+        default: dry-run-bootstrap
+        type: choice
+        options:
+          - dry-run-bootstrap
+          - apply
+          - dry-run-rollback
+          - rollback
+      expected_plan_sha256:
+        description: Exact hash emitted by the matching dry run (required for apply/rollback)
+        required: false
+        type: string
+      reason:
+        description: Auditable change/ticket reason (required for apply/rollback)
+        required: false
+        type: string
+
+concurrency:
+  # Advisory workflow serialization complements the PostgreSQL transaction's
+  # own advisory lock; neither a deploy nor an out-of-band task can bypass the
+  # database-side lock.
+  group: native-product-agents-production
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  AWS_ACCOUNT_ID: "237343248947"
+  CLUSTER: oxy-cluster
+  SERVICE: oxy-api
+  CONTAINER: oxy-api
+  OXY_ORGANIZATION_ID: 69b2d3df5d12f58c9800d651
+  HOMIIO_APPLICATION_ID: 6a2f851751b784a86fd0e922
+  HOMIIO_SINDI_CREDENTIAL_ID: 01a0648e-ad3f-7608-aa8b-c07bfef6cf73
+  HOMIIO_SINDI_CLIENT_ID: oxy_dk_bed4f8941795512ddce5b0662879dccae52d8bd30308d240
+  HOMIIO_SINDI_AGENT_ID: 01a0646a-078f-7514-9800-9f43ceed7df8
+  CLARITY_APPLICATION_ID: 01a0646a-2382-74a3-a795-788924d55722
+  CLARITY_PUBLIC_CREDENTIAL_ID: 01a0646e-2508-7048-8c08-b1f7b3af634f
+  CLARITY_BACKEND_APPLICATION_ID: 01a0648b-8d73-70ad-8e67-1c07ddc5eb6e
+  CLARITY_BACKEND_CREDENTIAL_ID: 01a0648b-8d74-7240-adba-80707fdfdf9c
+  CLARITY_BACKEND_CLIENT_ID: oxy_dk_8c84c74a2656b8f5147d4d0b65fcd0e88c192ce64f465f78
+  CLARITY_AGENT_ID: 01a0646a-078f-7642-95ef-439952f4f3f9
+  HOMIIO_KEY_PARAMETER: /oxy/homiio/SINDI_OXY_SERVICE_API_KEY
+  HOMIIO_SECRET_PARAMETER: /oxy/homiio/SINDI_OXY_SERVICE_API_SECRET
+  CLARITY_KEY_PARAMETER: /oxy/clarity/OXY_SERVICE_API_KEY
+  CLARITY_SECRET_PARAMETER: /oxy/clarity/OXY_SERVICE_API_SECRET
+
+jobs:
+  bootstrap:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run exact native product-agent plan on the live image
+        env:
+          REQUESTED_MODE: ${{ inputs.mode }}
+          EXPECTED_PLAN_SHA256_INPUT: ${{ inputs.expected_plan_sha256 }}
+          BOOTSTRAP_REASON_INPUT: ${{ inputs.reason }}
+          BOOTSTRAP_ACTOR_INPUT: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          case "$REQUESTED_MODE" in
+            dry-run-bootstrap)
+              apply=0
+              rollback=0
+              expected_plan=''
+              bootstrap_reason='dry-run only'
+              ;;
+            dry-run-rollback)
+              apply=0
+              rollback=1
+              expected_plan=''
+              bootstrap_reason='dry-run only'
+              ;;
+            apply|rollback)
+              apply=1
+              [ "$REQUESTED_MODE" = rollback ] && rollback=1 || rollback=0
+              expected_plan="$EXPECTED_PLAN_SHA256_INPUT"
+              bootstrap_reason="$BOOTSTRAP_REASON_INPUT"
+              if [[ ! "$expected_plan" =~ ^[a-f0-9]{64}$ ]]; then
+                echo '::error::apply/rollback requires the exact lowercase SHA-256 from its matching dry run'
+                exit 64
+              fi
+              if [ -z "$bootstrap_reason" ] || [ "$bootstrap_reason" != "${bootstrap_reason# }" ] || [ "$bootstrap_reason" != "${bootstrap_reason% }" ]; then
+                echo '::error::apply/rollback requires an exact non-empty reason without edge whitespace'
+                exit 64
+              fi
+              ;;
+            *)
+              echo '::error::unregistered native product-agent mode'
+              exit 64
+              ;;
+          esac
+
+          # These are immutable PK/client-id bindings, repeated here so review
+          # cannot silently turn this into a name-, order- or slug-selected job.
+          [ "$OXY_ORGANIZATION_ID" = '69b2d3df5d12f58c9800d651' ]
+          [ "$HOMIIO_APPLICATION_ID" = '6a2f851751b784a86fd0e922' ]
+          [ "$HOMIIO_SINDI_CREDENTIAL_ID" = '01a0648e-ad3f-7608-aa8b-c07bfef6cf73' ]
+          [ "$HOMIIO_SINDI_AGENT_ID" = '01a0646a-078f-7514-9800-9f43ceed7df8' ]
+          [ "$CLARITY_APPLICATION_ID" = '01a0646a-2382-74a3-a795-788924d55722' ]
+          [ "$CLARITY_PUBLIC_CREDENTIAL_ID" = '01a0646e-2508-7048-8c08-b1f7b3af634f' ]
+          [ "$CLARITY_BACKEND_APPLICATION_ID" = '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e' ]
+          [ "$CLARITY_BACKEND_CREDENTIAL_ID" = '01a0648b-8d74-7240-adba-80707fdfdf9c' ]
+          [ "$CLARITY_AGENT_ID" = '01a0646a-078f-7642-95ef-439952f4f3f9' ]
+
+          service_json=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+          if [ "$(jq -r '.status // "NONE"' <<<"$service_json")" != ACTIVE ]; then
+            echo '::error::live Oxy API service is not active'
+            exit 1
+          fi
+          live_task_definition=$(jq -er '.taskDefinition' <<<"$service_json")
+          network=$(jq -ec '.networkConfiguration' <<<"$service_json")
+          live_task_json=$(aws ecs describe-task-definition \
+            --task-definition "$live_task_definition" \
+            --query taskDefinition --output json)
+          if [ "$(jq -r --arg container "$CONTAINER" '[.containerDefinitions[] | select(.name == $container)] | length' <<<"$live_task_json")" != 1 ]; then
+            echo '::error::live task definition does not contain exactly one oxy-api container'
+            exit 1
+          fi
+
+          temp_task_definition=''
+          cleanup_task_definition() {
+            if [ -n "$temp_task_definition" ]; then
+              aws ecs deregister-task-definition \
+                --task-definition "$temp_task_definition" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup_task_definition EXIT
+          run_task_definition="$live_task_definition"
+
+          build_overrides() {
+            local task_apply="$1"
+            local task_rollback="$2"
+            local task_actor="$3"
+            local task_reason="$4"
+            local task_expected_plan="$5"
+            jq -nc \
+              --arg container "$CONTAINER" \
+              --arg apply "$task_apply" \
+              --arg rollback "$task_rollback" \
+              --arg actor "$task_actor" \
+              --arg reason "$task_reason" \
+              --arg expected "$task_expected_plan" '
+                {containerOverrides:[{
+                  name:$container,
+                  command:["sh","packages/api/scripts/run-native-product-agent-bootstrap.sh"],
+                  environment:[
+                    {name:"APPLY",value:$apply},
+                    {name:"ROLLBACK",value:$rollback},
+                    {name:"BOOTSTRAP_ACTOR",value:$actor},
+                    {name:"BOOTSTRAP_REASON",value:$reason},
+                    {name:"EXPECTED_PLAN_SHA256",value:$expected},
+                    {name:"EXPECTED_OXY_ORGANIZATION_ID",value:"69b2d3df5d12f58c9800d651"},
+                    {name:"EXPECTED_HOMIIO_APPLICATION_ID",value:"6a2f851751b784a86fd0e922"},
+                    {name:"EXPECTED_HOMIIO_SINDI_CREDENTIAL_ID",value:"01a0648e-ad3f-7608-aa8b-c07bfef6cf73"},
+                    {name:"EXPECTED_HOMIIO_SINDI_CLIENT_ID",value:"oxy_dk_bed4f8941795512ddce5b0662879dccae52d8bd30308d240"},
+                    {name:"EXPECTED_HOMIIO_SINDI_AGENT_ID",value:"01a0646a-078f-7514-9800-9f43ceed7df8"},
+                    {name:"EXPECTED_CLARITY_APPLICATION_ID",value:"01a0646a-2382-74a3-a795-788924d55722"},
+                    {name:"EXPECTED_CLARITY_PUBLIC_CREDENTIAL_ID",value:"01a0646e-2508-7048-8c08-b1f7b3af634f"},
+                    {name:"EXPECTED_CLARITY_BACKEND_APPLICATION_ID",value:"01a0648b-8d73-70ad-8e67-1c07ddc5eb6e"},
+                    {name:"EXPECTED_CLARITY_BACKEND_CREDENTIAL_ID",value:"01a0648b-8d74-7240-adba-80707fdfdf9c"},
+                    {name:"EXPECTED_CLARITY_BACKEND_CLIENT_ID",value:"oxy_dk_8c84c74a2656b8f5147d4d0b65fcd0e88c192ce64f465f78"},
+                    {name:"EXPECTED_CLARITY_AGENT_ID",value:"01a0646a-078f-7642-95ef-439952f4f3f9"}
+                  ]
+                }]}
+              '
+          }
+
+          log_group=$(jq -er --arg container "$CONTAINER" '
+            .containerDefinitions[] | select(.name == $container) |
+            .logConfiguration.options["awslogs-group"]
+          ' <<<"$live_task_json")
+          log_prefix=$(jq -er --arg container "$CONTAINER" '
+            .containerDefinitions[] | select(.name == $container) |
+            .logConfiguration.options["awslogs-stream-prefix"]
+          ' <<<"$live_task_json")
+
+          run_bootstrap_task() {
+            local task_definition="$1"
+            local task_overrides="$2"
+            local task_label="$3"
+            local run_json task_arn task_json exit_code task_id log_json result_line
+            run_json=$(aws ecs run-task \
+              --cluster "$CLUSTER" \
+              --task-definition "$task_definition" \
+              --launch-type FARGATE \
+              --network-configuration "$network" \
+              --overrides "$task_overrides" \
+              --started-by "gh-native-agents-${GITHUB_RUN_ID}")
+            task_arn=$(jq -er '.tasks[0].taskArn' <<<"$run_json")
+            echo "$task_label task: $task_arn" >&2
+            aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"
+            task_json=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn")
+            exit_code=$(jq -r --arg container "$CONTAINER" '
+              .tasks[0].containers[] | select(.name == $container) | .exitCode
+            ' <<<"$task_json")
+            if [ "$exit_code" != 0 ]; then
+              echo "::error::$task_label task exited $exit_code; inspect the scoped CloudWatch task log" >&2
+              return 1
+            fi
+
+            task_id=${task_arn##*/}
+            result_line=''
+            for _attempt in $(seq 1 10); do
+              log_json=$(aws logs get-log-events \
+                --log-group-name "$log_group" \
+                --log-stream-name "$log_prefix/$CONTAINER/$task_id" \
+                --start-from-head --output json 2>/dev/null || printf '{"events":[]}')
+              result_line=$(jq -r '.events[].message' <<<"$log_json" |
+                grep '^NATIVE_PRODUCT_AGENTS_RESULT=' | tail -1 || true)
+              [ -n "$result_line" ] && break
+              sleep 3
+            done
+            if [ -z "$result_line" ]; then
+              echo "::error::$task_label task emitted no authenticated plan result" >&2
+              return 1
+            fi
+            printf '%s' "${result_line#NATIVE_PRODUCT_AGENTS_RESULT=}"
+          }
+
+          if [ "$REQUESTED_MODE" = apply ]; then
+            # Observe PostgreSQL before creating anything in SSM. If a fixed
+            # credential already exists and its original secret is absent, a
+            # newly generated secret can never authenticate it and must not be
+            # installed as though it could.
+            preflight_overrides=$(build_overrides 0 0 "$BOOTSTRAP_ACTOR_INPUT" 'apply preflight' '')
+            preflight_result=$(run_bootstrap_task "$live_task_definition" "$preflight_overrides" 'preflight')
+            jq -e \
+              --arg expected "$expected_plan" '
+                .mode == "dry-run" and
+                .direction == "bootstrap" and
+                .planSha256 == $expected and
+                (.serviceCredentialState.homiioSindiExists | type == "boolean") and
+                (.serviceCredentialState.clarityBackendExists | type == "boolean")
+              ' <<<"$preflight_result" >/dev/null || {
+                echo '::error::apply preflight no longer matches the reviewed bootstrap plan' >&2
+                exit 1
+              }
+            homiio_credential_exists=$(jq -r '.serviceCredentialState.homiioSindiExists' <<<"$preflight_result")
+            clarity_credential_exists=$(jq -r '.serviceCredentialState.clarityBackendExists' <<<"$preflight_result")
+            unset preflight_result preflight_overrides
+
+            read_parameter() {
+              local parameter_name="$1"
+              aws ssm get-parameter \
+                --name "$parameter_name" \
+                --with-decryption \
+                --output json 2>/dev/null
+            }
+
+            set +e
+            homiio_key_json=$(read_parameter "$HOMIIO_KEY_PARAMETER")
+            homiio_key_status=$?
+            homiio_secret_json=$(read_parameter "$HOMIIO_SECRET_PARAMETER")
+            homiio_secret_status=$?
+            clarity_key_json=$(read_parameter "$CLARITY_KEY_PARAMETER")
+            clarity_key_status=$?
+            clarity_secret_json=$(read_parameter "$CLARITY_SECRET_PARAMETER")
+            clarity_secret_status=$?
+            set -e
+
+            if [ "$homiio_key_status" -ne "$homiio_secret_status" ]; then
+              echo '::error::homiio has a partial SSM credential pair; repair it explicitly before bootstrap'
+              exit 1
+            fi
+            if [ "$clarity_key_status" -ne "$clarity_secret_status" ]; then
+              echo '::error::clarity has a partial SSM credential pair; repair it explicitly before bootstrap'
+              exit 1
+            fi
+            if { [ "$homiio_key_status" -ne 0 ] && [ "$homiio_key_status" -ne 254 ]; } ||
+               { [ "$clarity_key_status" -ne 0 ] && [ "$clarity_key_status" -ne 254 ]; }; then
+              echo '::error::could not read an exact native product-agent SSM credential pair'
+              exit 1
+            fi
+            if [ "$homiio_key_status" -eq 254 ] && [ "$homiio_credential_exists" = true ]; then
+              echo '::error::the fixed Sindi credential exists but its original SSM pair is absent; recover it instead of rotating implicitly'
+              exit 1
+            fi
+            if [ "$clarity_key_status" -eq 254 ] && [ "$clarity_credential_exists" = true ]; then
+              echo '::error::the fixed Clarity backend credential exists but its original SSM pair is absent; recover it instead of rotating implicitly'
+              exit 1
+            fi
+
+            create_pair() {
+              local key_parameter="$1"
+              local secret_parameter="$2"
+              local exact_client_id="$3"
+              local generated_secret
+              generated_secret=$(openssl rand -hex 32)
+              if [[ ! "$generated_secret" =~ ^[a-f0-9]{64}$ ]]; then
+                echo '::error::OpenSSL did not produce a 32-byte lowercase-hex secret'
+                exit 1
+              fi
+              echo "::add-mask::$generated_secret"
+              printf '%s' "$exact_client_id" | \
+                bash .github/scripts/put-secure-parameter.sh "$key_parameter" create
+              if ! printf '%s' "$generated_secret" | \
+                bash .github/scripts/put-secure-parameter.sh "$secret_parameter" create; then
+                aws ssm delete-parameter --name "$key_parameter" >/dev/null 2>&1 || true
+                unset generated_secret
+                return 1
+              fi
+              unset generated_secret
+            }
+
+            if [ "$homiio_key_status" -eq 254 ]; then
+              create_pair "$HOMIIO_KEY_PARAMETER" "$HOMIIO_SECRET_PARAMETER" "$HOMIIO_SINDI_CLIENT_ID"
+              homiio_key_json=$(read_parameter "$HOMIIO_KEY_PARAMETER")
+              homiio_secret_json=$(read_parameter "$HOMIIO_SECRET_PARAMETER")
+            fi
+            if [ "$clarity_key_status" -eq 254 ]; then
+              create_pair "$CLARITY_KEY_PARAMETER" "$CLARITY_SECRET_PARAMETER" "$CLARITY_BACKEND_CLIENT_ID"
+              clarity_key_json=$(read_parameter "$CLARITY_KEY_PARAMETER")
+              clarity_secret_json=$(read_parameter "$CLARITY_SECRET_PARAMETER")
+            fi
+
+            for parameter_json in "$homiio_key_json" "$homiio_secret_json" "$clarity_key_json" "$clarity_secret_json"; do
+              if [ "$(jq -r '.Parameter.Type // ""' <<<"$parameter_json")" != SecureString ]; then
+                echo '::error::native product-agent SSM parameters must all be SecureString'
+                exit 1
+              fi
+            done
+            homiio_key=$(jq -er '.Parameter.Value' <<<"$homiio_key_json")
+            homiio_secret=$(jq -er '.Parameter.Value' <<<"$homiio_secret_json")
+            clarity_key=$(jq -er '.Parameter.Value' <<<"$clarity_key_json")
+            clarity_secret=$(jq -er '.Parameter.Value' <<<"$clarity_secret_json")
+            echo "::add-mask::$homiio_key"
+            echo "::add-mask::$homiio_secret"
+            echo "::add-mask::$clarity_key"
+            echo "::add-mask::$clarity_secret"
+            if [ "$homiio_key" != "$HOMIIO_SINDI_CLIENT_ID" ] || [ "$clarity_key" != "$CLARITY_BACKEND_CLIENT_ID" ]; then
+              echo '::error::an SSM public key does not match its exact fixed credential ID'
+              exit 1
+            fi
+            if [[ ! "$homiio_secret" =~ ^[a-f0-9]{64}$ ]] || [[ ! "$clarity_secret" =~ ^[a-f0-9]{64}$ ]]; then
+              echo '::error::native product-agent service secrets must be exactly 64 lowercase hex characters'
+              exit 1
+            fi
+            unset homiio_key homiio_secret clarity_key clarity_secret
+            unset homiio_key_json homiio_secret_json clarity_key_json clarity_secret_json
+
+            homiio_secret_arn="arn:aws:ssm:$AWS_REGION:$AWS_ACCOUNT_ID:parameter/${HOMIIO_SECRET_PARAMETER#/}"
+            clarity_secret_arn="arn:aws:ssm:$AWS_REGION:$AWS_ACCOUNT_ID:parameter/${CLARITY_SECRET_PARAMETER#/}"
+            rendered_task_json=$(jq \
+              --arg container "$CONTAINER" \
+              --arg homiio_secret "$homiio_secret_arn" \
+              --arg clarity_secret "$clarity_secret_arn" '
+                .containerDefinitions |= map(
+                  if .name == $container then
+                    .secrets = (
+                      ((.secrets // []) | map(select(
+                        .name != "HOMIIO_SINDI_SERVICE_SECRET_VALUE" and
+                        .name != "CLARITY_BACKEND_SERVICE_SECRET_VALUE"
+                      ))) + [
+                        {name:"HOMIIO_SINDI_SERVICE_SECRET_VALUE", valueFrom:$homiio_secret},
+                        {name:"CLARITY_BACKEND_SERVICE_SECRET_VALUE", valueFrom:$clarity_secret}
+                      ]
+                    )
+                  else . end
+                )
+                | del(
+                    .taskDefinitionArn,
+                    .revision,
+                    .status,
+                    .requiresAttributes,
+                    .compatibilities,
+                    .registeredAt,
+                    .registeredBy,
+                    .deregisteredAt
+                  )
+              ' <<<"$live_task_json")
+            temp_task_definition=$(aws ecs register-task-definition \
+              --cli-input-json "$rendered_task_json" \
+              --query 'taskDefinition.taskDefinitionArn' --output text)
+            run_task_definition="$temp_task_definition"
+          fi
+
+          overrides=$(build_overrides "$apply" "$rollback" "$BOOTSTRAP_ACTOR_INPUT" "$bootstrap_reason" "$expected_plan")
+          result_json=$(run_bootstrap_task "$run_task_definition" "$overrides" "$REQUESTED_MODE")
+          jq -e \
+            --arg mode "$([ "$apply" = 1 ] && printf apply || printf dry-run)" \
+            --arg direction "$([ "$rollback" = 1 ] && printf rollback || printf bootstrap)" '
+              .mode == $mode and
+              .direction == $direction and
+              (.planSha256 | test("^[a-f0-9]{64}$"))
+            ' <<<"$result_json" >/dev/null
+          observed_plan=$(jq -r '.planSha256' <<<"$result_json")
+          echo "validated $REQUESTED_MODE plan sha256: $observed_plan"
+
+          if [ -n "$temp_task_definition" ]; then
+            aws ecs deregister-task-definition \
+              --task-definition "$temp_task_definition" >/dev/null
+            temp_task_definition=''
+          fi
+          trap - EXIT

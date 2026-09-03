@@ -1,4 +1,5 @@
 import type { ApplicationType } from '../db/schema/applications';
+import { stripSensitiveUrlQueryParams } from './sanitizeUrl';
 
 /**
  * The fields this serializer reads off an application row.
@@ -86,7 +87,10 @@ export function serializePublicApplication(
     result.description = app.description;
   }
   if (app.icon !== undefined && app.icon !== null) {
-    result.icon = app.icon;
+    // Rows written before URL sanitisation may still contain a credential in an
+    // icon query string. Public reads therefore defend independently of the
+    // write path and of the one-time cleanup migration.
+    result.icon = stripSensitiveUrlQueryParams(app.icon);
   }
   if (app.websiteUrl !== undefined && app.websiteUrl !== null) {
     result.websiteUrl = app.websiteUrl;

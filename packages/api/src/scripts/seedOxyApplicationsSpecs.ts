@@ -16,12 +16,21 @@ import type { ApplicationCapability } from '../utils/applicationCapabilities';
 import {
   catalogApplicationCapability,
   IDENTITY_APPROVAL_CAPABILITY,
+  KAANA_PROVIDER_CREDENTIAL_VALIDATOR_CAPABILITY,
 } from '../utils/applicationCapabilities';
 import type { ApplicationScope } from '../utils/applicationScopes';
+import { INBOX_APPLICATION_ID } from '../config/inboxInference';
+export { INBOX_APPLICATION_ID } from '../config/inboxInference';
 
 export type SeedAppType = 'first_party' | 'internal';
 
 export interface SeedAppSpec {
+  /**
+   * Exact immutable application id for machine principals whose authority must
+   * never depend on a display name or query order. Existing legacy specs omit
+   * it to preserve their deployed ids; every new machine-only app should set it.
+   */
+  id?: string;
   name: string;
   /**
    * Previous official seed names that should be migrated in-place when present.
@@ -74,6 +83,26 @@ export interface SeedAppSpec {
    * a month-end report showed one number where five were expected.
    */
   ownerAccountUsername?: string;
+}
+
+export type SeedApplicationLookupIdentity =
+  | { readonly kind: 'id'; readonly id: string }
+  | { readonly kind: 'legacy-name'; readonly name: string; readonly createdByUserId: string };
+
+/**
+ * Select the immutable identity the production seed query must use.
+ *
+ * Keeping this decision pure and shared with its tests prevents a pinned
+ * machine application from quietly falling back to display-name lookup when
+ * the query is refactored.
+ */
+export function seedApplicationLookupIdentity(
+  spec: SeedAppSpec,
+  createdByUserId: string
+): SeedApplicationLookupIdentity {
+  return spec.id === undefined
+    ? { kind: 'legacy-name', name: spec.name, createdByUserId }
+    : { kind: 'id', id: spec.id };
 }
 
 /**
@@ -200,6 +229,15 @@ export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
  */
 export const ALIA_OWNER_ACCOUNT_USERNAME = 'alia-production-chat';
 
+/** Exact opaque identity of the Kaana control/data-plane application. */
+export const KAANA_APPLICATION_ID = '68b7c4e19f2a6d0e3c8b5174';
+
+/** Exact opaque identity verified against the active production Alia row. */
+export const ALIA_APPLICATION_ID = '6a2f851751b784a86fd0e934';
+
+/** Exact opaque identity already assigned to Homiio in production. */
+export const HOMIIO_APPLICATION_ID = '6a2f851751b784a86fd0e922';
+
 /**
  * The official Oxy ecosystem apps that integrate Oxy auth.
  * `name` is the idempotency key (with createdByUserId=oxyId) — DO NOT rename
@@ -211,6 +249,16 @@ export const ALIA_OWNER_ACCOUNT_USERNAME = 'alia-production-chat';
  * apps register their deep-link schemes.
  */
 export const SEED_APPS: SeedAppSpec[] = [
+  {
+    id: KAANA_APPLICATION_ID,
+    name: 'Kaana',
+    description: 'Official Kaana inference data plane and BYOK credential validator.',
+    websiteUrl: 'https://kaana.ai',
+    type: 'internal',
+    redirectUris: [],
+    scopes: ['inference:byok:validate'],
+    capabilities: [KAANA_PROVIDER_CREDENTIAL_VALIDATOR_CAPABILITY],
+  },
   // ── OxyHQServices first-party web apps (CF Pages) ──
   {
     name: 'Oxy Accounts',
@@ -227,6 +275,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     redirectUris: ['https://console.oxy.so'],
   },
   {
+    id: INBOX_APPLICATION_ID,
     name: 'Oxy Inbox',
     description: 'Official Oxy email/inbox app.',
     websiteUrl: 'https://inbox.oxy.so',
@@ -234,6 +283,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     redirectUris: ['https://inbox.oxy.so'],
     scopes: [
       'user:read',
+      'inference:invoke',
       'catalogs:write',
       'capability-events:publish',
     ],
@@ -276,6 +326,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     capabilities: [catalogApplicationCapability('mention')],
   },
   {
+    id: HOMIIO_APPLICATION_ID,
     name: 'Homiio',
     description: 'Official Oxy real estate platform.',
     websiteUrl: 'https://homiio.com',
@@ -283,7 +334,9 @@ export const SEED_APPS: SeedAppSpec[] = [
     redirectUris: ['https://homiio.com'],
     // Homiio awards Oxy Trust on lease lifecycle events via its service credential.
     // `reputation:write` is staff-gated — the seed script grants it to official apps.
-    scopes: ['user:read', 'reputation:write'],
+    // Interactive Sindi uses Homiio's service token plus X-Oxy-User-Id. The
+    // delegation verifier requires this app/credential ceiling explicitly.
+    scopes: ['user:read', 'reputation:write', 'inference:invoke', 'acting-as:offline'],
   },
   {
     name: 'Allo',
@@ -293,6 +346,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     redirectUris: ['https://allo.you', 'https://allo.oxy.so'],
   },
   {
+    id: ALIA_APPLICATION_ID,
     name: 'Alia',
     description: 'Official Oxy AI platform (chat app, console, canvas, gateway).',
     websiteUrl: 'https://alia.onl',

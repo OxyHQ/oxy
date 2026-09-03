@@ -24,6 +24,8 @@ export const APPLICATION_CAPABILITIES = [
   'identity:approval',
   /** The application may coordinate delegated agents and request capability tickets. */
   'agency:coordinate',
+  /** The trusted Kaana data plane may report exact-generation BYOK verdicts. */
+  'kaana:provider-credential-validation',
 ] as const;
 
 export type BuiltInApplicationCapability = (typeof APPLICATION_CAPABILITIES)[number];
@@ -35,6 +37,8 @@ export type ApplicationCapability =
 /** See the vocabulary entry above. */
 export const IDENTITY_APPROVAL_CAPABILITY: ApplicationCapability = 'identity:approval';
 export const AGENCY_COORDINATE_CAPABILITY: ApplicationCapability = 'agency:coordinate';
+export const KAANA_PROVIDER_CREDENTIAL_VALIDATOR_CAPABILITY: ApplicationCapability =
+  'kaana:provider-credential-validation';
 
 /**
  * Bind one first-party application to the capability catalog namespace it owns.

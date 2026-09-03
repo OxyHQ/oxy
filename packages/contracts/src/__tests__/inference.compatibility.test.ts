@@ -28,27 +28,28 @@
  *     a realistic example proving it parses.
  */
 
-import { readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { z } from 'zod';
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+import { z } from "zod";
 
-import * as barrel from '../index';
-import * as accountBilling from '../inference/accountBilling';
-import * as aliaModelRelease from '../inference/aliaModelRelease';
-import * as attribution from '../inference/attribution';
-import * as catalogue from '../inference/catalogue';
-import * as entitlement from '../inference/entitlement';
-import * as errors from '../inference/errors';
-import * as identifiers from '../inference/identifiers';
-import * as modelDocumentation from '../inference/modelDocumentation';
-import * as money from '../inference/money';
-import * as priceVersion from '../inference/priceVersion';
-import * as providerConnection from '../inference/providerConnection';
-import * as request from '../inference/request';
-import * as routingPolicy from '../inference/routingPolicy';
-import * as streamEvents from '../inference/streamEvents';
-import * as usage from '../inference/usage';
-import * as version from '../inference/version';
+import * as barrel from "../index";
+import * as accountBilling from "../inference/accountBilling";
+import * as aliaModelRelease from "../inference/aliaModelRelease";
+import * as attribution from "../inference/attribution";
+import * as catalogue from "../inference/catalogue";
+import * as entitlement from "../inference/entitlement";
+import * as errors from "../inference/errors";
+import * as identifiers from "../inference/identifiers";
+import * as inbox from "../inference/inbox";
+import * as modelDocumentation from "../inference/modelDocumentation";
+import * as money from "../inference/money";
+import * as priceVersion from "../inference/priceVersion";
+import * as providerConnection from "../inference/providerConnection";
+import * as request from "../inference/request";
+import * as routingPolicy from "../inference/routingPolicy";
+import * as streamEvents from "../inference/streamEvents";
+import * as usage from "../inference/usage";
+import * as version from "../inference/version";
 
 /**
  * Every module of the contract, by file name. Checked against the directory
@@ -63,6 +64,7 @@ const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
   entitlement,
   errors,
   identifiers,
+  inbox,
   modelDocumentation,
   money,
   priceVersion,
@@ -78,7 +80,8 @@ const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
 const unwrapSchema = (schema: z.ZodTypeAny): z.ZodTypeAny => {
   let current = schema;
   while (current instanceof z.ZodEffects || current instanceof z.ZodBranded) {
-    current = current instanceof z.ZodEffects ? current.innerType() : current.unwrap();
+    current =
+      current instanceof z.ZodEffects ? current.innerType() : current.unwrap();
   }
   return current;
 };
@@ -87,10 +90,13 @@ const unwrapSchema = (schema: z.ZodTypeAny): z.ZodTypeAny => {
 const versionOf = (schema: z.ZodTypeAny): number | null => {
   const unwrapped = unwrapSchema(schema);
   if (!(unwrapped instanceof z.ZodObject)) return null;
-  const field = (unwrapped.shape as Record<string, z.ZodTypeAny | undefined>).schemaVersion;
+  const field = (unwrapped.shape as Record<string, z.ZodTypeAny | undefined>)
+    .schemaVersion;
   if (field === undefined) return null;
   if (!(field instanceof z.ZodLiteral)) {
-    throw new Error('schemaVersion must be a z.literal so the version is part of the parsed data');
+    throw new Error(
+      "schemaVersion must be a z.literal so the version is part of the parsed data",
+    );
   }
   return field.value as number;
 };
@@ -106,7 +112,10 @@ for (const module of Object.values(INFERENCE_MODULES)) {
 
     const unwrapped = unwrapSchema(exported);
 
-    if (unwrapped instanceof z.ZodDiscriminatedUnion || unwrapped instanceof z.ZodUnion) {
+    if (
+      unwrapped instanceof z.ZodDiscriminatedUnion ||
+      unwrapped instanceof z.ZodUnion
+    ) {
       censusUnions.push({ name, options: unwrapped.options as z.ZodTypeAny[] });
       continue;
     }
@@ -134,7 +143,7 @@ for (const module of Object.values(INFERENCE_MODULES)) {
  */
 const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   // Request envelope
-  inferenceRequestSchema: 1,
+  inferenceRequestSchema: 2,
   // Stream events
   inferenceStreamStartEventSchema: 1,
   inferenceStreamDeltaEventSchema: 1,
@@ -152,7 +161,7 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   routingProfileSchema: 1,
   modelCatalogueEntrySchema: 2,
   // Routing policy
-  routingPolicySchema: 1,
+  routingPolicySchema: 2,
   // Ledger
   priceVersionSchema: 1,
   usageReservationRequestSchema: 1,
@@ -161,7 +170,20 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   usageReceiptSchema: 1,
   usageRefundSchema: 1,
   // BYOK
-  providerConnectionSchema: 1,
+  providerConnectionSchema: 2,
+  kaanaCredentialCreateMutationSchema: 1,
+  kaanaCredentialRotateMutationSchema: 1,
+  kaanaCredentialRevokeMutationSchema: 1,
+  kaanaCredentialCreateOutcomeRequestSchema: 1,
+  kaanaCredentialRotateOutcomeRequestSchema: 1,
+  kaanaCredentialRevokeOutcomeRequestSchema: 1,
+  kaanaCredentialAppliedOutcomeSchema: 1,
+  kaanaCredentialConflictOutcomeSchema: 1,
+  kaanaCredentialValidationTaskSchema: 1,
+  kaanaCredentialValidationOutcomeSchema: 1,
+  providerCredentialValidationOperationSchema: 1,
+  // Authenticated Inbox point-inference response
+  inboxInferenceTextResponseSchema: 1,
   // Account billing (ADR 0014)
   billingProfileSchema: 1,
   accountBillingStateSchema: 1,
@@ -193,42 +215,50 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
  * ever-growing list is the gate switching itself off one line at a time.
  */
 const FROZEN_EMBEDDED_SHAPES: string[] = [
-  'aliaReleaseArtifactSchema',
-  'aliaReleaseSignatureSchema',
-  'authenticatedPrincipalSchema',
-  'autoRechargeSchema',
-  'billingPrincipalSchema',
-  'catalogueServingProviderSummarySchema',
-  'cataloguePublisherSummarySchema',
-  'clientRequestMetadataSchema',
-  'inferenceAttributionSchema',
-  'inferenceDataPolicySchema',
-  'inferenceMessageSchema',
-  'inferenceToolCallSchema',
-  'modelCapabilitiesSchema',
-  'modelDeprecationSchema',
-  'modelDownstreamDocumentationSchema',
-  'modelEvaluationResultSchema',
-  'modelGpaiDocumentationSchema',
-  'modelLicenseSchema',
-  'modelLineDeclarationSchema',
-  'modelProvenanceSchema',
-  'modelSafetyMetadataSchema',
-  'externalPaymentSchema',
-  'moneySchema',
-  'payAsYouGoEntitlementSchema',
-  'planAllowanceSchema',
-  'priceSnapshotSchema',
-  'productPlanSchema',
-  'providerConnectionValidationSchema',
-  'providerErrorPassthroughSchema',
-  'routingFallbackPolicySchema',
-  'routingPolicyReferenceSchema',
-  'routingProfileCandidateSchema',
-  'samplingParametersSchema',
-  'toolDefinitionSchema',
-  'unitPriceSchema',
-  'usageQuantitySchema',
+  "aliaReleaseArtifactSchema",
+  "aliaReleaseSignatureSchema",
+  "authenticatedPrincipalSchema",
+  "autoRechargeSchema",
+  "billingPrincipalSchema",
+  "catalogueServingProviderSummarySchema",
+  "cataloguePublisherSummarySchema",
+  "clientRequestMetadataSchema",
+  "inferenceAttributionSchema",
+  "inferenceDataPolicySchema",
+  "inboxDailyBriefRequestSchema",
+  "inboxMessageInferenceParamsSchema",
+  "inboxNaturalSearchRequestSchema",
+  "inboxNaturalSearchResponseSchema",
+  "inboxSmartRepliesResponseSchema",
+  "inboxThreadSummaryResponseSchema",
+  "inferenceMessageSchema",
+  "inferenceToolCallSchema",
+  "kaanaCredentialIdentitySchema",
+  "modelCapabilitiesSchema",
+  "modelDeprecationSchema",
+  "modelDownstreamDocumentationSchema",
+  "modelEvaluationResultSchema",
+  "modelGpaiDocumentationSchema",
+  "modelLicenseSchema",
+  "modelLineDeclarationSchema",
+  "modelProvenanceSchema",
+  "modelSafetyMetadataSchema",
+  "externalPaymentSchema",
+  "moneySchema",
+  "payAsYouGoEntitlementSchema",
+  "planAllowanceSchema",
+  "priceSnapshotSchema",
+  "productPlanSchema",
+  "providerConnectionValidationSchema",
+  "providerCredentialValidationDeploymentSchema",
+  "providerErrorPassthroughSchema",
+  "routingFallbackPolicySchema",
+  "routingPolicyReferenceSchema",
+  "routingProfileCandidateSchema",
+  "samplingParametersSchema",
+  "toolDefinitionSchema",
+  "unitPriceSchema",
+  "usageQuantitySchema",
 ];
 
 /**
@@ -247,18 +277,23 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
  */
 const FROZEN_UNION_SHAPES: string[] = [
   // The routes the control plane authorized, and how each one is authorized
-  'authorizedRouteSchema',
-  'inferenceContentPartSchema',
-  'inferenceContentSourceSchema',
-  'inferenceInputSchema',
-  'inferenceRouteSwitchDetailSchema',
-  'inferenceStreamEventSchema',
-  'providerConnectionScopeSchema',
-  'responseFormatSchema',
-  'routingPolicyScopeSchema',
-  'routingTargetSchema',
-  'toolChoiceSchema',
-  'usageRefundSubjectSchema',
+  "authorizedRouteSchema",
+  "inferenceContentPartSchema",
+  "inferenceContentSourceSchema",
+  "inferenceInputSchema",
+  "inferenceRouteSwitchDetailSchema",
+  "inferenceStreamEventSchema",
+  "inboxComposeRequestSchema",
+  "inboxInferenceStreamEventSchema",
+  "kaanaCredentialMutationSchema",
+  "kaanaCredentialOutcomeRequestSchema",
+  "kaanaCredentialOutcomeSchema",
+  "providerConnectionScopeSchema",
+  "responseFormatSchema",
+  "routingPolicyScopeSchema",
+  "routingTargetSchema",
+  "toolChoiceSchema",
+  "usageRefundSubjectSchema",
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -267,15 +302,15 @@ const FROZEN_UNION_SHAPES: string[] = [
 
 const ATTRIBUTION = {
   principal: {
-    billing: { accountId: 'acc_01H8Z9QK7M' },
-    applicationId: 'app_alia_prod',
-    credentialId: 'cred_01H8Z9R2VX',
-    environment: 'production',
-    inferenceScopes: ['inference:invoke', 'inference:usage:read'],
+    billing: { accountId: "acc_01H8Z9QK7M" },
+    applicationId: "app_alia_prod",
+    credentialId: "cred_01H8Z9R2VX",
+    environment: "production",
+    inferenceScopes: ["inference:invoke", "inference:usage:read"],
   },
-  userId: 'usr_01H8Z9S4KP',
-  requestId: 'req_01H8Z9T6NB',
-  generationId: 'gen_01H8Z9T6NC',
+  userId: "usr_01H8Z9S4KP",
+  requestId: "req_01H8Z9T6NB",
+  generationId: "gen_01H8Z9T6NC",
 };
 
 const DATA_POLICY = {
@@ -284,12 +319,12 @@ const DATA_POLICY = {
   trainsOnCustomerData: false,
   zeroDataRetentionAvailable: true,
   subprocessors: [],
-  policyUrl: 'https://example-provider.test/data-policy',
+  policyUrl: "https://example-provider.test/data-policy",
 };
 
 const CAPABILITIES = {
-  inputModalities: ['text', 'image'],
-  outputModalities: ['text'],
+  inputModalities: ["text", "image"],
+  outputModalities: ["text"],
   tools: true,
   parallelToolCalls: true,
   structuredOutput: true,
@@ -302,9 +337,9 @@ const CAPABILITIES = {
 };
 
 const LICENSE = {
-  licenseId: 'LicenseRef-Provider-Commercial',
-  displayName: 'Provider commercial terms',
-  url: 'https://example-provider.test/terms',
+  licenseId: "LicenseRef-Provider-Commercial",
+  displayName: "Provider commercial terms",
+  url: "https://example-provider.test/terms",
   commercialUseAllowed: true,
   requiresAttribution: false,
 };
@@ -320,18 +355,20 @@ const LICENSE = {
  */
 const GPAI_DOCUMENTATION = {
   intendedTasks:
-    'General-purpose text generation, summarisation and tool-calling, for integration into assistant and agent systems.',
-  distributionMethods: ['oxy_api'],
-  architecture: 'Decoder-only transformer with sparse mixture-of-experts routing',
+    "General-purpose text generation, summarisation and tool-calling, for integration into assistant and agent systems.",
+  distributionMethods: ["oxy_api"],
+  architecture:
+    "Decoder-only transformer with sparse mixture-of-experts routing",
   parameterCount: 70_000_000_000,
-  trainingDataSummaryUrl: 'https://alia.onl/models/alia-2/training-data-summary',
-  copyrightPolicyUrl: 'https://alia.onl/legal/copyright-policy',
-  systemicRisk: 'presumed_by_training_compute',
+  trainingDataSummaryUrl:
+    "https://alia.onl/models/alia-2/training-data-summary",
+  copyrightPolicyUrl: "https://alia.onl/legal/copyright-policy",
+  systemicRisk: "presumed_by_training_compute",
   freeAndOpenSourceRelease: false,
-  trainingComputeFlops: '4.2e25',
+  trainingComputeFlops: "4.2e25",
   trainingTimeHours: 41_600,
   energyConsumptionMwh: 3_820,
-  adversarialTestingReportUrl: 'https://alia.onl/models/alia-2/red-team-report',
+  adversarialTestingReportUrl: "https://alia.onl/models/alia-2/red-team-report",
 };
 
 /**
@@ -341,19 +378,19 @@ const GPAI_DOCUMENTATION = {
  * and no modalities, and those columns are `NOT NULL` on `inference_models`.
  */
 const MODEL_LINE = {
-  displayName: 'Alia 2',
-  description: 'Alia\u2019s second-generation general-purpose model.',
+  displayName: "Alia 2",
+  description: "Alia\u2019s second-generation general-purpose model.",
   capabilities: CAPABILITIES,
-  knowledgeCutoff: '2026-03-31',
-  releasedOn: '2026-08-16',
+  knowledgeCutoff: "2026-03-31",
+  releasedOn: "2026-08-16",
 };
 
 const PRICE_SNAPSHOT = {
-  priceVersionId: 'pv_2026_08',
-  currency: 'USD',
+  priceVersionId: "pv_2026_08",
+  currency: "USD",
   unitPrices: [
-    { unit: 'input_tokens', amount: '3.00', per: 1000000, currency: 'USD' },
-    { unit: 'output_tokens', amount: '15.00', per: 1000000, currency: 'USD' },
+    { unit: "input_tokens", amount: "3.00", per: 1000000, currency: "USD" },
+    { unit: "output_tokens", amount: "15.00", per: 1000000, currency: "USD" },
   ],
 };
 
@@ -367,121 +404,124 @@ const PRICE_SNAPSHOT = {
  */
 const ALIA_RELEASE_MANIFEST = {
   schemaVersion: 1,
-  releaseId: 'arel_01H8ZA1000',
-  issuedAt: '2026-08-16T12:00:00.000Z',
+  releaseId: "arel_01H8ZA1000",
+  issuedAt: "2026-08-16T12:00:00.000Z",
   revision: {
     schemaVersion: 1,
-    revisionId: 'rev_alia_v2_20260801',
-    modelId: 'alia/alia-2',
-    revision: '2026-08-01',
-    reference: 'alia/alia-2@2026-08-01',
-    releasedAt: '2026-08-16T12:00:00.000Z',
-    artifactDigest: `sha256:${'b'.repeat(64)}`,
-    modelCardUrl: 'https://alia.onl/models/alia-2/card',
-    evaluations: [{ suite: 'mmlu-pro', metric: 'accuracy', score: '71.2%' }],
+    revisionId: "rev_alia_v2_20260801",
+    modelId: "alia/alia-2",
+    revision: "2026-08-01",
+    reference: "alia/alia-2@2026-08-01",
+    releasedAt: "2026-08-16T12:00:00.000Z",
+    artifactDigest: `sha256:${"b".repeat(64)}`,
+    modelCardUrl: "https://alia.onl/models/alia-2/card",
+    evaluations: [{ suite: "mmlu-pro", metric: "accuracy", score: "71.2%" }],
     safety: {
-      safetyCardUrl: 'https://alia.onl/models/alia-2/safety',
-      contentFilteringDefault: 'strict',
-      knownLimitations: ['Weaker on languages outside its training mix.'],
-      provenanceMarking: 'c2pa',
+      safetyCardUrl: "https://alia.onl/models/alia-2/safety",
+      contentFilteringDefault: "strict",
+      knownLimitations: ["Weaker on languages outside its training mix."],
+      provenanceMarking: "c2pa",
     },
   },
   provenance: {
-    releaseKind: 'first_party_derived',
-    baseModelId: 'meta/llama-3.1-70b',
-    trainingOrganization: 'Alia',
+    releaseKind: "first_party_derived",
+    baseModelId: "meta/llama-3.1-70b",
+    trainingOrganization: "Alia",
   },
   license: {
-    licenseId: 'LicenseRef-Alia-Community-1.0',
-    displayName: 'Alia community licence 1.0',
-    url: 'https://alia.onl/licence',
+    licenseId: "LicenseRef-Alia-Community-1.0",
+    displayName: "Alia community licence 1.0",
+    url: "https://alia.onl/licence",
     commercialUseAllowed: true,
     requiresAttribution: true,
   },
   artifacts: [
     {
-      path: 'model-00001-of-00002.safetensors',
-      digest: `sha256:${'b'.repeat(64)}`,
+      path: "model-00001-of-00002.safetensors",
+      digest: `sha256:${"b".repeat(64)}`,
       sizeBytes: 9_876_543_210,
-      mediaType: 'application/octet-stream',
+      mediaType: "application/octet-stream",
     },
     {
-      path: 'tokenizer.json',
-      digest: `sha256:${'c'.repeat(64)}`,
+      path: "tokenizer.json",
+      digest: `sha256:${"c".repeat(64)}`,
       sizeBytes: 1_842_311,
-      mediaType: 'application/json',
+      mediaType: "application/json",
     },
   ],
   signatures: [
     {
-      algorithm: 'ed25519',
-      canonicalization: 'jcs',
-      keyId: 'alia-release-2026-08',
-      signature: 'A'.repeat(86),
-      signedAt: '2026-08-16T12:00:05.000Z',
+      algorithm: "ed25519",
+      canonicalization: "jcs",
+      keyId: "alia-release-2026-08",
+      signature: "A".repeat(86),
+      signedAt: "2026-08-16T12:00:05.000Z",
     },
   ],
 };
 
 const FIXTURES: Record<string, unknown> = {
   inferenceRequestSchema: {
-    schemaVersion: 1,
+    schemaVersion: 2,
     attribution: ATTRIBUTION,
-    target: { kind: 'model', modelReference: 'anthropic/claude-opus-5' },
-    modality: 'text',
+    target: { kind: "model", modelReference: "anthropic/claude-opus-5" },
+    modality: "text",
     input: {
-      format: 'messages',
+      format: "messages",
       messages: [
-        { role: 'system', content: [{ type: 'text', text: 'You are terse.' }] },
-        { role: 'user', content: [{ type: 'text', text: 'Summarise this invoice.' }] },
+        { role: "system", content: [{ type: "text", text: "You are terse." }] },
+        {
+          role: "user",
+          content: [{ type: "text", text: "Summarise this invoice." }],
+        },
       ],
     },
     stream: true,
     maxOutputTokens: 1024,
-    sampling: { temperature: 0.2, topP: 0.9, stopSequences: ['\n\n'] },
+    sampling: { temperature: 0.2, topP: 0.9, stopSequences: ["\n\n"] },
     tools: [
       {
-        type: 'function',
-        name: 'lookup_invoice',
-        description: 'Fetch an invoice by id',
-        parameters: { type: 'object', properties: { id: { type: 'string' } } },
+        type: "function",
+        name: "lookup_invoice",
+        description: "Fetch an invoice by id",
+        parameters: { type: "object", properties: { id: { type: "string" } } },
         strict: true,
       },
     ],
-    toolChoice: 'auto',
-    responseFormat: { type: 'text' },
+    toolChoice: "auto",
+    responseFormat: { type: "text" },
     client: {
-      apiFormat: 'responses',
-      endpoint: '/v1/responses',
-      clientRequestId: 'client-7f2',
-      receivedAt: '2026-08-15T09:41:00.000Z',
-      labels: { team: 'billing' },
+      apiFormat: "responses",
+      endpoint: "/v1/responses",
+      clientRequestId: "client-7f2",
+      receivedAt: "2026-08-15T09:41:00.000Z",
+      labels: { team: "billing" },
     },
-    idempotencyKey: 'idem_01H8Z9T6NB',
-    routingPolicy: { routingPolicyId: 'rp_alia_prod', policyVersion: 12 },
+    idempotencyKey: "idem_01H8Z9T6NB",
+    routingPolicy: { routingPolicyId: "rp_alia_prod", policyVersion: 12 },
     // Preference order. The primary, one same-model failover, and one
     // substitution the customer authorized by name.
     authorizedRoutes: [
       {
-        substitution: 'same_model',
-        deploymentId: 'dep_anthropic_usw2_opus5',
-        modelReference: 'anthropic/claude-opus-5@2026-05-01',
-        provider: 'anthropic',
-        regions: ['us-west-2'],
+        substitution: "same_model",
+        deploymentId: "dep_anthropic_usw2_opus5",
+        modelReference: "anthropic/claude-opus-5@2026-05-01",
+        provider: "anthropic",
+        regions: ["us-west-2"],
       },
       {
-        substitution: 'same_model',
-        deploymentId: 'dep_bedrock_use1_opus5',
-        modelReference: 'anthropic/claude-opus-5@2026-05-01',
-        provider: 'bedrock',
-        regions: ['us-east-1'],
+        substitution: "same_model",
+        deploymentId: "dep_bedrock_use1_opus5",
+        modelReference: "anthropic/claude-opus-5@2026-05-01",
+        provider: "bedrock",
+        regions: ["us-east-1"],
       },
       {
-        substitution: 'cross_model',
-        deploymentId: 'dep_openai_usw2_gpt5',
-        modelReference: 'openai/gpt-5@2026-04-11',
-        provider: 'openai',
-        regions: ['us-west-2'],
+        substitution: "cross_model",
+        deploymentId: "dep_openai_usw2_gpt5",
+        modelReference: "openai/gpt-5@2026-04-11",
+        provider: "openai",
+        regions: ["us-west-2"],
         authorizedByPolicy: true,
       },
     ],
@@ -489,542 +529,681 @@ const FIXTURES: Record<string, unknown> = {
 
   inferenceStreamStartEventSchema: {
     schemaVersion: 1,
-    type: 'start',
-    requestId: 'req_01H8Z9T6NB',
+    type: "start",
+    requestId: "req_01H8Z9T6NB",
     sequence: 0,
-    generationId: 'gen_01H8Z9T6NC',
-    resolvedModelReference: 'anthropic/claude-opus-5@2026-05-01',
-    servingProvider: 'anthropic',
-    startedAt: '2026-08-15T09:41:00.120Z',
+    generationId: "gen_01H8Z9T6NC",
+    resolvedModelReference: "anthropic/claude-opus-5@2026-05-01",
+    servingProvider: "anthropic",
+    startedAt: "2026-08-15T09:41:00.120Z",
   },
 
   inferenceStreamDeltaEventSchema: {
     schemaVersion: 1,
-    type: 'delta',
-    requestId: 'req_01H8Z9T6NB',
+    type: "delta",
+    requestId: "req_01H8Z9T6NB",
     sequence: 1,
     outputIndex: 0,
-    channel: 'output_text',
-    text: 'The invoice totals ',
+    channel: "output_text",
+    text: "The invoice totals ",
   },
 
   inferenceStreamToolCallEventSchema: {
     schemaVersion: 1,
-    type: 'tool_call',
-    requestId: 'req_01H8Z9T6NB',
+    type: "tool_call",
+    requestId: "req_01H8Z9T6NB",
     sequence: 2,
-    toolCallId: 'call_01H8Z9U8QQ',
-    name: 'lookup_invoice',
+    toolCallId: "call_01H8Z9U8QQ",
+    name: "lookup_invoice",
     argumentsDelta: '{"id":"inv_',
     complete: false,
   },
 
   inferenceStreamUsageEventSchema: {
     schemaVersion: 2,
-    type: 'usage',
-    requestId: 'req_01H8Z9T6NB',
+    type: "usage",
+    requestId: "req_01H8Z9T6NB",
     sequence: 3,
-    deploymentId: 'dep_anthropic_usw2_opus5',
+    deploymentId: "dep_anthropic_usw2_opus5",
     units: [
-      { unit: 'input_tokens', quantity: 812 },
-      { unit: 'output_tokens', quantity: 204 },
+      { unit: "input_tokens", quantity: 812 },
+      { unit: "output_tokens", quantity: 204 },
     ],
-    usageSource: 'provider_reported',
+    usageSource: "provider_reported",
   },
 
   inferenceStreamRouteSwitchEventSchema: {
     schemaVersion: 1,
-    type: 'route_switch',
-    requestId: 'req_01H8Z9T6NB',
+    type: "route_switch",
+    requestId: "req_01H8Z9T6NB",
     sequence: 4,
-    reason: 'deployment_unavailable',
+    reason: "deployment_unavailable",
     detail: {
-      scope: 'deployment',
-      modelReference: 'anthropic/claude-opus-5@2026-05-01',
-      toProvider: 'bedrock',
-      toDeploymentId: 'dep_bedrock_use1_opus5',
+      scope: "deployment",
+      modelReference: "anthropic/claude-opus-5@2026-05-01",
+      toProvider: "bedrock",
+      toDeploymentId: "dep_bedrock_use1_opus5",
     },
-    occurredAt: '2026-08-15T09:41:01.400Z',
+    occurredAt: "2026-08-15T09:41:01.400Z",
   },
 
   inferenceStreamErrorEventSchema: {
     schemaVersion: 1,
-    type: 'error',
-    requestId: 'req_01H8Z9T6NB',
+    type: "error",
+    requestId: "req_01H8Z9T6NB",
     sequence: 5,
     error: {
       schemaVersion: 1,
-      code: 'provider_overloaded',
-      message: 'The upstream provider is overloaded.',
+      code: "provider_overloaded",
+      message: "The upstream provider is overloaded.",
       retryable: true,
-      requestId: 'req_01H8Z9T6NB',
+      requestId: "req_01H8Z9T6NB",
       retryAfterMs: 1500,
       providerError: {
-        provider: 'anthropic',
+        provider: "anthropic",
         status: 529,
-        code: 'overloaded_error',
-        message: 'Overloaded',
+        code: "overloaded_error",
+        message: "Overloaded",
       },
     },
   },
 
   inferenceStreamDoneEventSchema: {
     schemaVersion: 1,
-    type: 'done',
-    requestId: 'req_01H8Z9T6NB',
+    type: "done",
+    requestId: "req_01H8Z9T6NB",
     sequence: 6,
-    generationId: 'gen_01H8Z9T6NC',
-    finishReason: 'stop',
-    receiptId: 'rcpt_01H8Z9V0AA',
-    completedAt: '2026-08-15T09:41:02.900Z',
+    generationId: "gen_01H8Z9T6NC",
+    finishReason: "stop",
+    receiptId: "rcpt_01H8Z9V0AA",
+    completedAt: "2026-08-15T09:41:02.900Z",
   },
 
   modelPublisherSchema: {
     schemaVersion: 1,
-    publisherId: 'pub_anthropic',
-    slug: 'anthropic',
-    displayName: 'Anthropic',
-    websiteUrl: 'https://www.anthropic.com',
+    publisherId: "pub_anthropic",
+    slug: "anthropic",
+    displayName: "Anthropic",
+    websiteUrl: "https://www.anthropic.com",
   },
 
   catalogueModelSchema: {
     schemaVersion: 1,
-    modelId: 'anthropic/claude-opus-5',
-    publisher: 'anthropic',
-    slug: 'claude-opus-5',
-    displayName: 'Claude Opus 5',
+    modelId: "anthropic/claude-opus-5",
+    publisher: "anthropic",
+    slug: "claude-opus-5",
+    displayName: "Claude Opus 5",
     capabilities: CAPABILITIES,
     license: LICENSE,
-    provenance: { releaseKind: 'third_party_hosted' },
-    knowledgeCutoff: '2026-05-01',
-    releasedOn: '2026-06-02',
-    currentRevision: '2026-05-01',
-    deprecation: { status: 'active' },
+    provenance: { releaseKind: "third_party_hosted" },
+    knowledgeCutoff: "2026-05-01",
+    releasedOn: "2026-06-02",
+    currentRevision: "2026-05-01",
+    deprecation: { status: "active" },
   },
 
   modelRevisionSchema: {
     schemaVersion: 1,
-    revisionId: 'rev_opus5_20260501',
-    modelId: 'anthropic/claude-opus-5',
-    revision: '2026-05-01',
-    reference: 'anthropic/claude-opus-5@2026-05-01',
-    releasedAt: '2026-06-02T00:00:00.000Z',
-    modelCardUrl: 'https://www.anthropic.com/model-card',
+    revisionId: "rev_opus5_20260501",
+    modelId: "anthropic/claude-opus-5",
+    revision: "2026-05-01",
+    reference: "anthropic/claude-opus-5@2026-05-01",
+    releasedAt: "2026-06-02T00:00:00.000Z",
+    modelCardUrl: "https://www.anthropic.com/model-card",
     evaluations: [
-      { suite: 'swe-bench-verified', metric: 'resolved', score: '74.5%' },
+      { suite: "swe-bench-verified", metric: "resolved", score: "74.5%" },
     ],
     safety: {
-      contentFilteringDefault: 'provider_default',
-      knownLimitations: ['May hallucinate citations.'],
-      provenanceMarking: 'none',
+      contentFilteringDefault: "provider_default",
+      knownLimitations: ["May hallucinate citations."],
+      provenanceMarking: "none",
     },
   },
 
   inferenceProviderSchema: {
     schemaVersion: 1,
-    providerId: 'prv_anthropic',
-    slug: 'anthropic',
-    displayName: 'Anthropic',
-    kind: 'third_party',
-    regions: ['us-west-2', 'eu-central-1'],
+    providerId: "prv_anthropic",
+    slug: "anthropic",
+    displayName: "Anthropic",
+    kind: "third_party",
+    regions: ["us-west-2", "eu-central-1"],
     dataPolicy: DATA_POLICY,
   },
 
   modelDeploymentSchema: {
     schemaVersion: 1,
-    deploymentId: 'dep_anthropic_usw2_opus5',
-    provider: 'anthropic',
-    modelReference: 'anthropic/claude-opus-5@2026-05-01',
-    regions: ['us-west-2'],
+    deploymentId: "dep_anthropic_usw2_opus5",
+    provider: "anthropic",
+    modelReference: "anthropic/claude-opus-5@2026-05-01",
+    regions: ["us-west-2"],
     dataPolicy: DATA_POLICY,
-    availabilityScope: 'public_payg',
-    commercialPermission: 'public_resale_approved',
-    status: 'active',
+    availabilityScope: "public_payg",
+    commercialPermission: "public_resale_approved",
+    status: "active",
     dedicatedCapacity: false,
-    priceVersionId: 'pv_2026_08',
+    priceVersionId: "pv_2026_08",
   },
 
   routingProfileSchema: {
     schemaVersion: 1,
-    routingProfileId: 'rpf_auto',
-    slug: 'auto',
-    displayName: 'Auto',
-    description: 'Balances price and latency across qualifying routes.',
-    optimiseFor: 'balanced',
+    routingProfileId: "rpf_auto",
+    slug: "auto",
+    displayName: "Auto",
+    description: "Balances price and latency across qualifying routes.",
+    optimiseFor: "balanced",
     candidates: [
-      { modelReference: 'anthropic/claude-opus-5', priority: 0 },
-      { modelReference: 'openai/gpt-5', priority: 1 },
+      { modelReference: "anthropic/claude-opus-5", priority: 0 },
+      { modelReference: "openai/gpt-5", priority: 1 },
     ],
     isProductPreset: true,
   },
 
   modelCatalogueEntrySchema: {
     schemaVersion: 2,
-    modelId: 'anthropic/claude-opus-5',
+    modelId: "anthropic/claude-opus-5",
     publisher: {
-      slug: 'anthropic',
-      displayName: 'Anthropic',
-      websiteUrl: 'https://www.anthropic.com',
+      slug: "anthropic",
+      displayName: "Anthropic",
+      websiteUrl: "https://www.anthropic.com",
     },
-    displayName: 'Claude Opus 5',
-    currentRevision: '2026-05-01',
-    availableRevisions: ['2026-05-01'],
+    displayName: "Claude Opus 5",
+    currentRevision: "2026-05-01",
+    availableRevisions: ["2026-05-01"],
     capabilities: CAPABILITIES,
     license: LICENSE,
-    provenance: { releaseKind: 'third_party_hosted' },
-    knowledgeCutoff: '2026-05-01',
-    regions: ['us-west-2', 'eu-central-1'],
+    provenance: { releaseKind: "third_party_hosted" },
+    knowledgeCutoff: "2026-05-01",
+    regions: ["us-west-2", "eu-central-1"],
     servingProviders: [
       {
-        slug: 'anthropic',
-        displayName: 'Anthropic',
-        regions: ['us-west-2'],
+        slug: "anthropic",
+        displayName: "Anthropic",
+        regions: ["us-west-2"],
         dataPolicy: DATA_POLICY,
       },
     ],
     dataPolicy: DATA_POLICY,
     pricing: PRICE_SNAPSHOT,
-    availabilityScope: 'public_payg',
-    commercialPermission: 'public_resale_approved',
-    deprecation: { status: 'active' },
+    availabilityScope: "public_payg",
+    commercialPermission: "public_resale_approved",
+    deprecation: { status: "active" },
     evaluations: [],
-    modelCardUrl: 'https://www.anthropic.com/model-card',
+    modelCardUrl: "https://www.anthropic.com/model-card",
   },
 
   routingPolicySchema: {
-    schemaVersion: 1,
-    routingPolicyId: 'rp_alia_prod',
+    schemaVersion: 2,
+    routingPolicyId: "rp_alia_prod",
     policyVersion: 12,
     scope: {
-      kind: 'application',
-      accountId: 'acc_01H8Z9QK7M',
-      applicationId: 'app_alia_prod',
+      kind: "application",
+      accountId: "acc_01H8Z9QK7M",
+      applicationId: "app_alia_prod",
     },
-    defaultTarget: { kind: 'routing_profile', routingProfile: 'auto' },
-    providerAllowlist: ['anthropic', 'openai'],
-    providerDenylist: ['some-unreviewed-provider'],
-    allowedRegions: ['us-west-2', 'eu-central-1'],
+    defaultTarget: { kind: "routing_profile_id", routingProfileId: "rpf_auto" },
+    providerAllowlist: ["anthropic", "openai"],
+    providerDenylist: ["some-unreviewed-provider"],
+    allowedRegions: ["us-west-2", "eu-central-1"],
     deniedRegions: [],
     requireZeroDataRetention: true,
     prohibitTrainingOnCustomerData: true,
     maxPricePerUnit: [
-      { unit: 'output_tokens', amount: '20.00', per: 1000000, currency: 'USD' },
+      { unit: "output_tokens", amount: "20.00", per: 1000000, currency: "USD" },
     ],
-    maxPricePerRequest: { amount: '5.000000000000', currency: 'USD' },
-    optimiseFor: 'balanced',
+    maxPricePerRequest: { amount: "5.000000000000", currency: "USD" },
+    optimiseFor: "balanced",
     oxyHostedOnly: false,
     allowedLicenseIds: [],
     requireCommercialUseRights: true,
     fallback: {
       disabled: false,
       sameModelDeployment: true,
-      authorizedCrossModel: ['openai/gpt-5'],
+      authorizedCrossModel: ["openai/gpt-5"],
     },
-    byokPreference: 'disabled',
-    dedicatedCapacity: 'disabled',
-    updatedAt: '2026-08-14T18:02:00.000Z',
+    byokPreference: "disabled",
+    dedicatedCapacity: "disabled",
+    updatedAt: "2026-08-14T18:02:00.000Z",
   },
 
   priceVersionSchema: {
     schemaVersion: 1,
-    priceVersionId: 'pv_2026_08',
-    status: 'active',
-    modelReference: 'anthropic/claude-opus-5@2026-05-01',
-    provider: 'anthropic',
-    currency: 'USD',
+    priceVersionId: "pv_2026_08",
+    status: "active",
+    modelReference: "anthropic/claude-opus-5@2026-05-01",
+    provider: "anthropic",
+    currency: "USD",
     unitPrices: PRICE_SNAPSHOT.unitPrices,
-    effectiveFrom: '2026-08-01T00:00:00.000Z',
-    supersedesPriceVersionId: 'pv_2026_05',
-    createdAt: '2026-07-28T11:00:00.000Z',
+    effectiveFrom: "2026-08-01T00:00:00.000Z",
+    supersedesPriceVersionId: "pv_2026_05",
+    createdAt: "2026-07-28T11:00:00.000Z",
   },
 
   usageReservationRequestSchema: {
     schemaVersion: 1,
-    idempotencyKey: 'idem_01H8Z9T6NB',
+    idempotencyKey: "idem_01H8Z9T6NB",
     attribution: ATTRIBUTION,
-    knownUnits: [{ unit: 'input_tokens', quantity: 812 }],
+    knownUnits: [{ unit: "input_tokens", quantity: 812 }],
     maxOutputTokens: 1024,
-    ceilingPriceVersionId: 'pv_2026_08',
-    maxAmount: '0.024360000000',
-    currency: 'USD',
+    ceilingPriceVersionId: "pv_2026_08",
+    maxAmount: "0.024360000000",
+    currency: "USD",
     expiresInSeconds: 900,
   },
 
   usageReservationSchema: {
     schemaVersion: 1,
-    reservationId: 'res_01H8Z9U0ZZ',
-    idempotencyKey: 'idem_01H8Z9T6NB',
+    reservationId: "res_01H8Z9U0ZZ",
+    idempotencyKey: "idem_01H8Z9T6NB",
     attribution: ATTRIBUTION,
-    status: 'settled',
-    reservedAmount: '0.024360000000',
-    currency: 'USD',
-    ceilingPriceVersionId: 'pv_2026_08',
-    createdAt: '2026-08-15T09:41:00.010Z',
-    expiresAt: '2026-08-15T09:56:00.010Z',
-    settledReceiptId: 'rcpt_01H8Z9V0AA',
+    status: "settled",
+    reservedAmount: "0.024360000000",
+    currency: "USD",
+    ceilingPriceVersionId: "pv_2026_08",
+    createdAt: "2026-08-15T09:41:00.010Z",
+    expiresAt: "2026-08-15T09:56:00.010Z",
+    settledReceiptId: "rcpt_01H8Z9V0AA",
   },
 
   normalizedUsageReportSchema: {
     schemaVersion: 2,
-    requestId: 'req_01H8Z9T6NB',
-    generationId: 'gen_01H8Z9T6NC',
+    requestId: "req_01H8Z9T6NB",
+    generationId: "gen_01H8Z9T6NC",
     attribution: ATTRIBUTION,
-    outcome: 'completed',
+    outcome: "completed",
     units: [
-      { unit: 'input_tokens', quantity: 812 },
-      { unit: 'output_tokens', quantity: 204 },
+      { unit: "input_tokens", quantity: 812 },
+      { unit: "output_tokens", quantity: 204 },
     ],
-    usageSource: 'provider_reported',
-    resolvedModelReference: 'anthropic/claude-opus-5@2026-05-01',
-    servingProvider: 'anthropic',
-    deploymentId: 'dep_anthropic_usw2_opus5',
+    usageSource: "provider_reported",
+    resolvedModelReference: "anthropic/claude-opus-5@2026-05-01",
+    servingProvider: "anthropic",
+    deploymentId: "dep_anthropic_usw2_opus5",
     routeSwitches: 1,
-    startedAt: '2026-08-15T09:41:00.120Z',
-    completedAt: '2026-08-15T09:41:02.900Z',
+    startedAt: "2026-08-15T09:41:00.120Z",
+    completedAt: "2026-08-15T09:41:02.900Z",
     timeToFirstTokenMs: 380,
   },
 
   usageReceiptSchema: {
     schemaVersion: 1,
-    receiptId: 'rcpt_01H8Z9V0AA',
-    reservationId: 'res_01H8Z9U0ZZ',
-    idempotencyKey: 'idem_01H8Z9T6NB',
+    receiptId: "rcpt_01H8Z9V0AA",
+    reservationId: "res_01H8Z9U0ZZ",
+    idempotencyKey: "idem_01H8Z9T6NB",
     attribution: ATTRIBUTION,
-    outcome: 'completed',
+    outcome: "completed",
     units: [
-      { unit: 'input_tokens', quantity: 812 },
-      { unit: 'output_tokens', quantity: 204 },
+      { unit: "input_tokens", quantity: 812 },
+      { unit: "output_tokens", quantity: 204 },
     ],
-    usageSource: 'provider_reported',
+    usageSource: "provider_reported",
     priceSnapshot: PRICE_SNAPSHOT,
-    billedAmount: '0.005496000000',
-    currency: 'USD',
+    billedAmount: "0.005496000000",
+    currency: "USD",
     platformFeeOnly: false,
-    resolvedModelReference: 'anthropic/claude-opus-5@2026-05-01',
-    servingProvider: 'anthropic',
-    settledAt: '2026-08-15T09:41:03.100Z',
+    resolvedModelReference: "anthropic/claude-opus-5@2026-05-01",
+    servingProvider: "anthropic",
+    settledAt: "2026-08-15T09:41:03.100Z",
   },
 
   usageRefundSchema: {
     schemaVersion: 1,
-    refundId: 'rfnd_01H8Z9V4CC',
-    idempotencyKey: 'idem_01H8Z9T6NB:release',
+    refundId: "rfnd_01H8Z9V4CC",
+    idempotencyKey: "idem_01H8Z9T6NB:release",
     attribution: ATTRIBUTION,
-    subject: { kind: 'reservation', reservationId: 'res_01H8Z9U0ZZ' },
-    reason: 'unused_reservation',
-    amount: '0.018864000000',
-    currency: 'USD',
-    createdAt: '2026-08-15T09:41:03.150Z',
+    subject: { kind: "reservation", reservationId: "res_01H8Z9U0ZZ" },
+    reason: "unused_reservation",
+    amount: "0.018864000000",
+    currency: "USD",
+    createdAt: "2026-08-15T09:41:03.150Z",
   },
 
   providerConnectionSchema: {
-    schemaVersion: 1,
-    connectionId: 'pcx_01H8Z9W2DD',
-    provider: 'openai',
-    ownerAccountId: 'acc_01H8Z9QK7M',
+    schemaVersion: 2,
+    connectionId: "pcx_01H8Z9W2DD",
+    provider: "openai",
+    ownerAccountId: "acc_01H8Z9QK7M",
     scope: {
-      kind: 'application',
-      accountId: 'acc_01H8Z9QK7M',
-      applicationId: 'app_alia_prod',
+      kind: "application",
+      accountId: "acc_01H8Z9QK7M",
+      applicationId: "app_alia_prod",
     },
-    environment: 'production',
-    status: 'active',
-    secretRef: 'kms:oxy/inference/byok/production/acc_01H8Z9QK7M/pcx_01H8Z9W2DD',
-    keyPrefix: 'sk-proj-4f',
-    fingerprint: 'a'.repeat(64),
-    validation: { state: 'valid', lastValidatedAt: '2026-08-15T08:00:00.000Z' },
+    environment: "production",
+    status: "active",
+    custodyState: "ready",
+    credentialHandle: `kcred_${"a".repeat(26)}`,
+    credentialRevision: 1,
+    validation: { state: "valid", lastValidatedAt: "2026-08-15T08:00:00.000Z" },
     upstreamBillsCustomerDirectly: true,
-    termsAcknowledgedAt: '2026-08-01T10:00:00.000Z',
-    createdAt: '2026-08-01T10:00:00.000Z',
+    termsAcknowledgedAt: "2026-08-01T10:00:00.000Z",
+    createdAt: "2026-08-01T10:00:00.000Z",
+  },
+
+  kaanaCredentialCreateMutationSchema: {
+    schemaVersion: 1,
+    action: "create",
+    operationId: "operation_create_01",
+    provider: "anthropic",
+    ownerAccountId: "acc_customer_01",
+    connectionId: "conn_customer_01",
+    environment: "production",
+    operationActor: "user:acc_customer_01",
+    secretBase64: "Y3VzdG9tZXItcHJvdmlkZXItc2VjcmV0",
+  },
+
+  kaanaCredentialRotateMutationSchema: {
+    schemaVersion: 1,
+    action: "rotate",
+    operationId: "operation_rotate_01",
+    provider: "anthropic",
+    ownerAccountId: "acc_customer_01",
+    connectionId: "conn_customer_01",
+    environment: "production",
+    operationActor: "user:acc_customer_01",
+    credentialHandle: `kcred_${"b".repeat(26)}`,
+    expectedRevision: 4,
+    secretBase64: "cm90YXRlZC1jdXN0b21lci1wcm92aWRlci1zZWNyZXQ=",
+  },
+
+  kaanaCredentialRevokeMutationSchema: {
+    schemaVersion: 1,
+    action: "revoke",
+    operationId: "operation_revoke_01",
+    provider: "anthropic",
+    ownerAccountId: "acc_customer_01",
+    connectionId: "conn_customer_01",
+    environment: "production",
+    operationActor: "user:acc_customer_01",
+    credentialHandle: `kcred_${"c".repeat(26)}`,
+    expectedRevision: 5,
+  },
+
+  kaanaCredentialCreateOutcomeRequestSchema: {
+    schemaVersion: 1,
+    action: "create",
+    operationId: "operation_create_01",
+    provider: "anthropic",
+    ownerAccountId: "acc_customer_01",
+    connectionId: "conn_customer_01",
+    environment: "production",
+  },
+
+  kaanaCredentialRotateOutcomeRequestSchema: {
+    schemaVersion: 1,
+    action: "rotate",
+    operationId: "operation_rotate_01",
+    provider: "anthropic",
+    ownerAccountId: "acc_customer_01",
+    connectionId: "conn_customer_01",
+    environment: "production",
+    credentialHandle: `kcred_${"b".repeat(26)}`,
+    expectedRevision: 4,
+  },
+
+  kaanaCredentialRevokeOutcomeRequestSchema: {
+    schemaVersion: 1,
+    action: "revoke",
+    operationId: "operation_revoke_01",
+    provider: "anthropic",
+    ownerAccountId: "acc_customer_01",
+    connectionId: "conn_customer_01",
+    environment: "production",
+    credentialHandle: `kcred_${"c".repeat(26)}`,
+    expectedRevision: 5,
+  },
+
+  kaanaCredentialAppliedOutcomeSchema: {
+    schemaVersion: 1,
+    operationId: "operation_rotate_01",
+    action: "rotate",
+    status: "applied",
+    credentialHandle: `kcred_${"b".repeat(26)}`,
+    revision: 5,
+  },
+
+  kaanaCredentialConflictOutcomeSchema: {
+    schemaVersion: 1,
+    operationId: "operation_create_conflict_01",
+    action: "create",
+    status: "conflict",
+  },
+
+  kaanaCredentialValidationTaskSchema: {
+    schemaVersion: 1,
+    operationId: "operation_validate_01",
+    provider: "anthropic",
+    ownerAccountId: "acc_customer_01",
+    connectionId: "conn_customer_01",
+    environment: "production",
+    applicationId: "app_alia_prod",
+    credentialHandle: `kcred_${"d".repeat(26)}`,
+    credentialRevision: 6,
+    deploymentId: "dep_anthropic_usw2_opus5",
+  },
+
+  kaanaCredentialValidationOutcomeSchema: {
+    schemaVersion: 1,
+    operationId: "operation_validate_01",
+    provider: "anthropic",
+    ownerAccountId: "acc_customer_01",
+    connectionId: "conn_customer_01",
+    environment: "production",
+    applicationId: "app_alia_prod",
+    credentialHandle: `kcred_${"d".repeat(26)}`,
+    credentialRevision: 6,
+    deploymentId: "dep_anthropic_usw2_opus5",
+    state: "valid",
+  },
+
+  providerCredentialValidationOperationSchema: {
+    schemaVersion: 1,
+    operationId: "operation_validate_01",
+    connectionId: "conn_customer_01",
+    applicationId: "app_alia_prod",
+    deploymentId: "dep_anthropic_usw2_opus5",
+    state: "valid",
+    createdAt: "2026-08-15T08:00:00.000Z",
+    completedAt: "2026-08-15T08:00:01.000Z",
+  },
+
+  inboxInferenceTextResponseSchema: {
+    schemaVersion: 1,
+    requestId: "req_inbox_compose_01",
+    generationId: "gen_inbox_compose_01",
+    text: "Thanks for the update. I will review it today.",
   },
 
   billingProfileSchema: {
     schemaVersion: 1,
-    accountId: 'acc_01H8Z9QK7M',
-    currency: 'USD',
-    billingMode: 'prepaid',
-    status: 'active',
-    creditLimit: '0',
-    autoRecharge: { enabled: true, threshold: '10.000000000000', amount: '50.000000000000' },
-    createdAt: '2026-08-01T10:00:00.000Z',
-    updatedAt: '2026-08-15T09:41:03.100Z',
+    accountId: "acc_01H8Z9QK7M",
+    currency: "USD",
+    billingMode: "prepaid",
+    status: "active",
+    creditLimit: "0",
+    autoRecharge: {
+      enabled: true,
+      threshold: "10.000000000000",
+      amount: "50.000000000000",
+    },
+    createdAt: "2026-08-01T10:00:00.000Z",
+    updatedAt: "2026-08-15T09:41:03.100Z",
   },
 
   accountBillingStateSchema: {
     schemaVersion: 1,
     // The project asked about; the organization that actually pays.
-    accountId: 'acc_project_codea',
-    billingAccountId: 'acc_01H8Z9QK7M',
+    accountId: "acc_project_codea",
+    billingAccountId: "acc_01H8Z9QK7M",
     inherited: true,
     profile: {
       schemaVersion: 1,
-      accountId: 'acc_01H8Z9QK7M',
-      currency: 'USD',
-      billingMode: 'prepaid',
-      status: 'active',
-      creditLimit: '0',
+      accountId: "acc_01H8Z9QK7M",
+      currency: "USD",
+      billingMode: "prepaid",
+      status: "active",
+      creditLimit: "0",
       autoRecharge: { enabled: false },
-      createdAt: '2026-08-01T10:00:00.000Z',
-      updatedAt: '2026-08-15T09:41:03.100Z',
+      createdAt: "2026-08-01T10:00:00.000Z",
+      updatedAt: "2026-08-15T09:41:03.100Z",
     },
   },
 
   billingInvoiceSchema: {
     schemaVersion: 1,
-    id: 'binv_01H8Z9X5GG',
-    accountId: 'acc_01H8Z9QK7M',
-    currency: 'USD',
-    periodStart: '2026-07-01T00:00:00.000Z',
-    periodEnd: '2026-08-01T00:00:00.000Z',
-    status: 'open',
+    id: "binv_01H8Z9X5GG",
+    accountId: "acc_01H8Z9QK7M",
+    currency: "USD",
+    periodStart: "2026-07-01T00:00:00.000Z",
+    periodEnd: "2026-08-01T00:00:00.000Z",
+    status: "open",
     // Exact to full scale; the total is what was actually charged.
-    subtotalAmount: '3.703701000000',
-    totalAmount: '3.700000000000',
+    subtotalAmount: "3.703701000000",
+    totalAmount: "3.700000000000",
     minorUnitExponent: 2,
-    externalInvoiceRef: 'in_1PqRsTuVwXyZ',
-    issuedAt: '2026-08-01T00:05:00.000Z',
+    externalInvoiceRef: "in_1PqRsTuVwXyZ",
+    issuedAt: "2026-08-01T00:05:00.000Z",
     receiptCount: 4821,
   },
 
   autoRechargeAttemptSchema: {
     schemaVersion: 1,
-    id: 'arch_01H8Z9X6HH',
-    accountId: 'acc_01H8Z9QK7M',
-    currency: 'USD',
-    requestedAmount: '50.000000000000',
-    balanceAtTrigger: '8.220000000000',
-    status: 'succeeded',
-    externalRef: 'pi_1PqRsTuVwXyZ',
-    createdAt: '2026-08-15T09:41:03.100Z',
-    updatedAt: '2026-08-15T09:41:04.100Z',
+    id: "arch_01H8Z9X6HH",
+    accountId: "acc_01H8Z9QK7M",
+    currency: "USD",
+    requestedAmount: "50.000000000000",
+    balanceAtTrigger: "8.220000000000",
+    status: "succeeded",
+    externalRef: "pi_1PqRsTuVwXyZ",
+    createdAt: "2026-08-15T09:41:03.100Z",
+    updatedAt: "2026-08-15T09:41:04.100Z",
   },
 
   reconciliationRunSchema: {
     schemaVersion: 1,
-    id: 'brun_01H8Z9X7II',
-    provider: 'stripe',
-    accountId: 'acc_01H8Z9QK7M',
-    currency: 'USD',
-    periodStart: '2026-08-14T00:00:00.000Z',
-    periodEnd: '2026-08-15T00:00:00.000Z',
-    status: 'completed',
-    ledgerTotal: '412.180000000000',
-    externalTotal: '462.180000000000',
+    id: "brun_01H8Z9X7II",
+    provider: "stripe",
+    accountId: "acc_01H8Z9QK7M",
+    currency: "USD",
+    periodStart: "2026-08-14T00:00:00.000Z",
+    periodEnd: "2026-08-15T00:00:00.000Z",
+    status: "completed",
+    ledgerTotal: "412.180000000000",
+    externalTotal: "462.180000000000",
     discrepancyCount: 1,
-    startedAt: '2026-08-15T01:00:00.000Z',
-    completedAt: '2026-08-15T01:00:07.000Z',
+    startedAt: "2026-08-15T01:00:00.000Z",
+    completedAt: "2026-08-15T01:00:07.000Z",
   },
 
   reconciliationDiscrepancySchema: {
     schemaVersion: 1,
-    id: 'bdis_01H8Z9X8JJ',
-    runId: 'brun_01H8Z9X7II',
+    id: "bdis_01H8Z9X8JJ",
+    runId: "brun_01H8Z9X7II",
     // The one that costs a CUSTOMER: they paid and have no balance.
-    kind: 'missing_in_ledger',
-    accountId: 'acc_01H8Z9QK7M',
-    externalRef: 'pi_1PqRsTuVwXyZ',
-    externalAmount: '50.000000000000',
-    currency: 'USD',
-    createdAt: '2026-08-15T01:00:06.000Z',
+    kind: "missing_in_ledger",
+    accountId: "acc_01H8Z9QK7M",
+    externalRef: "pi_1PqRsTuVwXyZ",
+    externalAmount: "50.000000000000",
+    currency: "USD",
+    createdAt: "2026-08-15T01:00:06.000Z",
   },
 
   reconciliationReportSchema: {
     schemaVersion: 1,
     run: {
       schemaVersion: 1,
-      id: 'brun_01H8Z9X7II',
-      provider: 'stripe',
-      accountId: 'acc_01H8Z9QK7M',
-      currency: 'USD',
-      periodStart: '2026-08-14T00:00:00.000Z',
-      periodEnd: '2026-08-15T00:00:00.000Z',
-      status: 'completed',
-      ledgerTotal: '412.180000000000',
-      externalTotal: '462.180000000000',
+      id: "brun_01H8Z9X7II",
+      provider: "stripe",
+      accountId: "acc_01H8Z9QK7M",
+      currency: "USD",
+      periodStart: "2026-08-14T00:00:00.000Z",
+      periodEnd: "2026-08-15T00:00:00.000Z",
+      status: "completed",
+      ledgerTotal: "412.180000000000",
+      externalTotal: "462.180000000000",
       discrepancyCount: 1,
-      startedAt: '2026-08-15T01:00:00.000Z',
-      completedAt: '2026-08-15T01:00:07.000Z',
+      startedAt: "2026-08-15T01:00:00.000Z",
+      completedAt: "2026-08-15T01:00:07.000Z",
     },
     discrepancies: [
       {
         schemaVersion: 1,
-        id: 'bdis_01H8Z9X8JJ',
-        runId: 'brun_01H8Z9X7II',
-        kind: 'missing_in_ledger',
-        accountId: 'acc_01H8Z9QK7M',
-        externalRef: 'pi_1PqRsTuVwXyZ',
-        externalAmount: '50.000000000000',
-        currency: 'USD',
-        createdAt: '2026-08-15T01:00:06.000Z',
+        id: "bdis_01H8Z9X8JJ",
+        runId: "brun_01H8Z9X7II",
+        kind: "missing_in_ledger",
+        accountId: "acc_01H8Z9QK7M",
+        externalRef: "pi_1PqRsTuVwXyZ",
+        externalAmount: "50.000000000000",
+        currency: "USD",
+        createdAt: "2026-08-15T01:00:06.000Z",
       },
     ],
   },
 
   costCenterSchema: {
     schemaVersion: 1,
-    accountId: 'acc_project_codea',
-    slug: 'codea',
-    label: 'Codea',
-    status: 'active',
-    createdAt: '2026-08-01T10:00:00.000Z',
-    updatedAt: '2026-08-01T10:00:00.000Z',
+    accountId: "acc_project_codea",
+    slug: "codea",
+    label: "Codea",
+    status: "active",
+    createdAt: "2026-08-01T10:00:00.000Z",
+    updatedAt: "2026-08-01T10:00:00.000Z",
   },
 
   costCenterSpendSchema: {
     schemaVersion: 1,
     costCenter: {
       schemaVersion: 1,
-      accountId: 'acc_project_codea',
-      slug: 'codea',
-      label: 'Codea',
-      status: 'active',
-      createdAt: '2026-08-01T10:00:00.000Z',
-      updatedAt: '2026-08-01T10:00:00.000Z',
+      accountId: "acc_project_codea",
+      slug: "codea",
+      label: "Codea",
+      status: "active",
+      createdAt: "2026-08-01T10:00:00.000Z",
+      updatedAt: "2026-08-01T10:00:00.000Z",
     },
-    currency: 'USD',
-    periodStart: '2026-07-01T00:00:00.000Z',
-    periodEnd: '2026-08-01T00:00:00.000Z',
-    billedAmount: '412.180000000000',
+    currency: "USD",
+    periodStart: "2026-07-01T00:00:00.000Z",
+    periodEnd: "2026-08-01T00:00:00.000Z",
+    billedAmount: "412.180000000000",
     requestCount: 4821,
   },
 
   productEntitlementSchema: {
     schemaVersion: 1,
-    accountId: 'acc_01H8Z9QK7M',
+    accountId: "acc_01H8Z9QK7M",
     plan: {
-      id: 'bsub_01H8Z9X9KK',
-      name: 'Pro',
-      status: 'active',
+      id: "bsub_01H8Z9X9KK",
+      name: "Pro",
+      status: "active",
       live: true,
-      currentPeriodStart: '2026-08-01T00:00:00.000Z',
-      currentPeriodEnd: '2026-09-01T00:00:00.000Z',
+      currentPeriodStart: "2026-08-01T00:00:00.000Z",
+      currentPeriodEnd: "2026-09-01T00:00:00.000Z",
       cancelAtPeriodEnd: false,
-      allowances: [{ key: 'api_credits_monthly', included: 10000 }],
+      allowances: [{ key: "api_credits_monthly", included: 10000 }],
     },
     // Integer counts. Never in the same field as the exact decimals below.
     allowances: [
-      { key: 'api_credits_free', included: 1000, remaining: 640 },
-      { key: 'api_credits_monthly', included: 10000 },
+      { key: "api_credits_free", included: 1000, remaining: 640 },
+      { key: "api_credits_monthly", included: 10000 },
     ],
     payAsYouGo: {
-      billingAccountId: 'acc_01H8Z9QK7M',
-      currency: 'USD',
-      billingMode: 'prepaid',
-      purchasedBalance: '412.180000000000',
-      promotionalBalance: '25.000000000000',
-      availableToSpend: '437.180000000000',
+      billingAccountId: "acc_01H8Z9QK7M",
+      currency: "USD",
+      billingMode: "prepaid",
+      purchasedBalance: "412.180000000000",
+      promotionalBalance: "25.000000000000",
+      availableToSpend: "437.180000000000",
       canSpend: true,
     },
     costCenter: null,
-    resolvedAt: '2026-08-15T09:41:03.100Z',
+    resolvedAt: "2026-08-15T09:41:03.100Z",
   },
 
   inferenceErrorSchema: {
     schemaVersion: 1,
-    code: 'insufficient_balance',
-    message: 'The account balance does not cover the maximum cost of this request.',
+    code: "insufficient_balance",
+    message:
+      "The account balance does not cover the maximum cost of this request.",
     retryable: false,
-    requestId: 'req_01H8Z9T6NB',
+    requestId: "req_01H8Z9T6NB",
   },
 
   aliaModelReleaseManifestSchema: ALIA_RELEASE_MANIFEST,
@@ -1038,44 +1217,44 @@ const FIXTURES: Record<string, unknown> = {
 
   modelReleaseIngestionResultSchema: {
     schemaVersion: 1,
-    releaseId: 'arel_01H8ZA1000',
-    modelId: 'alia/alia-2',
-    revision: '2026-08-01',
-    reference: 'alia/alia-2@2026-08-01',
-    outcome: 'ingested',
+    releaseId: "arel_01H8ZA1000",
+    modelId: "alia/alia-2",
+    revision: "2026-08-01",
+    reference: "alia/alia-2@2026-08-01",
+    outcome: "ingested",
     artifactCount: 2,
     signatureCount: 1,
     evaluationCount: 1,
-    ingestedAt: '2026-08-17T08:15:00.000Z',
+    ingestedAt: "2026-08-17T08:15:00.000Z",
   },
 
   modelDocumentationSchema: {
     schemaVersion: 1,
-    modelId: 'alia/alia-2',
-    revision: '2026-08-01',
-    reference: 'alia/alia-2@2026-08-01',
+    modelId: "alia/alia-2",
+    revision: "2026-08-01",
+    reference: "alia/alia-2@2026-08-01",
     isCurrentRevision: true,
-    releasedAt: '2026-08-16T12:00:00.000Z',
-    modelCardUrl: 'https://alia.onl/models/alia-2/card',
-    artifactDigest: `sha256:${'b'.repeat(64)}`,
+    releasedAt: "2026-08-16T12:00:00.000Z",
+    modelCardUrl: "https://alia.onl/models/alia-2/card",
+    artifactDigest: `sha256:${"b".repeat(64)}`,
     license: {
-      licenseId: 'LicenseRef-Alia-Community-1.0',
-      displayName: 'Alia community licence 1.0',
-      url: 'https://alia.onl/licence',
+      licenseId: "LicenseRef-Alia-Community-1.0",
+      displayName: "Alia community licence 1.0",
+      url: "https://alia.onl/licence",
       commercialUseAllowed: true,
       requiresAttribution: true,
     },
     provenance: {
-      releaseKind: 'first_party_derived',
-      baseModelId: 'meta/llama-3.1-70b',
-      trainingOrganization: 'Alia',
+      releaseKind: "first_party_derived",
+      baseModelId: "meta/llama-3.1-70b",
+      trainingOrganization: "Alia",
     },
-    evaluations: [{ suite: 'mmlu-pro', metric: 'accuracy', score: '71.2%' }],
+    evaluations: [{ suite: "mmlu-pro", metric: "accuracy", score: "71.2%" }],
     safety: {
-      safetyCardUrl: 'https://alia.onl/models/alia-2/safety',
-      contentFilteringDefault: 'strict',
-      knownLimitations: ['Weaker on languages outside its training mix.'],
-      provenanceMarking: 'c2pa',
+      safetyCardUrl: "https://alia.onl/models/alia-2/safety",
+      contentFilteringDefault: "strict",
+      knownLimitations: ["Weaker on languages outside its training mix."],
+      provenanceMarking: "c2pa",
     },
     // The Annex XII half only. Training compute, training time, energy and the
     // adversarial-testing report are Annex XI Section 2 / Article 55(1)(a) and
@@ -1097,19 +1276,19 @@ const FIXTURES: Record<string, unknown> = {
 
 /* -------------------------------------------------------------------------- */
 
-describe('inference contract versioning', () => {
-  it('exposes the contract-set version the two planes handshake on', () => {
+describe("inference contract versioning", () => {
+  it("exposes the contract-set version the two planes handshake on", () => {
     // MAJOR: terminal reports and partial usage events now require the exact
     // deployment identity and each message moved to schemaVersion 2. A v1
     // producer cannot provide evidence safe enough to settle after failover.
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe('2.0.0');
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe("2.0.0");
   });
 
-  it('matches the frozen schema version map exactly', () => {
+  it("matches the frozen schema version map exactly", () => {
     expect(censusVersioned).toEqual(FROZEN_SCHEMA_VERSIONS);
   });
 
-  it('carries every version in the parsed data, not in a comment', () => {
+  it("carries every version in the parsed data, not in a comment", () => {
     for (const [name, expected] of Object.entries(FROZEN_SCHEMA_VERSIONS)) {
       const parsed = censusVersionedSchemas[name].parse(FIXTURES[name]) as {
         schemaVersion: number;
@@ -1118,29 +1297,34 @@ describe('inference contract versioning', () => {
     }
   });
 
-  it('rejects a message declaring a version this build does not implement', () => {
+  it("rejects a message declaring a version this build does not implement", () => {
     for (const [name, schema] of Object.entries(censusVersionedSchemas)) {
-      const bumped = { ...(FIXTURES[name] as Record<string, unknown>), schemaVersion: 99 };
+      const bumped = {
+        ...(FIXTURES[name] as Record<string, unknown>),
+        schemaVersion: 99,
+      };
       expect(schema.safeParse(bumped).success).toBe(false);
     }
   });
 });
 
-describe('inference contract census', () => {
-  it('scans every module in src/inference', () => {
-    const files = readdirSync(join(__dirname, '..', 'inference'))
-      .filter((file) => file.endsWith('.ts'))
-      .map((file) => file.replace(/\.ts$/, ''))
+describe("inference contract census", () => {
+  it("scans every module in src/inference", () => {
+    const files = readdirSync(join(__dirname, "..", "inference"))
+      .filter((file) => file.endsWith(".ts"))
+      .map((file) => file.replace(/\.ts$/, ""))
       .sort();
 
     expect(files).toEqual(Object.keys(INFERENCE_MODULES).sort());
   });
 
-  it('classifies every exported object schema as versioned or embedded', () => {
-    expect(censusEmbedded.slice().sort()).toEqual(FROZEN_EMBEDDED_SHAPES.slice().sort());
+  it("classifies every exported object schema as versioned or embedded", () => {
+    expect(censusEmbedded.slice().sort()).toEqual(
+      FROZEN_EMBEDDED_SHAPES.slice().sort(),
+    );
   });
 
-  it('holds the set of exported unions as an exact equality too', () => {
+  it("holds the set of exported unions as an exact equality too", () => {
     // The third classification. Without this, a union is the one shape a new
     // contract addition can take and be frozen by nothing.
     expect(
@@ -1151,7 +1335,7 @@ describe('inference contract census', () => {
     ).toEqual(FROZEN_UNION_SHAPES.slice().sort());
   });
 
-  it('found the shapes it claims to have scanned', () => {
+  it("found the shapes it claims to have scanned", () => {
     // Vacuity floor: a census whose `instanceof` checks silently stopped
     // matching would report an empty world, and every "no unversioned shape
     // found" assertion above would pass for the wrong reason.
@@ -1160,20 +1344,22 @@ describe('inference contract census', () => {
     expect(censusUnions.length).toBeGreaterThanOrEqual(8);
   });
 
-  it('holds a realistic fixture for every versioned shape', () => {
+  it("holds a realistic fixture for every versioned shape", () => {
     // Compared against what the census FOUND, not against the frozen map, so
     // this fires on a new shape independently of the snapshot being updated.
-    expect(Object.keys(FIXTURES).sort()).toEqual(Object.keys(censusVersioned).sort());
+    expect(Object.keys(FIXTURES).sort()).toEqual(
+      Object.keys(censusVersioned).sort(),
+    );
   });
 
-  it('round-trips every versioned shape', () => {
+  it("round-trips every versioned shape", () => {
     for (const [name, schema] of Object.entries(censusVersionedSchemas)) {
       const parsed = schema.parse(FIXTURES[name]);
       expect(schema.parse(parsed)).toEqual(parsed);
     }
   });
 
-  it('lets no union smuggle in an unregistered versioned option', () => {
+  it("lets no union smuggle in an unregistered versioned option", () => {
     const registered = new Set(Object.values(censusVersionedSchemas));
     for (const union of censusUnions) {
       for (const option of union.options) {
@@ -1183,7 +1369,7 @@ describe('inference contract census', () => {
     }
   });
 
-  it('builds the stream union out of exactly the seven exported events', () => {
+  it("builds the stream union out of exactly the seven exported events", () => {
     const options = streamEvents.inferenceStreamEventSchema.options;
     expect(options).toEqual([
       streamEvents.inferenceStreamStartEventSchema,
@@ -1197,54 +1383,61 @@ describe('inference contract census', () => {
   });
 });
 
-describe('inference contract negative cases', () => {
-  it('rejects a floating-point money amount instead of rounding it', () => {
+describe("inference contract negative cases", () => {
+  it("rejects a floating-point money amount instead of rounding it", () => {
     // ADR 0009: money is an exact decimal, and a JS number cannot be one.
     expect(money.exactDecimalSchema.safeParse(18.06).success).toBe(false);
 
     const receipt = FIXTURES.usageReceiptSchema as Record<string, unknown>;
-    expect(usage.usageReceiptSchema.safeParse({ ...receipt, billedAmount: 18.06 }).success).toBe(
-      false,
-    );
     expect(
-      usage.usageReceiptSchema.safeParse({ ...receipt, billedAmount: '0.0054960000001' }).success,
+      usage.usageReceiptSchema.safeParse({ ...receipt, billedAmount: 18.06 })
+        .success,
+    ).toBe(false);
+    expect(
+      usage.usageReceiptSchema.safeParse({
+        ...receipt,
+        billedAmount: "0.0054960000001",
+      }).success,
     ).toBe(false);
   });
 
-  it('rejects a price written as a float or in exponent form', () => {
-    expect(money.exactDecimalSchema.safeParse('3.00').success).toBe(true);
+  it("rejects a price written as a float or in exponent form", () => {
+    expect(money.exactDecimalSchema.safeParse("3.00").success).toBe(true);
     expect(money.exactDecimalSchema.safeParse(3.0).success).toBe(false);
-    expect(money.exactDecimalSchema.safeParse('1e-6').success).toBe(false);
+    expect(money.exactDecimalSchema.safeParse("1e-6").success).toBe(false);
   });
 
-  it('refuses a billing principal that carries a delegated user id', () => {
+  it("refuses a billing principal that carries a delegated user id", () => {
     expect(
       attribution.billingPrincipalSchema.safeParse({
-        accountId: 'acc_01H8Z9QK7M',
-        userId: 'usr_01H8Z9S4KP',
+        accountId: "acc_01H8Z9QK7M",
+        userId: "usr_01H8Z9S4KP",
       }).success,
     ).toBe(false);
   });
 
-  it('refuses a BYOK connection payload carrying credential material', () => {
-    const connection = FIXTURES.providerConnectionSchema as Record<string, unknown>;
+  it("refuses a BYOK connection payload carrying credential material", () => {
+    const connection = FIXTURES.providerConnectionSchema as Record<
+      string,
+      unknown
+    >;
 
     expect(
       providerConnection.providerConnectionSchema.safeParse({
         ...connection,
-        apiKey: 'sk-live-4f9c2a7b1e6d8f3a5c0b',
+        apiKey: "sk-live-4f9c2a7b1e6d8f3a5c0b",
       }).success,
     ).toBe(false);
 
     expect(
       providerConnection.providerConnectionSchema.safeParse({
         ...connection,
-        secretRef: 'sk-live-4f9c2a7b1e6d8f3a5c0b',
+        secretRef: "sk-live-4f9c2a7b1e6d8f3a5c0b",
       }).success,
     ).toBe(false);
   });
 
-  it('refuses a contradictory routing policy', () => {
+  it("refuses a contradictory routing policy", () => {
     const policy = FIXTURES.routingPolicySchema as Record<string, unknown>;
 
     expect(
@@ -1253,7 +1446,7 @@ describe('inference contract negative cases', () => {
         fallback: {
           disabled: true,
           sameModelDeployment: false,
-          authorizedCrossModel: ['openai/gpt-5'],
+          authorizedCrossModel: ["openai/gpt-5"],
         },
       }).success,
     ).toBe(false);
@@ -1262,56 +1455,70 @@ describe('inference contract negative cases', () => {
       routingPolicy.routingPolicySchema.safeParse({
         ...policy,
         oxyHostedOnly: true,
-        byokPreference: 'require',
+        byokPreference: "require",
       }).success,
     ).toBe(false);
 
     expect(
       routingPolicy.routingPolicySchema.safeParse({
         ...policy,
-        providerAllowlist: ['anthropic'],
-        providerDenylist: ['anthropic'],
+        providerAllowlist: ["anthropic"],
+        providerDenylist: ["anthropic"],
       }).success,
     ).toBe(false);
   });
 
-  it('refuses an unknown error code', () => {
+  it("refuses an unknown error code", () => {
     const error = FIXTURES.inferenceErrorSchema as Record<string, unknown>;
 
-    expect(errors.inferenceErrorSchema.safeParse({ ...error, code: 'teapot' }).success).toBe(
-      false,
-    );
+    expect(
+      errors.inferenceErrorSchema.safeParse({ ...error, code: "teapot" })
+        .success,
+    ).toBe(false);
     expect(errors.inferenceErrorSchema.safeParse(error).success).toBe(true);
   });
 
-  it('refuses to publish a model catalogue entry through an unversioned parse', () => {
+  it("refuses to publish a model catalogue entry through an unversioned parse", () => {
     const entry = FIXTURES.modelCatalogueEntrySchema as Record<string, unknown>;
     const { schemaVersion, ...withoutVersion } = entry;
 
     expect(schemaVersion).toBe(2);
-    expect(catalogue.modelCatalogueEntrySchema.safeParse(withoutVersion).success).toBe(false);
+    expect(
+      catalogue.modelCatalogueEntrySchema.safeParse(withoutVersion).success,
+    ).toBe(false);
   });
 
-  it('keeps identifiers and references parsing as the grammar documents', () => {
-    expect(identifiers.modelReferenceSchema.safeParse('anthropic/claude-opus-5').success).toBe(
+  it("keeps identifiers and references parsing as the grammar documents", () => {
+    expect(
+      identifiers.modelReferenceSchema.safeParse("anthropic/claude-opus-5")
+        .success,
+    ).toBe(true);
+    expect(
+      identifiers.modelReferenceSchema.safeParse(
+        "anthropic/claude-opus-5@2026-05-01",
+      ).success,
+    ).toBe(true);
+    expect(
+      identifiers.modelReferenceSchema.safeParse("claude-opus-5").success,
+    ).toBe(false);
+    // A routing profile can never be written in the shape of a model id.
+    expect(
+      identifiers.routingProfileSlugSchema.safeParse("oxy/auto").success,
+    ).toBe(false);
+    expect(identifiers.routingProfileSlugSchema.safeParse("auto").success).toBe(
       true,
     );
-    expect(
-      identifiers.modelReferenceSchema.safeParse('anthropic/claude-opus-5@2026-05-01').success,
-    ).toBe(true);
-    expect(identifiers.modelReferenceSchema.safeParse('claude-opus-5').success).toBe(false);
-    // A routing profile can never be written in the shape of a model id.
-    expect(identifiers.routingProfileSlugSchema.safeParse('oxy/auto').success).toBe(false);
-    expect(identifiers.routingProfileSlugSchema.safeParse('auto').success).toBe(true);
   });
 
-  it('parses the request fixture through the package barrel as well as the module', () => {
+  it("parses the request fixture through the package barrel as well as the module", () => {
     // The barrel is what the data plane and Alia import. A schema that exists
     // in the module and is missing from `src/index.ts` is invisible to every
     // consumer.
     const exported = barrel as unknown as Record<string, unknown>;
 
-    expect(exported.inferenceRequestSchema).toBe(request.inferenceRequestSchema);
+    expect(exported.inferenceRequestSchema).toBe(
+      request.inferenceRequestSchema,
+    );
     for (const name of Object.keys(FROZEN_SCHEMA_VERSIONS)) {
       expect(exported[name]).toBe(censusVersionedSchemas[name]);
     }

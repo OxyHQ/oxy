@@ -14,7 +14,7 @@ import type { ModelCatalogueEntry, RoutingProfile } from '@oxyhq/contracts';
 // This replaces the hand-written `ModelStats`, which typed five fields the API
 // no longer serves at all — `tier`, `creditMultiplier`, `uptime`, `successRate`
 // and `isHealthy`. Those were literals in the retired static array, and three of
-// them describe deployment health, which Relay owns and the control plane cannot
+// them describe deployment health, which Kaana owns and the control plane cannot
 // answer (ADR 0006). A type that promises them is a type that will read
 // `undefined` as a real value the moment a model lands.
 //

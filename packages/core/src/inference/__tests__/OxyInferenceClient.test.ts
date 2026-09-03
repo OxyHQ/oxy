@@ -296,6 +296,22 @@ describe('OxyInferenceClient', () => {
             expect(answer.requestId).toBe('req-1');
         });
 
+        it('serializes an exact routing-profile ID byte-for-byte', async () => {
+            const { impl, calls } = stubFetch([{ status: 200, body: {} }]);
+            const client = new OxyInferenceClient({
+                credential: 'k',
+                baseURL: 'http://test.invalid',
+                fetch: impl,
+            });
+
+            await client.respond({ routingProfileId: ' profile-pk ', input: 'hello' });
+
+            expect(JSON.parse(String(calls[0].init.body))).toEqual({
+                routingProfileId: ' profile-pk ',
+                input: 'hello',
+            });
+        });
+
         it('carries the idempotency key and the delegated user in headers, not the body', async () => {
             const { impl, calls } = stubFetch([{ status: 200, body: {} }]);
             const client = new OxyInferenceClient({

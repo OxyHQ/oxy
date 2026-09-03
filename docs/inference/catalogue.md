@@ -6,13 +6,14 @@ developer-facing reading of
 [ADR 0008](../adr/0008-catalogue-concept-separation.md), which is the decision
 record.
 
-**Merged source publishes no model rows by itself.** The tables and read API
-exist, while `packages/api/scripts/seed-inference-catalogue.ts` seeds five
-publisher slugs and no models. The last production readback recorded here
-(2026-08-17) was empty; that is dated evidence, not a permanent assertion.
-Draft [#1147](https://github.com/OxyHQ/oxy/pull/1147) proposes the first exact
-routes and profiles but is not merged. Query the live audience before claiming
-that the catalogue is empty or available.
+**Merged source publishes no model rows merely by deploying the API.** The
+tables and read API exist; `seed-inference-catalogue.ts` seeds publisher slugs,
+while `bootstrap-kaana-catalogue.ts` is the separate reviewed, safe-by-default
+command for exact model, revision, deployment, pricing, score and routing-profile
+rows. It requires a fresh signed Kaana inventory and `APPLY=1`. The last
+production readback recorded here (2026-08-17) was empty; that is dated evidence,
+not a permanent assertion. Query the live audience before claiming that the
+catalogue is empty or available.
 
 No example model id on this page is a callability claim. The values below
 illustrate grammar; discover actual entries from the live audience-scoped read.

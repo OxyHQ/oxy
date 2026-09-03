@@ -68,18 +68,6 @@ export interface RequiredEnvVars {
   // deletions. Defaults to disabled; read per request in `routes/federation.ts`.
   FEDERATION_DOMAIN_PURGE_ENABLED?: string;
 
-  // Which managed secret store BYOK provider credentials are written to
-  // (`vault` | `kms` | `ssm` | `secretsmanager`). Issue #972 workstream 10.
-  //
-  // NOT a secret — it names a STORE, not a credential — so it belongs in the
-  // ECS task definition's plain environment, never in SSM, and it is absent from
-  // the `required` list below on purpose: unset simply means this deployment
-  // accepts no provider credentials, and `POST /inference/provider-connections/**`
-  // refuses with `503 provider_secret_store_unavailable`. Read per request by
-  // `services/providerSecretStore.ts`, which also documents what setting it
-  // would still NOT be enough to wire (no store client ships in this build).
-  INFERENCE_PROVIDER_SECRET_STORE?: string;
-
   // The inference platform's six rollout flags (issue #972 workstreams 16 and
   // 12). Declared, parsed and reported in ONE place — `config/rolloutFlags.ts` —
   // and readable at `GET /inference/admin/rollout`. None is a secret: each names
@@ -99,6 +87,9 @@ export interface RequiredEnvVars {
   // Independent production kill switch for constructing the signed Kaana hop.
   // Unset and unreadable values are disabled.
   INFERENCE_KAANA_EXECUTION?: string;
+  // Exact primary key of the Inbox product routing profile. Empty/unset keeps
+  // every Inbox point-inference operation fail-closed.
+  INBOX_INFERENCE_ROUTING_PROFILE_ID?: string;
   //  - whether this deployment may charge customers, as `<reason>:<YYYY-MM-DD>`.
   //    A bare `true` is REFUSED. Unset means SHADOW METERING: every request is
   //    priced and the amount recorded, and no reservation, receipt or balance
@@ -155,6 +146,12 @@ export interface RequiredEnvVars {
   //    data plane, not a broken boot. The data plane holds only the matching
   //    PUBLIC key and so cannot construct an envelope it would itself accept.
   KAANA_EDGE_SIGNING_PRIVATE_KEY?: string;
+
+  // Separate Ed25519 authority for create/rotate/revoke of customer credentials.
+  // This is service authentication, never provider key material. Both values
+  // are optional and fail closed; the private key is supplied through SSM.
+  KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID?: string;
+  KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY?: string;
 
   // Ed25519 authority for short-lived capability tickets and catalog receipts.
   // The key id is public and appears in the JWKS; only the private key belongs in SSM.

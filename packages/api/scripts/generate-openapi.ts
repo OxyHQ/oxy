@@ -651,6 +651,7 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
   'emailProxy.ts': ['/email/proxy'],
   'emailInbound.ts': ['/email/inbound'],
   'email.ts': ['/email'],
+  'inboxInference.ts': ['/email/ai'],
   'credits.ts': ['/credits'],
   'billing.ts': ['/billing'],
   'inferenceEdge.ts': ['/v1'],
@@ -659,14 +660,6 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
   'inferenceRoutingPolicies.ts': ['/inference/routing-policies'],
   'inferenceProviderConnections.ts': ['/inference/provider-connections'],
   'inferenceReporting.ts': ['/inference/reporting'],
-  // Mounted twice, and the two mounts STRADDLE the edge in `server.ts`: `/alia`
-  // at `:683`, the edge's `/v1` at `:690`, this router's `/v1` at `:701`. The
-  // entry sits after the edge because only the `/v1` mount can collide, and the
-  // edge must win it: `server.ts:695-700` states that what the proxy still owns
-  // under `/v1` is `/v1/voice/token` and `/v1/voice/transcribe`, and that
-  // `/v1/chat/completions` is no longer among them. First-wins in dispatch order
-  // reproduces exactly that.
-  'alia.ts': ['/alia', '/v1'],
   'platform-stats.ts': ['/platform-stats'],
   'topics.routes.ts': ['/topics'],
   'contacts.ts': ['/contacts'],
@@ -710,7 +703,6 @@ const TAG_GROUPS: Record<string, string> = {
   '/email/proxy': 'Email',
   '/email/inbound': 'Email',
   '/email': 'Email',
-  '/alia': 'AI',
   '/credits': 'Credits',
   '/billing': 'Billing',
   '/v1': 'Inference',
@@ -1564,12 +1556,8 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
 
   // Security inference.
   const security: Array<Record<string, string[]>> = [];
-  // Both of these mean "no user bearer reaches this route": the general service
-  // gate, and the inference route's own (`routes/alia.ts`, issue #981), which
-  // additionally requires the credential's application to be platform-trusted.
-  const isServiceOnly = middlewares.some(
-    (m) => m === 'serviceAuthMiddleware' || m === 'requireFirstPartyInferenceCaller'
-  );
+  // General service-only gates mean no user bearer reaches this route.
+  const isServiceOnly = middlewares.includes('serviceAuthMiddleware');
   // The public inference edge (`routes/inferenceEdge.ts`): `edgeGate` calls
   // `authenticateEdgeCaller`, which accepts an `oxy_sk_…` machine credential or
   // a first-party service token, and nothing else — a user session bearer is

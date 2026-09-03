@@ -92,28 +92,17 @@ Detail on each: [migration.md](./migration.md).
 
 ---
 
-## What will need a dated notice
+## The Alia proxy retirement is complete
 
-Nothing here has a date. Each line names who owes it and what event starts the
-clock.
+The caller census found that the Oxy proxy was an internal compatibility path,
+not a public API with independent consumers. Its point-inference callers were
+moved to authenticated Oxy endpoints backed by Kaana; legitimate Alia agent,
+chat and voice product callers remain direct Alia integrations.
 
-### The Alia proxy, now at `/alia/*`
-
-`POST /v1/chat/completions` is the Oxy inference edge as of workstream 4. The
-pre-existing proxy that forwarded a body to Alia on one shared `ALIA_API_KEY` is
-**unchanged and still reachable at `POST /alia/chat/completions`**, so every
-platform-trusted caller it served kept a working path, one base URL apart.
-
-`POST /v1/voice/token` and `POST /v1/voice/transcribe` still fall through to that
-proxy: ADR 0010 records that those are Alia *product* endpoints which happen to
-live under `/v1`, that they are not part of the inference edge, and that where
-they end up is workstream 14's decision.
-
-**Who is owed a notice:** the proxy's consumer set is knowable and small — only
-callers acting for a platform-trusted first-party or internal application can
-reach it at all — so this is the 90-day, addressed-by-name row rather than a
-public announcement. **Owed by:** workstream 14, when `Alia → data plane` is
-live. **Clock starts:** when Alia no longer needs the proxy.
+Oxy no longer mounts `/alia/*` or the legacy `/v1/voice/*` fallthrough and no
+runtime configuration requires `ALIA_API_KEY`. Negative route tests keep these
+paths closed so the shared-key proxy cannot reappear accidentally. The earlier
+notice plan is retained in Git history; there is no active notice clock.
 
 ### The `developer_api_keys` table — REMOVED
 

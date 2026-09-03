@@ -35,13 +35,13 @@ refused one — refusals being where a body is most tempting to log — sweeps e
 was called at all) and a positive control on the search itself (something that IS
 logged is found by the same pass).
 
-**Why provider-key custody does not authorize payload capture.** ADR 0019 gives
-provider credentials a narrow KMS boundary inside Kaana. That control task can
-encrypt provider-key bytes into Kaana PostgreSQL; it is not a general Oxy payload
-vault, and Kaana intentionally persists no prompt or completion. Oxy still has no
-approved capture store, retention key, redaction pipeline or read boundary.
-Reusing the provider-credential key or putting a payload key beside its
-ciphertext would collapse the separation this ADR requires.
+**Why provider-key custody does not authorize payload capture.**
+[ADR 0019](./0019-kaana-byok-custody.md) gives provider credentials a narrow KMS
+boundary inside Kaana. That control task can encrypt provider-key bytes into
+Kaana PostgreSQL; it is not a general payload vault, and Kaana intentionally
+persists no prompt or completion. A payload capture design still needs its own
+key boundary, access policy, retention store and deletion proof before it can
+write one row.
 
 Composed: building capture now would produce a table of customer prompts and model
 outputs, encrypted with a key reachable from the process that holds the
@@ -73,9 +73,8 @@ The four, stated as preconditions:
 3. **Encrypted with a dedicated key Oxy does not hold in PostgreSQL.** This is
    the blocking one. ADR 0019's Kaana KMS path is scoped only to provider
    credentials and authorizes no payload storage. A capture design needs its own
-   approved store, key policy and read boundary; until all three exist, this
-   precondition cannot be met and therefore neither can the decision be
-   revisited.
+   reviewed key, role, encryption context, storage/expiry path and read boundary;
+   until all exist, this precondition cannot be met.
 4. **Audited, and PII-redacted at the point of capture.** The audit pattern exists
    (`application_credential_audit_events`,
    `inference_provider_connection_audit_events`, both with database-level
@@ -96,11 +95,11 @@ be a dependency of the one status check `main` requires.
 
 ## Alternatives rejected
 
-**Build it now with a key in PostgreSQL, or in the task environment, "for now".**
-This is the option that always looks reasonable and is the actual failure — the
-same shape ADR 0013 rejected for BYOK credentials. "For now" outlives the person
-who wrote it, and a table of prompts is a larger and more attractive target than a
-column of provider keys.
+**Build it now with a key in PostgreSQL, in the task environment, or by reusing
+Kaana's customer-BYOK key "for now".** This is the option that always looks
+reasonable and is the actual failure. "For now" outlives the person who wrote
+it, and a table of prompts is a larger and more attractive target than the
+purpose-limited provider-key store.
 
 **Build the pipeline unencrypted and add encryption later.** The row written
 before the encryption lands is written in the clear and is not retroactively

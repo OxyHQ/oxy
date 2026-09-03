@@ -38,8 +38,12 @@ import {
   inferenceDeploymentRoutingScoreEvents,
   inferenceDeploymentRoutingScores,
   inferenceDeployments,
+  inferenceModelRevisions,
+  inferenceModels,
+  priceVersions,
 } from '../db/schema';
 import { violatesUniqueIndex } from '../utils/postgresErrors';
+import { composeModelReference } from './inferenceCatalogue.service';
 
 /** The four transitions this workflow offers, as the route layer names them. */
 export const DEPLOYMENT_PERMISSION_ACTIONS = [
@@ -139,7 +143,12 @@ export interface DeploymentRoutingScorecard {
   readonly reason: string;
 }
 
-const SERVING_AVAILABILITY_SCOPES = ['public_payg', 'oxy_hosted', 'internal_alia'] as const;
+const SERVING_AVAILABILITY_SCOPES = [
+  'public_payg',
+  'oxy_hosted',
+  'internal_alia',
+  'byok_only',
+] as const;
 const APPROVED_IDENTITY_CONFLICT =
   'This Kaana deploymentId already backs another approved catalogue row.';
 
@@ -182,6 +191,16 @@ function unavailableScorecardReason(
     return 'the balanced score evidence does not cover the configured minimum validity horizon';
   }
   return undefined;
+}
+
+function billingPriceVersionId(deployment: {
+  readonly availabilityScope: string;
+  readonly priceVersionId: string | null;
+  readonly platformFeePriceVersionId: string | null;
+}): string | null {
+  return deployment.availabilityScope === 'byok_only'
+    ? deployment.platformFeePriceVersionId
+    : deployment.priceVersionId;
 }
 
 /**
@@ -227,6 +246,7 @@ export async function setDeploymentRoutingScores(input: {
       .select({
         deploymentId: inferenceDeployments.internalRouteId,
         priceVersionId: inferenceDeployments.priceVersionId,
+        platformFeePriceVersionId: inferenceDeployments.platformFeePriceVersionId,
         status: inferenceDeployments.status,
         permissionState: inferenceDeployments.permissionState,
         availabilityScope: inferenceDeployments.availabilityScope,
@@ -240,7 +260,7 @@ export async function setDeploymentRoutingScores(input: {
         'This Kaana deploymentId maps to more than one catalogue row; authoring is refused until the identity collision is resolved.'
       );
     }
-    if (mapped[0].priceVersionId !== scorecard.price.priceVersionId) {
+    if (billingPriceVersionId(mapped[0]) !== scorecard.price.priceVersionId) {
       throw new DeploymentPermissionRefused(
         'The price score priceVersionId is not assigned to this exact Kaana deployment.'
       );
@@ -272,7 +292,7 @@ export async function setDeploymentRoutingScores(input: {
     for (const deployment of approvedServing) {
       const unavailable = unavailableScorecardReason(
         scorecard,
-        deployment.priceVersionId,
+        billingPriceVersionId(deployment),
         minimumValidUntil
       );
       if (unavailable !== undefined) {
@@ -425,6 +445,7 @@ export async function applyPermissionAction(
         legalReviewStatus: inferenceDeployments.legalReviewStatus,
         internalRouteId: inferenceDeployments.internalRouteId,
         priceVersionId: inferenceDeployments.priceVersionId,
+        platformFeePriceVersionId: inferenceDeployments.platformFeePriceVersionId,
         availabilityScope: inferenceDeployments.availabilityScope,
       })
       .from(inferenceDeployments)
@@ -492,8 +513,8 @@ export async function applyPermissionAction(
           );
         }
         if (
-          existing.priceVersionId === null ||
-          scorecard.priceVersionId !== existing.priceVersionId
+          billingPriceVersionId(existing) === null ||
+          scorecard.priceVersionId !== billingPriceVersionId(existing)
         ) {
           throw new DeploymentPermissionRefused(
             'This route cannot be approved until its price score names the current exact priceVersionId.'
@@ -572,5 +593,79 @@ export async function applyPermissionAction(
     const conflict = classifyDeploymentPermissionWriteError(error);
     if (conflict !== undefined) throw conflict;
     throw error;
+  });
+}
+
+export interface SetDeploymentPlatformFeePriceVersionInput {
+  readonly deploymentId: string;
+  readonly platformFeePriceVersionId: string;
+}
+
+/**
+ * Associate an existing immutable price version with a BYOK deployment.
+ *
+ * This deliberately creates no money and edits no price. It only writes the
+ * exact foreign-key pointer after proving the version describes this exact
+ * model revision and provider. Activation/effective-window checks remain in the
+ * edge, so a draft, inactive or future version cannot become chargeable merely
+ * by being associated here.
+ */
+export async function setDeploymentPlatformFeePriceVersion(
+  input: SetDeploymentPlatformFeePriceVersionInput
+): Promise<SetDeploymentPlatformFeePriceVersionInput> {
+  return getDb().transaction(async (tx) => {
+    const [deployment] = await tx
+      .select({
+        id: inferenceDeployments.id,
+        availabilityScope: inferenceDeployments.availabilityScope,
+        provider: inferenceDeployments.providerSlug,
+        modelRevisionId: inferenceDeployments.modelRevisionId,
+      })
+      .from(inferenceDeployments)
+      .where(eq(inferenceDeployments.id, input.deploymentId))
+      .for('update');
+    if (deployment === undefined) throw new DeploymentNotFoundError(input.deploymentId);
+    if (deployment.availabilityScope !== 'byok_only') {
+      throw new DeploymentPermissionRefused(
+        'A platform-fee price version may be associated only with a BYOK-only deployment.'
+      );
+    }
+
+    const [revision] = await tx
+      .select({ modelId: inferenceModels.modelId, revision: inferenceModelRevisions.revision })
+      .from(inferenceModelRevisions)
+      .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
+      .where(eq(inferenceModelRevisions.id, deployment.modelRevisionId));
+    const [price] = await tx
+      .select({
+        id: priceVersions.id,
+        modelReference: priceVersions.modelReference,
+        provider: priceVersions.provider,
+      })
+      .from(priceVersions)
+      .where(eq(priceVersions.id, input.platformFeePriceVersionId));
+    if (revision?.modelId === null || revision === undefined || price === undefined) {
+      throw new DeploymentPermissionRefused(
+        'The platform-fee price version must exist and name this exact deployment model revision and provider.'
+      );
+    }
+    const exactModelReference = composeModelReference(revision.modelId, revision.revision);
+    if (
+      price.modelReference !== exactModelReference ||
+      price.provider !== deployment.provider
+    ) {
+      throw new DeploymentPermissionRefused(
+        'The platform-fee price version must name this exact deployment model revision and provider.'
+      );
+    }
+
+    await tx
+      .update(inferenceDeployments)
+      .set({ platformFeePriceVersionId: price.id })
+      .where(eq(inferenceDeployments.id, deployment.id));
+    return {
+      deploymentId: deployment.id,
+      platformFeePriceVersionId: price.id,
+    };
   });
 }

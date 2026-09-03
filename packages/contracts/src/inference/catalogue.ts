@@ -41,6 +41,7 @@ import {
   modelSlugSchema,
   publisherSlugSchema,
   RESERVED_ALIA_PUBLISHER,
+  routingProfileIdSchema,
   routingProfileSlugSchema,
   sha256DigestSchema,
 } from './identifiers';
@@ -424,8 +425,10 @@ export const modelDeploymentSchema = z
       });
     }
 
-    // Pricing is what Oxy charges. A BYOK route bills the customer upstream and
-    // carries only a platform fee, which is not a per-unit model price.
+    // This public field is the upstream/model price Oxy charges. A BYOK route
+    // bills the customer upstream and keeps that field absent; Oxy's separately
+    // reviewed platform-fee version is internal billing configuration and never
+    // reuses this provider-price slot.
     if (deployment.priceVersionId !== undefined && deployment.availabilityScope === 'byok_only') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -459,7 +462,7 @@ export const routingProfileCandidateSchema = z
 export const routingProfileSchema = z.object({
   /** See `version.ts`: served on its own by the catalogue, so it is versioned. */
   schemaVersion: z.literal(1),
-  routingProfileId: z.string().min(1).max(128),
+  routingProfileId: routingProfileIdSchema,
   slug: routingProfileSlugSchema,
   displayName: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),

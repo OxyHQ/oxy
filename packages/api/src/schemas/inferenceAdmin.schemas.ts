@@ -97,6 +97,28 @@ export const permissionActionParams = deploymentParams.extend({
 
 export const permissionActionBody = z.object({ note: z.string().max(500).optional() }).strict();
 
+/** Existing immutable fee-version ID only; this surface never authors money. */
+export const platformFeePriceVersionBody = z
+  .object({
+    platformFeePriceVersionId: z
+      .string()
+      .min(1)
+      .max(128)
+      .refine((value) => value === value.trim(), 'price version identity must be exact'),
+  })
+  .strict();
+
+export const platformFeePriceVersionResponse = z
+  .object({
+    data: z
+      .object({
+        deploymentId: z.string().min(1).max(128),
+        platformFeePriceVersionId: z.string().min(1).max(128),
+      })
+      .strict(),
+  })
+  .strict();
+
 const routingScore = z.number().int().min(-1_000_000).max(1_000_000).nullable();
 const evidenceRef = z.string().trim().min(1).max(500);
 const instant = z.string().datetime({ offset: true });

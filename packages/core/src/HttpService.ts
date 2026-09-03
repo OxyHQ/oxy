@@ -1256,7 +1256,7 @@ export class HttpService {
    * "An object carrying `data` plus anything else is not an envelope" is the
    * tempting general rule, and it is wrong here: this API already answers
    * `{ data, count }` on ~15 routes, plus `{ data, source }`, `{ data, reason }`
-   * and `{ data, secretDestroyed }`, and a dozen measured Console call sites
+   * and `{ data, credentialRevoked }`, and a dozen measured Console call sites
    * type those as the bare payload (`Array<ProviderConnection>`,
    * `AccountBillingState | null`, …). Preserving those envelopes would hand every
    * one of them an object where it expects its payload — at runtime only, since

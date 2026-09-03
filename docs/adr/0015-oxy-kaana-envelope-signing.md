@@ -1,4 +1,4 @@
-# ADR 0015 — The Oxy → data plane envelope is signed with Ed25519 over the exact body; the data plane holds public keys only
+# ADR 0015 — The Oxy → Kaana envelope is signed with Ed25519 over the exact body; Kaana holds public keys only
 
 - Status: accepted
 - Date: 2026-08-17

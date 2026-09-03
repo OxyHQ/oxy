@@ -1183,7 +1183,7 @@ describe('a non-streaming request through the real client', () => {
       ]);
 
       const envelope = stub.received[0];
-      expect(envelope.schemaVersion).toBe(1);
+      expect(envelope.schemaVersion).toBe(2);
       expect(envelope.stream).toBe(false);
       expect(envelope.attribution.principal.billing.accountId).toBe(fixture.accountId);
       expect(envelope.attribution.principal.applicationId).toBe(fixture.applicationId);

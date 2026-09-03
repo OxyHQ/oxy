@@ -7,6 +7,9 @@
   never carried. The envelope description below is now the shape in
   `packages/contracts/src/inference/request.ts`, and the enforcement split it
   implies is stated rather than left to be inferred from two ADRs at once.
+- Amended: 2026-09-03 — the transitional Oxy-to-Alia proxy and its voice mounts
+  were removed. Alia product clients address Alia directly; Inbox point
+  inference uses the metered Oxy-to-Kaana edge.
 - Superseded in part: [ADR 0017](0017-authorized-routes-in-the-envelope.md)
   (2026-08-17) — the envelope now also carries `authorizedRoutes`, the ordered
   list of routes the customer's policy authorized. The 2026-08-16 amendment
@@ -21,7 +24,7 @@
 
 ## Context
 
-`/v1` on `api.oxy.so` is currently the Alia proxy. `app.use('/v1',
+At the time of this decision, `/v1` on `api.oxy.so` was the Alia proxy. `app.use('/v1',
 userRateLimiter, aliaRoutes)` (`packages/api/src/server.ts:647`) mounts three
 routes (`packages/api/src/routes/alia.ts`):
 
@@ -52,7 +55,7 @@ the shape it teaches — send the client id as the secret — is the one shape t
 must never start working.
 
 Two further constraints are already settled in this repo and bound this design.
-Streaming today is a straight `pipe` of the upstream SSE body
+Streaming at that time was a straight `pipe` of the upstream SSE body
 (`packages/api/src/routes/alia.ts:83-88`), which is the correct instinct and must
 survive. And the API's `{ data }` / `{ error, message }` envelope has exactly one
 existing exception — the OAuth token and userinfo endpoints, which speak RFC 6749
@@ -134,13 +137,16 @@ the customer used. Both public endpoints normalize into it, which is what keeps
 the compatibility surface from becoming a second data path.
 
 ```text
-InferenceEnvelope v1  (packages/contracts/src/inference/request.ts)
+InferenceEnvelope v2  (packages/contracts/src/inference/request.ts)
   schemaVersion     integer literal, per-shape (see version.ts)
   attribution       { principal { billing, applicationId, credentialId, environment,
                       inferenceScopes }, userId?, requestId, generationId? }   (ADR 0007)
-  target            { kind: 'model', modelReference } | { kind: 'routing_profile', … };
-                    the edge emits the model form, revision-pinned, even when the
-                    customer named only the model line
+  target            { kind: 'model', modelReference } |
+                    { kind: 'routing_profile_id', routingProfileId };
+                    the edge emits only an exact model reference or the opaque
+                    routing-profile primary key. A deprecated public profile slug
+                    is resolved uniquely before this envelope is built and never
+                    crosses the Oxy→Kaana boundary
   modality, input, stream, maxOutputTokens, sampling, tools, toolChoice?, responseFormat?
   client            { apiFormat, endpoint, clientRequestId?, receivedAt, labels? }
   idempotencyKey?   the customer's key, when the operation is safe to deduplicate
@@ -312,15 +318,15 @@ be forgotten, and only one of them would be well covered.
 
 ## Consequences
 
-- Retiring the Alia proxy is a customer-visible change to a live path. `/v1`
-  gains real credential authentication where it currently accepts a user session,
+- Retiring the Alia proxy was a customer-visible change to a live path. `/v1`
+  gained real credential authentication where it had accepted a user session,
   so first-party callers of the proxy — including the Console playground, which
   posts to `${config.oxyUrl}/v1/chat/completions`
   (`packages/console/src/routes/_layout/playground.tsx:148`) — migrate to a
   credential/environment selection rather than an ambient session.
-- `/v1/voice/token` and `/v1/voice/transcribe` are Alia product endpoints that
-  happen to live under `/v1` today. They are not part of the inference edge, and
-  where they end up is decided with workstream 14 rather than assumed here.
+- The transitional `/v1/voice/token` and `/v1/voice/transcribe` mounts were
+  removed from Oxy. Alia voice remains a product endpoint addressed directly by
+  Alia SDK clients, not part of the inference edge.
 - The Console authentication, quickstart, chat-completions and SDK documentation
   pages all currently teach a request that cannot work. Correcting them is part
   of this workstream's output, not a documentation follow-up.

@@ -727,10 +727,15 @@ fi
 # additive schema/API rollout and serving enforcement.
 workflow_file="$repository_root/.github/workflows/deploy-aws.yml"
 grep -F 'TASK_ENV_OVERRIDES_JSON: >-' "$workflow_file" >/dev/null
-grep -F '{"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","INFERENCE_KAANA_EXECUTION":"disabled"}' \
+grep -F '{"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","INBOX_INFERENCE_ROUTING_PROFILE_ID":"${{ vars.INBOX_INFERENCE_ROUTING_PROFILE_ID }}","INFERENCE_KAANA_EXECUTION":"disabled"}' \
   "$workflow_file" >/dev/null
 grep -F 'TASK_REMOVE_NAMES_JSON: >-' "$workflow_file" >/dev/null
-grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY"]' \
+# Historical removal receipt only: assert the deploy deletes these exact old
+# inference bindings. Their presence here does not make them accepted aliases.
+grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL"]' \
+  "$workflow_file" >/dev/null
+grep -F 'TASK_SECRET_OVERRIDES_JSON: >-' "$workflow_file" >/dev/null
+grep -F '"KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY"' \
   "$workflow_file" >/dev/null
 if grep -F 'PRE_DEPLOY_TASK_COMMAND_JSON:' "$workflow_file" >/dev/null; then
   echo "Phase A must not activate the inference routing readiness gate." >&2

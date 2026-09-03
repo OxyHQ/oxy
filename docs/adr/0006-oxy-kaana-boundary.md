@@ -28,19 +28,11 @@ actually charged. None of that needs to know who the customer is beyond an
 opaque identifier, and all of it is latency-critical in a way a control plane is
 not.
 
-**When this ADR was written the Kaana repository did not exist** — verified
-2026-08-15, `gh repo view OxyHQ/Kaana` returning `Could not resolve to a
-Repository with the name 'OxyHQ/Kaana'`. It exists now: public, Go, created
-2026-08-16T11:55:46Z, re-verified 2026-08-17 via `gh api repos/OxyHQ/Kaana`.
-
-That changes nothing about this ADR's decision, and the reason is worth keeping:
-workstream 13 is an *external dependency* of this epic rather than a task inside
-it, so the contracts in this ADR and in ADRs 0007–0010 were written to be
-implementable against a counterparty that did not exist, and the Oxy side had to
-be buildable and testable before it did. That history does not assert current
-deployment state: reachability must be read from the live Oxy gates, Kaana tasks
-and a signed request. The abstraction the constraint forced remains exactly as
-load-bearing.
+This boundary was deliberately specified before Oxy could rely on a live data
+plane. Kaana now exists as a separate repository, but production execution stays
+behind explicit deployment and rollout gates. The Oxy side must therefore remain
+testable against an injected client without treating repository existence as
+proof that end-to-end serving is live.
 
 `Kaana` is the production name — see ADR 0011, which is closed. The wire
 fields below stay role-named regardless — that is ADR 0010's rule, not a hedge
@@ -66,7 +58,7 @@ the value; only the owner may write it.
 | Customer balance, ledger, subscriptions, payments, invoices | **Oxy** | none |
 | Customer-visible usage and spend | **Oxy** | supplies technical usage; does not decide the charge |
 | Public API edge and developer experience | **Oxy** | none |
-| Routing *policy* (what a customer configured) | **Oxy** | consumes a versioned policy snapshot |
+| Routing *policy* (what a customer configured) | **Oxy** | consumes the pinned policy reference plus Oxy's ordered exact `authorizedRoutes`, never a policy snapshot |
 | Routing *execution* (which deployment served it) | **Kaana** | owns; reports the resolved route back |
 | Provider adapters, request translation, streaming, cancellation | **Kaana** | owns |
 | Provider health, circuit breakers, deployment inventory | **Kaana** | owns; exposes a customer-safe projection to Oxy |
@@ -74,8 +66,8 @@ the value; only the owner may write it.
 | Technical usage measurement (tokens, time, images) | **Kaana** | owns the measurement; Oxy owns the price |
 | Model catalogue *identity and pricing* (customer-facing) | **Oxy** | consumes canonical model ids |
 | Model catalogue *deployment availability* | **Kaana** | owns |
-| BYOK secret material | **Kaana PostgreSQL/KMS** | owns ciphertext and decrypts only on its inference path |
-| BYOK connection metadata (owner, scope, status) | **Oxy** | Kaana consumes an exact opaque handle and revision; Oxy cannot resolve either to plaintext |
+| BYOK secret material | **Kaana PostgreSQL encrypted with KMS** | owns ciphertext custody and decrypts only in the inference runtime; Oxy stores only an exact opaque handle/revision |
+| BYOK connection metadata (owner, scope, status) | **Oxy** | consumes |
 | Alia memory, agents, tools, product behavior | **Alia** | none |
 | Training and release of Alia-owned models | **Alia Models pipeline** | consumes published artifacts |
 
@@ -108,14 +100,16 @@ and Oxy stores no locator that can resolve it to provider material.
 
 ### What crosses the boundary
 
-- **Oxy → Kaana**, per request: the versioned internal envelope (ADR 0010),
-  carrying attribution (ADR 0007), the normalized request, the resolved routing
-  policy snapshot and its version, and the reservation ceiling (ADR 0009).
+- **Oxy → Kaana**, per request: `InferenceEnvelope v2` (ADR 0010), carrying
+  attribution (ADR 0007), the normalized request, an exact model or
+  `routing_profile_id` target, the pinned routing-policy reference and the
+  ordered exact `authorizedRoutes`. No policy snapshot or reservation ceiling
+  crosses the boundary.
 - **Oxy → Kaana**, on a BYOK control mutation: the signed exact connection
   identity, opaque handle/revision precondition and customer-supplied credential
   bytes. Kaana encrypts those bytes with KMS before storing ciphertext; Oxy does
-  not persist them. This boundary is accepted in ADR 0019 but remains a draft
-  implementation until its coordinated rollout gates pass.
+  not persist them. The control path is implemented, but normal inference
+  execution remains disabled until the production rollout gates pass.
 - **Kaana → Oxy**, per request: `requestId`, `generationId` where applicable, the
   resolved route in customer-safe form, normalized unit counts, a terminal
   status, and a typed error with a retryability classification.

@@ -32,7 +32,7 @@
  * docs/adr/0017-authorized-routes-in-the-envelope.md, issue #972 workstream 6.
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 import {
   deploymentIdSchema,
   inferenceProviderSlugSchema,
@@ -41,9 +41,14 @@ import {
   modelReferenceSchema,
   oxyAccountIdSchema,
   oxyApplicationIdSchema,
-  routingProfileSlugSchema,
-} from './identifiers';
-import { exactDecimalSchema, currencyCodeSchema, unitPriceSchema } from './money';
+  routingProfileIdSchema,
+} from "./identifiers";
+import { kaanaCredentialHandleSchema } from "./providerConnection";
+import {
+  exactDecimalSchema,
+  currencyCodeSchema,
+  unitPriceSchema,
+} from "./money";
 
 /**
  * What a policy resolves to when a caller names no model.
@@ -51,17 +56,17 @@ import { exactDecimalSchema, currencyCodeSchema, unitPriceSchema } from './money
  * A discriminated union rather than two optional fields, so "which one did the
  * customer configure" is never a question about which field is non-null.
  */
-export const routingTargetSchema = z.discriminatedUnion('kind', [
+export const routingTargetSchema = z.discriminatedUnion("kind", [
   z
     .object({
-      kind: z.literal('model'),
+      kind: z.literal("model"),
       modelReference: modelReferenceSchema,
     })
     .strict(),
   z
     .object({
-      kind: z.literal('routing_profile'),
-      routingProfile: routingProfileSlugSchema,
+      kind: z.literal("routing_profile_id"),
+      routingProfileId: routingProfileIdSchema,
     })
     .strict(),
 ]);
@@ -73,11 +78,13 @@ export const routingTargetSchema = z.discriminatedUnion('kind', [
  * the floor its applications inherit, and inheritance is resolved by the control
  * plane before a policy reaches the data plane.
  */
-export const routingPolicyScopeSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('account'), accountId: oxyAccountIdSchema }).strict(),
+export const routingPolicyScopeSchema = z.discriminatedUnion("kind", [
+  z
+    .object({ kind: z.literal("account"), accountId: oxyAccountIdSchema })
+    .strict(),
   z
     .object({
-      kind: z.literal('application'),
+      kind: z.literal("application"),
       accountId: oxyAccountIdSchema,
       applicationId: oxyApplicationIdSchema,
     })
@@ -111,7 +118,7 @@ export const routingFallbackPolicySchema = z
 export const routingPolicySchema = z
   .object({
     /** See `version.ts`: exchanged with the data plane on its own. */
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     routingPolicyId: z.string().min(1).max(128),
     policyVersion: z.number().int().positive().safe(),
     scope: routingPolicyScopeSchema,
@@ -137,7 +144,7 @@ export const routingPolicySchema = z
       .optional(),
 
     /** What to optimise for among the routes that qualify. */
-    optimiseFor: z.enum(['price', 'latency', 'throughput', 'balanced']),
+    optimiseFor: z.enum(["price", "latency", "throughput", "balanced"]),
 
     /** Serve only from Oxy's own hosting of open-weight models. */
     oxyHostedOnly: z.boolean(),
@@ -149,10 +156,10 @@ export const routingPolicySchema = z
     fallback: routingFallbackPolicySchema,
 
     /** Whether the customer's own provider credentials may or must be used. */
-    byokPreference: z.enum(['disabled', 'prefer', 'require']),
+    byokPreference: z.enum(["disabled", "prefer", "require"]),
 
     /** Enterprise reserved capacity rather than shared endpoints. */
-    dedicatedCapacity: z.enum(['disabled', 'prefer', 'require']),
+    dedicatedCapacity: z.enum(["disabled", "prefer", "require"]),
 
     updatedAt: inferenceTimestampSchema,
   })
@@ -168,7 +175,7 @@ export const routingPolicySchema = z
       if (denied.has(provider)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['providerAllowlist', index],
+          path: ["providerAllowlist", index],
           message: `provider ${provider} is both required by the allowlist and denied`,
         });
       }
@@ -179,7 +186,7 @@ export const routingPolicySchema = z
       if (deniedRegions.has(region)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['allowedRegions', index],
+          path: ["allowedRegions", index],
           message: `region ${region} is both allowed and denied`,
         });
       }
@@ -191,26 +198,32 @@ export const routingPolicySchema = z
     if (policy.fallback.disabled && policy.fallback.sameModelDeployment) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['fallback', 'sameModelDeployment'],
-        message: 'fallback is disabled, so same-model deployment failover cannot be enabled',
+        path: ["fallback", "sameModelDeployment"],
+        message:
+          "fallback is disabled, so same-model deployment failover cannot be enabled",
       });
     }
 
-    if (policy.fallback.disabled && policy.fallback.authorizedCrossModel.length > 0) {
+    if (
+      policy.fallback.disabled &&
+      policy.fallback.authorizedCrossModel.length > 0
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['fallback', 'authorizedCrossModel'],
-        message: 'fallback is disabled, so no cross-model fallback may be authorized',
+        path: ["fallback", "authorizedCrossModel"],
+        message:
+          "fallback is disabled, so no cross-model fallback may be authorized",
       });
     }
 
     // BYOK routes run on the customer's own upstream provider account, which is
     // by definition not Oxy's hosting.
-    if (policy.oxyHostedOnly && policy.byokPreference === 'require') {
+    if (policy.oxyHostedOnly && policy.byokPreference === "require") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['byokPreference'],
-        message: 'an Oxy-hosted-only policy cannot also require a customer provider credential',
+        path: ["byokPreference"],
+        message:
+          "an Oxy-hosted-only policy cannot also require a customer provider credential",
       });
     }
 
@@ -218,8 +231,8 @@ export const routingPolicySchema = z
     if (new Set(ceilingUnits).size !== ceilingUnits.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['maxPricePerUnit'],
-        message: 'a unit may carry only one price ceiling',
+        path: ["maxPricePerUnit"],
+        message: "a unit may carry only one price ceiling",
       });
     }
 
@@ -228,8 +241,9 @@ export const routingPolicySchema = z
         if (ceiling.currency !== policy.maxPricePerRequest.currency) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            path: ['maxPricePerUnit', index, 'currency'],
-            message: 'every price ceiling in one policy must use the same currency',
+            path: ["maxPricePerUnit", index, "currency"],
+            message:
+              "every price ceiling in one policy must use the same currency",
           });
         }
       }
@@ -278,6 +292,20 @@ const authorizedRouteFields = {
   modelReference: modelReferenceSchema,
   provider: inferenceProviderSlugSchema,
   regions: z.array(inferenceRegionSchema),
+  /**
+   * Exact customer credential binding. Absence means a platform credential;
+   * presence names the immutable Kaana generation this route may use.
+   */
+  customerProviderCredential: z
+    .object({
+      credentialHandle: kaanaCredentialHandleSchema,
+      credentialRevision: z.number().int().positive().safe(),
+      ownerAccountId: oxyAccountIdSchema,
+      connectionId: z.string().min(1).max(128),
+      environment: z.enum(["development", "staging", "production"]),
+    })
+    .strict()
+    .optional(),
 } as const;
 
 /**
@@ -302,11 +330,16 @@ const authorizedRouteFields = {
  *    the resulting route-switch event unreportable.
  */
 export const authorizedRouteSchema = z
-  .discriminatedUnion('substitution', [
-    z.object({ substitution: z.literal('same_model'), ...authorizedRouteFields }).strict(),
+  .discriminatedUnion("substitution", [
     z
       .object({
-        substitution: z.literal('cross_model'),
+        substitution: z.literal("same_model"),
+        ...authorizedRouteFields,
+      })
+      .strict(),
+    z
+      .object({
+        substitution: z.literal("cross_model"),
         ...authorizedRouteFields,
         /** Literal `true`: an unauthorized substitution cannot be expressed. */
         authorizedByPolicy: z.literal(true),
@@ -317,11 +350,12 @@ export const authorizedRouteSchema = z
     // Same rule as `modelDeploymentSchema`: a route serves specific weights. An
     // unpinned entry would leave the data plane choosing a revision, which is
     // the one substitution the customer never authorized by naming a model.
-    if (!route.modelReference.includes('@')) {
+    if (!route.modelReference.includes("@")) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['modelReference'],
-        message: 'an authorized route must pin an immutable revision (<publisher>/<model>@<revision>)',
+        path: ["modelReference"],
+        message:
+          "an authorized route must pin an immutable revision (<publisher>/<model>@<revision>)",
       });
     }
   });
@@ -330,5 +364,7 @@ export type RoutingTarget = z.infer<typeof routingTargetSchema>;
 export type RoutingPolicyScope = z.infer<typeof routingPolicyScopeSchema>;
 export type RoutingFallbackPolicy = z.infer<typeof routingFallbackPolicySchema>;
 export type RoutingPolicy = z.infer<typeof routingPolicySchema>;
-export type RoutingPolicyReference = z.infer<typeof routingPolicyReferenceSchema>;
+export type RoutingPolicyReference = z.infer<
+  typeof routingPolicyReferenceSchema
+>;
 export type AuthorizedRoute = z.infer<typeof authorizedRouteSchema>;

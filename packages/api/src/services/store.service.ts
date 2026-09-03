@@ -33,6 +33,7 @@ import { users } from '../db/schema/users';
 import { isUniqueViolation } from '@oxyhq/db';
 import { accountService } from './account.service';
 import { appPermissionsForAccountAccess } from '../utils/accountRoles';
+import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
 import {
   BadRequestError,
   ConflictError,
@@ -144,7 +145,7 @@ export async function listPublishedListings(options: {
       slug: row.slug,
       name: row.name,
       tagline: row.tagline,
-      icon: row.icon,
+      icon: row.icon === null ? null : stripSensitiveUrlQueryParams(row.icon),
       category: row.categorySlug ? { slug: row.categorySlug, label: row.categoryLabel! } : null,
       rating: ratings.get(row.applicationId) ?? { average: null, count: 0 },
     })),
@@ -206,7 +207,7 @@ export async function getPublishedListing(slug: string): Promise<StoreListingDet
     name: row.name,
     tagline: row.tagline,
     description: row.description,
-    icon: row.icon,
+    icon: row.icon === null ? null : stripSensitiveUrlQueryParams(row.icon),
     websiteUrl: row.websiteUrl,
     privacyPolicyUrl: row.privacyPolicyUrl,
     termsUrl: row.termsUrl,

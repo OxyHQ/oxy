@@ -11,17 +11,25 @@
  * stack trace. The strict parse is the boundary at which an unexpected shape
  * stops.
  *
- * The secret is `.max(4096)`: no provider issues a credential near that, and a
- * cap is what stops the field being used to post a payload. It has no `.min(8)`
- * or format rule — provider key formats are theirs to change, and a client
- * refused for a format Oxy guessed wrong is a support ticket with no security
- * benefit.
+ * The secret is capped at 4096 visible ASCII bytes. This is not a guessed
+ * provider prefix or token format: it is the common wire subset that Kaana can
+ * carry unchanged in `Authorization` and `x-api-key` over HTTP/1 and HTTP/2.
+ * Refusing control bytes, whitespace and non-ASCII here prevents a value Oxy
+ * accepted from later becoming a local transport failure in Kaana.
  *
  * Nothing here echoes the secret back. The response schema is
  * `providerConnectionSchema` from `@oxyhq/contracts`, which is `.strict()` and
  * declares no field a credential could occupy.
  */
 
+import {
+  deploymentIdSchema,
+  kaanaCredentialValidationOutcomeSchema,
+  kaanaCredentialHandleSchema,
+  kaanaCredentialOperationActionSchema,
+  oxyApplicationIdSchema,
+  providerConnectionSchema,
+} from '@oxyhq/contracts';
 import { z } from 'zod';
 
 /** An id in a path segment. Bounded so a pathological path is refused early. */
@@ -37,6 +45,12 @@ export const providerConnectionParams = z.object({ connectionId: idParam }).stri
 
 /** Environments a credential is issued into. Mirrors `inferenceEnvironmentSchema`. */
 export const providerConnectionEnvironment = z.enum(['development', 'staging', 'production']);
+
+const providerCredentialSecret = z
+  .string()
+  .min(1)
+  .max(4096)
+  .regex(/^[\x21-\x7E]+$/, 'secret must contain only visible ASCII bytes');
 
 /**
  * The credential itself, plus everything the row needs.
@@ -59,7 +73,7 @@ export const providerCredentialBody = z
       .regex(/^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/, 'provider must be a lowercase URL-safe slug'),
     environment: providerConnectionEnvironment,
     /** The customer's own upstream provider credential. Never stored, never logged. */
-    secret: z.string().min(1).max(4096),
+    secret: providerCredentialSecret,
     acknowledgeProviderTerms: z.boolean().default(false),
   })
   .strict();
@@ -75,7 +89,7 @@ export const providerConnectionAccountBody = providerCredentialBody
 
 /** The rotation body: a new credential and nothing else. */
 export const providerConnectionRotateBody = z
-  .object({ secret: z.string().min(1).max(4096) })
+  .object({ secret: providerCredentialSecret })
   .strict();
 
 /**
@@ -87,6 +101,8 @@ export const providerConnectionRotateBody = z
  */
 export const providerConnectionValidationBody = z
   .object({
+    credentialHandle: kaanaCredentialHandleSchema,
+    credentialRevision: z.number().int().positive().safe(),
     state: z.enum(['unvalidated', 'valid', 'invalid', 'expired']),
     failureCode: z
       .enum(['unauthorized', 'forbidden', 'not_found', 'rate_limited', 'network', 'unknown'])
@@ -101,6 +117,33 @@ export const providerConnectionValidationBody = z
         message: 'an invalid credential must record why the check failed',
       });
     }
+    if (verdict.state === 'invalid' && verdict.failureCode !== 'unauthorized') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['failureCode'],
+        message: 'only a provider authentication refusal proves invalidity',
+      });
+    }
+  });
+
+/** Explicit exact selection for a durable bootstrap or retry. */
+export const providerCredentialValidationBootstrapBody = z
+  .object({
+    applicationId: oxyApplicationIdSchema,
+    deploymentId: deploymentIdSchema,
+  })
+  .strict();
+
+/** Exact application whose operation/deployment choices are being read. */
+export const providerCredentialValidationApplicationQuery = z
+  .object({ applicationId: oxyApplicationIdSchema })
+  .strict();
+
+/** Kaana's terminal, exact-selector callback. Pending is not an outcome. */
+export const providerCredentialValidationOutcomeBody = kaanaCredentialValidationOutcomeSchema
+  .refine((outcome) => outcome.state !== 'pending', {
+    path: ['state'],
+    message: 'a callback must carry a terminal validation outcome',
   });
 
 /** The read a data plane performs before serving: which connection applies. */
@@ -118,3 +161,19 @@ export const providerConnectionAuditQuery = z
 
 /** An empty body, for the transitions that take no input. */
 export const providerConnectionEmptyBody = z.object({}).strict();
+
+/**
+ * Outcome-first recovery. Create/rotate need the original credential only when
+ * Kaana explicitly proves it has no outcome; revoke never accepts one.
+ */
+export const providerConnectionReconcileBody = z
+  .object({ secret: providerCredentialSecret.optional() })
+  .strict();
+
+/** Exact successful reconciliation response; metadata-only by contract. */
+export const providerConnectionReconcileResponseSchema = z
+  .object({
+    data: providerConnectionSchema,
+    reconciledAction: kaanaCredentialOperationActionSchema,
+  })
+  .strict();

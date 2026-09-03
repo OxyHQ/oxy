@@ -86,7 +86,6 @@ jobs:
           SYNC_STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           SYNC_STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           SYNC_GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
-          SYNC_ALIA_API_KEY: ${{ secrets.ALIA_API_KEY }}
           SYNC_SMTP_TLS_KEY: ${{ secrets.SMTP_TLS_KEY }}
           SYNC_SMTP_TLS_CERT: ${{ secrets.SMTP_TLS_CERT }}
           SYNC_SMTP_RELAY_USER: ${{ secrets.SMTP_RELAY_USER }}
@@ -109,7 +108,7 @@ jobs:
           # credentials for other systems (Cloudflare, legacy droplet deploys,
           # etc.) that must not be copied into the API's SSM namespace.
           SHARED_SECRETS="AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY REDIS_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET"
-          API_SECRETS="ACCESS_TOKEN_SECRET REFRESH_TOKEN_SECRET SSO_INTERNAL_SECRET DATABASE_URL AWS_S3_BUCKET AWS_ENDPOINT_URL STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET GITHUB_CLIENT_SECRET ALIA_API_KEY SMTP_TLS_KEY SMTP_TLS_CERT SMTP_RELAY_USER SMTP_RELAY_PASS EMAIL_INBOUND_WEBHOOK_SECRET DKIM_PRIVATE_KEY EMAIL_S3_ACCESS_KEY_ID EMAIL_S3_SECRET_ACCESS_KEY DEVICE_ID_SALT OXY_PUBLIC_KEY OXY_PRIVATE_KEY KAANA_EDGE_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_KEY_ID"
+          API_SECRETS="ACCESS_TOKEN_SECRET REFRESH_TOKEN_SECRET SSO_INTERNAL_SECRET DATABASE_URL AWS_S3_BUCKET AWS_ENDPOINT_URL STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET GITHUB_CLIENT_SECRET SMTP_TLS_KEY SMTP_TLS_CERT SMTP_RELAY_USER SMTP_RELAY_PASS EMAIL_INBOUND_WEBHOOK_SECRET DKIM_PRIVATE_KEY EMAIL_S3_ACCESS_KEY_ID EMAIL_S3_SECRET_ACCESS_KEY DEVICE_ID_SALT OXY_PUBLIC_KEY OXY_PRIVATE_KEY KAANA_EDGE_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_KEY_ID"
 
           for k in $SHARED_SECRETS $API_SECRETS; do
             v=$(printenv "SYNC_$k" || true)
@@ -128,7 +127,8 @@ jobs:
               continue
             fi
             case " $SHARED_SECRETS " in *" $k "*) path="/oxy/_shared/$k";; *) path="/oxy/$APP/$k";; esac
-            aws ssm put-parameter --name "$path" --value "$v" --type SecureString --overwrite >/dev/null && echo "synced -> $path"
+            printf '%s' "$v" | bash .github/scripts/put-secure-parameter.sh "$path" overwrite
+            echo "synced -> $path"
           done
 
       - name: Verify Inbox service credential bindings
@@ -246,19 +246,21 @@ jobs:
           # A scorecard must also outlive at least the next hour before staff may
           # approve its route.
           TASK_ENV_OVERRIDES_JSON: >-
-            {"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","INFERENCE_KAANA_EXECUTION":"disabled"}
+            {"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","INBOX_INFERENCE_ROUTING_PROFILE_ID":"${{ vars.INBOX_INFERENCE_ROUTING_PROFILE_ID }}","INFERENCE_KAANA_EXECUTION":"disabled"}
           # Exact legacy inference bindings inherited from the previous task
           # definition. The deployer removes only these named entries; ordinary
           # SMTP/device uses of the word relay remain untouched.
           TASK_REMOVE_NAMES_JSON: >-
-            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY"]
+            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL"]
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-inbox-mcp.sh
           # The deploy script renders from the task definition the service is
           # currently running, not from Terraform's latest registered revision.
           # Re-assert new bindings here so capability authority cannot disappear
-          # on the following image rollout.
+          # on the following image rollout. The credential-control signing key is
+          # provisioned directly in SSM; it is intentionally absent from every
+          # GitHub-secret sync entry and allow-list above.
           TASK_SECRET_OVERRIDES_JSON: >-
-            {"CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","INBOX_APPLICATION_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_KEY","INBOX_APPLICATION_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_SECRET"}
+            {"CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY","INBOX_APPLICATION_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_KEY","INBOX_APPLICATION_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_SECRET"}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then
