@@ -1,0 +1,354 @@
+import assert from 'node:assert/strict';
+import { createHash, generateKeyPairSync, verify } from 'node:crypto';
+import test from 'node:test';
+
+import {
+  KaanaCanaryError,
+  readKaanaCanaryConfig,
+  runKaanaSignedCanary,
+} from './run-kaana-signed-canary.mjs';
+
+const DEPLOYMENT_ID = 'dep_cerebras_openai_gpt_oss_120b_observed_2026_08_05';
+const ROUTING_PROFILE_ID = '68b7c4e19f2a6d0e3c8b5175';
+const ROUTING_POLICY_ID = '68b7c4e19f2a6d0e3c8b5174';
+const MODEL_REFERENCE = 'openai/gpt-oss-120b@2026-08-05';
+
+function runtime() {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const pem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  const env = {
+    INFERENCE_KAANA_EXECUTION: 'disabled',
+    KAANA_BASE_URL: 'https://kaana.ai',
+    KAANA_EDGE_SIGNING_KEY_ID: 'oxy-edge-test',
+    KAANA_EDGE_SIGNING_PRIVATE_KEY: pem,
+    CANARY_CONTRACT_VERSION: '2.0.0',
+    CANARY_DEPLOYMENT_ID: DEPLOYMENT_ID,
+    CANARY_MODEL_REFERENCE: MODEL_REFERENCE,
+    CANARY_ROUTING_PROFILE_ID: ROUTING_PROFILE_ID,
+    CANARY_ROUTING_POLICY_ID: ROUTING_POLICY_ID,
+    CANARY_ROUTING_POLICY_VERSION: '7',
+    CANARY_ACCOUNT_ID: 'acc_exact',
+    CANARY_APPLICATION_ID: 'app_exact',
+    CANARY_CREDENTIAL_ID: 'cred_exact',
+  };
+  return { config: readKaanaCanaryConfig(env), publicKey };
+}
+
+function signingInput(keyId, timestamp, body) {
+  const digest = createHash('sha256').update(body).digest('hex');
+  return Buffer.from(
+    ['oxy-kaana-envelope:v1', keyId, timestamp, digest].join('\n'),
+    'utf8',
+  );
+}
+
+function readAndVerifyRequest(publicKey, url, init) {
+  assert.ok(url.startsWith('https://kaana.ai/'));
+  assert.equal(init.redirect, 'error');
+  assert.equal(init.cache, 'no-store');
+  const headers = new Headers(init.headers);
+  const body = init.body === undefined ? Buffer.alloc(0) : Buffer.from(init.body);
+  const keyId = headers.get('X-Oxy-Kaana-Key-Id');
+  const timestamp = headers.get('X-Oxy-Kaana-Timestamp');
+  const rawSignature = headers.get('X-Oxy-Kaana-Signature');
+  assert.ok(keyId);
+  assert.match(timestamp, /^[0-9]+$/);
+  assert.match(rawSignature, /^v1=/);
+  assert.equal(
+    verify(
+      null,
+      signingInput(keyId, timestamp, body),
+      publicKey,
+      Buffer.from(rawSignature.slice(3), 'base64'),
+    ),
+    true,
+  );
+  return body.length === 0 ? undefined : JSON.parse(body.toString('utf8'));
+}
+
+function json(payload, status = 200, headers = {}) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...headers },
+  });
+}
+
+function sse(frames) {
+  const body = frames.map(({ event, payload }) =>
+    `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`).join('');
+  return new Response(body, {
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' },
+  });
+}
+
+function errorEvent(requestId, code = 'invalid_request', param = 'authorizedRoutes[0]') {
+  return {
+    event: 'stream_event',
+    payload: {
+      schemaVersion: 1,
+      type: 'error',
+      requestId,
+      sequence: 0,
+      error: {
+        schemaVersion: 1,
+        code,
+        message: 'safe fixture',
+        retryable: false,
+        requestId,
+        param,
+      },
+    },
+  };
+}
+
+function successfulFrames(request) {
+  const requestId = request.attribution.requestId;
+  const generationId = `gen-${requestId}`;
+  const now = new Date().toISOString();
+  return [
+    {
+      event: 'stream_event',
+      payload: {
+        schemaVersion: 1,
+        type: 'start',
+        requestId,
+        sequence: 0,
+        generationId,
+        createdAt: now,
+        resolvedModelReference: MODEL_REFERENCE,
+        servingProvider: 'cerebras',
+        deploymentId: DEPLOYMENT_ID,
+      },
+    },
+    {
+      event: 'stream_event',
+      payload: {
+        schemaVersion: 1,
+        type: 'done',
+        requestId,
+        sequence: 1,
+        generationId,
+        finishReason: 'length',
+        completedAt: now,
+      },
+    },
+    {
+      event: 'usage_report',
+      payload: {
+        schemaVersion: 2,
+        requestId,
+        generationId,
+        attribution: request.attribution,
+        outcome: 'completed',
+        units: [{ unit: 'input_tokens', quantity: 3 }],
+        usageSource: 'provider',
+        resolvedModelReference: MODEL_REFERENCE,
+        servingProvider: 'cerebras',
+        deploymentId: DEPLOYMENT_ID,
+        routeSwitches: 0,
+        startedAt: now,
+        completedAt: now,
+      },
+    },
+  ];
+}
+
+test('runs every closed negative before exactly two one-token positive probes', async () => {
+  const { config, publicKey } = runtime();
+  const inferenceBodies = [];
+  const fetchImpl = async (url, init) => {
+    const body = readAndVerifyRequest(publicKey, url, init);
+    const path = new URL(url).pathname;
+    if (path === '/internal/v1/health') {
+      assert.equal(init.method, 'GET');
+      assert.equal(body, undefined);
+      return json({ contractVersion: '2.0.0' });
+    }
+    if (path === '/internal/v1/deployments/query') {
+      assert.deepEqual(body, { deploymentIds: [DEPLOYMENT_ID] });
+      return json({
+        snapshotId: 'snap-live-exact',
+        deployments: [{
+          deploymentId: DEPLOYMENT_ID,
+          modelReference: MODEL_REFERENCE,
+          provider: 'cerebras',
+          regions: ['us-west-2'],
+        }],
+      }, 200, { 'Cache-Control': 'no-store' });
+    }
+
+    assert.equal(path, '/internal/v1/inference');
+    inferenceBodies.push(body);
+    const index = inferenceBodies.length - 1;
+    if (index < 2) {
+      assert.equal(body.target.kind, 'routing_profile');
+      assert.equal(body.target.routingProfile, 'canary');
+      assert.match(body.authorizedRoutes[0].deploymentId, /^dep_canary_slug_guard_[0-9a-f]{32}$/);
+      assert.notEqual(body.authorizedRoutes[0].deploymentId, DEPLOYMENT_ID);
+      return json({ code: 'invalid_request' }, 400);
+    }
+    if (index < 4) {
+      assert.equal(body.schemaVersion, 2);
+      return sse([errorEvent(body.attribution.requestId)]);
+    }
+    return sse(successfulFrames(body));
+  };
+
+  const result = await runKaanaSignedCanary(config, fetchImpl);
+
+  assert.equal(result.status, 'passed');
+  assert.equal(result.providerRequests, 2);
+  assert.equal(result.oxyLedgerWrites, 0);
+  assert.equal(result.snapshotId, 'snap-live-exact');
+  assert.equal(result.cases.length, 6);
+
+  assert.equal(inferenceBodies[0].schemaVersion, 1);
+  assert.equal(inferenceBodies[1].schemaVersion, 2);
+  assert.notEqual(inferenceBodies[2].authorizedRoutes[0].deploymentId, DEPLOYMENT_ID);
+  assert.match(inferenceBodies[2].authorizedRoutes[0].deploymentId, /^dep_canary_unknown_[0-9a-f]{32}$/);
+  assert.equal(inferenceBodies[3].authorizedRoutes[0].deploymentId, ` ${DEPLOYMENT_ID}`);
+
+  const v1 = inferenceBodies[4];
+  assert.equal(v1.schemaVersion, 1);
+  assert.deepEqual(v1.target, { kind: 'model', modelReference: MODEL_REFERENCE });
+  assert.equal(v1.maxOutputTokens, 1);
+  assert.deepEqual(v1.sampling, {});
+  assert.equal(v1.idempotencyKey, undefined);
+
+  const v2 = inferenceBodies[5];
+  assert.equal(v2.schemaVersion, 2);
+  assert.deepEqual(v2.target, {
+    kind: 'routing_profile_id',
+    routingProfileId: ROUTING_PROFILE_ID,
+  });
+  assert.equal(v2.authorizedRoutes[0].deploymentId, DEPLOYMENT_ID);
+  assert.equal(v2.maxOutputTokens, 1);
+  assert.equal(v2.attribution.principal.billing.accountId, 'acc_exact');
+  assert.equal(v2.routingPolicy.routingPolicyId, ROUTING_POLICY_ID);
+  assert.equal(v2.routingPolicy.policyVersion, 7);
+});
+
+test('stops before either provider probe if a slug arm is unexpectedly accepted', async () => {
+  const { config, publicKey } = runtime();
+  let calls = 0;
+  const fetchImpl = async (url, init) => {
+    const body = readAndVerifyRequest(publicKey, url, init);
+    calls += 1;
+    const path = new URL(url).pathname;
+    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    if (path === '/internal/v1/deployments/query') {
+      return json({
+        snapshotId: 'snap-live-exact',
+        deployments: [{
+          deploymentId: DEPLOYMENT_ID,
+          modelReference: MODEL_REFERENCE,
+          provider: 'cerebras',
+          regions: [],
+        }],
+      }, 200, { 'Cache-Control': 'no-store' });
+    }
+    assert.equal(body.target.kind, 'routing_profile');
+    return sse([errorEvent(body.attribution.requestId)]);
+  };
+
+  await assert.rejects(
+    () => runKaanaSignedCanary(config, fetchImpl),
+    (error) => error instanceof KaanaCanaryError && error.code === 'v1_slug_not_refused',
+  );
+  assert.equal(calls, 3);
+});
+
+test('refuses noncanonical origins, enabled ambient execution and fuzzy exact IDs before fetch', () => {
+  const { privateKey } = generateKeyPairSync('ed25519');
+  const base = {
+    INFERENCE_KAANA_EXECUTION: 'disabled',
+    KAANA_BASE_URL: 'https://kaana.ai',
+    KAANA_EDGE_SIGNING_KEY_ID: 'oxy-edge-test',
+    KAANA_EDGE_SIGNING_PRIVATE_KEY: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+    CANARY_CONTRACT_VERSION: '2.0.0',
+    CANARY_DEPLOYMENT_ID: DEPLOYMENT_ID,
+    CANARY_MODEL_REFERENCE: MODEL_REFERENCE,
+    CANARY_ROUTING_PROFILE_ID: ROUTING_PROFILE_ID,
+    CANARY_ROUTING_POLICY_ID: ROUTING_POLICY_ID,
+    CANARY_ROUTING_POLICY_VERSION: '1',
+    CANARY_ACCOUNT_ID: 'acc',
+    CANARY_APPLICATION_ID: 'app',
+    CANARY_CREDENTIAL_ID: 'cred',
+  };
+
+  for (const changed of [
+    { KAANA_BASE_URL: 'https://kaana.oxy.so' },
+    { INFERENCE_KAANA_EXECUTION: 'enabled' },
+    { CANARY_DEPLOYMENT_ID: ` ${DEPLOYMENT_ID}` },
+    { CANARY_ROUTING_PROFILE_ID: `${ROUTING_PROFILE_ID} ` },
+    { CANARY_ROUTING_POLICY_ID: `${ROUTING_POLICY_ID}\tcopy` },
+    { CANARY_MODEL_REFERENCE: 'openai/gpt-oss-120b' },
+  ]) {
+    assert.throws(() => readKaanaCanaryConfig({ ...base, ...changed }), KaanaCanaryError);
+  }
+});
+
+test('does not reinterpret a provider-credential UUID as a deployment identity', async () => {
+  const { config, publicKey } = runtime();
+  config.deploymentId = '43405cea-a7d1-49c2-ba73-5a84536d3abf';
+  let calls = 0;
+  const fetchImpl = async (url, init) => {
+    readAndVerifyRequest(publicKey, url, init);
+    calls += 1;
+    const path = new URL(url).pathname;
+    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    assert.equal(path, '/internal/v1/deployments/query');
+    // The signed snapshot is the only authority and returns its actual opaque
+    // deployment id, never the credential-shaped selector the operator passed.
+    return json({
+      snapshotId: 'snap-live-exact',
+      deployments: [{
+        deploymentId: DEPLOYMENT_ID,
+        modelReference: MODEL_REFERENCE,
+        provider: 'cerebras',
+        regions: [],
+      }],
+    }, 200, { 'Cache-Control': 'no-store' });
+  };
+
+  await assert.rejects(
+    () => runKaanaSignedCanary(config, fetchImpl),
+    (error) => error instanceof KaanaCanaryError && error.code === 'deployment_identity_mismatch',
+  );
+  assert.equal(calls, 2);
+});
+
+test('refuses a positive whose start event disagrees with the signed exact route', async () => {
+  const { config, publicKey } = runtime();
+  let inferenceCalls = 0;
+  const fetchImpl = async (url, init) => {
+    const body = readAndVerifyRequest(publicKey, url, init);
+    const path = new URL(url).pathname;
+    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    if (path === '/internal/v1/deployments/query') {
+      return json({
+        snapshotId: 'snap-live-exact',
+        deployments: [{
+          deploymentId: DEPLOYMENT_ID,
+          modelReference: MODEL_REFERENCE,
+          provider: 'cerebras',
+          regions: [],
+        }],
+      }, 200, { 'Cache-Control': 'no-store' });
+    }
+    inferenceCalls += 1;
+    if (inferenceCalls <= 2) return json({ code: 'invalid_request' }, 400);
+    if (inferenceCalls <= 4) return sse([errorEvent(body.attribution.requestId)]);
+    const frames = successfulFrames(body);
+    frames[0].payload.deploymentId = 'dep_wrong_start_identity';
+    return sse(frames);
+  };
+
+  await assert.rejects(
+    () => runKaanaSignedCanary(config, fetchImpl),
+    (error) => error instanceof KaanaCanaryError &&
+      error.code === 'v1-direct-model_did_not_complete_exact_route',
+  );
+  assert.equal(inferenceCalls, 5);
+});

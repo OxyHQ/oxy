@@ -33,6 +33,9 @@ jobs:
           node scripts/test-native-product-agent-bootstrap-workflow.mjs
           node scripts/test-check-kaana-request-v2-rollout.mjs
           node scripts/check-kaana-request-v2-rollout.mjs
+          node scripts/test-check-kaana-signed-canary.mjs
+          node scripts/check-kaana-signed-canary.mjs
+          node --test packages/api/scripts/run-kaana-signed-canary.test.mjs
 
   # API Package Tests
   api-test:

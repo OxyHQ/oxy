@@ -1,0 +1,376 @@
+name: Kaana signed production canary
+
+# This is a bounded direct wire probe, not an Oxy edge rollout. It runs the
+# exact live oxy-api image with ambient Kaana execution still disabled, strips
+# every Oxy/database secret, injects only the existing Ed25519 key through the
+# ECS secret binding, and makes exactly two one-token provider requests after
+# every fail-closed case passes. Merging this workflow does not run it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_live_task_definition_arn:
+        description: Exact reviewed live oxy-api task-definition ARN
+        required: true
+        type: string
+      expected_live_image_digest:
+        description: Exact reviewed live image digest (sha256:...)
+        required: true
+        type: string
+      deployment_id:
+        description: Exact opaque deployment ID from Kaana's signed live snapshot
+        required: true
+        type: string
+      model_reference:
+        description: Exact pinned model reference returned for deployment_id
+        required: true
+        type: string
+      routing_profile_id:
+        description: Exact opaque PostgreSQL routing-profile ID resolved by Oxy
+        required: true
+        type: string
+      routing_policy_id:
+        description: Exact routing-policy ID behind the profile
+        required: true
+        type: string
+      routing_policy_version:
+        description: Exact positive policy revision behind the profile
+        required: true
+        type: string
+      account_id:
+        description: Exact billing account ID from the reviewed inference credential
+        required: true
+        type: string
+      application_id:
+        description: Exact application ID from the reviewed inference credential
+        required: true
+        type: string
+      credential_id:
+        description: Exact credential ID from the reviewed inference credential
+        required: true
+        type: string
+      confirm_two_provider_requests:
+        description: Confirm two synthetic requests, each capped at one output token
+        required: true
+        type: boolean
+      reason:
+        description: Auditable production canary reason or ticket
+        required: true
+        type: string
+
+concurrency:
+  group: kaana-signed-production-canary
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  CLUSTER: oxy-cluster
+  SERVICE: oxy-api
+  CONTAINER: oxy-api
+
+jobs:
+  canary:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run bounded canary from the exact live image
+        env:
+          EXPECTED_LIVE_TASK_DEFINITION_ARN: ${{ inputs.expected_live_task_definition_arn }}
+          EXPECTED_LIVE_IMAGE_DIGEST: ${{ inputs.expected_live_image_digest }}
+          CANARY_DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          CANARY_MODEL_REFERENCE: ${{ inputs.model_reference }}
+          CANARY_ROUTING_PROFILE_ID: ${{ inputs.routing_profile_id }}
+          CANARY_ROUTING_POLICY_ID: ${{ inputs.routing_policy_id }}
+          CANARY_ROUTING_POLICY_VERSION: ${{ inputs.routing_policy_version }}
+          CANARY_ACCOUNT_ID: ${{ inputs.account_id }}
+          CANARY_APPLICATION_ID: ${{ inputs.application_id }}
+          CANARY_CREDENTIAL_ID: ${{ inputs.credential_id }}
+          CONFIRM_TWO_PROVIDER_REQUESTS: ${{ inputs.confirm_two_provider_requests }}
+          CANARY_REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          if [ "$CONFIRM_TWO_PROVIDER_REQUESTS" != true ]; then
+            echo '::error::the operator must explicitly confirm the two one-token provider requests'
+            exit 64
+          fi
+          if [[ ! "$EXPECTED_LIVE_TASK_DEFINITION_ARN" =~ ^arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:[0-9]+$ ]]; then
+            echo '::error::expected_live_task_definition_arn is not the exact production oxy-api ARN'
+            exit 64
+          fi
+          if [[ ! "$EXPECTED_LIVE_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo '::error::expected_live_image_digest must be one exact lowercase sha256 digest'
+            exit 64
+          fi
+          if [ -z "$CANARY_REASON" ] || [ "$CANARY_REASON" != "${CANARY_REASON# }" ] || [ "$CANARY_REASON" != "${CANARY_REASON% }" ] || [[ "$CANARY_REASON" == *$'\n'* ]] || [[ "$CANARY_REASON" == *$'\r'* ]]; then
+            echo '::error::reason must be non-empty and contain no edge whitespace or newlines'
+            exit 64
+          fi
+
+          service_json=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+          if [ "$(jq -r '.status // "NONE"' <<<"$service_json")" != ACTIVE ]; then
+            echo '::error::live Oxy API service is not active'
+            exit 1
+          fi
+          if [ "$(jq '[.deployments[] | select(.status == "PRIMARY" and .rolloutState == "COMPLETED")] | length' <<<"$service_json")" != 1 ] || \
+             [ "$(jq '.deployments | length' <<<"$service_json")" != 1 ] || \
+             [ "$(jq -r '.desiredCount > 0' <<<"$service_json")" != true ] || \
+             [ "$(jq -r '.pendingCount' <<<"$service_json")" != 0 ] || \
+             [ "$(jq -r '.runningCount == .desiredCount' <<<"$service_json")" != true ]; then
+            echo '::error::oxy-api is not at one completed steady deployment'
+            exit 1
+          fi
+
+          live_task_definition=$(jq -er '.taskDefinition' <<<"$service_json")
+          if [ "$live_task_definition" != "$EXPECTED_LIVE_TASK_DEFINITION_ARN" ]; then
+            echo '::error::live task definition changed after review'
+            exit 1
+          fi
+          network=$(jq -ec '.networkConfiguration' <<<"$service_json")
+          live_task_json=$(aws ecs describe-task-definition \
+            --task-definition "$live_task_definition" \
+            --query taskDefinition --output json)
+          if [ "$(jq -r --arg container "$CONTAINER" '[.containerDefinitions[] | select(.name == $container)] | length' <<<"$live_task_json")" != 1 ] || \
+             [ "$(jq '.containerDefinitions | length' <<<"$live_task_json")" != 1 ]; then
+            echo '::error::live task must contain exactly one oxy-api container'
+            exit 1
+          fi
+
+          live_image=$(jq -er --arg container "$CONTAINER" \
+            '.containerDefinitions[] | select(.name == $container) | .image' <<<"$live_task_json")
+          if [ "$live_image" != "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@$EXPECTED_LIVE_IMAGE_DIGEST" ]; then
+            echo '::error::live image digest changed after review or is not immutable'
+            exit 1
+          fi
+
+          read_env() {
+            local name="$1"
+            jq -er --arg container "$CONTAINER" --arg name "$name" '
+              [.containerDefinitions[] | select(.name == $container) |
+               (.environment // [])[] | select(.name == $name)] |
+              if length == 1 then .[0].value else error("expected one env binding") end
+            ' <<<"$live_task_json"
+          }
+          execution=$(read_env INFERENCE_KAANA_EXECUTION)
+          kaana_origin=$(read_env KAANA_BASE_URL)
+          signing_key_id=$(read_env KAANA_EDGE_SIGNING_KEY_ID)
+          if [ "$execution" != disabled ]; then
+            echo '::error::ambient Kaana execution must remain disabled during this canary'
+            exit 1
+          fi
+          if [ "$kaana_origin" != 'https://kaana.ai' ]; then
+            echo '::error::the only accepted signed Kaana origin is https://kaana.ai'
+            exit 1
+          fi
+          if [ -z "$signing_key_id" ] || [ "$signing_key_id" != "${signing_key_id# }" ] || [ "$signing_key_id" != "${signing_key_id% }" ]; then
+            echo '::error::the live signing key id is not exact'
+            exit 1
+          fi
+
+          signing_secret=$(jq -cer --arg container "$CONTAINER" '
+            [.containerDefinitions[] | select(.name == $container) |
+             (.secrets // [])[] | select(.name == "KAANA_EDGE_SIGNING_PRIVATE_KEY")] |
+            if length == 1 then .[0] else error("expected one secret binding") end
+          ' <<<"$live_task_json")
+          if [ "$(jq -r '.valueFrom' <<<"$signing_secret")" != 'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY' ]; then
+            echo '::error::the live signing key is not bound from its exact production SSM parameter'
+            exit 1
+          fi
+
+          if [ "$(jq --arg container "$CONTAINER" '
+            [.containerDefinitions[] | select(.name == $container) |
+             ((.environment // []) + (.secrets // []))[] |
+             select(.name == "DATABASE_URL")] | length
+          ' <<<"$live_task_json")" != 1 ]; then
+            echo '::error::safety assertion is not measuring a live task with ordinary service bindings'
+            exit 1
+          fi
+
+          # Register a throwaway definition with the exact live image and
+          # execution roles, but no database, Redis, Oxy private key or product
+          # secret. ECS injects only the Kaana Ed25519 key; the runner never sees
+          # or decrypts it.
+          canary_task_json=$(jq \
+            --arg container "$CONTAINER" \
+            --arg origin "$kaana_origin" \
+            --arg key_id "$signing_key_id" \
+            --argjson signing_secret "$signing_secret" '
+              .family = "oxy-oxy-api-kaana-canary"
+              |
+              .containerDefinitions |= map(
+                if .name == $container then
+                  .environment = [
+                    {name:"INFERENCE_KAANA_EXECUTION", value:"disabled"},
+                    {name:"KAANA_BASE_URL", value:$origin},
+                    {name:"KAANA_EDGE_SIGNING_KEY_ID", value:$key_id}
+                  ]
+                  | .secrets = [$signing_secret]
+                  | del(.healthCheck)
+                else . end
+              )
+              | del(
+                  .taskDefinitionArn,
+                  .revision,
+                  .status,
+                  .requiresAttributes,
+                  .compatibilities,
+                  .registeredAt,
+                  .registeredBy,
+                  .deregisteredAt
+                )
+            ' <<<"$live_task_json")
+          if [ "$(jq -c '[.containerDefinitions[0].environment[].name] | sort' <<<"$canary_task_json")" != '["INFERENCE_KAANA_EXECUTION","KAANA_BASE_URL","KAANA_EDGE_SIGNING_KEY_ID"]' ] || \
+             [ "$(jq -r '.containerDefinitions[0].secrets | length' <<<"$canary_task_json")" != 1 ]; then
+            echo '::error::canary task secret/environment minimization failed'
+            exit 1
+          fi
+
+          canary_task_definition=''
+          cleanup() {
+            if [ -n "$canary_task_definition" ]; then
+              aws ecs deregister-task-definition \
+                --task-definition "$canary_task_definition" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+          canary_task_definition=$(aws ecs register-task-definition \
+            --cli-input-json "$canary_task_json" \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          overrides=$(jq -nc \
+            --arg container "$CONTAINER" \
+            --arg deployment "$CANARY_DEPLOYMENT_ID" \
+            --arg model "$CANARY_MODEL_REFERENCE" \
+            --arg profile "$CANARY_ROUTING_PROFILE_ID" \
+            --arg policy "$CANARY_ROUTING_POLICY_ID" \
+            --arg policy_version "$CANARY_ROUTING_POLICY_VERSION" \
+            --arg account "$CANARY_ACCOUNT_ID" \
+            --arg application "$CANARY_APPLICATION_ID" \
+            --arg credential "$CANARY_CREDENTIAL_ID" '
+              {containerOverrides:[{
+                name:$container,
+                command:["node","packages/api/scripts/run-kaana-signed-canary.mjs"],
+                environment:[
+                  {name:"CANARY_CONTRACT_VERSION",value:"2.0.0"},
+                  {name:"CANARY_DEPLOYMENT_ID",value:$deployment},
+                  {name:"CANARY_MODEL_REFERENCE",value:$model},
+                  {name:"CANARY_ROUTING_PROFILE_ID",value:$profile},
+                  {name:"CANARY_ROUTING_POLICY_ID",value:$policy},
+                  {name:"CANARY_ROUTING_POLICY_VERSION",value:$policy_version},
+                  {name:"CANARY_ACCOUNT_ID",value:$account},
+                  {name:"CANARY_APPLICATION_ID",value:$application},
+                  {name:"CANARY_CREDENTIAL_ID",value:$credential}
+                ]
+              }]}
+            ')
+
+          run_json=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$canary_task_definition" \
+            --launch-type FARGATE \
+            --network-configuration "$network" \
+            --overrides "$overrides" \
+            --started-by "gh-kaana-canary-${GITHUB_RUN_ID}")
+          task_arn=$(jq -r '.tasks[0].taskArn // empty' <<<"$run_json")
+          if [ -z "$task_arn" ]; then
+            echo "::error::ECS did not start the canary task: $(jq -c '.failures' <<<"$run_json")"
+            exit 1
+          fi
+          echo "canary task: $task_arn"
+          echo "live task definition: $live_task_definition"
+          echo "live image: $live_image"
+          echo "reason: $CANARY_REASON"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"
+
+          task_json=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn")
+          exit_code=$(jq -r --arg container "$CONTAINER" '
+            .tasks[0].containers[] | select(.name == $container) | .exitCode
+          ' <<<"$task_json")
+          task_id=${task_arn##*/}
+          log_group=$(jq -er --arg container "$CONTAINER" '
+            .containerDefinitions[] | select(.name == $container) |
+            .logConfiguration.options["awslogs-group"]
+          ' <<<"$live_task_json")
+          log_prefix=$(jq -er --arg container "$CONTAINER" '
+            .containerDefinitions[] | select(.name == $container) |
+            .logConfiguration.options["awslogs-stream-prefix"]
+          ' <<<"$live_task_json")
+
+          result_line=''
+          log_json='{"events":[]}'
+          for _attempt in $(seq 1 10); do
+            log_json=$(aws logs get-log-events \
+              --log-group-name "$log_group" \
+              --log-stream-name "$log_prefix/$CONTAINER/$task_id" \
+              --start-from-head --output json 2>/dev/null || printf '{"events":[]}')
+            result_line=$(jq -r '.events[].message' <<<"$log_json" |
+              grep '^KAANA_SIGNED_CANARY_RESULT=' | tail -1 || true)
+            [ -n "$result_line" ] && break
+            sleep 3
+          done
+          if [ "$exit_code" != 0 ] || [ -z "$result_line" ]; then
+            echo '::group::canary scoped CloudWatch log'
+            jq -r '.events[].message | select(startswith("KAANA_SIGNED_CANARY_RESULT=") | not)' <<<"$log_json"
+            echo '::endgroup::'
+            echo "::error::signed canary failed (exit=$exit_code, result_present=$([ -n "$result_line" ] && echo yes || echo no))"
+            exit 1
+          fi
+
+          result=${result_line#KAANA_SIGNED_CANARY_RESULT=}
+          jq -e \
+            --arg deployment "$CANARY_DEPLOYMENT_ID" \
+            --arg model "$CANARY_MODEL_REFERENCE" \
+            --arg profile "$CANARY_ROUTING_PROFILE_ID" '
+              .schemaVersion == 1 and
+              .status == "passed" and
+              .contractVersion == "2.0.0" and
+              .deploymentId == $deployment and
+              .modelReference == $model and
+              .routingProfileId == $profile and
+              .providerRequests == 2 and
+              .oxyLedgerWrites == 0 and
+              (.cases | length) == 6 and
+              ([.cases[].name] == [
+                "v1_slug_rejected",
+                "v2_slug_rejected",
+                "unknown-deployment_rejected",
+                "whitespace-deployment_rejected",
+                "v1-direct-model",
+                "v2-profile-id-propagated-exact-route"
+              ]) and
+              ([.cases[].status] | all(. == "passed")) and
+              ([.cases[] | select(.name == "v1-direct-model" or .name == "v2-profile-id-propagated-exact-route") | .receiptIdPresent] | all(. == false))
+            ' <<<"$result" >/dev/null || {
+              echo '::error::canary emitted an incomplete or mismatched result envelope'
+              exit 1
+            }
+
+          echo '──────── signed canary result (no content or secret) ────────'
+          jq '{contractVersion,snapshotId,deploymentId,modelReference,routingProfileId,providerRequests,oxyLedgerWrites,cases}' <<<"$result"
+          echo '────────────────────────────────────────────────────────────'
+          {
+            echo '### Kaana signed production canary'
+            echo
+            echo "- Live task: \`$live_task_definition\`"
+            echo "- Live image: \`$live_image\`"
+            echo "- Kaana snapshot: \`$(jq -r '.snapshotId' <<<"$result")\`"
+            echo "- Exact deployment: \`$CANARY_DEPLOYMENT_ID\`"
+            echo '- Negative route/slug cases: passed before provider access'
+            echo '- Positive provider requests: 2, each capped at one output token'
+            echo '- Oxy ledger writes: 0 (task has no DATABASE_URL)'
+            echo '- Ambient Oxy Kaana execution: disabled'
+          } >> "$GITHUB_STEP_SUMMARY"
