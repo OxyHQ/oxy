@@ -195,6 +195,14 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
     column: 'value',
     holds: 'one catalog-declared finite numeric maximum or exact boolean, never a string, list or tool argument',
   },
+  {
+    table: 'normalized_app_event_outbox',
+    column: 'event',
+    holds:
+      'a schema-validated normalized Inbox event: stable ids, exact account/mailbox resource, '
+      + 'event type/time and minimal routing metadata (message id, mailbox id, sender, subject or '
+      + 'response classification); never the message body, headers, prompt, completion or tool data',
+  },
 
   // ---- email: the customer's own mailbox --------------------------------------
   { table: 'email_outbox', column: 'payload', holds: "a queued outbound email the USER composed — their mail, not an inference payload" },

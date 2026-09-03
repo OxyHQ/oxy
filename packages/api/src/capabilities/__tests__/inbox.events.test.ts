@@ -39,4 +39,27 @@ describe('Inbox normalized events', () => {
     });
     expect(events.map((event) => event.type)).toEqual(['new_email']);
   });
+
+  it('keeps the durable event projection minimal and never copies message headers', () => {
+    const events = buildInboxMessageEvents({
+      ...base,
+      headers: {
+        authorization: 'Bearer must-not-be-persisted',
+        'x-private-routing': 'must-not-be-persisted',
+      },
+    });
+
+    expect(events[0]?.data).toEqual({
+      messageId: 'message-1',
+      mailboxId: 'mailbox-1',
+      from: 'person@example.com',
+      subject: 'Can you review this?',
+    });
+    expect(events[1]?.data).toEqual({
+      messageId: 'message-1',
+      mailboxId: 'mailbox-1',
+      reason: 'Direct non-automated incoming message',
+    });
+    expect(JSON.stringify(events)).not.toContain('must-not-be-persisted');
+  });
 });
