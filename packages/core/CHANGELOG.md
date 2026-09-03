@@ -1,6 +1,6 @@
 # Changelog — `@oxyhq/core`
 
-## Unreleased
+## 23.2.2
 
 ### Added
 
@@ -9,6 +9,9 @@
   correlated audit trail used by Oxy Settings.
 - Resource-bound external MCP connections can now be listed and revoked without
   exposing access or refresh tokens to clients.
+- Shared translations and client exports for canonical MCP consent context,
+  including the exact effective account, protected resource, capability set,
+  and catalog-derived write actions.
 
 ## 23.2.0
 

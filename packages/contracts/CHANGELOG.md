@@ -1,5 +1,16 @@
 # Changelog: `@oxyhq/contracts`
 
+## 0.40.1
+
+### Added
+
+- Added the immutable catalog registration/version/digest binding carried by
+  delegation grants, so issued authority cannot silently drift to a different
+  capability catalog.
+- Added canonical external MCP consent contracts for the resolved client,
+  effective account, protected resource, requested capabilities, and write
+  actions derived from the owning app catalog.
+
 ## 0.40.0
 
 ### Added

@@ -1,5 +1,13 @@
 # Changelog
 
+## [30.2.6] - 2026-09-03
+
+### Added
+
+- Added the shared `OxyConsentScreen` resource and write-action presentation
+  used by external MCP authorization, keeping consent UI aligned with the
+  canonical app capability catalog.
+
 ## [30.2.5] - 2026-09-03
 
 ### Added
