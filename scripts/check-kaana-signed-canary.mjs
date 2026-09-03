@@ -218,6 +218,34 @@ requireMatch(
   /providerRequests: 2,[\s\S]*?oxyLedgerWrites: 0/,
   'the result must account for exactly two provider probes and zero Oxy ledger writes',
 );
+for (const diagnostic of [
+  'execution_error_event_present',
+  'start_event_count_mismatch',
+  'start_event_not_first',
+  'start_deployment_mismatch',
+  'start_model_mismatch',
+  'start_provider_mismatch',
+  'done_event_count_mismatch',
+  'done_event_not_terminal',
+  'terminal_receipt_present',
+  'usage_report_count_mismatch',
+  'usage_schema_mismatch',
+  'usage_request_mismatch',
+  'usage_outcome_mismatch',
+  'usage_deployment_mismatch',
+  'usage_model_mismatch',
+  'usage_provider_mismatch',
+  'usage_units_missing',
+]) {
+  if (!canary.includes('fail(`${label}_' + diagnostic + '`)')) {
+    failures.push(`the positive canary must preserve the safe ${diagnostic} diagnostic`);
+  }
+}
+forbid(
+  canary,
+  /did_not_complete_exact_route/,
+  'the positive canary must not collapse distinct response failures into one aggregate code',
+);
 forbid(
   canary,
   /api\.oxy\.so|RELAY_|ALIA_API_KEY|from ['"][^'"]*(?:db|ledger)[^'"]*['"]/i,

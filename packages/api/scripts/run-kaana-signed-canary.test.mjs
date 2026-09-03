@@ -160,6 +160,37 @@ function successfulFrames(request) {
   ];
 }
 
+async function assertFirstPositiveFailure(expectedCode, mutateResponse) {
+  const { config, publicKey } = runtime();
+  let inferenceCalls = 0;
+  const fetchImpl = async (url, init) => {
+    const body = readAndVerifyRequest(publicKey, url, init);
+    const path = new URL(url).pathname;
+    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    if (path === '/internal/v1/deployments/query') {
+      return json({
+        snapshotId: 'snap-live-exact',
+        deployments: [{
+          deploymentId: DEPLOYMENT_ID,
+          modelReference: MODEL_REFERENCE,
+          provider: 'cerebras',
+          regions: [],
+        }],
+      }, 200, { 'Cache-Control': 'no-store' });
+    }
+    inferenceCalls += 1;
+    if (inferenceCalls <= 2) return json({ code: 'invalid_request' }, 400);
+    if (inferenceCalls <= 4) return sse([errorEvent(body.attribution.requestId)]);
+    return mutateResponse(successfulFrames(body), body);
+  };
+
+  await assert.rejects(
+    () => runKaanaSignedCanary(config, fetchImpl),
+    (error) => error instanceof KaanaCanaryError && error.code === expectedCode,
+  );
+  assert.equal(inferenceCalls, 5);
+}
+
 test('runs every closed negative before exactly two one-token positive probes', async () => {
   const { config, publicKey } = runtime();
   const inferenceBodies = [];
@@ -327,37 +358,149 @@ test('does not reinterpret a provider-credential UUID as a deployment identity',
 });
 
 test('refuses a positive whose start event disagrees with the signed exact route', async () => {
-  const { config, publicKey } = runtime();
-  let inferenceCalls = 0;
-  const fetchImpl = async (url, init) => {
-    const body = readAndVerifyRequest(publicKey, url, init);
-    const path = new URL(url).pathname;
-    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
-    if (path === '/internal/v1/deployments/query') {
-      return json({
-        snapshotId: 'snap-live-exact',
-        deployments: [{
-          deploymentId: DEPLOYMENT_ID,
-          modelReference: MODEL_REFERENCE,
-          provider: 'cerebras',
-          regions: [],
-        }],
-      }, 200, { 'Cache-Control': 'no-store' });
-    }
-    inferenceCalls += 1;
-    if (inferenceCalls <= 2) return json({ code: 'invalid_request' }, 400);
-    if (inferenceCalls <= 4) return sse([errorEvent(body.attribution.requestId)]);
-    const frames = successfulFrames(body);
-    frames[0].payload.deploymentId = 'dep_wrong_start_identity';
-    return sse(frames);
-  };
-
-  await assert.rejects(
-    () => runKaanaSignedCanary(config, fetchImpl),
-    (error) => error instanceof KaanaCanaryError &&
-      error.code === 'v1-direct-model_did_not_complete_exact_route',
+  await assertFirstPositiveFailure(
+    'v1-direct-model_start_deployment_mismatch',
+    (frames) => {
+      frames[0].payload.deploymentId = 'dep_wrong_start_identity';
+      return sse(frames);
+    },
   );
-  assert.equal(inferenceCalls, 5);
+});
+
+test('reports the exact safe stage for every positive response-contract failure', async (t) => {
+  const cases = [
+    {
+      name: 'HTTP status',
+      code: 'v1-direct-model_wrong_http_status',
+      mutate: () => json({ code: 'safe_fixture' }, 503),
+    },
+    {
+      name: 'provider execution error event',
+      code: 'v1-direct-model_execution_error_event_present',
+      mutate: (_frames, request) => sse([errorEvent(request.attribution.requestId, 'provider_error')]),
+    },
+    {
+      name: 'start event count',
+      code: 'v1-direct-model_start_event_count_mismatch',
+      mutate: (frames) => sse(frames.slice(1)),
+    },
+    {
+      name: 'start event position',
+      code: 'v1-direct-model_start_event_not_first',
+      mutate: (frames) => sse([frames[1], frames[0], frames[2]]),
+    },
+    {
+      name: 'start model identity',
+      code: 'v1-direct-model_start_model_mismatch',
+      mutate: (frames) => {
+        frames[0].payload.resolvedModelReference = 'openai/gpt-oss-120b@wrong';
+        return sse(frames);
+      },
+    },
+    {
+      name: 'start provider identity',
+      code: 'v1-direct-model_start_provider_mismatch',
+      mutate: (frames) => {
+        frames[0].payload.servingProvider = 'wrong';
+        return sse(frames);
+      },
+    },
+    {
+      name: 'done event count',
+      code: 'v1-direct-model_done_event_count_mismatch',
+      mutate: (frames) => sse([frames[0], frames[2]]),
+    },
+    {
+      name: 'done event position',
+      code: 'v1-direct-model_done_event_not_terminal',
+      mutate: (frames, request) => sse([
+        ...frames,
+        {
+          event: 'stream_event',
+          payload: {
+            schemaVersion: 1,
+            type: 'output_text_delta',
+            requestId: request.attribution.requestId,
+            sequence: 2,
+            delta: '',
+          },
+        },
+      ]),
+    },
+    {
+      name: 'receipt ownership',
+      code: 'v1-direct-model_terminal_receipt_present',
+      mutate: (frames) => {
+        frames[1].payload.receiptId = 'must-belong-to-oxy';
+        return sse(frames);
+      },
+    },
+    {
+      name: 'usage report count',
+      code: 'v1-direct-model_usage_report_count_mismatch',
+      mutate: (frames) => sse(frames.slice(0, 2)),
+    },
+    {
+      name: 'usage schema',
+      code: 'v1-direct-model_usage_schema_mismatch',
+      mutate: (frames) => {
+        frames[2].payload.schemaVersion = 1;
+        return sse(frames);
+      },
+    },
+    {
+      name: 'usage request identity',
+      code: 'v1-direct-model_usage_request_mismatch',
+      mutate: (frames) => {
+        frames[2].payload.requestId = 'wrong-request';
+        return sse(frames);
+      },
+    },
+    {
+      name: 'usage outcome',
+      code: 'v1-direct-model_usage_outcome_mismatch',
+      mutate: (frames) => {
+        frames[2].payload.outcome = 'failed';
+        return sse(frames);
+      },
+    },
+    {
+      name: 'usage deployment identity',
+      code: 'v1-direct-model_usage_deployment_mismatch',
+      mutate: (frames) => {
+        frames[2].payload.deploymentId = 'dep_wrong_usage_identity';
+        return sse(frames);
+      },
+    },
+    {
+      name: 'usage model identity',
+      code: 'v1-direct-model_usage_model_mismatch',
+      mutate: (frames) => {
+        frames[2].payload.resolvedModelReference = 'openai/gpt-oss-120b@wrong';
+        return sse(frames);
+      },
+    },
+    {
+      name: 'usage provider identity',
+      code: 'v1-direct-model_usage_provider_mismatch',
+      mutate: (frames) => {
+        frames[2].payload.servingProvider = 'wrong';
+        return sse(frames);
+      },
+    },
+    {
+      name: 'usage units',
+      code: 'v1-direct-model_usage_units_missing',
+      mutate: (frames) => {
+        frames[2].payload.units = [];
+        return sse(frames);
+      },
+    },
+  ];
+
+  for (const fixture of cases) {
+    await t.test(fixture.name, () => assertFirstPositiveFailure(fixture.code, fixture.mutate));
+  }
 });
 
 test('lists the complete signed safe deployment projection without selecting or executing', async () => {
