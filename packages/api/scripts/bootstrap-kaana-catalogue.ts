@@ -419,7 +419,7 @@ async function ensureDeployment(
     zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
     subprocessors: null,
     policyUrl: provider.policyUrl,
-    availabilityScope: "internal_alia" as const,
+    availabilityScope: "platform_internal" as const,
     commercialPermission: "standard_application_use" as const,
     permissionState: "approved" as const,
     legalReviewStatus: "approved" as const,
@@ -429,7 +429,7 @@ async function ensureDeployment(
     permissionStateChangedAt: new Date(KAANA_INITIAL_REVIEWED_AT),
     permissionStateChangedByUserId: reviewerUserId!,
     permissionStateNote:
-      "Owner-approved initial internal Alia route; primary-source review 2026-09-02.",
+      "Owner-approved initial platform-internal Kaana route; primary-source review 2026-09-02.",
     status: "active" as const,
     dedicatedCapacity: false,
     priceVersionId,
@@ -446,7 +446,7 @@ async function ensureDeployment(
       and(
         eq(inferenceDeployments.modelRevisionId, revisionId),
         eq(inferenceDeployments.providerSlug, provider.slug),
-        eq(inferenceDeployments.availabilityScope, "internal_alia"),
+        eq(inferenceDeployments.availabilityScope, "platform_internal"),
       ),
     );
   if (row === undefined) {

@@ -219,7 +219,7 @@ interface DeploymentOptions {
   readonly trainsOnCustomerData?: boolean;
   readonly zeroDataRetentionAvailable?: boolean;
   readonly regions?: string[];
-  readonly availabilityScope?: 'public_payg' | 'oxy_hosted' | 'internal_alia';
+  readonly availabilityScope?: 'public_payg' | 'oxy_hosted' | 'platform_internal';
   readonly dedicatedCapacity?: boolean;
   /** Publish the route with no price version, so nothing can be quoted. */
   readonly unpriced?: boolean;
@@ -256,7 +256,7 @@ const DEFAULT_UNIT_PRICES: readonly { unit: UsageUnit; amount: string; per: numb
 const PERMISSION_FOR_SCOPE = {
   public_payg: 'public_resale_approved',
   oxy_hosted: 'open_weight_hosting',
-  internal_alia: 'standard_application_use',
+  platform_internal: 'standard_application_use',
 } as const;
 
 /** One approved, priced deployment of `model`, on its own provider. */
@@ -1257,7 +1257,7 @@ describe('a policy refusal is never confused with an absent route', () => {
 
   it('answers unknown-model when the viewer may not see the only route', async () => {
     const model = await insertModel();
-    await insertDeployment(model, { rank: 'a', availabilityScope: 'internal_alia' });
+    await insertDeployment(model, { rank: 'a', availabilityScope: 'platform_internal' });
 
     // Withheld by AUDIENCE, not by policy — and the two must stay
     // distinguishable, because only one of them is the customer's to fix.

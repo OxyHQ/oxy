@@ -29,11 +29,12 @@
  * lane — a verified service token or an `oxy_sk_…` machine credential, which is
  * the bearer a stock OpenAI SDK sends to `client.models.list()`. No principal, a
  * plain user bearer, or a credential of either kind belonging to an ordinary
- * application all resolve to the PUBLIC viewer; only an internal/system
- * application sees `internal_alia` routes. An internal-only route and a model
- * that does not exist are deliberately the same answer, so the catalogue is never
- * an oracle for what Oxy runs internally. See {@link viewerForRequest} for why
- * the lane order and its rollout flag are the inference edge's own.
+ * application all resolve to the PUBLIC viewer; a staff-controlled
+ * first-party/internal/system application also sees `platform_internal` routes.
+ * A platform-only route and a model that does not exist are deliberately the
+ * same answer to third parties, so the catalogue is never an oracle for what
+ * Oxy products can use internally. See {@link viewerForRequest} for why the lane
+ * order and its rollout flag are the inference edge's own.
  *
  * ## Publication is a separate, flagged decision
  *

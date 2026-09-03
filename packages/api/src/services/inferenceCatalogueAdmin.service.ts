@@ -146,7 +146,7 @@ export interface DeploymentRoutingScorecard {
 const SERVING_AVAILABILITY_SCOPES = [
   'public_payg',
   'oxy_hosted',
-  'internal_alia',
+  'platform_internal',
   'byok_only',
 ] as const;
 const APPROVED_IDENTITY_CONFLICT =

@@ -160,21 +160,22 @@ export type CatalogueApplicationPrincipal = ApplicationClassification;
  * That is the default-deny direction: the way to see more is to present an
  * internal application credential, never to present nothing.
  *
- * The `internal` TIER is the one `classifyApplicationTier` computes, shared with
- * the inference edge's rollout audience so the two cannot come to different
- * answers about the same row. `first_party` is deliberately not internal here:
- * Console and Accounts are first-party and customer-facing, and handing them the
- * internal audience would put internal-only routes into the model list a
- * customer reads.
+ * `platform_internal` is available to staff-controlled first-party, internal
+ * and system applications. That is an audience boundary, not a resale claim:
+ * third-party applications and plain user bearers remain on the public scopes.
+ * The exact tier still comes from `classifyApplicationTier`, shared with the
+ * inference edge's rollout gate, so catalogue and execution cannot classify the
+ * same application differently.
  */
 export function resolveCatalogueViewer(
   application: CatalogueApplicationPrincipal | undefined
 ): CatalogueViewer {
-  if (classifyApplicationTier(application) !== 'internal') return PUBLIC_CATALOGUE_VIEWER;
+  const tier = classifyApplicationTier(application);
+  if (tier === 'third_party') return PUBLIC_CATALOGUE_VIEWER;
 
   return {
-    scopes: [...PUBLIC_CATALOGUE_SCOPES, 'internal_alia'],
-    label: 'internal',
+    scopes: [...PUBLIC_CATALOGUE_SCOPES, 'platform_internal'],
+    label: tier,
   };
 }
 
@@ -198,9 +199,9 @@ const OFFERABLE_STATUSES = ['active', 'degraded'] as const;
  * and exactly one place a widening could happen.
  *
  * All three conditions are required, and the permission one has no exemption:
- * an `internal_alia` route with `permission_state = 'pending_review'` is
- * invisible to Alia too. That costs one staff approval per internal route and
- * buys a gate with no branch in it.
+ * a `platform_internal` route with `permission_state = 'pending_review'` is
+ * invisible to every official product too. That costs one staff approval per
+ * platform route and buys a gate with no branch in it.
  */
 function selectableDeploymentWhere(viewer: CatalogueViewer) {
   return and(

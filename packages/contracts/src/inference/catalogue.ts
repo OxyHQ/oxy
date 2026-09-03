@@ -159,12 +159,13 @@ export const inferenceDataPolicySchema = z
   });
 
 /**
- * Who a route may be served to. Availability inside Alia never implies
- * permission to resell the same provider/model publicly, which is why this is
- * an explicit scope on the route rather than a boolean derived from "it works".
+ * Who a route may be served to. Availability to an official Oxy product never
+ * implies permission to resell the same provider/model publicly, which is why
+ * this is an explicit scope on the route rather than a boolean derived from
+ * "it works".
  */
 export const availabilityScopeSchema = z.enum([
-  'internal_alia',
+  'platform_internal',
   'public_payg',
   'enterprise',
   'byok_only',
