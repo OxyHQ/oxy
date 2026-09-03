@@ -24,8 +24,8 @@ describe('Inbox normalized events', () => {
         type: 'new_email',
       }),
       expect.objectContaining({
-        eventId: 'message-1:email_needs_response',
-        type: 'email_needs_response',
+        eventId: 'message-1:email_needs_reply',
+        type: 'email_needs_reply',
         resource: expect.objectContaining({ resourceId: 'mailbox-1' }),
       }),
     ]);

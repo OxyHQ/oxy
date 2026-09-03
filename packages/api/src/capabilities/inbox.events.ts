@@ -1,21 +1,6 @@
 import { normalizedAppEventSchema, type NormalizedAppEvent } from '@oxyhq/contracts';
-import { logger } from '../utils/logger';
-import { inboxServiceClient } from './inbox-service-client';
-
-const ALIA_API_URL = (process.env.ALIA_API_URL ?? 'https://api.alia.onl').replace(/\/$/, '');
-async function publish(event: NormalizedAppEvent): Promise<boolean> {
-  const client = inboxServiceClient();
-  if (!client) return false;
-  const token = await client.getServiceToken();
-  const response = await fetch(`${ALIA_API_URL}/webhooks/oxy`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-    body: JSON.stringify(normalizedAppEventSchema.parse(event)),
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!response.ok) throw new Error(`Alia rejected Inbox event (${response.status}): ${(await response.text()).slice(0, 200)}`);
-  return true;
-}
+import type { DatabaseOrTransaction } from '../config/postgres';
+import { normalizedAppEventOutbox } from '../db/schema/normalizedAppEventOutbox';
 
 function likelyNeedsResponse(input: {
   senderAddress: string;
@@ -65,11 +50,11 @@ export function buildInboxMessageEvents(input: InboxMessageEventInput): Normaliz
   const reason = likelyNeedsResponse(input);
   if (reason) {
     events.push({
-      eventId: `${input.messageId}:email_needs_response`,
+      eventId: `${input.messageId}:email_needs_reply`,
       appId: 'inbox',
       accountId: input.ownerAccountId,
       resource,
-      type: 'email_needs_response',
+      type: 'email_needs_reply',
       occurredAt: input.receivedAt.toISOString(),
       data: { messageId: input.messageId, mailboxId: input.mailboxId, reason },
     });
@@ -77,15 +62,14 @@ export function buildInboxMessageEvents(input: InboxMessageEventInput): Normaliz
   return events.map((event) => normalizedAppEventSchema.parse(event));
 }
 
-export async function publishInboxMessageEvents(input: InboxMessageEventInput): Promise<void> {
+/** Insert both Inbox events on the transaction that stores the message. */
+export async function enqueueInboxMessageEvents(
+  db: DatabaseOrTransaction,
+  input: InboxMessageEventInput,
+): Promise<void> {
   const events = buildInboxMessageEvents(input);
-  const results = await Promise.allSettled(events.map(publish));
-  for (const [index, result] of results.entries()) {
-    if (result.status === 'rejected') {
-      logger.warn('Inbox capability event publish failed', {
-        eventId: events[index]?.eventId,
-        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
-      });
-    }
-  }
+  await db
+    .insert(normalizedAppEventOutbox)
+    .values(events.map((event) => ({ eventId: event.eventId, appId: event.appId, event })))
+    .onConflictDoNothing({ target: normalizedAppEventOutbox.eventId });
 }

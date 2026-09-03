@@ -119,6 +119,7 @@ export * from './moderationPolicies';
 export * from './moderationPolicySeverityRules';
 export * from './moderationPolicyStandingThresholds';
 export * from './nodeIngestWitnesses';
+export * from './normalizedAppEventOutbox';
 export * from './notifications';
 export * from './personhoodStatuses';
 export * from './personhoodVouches';

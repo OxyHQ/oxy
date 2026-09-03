@@ -108,6 +108,10 @@ import {
   startFollowOutboxWorker,
   stopFollowOutboxWorker,
 } from './services/followOutbox.worker';
+import {
+  startNormalizedEventOutboxWorker,
+  stopNormalizedEventOutboxWorker,
+} from './services/normalizedAppEventOutbox.worker';
 import { startBackgroundJobs, stopBackgroundJobs } from './queue/backgroundJobs';
 import { startNodeIngestJobs, stopNodeIngestJobs } from './queue/nodeIngest.queue';
 import {
@@ -489,6 +493,7 @@ async function gracefulShutdown(signal: string) {
   });
 
   stopFollowOutboxWorker();
+  stopNormalizedEventOutboxWorker();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
   await stopTransparencyCheckpointJobs();
@@ -1312,6 +1317,7 @@ export async function bootstrap(
   // handler set today observes rather than delivers. The WRITE is never gated —
   // events accumulate regardless, so switching the loop on later loses nothing.
   startFollowOutboxWorker();
+  startNormalizedEventOutboxWorker();
 
   // Start background jobs: durable BullMQ scheduling when REDIS_URL is set,
   // otherwise the in-process cron fallback. Never throws.

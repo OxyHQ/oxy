@@ -67,6 +67,7 @@ import { messages } from './messages';
 import { mcpOauthClients } from './mcpOAuth';
 import { moderationEffects } from './moderationEffects';
 import { notifications } from './notifications';
+import { normalizedAppEventOutbox } from './normalizedAppEventOutbox';
 import { pushTokens } from './pushTokens';
 import { reputationTransactions } from './reputationTransactions';
 import { securityActivities } from './securityActivities';
@@ -102,6 +103,20 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: normalizedAppEventOutbox,
+    column: normalizedAppEventOutbox.eventId,
+    reason:
+      'The normalized event own public identity and consumer deduplication key, ' +
+      'not a reference to another database row.',
+  },
+  {
+    table: normalizedAppEventOutbox,
+    column: normalizedAppEventOutbox.appId,
+    reason:
+      'The stable semantic app id from the capability catalog. It crosses service ' +
+      'boundaries and is deliberately not an Oxy applications-table primary key.',
+  },
   {
     table: capabilityExecutionAuthorizations,
     column: capabilityExecutionAuthorizations.runId,

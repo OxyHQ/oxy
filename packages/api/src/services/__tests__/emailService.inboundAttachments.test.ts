@@ -56,12 +56,13 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { randomUUID } from 'node:crypto';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { files } from '../../db/schema/files';
 import { messageAttachments } from '../../db/schema/messageAttachments';
 import { messageRecipients } from '../../db/schema/messageRecipients';
 import { messages } from '../../db/schema/messages';
+import { normalizedAppEventOutbox } from '../../db/schema/normalizedAppEventOutbox';
 import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
 
@@ -297,6 +298,18 @@ describe('storeIncomingMessage — the message itself', () => {
       .from(messages)
       .where(eq(messages.id, stored.id));
     expect(row.headers.received).toContain('203.0.113.9');
+
+    const eventIds = [`${stored.id}:new_email`, `${stored.id}:email_needs_reply`];
+    const events = await getDb()
+      .select({ event: normalizedAppEventOutbox.event })
+      .from(normalizedAppEventOutbox)
+      .where(inArray(normalizedAppEventOutbox.eventId, eventIds));
+    expect(events).toHaveLength(2);
+    expect(events.every(({ event }) =>
+      event.accountId === user.id
+      && event.resource.effectiveAccountId === user.id
+      && event.resource.resourceId === stored.mailboxId
+    )).toBe(true);
   });
 
   it('routes a spam-scored message to Junk instead of the Inbox', async () => {
