@@ -54,7 +54,7 @@ function serviceToken(overrides: Record<string, unknown> = {}): string {
       ...overrides,
     },
     ACCESS_TOKEN_SECRET,
-    { expiresIn: '5m' }
+    { expiresIn: '5m', issuer: 'oxy-auth', audience: 'oxy-api' }
   );
 }
 

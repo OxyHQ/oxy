@@ -211,7 +211,7 @@ function serviceToken(input: {
       scopes: [...input.scopes],
     },
     process.env.ACCESS_TOKEN_SECRET as string,
-    { expiresIn: '1h' }
+    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' }
   );
 }
 
@@ -361,7 +361,7 @@ describe('the two lanes are dispatched, and neither is optional', () => {
         scopes: [READ_SCOPE, WRITE_SCOPE],
       },
       'not-the-access-token-secret',
-      { expiresIn: '1h' }
+      { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' }
     );
 
     currentUserId = tenant.ownerUserId;

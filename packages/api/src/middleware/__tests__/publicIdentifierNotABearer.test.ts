@@ -194,7 +194,7 @@ function serviceToken(): string {
       scopes: ['user:read'],
     },
     process.env.ACCESS_TOKEN_SECRET as string,
-    { expiresIn: '1h', issuer: 'oxy-api', audience: 'oxy-services' },
+    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' },
   );
 }
 
