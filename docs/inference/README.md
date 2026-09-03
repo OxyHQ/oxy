@@ -33,7 +33,9 @@ ledger, the usage API and the Console. **Kaana** is the inference data plane:
 provider adapters, routing execution, streaming, measurement and the encrypted
 PostgreSQL/KMS custody of customer provider keys. Alia remains the agent
 runtime. Kaana's only canonical signed origin is `https://kaana.ai`; it never
-uses a hostname under `oxy.so`.
+uses a hostname under `oxy.so`. The repository-level
+`scripts/check-kaana-identity.mjs` gate keeps that identity exact without
+renaming unrelated SMTP, ATProto, device, OAuth or MCP/TNP relay roles.
 
 ---
 

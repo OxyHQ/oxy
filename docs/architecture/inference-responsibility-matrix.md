@@ -177,6 +177,8 @@ header or environment-variable alias is part of the architecture.
 
 The unrelated role terms SMTP relay, ATProto Relay, device/OAuth relay and
 MCP/TNP relay remain valid. None denotes inference and none is a Kaana alias.
+`scripts/check-kaana-identity.mjs` enforces that distinction: unambiguous former
+inference identifiers fail repository CI, while the unrelated role terms do not.
 
 **`OxyHQ/Kaana` exists.** This establishes repository identity, not deployment
 or feature completeness.
