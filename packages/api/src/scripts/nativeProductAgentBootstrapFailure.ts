@@ -1,4 +1,4 @@
-import type { users } from '../db/schema';
+import type { applications, users } from '../db/schema';
 
 const DATABASE_ERROR_CODES = new Set([
   '28P01',
@@ -31,13 +31,26 @@ export type NativeProductAgentUsernameCollisionHolder = Pick<
   | 'privacyIsPrivateAccount'
 >;
 
+export type NativeProductAgentBoundApplication = Pick<
+  typeof applications.$inferSelect,
+  | 'id'
+  | 'ownerAccountId'
+  | 'type'
+  | 'status'
+  | 'isOfficial'
+  | 'isInternal'
+  | 'createdByUserId'
+>;
+
 export class NativeProductAgentUsernameCollisionError extends Error {
   readonly expectedAccountId: string;
   readonly holder: NativeProductAgentUsernameCollisionHolder;
+  readonly boundApplication: NativeProductAgentBoundApplication | null;
 
   constructor(
     expectedAccountId: string,
     holder: NativeProductAgentUsernameCollisionHolder,
+    boundApplication: NativeProductAgentBoundApplication | null = null,
   ) {
     super('native product-agent username collision');
     this.name = 'NativeProductAgentUsernameCollisionError';
@@ -51,6 +64,18 @@ export class NativeProductAgentUsernameCollisionError extends Error {
       accountStatus: holder.accountStatus,
       privacyIsPrivateAccount: holder.privacyIsPrivateAccount,
     };
+    this.boundApplication =
+      boundApplication === null
+        ? null
+        : {
+            id: boundApplication.id,
+            ownerAccountId: boundApplication.ownerAccountId,
+            type: boundApplication.type,
+            status: boundApplication.status,
+            isOfficial: boundApplication.isOfficial,
+            isInternal: boundApplication.isInternal,
+            createdByUserId: boundApplication.createdByUserId,
+          };
   }
 }
 
@@ -60,6 +85,7 @@ export type NativeProductAgentBootstrapFailureResult =
       code: 'username_collision';
       expectedAccountId: string;
       holder: NativeProductAgentUsernameCollisionHolder;
+      boundApplication: NativeProductAgentBoundApplication | null;
     }>
   | Readonly<{
       status: 'failed';
@@ -116,6 +142,7 @@ export function nativeProductAgentBootstrapFailureResult(
       code: 'username_collision',
       expectedAccountId: error.expectedAccountId,
       holder: error.holder,
+      boundApplication: error.boundApplication,
     };
   }
   return {

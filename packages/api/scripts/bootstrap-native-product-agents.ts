@@ -41,6 +41,7 @@ import {
   type NativeProductBootstrapPlan,
 } from "../src/scripts/nativeProductAgentsBootstrapPlan";
 import {
+  type NativeProductAgentBoundApplication,
   NativeProductAgentUsernameCollisionError,
   nativeProductAgentBootstrapFailureResult,
 } from "../src/scripts/nativeProductAgentBootstrapFailure";
@@ -191,6 +192,7 @@ async function requireOxyOrganization(tx: Transaction): Promise<void> {
 async function observeAccount(
   tx: Transaction,
   spec: AccountSpec,
+  boundApplicationId: string | null = null,
 ): Promise<AccountObservation> {
   const [row] = await tx
     .select({
@@ -228,7 +230,29 @@ async function observeAccount(
   }
   const usernameHolder = usernameHolders[0];
   if (usernameHolder && usernameHolder.id !== spec.id) {
-    throw new NativeProductAgentUsernameCollisionError(spec.id, usernameHolder);
+    let boundApplication: NativeProductAgentBoundApplication | null = null;
+    if (boundApplicationId !== null) {
+      const [row] = await tx
+        .select({
+          id: applications.id,
+          ownerAccountId: applications.ownerAccountId,
+          type: applications.type,
+          status: applications.status,
+          isOfficial: applications.isOfficial,
+          isInternal: applications.isInternal,
+          createdByUserId: applications.createdByUserId,
+        })
+        .from(applications)
+        .where(eq(applications.id, boundApplicationId))
+        .limit(1)
+        .for("update");
+      boundApplication = row ?? null;
+    }
+    throw new NativeProductAgentUsernameCollisionError(
+      spec.id,
+      usernameHolder,
+      boundApplication,
+    );
   }
   if (!row) return { spec, exists: false };
 
@@ -371,8 +395,15 @@ async function observeBootstrap(
     },
   ];
   const accounts: AccountObservation[] = [];
-  for (const spec of accountSpecs)
-    accounts.push(await observeAccount(tx, spec));
+  for (const spec of accountSpecs) {
+    accounts.push(
+      await observeAccount(
+        tx,
+        spec,
+        spec.id === homiio.project.id ? homiio.applicationId : null,
+      ),
+    );
+  }
 
   const costCenters: CostCenterObservation[] = [];
   for (const spec of [
