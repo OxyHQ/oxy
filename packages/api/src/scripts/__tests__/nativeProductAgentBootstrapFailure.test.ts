@@ -4,10 +4,10 @@ import {
 } from '../nativeProductAgentBootstrapFailure';
 
 describe('native product-agent bootstrap failure projection', () => {
-  const expectedAccountId = '01a0646a-078f-72ea-8759-86326484a7e0';
+  const expectedAccountId = '01a0646a-078f-7000-8000-000000000001';
   const unsafeMarker = 'must-not-cross-the-result-boundary';
   const holder = {
-    id: '6a50444ce8026582b949089d',
+    id: '6a50444ce8026582b9490001',
     kind: 'project' as const,
     type: 'local' as const,
     parentAccountId: '69b2d3df5d12f58c9800d651',
@@ -29,7 +29,7 @@ describe('native product-agent bootstrap failure projection', () => {
       code: 'username_collision',
       expectedAccountId,
       holder: {
-        id: '6a50444ce8026582b949089d',
+        id: '6a50444ce8026582b9490001',
         kind: 'project',
         type: 'local',
         parentAccountId: '69b2d3df5d12f58c9800d651',

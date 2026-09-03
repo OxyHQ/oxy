@@ -120,10 +120,14 @@ function assertWorkflowIdentityBindings(): void {
   const { homiio, clarity } = NATIVE_PRODUCT_AGENTS.products;
   const bindings: ReadonlyArray<readonly [string, string]> = [
     ["EXPECTED_OXY_ORGANIZATION_ID", NATIVE_PRODUCT_AGENTS.oxyOrganizationId],
+    ["EXPECTED_HOMIIO_PROJECT_ID", homiio.project.id],
+    ["EXPECTED_HOMIIO_BOT_ID", homiio.bot.id],
     ["EXPECTED_HOMIIO_APPLICATION_ID", homiio.applicationId],
     ["EXPECTED_HOMIIO_SINDI_CREDENTIAL_ID", homiio.sindiServiceCredential.id],
     ["EXPECTED_HOMIIO_SINDI_CLIENT_ID", homiio.sindiServiceCredential.clientId],
     ["EXPECTED_HOMIIO_SINDI_AGENT_ID", homiio.aliaAgent.id],
+    ["EXPECTED_CLARITY_PROJECT_ID", clarity.project.id],
+    ["EXPECTED_CLARITY_BOT_ID", clarity.bot.id],
     ["EXPECTED_CLARITY_APPLICATION_ID", clarity.application.id],
     ["EXPECTED_CLARITY_PUBLIC_CREDENTIAL_ID", clarity.publicCredential.id],
     ["EXPECTED_CLARITY_BACKEND_APPLICATION_ID", clarity.backendApplication.id],

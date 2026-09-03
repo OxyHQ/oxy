@@ -23,10 +23,14 @@ const failureReporter = readFileSync(
 
 for (const exact of [
   '69b2d3df5d12f58c9800d651',
+  '6a50444ce8026582b949089d',
+  '01a0646a-078f-7974-9645-a5e8be237f47',
   '6a2f851751b784a86fd0e922',
   '01a0648e-ad3f-7608-aa8b-c07bfef6cf73',
   'oxy_dk_bed4f8941795512ddce5b0662879dccae52d8bd30308d240',
   '01a0646a-078f-7514-9800-9f43ceed7df8',
+  '01a0646a-078f-7f53-848d-a0f82d9f7fa6',
+  '01a0646a-078f-7120-a993-a03c180c81b0',
   '01a0646a-2382-74a3-a795-788924d55722',
   '01a0646e-2508-7048-8c08-b1f7b3af634f',
   '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e',
@@ -39,6 +43,27 @@ for (const exact of [
   '/oxy/clarity/OXY_SERVICE_API_SECRET',
 ]) {
   assert.ok(workflow.includes(exact), `workflow must pin exact value ${exact}`);
+}
+
+for (const binding of [
+  'EXPECTED_OXY_ORGANIZATION_ID',
+  'EXPECTED_HOMIIO_PROJECT_ID',
+  'EXPECTED_HOMIIO_BOT_ID',
+  'EXPECTED_HOMIIO_APPLICATION_ID',
+  'EXPECTED_HOMIIO_SINDI_CREDENTIAL_ID',
+  'EXPECTED_HOMIIO_SINDI_CLIENT_ID',
+  'EXPECTED_HOMIIO_SINDI_AGENT_ID',
+  'EXPECTED_CLARITY_PROJECT_ID',
+  'EXPECTED_CLARITY_BOT_ID',
+  'EXPECTED_CLARITY_APPLICATION_ID',
+  'EXPECTED_CLARITY_PUBLIC_CREDENTIAL_ID',
+  'EXPECTED_CLARITY_BACKEND_APPLICATION_ID',
+  'EXPECTED_CLARITY_BACKEND_CREDENTIAL_ID',
+  'EXPECTED_CLARITY_BACKEND_CLIENT_ID',
+  'EXPECTED_CLARITY_AGENT_ID',
+]) {
+  assert.ok(workflow.includes(binding), `workflow must provide ${binding}`);
+  assert.ok(bootstrap.includes(binding), `bootstrap must verify ${binding}`);
 }
 
 assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);

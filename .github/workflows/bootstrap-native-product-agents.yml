@@ -40,10 +40,14 @@ env:
   SERVICE: oxy-api
   CONTAINER: oxy-api
   OXY_ORGANIZATION_ID: 69b2d3df5d12f58c9800d651
+  HOMIIO_PROJECT_ID: 6a50444ce8026582b949089d
+  HOMIIO_BOT_ID: 01a0646a-078f-7974-9645-a5e8be237f47
   HOMIIO_APPLICATION_ID: 6a2f851751b784a86fd0e922
   HOMIIO_SINDI_CREDENTIAL_ID: 01a0648e-ad3f-7608-aa8b-c07bfef6cf73
   HOMIIO_SINDI_CLIENT_ID: oxy_dk_bed4f8941795512ddce5b0662879dccae52d8bd30308d240
   HOMIIO_SINDI_AGENT_ID: 01a0646a-078f-7514-9800-9f43ceed7df8
+  CLARITY_PROJECT_ID: 01a0646a-078f-7f53-848d-a0f82d9f7fa6
+  CLARITY_BOT_ID: 01a0646a-078f-7120-a993-a03c180c81b0
   CLARITY_APPLICATION_ID: 01a0646a-2382-74a3-a795-788924d55722
   CLARITY_PUBLIC_CREDENTIAL_ID: 01a0646e-2508-7048-8c08-b1f7b3af634f
   CLARITY_BACKEND_APPLICATION_ID: 01a0648b-8d73-70ad-8e67-1c07ddc5eb6e
@@ -118,9 +122,13 @@ jobs:
           # These are immutable PK/client-id bindings, repeated here so review
           # cannot silently turn this into a name-, order- or slug-selected job.
           [ "$OXY_ORGANIZATION_ID" = '69b2d3df5d12f58c9800d651' ]
+          [ "$HOMIIO_PROJECT_ID" = '6a50444ce8026582b949089d' ]
+          [ "$HOMIIO_BOT_ID" = '01a0646a-078f-7974-9645-a5e8be237f47' ]
           [ "$HOMIIO_APPLICATION_ID" = '6a2f851751b784a86fd0e922' ]
           [ "$HOMIIO_SINDI_CREDENTIAL_ID" = '01a0648e-ad3f-7608-aa8b-c07bfef6cf73' ]
           [ "$HOMIIO_SINDI_AGENT_ID" = '01a0646a-078f-7514-9800-9f43ceed7df8' ]
+          [ "$CLARITY_PROJECT_ID" = '01a0646a-078f-7f53-848d-a0f82d9f7fa6' ]
+          [ "$CLARITY_BOT_ID" = '01a0646a-078f-7120-a993-a03c180c81b0' ]
           [ "$CLARITY_APPLICATION_ID" = '01a0646a-2382-74a3-a795-788924d55722' ]
           [ "$CLARITY_PUBLIC_CREDENTIAL_ID" = '01a0646e-2508-7048-8c08-b1f7b3af634f' ]
           [ "$CLARITY_BACKEND_APPLICATION_ID" = '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e' ]
@@ -177,10 +185,14 @@ jobs:
                     {name:"BOOTSTRAP_REASON",value:$reason},
                     {name:"EXPECTED_PLAN_SHA256",value:$expected},
                     {name:"EXPECTED_OXY_ORGANIZATION_ID",value:"69b2d3df5d12f58c9800d651"},
+                    {name:"EXPECTED_HOMIIO_PROJECT_ID",value:"6a50444ce8026582b949089d"},
+                    {name:"EXPECTED_HOMIIO_BOT_ID",value:"01a0646a-078f-7974-9645-a5e8be237f47"},
                     {name:"EXPECTED_HOMIIO_APPLICATION_ID",value:"6a2f851751b784a86fd0e922"},
                     {name:"EXPECTED_HOMIIO_SINDI_CREDENTIAL_ID",value:"01a0648e-ad3f-7608-aa8b-c07bfef6cf73"},
                     {name:"EXPECTED_HOMIIO_SINDI_CLIENT_ID",value:"oxy_dk_bed4f8941795512ddce5b0662879dccae52d8bd30308d240"},
                     {name:"EXPECTED_HOMIIO_SINDI_AGENT_ID",value:"01a0646a-078f-7514-9800-9f43ceed7df8"},
+                    {name:"EXPECTED_CLARITY_PROJECT_ID",value:"01a0646a-078f-7f53-848d-a0f82d9f7fa6"},
+                    {name:"EXPECTED_CLARITY_BOT_ID",value:"01a0646a-078f-7120-a993-a03c180c81b0"},
                     {name:"EXPECTED_CLARITY_APPLICATION_ID",value:"01a0646a-2382-74a3-a795-788924d55722"},
                     {name:"EXPECTED_CLARITY_PUBLIC_CREDENTIAL_ID",value:"01a0646e-2508-7048-8c08-b1f7b3af634f"},
                     {name:"EXPECTED_CLARITY_BACKEND_APPLICATION_ID",value:"01a0648b-8d73-70ad-8e67-1c07ddc5eb6e"},
