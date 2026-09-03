@@ -12,6 +12,9 @@ const files = [
   '.github/workflows/kaana-signed-canary.yml',
   '.github/workflows/kaana-signed-deployment-readback.yml',
   'packages/api/scripts/run-kaana-signed-canary.mjs',
+  'packages/contracts/src/inference/errors.ts',
+  'packages/contracts/src/inference/identifiers.ts',
+  'packages/contracts/src/inference/streamEvents.ts',
 ];
 
 function fixture() {
@@ -171,10 +174,168 @@ try {
   mutate(
     leakedFailureRequestId,
     '.github/workflows/kaana-signed-canary.yml',
-    "jq -c '{schemaVersion,status,code,providerRequests,oxyLedgerWrites}'",
-    "jq -c '{schemaVersion,status,code,providerRequests,oxyLedgerWrites,requestId}'",
+    '{schemaVersion,status,code,inferenceErrorCode,providerRequests,oxyLedgerWrites}',
+    '{schemaVersion,status,code,inferenceErrorCode,providerRequests,oxyLedgerWrites,requestId}',
   );
   verdict(leakedFailureRequestId, 1);
+
+  const widenedFailureEnvelope = fixture();
+  roots.push(widenedFailureEnvelope);
+  mutate(
+    widenedFailureEnvelope,
+    '.github/workflows/kaana-signed-canary.yml',
+    '["code","inferenceErrorCode","oxyLedgerWrites","providerRequests","schemaVersion","status"]',
+    '["code","inferenceErrorCode","oxyLedgerWrites","providerDetail","providerRequests","schemaVersion","status"]',
+  );
+  verdict(widenedFailureEnvelope, 1);
+
+  const weakenedInferenceErrorEnum = fixture();
+  roots.push(weakenedInferenceErrorEnum);
+  mutate(
+    weakenedInferenceErrorEnum,
+    '.github/workflows/kaana-signed-canary.yml',
+    '$inference_error_codes | index($inference_error_code) != null',
+    'true',
+  );
+  verdict(weakenedInferenceErrorEnum, 1);
+
+  const driftedInferenceErrorEnum = fixture();
+  roots.push(driftedInferenceErrorEnum);
+  mutate(
+    driftedInferenceErrorEnum,
+    'packages/api/scripts/run-kaana-signed-canary.mjs',
+    "  'provider_billing_refused',",
+    "  'provider_billing_refused_typo',",
+  );
+  verdict(driftedInferenceErrorEnum, 1);
+
+  const weakenedStartEventShape = fixture();
+  roots.push(weakenedStartEventShape);
+  mutate(
+    weakenedStartEventShape,
+    'packages/api/scripts/run-kaana-signed-canary.mjs',
+    'actualFields.length === expectedFields.length &&',
+    'true &&',
+  );
+  verdict(weakenedStartEventShape, 1);
+
+  const driftedStartEventAllowlist = fixture();
+  roots.push(driftedStartEventAllowlist);
+  mutate(
+    driftedStartEventAllowlist,
+    'packages/api/scripts/run-kaana-signed-canary.mjs',
+    "  'startedAt',",
+    "  'createdAt',",
+  );
+  verdict(driftedStartEventAllowlist, 1);
+
+  const driftedStartEventOptionality = fixture();
+  roots.push(driftedStartEventOptionality);
+  mutate(
+    driftedStartEventOptionality,
+    'packages/contracts/src/inference/streamEvents.ts',
+    'generationId: generationIdSchema.optional(),',
+    'generationId: generationIdSchema,',
+  );
+  verdict(driftedStartEventOptionality, 1);
+
+  const driftedGenerationIdContract = fixture();
+  roots.push(driftedGenerationIdContract);
+  mutate(
+    driftedGenerationIdContract,
+    'packages/contracts/src/inference/identifiers.ts',
+    'export const generationIdSchema = z.string().min(1).max(128);',
+    'export const generationIdSchema = z.string().min(1).max(256);',
+  );
+  verdict(driftedGenerationIdContract, 1);
+
+  const driftedRequestIdContract = fixture();
+  roots.push(driftedRequestIdContract);
+  mutate(
+    driftedRequestIdContract,
+    'packages/contracts/src/inference/identifiers.ts',
+    'export const requestIdSchema = z.string().min(1).max(128);',
+    'export const requestIdSchema = z.string().min(1).max(256);',
+  );
+  verdict(driftedRequestIdContract, 1);
+
+  const driftedTimestampContract = fixture();
+  roots.push(driftedTimestampContract);
+  mutate(
+    driftedTimestampContract,
+    'packages/contracts/src/inference/identifiers.ts',
+    'export const inferenceTimestampSchema = z.string().datetime();',
+    'export const inferenceTimestampSchema = z.string().datetime({ offset: true });',
+  );
+  verdict(driftedTimestampContract, 1);
+
+  for (const weakening of [
+    {
+      name: 'start type',
+      from: "start?.type !== 'start'",
+      to: 'false',
+    },
+    {
+      name: 'schema version',
+      from: 'start.schemaVersion !== 1',
+      to: 'false',
+    },
+    {
+      name: 'request identity',
+      from: 'start.requestId !== probe.requestId',
+      to: 'false',
+    },
+    {
+      name: 'sequence',
+      from: '!Number.isSafeInteger(start.sequence) || start.sequence !== 0',
+      to: 'false',
+    },
+    {
+      name: 'generation id minimum',
+      from: 'start.generationId.length < 1',
+      to: 'false',
+    },
+    {
+      name: 'generation id',
+      from: 'start.generationId.length > CANARY_START_ID_MAX_LENGTH',
+      to: 'false',
+    },
+    {
+      name: 'timestamp type',
+      from: "typeof value !== 'string'",
+      to: 'false',
+    },
+    {
+      name: 'timestamp use',
+      from: '!isContractUtcTimestamp(start.startedAt)',
+      to: 'false',
+    },
+    {
+      name: 'timestamp calendar',
+      from: 'return day >= 1 && day <= daysInMonth[month - 1];',
+      to: 'return true;',
+    },
+  ]) {
+    const weakenedStartValue = fixture();
+    roots.push(weakenedStartValue);
+    mutate(
+      weakenedStartValue,
+      'packages/api/scripts/run-kaana-signed-canary.mjs',
+      weakening.from,
+      weakening.to,
+    );
+    verdict(weakenedStartValue, 1);
+  }
+
+  const widenedTimestampGrammar = fixture();
+  roots.push(widenedTimestampGrammar);
+  mutate(
+    widenedTimestampGrammar,
+    'packages/api/scripts/run-kaana-signed-canary.mjs',
+    '(?:\\.([0-9]+))?)?Z$/;',
+    '(?:\\.([0-9]+))?)?(?:Z|[+-][0-9]{2}:[0-9]{2})$/;',
+  );
+  verdict(widenedTimestampGrammar, 1);
 
   const freeFormFailureLogs = fixture();
   roots.push(freeFormFailureLogs);
@@ -191,7 +352,7 @@ try {
   mutate(
     aggregatePositiveFailure,
     'packages/api/scripts/run-kaana-signed-canary.mjs',
-    '`${label}_start_deployment_mismatch`',
+    '`${label}_start_route_identity_present`',
     '`${label}_did_not_complete_exact_route`',
   );
   verdict(aggregatePositiveFailure, 1);
