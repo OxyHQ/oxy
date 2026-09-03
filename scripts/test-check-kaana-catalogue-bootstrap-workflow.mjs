@@ -78,7 +78,7 @@ try {
 		{
 			file: ".github/workflows/bootstrap-kaana-catalogue.yml",
 			from: 'name:"DATABASE_URL",',
-			to: 'name:"MONGODB_URI",',
+			to: 'name:"DATABASE_URL_BACKUP",',
 		},
 		{
 			file: ".github/workflows/bootstrap-kaana-catalogue.yml",
