@@ -324,9 +324,19 @@ jobs:
           done
           result=${result_line#KAANA_SIGNED_CANARY_RESULT=}
           if [ "$exit_code" != 0 ] || [ -z "$result_line" ]; then
-            if [ -n "$result_line" ] && jq -e '
+            inference_error_codes_json='["invalid_request","authentication_failed","permission_denied","insufficient_scope","model_not_found","unsupported_modality","context_length_exceeded","request_too_large","output_limit_exceeded","idempotency_conflict","insufficient_balance","spending_limit_exceeded","quota_exceeded","byok_credential_invalid","policy_violation","commercial_permission_denied","no_route_available","upstream_content_filtered","cancelled","rate_limited","deployment_unavailable","provider_error","provider_timeout","provider_overloaded","provider_credential_invalid","provider_billing_refused","service_unavailable","internal_error"]'
+            if [ -n "$result_line" ] && jq -e --argjson inference_error_codes "$inference_error_codes_json" '
               (type == "object") and
-              ((keys | sort) == ["code","oxyLedgerWrites","providerRequests","schemaVersion","status"]) and
+              (
+                ((keys | sort) == ["code","oxyLedgerWrites","providerRequests","schemaVersion","status"]) or
+                (
+                  ((keys | sort) == ["code","inferenceErrorCode","oxyLedgerWrites","providerRequests","schemaVersion","status"]) and
+                  (.code | endswith("_execution_error_event_present")) and
+                  (.inferenceErrorCode | type == "string") and
+                  (.inferenceErrorCode as $inference_error_code |
+                    $inference_error_codes | index($inference_error_code) != null)
+                )
+              ) and
               .schemaVersion == 1 and
               .status == "failed" and
               (.code | type == "string" and test("^[a-z0-9][a-z0-9_-]{0,127}$")) and
@@ -334,7 +344,11 @@ jobs:
               .oxyLedgerWrites == 0
             ' <<<"$result" >/dev/null; then
               echo '──────── signed canary failure (allowlisted fields only) ────────'
-              jq -c '{schemaVersion,status,code,providerRequests,oxyLedgerWrites}' <<<"$result"
+              jq -c 'if has("inferenceErrorCode") then
+                {schemaVersion,status,code,inferenceErrorCode,providerRequests,oxyLedgerWrites}
+              else
+                {schemaVersion,status,code,providerRequests,oxyLedgerWrites}
+              end' <<<"$result"
               echo '────────────────────────────────────────────────────────────────────────'
             elif [ -n "$result_line" ]; then
               echo '::error::canary emitted an unsafe or invalid failure result envelope'
