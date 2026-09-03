@@ -8,6 +8,7 @@ const canonicalHomiioApplicationId = '6a2f851751b784a86fd0e922';
 const canonicalInboxApplicationId = '6a37b3e61ddfd195b656819b';
 const canonicalInboxCredentialId = '01a06134-022c-72b6-a876-27da37a39e39';
 const canonicalAliaApplicationId = '6a2f851751b784a86fd0e934';
+const canonicalMentionApplicationId = '6a2f851751b784a86fd0e916';
 
 const provision = readFileSync('.github/workflows/provision-service-credential.yml', 'utf8');
 const reconcile = readFileSync(
@@ -58,6 +59,7 @@ for (const [name, workflow] of [
 const kaanaProvision = registryArm(provision, canonicalKaanaApplicationId);
 const homiioProvision = registryArm(provision, canonicalHomiioApplicationId);
 const aliaProvision = registryArm(provision, canonicalAliaApplicationId);
+const mentionProvision = registryArm(provision, canonicalMentionApplicationId);
 assert.match(kaanaProvision, /SCOPES="inference:byok:validate"/);
 assert.match(kaanaProvision, /APP_NAMESPACE="kaana"/);
 assert.match(kaanaProvision, /DESTINATION_KEY_NAME="OXY_APPLICATION_KEY"/);
@@ -81,6 +83,15 @@ assert.doesNotMatch(
   /inference:(?:models|usage|routing):read|acting-as:offline|accounts:act-as-session/,
 );
 assert.doesNotMatch(aliaProvision, /ALIA_(?:RELAY|KAANA)_CREDENTIAL/);
+assert.match(mentionProvision, /APP_NAMESPACE="mention"/);
+assert.match(mentionProvision, /DESTINATION_KEY_NAME="OXY_SERVICE_API_KEY"/);
+assert.match(mentionProvision, /DESTINATION_SECRET_NAME="OXY_SERVICE_API_SECRET"/);
+assert.match(mentionProvision, /ISOLATE_CREDENTIAL_NAME="true"/);
+assert.match(
+  mentionProvision,
+  /SCOPES="user:read,files:read,files:write,federation:write,signals:write,catalogs:write,capabilities:read,capability-audit:write"/,
+);
+assert.doesNotMatch(mentionProvision, /capability-tickets:issue|agency:coordinate/);
 assert.match(provision, /\/oxy\/\$APP_NAMESPACE\/\$DESTINATION_KEY_NAME/);
 assert.match(provision, /\/oxy\/\$APP_NAMESPACE\/\$DESTINATION_SECRET_NAME/);
 assert.doesNotMatch(provision, /\/oxy\/\$APP_NAMESPACE\/OXY_APPLICATION_(?:KEY|SECRET)/);
