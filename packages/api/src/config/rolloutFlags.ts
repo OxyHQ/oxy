@@ -55,6 +55,7 @@
  * both, and no amount of parsing in this module changes that.
  */
 
+import { isLiveEntityId } from '@oxyhq/db';
 import { classifyApplicationTier, type ApplicationTier } from '../utils/applicationTier';
 import { logger } from '../utils/logger';
 
@@ -100,19 +101,21 @@ export function forgetReportedMisconfigurations(): void {
  * ```text
  * (unset)               nobody. The default.
  * closed                nobody, said out loud.
- * internal              internal/system applications      — internal Alia canary
- * first_party           …plus first-party applications    — Oxy first-party canary
- * allowlist:<id>,<id>   …plus the named applications      — closed external beta
+ * internal              internal/system applications      — tier canary
+ * first_party           internal + first-party apps       — broader tier canary
+ * allowlist:<id>,<id>   exactly the named applications    — exact-app canary/beta
  * public                every application                 — prepaid public launch
  * ```
  *
- * The stages are cumulative because an operational rollout is: a stage that
- * locked out the previous stage's callers would make every advance an outage for
- * the people already depending on it.
+ * The tier audiences are cumulative. `allowlist` is deliberately not: it is the
+ * escape hatch for naming one or more exact application principals without
+ * implicitly admitting every `internal` or `first_party` application. Moving
+ * from a tier audience to an allowlist is therefore a narrowing operation unless
+ * each prior caller is named explicitly.
  *
  * It is an AUDIENCE rather than a phase number, and it names the applications it
  * admits, because "what does `stage 3` mean" is a question a task definition
- * cannot answer and `allowlist:app_x` answers by itself.
+ * cannot answer and `allowlist:<exact application ID>` answers by itself.
  */
 export const EDGE_AUDIENCE_VARIABLE = 'INFERENCE_EDGE_AUDIENCE';
 
@@ -175,7 +178,7 @@ const EDGE_AUDIENCE_SHAPE =
  * decides which one an operator is told about first.
  */
 export function resolveEdgeAudience(): EdgeAudienceResolution {
-  const configured = process.env[EDGE_AUDIENCE_VARIABLE]?.trim();
+  const configured = process.env[EDGE_AUDIENCE_VARIABLE];
   if (configured === undefined || configured.length === 0) {
     return { status: 'closed', reason: 'not_configured' };
   }
@@ -184,16 +187,17 @@ export function resolveEdgeAudience(): EdgeAudienceResolution {
   }
 
   if (configured.startsWith(ALLOWLIST_PREFIX)) {
-    const allowedApplicationIds = configured
-      .slice(ALLOWLIST_PREFIX.length)
-      .split(',')
-      .map((id) => id.trim())
-      .filter((id) => id.length > 0);
-    // An empty list is refused rather than read as `first_party`. A closed beta
-    // with nobody in it is a misconfiguration, and silently serving the previous
-    // stage would hide it for exactly as long as nobody noticed the beta had no
-    // testers.
-    if (allowedApplicationIds.length === 0) {
+    const allowedApplicationIds = configured.slice(ALLOWLIST_PREFIX.length).split(',');
+    const uniqueApplicationIds = new Set(allowedApplicationIds);
+    // IDs are exact database primary keys: never trim, normalize, discard an
+    // empty segment, or silently deduplicate them. A malformed list closes the
+    // whole edge, making an operator correct the intended principal set instead
+    // of running with a different set than the task definition spells.
+    if (
+      allowedApplicationIds.length === 0 ||
+      allowedApplicationIds.some((id) => !isLiveEntityId(id)) ||
+      uniqueApplicationIds.size !== allowedApplicationIds.length
+    ) {
       reportUnreadable(EDGE_AUDIENCE_VARIABLE, configured, EDGE_AUDIENCE_SHAPE);
       return { status: 'closed', reason: 'unreadable' };
     }
@@ -234,11 +238,11 @@ export type EdgeAdmission =
       readonly tier: ApplicationTier;
     };
 
-/** The tiers each audience admits, before the allowlist is consulted. */
+/** The tiers admitted by tier audiences. `allowlist` admits by exact ID only. */
 const AUDIENCE_TIERS: Record<EdgeAudienceName, readonly ApplicationTier[]> = {
   internal: ['internal'],
   first_party: ['internal', 'first_party'],
-  allowlist: ['internal', 'first_party'],
+  allowlist: [],
   public: ['internal', 'first_party', 'third_party'],
 };
 
@@ -261,13 +265,12 @@ export function admitToInferenceEdge(principal: EdgeAdmissionPrincipal): EdgeAdm
   }
 
   const { audience } = resolution;
-  if (AUDIENCE_TIERS[audience.name].includes(tier)) {
-    return { status: 'admitted', audience: audience.name };
+  if (audience.name === 'allowlist') {
+    return audience.allowedApplicationIds.includes(principal.applicationId)
+      ? { status: 'admitted', audience: audience.name }
+      : { status: 'refused', reason: 'outside_audience', tier };
   }
-  if (
-    audience.name === 'allowlist' &&
-    audience.allowedApplicationIds.includes(principal.applicationId)
-  ) {
+  if (AUDIENCE_TIERS[audience.name].includes(tier)) {
     return { status: 'admitted', audience: audience.name };
   }
 

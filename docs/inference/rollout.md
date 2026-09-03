@@ -18,7 +18,7 @@ every flag, its resolved state, and the reason for that state.
 
 | Variable | Values | Unset means | What it gates |
 |---|---|---|---|
-| `INFERENCE_EDGE_AUDIENCE` | `closed` · `internal` · `first_party` · `allowlist:<appId>,…` · `public` | **closed — nobody** | Who may reach `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id` |
+| `INFERENCE_EDGE_AUDIENCE` | `closed` · `internal` · `first_party` · `allowlist:<exactAppId>,…` · `public` | **closed — nobody** | Who may reach `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id` |
 | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `enabled` · `disabled` | **disabled** | Whether an `oxy_sk_…` machine credential authenticates at all |
 | `INFERENCE_KAANA_EXECUTION` | `enabled` · `disabled` | **disabled** | Whether ambient production wiring may construct the signed Kaana client; tests may still inject an explicit client |
 | `INFERENCE_CHARGING_AUTHORIZED` | `<reason>:<YYYY-MM-DD>` | **shadow metering — nobody is charged** | Whether the edge reserves, settles and moves money |
@@ -51,6 +51,20 @@ A dedicated execution service may reasonably make a malformed safety switch a
 hard boot failure. That is not proportionate for `oxy-api`, which also serves
 authentication, email, storage and federation and must not be taken down by a
 typo in an inference flag.
+
+`allowlist:` accepts only exact Oxy application primary keys (a retained
+24-character ObjectId or a UUIDv7), separated by commas with no whitespace,
+empty segments or duplicates. The configured value is never trimmed or
+normalized. Any malformed segment makes the whole audience unreadable and
+therefore closes the edge.
+
+Unlike the tier values, `allowlist` inherits no audience: an internal or
+first-party application is refused unless its exact ID is present. This is an
+intentional correction to the earlier implementation, which admitted both tiers
+implicitly. A configuration that depended on that old behavior must list every
+intended application explicitly. The repository and production task definition
+had no `allowlist:` value at the time of this correction, so there is no deployed
+configuration to migrate.
 
 ### Why charging refuses a bare `true`
 
@@ -288,18 +302,20 @@ decides that each is expressible, enforceable, and answerable from one endpoint.
 | Stage | `INFERENCE_EDGE_AUDIENCE` | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `INFERENCE_KAANA_EXECUTION` | `INFERENCE_CHARGING_AUTHORIZED` | `INFERENCE_CATALOGUE_AUDIENCE` | `INFERENCE_PRIVACY_REVIEW` |
 |---|---|---|---|---|---|---|
 | Parked deployment | unset | unset | unset | unset | unset | unset |
-| Internal Alia canary | `internal` | unset | `enabled` | unset | unset | unset |
+| Exact Alia canary | `allowlist:<Alia applicationId>` | unset | `enabled` | unset | unset | unset |
+| Internal tier canary | `internal` | unset | `enabled` | unset | unset | unset |
 | Oxy first-party canary | `first_party` | `enabled` | `enabled` | unset | unset | unset |
-| Closed external beta | `allowlist:<appId>,…` | `enabled` | `enabled` | unset | `public` | unset |
+| Closed external beta | `allowlist:<exact appId>,…` | `enabled` | `enabled` | unset | `public` | unset |
 | Prepaid public launch | `public` | `enabled` | `enabled` | `<reason>:<date>` | `public` | `<reviewer>:<date>` |
 
 The review is required only for `public`, exactly as charging is: a bounded,
 named audience runs without either.
 
-The audiences are cumulative: a stage never locks out the previous stage's
-callers, because an advance that did would be an outage for the people already
-depending on it. The tiers come from the staff-controlled `Application.type` and
-`Application.isInternal` columns, through one predicate
+The `internal`, `first_party` and `public` tier audiences are cumulative. The
+exact-ID `allowlist` is deliberately independent and can narrow a tier audience;
+an operator must name every caller that should remain admitted. The tiers come
+from the staff-controlled `Application.type` and `Application.isInternal` columns,
+through one predicate
 (`packages/api/src/utils/applicationTier.ts`) shared with the catalogue's
 audience — a self-service application cannot promote its own tier.
 
