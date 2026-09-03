@@ -49,6 +49,7 @@ import {
   inferenceModelRevisions,
   inferenceModels,
   inferenceSpendAnomalies,
+  NORMALIZED_INFERENCE_DEPLOYMENT_AVAILABILITY_SCOPE,
 } from '../db/schema';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
@@ -145,7 +146,7 @@ const DEPLOYMENT_ADMIN_COLUMNS = {
   modelRevisionId: inferenceDeployments.modelRevisionId,
   providerSlug: inferenceDeployments.providerSlug,
   regions: inferenceDeployments.regions,
-  availabilityScope: inferenceDeployments.availabilityScope,
+  availabilityScope: NORMALIZED_INFERENCE_DEPLOYMENT_AVAILABILITY_SCOPE,
   commercialPermission: inferenceDeployments.commercialPermission,
   permissionState: inferenceDeployments.permissionState,
   permissionStateChangedAt: inferenceDeployments.permissionStateChangedAt,

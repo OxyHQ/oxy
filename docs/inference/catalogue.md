@@ -152,6 +152,96 @@ No SCOPE is checked on a catalogue read. `inference:models:read` exists in the
 vocabulary and is consulted by nothing; see
 [credentials.md](./credentials.md#which-scopes-to-ask-for).
 
+### Rolling storage rename: three releases, in order
+
+`internal_alia` is not a contract alias: schema v2/v3 rejects it and every API
+response emits `platform_internal`. It survives temporarily only as a PostgreSQL
+storage value so the previous API image remains rollback-safe while the new
+image rolls out. The transition must not be collapsed into one deployment:
+
+1. **Expand (this release).** A PRE migration widens the database CHECK to both
+   storage values without rewriting rows. New code reads both, normalizes the
+   legacy bytes to `platform_internal` before policy evaluation or output, and
+   writes only `platform_internal`. Old pods therefore continue to see their
+   existing rows during the rolling update. There is no general deployment
+   authoring surface; the reviewed bootstrap is the only production writer in
+   this release, and `APPLY=1` fails closed until its old-task-zero gate below
+   succeeds.
+2. **Backfill and contract (required follow-up).** Only after this release is
+   fully deployed and its catalogue/edge readback passes, a separate POST
+   migration rewrites `internal_alia` to `platform_internal` and restores a
+   new-only CHECK. Keep the read bridge in that release, so rollback to this
+   release remains safe.
+3. **Remove the bridge (required follow-up).** After the post-migration readback
+   reports zero legacy rows, a third release deletes the storage constant,
+   dual-read predicate and normalization branch.
+
+The two readbacks that authorize steps 2 and 3 are exact value counts, not names
+or inferred routes:
+
+```sql
+SELECT availability_scope, count(*)
+FROM inference_deployments
+WHERE availability_scope IN ('internal_alia', 'platform_internal')
+GROUP BY availability_scope
+ORDER BY availability_scope;
+```
+
+Before step 2, prove the deployed image serves every expected exact deployment
+ID from both stored values. Before step 3, require the query above to return no
+`internal_alia` row. Skipping either follow-up leaves compatibility code active;
+running either early makes rollback lose the internal catalogue.
+
+#### Bootstrap gate during the expand release
+
+Do not create a `platform_internal` row while a previous-image pod can receive
+traffic: that pod only queries `internal_alia` and would silently miss the new
+row. The only supported APPLY path during the bridge is the
+`Bootstrap Kaana catalogue` workflow on `main`. Supply the reviewed exact live
+`oxy-oxy-api:<revision>` ARN, the exact dedicated
+`oxy-kaana-catalogue-bootstrap:<revision>` ARN, their shared immutable
+`oxy-api@sha256:...` image, and the exact reviewer user ID. The two task
+definitions are deliberately **different**: the one-shot has narrower S3 and
+database authority and must not inherit the live API's credential environment.
+
+The workflow and `.github/scripts/attest-kaana-catalogue-rollout.sh` enforce all
+of the following rather than trusting an operator-pasted ARN:
+
+- `oxy-api` is ACTIVE at the reviewed task definition, has positive desired
+  count, running equals desired, pending is zero and the PRIMARY rollout is
+  uniquely COMPLETED;
+- every concrete RUNNING task uses that definition and every old deployment has
+  zero running and pending tasks;
+- two complete observations separated in time agree, closing a rollout TOCTOU
+  window before `RunTask`;
+- the live and dedicated definitions both name the exact reviewed immutable
+  image digest;
+- the workflow shares the `deploy-oxy-api` concurrency lock with production
+  deploy and rollback, then repeats the complete attestation after the one-shot;
+- its OIDC role can only inspect the two required services/tasks, run the exact
+  `oxy-kaana-catalogue-bootstrap:*` family on `oxy-cluster`, and pass the
+  dedicated bootstrap plus fleet execution roles to ECS;
+- the dedicated task reuses the live `kaana-publisher` network configuration,
+  including its egress-only security group and `assignPublicIp`, rather than the
+  API service's broader network identity;
+- APPLY receives a timestamped attestation that expires after ten minutes. The
+  process derives its own dedicated definition, cluster and image from the ECS
+  v4 metadata endpoint and refuses any mismatch before inventory or PostgreSQL.
+
+Dry runs remain available outside ECS because they write nothing. Direct/manual
+APPLY is unsupported: copied environment values cannot replace the serialized
+AWS checks, production approval and post-run readback in the workflow.
+
+This makes the mixed-version boundary explicit: until the old task count is
+zero there are no new-scope writes, and rollback during the rolling deployment
+continues to read the untouched legacy rows. The shared workflow lock prevents
+the supported deploy/rollback path from racing APPLY. Once APPLY has created a
+new-scope row, rollback must target this bridge-capable release (or a newer one),
+never the pre-bridge image; an out-of-band ECS mutation during the locked job is
+an incident and the post-run attestation fails visibly. The bootstrap also
+rejects coexistence of legacy and current rows for one logical deployment
+instead of selecting whichever row PostgreSQL happens to return first.
+
 ---
 
 ## What a catalogue entry tells you

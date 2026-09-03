@@ -1,9 +1,10 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import {
   inferenceDeploymentRoutingScores,
   inferenceDeployments,
   inferenceModelRevisions,
+  LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
   priceVersionUnitPrices,
 } from '../db/schema';
 
@@ -80,12 +81,15 @@ export async function readInferenceRoutingReadinessRows(): Promise<
       and(
         inArray(inferenceDeployments.status, ['active', 'degraded']),
         eq(inferenceDeployments.permissionState, 'approved'),
-        inArray(inferenceDeployments.availabilityScope, [
-          'public_payg',
-          'oxy_hosted',
-          'platform_internal',
-          'byok_only',
-        ]),
+        or(
+          inArray(inferenceDeployments.availabilityScope, [
+            'public_payg',
+            'oxy_hosted',
+            'platform_internal',
+            'byok_only',
+          ]),
+          sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`
+        ),
         isNull(inferenceModelRevisions.retiredAt)
       )
     );

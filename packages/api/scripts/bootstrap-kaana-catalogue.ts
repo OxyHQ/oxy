@@ -21,6 +21,15 @@
  * AWS authentication must come from the dedicated ECS task role in production,
  * or an operator's named AWS profile locally. Static AWS keys in env are refused.
  *   INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE_TASK_DEFINITION_ARN
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_BOOTSTRAP_TASK_DEFINITION_ARN
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_IMAGE
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_ATTESTED_AT
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_CLUSTER
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE
+ *     fresh output from the serialized production workflow after two complete
+ *     ECS old-task-zero observations; APPLY binds the dedicated one-shot and
+ *     immutable image to local ECS metadata before any inventory or DB access
  *
  * Apply:
  *   APPLY=1 EXPECTED_PLAN_SHA256=... BOOTSTRAP_ACTOR=... \
@@ -68,6 +77,8 @@ import {
   inferencePublishers,
   inferenceRoutingProfileCandidates,
   inferenceRoutingProfiles,
+  LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
+  normalizeInferenceDeploymentAvailabilityScope,
   priceVersionUnitPrices,
   priceVersions,
   users,
@@ -575,6 +586,7 @@ async function ensureDeployment(
       createdRows,
     );
     inserted.push(`deployment:${provider.deploymentId}`);
+    rows = await readLogicalDeploymentRows();
   }
   assertFields(`deployment:${provider.deploymentId}`, row, expected);
 }
@@ -762,6 +774,7 @@ async function ensureProfiles(
 }
 
 async function bootstrap(): Promise<BootstrapSummary> {
+  await assertPlatformScopeWriteRolloutComplete(APPLY, process.env);
   const inventory = await requireLiveInventory();
   await connectPostgres();
   const inserted: string[] = [];

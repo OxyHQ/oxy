@@ -1,8 +1,8 @@
 /**
- * The availability rename is a data migration, not only a new CHECK. Drizzle
- * can generate the constraint change but cannot infer that existing rows must
- * be rewritten between dropping the old constraint and installing the new one.
- * This reads the shipped SQL so omitting or reordering that rewrite fails CI.
+ * The first availability-rename delivery must be rolling-safe. Previous pods
+ * must keep reading and writing `internal_alia` while the new image writes
+ * `platform_internal`, so this migration may widen the CHECK but may not rewrite
+ * a single row. Backfill and contraction belong to the separately deployed PR2.
  */
 
 import { readFileSync } from 'node:fs';
@@ -13,22 +13,21 @@ const migration = readFileSync(
   'utf8'
 );
 
-it('rewrites every legacy Alia scope before enforcing platform_internal', () => {
+it('expands the PRE constraint to both storage spellings without rewriting data', () => {
+  expect(migration.split('\n', 1)[0]).toBe('-- oxy:deploy-phase=pre');
+
   const drop = migration.indexOf(
     'DROP CONSTRAINT "inference_deployments_availability_scope_check"'
-  );
-  const rewrite = migration.indexOf(
-    'SET "availability_scope" = \'platform_internal\'\nWHERE "availability_scope" = \'internal_alia\''
   );
   const add = migration.indexOf(
     'ADD CONSTRAINT "inference_deployments_availability_scope_check"'
   );
 
   expect(drop).toBeGreaterThanOrEqual(0);
-  expect(rewrite).toBeGreaterThan(drop);
-  expect(add).toBeGreaterThan(rewrite);
+  expect(add).toBeGreaterThan(drop);
+  expect(migration).not.toMatch(/\bUPDATE\s+"?inference_deployments"?/i);
 
   const finalConstraint = migration.slice(add);
   expect(finalConstraint).toContain("'platform_internal'");
-  expect(finalConstraint).not.toContain("'internal_alia'");
+  expect(finalConstraint).toContain("'internal_alia'");
 });

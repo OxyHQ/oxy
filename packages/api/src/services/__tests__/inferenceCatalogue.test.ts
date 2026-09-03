@@ -21,7 +21,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   inferenceDeployments,
@@ -32,6 +32,7 @@ import {
   inferencePublishers,
   inferenceRoutingProfileCandidates,
   inferenceRoutingProfiles,
+  LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
   priceVersions,
   priceVersionUnitPrices,
   users,
@@ -47,6 +48,7 @@ import {
   UNCONSTRAINED_ROUTING,
   UNGRANTABLE_SCOPES,
 } from '../inferenceCatalogue.service';
+import { readInferenceRoutingReadinessRows } from '../inferenceRoutingReadiness.service';
 
 beforeAll(async () => {
   await connectPostgres();
@@ -62,6 +64,65 @@ function suffix(): string {
 
 const INTERNAL_VIEWER = resolveCatalogueViewer({ type: 'internal', isInternal: true });
 
+describe('the rolling availability-scope bridge', () => {
+  it('keeps legacy rows visible to old and new readers but emits only platform_internal', async () => {
+    const legacy = await insertRoute({
+      availabilityScope: 'platform_internal',
+      commercialPermission: 'standard_application_use',
+    });
+    const current = await insertRoute({
+      availabilityScope: 'platform_internal',
+      commercialPermission: 'standard_application_use',
+    });
+
+    // Simulate the bytes left by the previous image. Raw SQL is deliberate:
+    // the new Drizzle write type excludes this storage-only compatibility value.
+    await getDb().execute(sql`
+      update ${inferenceDeployments}
+      set availability_scope = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}
+      where ${inferenceDeployments.id} = ${legacy.deploymentId}
+    `);
+
+    // Old pods still use this exact predicate. The PRE migration must preserve
+    // the row until PR2 backfills it after the bridge has reached production.
+    const oldReader = await getDb()
+      .select({ deploymentId: inferenceDeployments.id })
+      .from(inferenceDeployments)
+      .where(
+        and(
+          eq(inferenceDeployments.id, legacy.deploymentId),
+          sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`
+        )
+      );
+    expect(oldReader).toEqual([{ deploymentId: legacy.deploymentId }]);
+
+    const entries = await listCatalogueForViewer(INTERNAL_VIEWER);
+    const bridged = entries.find((entry) => entry.modelId === legacy.modelId);
+    const native = entries.find((entry) => entry.modelId === current.modelId);
+    expect(bridged?.availabilityScope).toBe('platform_internal');
+    expect(native?.availabilityScope).toBe('platform_internal');
+    expect(JSON.stringify([bridged, native])).not.toContain(
+      LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE
+    );
+
+    const selected = await selectRouteForViewer(
+      INTERNAL_VIEWER,
+      legacy.modelReference,
+      UNCONSTRAINED_ROUTING
+    );
+    expect(selected?.availabilityScope).toBe('platform_internal');
+
+    const publicEntries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER);
+    expect(publicEntries.some((entry) => entry.modelId === legacy.modelId)).toBe(false);
+
+    // Readiness does not expose availabilityScope, but its serving census must
+    // include both storage spellings or the deploy gate would omit a live route.
+    const readiness = await readInferenceRoutingReadinessRows();
+    expect(readiness.some((row) => row.deploymentId === legacy.internalRouteId)).toBe(true);
+    expect(readiness.some((row) => row.deploymentId === current.internalRouteId)).toBe(true);
+  });
+});
+
 interface RouteFixture {
   readonly modelId: string;
   readonly modelReference: string;
@@ -69,6 +130,7 @@ interface RouteFixture {
   readonly revisionRowId: string;
   readonly providerSlug: string;
   readonly deploymentId: string;
+  readonly internalRouteId: string;
 }
 
 /**
@@ -278,6 +340,7 @@ async function insertRoute(options: {
     revisionRowId: revisionRow.id,
     providerSlug,
     deploymentId: deployment.id,
+    internalRouteId: exactDeploymentId,
   };
 }
 
