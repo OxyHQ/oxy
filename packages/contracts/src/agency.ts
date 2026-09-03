@@ -480,6 +480,7 @@ export type ActorRef = z.infer<typeof actorRefSchema>;
 export type ResourceRef = z.infer<typeof resourceRefSchema>;
 export type ToolGrantOverride = z.infer<typeof toolGrantOverrideSchema>;
 export type GrantLimit = z.infer<typeof grantLimitSchema>;
+export type CapabilityCatalogBinding = z.infer<typeof capabilityCatalogBindingSchema>;
 export type ExecutionAuthorizationRef = z.infer<typeof executionAuthorizationRefSchema>;
 export type CapabilityCoordinator = z.infer<typeof capabilityCoordinatorSchema>;
 export type DelegationGrant = z.infer<typeof delegationGrantSchema>;

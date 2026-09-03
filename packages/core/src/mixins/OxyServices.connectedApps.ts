@@ -97,10 +97,6 @@ export interface ConnectedMcpClient {
 
 export function OxyServicesConnectedAppsMixin<T extends typeof OxyServicesBase>(Base: T) {
   return class extends Base {
-    constructor(...args: any[]) {
-      super(...(args as [any]));
-    }
-
     /**
      * Resolve an OAuth client identifier to the owning application's PUBLIC
      * identity. No authentication required — the API returns only sanitized,
