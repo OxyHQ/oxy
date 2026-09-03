@@ -1086,7 +1086,6 @@ async function main(): Promise<void> {
       if (!(error instanceof DryRunRollback)) throw error;
       report = error.report;
     }
-    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
     process.stdout.write(
       `NATIVE_PRODUCT_AGENTS_RESULT=${JSON.stringify({
         mode: report.mode,

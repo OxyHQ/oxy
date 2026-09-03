@@ -32,7 +32,24 @@ else
 fi
 
 case "${TEST_BUN_MODE:-success}" in
-  success) ;;
+  success)
+    printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+    ;;
+  success-noise)
+    printf '%s\n' "$TEST_UNSAFE_MARKER"
+    printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+    ;;
+  success-extra)
+    printf '%s\n' "NATIVE_PRODUCT_AGENTS_RESULT={\"mode\":\"dry-run\",\"direction\":\"bootstrap\",\"planSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"secret\":\"$TEST_UNSAFE_MARKER\"}"
+    ;;
+  success-state)
+    printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","serviceCredentialState":{"homiioSindiExists":false,"clarityBackendExists":true}}'
+    ;;
+  success-multiple)
+    printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+    printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"apply","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+    ;;
+  success-missing) ;;
   classified-failure)
     printf '%s\n' "$TEST_UNSAFE_MARKER"
     printf '%s\n' "$TEST_UNSAFE_MARKER" >&2
@@ -64,7 +81,7 @@ export TEST_REAL_MKTEMP="$real_mktemp"
 homiio_secret=$(printf 'a%.0s' {1..64})
 clarity_secret=$(printf 'b%.0s' {1..64})
 file_list="$test_root/materialized-files"
-PATH="$test_root/bin:$PATH" \
+success_output=$(PATH="$test_root/bin:$PATH" \
   APPLY=1 \
   ROLLBACK=0 \
   HOMIIO_SINDI_SERVICE_SECRET_VALUE="$homiio_secret" \
@@ -72,7 +89,8 @@ PATH="$test_root/bin:$PATH" \
   TEST_HOMIIO_SECRET="$homiio_secret" \
   TEST_CLARITY_SECRET="$clarity_secret" \
   TEST_FILE_LIST="$file_list" \
-  sh "$subject"
+  sh "$subject")
+[ "$success_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' ]
 
 while IFS= read -r materialized_file; do
   if [ -e "$materialized_file" ]; then
@@ -107,6 +125,16 @@ missing_output=$(PATH="$test_root/bin:$PATH" APPLY=1 ROLLBACK=0 sh "$subject" 2>
 missing_exit=$?
 mktemp_output=$(PATH="$test_root/bin:$PATH" APPLY=0 ROLLBACK=0 TEST_MKTEMP_FAIL=1 TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
 mktemp_exit=$?
+success_noise_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=success-noise TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
+success_noise_exit=$?
+success_extra_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=success-extra TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
+success_extra_exit=$?
+success_state_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=success-state sh "$subject" 2>&1)
+success_state_exit=$?
+success_multiple_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=success-multiple sh "$subject" 2>&1)
+success_multiple_exit=$?
+success_missing_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=success-missing sh "$subject" 2>&1)
+success_missing_exit=$?
 classified_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=classified-failure TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
 classified_exit=$?
 process_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=process-failure TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
@@ -116,11 +144,21 @@ set -e
 [ "$missing_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
 [ "$mktemp_exit" -eq 70 ]
 [ "$mktemp_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
+[ "$success_noise_exit" -eq 70 ]
+[ "$success_noise_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
+[ "$success_extra_exit" -eq 70 ]
+[ "$success_extra_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
+[ "$success_state_exit" -eq 0 ]
+[ "$success_state_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","serviceCredentialState":{"homiioSindiExists":false,"clarityBackendExists":true}}' ]
+[ "$success_multiple_exit" -eq 70 ]
+[ "$success_multiple_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
+[ "$success_missing_exit" -eq 70 ]
+[ "$success_missing_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
 [ "$classified_exit" -eq 1 ]
 [ "$classified_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"live_state_drift"}' ]
 [ "$process_exit" -eq 1 ]
 [ "$process_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
-case "$invalid_output$missing_output$mktemp_output$classified_output$process_output" in
+case "$invalid_output$missing_output$mktemp_output$success_noise_output$success_extra_output$success_multiple_output$success_missing_output$classified_output$process_output" in
   *"$unsafe_marker"*)
     echo 'free-form bootstrap output crossed the wrapper boundary' >&2
     exit 1

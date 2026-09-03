@@ -132,15 +132,20 @@ assert.match(wrapper, /unset HOMIIO_SINDI_SERVICE_SECRET_VALUE CLARITY_BACKEND_S
 assert.match(wrapper, /trap cleanup EXIT HUP INT TERM/);
 assert.doesNotMatch(wrapper, /set -x|echo .*SERVICE_SECRET_VALUE/);
 assert.match(wrapper, />"\$bootstrap_output_file" 2>\/dev\/null/);
-assert.match(wrapper, /grep '\^NATIVE_PRODUCT_AGENTS_RESULT='/);
+assert.match(wrapper, /grep -a '\^NATIVE_PRODUCT_AGENTS_RESULT='/);
 assert.match(wrapper, /"code":"bootstrap_process_failed"/);
 assert.match(wrapper, /fail_pre_entrypoint/);
+assert.doesNotMatch(wrapper, /cat "\$bootstrap_output_file"/);
+assert.match(wrapper, /result_count/);
+assert.match(wrapper, /output_bytes/);
+assert.match(wrapper, /is_valid_success_result/);
 assert.doesNotMatch(
   wrapper,
   /\$\{(?:HOMIIO_SINDI_SERVICE_SECRET_VALUE|CLARITY_BACKEND_SERVICE_SECRET_VALUE):\?/,
   'missing protected inputs must not trigger free-form shell diagnostics',
 );
 assert.match(bootstrap, /NATIVE_PRODUCT_AGENTS_RESULT=/);
+assert.doesNotMatch(bootstrap, /JSON\.stringify\(report, null, 2\)/);
 assert.match(bootstrap, /nativeProductAgentBootstrapFailureResult\(error\)/);
 assert.doesNotMatch(
   bootstrap,
