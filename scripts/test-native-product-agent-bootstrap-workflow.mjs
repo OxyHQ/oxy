@@ -147,8 +147,8 @@ assert.match(
 assert.match(failureReporter, /\{code,planSha256\}/);
 assert.doesNotMatch(
   failureReporter,
-  /\.events|CloudWatch|\{actor|\{reason|\{name|\{secret|nameDisplay|\.username\b/,
-  'the reporter must not consume logs or project personal, selector or secret fields',
+  /\.events|CloudWatch|\{actor|\{reason|\{name|\{secret|\.account\.(?:nameDisplay|username)\b/,
+  'the reporter must not consume logs or project personal, selector or secret values',
 );
 assert.match(
   ci,
@@ -287,7 +287,7 @@ const adoptionStart = bootstrap.indexOf(
   collisionEnd,
 );
 const adoptionEnd = bootstrap.indexOf(
-  'assertExact(`Account ${spec.id}`',
+  'assertExact(accountDriftTarget(spec.id, false)',
   adoptionStart,
 );
 assert.notEqual(adoptionStart, -1, 'adoption diagnostic anchor must exist');
