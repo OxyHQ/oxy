@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { Router, type Response } from 'express';
 import { and, asc, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
@@ -52,12 +51,13 @@ import {
   registerCapabilityCatalog,
 } from '../services/capabilityCatalog.service';
 import { persistCapabilityAuditEvent } from '../services/capabilityRuntimeStore.service';
-import { capabilityLimitError } from '../services/capabilityLimitPolicy';
+import { capabilityAuditIdempotencyKeyHash } from '../services/capabilityAuditCorrelation';
 import {
   autonomousSensitiveToolLimitError,
   capabilityGrantError,
   grantAllowsTool,
 } from '../services/capabilityGrantPolicy';
+import { capabilityLimitError } from '../services/capabilityLimitPolicy';
 
 const router = Router();
 
@@ -847,7 +847,16 @@ router.post('/audit', serviceAuthMiddleware, async (request: ServiceAuthRequest,
       succeeded: z.boolean().optional(),
     }).strict(),
     idempotencyKey: z.string().min(1).optional(),
-  }).strict().safeParse(request.body);
+    idempotencyKeyHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  }).strict().superRefine((value, context) => {
+    if (value.idempotencyKey && value.idempotencyKeyHash) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either idempotencyKey or idempotencyKeyHash, not both',
+        path: ['idempotencyKeyHash'],
+      });
+    }
+  }).safeParse(request.body);
   if (!parsed.success) {
     response.status(400).json({ error: 'invalid_audit_event', details: parsed.error.flatten() });
     return;
@@ -873,6 +882,7 @@ router.post('/audit', serviceAuthMiddleware, async (request: ServiceAuthRequest,
     return;
   }
   const decision = await reauthorizeCapabilityTicket(claims);
+  const idempotencyKeyHash = capabilityAuditIdempotencyKeyHash(parsed.data);
   const event = {
     eventId: `${claims.jti}:${parsed.data.result.status}`,
     occurredAt: new Date().toISOString(),
@@ -891,9 +901,7 @@ router.post('/audit', serviceAuthMiddleware, async (request: ServiceAuthRequest,
       runId: claims.runId,
       ...(claims.stepId ? { stepId: claims.stepId } : {}),
       ...(claims.automationId ? { automationId: claims.automationId } : {}),
-      ...(parsed.data.idempotencyKey ? {
-        idempotencyKeyHash: createHash('sha256').update(parsed.data.idempotencyKey).digest('hex'),
-      } : {}),
+      ...(idempotencyKeyHash ? { idempotencyKeyHash } : {}),
       capabilityTicketId: claims.jti,
     },
   };

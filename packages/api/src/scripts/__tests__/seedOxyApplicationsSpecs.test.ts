@@ -372,11 +372,21 @@ describe('the canonical official-application registry', () => {
   });
 
   describe('Mention owns its canonical catalog namespace', () => {
-    it('can register the Mention catalog without receiving another app namespace', () => {
-      expect(specNamed('Mention').scopes).toContain('catalogs:write');
+    it('can register, reauthorize and audit its catalog without coordinator authority', () => {
+      expect(specNamed('Mention').scopes).toEqual([
+        'user:read',
+        'files:read',
+        'files:write',
+        'federation:write',
+        'signals:write',
+        'catalogs:write',
+        'capabilities:read',
+        'capability-audit:write',
+      ]);
       expect(specNamed('Mention').capabilities).toEqual([
         catalogApplicationCapability('mention'),
       ]);
+      expect(specNamed('Mention').scopes).not.toContain('capability-tickets:issue');
     });
   });
 
