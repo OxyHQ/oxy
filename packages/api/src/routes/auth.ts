@@ -50,6 +50,7 @@ import { BadRequestError, NotFoundError, UnauthorizedError, ForbiddenError } fro
 import { OAuthError, oauthHandler, sendOAuthSuccess } from '../utils/oauthResponse';
 import { resolveClientAuthentication } from '../utils/oauthClientAuth';
 import { ACCESS_TOKEN_TTL_SECONDS } from '../utils/sessionUtils';
+import { signServiceTokenEd25519 } from '../config/serviceTokenSigning';
 import { logger } from '../utils/logger';
 import SignatureService from '../services/signature.service';
 import { emitAuthSessionUpdate, emitAuthSessionProgress } from '../utils/authSessionSocket';
@@ -3664,11 +3665,6 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
     throw new BadRequestError('apiKey and apiSecret are required');
   }
 
-  if (!process.env.ACCESS_TOKEN_SECRET) {
-    logger.error('[ServiceToken] ACCESS_TOKEN_SECRET not configured');
-    throw new Error('Server configuration error');
-  }
-
   // Find the credential by its public key (apiKey). The credential must be a
   // `service` credential that is currently usable: `active`, or `deprecated`
   // but still inside its rotation grace window. `revoked` and grace-expired
@@ -3777,18 +3773,34 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
     credential.scopes.length > 0
       ? intersectScopes(credential.scopes, appScopes)
       : appScopes.filter((scope) => !isPrivilegedScope(scope));
-  const token = jwt.sign(
-    {
-      type: 'service',
-      appId: app.id,
-      appName: app.name,
-      credentialId: credential.id,
-      ownerAccountId: app.ownerAccountId,
-      scopes,
-      environment: credential.environment,
-    },
-    process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: SERVICE_TOKEN_EXPIRY, issuer: 'oxy-auth', audience: 'oxy-api' }
+  const serviceClaims = {
+    type: 'service',
+    appId: app.id,
+    appName: app.name,
+    credentialId: credential.id,
+    ownerAccountId: app.ownerAccountId,
+    scopes,
+    environment: credential.environment,
+  } as const;
+  const now = Math.floor(Date.now() / 1_000);
+  const asymmetricToken = signServiceTokenEd25519({
+    ...serviceClaims,
+    iat: now,
+    exp: now + SERVICE_TOKEN_EXPIRY,
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+  });
+  if (!asymmetricToken && !process.env.ACCESS_TOKEN_SECRET) {
+    logger.error('[ServiceToken] no asymmetric signing key or legacy access-token key configured');
+    throw new Error('Server configuration error');
+  }
+  // Transitional mint compatibility: signing switches to Ed25519 as soon as
+  // the dedicated key is present. HS256 remains only until the separately
+  // scheduled ADR-0012 retirement window closes.
+  const token = asymmetricToken ?? jwt.sign(
+    serviceClaims,
+    process.env.ACCESS_TOKEN_SECRET as string,
+    { expiresIn: SERVICE_TOKEN_EXPIRY, issuer: 'oxy-auth', audience: 'oxy-api' },
   );
 
   // Update lastUsedAt on the credential and the application.

@@ -52,6 +52,7 @@ const signServiceToken = (claims: ServiceTokenClaims, secret: string): string =>
     credentialId: 'cred-1',
     ownerAccountId: 'owner-account-1',
     environment: 'production',
+    scopes: [],
     ...claims,
   };
   const headerB64 = b64url(JSON.stringify(header));

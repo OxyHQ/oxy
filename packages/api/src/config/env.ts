@@ -158,6 +158,12 @@ export interface RequiredEnvVars {
   CAPABILITY_TICKET_SIGNING_KEY_ID?: string;
   CAPABILITY_TICKET_SIGNING_PRIVATE_KEY?: string;
 
+  // ADR 0012 service-token signer. The active private key is PKCS#8 Ed25519;
+  // the public-only JWKS may additionally pre-publish next/previous rotation keys.
+  SERVICE_TOKEN_SIGNING_KEY_ID?: string;
+  SERVICE_TOKEN_PRIVATE_KEY?: string;
+  SERVICE_TOKEN_PUBLIC_JWKS?: string;
+
   // Follow-graph outbox worker (`follow_events`). OFF by default — acknowledging
   // an event asserts its delivery happened; read by `followOutbox.worker.ts`.
   FOLLOW_OUTBOX_WORKER_ENABLED?: string;

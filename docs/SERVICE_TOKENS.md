@@ -57,9 +57,9 @@ const result = await oxy.makeServiceRequest(
 
 ```typescript
 // Service-only (rejects user JWTs)
-app.use('/internal', oxy.serviceAuth({
-  jwtSecret: process.env.ACCESS_TOKEN_SECRET
-}));
+// Defaults to https://api.oxy.so/.well-known/jwks.json.
+// Override serviceTokenJwksUrl only for a private Oxy deployment.
+app.use('/internal', oxy.serviceAuth());
 
 app.post('/internal/trigger', (req, res) => {
   req.serviceApp; // { appId, appName, credentialId, ownerAccountId, scopes, environment }
@@ -70,9 +70,7 @@ app.post('/internal/trigger', (req, res) => {
 ### Mixed Auth (user + service)
 
 ```typescript
-app.use('/data', oxy.auth({
-  jwtSecret: process.env.ACCESS_TOKEN_SECRET
-}));
+app.use('/data', oxy.auth());
 
 app.get('/data', (req, res) => {
   if (req.serviceApp) {
@@ -246,9 +244,16 @@ the endpoint is not an oracle for which users or applications exist.
 
 ## Security
 
-- Service tokens verified via **HMAC-SHA256 signature** (not just decoded)
-- `jwtSecret` must be provided to `auth()` / `serviceAuth()` for verification, and the only value that works is **`ACCESS_TOKEN_SECRET`** — there is no separate service-token secret (issue #987; earlier SDK docs named a `SERVICE_TOKEN_SECRET` that has never existed). Because the scheme is symmetric, a host that can VERIFY a service token can also MINT one, and that same secret signs every user access token. **So local verification belongs inside the Oxy API's own trust boundary only, and no service outside it holds the key today** — the hazard is a documented configuration nobody has followed, not a live exposure. [ADR 0012](adr/0012-service-token-signing-key-model.md) records the decision to retire it for asymmetric signing against a published JWKS, the dual-accept window any key change needs, and the two sub-decisions (key custody, cutover schedule) that need the owner.
-- Without `jwtSecret`, service tokens are **rejected** (secure default)
+- Service tokens are signed with Ed25519 and carry an exact `kid`; external
+  `auth()` / `serviceAuth()` verifiers fetch public keys from
+  `https://api.oxy.so/.well-known/jwks.json` by default.
+- A verifier pins EdDSA, issuer `oxy-auth`, audience `oxy-api`, expiry/not-before,
+  token type and exact non-empty scopes/attribution IDs. Unknown keys and an
+  unavailable expired cache fail closed.
+- Never pass or distribute `ACCESS_TOKEN_SECRET`. `jwtSecret` exists only as an
+  Oxy-API-internal HS256 transition while pre-cutover tokens drain; external
+  consumers use JWKS and hold no mint-capable key. See
+  [ADR 0012](adr/0012-service-token-signing-key-model.md).
 - Secrets stored as sha256 hashes; timing-safe comparison on exchange
 - Service tokens bypass CSRF (bearer-only, not vulnerable)
 - Expiration checked locally (no DB round-trip)
