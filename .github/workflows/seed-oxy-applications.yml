@@ -20,11 +20,12 @@ name: Seed Oxy applications
 #    definition — same secrets, role, subnets, security groups — and overrides
 #    only the command, touching nothing the service runs.
 #
-# 3. `ONLY_APPS` is REQUIRED here, with no default. The seeder resolves it before
-#    connecting, so a misspelled name costs nothing and never reaches the
-#    database; requiring it means a run can only ever touch applications somebody
-#    named on purpose. An unbounded run is possible by passing every name, which
-#    is exactly the deliberate act it should be.
+# 3. Exactly one boundary is REQUIRED here, with no default. `ONLY_APP_IDS`
+#    selects specs that declare an immutable primary key; `ONLY_APPS` remains for
+#    legacy specs that do not have one. The seeder resolves either boundary
+#    before connecting, so a misspelled value costs nothing and never reaches the
+#    database. Kaana uses ONLY_APP_IDS: its display name, registry position and
+#    any database ordering are deliberately irrelevant.
 #
 # The seeder UPSERTS and reuses an existing active production credential, so a
 # second run over seeded data mints nothing and reports 0 inserts. That makes it
@@ -40,8 +41,12 @@ on:
   workflow_dispatch:
     inputs:
       only_apps:
-        description: "Comma-separated application names this run may touch (e.g. 'CrowdSource')"
-        required: true
+        description: "Legacy: comma-separated names for specs without a declared id"
+        required: false
+        type: string
+      only_app_ids:
+        description: "Comma-separated exact ids declared by the application seed registry"
+        required: false
         type: string
       dry_run:
         description: 'Report what WOULD be written, write nothing'
@@ -78,18 +83,29 @@ jobs:
         with:
           ref: main
 
-      - name: Refuse an empty application list
+      - name: Require one unambiguous application boundary
         env:
           ONLY_APPS: ${{ inputs.only_apps }}
+          ONLY_APP_IDS: ${{ inputs.only_app_ids }}
         run: |
           set -euo pipefail
-          # The seeder already fails closed on an empty value, but failing here
-          # costs no image build and no ECS task.
-          if [ -z "${ONLY_APPS// /}" ]; then
-            echo "::error::only_apps is required and must name at least one application."
+          if [ -z "${ONLY_APPS// /}" ] && [ -z "${ONLY_APP_IDS// /}" ]; then
+            echo "::error::Set exactly one of only_apps or only_app_ids."
             exit 1
           fi
-          echo "This run may touch: $ONLY_APPS"
+          if [ -n "${ONLY_APPS// /}" ] && [ -n "${ONLY_APP_IDS// /}" ]; then
+            echo "::error::only_apps and only_app_ids are mutually exclusive."
+            exit 1
+          fi
+          if [[ "$ONLY_APP_IDS" == *[[:space:]]* ]]; then
+            echo "::error::only_app_ids must contain byte-exact ids with no whitespace."
+            exit 1
+          fi
+          if [ -n "${ONLY_APP_IDS// /}" ]; then
+            echo "This run may touch exact application id(s): $ONLY_APP_IDS"
+          else
+            echo "This run may touch legacy application name(s): $ONLY_APPS"
+          fi
 
       - name: Configure AWS credentials (OIDC, no stored keys)
         uses: aws-actions/configure-aws-credentials@v6
@@ -119,6 +135,7 @@ jobs:
           IMAGE: ${{ steps.image.outputs.image }}
           DRY_RUN: ${{ inputs.dry_run }}
           ONLY_APPS: ${{ inputs.only_apps }}
+          ONLY_APP_IDS: ${{ inputs.only_app_ids }}
         run: |
           set -euo pipefail
 
@@ -162,13 +179,16 @@ jobs:
             --arg name "$CONTAINER" \
             --arg dry "$DRY_RUN" \
             --arg only "$ONLY_APPS" \
+            --arg only_ids "$ONLY_APP_IDS" \
             '{containerOverrides:[{
                name: $name,
                command: ["bun","run","packages/api/scripts/seed-oxy-applications.ts"],
-               environment: [
-                 {name:"DRY_RUN", value:$dry},
-                 {name:"ONLY_APPS", value:$only}
-               ]
+               environment: ([{name:"DRY_RUN", value:$dry}] +
+                 if $only_ids != "" then
+                   [{name:"ONLY_APP_IDS", value:$only_ids}]
+                 else
+                   [{name:"ONLY_APPS", value:$only}]
+                 end)
              }]}')
 
           TASK_ARN=$(aws ecs run-task \

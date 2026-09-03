@@ -26,10 +26,16 @@ jobs:
           bash .github/scripts/test-smoke-inbox-mcp.sh
           node scripts/test-check-kaana-dns-boundary.mjs
           node scripts/check-kaana-dns-boundary.mjs
+          node scripts/test-check-kaana-identity.mjs
+          node scripts/check-kaana-identity.mjs
           node scripts/test-service-credential-workflow-ids.mjs
+          node scripts/test-seed-oxy-applications-workflow.mjs
           node scripts/test-native-product-agent-bootstrap-workflow.mjs
           node scripts/test-check-kaana-request-v2-rollout.mjs
           node scripts/check-kaana-request-v2-rollout.mjs
+          node scripts/test-check-kaana-signed-canary.mjs
+          node scripts/check-kaana-signed-canary.mjs
+          node --test packages/api/scripts/run-kaana-signed-canary.test.mjs
 
   # API Package Tests
   api-test:
