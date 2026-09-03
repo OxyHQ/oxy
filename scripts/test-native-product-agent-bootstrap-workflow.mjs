@@ -87,6 +87,14 @@ assert.match(failureReporter, /\(keys \| sort\) == \["code","status"\]/);
 assert.match(failureReporter, /\(keys \| sort\) == \["code","planSha256","status"\]/);
 assert.match(
   failureReporter,
+  /\(keys \| sort\) == \["code","expectedAccountId","holder","status"\]/,
+);
+assert.match(
+  failureReporter,
+  /\(keys \| sort\) == \[\s*"accountStatus",\s*"id",\s*"kind",\s*"parentAccountId",\s*"privacyIsPrivateAccount",\s*"rootAccountId",\s*"type"\s*\]/,
+);
+assert.match(
+  failureReporter,
   /\(keys \| sort\) == \["direction","mode","planSha256","serviceCredentialState"\]/,
 );
 assert.match(failureReporter, /\{code,planSha256\}/);
@@ -123,7 +131,63 @@ assert.match(wrapper, /chmod 0600 "\$homiio_secret_file" "\$clarity_secret_file"
 assert.match(wrapper, /unset HOMIIO_SINDI_SERVICE_SECRET_VALUE CLARITY_BACKEND_SERVICE_SECRET_VALUE/);
 assert.match(wrapper, /trap cleanup EXIT HUP INT TERM/);
 assert.doesNotMatch(wrapper, /set -x|echo .*SERVICE_SECRET_VALUE/);
+assert.match(wrapper, />"\$bootstrap_output_file" 2>\/dev\/null/);
+assert.match(wrapper, /grep -a '\^NATIVE_PRODUCT_AGENTS_RESULT='/);
+assert.match(wrapper, /"code":"bootstrap_process_failed"/);
+assert.match(wrapper, /fail_pre_entrypoint/);
+assert.doesNotMatch(wrapper, /cat "\$bootstrap_output_file"/);
+assert.match(wrapper, /result_count/);
+assert.match(wrapper, /output_bytes/);
+assert.match(wrapper, /is_valid_success_result/);
+assert.doesNotMatch(
+  wrapper,
+  /\$\{(?:HOMIIO_SINDI_SERVICE_SECRET_VALUE|CLARITY_BACKEND_SERVICE_SECRET_VALUE):\?/,
+  'missing protected inputs must not trigger free-form shell diagnostics',
+);
 assert.match(bootstrap, /NATIVE_PRODUCT_AGENTS_RESULT=/);
+assert.doesNotMatch(bootstrap, /JSON\.stringify\(report, null, 2\)/);
+assert.match(bootstrap, /nativeProductAgentBootstrapFailureResult\(error\)/);
+assert.doesNotMatch(
+  bootstrap,
+  /process\.stderr\.write|error\.message|String\(error\)/,
+  'bootstrap exceptions must cross only the structured result boundary',
+);
+
+const usernameHolderStart = bootstrap.indexOf('const usernameHolders = await tx');
+const usernameHolderEnd = bootstrap.indexOf('if (!row)', usernameHolderStart);
+assert.notEqual(usernameHolderStart, -1, 'username collision query anchor must exist');
+assert.notEqual(usernameHolderEnd, -1, 'username collision query end anchor must exist');
+const usernameHolderQuery = bootstrap.slice(usernameHolderStart, usernameHolderEnd);
+for (const projectedField of [
+  'id',
+  'kind',
+  'type',
+  'parentAccountId',
+  'rootAccountId',
+  'accountStatus',
+  'privacyIsPrivateAccount',
+]) {
+  assert.match(
+    usernameHolderQuery,
+    new RegExp(`${projectedField}: users\\.${projectedField}`),
+    `username collision query must project ${projectedField}`,
+  );
+}
+assert.match(
+  usernameHolderQuery,
+  /lower\(btrim\(\$\{users\.username\}\)\) = lower\(btrim\(\$\{spec\.username\}\)\)/,
+  'username collision lookup must use the exact unique-index expression',
+);
+assert.match(usernameHolderQuery, /usernameHolders\.length > 1/);
+assert.match(
+  usernameHolderQuery,
+  /new NativeProductAgentUsernameCollisionError\(spec\.id, usernameHolder\)/,
+);
+assert.doesNotMatch(
+  usernameHolderQuery,
+  /email|nameDisplay|secret|hash|token|\.limit\(|\.insert\(|\.update\(|\.delete\(|\.set\(/i,
+  'the unique-username selector may only diagnose the collision with the reviewed holder fields',
+);
 
 process.stdout.write(
   'Native product-agent workflow pins exact IDs and protects create/reuse/dry-run/rollback secret handling.\n',

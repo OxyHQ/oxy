@@ -41,6 +41,33 @@ safe_result=$(jq -cer '
     type == "string" and test("^[a-f0-9]{64}$");
   def valid_code:
     type == "string" and test("^[a-z][a-z0-9_]{0,63}$");
+  def valid_generic_code:
+    valid_code and . != "username_collision";
+  def valid_account_id:
+    type == "string" and (
+      test("^[a-f0-9]{24}$") or
+      test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+    );
+  def valid_nullable_account_id:
+    . == null or valid_account_id;
+  def valid_username_collision_holder:
+    type == "object" and
+    (keys | sort) == [
+      "accountStatus",
+      "id",
+      "kind",
+      "parentAccountId",
+      "privacyIsPrivateAccount",
+      "rootAccountId",
+      "type"
+    ] and
+    (.id | valid_account_id) and
+    (.kind == "personal" or .kind == "organization" or .kind == "project" or .kind == "bot" or .kind == "channel") and
+    (.type == "local" or .type == "federated" or .type == "agent" or .type == "automated") and
+    (.parentAccountId | valid_nullable_account_id) and
+    (.rootAccountId | valid_nullable_account_id) and
+    (.accountStatus == "active" or .accountStatus == "archived") and
+    (.privacyIsPrivateAccount | type == "boolean");
   def valid_plan:
     (
       (keys | sort) == ["direction","mode","planSha256"] or
@@ -63,16 +90,37 @@ safe_result=$(jq -cer '
   elif
     (keys | sort) == ["code","status"] and
     .status == "failed" and
-    (.code | valid_code)
+    (.code | valid_generic_code)
   then
     {code}
   elif
     (keys | sort) == ["code","planSha256","status"] and
     .status == "failed" and
-    (.code | valid_code) and
+    (.code | valid_generic_code) and
     (.planSha256 | valid_plan_sha)
   then
     {code,planSha256}
+  elif
+    (keys | sort) == ["code","expectedAccountId","holder","status"] and
+    .status == "failed" and
+    .code == "username_collision" and
+    (.expectedAccountId | valid_account_id) and
+    (.holder | valid_username_collision_holder) and
+    .holder.id != .expectedAccountId
+  then
+    {
+      code,
+      expectedAccountId,
+      holder: {
+        id: .holder.id,
+        kind: .holder.kind,
+        type: .holder.type,
+        parentAccountId: .holder.parentAccountId,
+        rootAccountId: .holder.rootAccountId,
+        accountStatus: .holder.accountStatus,
+        privacyIsPrivateAccount: .holder.privacyIsPrivateAccount
+      }
+    }
   elif valid_plan then
     {code:"task_exited_after_valid_plan",planSha256}
   else
