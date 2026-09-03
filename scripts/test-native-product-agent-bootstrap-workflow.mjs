@@ -87,11 +87,15 @@ assert.match(failureReporter, /\(keys \| sort\) == \["code","status"\]/);
 assert.match(failureReporter, /\(keys \| sort\) == \["code","planSha256","status"\]/);
 assert.match(
   failureReporter,
-  /\(keys \| sort\) == \["code","expectedAccountId","holder","status"\]/,
+  /\(keys \| sort\) == \["boundApplication","code","expectedAccountId","holder","status"\]/,
 );
 assert.match(
   failureReporter,
   /\(keys \| sort\) == \[\s*"accountStatus",\s*"id",\s*"kind",\s*"parentAccountId",\s*"privacyIsPrivateAccount",\s*"rootAccountId",\s*"type"\s*\]/,
+);
+assert.match(
+  failureReporter,
+  /\(keys \| sort\) == \[\s*"createdByUserId",\s*"id",\s*"isInternal",\s*"isOfficial",\s*"ownerAccountId",\s*"status",\s*"type"\s*\]/,
 );
 assert.match(
   failureReporter,
@@ -154,7 +158,10 @@ assert.doesNotMatch(
 );
 
 const usernameHolderStart = bootstrap.indexOf('const usernameHolders = await tx');
-const usernameHolderEnd = bootstrap.indexOf('if (!row)', usernameHolderStart);
+const usernameHolderEnd = bootstrap.indexOf(
+  'const usernameHolder = usernameHolders[0];',
+  usernameHolderStart,
+);
 assert.notEqual(usernameHolderStart, -1, 'username collision query anchor must exist');
 assert.notEqual(usernameHolderEnd, -1, 'username collision query end anchor must exist');
 const usernameHolderQuery = bootstrap.slice(usernameHolderStart, usernameHolderEnd);
@@ -179,14 +186,43 @@ assert.match(
   'username collision lookup must use the exact unique-index expression',
 );
 assert.match(usernameHolderQuery, /usernameHolders\.length > 1/);
-assert.match(
-  usernameHolderQuery,
-  /new NativeProductAgentUsernameCollisionError\(spec\.id, usernameHolder\)/,
-);
 assert.doesNotMatch(
   usernameHolderQuery,
   /email|nameDisplay|secret|hash|token|\.limit\(|\.insert\(|\.update\(|\.delete\(|\.set\(/i,
   'the unique-username selector may only diagnose the collision with the reviewed holder fields',
+);
+
+const collisionEnd = bootstrap.indexOf('if (!row)', usernameHolderEnd);
+assert.notEqual(collisionEnd, -1, 'username collision block end anchor must exist');
+const collisionBlock = bootstrap.slice(usernameHolderEnd, collisionEnd);
+assert.match(
+  collisionBlock,
+  /new NativeProductAgentUsernameCollisionError\(\s*spec\.id,\s*usernameHolder,\s*boundApplication,\s*\)/,
+);
+for (const projectedField of [
+  'id',
+  'ownerAccountId',
+  'type',
+  'status',
+  'isOfficial',
+  'isInternal',
+  'createdByUserId',
+]) {
+  assert.match(
+    collisionBlock,
+    new RegExp(`${projectedField}: applications\\.${projectedField}`),
+    `bound application query must project ${projectedField}`,
+  );
+}
+assert.match(
+  collisionBlock,
+  /\.where\(eq\(applications\.id, boundApplicationId\)\)/,
+  'bound application diagnostic must use its exact ID',
+);
+assert.doesNotMatch(
+  collisionBlock,
+  /email|nameDisplay|secret|hash|token|\.insert\(|\.update\(|\.delete\(|\.set\(/i,
+  'the collision diagnostic may only read the reviewed application fields',
 );
 
 process.stdout.write(

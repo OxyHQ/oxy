@@ -68,6 +68,26 @@ safe_result=$(jq -cer '
     (.rootAccountId | valid_nullable_account_id) and
     (.accountStatus == "active" or .accountStatus == "archived") and
     (.privacyIsPrivateAccount | type == "boolean");
+  def valid_bound_application:
+    . == null or (
+      type == "object" and
+      (keys | sort) == [
+        "createdByUserId",
+        "id",
+        "isInternal",
+        "isOfficial",
+        "ownerAccountId",
+        "status",
+        "type"
+      ] and
+      (.id | valid_account_id) and
+      (.ownerAccountId | valid_account_id) and
+      (.type == "first_party" or .type == "third_party" or .type == "internal" or .type == "system") and
+      (.status == "active" or .status == "suspended" or .status == "deleted" or .status == "pending_review") and
+      (.isOfficial | type == "boolean") and
+      (.isInternal | type == "boolean") and
+      (.createdByUserId | valid_nullable_account_id)
+    );
   def valid_plan:
     (
       (keys | sort) == ["direction","mode","planSha256"] or
@@ -101,16 +121,18 @@ safe_result=$(jq -cer '
   then
     {code,planSha256}
   elif
-    (keys | sort) == ["code","expectedAccountId","holder","status"] and
+    (keys | sort) == ["boundApplication","code","expectedAccountId","holder","status"] and
     .status == "failed" and
     .code == "username_collision" and
     (.expectedAccountId | valid_account_id) and
     (.holder | valid_username_collision_holder) and
+    (.boundApplication | valid_bound_application) and
     .holder.id != .expectedAccountId
   then
     {
       code,
       expectedAccountId,
+      boundApplication,
       holder: {
         id: .holder.id,
         kind: .holder.kind,
