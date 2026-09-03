@@ -46,7 +46,7 @@ const CLAIMS = {
 function signToken(
   overrides: Record<string, unknown> = {},
   secret = SECRET,
-  options: jwt.SignOptions = { expiresIn: '5m' },
+  options: jwt.SignOptions = { expiresIn: '5m', issuer: 'oxy-auth', audience: 'oxy-api' },
 ): string {
   return jwt.sign({ ...CLAIMS, ...overrides }, secret, options);
 }
@@ -78,20 +78,14 @@ describe('the accepted shape', () => {
     });
   });
 
-  it('drops non-string entries from scopes rather than trusting them', () => {
+  it('rejects non-string entries in scopes rather than weakening authority', () => {
     const result = verifyServiceToken(signToken({ scopes: ['user:read', 7, null, {}] }));
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.payload.scopes).toEqual(['user:read']);
+    expect(result).toEqual({ ok: false, reason: 'not_service' });
   });
 
-  it('yields an empty scope list when the claim is not an array', () => {
+  it('rejects a non-array scope claim', () => {
     const result = verifyServiceToken(signToken({ scopes: 'user:read' }));
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.payload.scopes).toEqual([]);
+    expect(result).toEqual({ ok: false, reason: 'not_service' });
   });
 });
 
@@ -147,7 +141,11 @@ describe('signature verification is mandatory', () => {
 
 describe('the attribution tuple is required', () => {
   it('refuses a user/session token replayed as a service token', () => {
-    const userToken = jwt.sign({ userId: 'u-1', sessionId: 's-1' }, SECRET, { expiresIn: '5m' });
+    const userToken = jwt.sign({ userId: 'u-1', sessionId: 's-1' }, SECRET, {
+      expiresIn: '5m',
+      issuer: 'oxy-auth',
+      audience: 'oxy-api',
+    });
 
     expect(verifyServiceToken(userToken)).toEqual({ ok: false, reason: 'not_service' });
   });
@@ -161,7 +159,13 @@ describe('the attribution tuple is required', () => {
     ['credentialId', { credentialId: undefined }],
     ['credentialId (empty)', { credentialId: '' }],
     ['appId', { appId: undefined }],
+    ['appId (leading whitespace)', { appId: ' app-1' }],
+    ['appId (trailing whitespace)', { appId: 'app-1 ' }],
     ['appName', { appName: undefined }],
+    ['credentialId (leading whitespace)', { credentialId: ' cred-1' }],
+    ['credentialId (trailing whitespace)', { credentialId: 'cred-1 ' }],
+    ['ownerAccountId (leading whitespace)', { ownerAccountId: ' owner-account-1' }],
+    ['ownerAccountId (trailing whitespace)', { ownerAccountId: 'owner-account-1 ' }],
   ])('refuses a signature-valid token missing %s', (_label, overrides) => {
     expect(verifyServiceToken(signToken(overrides))).toEqual({
       ok: false,

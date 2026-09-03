@@ -5,6 +5,7 @@
  * and Express.js authentication middleware
  */
 import { jwtDecode } from 'jwt-decode';
+import type { JsonWebKey } from 'node:crypto';
 import type { LinkPreview } from '@oxyhq/contracts';
 import type { ApiError, User } from '../models/interfaces';
 import type { OxyServicesBase } from '../OxyServices.base';
@@ -28,6 +29,7 @@ interface JwtPayload {
   aud?: string | string[];
   iss?: string;
   environment?: string;
+  nbf?: number;
   [key: string]: unknown;
 }
 
@@ -118,6 +120,13 @@ class ServiceTokenSignatureError extends Error {
   }
 }
 
+class ServiceTokenConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ServiceTokenConfigurationError';
+  }
+}
+
 class ServiceTokenClaimError extends Error {
   constructor(message: string) {
     super(message);
@@ -145,28 +154,15 @@ interface AuthMiddlewareOptions {
   /** Optional auth - attach user if token present but don't block (default: false) */
   optional?: boolean;
   /**
-   * JWT secret for verifying service token signatures locally.
-   * When provided, service tokens will be cryptographically verified.
-   * When omitted, service tokens will be rejected (secure default).
-   *
-   * **The only value that works is `ACCESS_TOKEN_SECRET`, and you should not
-   * want to hold it — see issue #987 and ADR 0012.** The Oxy API signs service
-   * tokens with `ACCESS_TOKEN_SECRET` (`packages/api/src/routes/auth.ts`),
-   * which is also the key that signs every user access token. There is no
-   * separate service-token secret: earlier revisions of this comment named a
-   * `SERVICE_TOKEN_SECRET` that has never existed in the API, in any workflow or
-   * in any task definition, and passing one would fail every verification.
-   *
-   * The consequence to hold onto: the scheme is symmetric, so a host that can
-   * VERIFY a service token can also MINT one — including a user access token.
-   * **Local verification is therefore appropriate only inside the Oxy API's own
-   * trust boundary, and no service outside it holds this key today.** Do not be
-   * the first: if you need to verify Oxy service tokens from another service,
-   * follow #987 rather than copying the secret.
-   *
-   * `docs/adr/0012-service-token-signing-key-model.md` records the decision to
-   * retire this option in favour of asymmetric signing against a published
-   * JWKS, at which point it is removed rather than deprecated.
+   * Public JWKS endpoint used for Ed25519 service-token verification. Defaults
+   * to `/.well-known/jwks.json` on this Oxy client's configured API origin.
+   */
+  serviceTokenJwksUrl?: string;
+  /**
+   * @deprecated Oxy-API-only transition for pre-cutover HS256 service tokens.
+   * External services omit this option and verify Ed25519 tokens through the
+   * public JWKS. Never distribute `ACCESS_TOKEN_SECRET`: a host holding it can
+   * mint user access tokens as well as verify legacy service tokens.
    */
   jwtSecret?: string;
   /**
@@ -191,6 +187,8 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * @internal
      */
     _serviceActingAsCache = new Map<string, { result: ServiceActingAsVerification | null; expiresAt: number }>();
+    /** @internal Per-client public-key cache; never contains private material. */
+    _serviceTokenJwksCache: ServiceTokenJwksCache = { keys: new Map(), expiresAt: 0, lastAttemptAt: 0 };
 
     // TypeScript's mixin pattern requires `(...args: any[])` here — the
     // constructor signature is a structural shape check the compiler enforces.
@@ -321,10 +319,10 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      *   `userId` claim disagrees with the session is refused
      *   (`SESSION_USER_MISMATCH`); a token with no `sessionId` at all is
      *   refused outright (`SESSION_REQUIRED`). There is no local-claims path.
-     * - Service tokens (type: 'service') ARE stateless, so they use
-     *   cryptographic HMAC verification via the `jwtSecret` option, and are
-     *   additionally checked for `aud`, `iss`, and `type` claims to prevent
-     *   cross-token-type confusion attacks.
+     * - Service tokens (type: 'service') ARE stateless, so they use Ed25519
+     *   verification against Oxy's public JWKS and are additionally checked
+     *   for `aud`, `iss`, `type`, time, attribution and scope claims. The
+     *   `jwtSecret` path exists only for Oxy API's bounded HS256 transition.
      * - The backend's own `authMiddleware` uses `jwt.verify()` because it has
      *   direct access to `ACCESS_TOKEN_SECRET`.
      *
@@ -358,7 +356,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
      *
      * // Protect all routes under /protected
-     * app.use('/protected', oxy.auth({ jwtSecret: process.env.ACCESS_TOKEN_SECRET }));
+     * app.use('/protected', oxy.auth());
      *
      * // Access user in route handler
      * app.get('/protected/me', (req, res) => {
@@ -372,7 +370,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * app.use('/public', oxy.auth({ optional: true }));
      *
      * // Require a specific scope on a service-token-protected route
-     * app.use('/internal/files', oxy.serviceAuth({ jwtSecret: process.env.ACCESS_TOKEN_SECRET }), oxy.requireScope('files:write'));
+     * app.use('/internal/files', oxy.serviceAuth(), oxy.requireScope('files:write'));
      * ```
      *
      * @param options Optional configuration
@@ -385,6 +383,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
         loadUser = false,
         optional = false,
         jwtSecret,
+        serviceTokenJwksUrl = new URL('/.well-known/jwks.json', this.getBaseURL()).toString(),
         expectedIssuer = OXY_JWT_ISSUER,
         expectedAudience = OXY_JWT_AUDIENCE,
       } = options;
@@ -456,33 +455,18 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
           // Handle service tokens (internal service-to-service auth)
           // Service tokens are stateless JWTs with type: 'service' — requires signature verification
           if (decoded.type === 'service') {
-            // Service tokens MUST be cryptographically verified — reject if no secret provided
-            if (!jwtSecret) {
-              if (optional) {
-                req.userId = null;
-                req.user = null;
-                return next();
-              }
-              const error = {
-                error: 'SERVICE_TOKEN_NOT_CONFIGURED',
-                message: 'Service token verification not configured',
-                code: 'SERVICE_TOKEN_NOT_CONFIGURED',
-                status: 403
-              };
-              if (onError) return onError(error);
-              return res.status(403).json(error);
-            }
-
             // Verify JWT signature, then audience / issuer / type / appId claims.
             //
-            // Signature verification uses a manual HMAC-SHA256 compare because
-            // this file ships into RN/web bundles where `jsonwebtoken` is
-            // unavailable. The middleware only ever runs on Node hosts (see
-            // `@oxyhq/protocol`'s `platform/crypto` doc-comment), and
-            // `loadNodeCrypto` is per-platform: the RN variant throws so Metro
-            // never bundles a Node built-in reference.
+            // Signature verification uses Node crypto rather than
+            // `jsonwebtoken` because this file also ships into RN/web bundles.
+            // The middleware itself runs on Node hosts; `loadNodeCrypto` is
+            // per-platform, so Metro never bundles a Node built-in reference.
             try {
-              await verifyServiceTokenSignature(token, jwtSecret);
+              await verifyServiceTokenSignature(token, {
+                legacySecret: jwtSecret,
+                jwksUrl: serviceTokenJwksUrl,
+                cache: this._serviceTokenJwksCache,
+              });
               verifyServiceTokenClaims(decoded, {
                 audience: expectedAudience,
                 issuer: expectedIssuer,
@@ -491,6 +475,23 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               // Structure + signature + claim errors all map to 401. Anything
               // else (e.g. Node crypto failing to load on a misconfigured host)
               // genuinely IS a 500.
+              if (
+                verifyError instanceof ServiceTokenConfigurationError
+              ) {
+                if (optional) {
+                  req.userId = null;
+                  req.user = null;
+                  return next();
+                }
+                const error = {
+                  error: 'SERVICE_TOKEN_NOT_CONFIGURED',
+                  message: verifyError.message,
+                  code: 'SERVICE_TOKEN_NOT_CONFIGURED',
+                  status: 403,
+                };
+                if (onError) return onError(error);
+                return res.status(403).json(error);
+              }
               if (
                 verifyError instanceof ServiceTokenStructureError ||
                 verifyError instanceof ServiceTokenSignatureError ||
@@ -539,13 +540,19 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
             }
 
             // Check expiration — reject tokens at exact expiry second (use <=)
-            if (decoded.exp && decoded.exp <= Math.floor(Date.now() / 1000)) {
+            const now = Math.floor(Date.now() / 1000);
+            if (!Number.isInteger(decoded.exp) || (decoded.exp as number) <= now) {
               if (optional) {
                 req.userId = null;
                 req.user = null;
                 return next();
               }
               const error = { error: 'TOKEN_EXPIRED', message: 'Service token expired', code: 'TOKEN_EXPIRED', status: 401 };
+              if (onError) return onError(error);
+              return res.status(401).json(error);
+            }
+            if (decoded.nbf !== undefined && (!Number.isInteger(decoded.nbf) || decoded.nbf > now)) {
+              const error = { error: 'INVALID_SERVICE_TOKEN_CLAIMS', message: 'Service token is not yet valid', code: 'INVALID_SERVICE_TOKEN_CLAIMS', status: 401 };
               if (onError) return onError(error);
               return res.status(401).json(error);
             }
@@ -559,12 +566,14 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
             const ownerAccountId = decoded.ownerAccountId;
             const environment = decoded.environment;
             if (
-              !appId ||
-              typeof credentialId !== 'string' ||
-              credentialId.length === 0 ||
-              typeof ownerAccountId !== 'string' ||
-              ownerAccountId.length === 0 ||
+              !isExactNonEmptyServiceClaim(appId) ||
+              !isExactNonEmptyServiceClaim(decoded.appName) ||
+              !isExactNonEmptyServiceClaim(credentialId) ||
+              !isExactNonEmptyServiceClaim(ownerAccountId) ||
               !isOxyServiceEnvironment(environment)
+              || !Array.isArray(decoded.scopes)
+              || !decoded.scopes.every((scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim())
+              || new Set(decoded.scopes).size !== decoded.scopes.length
             ) {
               if (optional) {
                 req.userId = null;
@@ -578,7 +587,17 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
 
             // Read delegated user ID from header
             const oxyUserIdRaw = req.headers['x-oxy-user-id'];
-            const oxyUserId = typeof oxyUserIdRaw === 'string' && oxyUserIdRaw.length > 0 ? oxyUserIdRaw : null;
+            const oxyUserId = isExactNonEmptyServiceClaim(oxyUserIdRaw) ? oxyUserIdRaw : null;
+            if (oxyUserIdRaw !== undefined && oxyUserId === null) {
+              const error = {
+                error: 'INVALID_SERVICE_TOKEN_CLAIMS',
+                message: 'Delegated user id must be an exact non-empty id',
+                code: 'INVALID_SERVICE_TOKEN_CLAIMS',
+                status: 401,
+              };
+              if (onError) return onError(error);
+              return res.status(401).json(error);
+            }
 
             // C3: a service may only act as a user when an explicit
             // ServiceActingAs grant exists for that (appId, userId) pair.
@@ -621,7 +640,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
             req.accessToken = token;
             req.serviceApp = {
               appId,
-              appName: decoded.appName || 'unknown',
+              appName: decoded.appName,
               credentialId,
               ownerAccountId,
               scopes: Array.isArray(decoded.scopes) ? decoded.scopes : [],
@@ -968,7 +987,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * @example
      * ```typescript
      * // Protect internal endpoints
-     * app.use('/internal', oxy.serviceAuth({ jwtSecret: process.env.ACCESS_TOKEN_SECRET }));
+     * app.use('/internal', oxy.serviceAuth());
      *
      * app.post('/internal/trigger', (req, res) => {
      *   console.log('Service app:', req.serviceApp);
@@ -976,7 +995,14 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * });
      * ```
      */
-    serviceAuth(options: { debug?: boolean; jwtSecret?: string; expectedIssuer?: string; expectedAudience?: string } = {}) {
+    serviceAuth(options: {
+      debug?: boolean;
+      /** @deprecated Oxy-API-only HS256 transition; external verifiers use JWKS. */
+      jwtSecret?: string;
+      serviceTokenJwksUrl?: string;
+      expectedIssuer?: string;
+      expectedAudience?: string;
+    } = {}) {
       const innerAuth = this.auth({ ...options });
 
       return async (req: AuthReq, res: AuthRes, next: AuthNext) => {
@@ -1022,7 +1048,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * ```typescript
      * app.use(
      *   '/internal/files',
-     *   oxy.serviceAuth({ jwtSecret: process.env.ACCESS_TOKEN_SECRET }),
+     *   oxy.serviceAuth(),
      *   oxy.requireScope('files:write'),
      * );
      * ```
@@ -1078,14 +1104,132 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
 // Service token verification helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Verify a service JWT's HMAC-SHA256 signature using a constant-time compare.
- * Throws `ServiceTokenStructureError` on malformed tokens and
- * `ServiceTokenSignatureError` on signature mismatch — both map to 401.
- */
-async function verifyServiceTokenSignature(token: string, secret: string): Promise<void> {
+interface ServiceTokenPublicJwk {
+  readonly kty: 'OKP';
+  readonly crv: 'Ed25519';
+  readonly x: string;
+  readonly use: 'sig';
+  readonly alg: 'EdDSA';
+  readonly kid: string;
+}
+
+function isExactNonEmptyServiceClaim(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.trim() === value;
+}
+
+interface ServiceTokenJwksCache {
+  keys: Map<string, ServiceTokenPublicJwk>;
+  expiresAt: number;
+  lastAttemptAt: number;
+  pending?: Promise<void>;
+}
+
+const JWKS_CACHE_MS = 5 * 60 * 1000;
+const JWKS_UNKNOWN_KID_REFRESH_MS = 60 * 1000;
+const JWKS_FETCH_TIMEOUT_MS = 5_000;
+const JWKS_MAX_BYTES = 64 * 1024;
+const JWKS_MAX_KEYS = 20;
+
+function parseJsonSegment(segment: string): Record<string, unknown> {
+  if (!/^[A-Za-z0-9_-]+$/.test(segment)) throw new ServiceTokenStructureError('Service token segment is not base64url');
+  const bytes = Buffer.from(segment, 'base64url');
+  if (bytes.toString('base64url') !== segment) throw new ServiceTokenStructureError('Service token segment is not canonical base64url');
+  try {
+    const value = JSON.parse(bytes.toString('utf8')) as unknown;
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('not an object');
+    return value as Record<string, unknown>;
+  } catch {
+    throw new ServiceTokenStructureError('Service token segment is not a JSON object');
+  }
+}
+
+function parseServiceTokenJwks(value: unknown): Map<string, ServiceTokenPublicJwk> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new ServiceTokenSignatureError('Oxy JWKS is malformed');
+  const keys = (value as { keys?: unknown }).keys;
+  if (!Array.isArray(keys) || keys.length === 0 || keys.length > JWKS_MAX_KEYS) throw new ServiceTokenSignatureError('Oxy JWKS has an invalid key set');
+  const result = new Map<string, ServiceTokenPublicJwk>();
+  for (const value of keys) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new ServiceTokenSignatureError('Oxy JWKS contains a malformed key');
+    const key = value as Record<string, unknown>;
+    if (
+      key.kty !== 'OKP'
+      || key.crv !== 'Ed25519'
+      || typeof key.x !== 'string'
+      || key.x.length === 0
+      || key.use !== 'sig'
+      || key.alg !== 'EdDSA'
+      || typeof key.kid !== 'string'
+      || !/^[A-Za-z0-9._-]{1,128}$/.test(key.kid)
+      || Object.prototype.hasOwnProperty.call(key, 'd')
+      || result.has(key.kid)
+    ) throw new ServiceTokenSignatureError('Oxy JWKS contains an unsupported or duplicate key');
+    const x = Buffer.from(key.x, 'base64url');
+    if (x.length !== 32 || x.toString('base64url') !== key.x) {
+      throw new ServiceTokenSignatureError('Oxy JWKS contains an invalid Ed25519 key');
+    }
+    result.set(key.kid, key as unknown as ServiceTokenPublicJwk);
+  }
+  return result;
+}
+
+async function refreshServiceTokenJwks(url: string, cache: ServiceTokenJwksCache): Promise<void> {
+  if (cache.pending) return cache.pending;
+  cache.lastAttemptAt = Date.now();
+  cache.pending = (async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), JWKS_FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        signal: controller.signal,
+        redirect: 'error',
+      });
+      if (!response.ok) throw new ServiceTokenSignatureError(`Oxy JWKS returned HTTP ${response.status}`);
+      const source = await response.text();
+      if (Buffer.byteLength(source, 'utf8') > JWKS_MAX_BYTES) throw new ServiceTokenSignatureError('Oxy JWKS exceeds the size limit');
+      cache.keys = parseServiceTokenJwks(JSON.parse(source) as unknown);
+      cache.expiresAt = Date.now() + JWKS_CACHE_MS;
+    } finally {
+      clearTimeout(timeout);
+    }
+  })();
+  try {
+    await cache.pending;
+  } finally {
+    cache.pending = undefined;
+  }
+}
+
+async function resolveServiceTokenPublicKey(
+  kid: string,
+  url: string,
+  cache: ServiceTokenJwksCache,
+): Promise<ServiceTokenPublicJwk> {
+  const now = Date.now();
+  const cached = cache.keys.get(kid);
+  if (cached && cache.expiresAt > now) return cached;
+  const mayRefresh = cache.expiresAt <= now || now - cache.lastAttemptAt >= JWKS_UNKNOWN_KID_REFRESH_MS;
+  if (mayRefresh) {
+    try {
+      await refreshServiceTokenJwks(url, cache);
+    } catch {
+      const stillValid = cache.keys.get(kid);
+      if (stillValid && cache.expiresAt > Date.now()) return stillValid;
+      throw new ServiceTokenSignatureError('Oxy service-token key set is unavailable');
+    }
+  }
+  const resolved = cache.keys.get(kid);
+  if (!resolved || cache.expiresAt <= Date.now()) throw new ServiceTokenSignatureError('Service token signing key is unknown');
+  return resolved;
+}
+
+/** Ed25519/JWKS verification with an Oxy-API-only HS256 transition. */
+async function verifyServiceTokenSignature(
+  token: string,
+  options: { legacySecret?: string; jwksUrl: string; cache: ServiceTokenJwksCache },
+): Promise<void> {
   const nodeCrypto = await loadNodeCrypto();
-  const { createHmac, timingSafeEqual } = nodeCrypto;
   const parts = token.split('.');
   if (parts.length !== 3) {
     throw new ServiceTokenStructureError(`Service token must have 3 parts, got ${parts.length}`);
@@ -1094,18 +1238,34 @@ async function verifyServiceTokenSignature(token: string, secret: string): Promi
   if (!headerB64 || !payloadB64 || !signatureB64) {
     throw new ServiceTokenStructureError('Service token has empty segment');
   }
-  const expectedSig = createHmac('sha256', secret)
-    .update(`${headerB64}.${payloadB64}`)
-    .digest('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
-
-  const sigBuf = Buffer.from(signatureB64);
-  const expectedBuf = Buffer.from(expectedSig);
-  if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
-    throw new ServiceTokenSignatureError();
+  const header = parseJsonSegment(headerB64);
+  if (header.alg === 'HS256') {
+    if (!options.legacySecret) throw new ServiceTokenConfigurationError('Legacy service token verification is not configured');
+    const expectedSig = nodeCrypto.createHmac('sha256', options.legacySecret)
+      .update(`${headerB64}.${payloadB64}`)
+      .digest('base64url');
+    const sigBuf = Buffer.from(signatureB64);
+    const expectedBuf = Buffer.from(expectedSig);
+    if (sigBuf.length !== expectedBuf.length || !nodeCrypto.timingSafeEqual(sigBuf, expectedBuf)) throw new ServiceTokenSignatureError();
+    return;
   }
+  if (
+    Object.keys(header).length !== 3
+    || header.alg !== 'EdDSA'
+    || header.typ !== 'JWT'
+    || typeof header.kid !== 'string'
+    || !/^[A-Za-z0-9._-]{1,128}$/.test(header.kid)
+  ) throw new ServiceTokenStructureError('Service token JOSE header is not supported');
+  const jwk = await resolveServiceTokenPublicKey(header.kid, options.jwksUrl, options.cache);
+  let publicKey: Awaited<ReturnType<typeof nodeCrypto.createPublicKey>>;
+  try {
+    publicKey = nodeCrypto.createPublicKey({ key: jwk as unknown as JsonWebKey, format: 'jwk' });
+  } catch {
+    throw new ServiceTokenSignatureError('Service token public key is invalid');
+  }
+  const signature = Buffer.from(signatureB64, 'base64url');
+  if (signature.toString('base64url') !== signatureB64 || signature.length !== 64) throw new ServiceTokenStructureError('Service token signature is malformed');
+  if (!nodeCrypto.verify(null, Buffer.from(`${headerB64}.${payloadB64}`), publicKey, signature)) throw new ServiceTokenSignatureError();
 }
 
 /**

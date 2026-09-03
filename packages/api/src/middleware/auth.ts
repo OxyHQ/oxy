@@ -296,14 +296,6 @@ export const serviceAuthMiddleware = (req: ServiceAuthRequest, res: Response, ne
 
   const token = authHeader.split(' ')[1];
 
-  if (!process.env.ACCESS_TOKEN_SECRET) {
-    logger.error('ACCESS_TOKEN_SECRET not configured');
-    return res.status(500).json({
-      error: 'Server configuration error',
-      message: 'Server configuration error',
-    });
-  }
-
   const verification = verifyServiceToken(token);
   if (verification.ok) {
     req.serviceApp = verification.payload;

@@ -4,7 +4,7 @@ The one rotation on this list with a **platform-wide, user-visible cost**, and t
 one where getting the order wrong cannot be rolled back cheaply. Read the whole
 file before starting.
 
-## What is signed with what, today
+## What production is signed with before the asymmetric bindings are enabled
 
 | Token | Lifetime | Signed with | Where |
 |---|---|---|---|
@@ -17,10 +17,29 @@ file before starting.
 is why this is one runbook rather than two: there is currently no separate
 service-token key to rotate.
 
-ADR 0012's target — Ed25519 signing, a `kid` in the header, public keys published
-at `https://api.oxy.so/.well-known/jwks.json`, no verifier ever holding a key that
-can mint — **is not implemented.** There is no JWKS endpoint in this repository.
-The section at the end says what changes in this runbook when it lands.
+ADR 0012's source implementation now supports Ed25519 signing, a `kid` in the
+header, public keys at `https://api.oxy.so/.well-known/jwks.json`, and external
+verification without a mint-capable secret. It does not become active merely by
+merging source: the bindings below must be provisioned and the release order
+completed. With all three bindings absent the API retains the existing HS256
+mint as a bounded transition; a partial binding set fails boot.
+
+## Exact SSM and task-definition bindings required
+
+Do not generate values in a deploy workflow and never copy
+`ACCESS_TOKEN_SECRET` to a consumer. Provision these exact parameters out of
+band, then bind them only into the `oxy-api` task:
+
+| SSM parameter | Type | Container environment name | Contents |
+|---|---|---|---|
+| `/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY` | `SecureString` | `SERVICE_TOKEN_PRIVATE_KEY` | PKCS#8 PEM Ed25519 private key; oxy-api only |
+| `/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID` | `String` | `SERVICE_TOKEN_SIGNING_KEY_ID` | exact URL-safe `kid` for the active private key |
+| `/oxy/oxy-api/SERVICE_TOKEN_PUBLIC_JWKS` | `String` | `SERVICE_TOKEN_PUBLIC_JWKS` | public-only JSON JWKS for additional old/next rotation keys; omit the active `kid` because it is derived from the private key |
+
+The endpoint composes the active public key with that additional public-only
+set. It refuses duplicate `kid`s, private `d` material, malformed Ed25519 keys
+and partial signing configuration. No downstream task receives any of these
+bindings: it fetches the public endpoint through `@oxyhq/core`.
 
 ## What a rotation actually costs
 
@@ -182,7 +201,7 @@ guess from the deploy log. Mint a token and observe: a token minted now, verifie
 now, tells you which secret the process is holding. That behavioural check is the
 only one that cannot be wrong.
 
-## What changes when ADR 0012 lands
+## Additive Ed25519 rotation after the bindings are active
 
 Rotation stops being an event and becomes additive, because a JWKS is one
 authoritative key set indexed by `kid`:
@@ -203,5 +222,7 @@ token window was closed — a flag that refuses the old shape once the last one 
 expired, so the guarantee holds for every request instead of for every request
 that happens to carry a new enough token.
 
-Where the private key lives — an Ed25519 key in SSM, or AWS KMS asymmetric
-signing — is explicitly the owner's decision in ADR 0012 and is not settled here.
+The private key lives in the SSM `SecureString` named above, per ADR 0012. Do
+not delete the old public key until both the one-hour maximum service-token
+lifetime and every verifier's five-minute JWKS cache window have elapsed from
+the last token signed with that `kid`.

@@ -336,7 +336,7 @@ function signServiceToken(input: {
       scopes: ['inference:invoke'],
     },
     input.secret ?? (process.env.ACCESS_TOKEN_SECRET as string),
-    { expiresIn: '1h' }
+    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' }
   );
 }
 

@@ -150,6 +150,7 @@ import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
 import { createInboxMcpHttpService } from './capabilities/inbox-mcp-http';
+import { serviceTokenPublicJwks, serviceTokenSigningConfig } from './config/serviceTokenSigning';
 
 // Load environment variables
 dotenv.config();
@@ -157,6 +158,7 @@ dotenv.config();
 // Validate configuration early - fail fast with clear errors
 try {
   validateRequiredEnvVars();
+  serviceTokenSigningConfig();
   logger.info('Environment configuration validated', getSanitizedConfig());
 } catch (error) {
   logger.error('Configuration error:', error);
@@ -633,7 +635,16 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Apply rate limiting middleware globally (before routes)
+// Public signing metadata is cacheable and must remain reachable by every Oxy
+// service verifier. It carries public keys only and sits outside the shared-IP
+// application limiter so a busy NAT cannot turn valid service tokens into an
+// authentication outage.
+app.get('/.well-known/jwks.json', (_request, response) => {
+  response.set('cache-control', 'public, max-age=300, must-revalidate');
+  response.json({ keys: serviceTokenPublicJwks() });
+});
+
+// Apply rate limiting middleware globally (before application routes)
 // Note: Auth routes have their own stricter rate limiting
 app.use(rateLimiter);
 app.use(bruteForceProtection);

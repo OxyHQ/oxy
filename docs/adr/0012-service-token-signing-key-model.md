@@ -130,10 +130,13 @@ Concretely, the target state:
   become `SERVICE_TOKEN_SECRET`; there is no symmetric service-token key in the
   target state.
 
-**None of this is implemented in the PR that adds this ADR.** That PR extends
-the claim set, hardens verification within the existing scheme, and corrects the
-documentation. Changing key material is a separate change, for the reasons in
-the rollout section.
+**Implementation status (2026-09-03):** the source implementation now exists:
+Ed25519 minting with `kid`, the database-independent public JWKS endpoint, and
+bounded JWKS verification/cache support in `@oxyhq/core`. The API retains
+HS256 verification/minting only as a transition when the asymmetric bindings
+are entirely absent; external consumers never receive `ACCESS_TOKEN_SECRET`.
+Provisioning the three SSM bindings and the cross-repository release ordering
+remain separate rollout work. Until those happen, production has not cut over.
 
 ## Rollout
 

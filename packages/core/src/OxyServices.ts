@@ -125,6 +125,7 @@ export interface OxyServices extends InstanceType<ReturnType<typeof composeOxySe
     onError?: (error: unknown) => unknown;
     loadUser?: boolean;
     optional?: boolean;
+    serviceTokenJwksUrl?: string;
     jwtSecret?: string;
     expectedIssuer?: string;
     expectedAudience?: string;
@@ -138,6 +139,7 @@ export interface OxyServices extends InstanceType<ReturnType<typeof composeOxySe
   // Service-token-only middleware (delegates to auth() internally)
   serviceAuth(options?: {
     debug?: boolean;
+    serviceTokenJwksUrl?: string;
     jwtSecret?: string;
     expectedIssuer?: string;
     expectedAudience?: string;
