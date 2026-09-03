@@ -42,6 +42,73 @@ export type NativeProductAgentBoundApplication = Pick<
   | 'createdByUserId'
 >;
 
+export const NATIVE_PRODUCT_AGENT_DRIFT_TARGETS = [
+  'oxy_organization',
+  'homiio_project_account',
+  'homiio_project_ancestry',
+  'homiio_bot_account',
+  'homiio_bot_ancestry',
+  'clarity_project_account',
+  'clarity_project_ancestry',
+  'clarity_bot_account',
+  'clarity_bot_ancestry',
+  'homiio_cost_center',
+  'clarity_cost_center',
+  'homiio_application',
+  'sindi_service_credential',
+  'clarity_application',
+  'clarity_public_credential',
+  'clarity_backend_application',
+  'clarity_backend_credential',
+] as const;
+
+export type NativeProductAgentDriftTarget =
+  (typeof NATIVE_PRODUCT_AGENT_DRIFT_TARGETS)[number];
+
+export const NATIVE_PRODUCT_AGENT_DRIFT_FIELDS = [
+  'id',
+  'username',
+  'nameDisplay',
+  'kind',
+  'type',
+  'parentAccountId',
+  'rootAccountId',
+  'accountStatus',
+  'privacyIsPrivateAccount',
+  'path',
+  'accountId',
+  'slug',
+  'label',
+  'status',
+  'isOfficial',
+  'isInternal',
+  'applicationId',
+  'name',
+  'publicKey',
+  'secretHash',
+  'secretHashPresent',
+  'environment',
+  'scopes',
+  'websiteUrl',
+  'capabilities',
+  'redirectUris',
+  'ownerAccountId',
+  'createdByUserId',
+] as const;
+
+export type NativeProductAgentDriftField =
+  (typeof NATIVE_PRODUCT_AGENT_DRIFT_FIELDS)[number];
+
+export class NativeProductAgentStateDriftError extends Error {
+  constructor(
+    readonly target: NativeProductAgentDriftTarget,
+    readonly field: NativeProductAgentDriftField,
+  ) {
+    super('native product-agent state drift');
+    this.name = 'NativeProductAgentStateDriftError';
+  }
+}
+
 export class NativeProductAgentUsernameCollisionError extends Error {
   readonly expectedAccountId: string;
   readonly holder: NativeProductAgentUsernameCollisionHolder;
@@ -86,6 +153,12 @@ export type NativeProductAgentBootstrapFailureResult =
       expectedAccountId: string;
       holder: NativeProductAgentUsernameCollisionHolder;
       boundApplication: NativeProductAgentBoundApplication | null;
+    }>
+  | Readonly<{
+      status: 'failed';
+      code: 'live_state_drift';
+      target: NativeProductAgentDriftTarget;
+      field: NativeProductAgentDriftField;
     }>
   | Readonly<{
       status: 'failed';
@@ -143,6 +216,14 @@ export function nativeProductAgentBootstrapFailureResult(
       expectedAccountId: error.expectedAccountId,
       holder: error.holder,
       boundApplication: error.boundApplication,
+    };
+  }
+  if (error instanceof NativeProductAgentStateDriftError) {
+    return {
+      status: 'failed',
+      code: 'live_state_drift',
+      target: error.target,
+      field: error.field,
     };
   }
   return {

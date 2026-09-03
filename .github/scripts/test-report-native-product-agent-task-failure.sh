@@ -23,6 +23,10 @@ expected="::error::dry-run-bootstrap task exited 1; structured_result={\"code\":
 actual=$(run_reporter "$subject" "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"plan_rejected\",\"planSha256\":\"$plan_sha\"}")
 [ "$actual" = "$expected" ]
 
+expected='::error::dry-run-bootstrap task exited 1; structured_result={"code":"live_state_drift","target":"homiio_project_ancestry","field":"path"}'
+actual=$(run_reporter "$subject" 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"live_state_drift","target":"homiio_project_ancestry","field":"path"}')
+[ "$actual" = "$expected" ]
+
 expected_account_id='01a0646a-078f-72ea-8759-86326484a7e0'
 holder_id='6a50444ce8026582b949089d'
 bound_application='{"id":"6a2f851751b784a86fd0e922","ownerAccountId":"6a50444ce8026582b949089d","type":"first_party","status":"active","isOfficial":true,"isInternal":false,"createdByUserId":"69b2d3df5d12f58c9800d651"}'
@@ -45,6 +49,9 @@ for unsafe_envelope in \
   "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"database_unavailable\",\"secret\":\"$unsafe_marker\"}" \
   "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"database_unavailable\",\"name\":\"$unsafe_marker\"}" \
   "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"database_unavailable\",\"actor\":\"$unsafe_marker\"}" \
+  "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"live_state_drift\",\"target\":\"homiio_project_ancestry\",\"field\":\"path\",\"value\":\"$unsafe_marker\"}" \
+  'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"live_state_drift","target":"unregistered","field":"path"}' \
+  'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"live_state_drift","target":"homiio_project_ancestry","field":"unregistered"}' \
   "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"username_collision\",\"expectedAccountId\":\"$expected_account_id\",\"holder\":{\"id\":\"$holder_id\",\"kind\":\"project\",\"type\":\"local\",\"parentAccountId\":null,\"rootAccountId\":null,\"accountStatus\":\"active\",\"privacyIsPrivateAccount\":false,\"email\":\"$unsafe_marker\"}}" \
   "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"username_collision\",\"expectedAccountId\":\"$expected_account_id\",\"holder\":{\"id\":\"$holder_id\",\"kind\":\"project\",\"type\":\"local\",\"parentAccountId\":null,\"rootAccountId\":null,\"accountStatus\":\"active\",\"privacyIsPrivateAccount\":false},\"boundApplication\":{\"id\":\"6a2f851751b784a86fd0e922\",\"ownerAccountId\":\"$holder_id\",\"type\":\"first_party\",\"status\":\"active\",\"isOfficial\":true,\"isInternal\":false,\"createdByUserId\":\"69b2d3df5d12f58c9800d651\",\"name\":\"$unsafe_marker\"}}" \
   "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"username_collision\",\"expectedAccountId\":\"$expected_account_id\",\"holder\":{\"id\":\"$holder_id\",\"kind\":\"project\",\"type\":\"local\",\"parentAccountId\":null,\"rootAccountId\":null,\"accountStatus\":\"active\",\"privacyIsPrivateAccount\":false},\"name\":\"$unsafe_marker\"}" \

@@ -1,4 +1,5 @@
 import {
+  NativeProductAgentStateDriftError,
   NativeProductAgentUsernameCollisionError,
   nativeProductAgentBootstrapFailureResult,
 } from '../nativeProductAgentBootstrapFailure';
@@ -44,7 +45,7 @@ describe('native product-agent bootstrap failure projection', () => {
       code: 'username_collision',
       expectedAccountId,
       holder: {
-        id: '6a50444ce8026582b949089d',
+        id: holder.id,
         kind: 'project',
         type: 'local',
         parentAccountId: '69b2d3df5d12f58c9800d651',
@@ -61,6 +62,20 @@ describe('native product-agent bootstrap failure projection', () => {
         isInternal: false,
         createdByUserId: '69b2d3df5d12f58c9800d651',
       },
+    });
+    expect(JSON.stringify(result)).not.toContain(unsafeMarker);
+  });
+
+  it('projects only an allowlisted drift target and field', () => {
+    const result = nativeProductAgentBootstrapFailureResult(
+      new NativeProductAgentStateDriftError('homiio_project_ancestry', 'path'),
+    );
+
+    expect(result).toEqual({
+      status: 'failed',
+      code: 'live_state_drift',
+      target: 'homiio_project_ancestry',
+      field: 'path',
     });
     expect(JSON.stringify(result)).not.toContain(unsafeMarker);
   });

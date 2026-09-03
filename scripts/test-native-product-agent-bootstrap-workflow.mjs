@@ -112,6 +112,11 @@ assert.match(failureReporter, /\(keys \| sort\) == \["code","status"\]/);
 assert.match(failureReporter, /\(keys \| sort\) == \["code","planSha256","status"\]/);
 assert.match(
   failureReporter,
+  /\(keys \| sort\) == \["code","field","status","target"\]/,
+);
+assert.match(failureReporter, /\{code,target,field\}/);
+assert.match(
+  failureReporter,
   /\(keys \| sort\) == \["boundApplication","code","expectedAccountId","holder","status"\]/,
 );
 assert.match(

@@ -43,6 +43,53 @@ safe_result=$(jq -cer '
     type == "string" and test("^[a-z][a-z0-9_]{0,63}$");
   def valid_generic_code:
     valid_code and . != "username_collision";
+  def valid_drift_target:
+    . == "oxy_organization" or
+    . == "homiio_project_account" or
+    . == "homiio_project_ancestry" or
+    . == "homiio_bot_account" or
+    . == "homiio_bot_ancestry" or
+    . == "clarity_project_account" or
+    . == "clarity_project_ancestry" or
+    . == "clarity_bot_account" or
+    . == "clarity_bot_ancestry" or
+    . == "homiio_cost_center" or
+    . == "clarity_cost_center" or
+    . == "homiio_application" or
+    . == "sindi_service_credential" or
+    . == "clarity_application" or
+    . == "clarity_public_credential" or
+    . == "clarity_backend_application" or
+    . == "clarity_backend_credential";
+  def valid_drift_field:
+    . == "id" or
+    . == "username" or
+    . == "nameDisplay" or
+    . == "kind" or
+    . == "type" or
+    . == "parentAccountId" or
+    . == "rootAccountId" or
+    . == "accountStatus" or
+    . == "privacyIsPrivateAccount" or
+    . == "path" or
+    . == "accountId" or
+    . == "slug" or
+    . == "label" or
+    . == "status" or
+    . == "isOfficial" or
+    . == "isInternal" or
+    . == "applicationId" or
+    . == "name" or
+    . == "publicKey" or
+    . == "secretHash" or
+    . == "secretHashPresent" or
+    . == "environment" or
+    . == "scopes" or
+    . == "websiteUrl" or
+    . == "capabilities" or
+    . == "redirectUris" or
+    . == "ownerAccountId" or
+    . == "createdByUserId";
   def valid_account_id:
     type == "string" and (
       test("^[a-f0-9]{24}$") or
@@ -120,6 +167,14 @@ safe_result=$(jq -cer '
     (.planSha256 | valid_plan_sha)
   then
     {code,planSha256}
+  elif
+    (keys | sort) == ["code","field","status","target"] and
+    .status == "failed" and
+    .code == "live_state_drift" and
+    (.target | valid_drift_target) and
+    (.field | valid_drift_field)
+  then
+    {code,target,field}
   elif
     (keys | sort) == ["boundApplication","code","expectedAccountId","holder","status"] and
     .status == "failed" and
