@@ -120,6 +120,20 @@ describe('the canonical official-application registry', () => {
       });
       expect(SEED_APPS.filter((spec) => spec.id === HOMIIO_APPLICATION_ID)).toEqual([homiio]);
     });
+
+    it('pins only the exact web and PKCE-bound native consent redirects', () => {
+      const redirectUris = specNamed('Homiio').redirectUris;
+      expect(redirectUris).toEqual([
+        'https://homiio.com',
+        'homiio://oauth/consent',
+      ]);
+      expect(redirectUris.every((uri) => uri === uri.trim())).toBe(true);
+      expect(redirectUris.some((uri) => /\s|\*/.test(uri))).toBe(false);
+      expect(redirectUris.map((uri) => new URL(uri).protocol)).toEqual([
+        'https:',
+        'homiio:',
+      ]);
+    });
   });
 
   describe('Alia sees the internal catalogue audience', () => {

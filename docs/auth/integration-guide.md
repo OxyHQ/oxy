@@ -243,6 +243,53 @@ Native third-party apps do **not** use the Commons QR flow; that is the first-pa
 
 ---
 
+## Explicit re-consent in an official app
+
+An official app still needs the user's consent for scopes classified as
+consent-required. If a resource server reports that such a grant is missing or
+revoked, render a user-facing action and call `requestOAuthConsent` from that
+press. Never call it on mount or automatically from the failed request: every
+trip to the IdP must begin with a real user gesture.
+
+```tsx
+import { Button, Platform } from 'react-native';
+import { useOxy } from '@oxyhq/services';
+
+const SINDI_SCOPES = ['inference:invoke', 'acting-as:offline'] as const;
+
+function AllowSindiButton() {
+  const { requestOAuthConsent } = useOxy();
+  return (
+    <Button
+      title="Allow Sindi"
+      onPress={async () => {
+        const result = await requestOAuthConsent({
+          scopes: SINDI_SCOPES,
+          redirectUri:
+            Platform.OS === 'web'
+              ? 'https://homiio.com'
+              : 'homiio://oauth/consent',
+        });
+        if (result.status === 'consented') {
+          // Retry the refused operation once, now that consent completed.
+        }
+      }}
+    />
+  );
+}
+```
+
+The method is cross-platform and reuses the SDK's existing OAuth transports:
+popup/redirect on web and `expo-web-browser` on native. It generates fresh
+`state` and PKCE values, requires an observable native callback, matches that
+callback against the byte-exact registered redirect URI, and refuses to commit
+a session for a different user. Scope entries are never trimmed or normalized:
+empty, duplicate, whitespace-bearing, malformed, or scopes absent from the
+exact client application's public record fail before authorization. Register
+both redirect URIs explicitly; no wildcard or inferred callback is accepted.
+
+---
+
 ## Step 5 — The OxySignInButton (SDK UI)
 
 `OxySignInButton` (from `@oxyhq/services`) is the branded "Sign in with Oxy" button. On press it resolves your Application's public identity via `GET /auth/oauth/client/:clientId` (SDK: `oxyServices.getPublicApplication(clientId)`) and routes by type:

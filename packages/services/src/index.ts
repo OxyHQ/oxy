@@ -279,6 +279,12 @@ export type {
   WebOAuthUnsupportedReason,
   OAuthPopupHandle,
 } from './ui/oauth/types';
+export type {
+  OAuthConsentFailureReason,
+  OAuthConsentResult,
+  OAuthConsentUnsupportedReason,
+  RequestOAuthConsentOptions,
+} from './ui/oauth/explicitOAuthConsent';
 export { OxyAuthPrompt } from './ui/components/OxyAuthPrompt';
 export type { OxyAuthPromptProps } from './ui/components/OxyAuthPrompt';
 export { OxyOAuthCallback } from './ui/components/OxyOAuthCallback';

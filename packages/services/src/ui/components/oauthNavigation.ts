@@ -33,6 +33,16 @@ export interface OpenAuthorizeResult {
     redirectUrl: string | null;
 }
 
+export interface OpenAuthorizeOptions {
+    /**
+     * Whether to fall back to `Linking.openURL` when an in-app auth session is
+     * unavailable. Explicit-consent callers disable this because they must
+     * observe and validate the callback before reporting success.
+     * @default true
+     */
+    allowExternalFallback?: boolean;
+}
+
 /**
  * Web: hand the TOP-LEVEL document to the OAuth authorize URL (a full-page
  * redirect, not a popup) so the RP returns to its registered `redirect_uri`.
@@ -64,6 +74,7 @@ export function redirectToAuthorize(url: string): void {
 export async function openAuthorizeUrlNative(
     url: string,
     redirectUri: string,
+    options: OpenAuthorizeOptions = {},
 ): Promise<OpenAuthorizeResult> {
     try {
         const mod = (await import('expo-web-browser')) as unknown as WebBrowserModule;
@@ -81,6 +92,10 @@ export async function openAuthorizeUrlNative(
             { component: 'oauthNavigation' },
             error,
         );
+    }
+
+    if (options.allowExternalFallback === false) {
+        return { redirectUrl: null };
     }
 
     // Fallback: Linking cannot observe the return URL, so the RP completes the

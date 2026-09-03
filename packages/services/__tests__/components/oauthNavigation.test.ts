@@ -68,6 +68,22 @@ describe('openAuthorizeUrlNative', () => {
     warnSpy.mockRestore();
   });
 
+  it('does not launch an unobservable fallback for explicit consent', async () => {
+    mockOpenAuthSessionAsync.mockRejectedValue(new Error('no browser'));
+    const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const openURLSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+
+    const result = await openAuthorizeUrlNative(AUTHORIZE_URL, REDIRECT_URI, {
+      allowExternalFallback: false,
+    });
+
+    expect(result).toEqual({ redirectUrl: null });
+    expect(openURLSpy).not.toHaveBeenCalled();
+
+    openURLSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
   it('logs and returns null when the Linking fallback rejects (invalid scheme)', async () => {
     mockOpenAuthSessionAsync.mockRejectedValue(new Error('no browser'));
     const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
