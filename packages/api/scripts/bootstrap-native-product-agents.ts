@@ -309,36 +309,11 @@ async function observeAccount(
     .orderBy(asc(userAncestors.depth));
   const canonicalPresentationMatches =
     row.username === spec.username && row.nameDisplay === spec.displayName;
-  const accountStructureMatches = same(
-    {
-      id: row.id,
-      kind: row.kind,
-      type: row.type,
-      parentAccountId: row.parentAccountId,
-      rootAccountId: row.rootAccountId,
-      accountStatus: row.accountStatus,
-      privacyIsPrivateAccount: row.privacyIsPrivateAccount,
-    },
-    {
-      id: spec.id,
-      kind: spec.kind,
-      type: spec.kind === "bot" ? "automated" : "local",
-      parentAccountId: spec.parentAccountId,
-      rootAccountId: spec.rootAccountId,
-      accountStatus: "active",
-      privacyIsPrivateAccount: spec.kind === "bot",
-    },
-  );
   const ancestryMatches = same(
     path,
     spec.ancestors.map((ancestorId, depth) => ({ depth, ancestorId })),
   );
-  if (
-    boundApplicationId !== null &&
-    (!canonicalPresentationMatches ||
-      !accountStructureMatches ||
-      !ancestryMatches)
-  ) {
+  if (boundApplicationId !== null) {
     throw new NativeProductAgentAccountAdoptionReviewError(
       spec.id,
       row,
