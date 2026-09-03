@@ -41,7 +41,11 @@ import {
   type NativeProductBootstrapPlan,
 } from "../src/scripts/nativeProductAgentsBootstrapPlan";
 import {
+  NATIVE_PRODUCT_AGENT_DRIFT_FIELDS,
   type NativeProductAgentBoundApplication,
+  type NativeProductAgentDriftField,
+  type NativeProductAgentDriftTarget,
+  NativeProductAgentStateDriftError,
   NativeProductAgentUsernameCollisionError,
   nativeProductAgentBootstrapFailureResult,
 } from "../src/scripts/nativeProductAgentBootstrapFailure";
@@ -157,17 +161,48 @@ function same(left: unknown, right: unknown): boolean {
 }
 
 function assertExact(
+  target: NativeProductAgentDriftTarget,
   label: string,
   actual: Record<string, unknown>,
   expected: Record<string, unknown>,
 ): void {
   for (const [field, expectedValue] of Object.entries(expected)) {
     if (!same(actual[field], expectedValue)) {
-      throw new Error(
-        `${label}.${field} drifted: expected ${JSON.stringify(expectedValue)}, found ${JSON.stringify(actual[field])}`,
+      if (
+        !NATIVE_PRODUCT_AGENT_DRIFT_FIELDS.includes(
+          field as NativeProductAgentDriftField,
+        )
+      ) {
+        throw new Error(`${label} has an unregistered drift field`);
+      }
+      throw new NativeProductAgentStateDriftError(
+        target,
+        field as NativeProductAgentDriftField,
       );
     }
   }
+}
+
+function accountDriftTarget(
+  accountId: string,
+  ancestry: boolean,
+): NativeProductAgentDriftTarget {
+  const { homiio, clarity } = NATIVE_PRODUCT_AGENTS.products;
+  const suffix = ancestry ? "ancestry" : "account";
+  if (accountId === homiio.project.id) return `homiio_project_${suffix}`;
+  if (accountId === homiio.bot.id) return `homiio_bot_${suffix}`;
+  if (accountId === clarity.project.id) return `clarity_project_${suffix}`;
+  if (accountId === clarity.bot.id) return `clarity_bot_${suffix}`;
+  throw new Error("Unregistered native product-agent account identity");
+}
+
+function costCenterDriftTarget(
+  accountId: string,
+): NativeProductAgentDriftTarget {
+  const { homiio, clarity } = NATIVE_PRODUCT_AGENTS.products;
+  if (accountId === homiio.project.id) return "homiio_cost_center";
+  if (accountId === clarity.project.id) return "clarity_cost_center";
+  throw new Error("Unregistered native product-agent cost centre identity");
 }
 
 async function requireOxyOrganization(tx: Transaction): Promise<void> {
@@ -182,7 +217,7 @@ async function requireOxyOrganization(tx: Transaction): Promise<void> {
     .where(eq(users.id, id))
     .for("update");
   if (!row) throw new Error(`Reserved Oxy organization ${id} does not exist`);
-  assertExact("Oxy organization", row, {
+  assertExact("oxy_organization", "Oxy organization", row, {
     id,
     kind: "organization",
     accountStatus: "active",
@@ -256,7 +291,7 @@ async function observeAccount(
   }
   if (!row) return { spec, exists: false };
 
-  assertExact(`Account ${spec.id}`, row, {
+  assertExact(accountDriftTarget(spec.id, false), `Account ${spec.id}`, row, {
     id: spec.id,
     username: spec.username,
     nameDisplay: spec.displayName,
@@ -276,6 +311,7 @@ async function observeAccount(
     .where(eq(userAncestors.userId, spec.id))
     .orderBy(asc(userAncestors.depth));
   assertExact(
+    accountDriftTarget(spec.id, true),
     `Account ${spec.id} ancestry`,
     { path },
     {
@@ -340,10 +376,15 @@ async function observeCostCenter(
     );
   }
   if (!row) return { spec, exists: false };
-  assertExact(`Cost centre ${spec.accountId}`, row, {
-    ...spec,
-    status: "active",
-  });
+  assertExact(
+    costCenterDriftTarget(spec.accountId),
+    `Cost centre ${spec.accountId}`,
+    row,
+    {
+      ...spec,
+      status: "active",
+    },
+  );
   return { spec, exists: true };
 }
 
@@ -447,13 +488,18 @@ async function observeBootstrap(
       `Homiio application ${homiio.applicationId} has unexpected owner ${homiioApplication.ownerAccountId}; expected ${root} or ${homiio.project.id}`,
     );
   }
-  assertExact(`Homiio application ${homiio.applicationId}`, homiioApplication, {
-    id: homiio.applicationId,
-    type: "first_party",
-    status: "active",
-    isOfficial: true,
-    isInternal: false,
-  });
+  assertExact(
+    "homiio_application",
+    `Homiio application ${homiio.applicationId}`,
+    homiioApplication,
+    {
+      id: homiio.applicationId,
+      type: "first_party",
+      status: "active",
+      isOfficial: true,
+      isInternal: false,
+    },
+  );
   const [homiioSindiCredential] = await tx
     .select({
       id: applicationCredentials.id,
@@ -491,6 +537,7 @@ async function observeBootstrap(
   }
   if (homiioSindiCredential) {
     assertExact(
+      "sindi_service_credential",
       `Sindi credential ${homiio.sindiServiceCredential.id}`,
       {
         ...homiioSindiCredential,
@@ -554,6 +601,7 @@ async function observeBootstrap(
   }
   if (clarityApplication) {
     assertExact(
+      "clarity_application",
       `Clarity application ${clarity.application.id}`,
       clarityApplication,
       {
@@ -604,6 +652,7 @@ async function observeBootstrap(
   }
   if (clarityCredential) {
     assertExact(
+      "clarity_public_credential",
       `Clarity credential ${clarity.publicCredential.id}`,
       clarityCredential,
       {
@@ -656,6 +705,7 @@ async function observeBootstrap(
   }
   if (clarityBackendApplication) {
     assertExact(
+      "clarity_backend_application",
       `Clarity backend application ${clarity.backendApplication.id}`,
       clarityBackendApplication,
       {
@@ -711,6 +761,7 @@ async function observeBootstrap(
   }
   if (clarityBackendCredential) {
     assertExact(
+      "clarity_backend_credential",
       `Clarity backend credential ${clarity.backendServiceCredential.id}`,
       {
         ...clarityBackendCredential,
