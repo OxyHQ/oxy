@@ -10,6 +10,7 @@ import type {
   AppCapabilityCatalog,
   AuditEvent,
   AutonomyLevel,
+  CapabilityCatalogBinding,
   CapabilityPackage,
   DelegationGrant,
   GrantLimit,
@@ -19,15 +20,8 @@ import type {
 import type { OxyServicesBase } from '../OxyServices.base';
 import { CACHE_TIMES } from './mixinHelpers';
 
-export interface DelegationCatalogBinding {
-  registrationId: string;
-  version: string;
-  digest: string;
-}
-
-export interface DelegationGrantView extends DelegationGrant {
-  catalog: DelegationCatalogBinding | null;
-}
+export type DelegationCatalogBinding = CapabilityCatalogBinding;
+export type DelegationGrantView = DelegationGrant;
 
 export interface CreateDelegationGrantInput {
   ownerAccountId: string;

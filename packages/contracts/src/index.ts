@@ -1149,6 +1149,7 @@ export type {
     ResourceRef,
     ToolGrantOverride,
     GrantLimit,
+    CapabilityCatalogBinding,
     ExecutionAuthorizationRef,
     CapabilityCoordinator,
     DelegationGrant,
