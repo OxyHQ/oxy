@@ -3,6 +3,7 @@ import {
   HttpKaanaCredentialValidationDispatcher,
   KaanaCredentialValidationUnavailableError,
   kaanaCredentialValidationSigningInput,
+  requireKaanaCredentialValidationDispatcher,
 } from '../kaanaCredentialValidation';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -11,6 +12,14 @@ const config = {
   keyId: 'validation-key',
   privateKey,
 };
+const kaanaEnvironment = [
+  'KAANA_BASE_URL',
+  'KAANA_EDGE_SIGNING_KEY_ID',
+  'KAANA_EDGE_SIGNING_PRIVATE_KEY',
+] as const;
+const originalKaanaEnvironment = Object.fromEntries(
+  kaanaEnvironment.map((name) => [name, process.env[name]]),
+);
 const task = {
   schemaVersion: 1 as const,
   operationId: 'operation_exact',
@@ -24,9 +33,34 @@ const task = {
   deploymentId: 'kaana_deployment_exact',
 };
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  jest.restoreAllMocks();
+  for (const name of kaanaEnvironment) {
+    const value = originalKaanaEnvironment[name];
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+});
 
 describe('Kaana credential validation dispatcher', () => {
+  it('fails closed without the complete signing configuration and constructs only from the exact canonical one', () => {
+    for (const name of kaanaEnvironment) delete process.env[name];
+
+    expect(() => requireKaanaCredentialValidationDispatcher()).toThrow(
+      KaanaCredentialValidationUnavailableError,
+    );
+
+    process.env.KAANA_BASE_URL = config.baseUrl;
+    process.env.KAANA_EDGE_SIGNING_KEY_ID = config.keyId;
+    process.env.KAANA_EDGE_SIGNING_PRIVATE_KEY = privateKey
+      .export({ format: 'pem', type: 'pkcs8' })
+      .toString();
+
+    expect(requireKaanaCredentialValidationDispatcher()).toBeInstanceOf(
+      HttpKaanaCredentialValidationDispatcher,
+    );
+  });
+
   it('uses a dedicated signature domain and binds every exact selector', async () => {
     let body: Buffer | undefined;
     let headers: Record<string, string> | undefined;
