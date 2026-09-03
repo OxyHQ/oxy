@@ -17,6 +17,7 @@ import { OxyServicesReputationMixin } from './OxyServices.reputation';
 import { OxyServicesAssetsMixin } from './OxyServices.assets';
 import { OxyServicesAccountsMixin } from './OxyServices.accounts';
 import { OxyServicesConnectedAppsMixin } from './OxyServices.connectedApps';
+import { OxyServicesAgencyMixin } from './OxyServices.agency';
 import { OxyServicesStoreMixin } from './OxyServices.store';
 import { OxyServicesLocationMixin } from './OxyServices.location';
 import { OxyServicesAnalyticsMixin } from './OxyServices.analytics';
@@ -58,6 +59,7 @@ type AllMixinInstances =
   & InstanceType<ReturnType<typeof OxyServicesAssetsMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesAccountsMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesConnectedAppsMixin<typeof OxyServicesBase>>>
+  & InstanceType<ReturnType<typeof OxyServicesAgencyMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesStoreMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesLocationMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesAnalyticsMixin<typeof OxyServicesBase>>>
@@ -129,6 +131,8 @@ const MIXIN_PIPELINE: MixinFunction[] = [
     // OAuth-consent surface (public app identity + connected-app grants). Kept
     // separate from account ownership.
     OxyServicesConnectedAppsMixin,
+    // Oxy-owned delegated authority for Alia and digital-agent accounts.
+    OxyServicesAgencyMixin,
     // The app store: the public storefront, the reviews on it, and the listing a
     // publisher edits. A module OVER the platform — turn it off and OAuth still
     // works — so it is its own surface rather than more of `accounts`.

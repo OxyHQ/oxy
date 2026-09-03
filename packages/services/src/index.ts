@@ -294,6 +294,7 @@ export type {
   OxyConsentScreenProps,
   OxyConsentApplication,
   OxyConsentUser,
+  OxyConsentResource,
 } from './ui/components/OxyConsentScreen';
 
 // Optional signed-out gate primitive. Wrap any subtree (or the whole app via

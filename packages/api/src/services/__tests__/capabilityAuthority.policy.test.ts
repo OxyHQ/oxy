@@ -1,8 +1,6 @@
 import type { CatalogTool } from '@oxyhq/contracts';
-import {
-  grantAllowsTool,
-  mostRestrictiveAutonomy,
-} from '../capabilityAuthority.service';
+import { mostRestrictiveAutonomy } from '../capabilityAuthority.service';
+import { grantAllowsTool } from '../capabilityGrantPolicy';
 
 function tool(input: Partial<CatalogTool> = {}): CatalogTool {
   return {
@@ -35,7 +33,7 @@ describe('capability authority policy', () => {
       capabilityPackages: ['read'],
       capabilities: [],
       overrides: [],
-    })).toBe(true);
+    }, undefined)).toBe(true);
   });
 
   it('requires explicit capabilities for sensitive packages', () => {
@@ -49,12 +47,12 @@ describe('capability authority policy', () => {
       capabilityPackages: ['finance'],
       capabilities: [],
       overrides: [],
-    })).toBe(false);
+    }, financeTool)).toBe(false);
     expect(grantAllowsTool(financeTool, {
       capabilityPackages: ['finance'],
       capabilities: ['payments.send'],
       overrides: [],
-    })).toBe(true);
+    }, financeTool)).toBe(true);
   });
 
   it('gives a tool denial precedence over packages and capabilities', () => {
@@ -62,6 +60,30 @@ describe('capability authority policy', () => {
       capabilityPackages: ['read'],
       capabilities: ['email.read'],
       overrides: [{ tool: 'readEmail', decision: 'deny' }],
-    })).toBe(false);
+    }, tool())).toBe(false);
+  });
+
+  it('never lets a tool allow override replace an explicit sensitive capability', () => {
+    const financeTool = tool({
+      name: 'sendPayment',
+      capabilityPackage: 'finance',
+      requiredCapabilities: ['payments.send'],
+      effect: 'financial',
+    });
+    expect(grantAllowsTool(financeTool, {
+      capabilityPackages: [],
+      capabilities: [],
+      overrides: [{ tool: 'sendPayment', decision: 'allow' }],
+    }, financeTool)).toBe(false);
+  });
+
+  it('does not carry an allow override across changed authorization semantics', () => {
+    const boundTool = tool();
+    const changedTool = tool({ effect: 'write' });
+    expect(grantAllowsTool(changedTool, {
+      capabilityPackages: [],
+      capabilities: [],
+      overrides: [{ tool: 'readEmail', decision: 'allow' }],
+    }, boundTool)).toBe(false);
   });
 });

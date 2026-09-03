@@ -164,3 +164,18 @@ it('rejects free-form audit messages with 400 and no persistence edge', async ()
   expect(persistCapabilityAuditEvent).not.toHaveBeenCalled();
   expect(getDb).not.toHaveBeenCalled();
 });
+
+it('rejects ambiguous raw and pre-hashed idempotency audit fields', async () => {
+  const response = await request(app).post('/capabilities/audit').send({
+    ticket: 'capability-ticket',
+    result: { status: 'succeeded' },
+    rollback: { supported: false, attempted: false },
+    idempotencyKey: 'raw-key',
+    idempotencyKeyHash: 'a'.repeat(64),
+  });
+
+  expect(response.status).toBe(400);
+  expect(response.body.error).toBe('invalid_audit_event');
+  expect(persistCapabilityAuditEvent).not.toHaveBeenCalled();
+  expect(getDb).not.toHaveBeenCalled();
+});

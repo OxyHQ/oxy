@@ -26,7 +26,7 @@ import {
 } from 'drizzle-orm';
 import { safeFetch, SsrfRejection } from '@oxyhq/core/server';
 import { publicColumns } from '@oxyhq/db/assert';
-import { getDb, type Database } from '../config/postgres';
+import { getDb, type Database, type Transaction } from '../config/postgres';
 import { bundles } from '../db/schema/bundles';
 import { contacts } from '../db/schema/contacts';
 import { EMAIL_FILTER_ACTION_TYPES, emailFilterActions } from '../db/schema/emailFilterActions';
@@ -68,7 +68,7 @@ import { assetService } from './assetServiceSingleton';
 import { simpleParser } from 'mailparser';
 import { idempotentMessageId } from './emailIdempotency';
 import { emailSavedSearches, type SavedEmailSearchFilters } from '../db/schema/emailSavedSearches';
-import { publishInboxMessageEvents } from '../capabilities/inbox.events';
+import { enqueueInboxMessageEvents } from '../capabilities/inbox.events';
 
 const MAX_STRUCTURED_SEARCH_FILTER_LENGTH = 128;
 /**
@@ -953,6 +953,7 @@ async function insertMessageWithChildren(
   values: typeof messages.$inferInsert,
   recipients: { to?: EmailAddress[]; cc?: EmailAddress[]; bcc?: EmailAddress[] },
   attachments: MessageAttachment[],
+  onInserted?: (transaction: Transaction, messageId: string) => Promise<void>,
 ): Promise<string> {
   return db.transaction(async (tx) => {
     const [row] = await tx.insert(messages).values(values).returning({ id: messages.id });
@@ -984,6 +985,8 @@ async function insertMessageWithChildren(
         })),
       );
     }
+
+    await onInserted?.(tx, row.id);
 
     return row.id;
   });
@@ -1880,6 +1883,17 @@ class EmailService {
       },
       { to: params.to, cc: params.cc ?? [] },
       storedAttachments,
+      async (transaction, messageId) => {
+        await enqueueInboxMessageEvents(transaction, {
+          ownerAccountId: userId,
+          mailboxId: mailbox.id,
+          messageId,
+          senderAddress: params.from.address,
+          subject: params.subject,
+          headers: params.headers,
+          receivedAt,
+        });
+      },
     );
 
     // Link each uploaded file to the newly-stored Message under the oxy-mail
@@ -1911,23 +1925,6 @@ class EmailService {
       from: params.from.address,
       subject: params.subject,
       mailbox: mailbox.name,
-    });
-
-    // Capability events carry identifiers and routing metadata only; agents
-    // fetch message content later with a live, mailbox-scoped ticket.
-    publishInboxMessageEvents({
-      ownerAccountId: userId,
-      mailboxId: mailbox.id,
-      messageId: storedMessageId,
-      senderAddress: params.from.address,
-      subject: params.subject,
-      headers: params.headers,
-      receivedAt,
-    }).catch((err) => {
-      logger.warn('Inbox capability event fan-out failed', {
-        messageId: storedMessageId,
-        error: err instanceof Error ? err.message : String(err),
-      });
     });
 
     // Fire-and-forget AI processing (non-blocking, only for non-spam)

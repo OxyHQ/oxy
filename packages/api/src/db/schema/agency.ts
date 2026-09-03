@@ -34,6 +34,7 @@ export const delegationGrants = pgTable(
     effectiveAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
     resourceType: text().notNull(),
     resourceKey: text().notNull(),
+    catalogRegistrationId: text().references(() => appCapabilityCatalogRegistrations.id, { onDelete: 'restrict' }),
     capabilityPackages: text({ enum: CAPABILITY_PACKAGES })
       .array()
       .notNull()
@@ -59,6 +60,7 @@ export const delegationGrants = pgTable(
     ),
     index('delegation_grants_expiry_idx').on(t.expiresAt),
     index('delegation_grants_revoked_at_idx').on(t.revokedAt),
+    index('delegation_grants_catalog_registration_idx').on(t.catalogRegistrationId),
   ],
 );
 

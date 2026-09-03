@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
-import type { ConnectedApp } from '@oxyhq/core';
+import type { ConnectedApp, ConnectedMcpClient } from '@oxyhq/core';
 
 /**
  * React Query key for the current user's connected (OAuth-authorized) apps.
@@ -70,6 +70,52 @@ export function useRevokeAppGrant() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey });
+    },
+  });
+}
+
+export function connectedMcpClientsQueryKey(userId: string | null | undefined) {
+  return ['connected-mcp-clients', userId ?? null] as const;
+}
+
+export function useConnectedMcpClients() {
+  const { oxyServices, user, isAuthenticated } = useOxy();
+  return useQuery<ConnectedMcpClient[]>({
+    queryKey: connectedMcpClientsQueryKey(user?.id),
+    queryFn: () => oxyServices.listConnectedMcpClients(),
+    enabled: isAuthenticated && Boolean(user?.id),
+    staleTime: 60 * 1000,
+  });
+}
+
+interface RevokeMcpContext {
+  previous?: ConnectedMcpClient[];
+}
+
+export function useRevokeConnectedMcpClient() {
+  const { oxyServices, user } = useOxy();
+  const queryClient = useQueryClient();
+  const queryKey = connectedMcpClientsQueryKey(user?.id);
+
+  return useMutation<void, Error, string, RevokeMcpContext>({
+    mutationKey: ['connected-mcp-clients', 'revoke', user?.id ?? null],
+    mutationFn: (grantId: string) => oxyServices.revokeConnectedMcpClient(grantId),
+    onMutate: async (grantId): Promise<RevokeMcpContext> => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<ConnectedMcpClient[]>(queryKey);
+      if (previous) {
+        queryClient.setQueryData<ConnectedMcpClient[]>(
+          queryKey,
+          previous.filter((grant) => grant.id !== grantId),
+        );
+      }
+      return { previous };
+    },
+    onError: (_error, _grantId, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey });
     },
   });
 }

@@ -21,6 +21,7 @@
 import { useCallback } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { logger } from '@oxyhq/core';
+import type { McpOAuthWriteAction } from '@oxyhq/contracts';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Button } from '@oxyhq/bloom/button';
 import { Text } from '@oxyhq/bloom/typography';
@@ -48,12 +49,26 @@ export interface OxyConsentApplication {
 
 /** The account that will authorize the request (the currently signed-in user). */
 export interface OxyConsentUser {
+  /** Exact effective account bound to the grant. */
+  accountId?: string;
   /** Real display name, when the profile has one. */
   displayName?: string;
   /** Normalized handle — the sanctioned fallback when `displayName` is absent. */
   handle?: string;
   /** Avatar — a URL or bare file id passed straight to `<Avatar source>`. */
   avatarUri?: string;
+}
+
+export interface OxyConsentResource {
+  /** Oxy application that owns the protected MCP resource. */
+  application: {
+    name: string;
+    iconUrl?: string;
+  };
+  /** Canonical protected-resource URI bound into the access token. */
+  uri: string;
+  /** Effectful tools enabled by the requested capabilities. */
+  writeActions: McpOAuthWriteAction[];
 }
 
 export interface OxyConsentScreenProps {
@@ -63,6 +78,8 @@ export interface OxyConsentScreenProps {
   scopes: string[];
   /** The account that will authorize the request, when known. */
   user?: OxyConsentUser;
+  /** Exact protected resource for an external MCP connection. */
+  resource?: OxyConsentResource;
   /** Approve handler — the caller mints the code / completes the flow. */
   onAllow: () => void | Promise<void>;
   /** Deny handler — the caller cancels the flow. */
@@ -192,6 +209,7 @@ export function OxyConsentScreen({
   application,
   scopes,
   user,
+  resource,
   onAllow,
   onDeny,
   busy = false,
@@ -259,6 +277,40 @@ export function OxyConsentScreen({
         ) : null}
       </View>
 
+      {resource ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+            {t('consent.resource.title')}
+          </Text>
+          <View
+            testID="consent-resource"
+            style={[styles.resourceCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+          >
+            <Avatar
+              source={resource.application.iconUrl}
+              name={resource.application.name}
+              size={40}
+            />
+            <View style={styles.resourceText}>
+              <Text
+                testID="consent-resource-app"
+                numberOfLines={1}
+                style={[styles.accountName, { color: theme.colors.text }]}
+              >
+                {resource.application.name}
+              </Text>
+              <Text
+                testID="consent-resource-uri"
+                numberOfLines={2}
+                style={[styles.resourceUri, { color: theme.colors.textSecondary }]}
+              >
+                {resource.uri}
+              </Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
+
       {/* Requested permissions */}
       <View style={styles.section}>
         <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
@@ -285,6 +337,29 @@ export function OxyConsentScreen({
         </View>
       </View>
 
+      {resource && resource.writeActions.length > 0 ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+            {t('consent.writeActions.title')}
+          </Text>
+          <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}>
+            {resource.writeActions.map((action) => (
+              <View key={`${action.name}:${action.version}`} testID={`consent-write-action-${action.name}`} style={styles.actionRow}>
+                <View style={styles.actionCopy}>
+                  <Text style={[styles.rowText, { color: theme.colors.text }]}>{action.description}</Text>
+                  <Text style={[styles.actionName, { color: theme.colors.textSecondary }]}>{action.name}</Text>
+                </View>
+                <View style={[styles.effectBadge, { borderColor: theme.colors.border }]}>
+                  <Text style={[styles.effectText, { color: theme.colors.textSecondary }]}>
+                    {t(`consent.effects.${action.effect}`)}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       {/* Authorizing account */}
       {user ? (
         <View
@@ -303,6 +378,15 @@ export function OxyConsentScreen({
             {user.handle && user.handle !== accountName ? (
               <Text numberOfLines={1} style={[styles.accountHandle, { color: theme.colors.textSecondary }]}>
                 {user.handle}
+              </Text>
+            ) : null}
+            {user.accountId ? (
+              <Text
+                testID="consent-account-id"
+                numberOfLines={1}
+                style={[styles.accountId, { color: theme.colors.textSecondary }]}
+              >
+                {t('consent.account.id', { id: user.accountId })}
               </Text>
             ) : null}
           </View>
@@ -465,6 +549,49 @@ const styles = StyleSheet.create({
   },
   accountHandle: {
     fontSize: 13,
+  },
+  accountId: {
+    fontSize: 11,
+  },
+  resourceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
+    padding: 12,
+  },
+  resourceText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  resourceUri: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  actionCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  actionName: {
+    fontSize: 11,
+  },
+  effectBadge: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  effectText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   linksRow: {
     flexDirection: 'row',

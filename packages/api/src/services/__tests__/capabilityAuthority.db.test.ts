@@ -1,13 +1,20 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { isCheckViolation } from '@oxyhq/db';
-import type { AppCapabilityCatalog, AutonomyLevel } from '@oxyhq/contracts';
+import type {
+  AppCapabilityCatalog,
+  AutonomyLevel,
+  CatalogTool,
+  GrantLimit,
+} from '@oxyhq/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import {
+  accountCapabilityPolicies,
   appCapabilityCatalogRegistrations,
   capabilityExecutionAuthorizations,
+  delegationGrants,
 } from '../../db/schema/agency';
 import { users } from '../../db/schema/users';
 import {
@@ -39,6 +46,8 @@ afterAll(async () => {
 async function fixture(
   maximumAutonomy: AutonomyLevel,
   kind: 'direct_request' | 'automation' = 'direct_request',
+  toolInput: Partial<CatalogTool> = {},
+  limits: GrantLimit[] = [],
 ) {
   const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
   const appSlug = `authority-${randomUUID()}`;
@@ -60,6 +69,23 @@ async function fixture(
     scopes: ['capability-tickets:issue'],
     status: 'active',
   }).returning({ id: applicationCredentials.id });
+  const tool: CatalogTool = {
+    name: 'publishEffect',
+    version: '1.0.0',
+    description: 'Publish one effect for authority testing.',
+    inputSchema: { type: 'object', additionalProperties: false },
+    outputSchema: { type: 'object' },
+    capabilityPackage: 'publish',
+    requiredCapabilities: ['test.publish'],
+    resourceTypes: ['account'],
+    effect: 'external',
+    idempotency: 'required',
+    rollback: 'none',
+    exposure: ['internal'],
+    limitKeys: [],
+    invocation: { method: 'POST', path: '/effects' },
+    ...toolInput,
+  };
   const catalog: AppCapabilityCatalog = {
     schemaVersion: '1',
     appId: appSlug,
@@ -67,25 +93,10 @@ async function fixture(
     audience: `${appSlug}-api`,
     internalBaseUrl: 'https://api.example.test',
     accountResourceType: 'account',
-    tools: [{
-      name: 'publishEffect',
-      version: '1.0.0',
-      description: 'Publish one effect for authority testing.',
-      inputSchema: { type: 'object', additionalProperties: false },
-      outputSchema: { type: 'object' },
-      capabilityPackage: 'publish',
-      requiredCapabilities: ['test.publish'],
-      resourceTypes: ['account'],
-      effect: 'external',
-      idempotency: 'required',
-      rollback: 'none',
-      exposure: ['internal'],
-      limitKeys: [],
-      invocation: { method: 'POST', path: '/effects' },
-    }],
+    tools: [tool],
     events: [],
   };
-  await getDb().insert(appCapabilityCatalogRegistrations).values({
+  const [registration] = await getDb().insert(appCapabilityCatalogRegistrations).values({
     appSlug,
     version: catalog.version,
     audience: catalog.audience,
@@ -96,7 +107,7 @@ async function fixture(
     registeredByCredentialId: credential.id,
     deployedAt: new Date(),
     active: true,
-  });
+  }).returning({ id: appCapabilityCatalogRegistrations.id });
   const automationId = kind === 'automation' ? `automation-${randomUUID()}` : null;
   const [authorization] = await getDb().insert(capabilityExecutionAuthorizations).values({
     kind,
@@ -110,18 +121,50 @@ async function fixture(
     effectiveAccountId: owner.id,
     resourceType: 'account',
     resourceKey: owner.id,
-    tool: 'publishEffect',
+    tool: tool.name,
     runId: kind === 'direct_request' ? randomUUID() : null,
     automationId,
     maximumAutonomy,
-    limits: [],
+    limits,
     expiresAt: new Date(Date.now() + 60_000),
   }).returning({ id: capabilityExecutionAuthorizations.id });
   return {
+    ownerId: owner.id,
+    appSlug,
+    catalogRegistrationId: registration.id,
     authorizationId: authorization.id,
     coordinator: { applicationId: application.id, credentialId: credential.id },
     automationId,
   };
+}
+
+async function agentFixture() {
+  const input = await fixture('execute_on_request');
+  const [agent] = await getDb().insert(users).values({
+    color: 'teal',
+    kind: 'bot',
+    username: `authority-agent-${randomUUID()}`,
+    parentAccountId: input.ownerId,
+  }).returning({ id: users.id });
+  const [grant] = await getDb().insert(delegationGrants).values({
+    ownerAccountId: input.ownerId,
+    actorAccountId: agent.id,
+    resourceApp: input.appSlug,
+    effectiveAccountId: input.ownerId,
+    resourceType: 'account',
+    resourceKey: input.ownerId,
+    catalogRegistrationId: input.catalogRegistrationId,
+    capabilityPackages: ['publish'],
+    maximumAutonomy: 'execute_on_request',
+    canRedelegate: false,
+    expiresAt: new Date(Date.now() + 60_000),
+    createdByUserId: input.ownerId,
+  }).returning({ id: delegationGrants.id });
+  await getDb().update(capabilityExecutionAuthorizations).set({
+    actorType: 'agent',
+    actorAccountId: agent.id,
+  }).where(eq(capabilityExecutionAuthorizations.id, input.authorizationId));
+  return { ...input, grantId: grant.id };
 }
 
 describe('capability authority over live database state', () => {
@@ -154,6 +197,20 @@ describe('capability authority over live database state', () => {
     await expect(reauthorizeCapabilityTicket(issued.claims)).resolves.toEqual({
       allowed: false,
       reason: 'ticket_execution_authorization_mismatch',
+    });
+  });
+
+  it('rejects an execution authorization after its expiry', async () => {
+    const input = await fixture('execute_on_request');
+    await getDb().update(capabilityExecutionAuthorizations).set({
+      expiresAt: new Date(Date.now() - 1_000),
+    }).where(eq(capabilityExecutionAuthorizations.id, input.authorizationId));
+
+    await expect(evaluateCapabilityAuthority({
+      executionAuthorizationId: input.authorizationId,
+      coordinator: input.coordinator,
+    }, { issueTicket: true })).resolves.toEqual({
+      decision: { allowed: false, reason: 'execution_authorization_not_active' },
     });
   });
 
@@ -207,6 +264,82 @@ describe('capability authority over live database state', () => {
     });
   });
 
+  it('rejects autonomous sensitive authority when the tool has no bounded inputs', async () => {
+    const input = await fixture('autonomous', 'automation', {
+      capabilityPackage: 'finance',
+      requiredCapabilities: ['finance.execute'],
+      effect: 'financial',
+    });
+
+    await expect(evaluateCapabilityAuthority({
+      executionAuthorizationId: input.authorizationId,
+      coordinator: input.coordinator,
+      runId: 'financial-run',
+    }, { issueTicket: true })).resolves.toEqual({
+      decision: { allowed: false, reason: 'autonomous_sensitive_tool_has_no_limit_keys' },
+    });
+  });
+
+  it('rechecks every autonomous sensitive limit when a ticket is used', async () => {
+    const limits: GrantLimit[] = [{ tool: 'publishEffect', key: 'amount', value: 100 }];
+    const input = await fixture('autonomous', 'automation', {
+      inputSchema: {
+        type: 'object',
+        properties: { amount: { type: 'number' } },
+        additionalProperties: false,
+      },
+      capabilityPackage: 'finance',
+      requiredCapabilities: ['finance.execute'],
+      effect: 'financial',
+      limitKeys: [{ key: 'amount', kind: 'maximum_number' }],
+    }, limits);
+    const issued = await evaluateCapabilityAuthority({
+      executionAuthorizationId: input.authorizationId,
+      coordinator: input.coordinator,
+      runId: 'financial-run',
+    }, { issueTicket: true });
+    expect(issued.decision.allowed).toBe(true);
+    if (!issued.claims) throw new Error('Expected an autonomous financial ticket');
+
+    await getDb().update(capabilityExecutionAuthorizations).set({ limits: [] })
+      .where(eq(capabilityExecutionAuthorizations.id, input.authorizationId));
+
+    await expect(reauthorizeCapabilityTicket(issued.claims)).resolves.toEqual({
+      allowed: false,
+      reason: 'autonomous_sensitive_tool_limit_required',
+    });
+  });
+
+  it('invalidates a ticket when a sensitive limit is narrowed after issuance', async () => {
+    const limits: GrantLimit[] = [{ tool: 'publishEffect', key: 'amount', value: 100 }];
+    const input = await fixture('autonomous', 'automation', {
+      inputSchema: {
+        type: 'object',
+        properties: { amount: { type: 'number' } },
+        additionalProperties: false,
+      },
+      capabilityPackage: 'finance',
+      requiredCapabilities: ['finance.execute'],
+      effect: 'financial',
+      limitKeys: [{ key: 'amount', kind: 'maximum_number' }],
+    }, limits);
+    const issued = await evaluateCapabilityAuthority({
+      executionAuthorizationId: input.authorizationId,
+      coordinator: input.coordinator,
+      runId: 'financial-run',
+    }, { issueTicket: true });
+    if (!issued.claims) throw new Error('Expected an autonomous financial ticket');
+
+    await getDb().update(capabilityExecutionAuthorizations).set({
+      limits: [{ tool: 'publishEffect', key: 'amount', value: 50 }],
+    }).where(eq(capabilityExecutionAuthorizations.id, input.authorizationId));
+
+    await expect(reauthorizeCapabilityTicket(issued.claims)).resolves.toEqual({
+      allowed: false,
+      reason: 'ticket_authority_snapshot_no_longer_current',
+    });
+  });
+
   it('does not let a coordinator replace the run bound to direct authority', async () => {
     const input = await fixture('execute_on_request');
 
@@ -216,6 +349,53 @@ describe('capability authority over live database state', () => {
       runId: 'different-run',
     }, { issueTicket: true })).resolves.toEqual({
       decision: { allowed: false, reason: 'direct_request_runtime_scope_override' },
+    });
+  });
+
+  it('applies a newly restrictive account policy before issuing a ticket', async () => {
+    const input = await fixture('execute_on_request');
+    await getDb().insert(accountCapabilityPolicies).values({
+      accountId: input.ownerId,
+      appSlug: input.appSlug,
+      maximumAutonomy: 'draft',
+      deniedCapabilities: [],
+    });
+
+    await expect(evaluateCapabilityAuthority({
+      executionAuthorizationId: input.authorizationId,
+      coordinator: input.coordinator,
+    }, { issueTicket: true })).resolves.toEqual({
+      decision: { allowed: false, reason: 'requested_autonomy_exceeds_effective_policy' },
+    });
+  });
+
+  it('rejects an expired agent grant', async () => {
+    const input = await agentFixture();
+    await getDb().update(delegationGrants).set({ expiresAt: new Date(Date.now() - 1_000) })
+      .where(eq(delegationGrants.id, input.grantId));
+
+    await expect(evaluateCapabilityAuthority({
+      executionAuthorizationId: input.authorizationId,
+      coordinator: input.coordinator,
+    }, { issueTicket: true })).resolves.toEqual({
+      decision: { allowed: false, reason: 'agent_has_no_active_grant' },
+    });
+  });
+
+  it('invalidates an issued ticket as soon as its agent grant is revoked', async () => {
+    const input = await agentFixture();
+    const issued = await evaluateCapabilityAuthority({
+      executionAuthorizationId: input.authorizationId,
+      coordinator: input.coordinator,
+    }, { issueTicket: true });
+    if (!issued.claims) throw new Error('Expected an issued agent capability ticket');
+
+    await getDb().update(delegationGrants).set({ revokedAt: new Date() })
+      .where(eq(delegationGrants.id, input.grantId));
+
+    await expect(reauthorizeCapabilityTicket(issued.claims)).resolves.toEqual({
+      allowed: false,
+      reason: 'ticket_grant_is_no_longer_current',
     });
   });
 });

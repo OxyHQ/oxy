@@ -21,6 +21,7 @@ import { describe, expect, test } from "bun:test"
 import { oauthConsentDecisionSchema } from "@oxyhq/contracts"
 import {
     consentRequiredFromBody,
+    mcpConsentFromBody,
     mcpConsentRequiredFromBody,
     safeParse,
 } from "@/lib/schemas"
@@ -170,14 +171,49 @@ describe("consentRequiredFromBody", () => {
 })
 
 describe("mcpConsentRequiredFromBody", () => {
+    const context = {
+        client: {
+            id: "client-record-1",
+            clientId: "oxy_mcp_client",
+            name: "Desktop Assistant",
+            type: "third_party" as const,
+            isOfficial: false,
+            isInternal: false,
+            scopes: ["email.read", "email.send"],
+        },
+        account: { id: "mailbox-account", displayName: "Oxy Mail" },
+        resource: {
+            appId: "inbox",
+            uri: "https://mcp.inbox.oxy.so",
+            application: {
+                id: "inbox-app",
+                name: "Inbox",
+                type: "first_party" as const,
+                isOfficial: true,
+                isInternal: true,
+                scopes: [],
+            },
+        },
+        capabilities: ["email.read", "email.send"],
+        writeActions: [{
+            name: "sendEmail",
+            version: "1.0.0",
+            description: "Send an email from the selected mailbox.",
+            requiredCapabilities: ["email.send"],
+            effect: "external" as const,
+        }],
+    }
+
     test("accepts only an explicit MCP consent decision", () => {
-        expect(mcpConsentRequiredFromBody({ consentRequired: false })).toBe(false)
-        expect(mcpConsentRequiredFromBody({ data: { consentRequired: true } })).toBe(true)
+        expect(mcpConsentRequiredFromBody({ consentRequired: false, context })).toBe(false)
+        expect(mcpConsentRequiredFromBody({ data: { consentRequired: true, context } })).toBe(true)
+        expect(mcpConsentFromBody({ consentRequired: true, context })?.context).toEqual(context)
     })
 
     test("fails safe for malformed or widened responses", () => {
         expect(mcpConsentRequiredFromBody(null)).toBe(true)
         expect(mcpConsentRequiredFromBody({ consentRequired: "false" })).toBe(true)
-        expect(mcpConsentRequiredFromBody({ consentRequired: false, extra: true })).toBe(true)
+        expect(mcpConsentRequiredFromBody({ consentRequired: false })).toBe(true)
+        expect(mcpConsentRequiredFromBody({ consentRequired: false, context, extra: true })).toBe(true)
     })
 })

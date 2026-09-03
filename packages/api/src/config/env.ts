@@ -170,6 +170,11 @@ export interface RequiredEnvVars {
   FOLLOW_OUTBOX_POLL_INTERVAL_MS?: string;
   FOLLOW_OUTBOX_BATCH_SIZE?: string;
 
+  // Durable normalized Inbox events. Writes are always on; this gates delivery.
+  INBOX_EVENT_OUTBOX_WORKER_ENABLED?: string;
+  INBOX_EVENT_OUTBOX_POLL_INTERVAL_MS?: string;
+  INBOX_EVENT_OUTBOX_BATCH_SIZE?: string;
+
   // Server
   PORT?: string;
   NODE_ENV?: string;

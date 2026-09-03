@@ -18,6 +18,7 @@ import { z } from "zod"
 import {
     currentUserResponseSchema,
     deviceLinkedSessionsResponseSchema,
+    mcpOAuthConsentResponseSchema,
     oauthConsentDecisionSchema,
     publicApplicationSchema,
     sessionStatusSchema,
@@ -27,6 +28,7 @@ import type {
     PublicApplicationResponse,
     SessionStatusResponse,
     ApplicationTypeContract,
+    McpOAuthConsentResponse,
 } from "@oxyhq/contracts"
 
 // Canonical, contracts-owned schemas re-exported for local import sites.
@@ -40,6 +42,7 @@ export type {
     PublicApplicationResponse,
     SessionStatusResponse,
     ApplicationTypeContract,
+    McpOAuthConsentResponse,
 }
 
 export const lookupResponseSchema = z.object({
@@ -87,17 +90,22 @@ export function consentRequiredFromBody(body: unknown): boolean {
 }
 
 /**
- * Parse the deliberately smaller decision returned by the resource-bound MCP
- * OAuth lane. A missing, wrapped incorrectly, or non-boolean value always means
- * "show consent"; only an explicit `false` may skip the screen.
+ * Parse the server-resolved MCP consent context. The exact account, protected
+ * resource, requested capabilities and catalog-derived write actions travel as
+ * one contract so the UI cannot assemble a plausible but different consent
+ * summary from URL parameters.
  */
-export function mcpConsentRequiredFromBody(body: unknown): boolean {
+export function mcpConsentFromBody(body: unknown): McpOAuthConsentResponse | null {
     const inner =
         body && typeof body === "object" && "data" in body
             ? (body as { data: unknown }).data
             : body
-    const parsed = z.object({ consentRequired: z.boolean() }).strict().safeParse(inner)
-    return parsed.success ? parsed.data.consentRequired : true
+    return safeParse(mcpOAuthConsentResponseSchema, inner)
+}
+
+/** Only an entirely valid server context may suppress the consent screen. */
+export function mcpConsentRequiredFromBody(body: unknown): boolean {
+    return mcpConsentFromBody(body)?.consentRequired ?? true
 }
 
 /**

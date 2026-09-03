@@ -40,6 +40,7 @@ import {
   HOMIIO_APPLICATION_ID,
   INBOX_APPLICATION_ID,
   KAANA_APPLICATION_ID,
+  MENTION_APPLICATION_ID,
   SEED_APPS,
   seedApplicationLookupIdentity,
   type SeedAppSpec,
@@ -372,11 +373,26 @@ describe('the canonical official-application registry', () => {
   });
 
   describe('Mention owns its canonical catalog namespace', () => {
-    it('can register the Mention catalog without receiving another app namespace', () => {
-      expect(specNamed('Mention').scopes).toContain('catalogs:write');
+    it('pins the production application identity instead of selecting by name', () => {
+      expect(specNamed('Mention').id).toBe(MENTION_APPLICATION_ID);
+      expect(MENTION_APPLICATION_ID).toBe('6a2f851751b784a86fd0e916');
+    });
+
+    it('can register, reauthorize and audit its catalog without coordinator authority', () => {
+      expect(specNamed('Mention').scopes).toEqual([
+        'user:read',
+        'files:read',
+        'files:write',
+        'federation:write',
+        'signals:write',
+        'catalogs:write',
+        'capabilities:read',
+        'capability-audit:write',
+      ]);
       expect(specNamed('Mention').capabilities).toEqual([
         catalogApplicationCapability('mention'),
       ]);
+      expect(specNamed('Mention').scopes).not.toContain('capability-tickets:issue');
     });
   });
 

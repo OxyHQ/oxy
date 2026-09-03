@@ -120,4 +120,27 @@ describe('connected apps (OAuth grants)', () => {
     expect(clearSpy).toHaveBeenCalledWith('GET:/auth/grants');
     clearSpy.mockRestore();
   });
+
+  it('lists and revokes resource-bound external MCP clients', async () => {
+    const grant = {
+      id: 'mcp-grant',
+      appSlug: 'noted',
+      resource: 'https://mcp.noted.oxy.so',
+      scopes: ['notes.read'],
+      clientId: 'client-public-id',
+      clientName: 'Research client',
+      createdAt: '2026-09-03T00:00:00.000Z',
+      lastUsedAt: '2026-09-03T01:00:00.000Z',
+    };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ grants: [grant] }))
+      .mockResolvedValueOnce(jsonResponse(undefined));
+
+    await expect(oxy.listConnectedMcpClients()).resolves.toEqual([grant]);
+    await expect(oxy.revokeConnectedMcpClient('mcp/grant')).resolves.toBeUndefined();
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('http://test.invalid/auth/mcp/oauth/grants');
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe('http://test.invalid/auth/mcp/oauth/grants/mcp%2Fgrant');
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe('DELETE');
+  });
 });

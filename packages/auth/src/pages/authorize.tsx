@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, Link, useNavigate, Navigate } from "react-router-dom";
 import type { PublicApplication, SwitcherContextRow } from "@oxyhq/core";
+import {
+  mcpOAuthClientInfoResponseSchema,
+  publicApplicationSchema,
+  safeParseContract,
+  type McpOAuthConsentContext,
+} from "@oxyhq/contracts";
 import { OxyConsentScreen, useDeviceSwitcher, useOxy } from "@oxyhq/services";
 
 import { Button } from "@oxyhq/bloom/button";
@@ -18,7 +24,7 @@ import {
   sessionStatusSchema,
   safeParse,
   consentRequiredFromBody,
-  mcpConsentRequiredFromBody,
+  mcpConsentFromBody,
 } from "@/lib/schemas";
 import {
   buildRelativeUrl,
@@ -89,11 +95,11 @@ async function resolvePublicApplication(
     );
     if (!response.ok) return null;
     const result = await response.json();
-    const application = (result?.data ?? result)?.application;
-    if (application && typeof application.id === "string") {
-      return application as PublicApplication;
+    const payload = result?.data ?? result;
+    if (resource !== null) {
+      return safeParseContract(mcpOAuthClientInfoResponseSchema, payload)?.application ?? null;
     }
-    return null;
+    return safeParseContract(publicApplicationSchema, payload?.application) ?? null;
   } catch {
     return null;
   }
@@ -227,12 +233,14 @@ function AuthorizeRequest() {
   // and redirect WITHOUT rendering the consent screen. While that POST + redirect
   // is in flight we show a neutral "Signing you in…" backdrop.
   const [autoApproving, setAutoApproving] = useState(false);
+  const [mcpConsentContext, setMcpConsentContext] = useState<McpOAuthConsentContext | null>(null);
 
   // Google-style account chooser shown as an additive front screen before the
-  // consent UI when MORE THAN ONE account is signed in on this device. Selecting
+  // consent UI when the external MCP request needs an explicit account choice,
+  // or when more than one account is signed in on this device. Selecting
   // a row switches into it (the uniform device-first switch), re-planting the
-  // active bearer, then reveals consent (or auto-approves). A single-account
-  // device skips the chooser and goes straight to consent for the active account.
+  // active bearer, then reveals consent (or auto-approves). Ordinary OAuth on a
+  // single-account device still goes straight to consent for the active account.
   const [chooserDismissed, setChooserDismissed] = useState(false);
   // The accountId currently being switched-to. Shown as a per-row busy state in
   // `<AccountChooser>` and disables sibling rows so the user can't fire a second
@@ -335,6 +343,7 @@ function AuthorizeRequest() {
 
   useEffect(() => {
     async function loadData() {
+      setMcpConsentContext(null);
       try {
         // OAuth code flow: resolve the requesting application from its
         // `client_id`. This runs whenever a client_id is present (with or
@@ -521,6 +530,7 @@ function AuthorizeRequest() {
         return;
       }
       setChooserDismissed(true);
+      autoApproveAttemptedRef.current = true;
       await maybeAutoApprove(oxyServices.getAccessToken(), context.accountId);
     } catch {
       gotoLoginWithHint(context.handle ?? undefined);
@@ -529,9 +539,9 @@ function AuthorizeRequest() {
     }
   }
 
-  // Single-account device (or once the chooser is dismissed): probe consent for
-  // the active account and auto-approve when it isn't required. Runs at most once
-  // per mount. Multi-account devices go through the chooser first.
+  // Once the required account choice is complete, probe consent for that exact
+  // active account and auto-approve when it isn't required. Runs at most once
+  // per mount. External MCP requests always go through the chooser first.
   useEffect(() => {
     if (
       directoryLoading ||
@@ -539,7 +549,7 @@ function AuthorizeRequest() {
       data.error ||
       (data.sessionStatus && data.sessionStatus !== "pending") ||
       activeContext === null ||
-      contextCount > 1
+      (isMcpOAuth ? !chooserDismissed : contextCount > 1)
     ) {
       return;
     }
@@ -549,8 +559,10 @@ function AuthorizeRequest() {
     contextCount,
     directoryLoading,
     activeContext,
+    chooserDismissed,
     data.error,
     data.sessionStatus,
+    isMcpOAuth,
     oxyServices,
   ]);
 
@@ -561,7 +573,8 @@ function AuthorizeRequest() {
   async function runOAuthAuthorize(
     accessToken: string,
     safeRedirect: string,
-    effectiveAccountId: string | undefined
+    effectiveAccountId: string | undefined,
+    mcpCapabilities?: readonly string[],
   ): Promise<void> {
     if (!clientId) return;
 
@@ -585,6 +598,7 @@ function AuthorizeRequest() {
       body.responseType = responseType || "code";
       body.resource = resource;
       body.accountId = effectiveAccountId;
+      if (mcpCapabilities) body.scope = mcpCapabilities.join(" ");
     }
 
     const authorizePath = isMcpOAuth
@@ -716,15 +730,32 @@ function AuthorizeRequest() {
       body = null;
     }
 
+    const mcpConsent = isMcpOAuth ? mcpConsentFromBody(body) : null;
+    if (isMcpOAuth) {
+      if (!mcpConsent || mcpConsent.context.account.id !== effectiveAccountId) {
+        setAutoApproving(false);
+        setData((prev) => ({
+          ...prev,
+          error: "Unable to verify the exact MCP account and resource request.",
+        }));
+        return;
+      }
+      setMcpConsentContext(mcpConsent.context);
+    }
     const consentRequired = isMcpOAuth
-      ? mcpConsentRequiredFromBody(body)
+      ? mcpConsent?.consentRequired ?? true
       : consentRequiredFromBody(body);
     if (consentRequired) {
       setAutoApproving(false);
       return;
     }
 
-    await runOAuthAuthorize(accessToken, safeRedirect, effectiveAccountId);
+    await runOAuthAuthorize(
+      accessToken,
+      safeRedirect,
+      effectiveAccountId,
+      mcpConsent?.context.capabilities,
+    );
   }
 
   async function handleDecision(decision: "approve" | "deny") {
@@ -789,7 +820,21 @@ function AuthorizeRequest() {
 
       // ---- OAuth2 authorization code flow ----
       if (clientId && safeRedirect) {
-        await runOAuthAuthorize(accessToken, safeRedirect, activeContext?.subject.accountId);
+        if (isMcpOAuth && (!mcpConsentContext
+          || mcpConsentContext.account.id !== activeContext?.subject.accountId)) {
+          setData((prev) => ({
+            ...prev,
+            error: "Select and verify the MCP account before allowing access.",
+          }));
+          setSubmitting(false);
+          return;
+        }
+        await runOAuthAuthorize(
+          accessToken,
+          safeRedirect,
+          activeContext?.subject.accountId,
+          mcpConsentContext?.capabilities,
+        );
         return;
       }
 
@@ -964,6 +1009,35 @@ function AuthorizeRequest() {
   const effectiveStatus = data.sessionStatus;
   const pageError = data.error;
   const application = data.application;
+  const consentApplication = mcpConsentContext?.client ?? application;
+  const consentUser = mcpConsentContext
+    ? {
+        accountId: mcpConsentContext.account.id,
+        displayName: mcpConsentContext.account.displayName,
+        handle: mcpConsentContext.account.handle,
+        avatarUri: mcpConsentContext.account.avatar
+          ? getAvatarUrl(mcpConsentContext.account.avatar)
+          : undefined,
+      }
+    : user
+      ? {
+          displayName: user.name?.displayName,
+          handle: user.username,
+          avatarUri: user.avatar ? getAvatarUrl(user.avatar) : undefined,
+        }
+      : undefined;
+  const consentResource = mcpConsentContext
+    ? {
+        application: {
+          name: mcpConsentContext.resource.application.name,
+          iconUrl: mcpConsentContext.resource.application.icon
+            ? getAvatarUrl(mcpConsentContext.resource.application.icon)
+            : undefined,
+        },
+        uri: mcpConsentContext.resource.uri,
+        writeActions: mcpConsentContext.writeActions,
+      }
+    : undefined;
   // Actionable = the request itself is still live (pending). A transient
   // submit error (e.g. a 403/500 from the authorize POST) keeps the consent
   // surface — with the application identity — visible, shown inline via the
@@ -971,16 +1045,15 @@ function AuthorizeRequest() {
   // (expired/cancelled) fall through to the page status view instead.
   const showActions = !effectiveStatus || effectiveStatus === "pending";
 
-  // Additive front screen: when the consent request is still actionable and MORE
-  // THAN ONE account is signed in on this device, show the Google-style chooser
-  // first. Selecting an account switches into it and reveals the consent UI. A
-  // single-account device skips straight to consent for the active account. The
-  // chooser never intercepts a completed (approved/denied) state.
+  // Additive front screen: external MCP grants always require an explicit account
+  // choice; ordinary OAuth requests use the chooser only when multiple accounts
+  // are available. Selecting an account switches into it and resolves the exact
+  // consent context. Completed requests never enter the chooser.
   if (
     showActions &&
     !chooserDismissed &&
     activeContext !== null &&
-    contextCount > 1
+    (isMcpOAuth || contextCount > 1)
   ) {
     return (
       <AccountChooser
@@ -1015,7 +1088,7 @@ function AuthorizeRequest() {
             }
           />
         </>
-      ) : application && showActions ? (
+      ) : consentApplication && showActions && (!isMcpOAuth || mcpConsentContext) ? (
         /* Resolved requesting-application identity AND an actionable request →
            the shared services `OxyConsentScreen` (the RN/Bloom consent surface,
            bundled for web via react-native-web). It is purely presentational;
@@ -1023,35 +1096,25 @@ function AuthorizeRequest() {
            flow. The block wrapper keeps the RN `ScrollView` (flex:1) at content
            height inside the centered auth card instead of collapsing to zero.
 
-           Gated on `showActions` so a non-actionable request (expired /
-           cancelled, or a transient decision error) never renders a consent
-           surface with dead Allow/Deny buttons — those fall through to the
-           page's status view below. `showActions` already implies `!pageError`,
-           so the consent surface is only ever shown error-free (no `error` prop
-           needed). */
+           Gated on `showActions` so an expired or cancelled request never
+           renders a consent surface with dead Allow/Deny buttons. A transient
+           decision error stays inline on the actionable surface so the user can
+           retry without losing the verified account and resource context. */
         <div className="w-full">
           <OxyConsentScreen
             application={{
-              name: application.name,
-              iconUrl: application.icon ? getAvatarUrl(application.icon) : undefined,
-              websiteUrl: application.websiteUrl,
-              privacyPolicyUrl: application.privacyPolicyUrl,
-              termsUrl: application.termsUrl,
-              developerName: application.developerName,
-              isOfficial: application.isOfficial,
+              name: consentApplication.name,
+              iconUrl: consentApplication.icon ? getAvatarUrl(consentApplication.icon) : undefined,
+              websiteUrl: consentApplication.websiteUrl,
+              privacyPolicyUrl: consentApplication.privacyPolicyUrl,
+              termsUrl: consentApplication.termsUrl,
+              developerName: consentApplication.developerName,
+              isOfficial: consentApplication.isOfficial,
             }}
-            scopes={parseRequestedScopes(scope, application.scopes)}
-            user={
-              user
-                ? {
-                    displayName: user.name?.displayName,
-                    handle: user.username,
-                    avatarUri: user.avatar
-                      ? getAvatarUrl(user.avatar)
-                      : undefined,
-                  }
-                : undefined
-            }
+            scopes={mcpConsentContext?.capabilities
+              ?? parseRequestedScopes(scope, consentApplication.scopes)}
+            user={consentUser}
+            resource={consentResource}
             onAllow={() => handleDecision("approve")}
             onDeny={() => handleDecision("deny")}
             busy={submitting}

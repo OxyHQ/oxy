@@ -83,12 +83,20 @@ export interface ConnectedApp {
   lastUsedAt: string;
 }
 
+/** An external MCP client authorized for one exact app resource and account. */
+export interface ConnectedMcpClient {
+  id: string;
+  appSlug: string;
+  resource: string;
+  scopes: string[];
+  clientId: string;
+  clientName: string;
+  createdAt: string;
+  lastUsedAt: string;
+}
+
 export function OxyServicesConnectedAppsMixin<T extends typeof OxyServicesBase>(Base: T) {
   return class extends Base {
-    constructor(...args: any[]) {
-      super(...(args as [any]));
-    }
-
     /**
      * Resolve an OAuth client identifier to the owning application's PUBLIC
      * identity. No authentication required — the API returns only sanitized,
@@ -166,6 +174,36 @@ export function OxyServicesConnectedAppsMixin<T extends typeof OxyServicesBase>(
         // A revoke removes an entry from the user's connected-apps list; bust
         // the cached `GET /auth/grants` so the next read re-fetches.
         this.clearCacheEntry('GET:/auth/grants');
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /** List resource-bound external MCP connections for the active Oxy account. */
+    async listConnectedMcpClients(): Promise<ConnectedMcpClient[]> {
+      try {
+        const response = await this.makeRequest<{ grants: ConnectedMcpClient[] }>(
+          'GET',
+          '/auth/mcp/oauth/grants',
+          undefined,
+          { cache: true, cacheTTL: CACHE_TIMES.SHORT },
+        );
+        return response.grants;
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /** Revoke one external MCP connection and every token in its family. */
+    async revokeConnectedMcpClient(grantId: string): Promise<void> {
+      try {
+        await this.makeRequest<void>(
+          'DELETE',
+          `/auth/mcp/oauth/grants/${encodeURIComponent(grantId)}`,
+          undefined,
+          { cache: false },
+        );
+        this.clearCacheEntry('GET:/auth/mcp/oauth/grants');
       } catch (error) {
         throw this.handleError(error);
       }

@@ -122,7 +122,22 @@ export type { ProfileLink, ProfileLinkMetadata } from './utils/profileLinks';
 export type {
     PublicApplication,
     ConnectedApp,
+    ConnectedMcpClient,
 } from './mixins/OxyServices.connectedApps';
+
+// ---------------------------------------------------------------------------
+// Native Alia and digital-agent authority
+// ---------------------------------------------------------------------------
+export type {
+    AccountCapabilityPolicy,
+    AvailableCapabilityCatalog,
+    CapabilityExecutionAuthorization,
+    CreateDelegationGrantInput,
+    DelegationCatalogBinding,
+    DelegationGrantView,
+    PutAccountCapabilityPolicyInput,
+    UpdateDelegationGrantInput,
+} from './mixins/OxyServices.agency';
 
 // ---------------------------------------------------------------------------
 // App store (public storefront + reviews + the listing a publisher edits)

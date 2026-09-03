@@ -1,6 +1,10 @@
 import express, { type Request, type Response } from 'express';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
+import {
+  mcpOAuthClientInfoResponseSchema,
+  mcpOAuthConsentResponseSchema,
+} from '@oxyhq/contracts';
 import { getDb } from '../config/postgres';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import { mcpOauthClients, mcpOauthGrants } from '../db/schema/mcpOAuth';
@@ -17,7 +21,8 @@ import {
   exchangeMcpAuthorizationCode,
   findActiveMcpClient,
   introspectMcpAccessToken,
-  mcpConsentRequired,
+  mcpClientApplication,
+  mcpConsentDetails,
   mcpRedirectUriAllowed,
   normalizeMcpScopes,
   refreshMcpAccessToken,
@@ -241,14 +246,9 @@ router.get('/client/:clientId', publicReadLimiter, async (request, response) => 
     if (!mcpRedirectUriAllowed(client, query.redirectUri)) {
       throw new McpOAuthError('invalid_request', 'redirect_uri is not registered for this client');
     }
-    response.json({ application: {
-      id: client.id,
-      clientId: client.clientId,
-      name: client.clientName,
-      websiteUrl: client.clientUri ?? undefined,
-      scopes: descriptor.scopes,
-      isOfficial: false,
-    } });
+    response.json(mcpOAuthClientInfoResponseSchema.parse({
+      application: mcpClientApplication(client, descriptor.scopes),
+    }));
   } catch (error) {
     sendMcpOAuthError(response, error);
   }
@@ -270,12 +270,12 @@ router.get('/consent', publicReadLimiter, authMiddleware, async (request: AuthRe
       throw new McpOAuthError('invalid_request', 'redirect_uri is not registered for this client');
     }
     const scopes = normalizeMcpScopes(query.scope);
-    response.json({ consentRequired: await mcpConsentRequired({
+    response.json(mcpOAuthConsentResponseSchema.parse(await mcpConsentDetails({
       ...current,
       client,
       descriptor,
       scopes,
-    }) });
+    })));
   } catch (error) {
     sendMcpOAuthError(response, error);
   }
