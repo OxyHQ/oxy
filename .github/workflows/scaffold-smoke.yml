@@ -12,6 +12,9 @@ on:
     paths:
       - 'packages/create-oxy-app/**'
       - 'packages/app-preset/**'
+      - 'packages/contracts/**'
+      - 'packages/core/**'
+      - 'packages/services/**'
 
 # Least privilege: this workflow only reads the repo (no writes, no packages).
 permissions:
@@ -69,19 +72,24 @@ jobs:
           echo '{"name":"coa-runner","private":true}' > package.json
           bun add "$RUNNER_TEMP"/create-oxy-app-*.tgz
 
-      - name: Pack @oxyhq/app-preset from the monorepo
+      - name: Build + pack the generated app's Oxy dependencies from HEAD
         run: |
-          # @oxyhq/app-preset may be unpublished at HEAD, so the generated app has
-          # to take it from this checkout. Install it from a PACKED TARBALL rather
-          # than pointing a `file:` override at the source directory: bun
+          # A workspace release may be unpublished at HEAD, so the generated app
+          # must take every Oxy package it names from this checkout. This also
+          # breaks the release chicken-and-egg: smoke must pass before merge, and
+          # publication is allowed only from the exact green main commit.
+          #
+          # Install from PACKED TARBALLS rather than `file:` source directories: bun
           # materializes a `file:` DIRECTORY dependency as a tree of symlinks back
           # to that directory, and node resolves a symlinked module to its realpath.
-          # Every `require` inside the preset (expo/metro-config, metro-config,
-          # nativewind/metro) would then resolve from THIS checkout's node_modules
-          # instead of the generated app's. A tarball is extracted as real files,
-          # which is exactly what a `bun add @oxyhq/app-preset` from the registry
-          # produces, and it also exercises the package's `files` list.
-          bun pm pack --cwd packages/app-preset --destination "$RUNNER_TEMP"
+          # A tarball is extracted as real files, exactly like a registry install,
+          # and exercises each package's publish-time workspace-range rewriting and
+          # `files` list. create-oxy-app's build already built contracts/core;
+          # services needs its publishable lib output before packing.
+          bun run --cwd packages/services build
+          for package in contracts core services app-preset; do
+            bun pm pack --cwd "packages/$package" --destination "$RUNNER_TEMP"
+          done
 
       - name: Scaffold a test app (from the packed tarball)
         run: |
@@ -117,22 +125,33 @@ jobs:
           ! grep -rniE 'mongo' . --exclude-dir=node_modules
           docker compose -f docker-compose.postgres.yml config -q
 
-      - name: Install the generated app (+ local @oxyhq/app-preset)
+      - name: Install the generated app with packed Oxy HEAD dependencies
         working-directory: ${{ runner.temp }}/smoke-app
         run: |
-          # Override @oxyhq/app-preset with the tarball packed above, so the app
-          # installs the HEAD preset the same way a real consumer installs the
-          # published one. See the pack step for why a tarball and not a dir.
+          # Override direct and transitive Oxy dependencies with the tarballs
+          # packed above. This tests HEAD as a registry consumer without publishing
+          # an unmerged package merely to make the pre-merge smoke resolvable.
           node -e '
             const fs = require("fs");
             const path = require("path");
             const dir = process.env.RUNNER_TEMP;
-            const tarball = fs.readdirSync(dir).find((f) => /^oxyhq-app-preset-.*\.tgz$/.test(f));
-            if (!tarball) throw new Error("packed @oxyhq/app-preset tarball not found in " + dir);
-            const local = "file:" + path.join(dir, tarball);
+            const packed = [
+              ["@oxyhq/contracts", /^oxyhq-contracts-.*\.tgz$/],
+              ["@oxyhq/core", /^oxyhq-core-.*\.tgz$/],
+              ["@oxyhq/services", /^oxyhq-services-.*\.tgz$/],
+              ["@oxyhq/app-preset", /^oxyhq-app-preset-.*\.tgz$/],
+            ];
+            const files = fs.readdirSync(dir);
             const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
-            p.overrides["@oxyhq/app-preset"] = local;
-            p.resolutions["@oxyhq/app-preset"] = local;
+            for (const [name, pattern] of packed) {
+              const matches = files.filter((file) => pattern.test(file));
+              if (matches.length !== 1) {
+                throw new Error(`expected exactly one packed ${name} tarball in ${dir}, found ${matches.length}`);
+              }
+              const local = "file:" + path.join(dir, matches[0]);
+              p.overrides[name] = local;
+              p.resolutions[name] = local;
+            }
             fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n");
           '
           bun install --ignore-scripts
