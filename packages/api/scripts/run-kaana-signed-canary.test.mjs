@@ -382,7 +382,7 @@ test('accepts the exact start shape when optional generationId is absent', async
   const fetchImpl = async (url, init) => {
     const body = readAndVerifyRequest(publicKey, url, init);
     const path = new URL(url).pathname;
-    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
     if (path === '/internal/v1/deployments/query') {
       return json({
         snapshotId: 'snap-live-exact',
