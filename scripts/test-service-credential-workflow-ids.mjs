@@ -85,6 +85,12 @@ assert.match(provision, /\/oxy\/\$APP_NAMESPACE\/\$DESTINATION_KEY_NAME/);
 assert.match(provision, /\/oxy\/\$APP_NAMESPACE\/\$DESTINATION_SECRET_NAME/);
 assert.doesNotMatch(provision, /\/oxy\/\$APP_NAMESPACE\/OXY_APPLICATION_(?:KEY|SECRET)/);
 assert.match(provision, /verify-reused-service-credential\.sh/);
+assert.match(provision, /::group::credential task scoped CloudWatch log/);
+assert.match(
+  provision,
+  /select\(startswith\("SERVICE_CRED_JSON="\) \| not\)/,
+  'failed task logs must be shown without echoing a credential result envelope',
+);
 assert.doesNotMatch(provision, /existing exact service credential and destination SecureStrings are already present/);
 assert.equal(
   provision.match(/put-secure-parameter\.sh/g)?.length,

@@ -220,10 +220,6 @@ jobs:
             exit_code=$(jq -r --arg container "$CONTAINER" '
               .tasks[0].containers[] | select(.name == $container) | .exitCode
             ' <<<"$task_json")
-            if [ "$exit_code" != 0 ]; then
-              echo "::error::$task_label task exited $exit_code; inspect the scoped CloudWatch task log" >&2
-              return 1
-            fi
 
             task_id=${task_arn##*/}
             result_line=''
@@ -237,7 +233,23 @@ jobs:
               [ -n "$result_line" ] && break
               sleep 3
             done
+            if [ "$exit_code" != 0 ]; then
+              echo "::group::$task_label scoped CloudWatch log"
+              jq -r '
+                .events[].message |
+                select(startswith("NATIVE_PRODUCT_AGENTS_RESULT=") | not)
+              ' <<<"$log_json"
+              echo "::endgroup::"
+              echo "::error::$task_label task exited $exit_code" >&2
+              return 1
+            fi
             if [ -z "$result_line" ]; then
+              echo "::group::$task_label scoped CloudWatch log"
+              jq -r '
+                .events[].message |
+                select(startswith("NATIVE_PRODUCT_AGENTS_RESULT=") | not)
+              ' <<<"$log_json"
+              echo "::endgroup::"
               echo "::error::$task_label task emitted no authenticated plan result" >&2
               return 1
             fi

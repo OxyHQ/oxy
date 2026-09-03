@@ -62,6 +62,17 @@ assert.match(workflow, /deregister-task-definition/);
 assert.match(workflow, /EXPECTED_PLAN_SHA256/);
 assert.match(workflow, /BOOTSTRAP_ACTOR_INPUT: \$\{\{ github\.actor \}\}/);
 assert.match(workflow, /BOOTSTRAP_REASON/);
+assert.match(workflow, /::group::\$task_label scoped CloudWatch log/);
+assert.match(
+  workflow,
+  /select\(startswith\("NATIVE_PRODUCT_AGENTS_RESULT="\) \| not\)/,
+  'failed task logs must be shown without echoing the authenticated result payload',
+);
+assert.ok(
+  workflow.indexOf('log_json=$(aws logs get-log-events') <
+    workflow.indexOf('if [ "$exit_code" != 0 ]'),
+  'the exact task log must be fetched before a non-zero exit returns',
+);
 
 assert.doesNotMatch(workflow, /\$GITHUB_OUTPUT|--value\b|\$\{\{\s*secrets\./);
 assert.doesNotMatch(

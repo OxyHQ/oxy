@@ -77,6 +77,7 @@ if grep -Fq -- '--value "$v"' "$deploy_workflow" "$app_template"; then
   exit 1
 fi
 grep -Fq -- 'bash .github/scripts/put-secure-parameter.sh "$path" overwrite' "$deploy_workflow"
+grep -Fq -- '- ".github/scripts/put-secure-parameter.sh"' "$deploy_workflow"
 grep -Fq -- '--value file:///dev/stdin' "$app_template"
 if grep -Fq -- '--cli-input-json file:///dev/stdin' "$subject" "$app_template"; then
   echo 'a secure-parameter writer still uses the AWS CLI JSON stdin form that production rejects' >&2
