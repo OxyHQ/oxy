@@ -1,0 +1,276 @@
+name: Inbox routing-profile PostgreSQL readback
+
+# Manual SELECT-only proof of the exact production row Inbox is intended to
+# use. The task is derived from the reviewed live image, receives only the live
+# DATABASE_URL binding, and independently enters a PostgreSQL READ ONLY
+# transaction before querying the exact primary key. Merging never runs it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_live_task_definition_arn:
+        description: Exact reviewed live oxy-api task-definition ARN
+        required: true
+        type: string
+      expected_live_image_digest:
+        description: Exact reviewed live oxy-api image digest (sha256:...)
+        required: true
+        type: string
+      routing_profile_id:
+        description: Exact reviewed Inbox routing-profile primary key
+        required: true
+        type: string
+      reason:
+        description: Auditable production readback reason or ticket
+        required: true
+        type: string
+
+concurrency:
+  group: inbox-routing-profile-readback
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  CLUSTER: oxy-cluster
+  SERVICE: oxy-api
+  CONTAINER: oxy-api
+
+jobs:
+  readback:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read the exact Inbox routing profile from PostgreSQL
+        env:
+          EXPECTED_LIVE_TASK_DEFINITION_ARN: ${{ inputs.expected_live_task_definition_arn }}
+          EXPECTED_LIVE_IMAGE_DIGEST: ${{ inputs.expected_live_image_digest }}
+          ROUTING_PROFILE_ID: ${{ inputs.routing_profile_id }}
+          READBACK_REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          if [[ ! "$EXPECTED_LIVE_TASK_DEFINITION_ARN" =~ ^arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:[0-9]+$ ]]; then
+            echo '::error::expected_live_task_definition_arn is not the exact production oxy-api ARN'
+            exit 64
+          fi
+          if [[ ! "$EXPECTED_LIVE_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo '::error::expected_live_image_digest must be one exact lowercase sha256 digest'
+            exit 64
+          fi
+          if [ "$ROUTING_PROFILE_ID" != '01a06477-94f5-74f0-bc25-4c5c13b93ccd' ]; then
+            echo '::error::routing_profile_id is not the reviewed Inbox primary key'
+            exit 64
+          fi
+          if [ -z "$READBACK_REASON" ] || [ "$READBACK_REASON" != "${READBACK_REASON# }" ] || [ "$READBACK_REASON" != "${READBACK_REASON% }" ] || [[ "$READBACK_REASON" == *$'\n'* ]] || [[ "$READBACK_REASON" == *$'\r'* ]]; then
+            echo '::error::reason must be non-empty and contain no edge whitespace or newlines'
+            exit 64
+          fi
+
+          service_json=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+          if [ "$(jq -r '.status // "NONE"' <<<"$service_json")" != ACTIVE ]; then
+            echo '::error::live Oxy API service is not active'
+            exit 1
+          fi
+          if [ "$(jq '[.deployments[] | select(.status == "PRIMARY" and .rolloutState == "COMPLETED")] | length' <<<"$service_json")" != 1 ] || \
+             [ "$(jq '.deployments | length' <<<"$service_json")" != 1 ] || \
+             [ "$(jq -r '.desiredCount > 0' <<<"$service_json")" != true ] || \
+             [ "$(jq -r '.pendingCount' <<<"$service_json")" != 0 ] || \
+             [ "$(jq -r '.runningCount == .desiredCount' <<<"$service_json")" != true ]; then
+            echo '::error::oxy-api is not at one completed steady deployment'
+            exit 1
+          fi
+
+          live_task_definition=$(jq -er '.taskDefinition' <<<"$service_json")
+          if [ "$live_task_definition" != "$EXPECTED_LIVE_TASK_DEFINITION_ARN" ]; then
+            echo '::error::live task definition changed after review'
+            exit 1
+          fi
+          network=$(jq -ec '.networkConfiguration' <<<"$service_json")
+          live_task_json=$(aws ecs describe-task-definition \
+            --task-definition "$live_task_definition" \
+            --query taskDefinition --output json)
+          if [ "$(jq -r --arg container "$CONTAINER" '[.containerDefinitions[] | select(.name == $container)] | length' <<<"$live_task_json")" != 1 ] || \
+             [ "$(jq '.containerDefinitions | length' <<<"$live_task_json")" != 1 ]; then
+            echo '::error::live task must contain exactly one oxy-api container'
+            exit 1
+          fi
+
+          live_image=$(jq -er --arg container "$CONTAINER" \
+            '.containerDefinitions[] | select(.name == $container) | .image' <<<"$live_task_json")
+          if [ "$live_image" != "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@$EXPECTED_LIVE_IMAGE_DIGEST" ]; then
+            echo '::error::live image digest changed after review or is not immutable'
+            exit 1
+          fi
+
+          database_secret=$(jq -cer --arg container "$CONTAINER" '
+            [.containerDefinitions[] | select(.name == $container) |
+             (.secrets // [])[] | select(.name == "DATABASE_URL")] |
+            if length == 1 then .[0] else error("expected one DATABASE_URL secret binding") end
+          ' <<<"$live_task_json")
+          if [ "$(jq -r '.valueFrom' <<<"$database_secret")" != 'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/DATABASE_URL' ]; then
+            echo '::error::the live database URL is not bound from its exact production SSM parameter'
+            exit 1
+          fi
+          if [ "$(jq --arg container "$CONTAINER" '
+            [.containerDefinitions[] | select(.name == $container) |
+             ((.environment // []) + (.secrets // []))[] |
+             select(.name == "DATABASE_URL")] | length
+          ' <<<"$live_task_json")" != 1 ]; then
+            echo '::error::DATABASE_URL must have exactly one live task binding'
+            exit 1
+          fi
+
+          readback_task_json=$(jq \
+            --arg container "$CONTAINER" \
+            --argjson database_secret "$database_secret" '
+              .family = "oxy-oxy-api-inbox-routing-readback"
+              | del(.taskRoleArn)
+              | .containerDefinitions |= map(
+                if .name == $container then
+                  .environment = []
+                  | .secrets = [$database_secret]
+                  | del(.healthCheck)
+                else . end
+              )
+              | del(
+                  .taskDefinitionArn,
+                  .revision,
+                  .status,
+                  .requiresAttributes,
+                  .compatibilities,
+                  .registeredAt,
+                  .registeredBy,
+                  .deregisteredAt
+                )
+            ' <<<"$live_task_json")
+          if [ "$(jq -c '.containerDefinitions[0].environment' <<<"$readback_task_json")" != '[]' ] || \
+             [ "$(jq -c '[.containerDefinitions[0].secrets[].name]' <<<"$readback_task_json")" != '["DATABASE_URL"]' ] || \
+             [ "$(jq -r 'has("taskRoleArn")' <<<"$readback_task_json")" != false ]; then
+            echo '::error::readback task authority minimization failed'
+            exit 1
+          fi
+
+          readback_task_definition=''
+          cleanup() {
+            if [ -n "$readback_task_definition" ]; then
+              aws ecs deregister-task-definition \
+                --task-definition "$readback_task_definition" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+          readback_task_definition=$(aws ecs register-task-definition \
+            --cli-input-json "$readback_task_json" \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          overrides=$(jq -nc \
+            --arg container "$CONTAINER" \
+            --arg profile "$ROUTING_PROFILE_ID" '
+              {containerOverrides:[{
+                name:$container,
+                command:["bun","run","packages/api/scripts/readback-inbox-routing-profile.ts"],
+                environment:[
+                  {name:"INBOX_ROUTING_PROFILE_READBACK_ID",value:$profile}
+                ]
+              }]}
+            ')
+
+          run_json=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$readback_task_definition" \
+            --launch-type FARGATE \
+            --network-configuration "$network" \
+            --overrides "$overrides" \
+            --started-by "gh-inbox-readback-${GITHUB_RUN_ID}")
+          task_arn=$(jq -r '.tasks[0].taskArn // empty' <<<"$run_json")
+          if [ -z "$task_arn" ]; then
+            echo "::error::ECS did not start the readback task: $(jq -c '.failures' <<<"$run_json")"
+            exit 1
+          fi
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"
+
+          task_json=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn")
+          exit_code=$(jq -r --arg container "$CONTAINER" '
+            .tasks[0].containers[] | select(.name == $container) | .exitCode
+          ' <<<"$task_json")
+          task_id=${task_arn##*/}
+          log_group=$(jq -er --arg container "$CONTAINER" '
+            .containerDefinitions[] | select(.name == $container) |
+            .logConfiguration.options["awslogs-group"]
+          ' <<<"$live_task_json")
+          log_prefix=$(jq -er --arg container "$CONTAINER" '
+            .containerDefinitions[] | select(.name == $container) |
+            .logConfiguration.options["awslogs-stream-prefix"]
+          ' <<<"$live_task_json")
+
+          result_line=''
+          log_json='{"events":[]}'
+          for _attempt in $(seq 1 10); do
+            log_json=$(aws logs get-log-events \
+              --log-group-name "$log_group" \
+              --log-stream-name "$log_prefix/$CONTAINER/$task_id" \
+              --start-from-head --output json 2>/dev/null || printf '{"events":[]}')
+            result_line=$(jq -r '.events[].message' <<<"$log_json" |
+              grep '^INBOX_ROUTING_PROFILE_READBACK_RESULT=' | tail -1 || true)
+            [ -n "$result_line" ] && break
+            sleep 3
+          done
+          if [ "$exit_code" != 0 ] || [ -z "$result_line" ]; then
+            echo '::group::readback scoped CloudWatch log'
+            jq -r '.events[].message | select(startswith("INBOX_ROUTING_PROFILE_READBACK_RESULT=") | not)' <<<"$log_json"
+            echo '::endgroup::'
+            echo "::error::Inbox routing-profile readback failed (exit=$exit_code, result_present=$([ -n "$result_line" ] && echo yes || echo no))"
+            exit 1
+          fi
+
+          result=${result_line#INBOX_ROUTING_PROFILE_READBACK_RESULT=}
+          jq -e --arg id "$ROUTING_PROFILE_ID" '
+            (keys | sort) == ["candidate","database","routingProfile","schemaVersion","status"] and
+            .schemaVersion == 1 and
+            .status == "passed" and
+            .database == {engine:"postgresql",transactionReadOnly:true,writes:0} and
+            .routingProfile == {
+              id:$id,
+              slug:"kaana-v1",
+              displayName:"Kaana",
+              description:"Oxy-owned Kaana routing policy over exact Kaana deployments.",
+              optimiseFor:"balanced",
+              isProductPreset:true
+            } and
+            .candidate == {
+              modelReference:"openai/gpt-oss-120b@observed-2026-09-01",
+              priority:100
+            }
+          ' <<<"$result" >/dev/null || {
+            echo '::error::readback emitted an incomplete or unexpected projection'
+            exit 1
+          }
+
+          echo '──────── Inbox routing-profile readback (operator-safe) ────────'
+          jq '{database,routingProfile,candidate}' <<<"$result"
+          echo '────────────────────────────────────────────────────────────────'
+          {
+            echo '### Inbox routing-profile PostgreSQL readback'
+            echo
+            echo "- Live task: \`$live_task_definition\`"
+            echo "- Live image: \`$live_image\`"
+            echo "- Exact primary key: \`$(jq -r '.routingProfile.id' <<<"$result")\`"
+            echo "- Profile: \`$(jq -r '.routingProfile.slug' <<<"$result")\`"
+            echo "- Candidate: \`$(jq -r '.candidate.modelReference' <<<"$result")\`"
+            echo '- PostgreSQL transaction: READ ONLY'
+            echo '- Database writes: 0'
+            echo '- Preserved task secret bindings: DATABASE_URL only'
+          } >> "$GITHUB_STEP_SUMMARY"

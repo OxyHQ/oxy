@@ -23,15 +23,23 @@ absent or unknown ID returns a fail-closed 503 before reservation or Kaana.
 
 ## Production bootstrap
 
-Production currently has no routing-profile rows. The required order is:
+The last recorded production database read, on 2026-08-17, found no
+routing-profile rows. That evidence is dated and is not a statement about the
+current live database. The current state must be proved by the exact-primary-key
+[Inbox routing-profile PostgreSQL readback](../../.github/workflows/inbox-routing-profile-readback.yml),
+which is SELECT-only and cannot create or repair a row. The required order is:
 
 1. Dry-run, review and then explicitly apply the exact-ID catalogue reviewer
    bootstrap in [the runbook](../runbooks/bootstrap-catalogue-reviewer.md).
-2. Run the canonical inference-catalogue bootstrap, which creates `kaana-v1`
-   and records the exact generated `inference_routing_profiles.id` in its
-   reviewed result.
-3. Verify that exact ID by primary-key lookup; do not rediscover it by name,
-   ordering or an implicit first row.
+2. Dry-run, review and explicitly apply the canonical Kaana catalogue bootstrap.
+   It owns permanent reviewed primary keys; for Inbox, `kaana-v1` is exactly
+   `01a06477-94f5-74f0-bc25-4c5c13b93ccd`. The publisher seed is not this
+   bootstrap and does not prove or create the routing-profile row.
+3. From `main`, run the manual readback with the exact reviewed live task
+   definition, immutable live image digest and that exact primary key. Require
+   one matching profile and one matching
+   `openai/gpt-oss-120b@observed-2026-09-01` candidate at priority `100`; do not
+   rediscover either row by name, ordering or an implicit first row.
 4. Run the canonical application seed so exact Inbox application
    `6a37b3e61ddfd195b656819b` gains `inference:invoke`.
 5. Dry-run, review, then apply **Reconcile service credential authority** for
@@ -46,9 +54,11 @@ Production currently has no routing-profile rows. The required order is:
    documented order, and smoke one non-stream and one cancelled stream while
    checking reservation settlement and usage attribution.
 
-Do not invent or hardcode a routing-profile ID before step 2. Until all eight
-steps pass, Inbox inference is intentionally unavailable rather than silently
-routed elsewhere.
+The permanent source-reviewed ID is an intended identity, not proof that its row
+exists in the live database. Do not configure the GitHub variable from source
+alone: require the successful exact-PK readback in step 3. Until all eight steps
+pass, Inbox inference is intentionally unavailable rather than silently routed
+elsewhere.
 
 The old Oxy-to-Alia `/alia/chat/completions` and `/v1/voice/*` proxies and their
 `ALIA_API_KEY` task binding are removed. Apps that use Alia chat, agents or voice
