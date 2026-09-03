@@ -1,12 +1,17 @@
-# DeviceSession — server-authority session state per device
+# Device session — server-authority state per device
 
-The `DeviceSession` document is the **single server-side authority** for "which accounts are signed in on this device, and which one is active". Every Oxy surface that shows or mutates the signed-in account set — RP apps via `OxyProvider` (`@oxyhq/services`), the IdP account chooser on auth.oxy.so — reads and writes the same document, and every mutation is pushed in realtime to all apps on the device via one socket room.
+The `device_sessions` PostgreSQL row plus its normalized principal/context rows
+are the **single server-side authority** for "which accounts are signed in on
+this device, and which one is active". Every Oxy surface that shows or mutates
+the signed-in account set — RP apps via `OxyProvider` (`@oxyhq/services`), the
+IdP account chooser on auth.oxy.so — reads and writes that same state, and every
+mutation is pushed in realtime to all apps on the device via one socket room.
 
 Source of truth (code):
 
 | Piece | File |
 |-------|------|
-| Mongoose model (collection `devicesessions`) | `packages/api/src/models/DeviceSession.ts` |
+| PostgreSQL schema | `packages/api/src/db/schema/deviceSessions.ts`, `devicePrincipals.ts`, `deviceAccountContexts.ts` |
 | Service (state machine + healing + convergence) | `packages/api/src/services/deviceSession.service.ts` |
 | REST routes `/session/device/*` | `packages/api/src/routes/sessionDevice.ts` |
 | Socket broadcast | `packages/api/src/utils/socket.ts` (`broadcastDeviceState`, `socketRoomsFor`) |
@@ -23,30 +28,30 @@ Related docs: [third-party integration guide](./integration-guide.md) (OAuth —
 
 ## Model & semantics
 
-One document per `deviceId` (unique index):
+One `device_sessions` row per `deviceId` (unique constraint), with the people
+and account contexts normalized into child tables. The existing flat client
+contract is a compatibility projection of those rows, not the storage shape:
 
-```typescript
-interface IDeviceSession {
-  deviceId: string;                       // server-minted, never client-supplied
-  accounts: IDeviceSessionAccount[];      // the device set
-  activeAccountId: ObjectId | null;       // which account the device is "on"
-  secretHash?: string;                    // sha256 of the current deviceSecret (sparse-unique)
-  revision: number;                       // monotone change counter
-  createdAt: Date; updatedAt: Date;
-}
+- `device_sessions` holds the device id, active context/account projection,
+  credential hashes, revision and timestamps;
+- `device_principals` holds each authenticated person, their `authuser` slot and
+  personal session id;
+- `device_account_contexts` holds each exact principal → account relationship
+  and its optional delegated session id.
 
-interface IDeviceSessionAccount {
-  accountId: ObjectId;                    // User _id
-  sessionId: string;                      // the ONE session for this account on this device
-  authuser: number;                       // per-device account index (>= 0)
-  addedAt: Date;
-  operatedByUserId?: ObjectId | null;     // set for managed (act_as) accounts
-}
-```
+The ids are opaque `text` values. No storage or route parses them as Mongo
+ObjectIds.
 
 ### `revision`
 
-Monotone per device: every state-changing write does `$inc: { revision: 1 }`. Clients apply pushes **last-writer-wins by revision within a deviceId** — a stale push (`revision <= current`) is discarded. When a push arrives for a *different* deviceId (device convergence, see below), the client resets its baseline and accepts it regardless of revision; the revision comparison is only meaningful within one device. Idempotent no-op writes (re-registering the same account+session on reload) do **not** bump the revision and do **not** broadcast.
+Monotone per device: every state-changing transaction writes
+`revision = revision + 1`. Clients apply pushes **last-writer-wins by revision
+within a deviceId** — a stale push (`revision <= current`) is discarded. When a
+push arrives for a *different* deviceId (device convergence, see below), the
+client resets its baseline and accepts it regardless of revision; the revision
+comparison is only meaningful within one device. Idempotent no-op writes
+(re-registering the same account+session on reload) do **not** bump the revision
+and do **not** broadcast.
 
 ### `authuser`
 
@@ -59,13 +64,25 @@ Present when the entry is a **managed account** (org / project / bot) the operat
 - **Sign-out cascade:** signing the operator's own account out of the device also removes every account entry whose `operatedByUserId` is that operator (one level deep).
 - **Revocation healing:** managed entries are re-validated against the operator's live `act_as` membership before any token mint or switch; a revoked one is dropped from the device set instead of lingering (see healing below).
 
-`operatedByUserId` lives on the `Session` document (not in the JWT), so routes resolve it from the session record when registering an account.
+`operatedByUserId` lives on the `sessions` row (not in the JWT), so routes
+resolve it from the session record when registering an account.
 
-### One session per account per device
+### One session per account context per device
 
-The device set stores exactly **one `sessionId` per account**. Every surface that authenticates the same account on the same device converges on that session (`resolveRegisteredSession`) instead of minting per-origin sessions — this is what makes all apps on a device join the same socket room and see each other's changes. Re-adding the same account with a *different* sessionId (a deliberate re-auth) replaces the entry and deactivates the displaced session.
+Each `device_account_contexts` row stores at most one `sessionId` for one exact
+principal → account relationship. The same managed account may appear under two
+different principals on one device; those are deliberately different contexts,
+sessions and audit actors. Re-authenticating the same context replaces its
+session and deactivates the displaced one instead of minting a per-origin copy.
+This is what makes all apps on a device join the same socket room and see each
+other's changes.
 
-OAuth token exchange, password login, and QR handoff all thread the same `deviceId` so cross-origin web apps (official domains like `mention.earth` and third-party RPs) share one `DeviceSession` document server-side. Each origin still persists its own `{ deviceId, deviceSecret }` copy in `localStorage` (zero cookies); convergence happens through the OAuth lanes documented in [`SESSION-ARCHITECTURE.md`](../SESSION-ARCHITECTURE.md).
+OAuth token exchange, password login, and QR handoff all thread the same
+`deviceId` so cross-origin web apps (official domains like `mention.earth` and
+third-party RPs) share one server-side device state. Each origin still persists
+its own `{ deviceId, deviceSecret }` copy in `localStorage` (zero cookies);
+convergence happens through the OAuth lanes documented in
+[`SESSION-ARCHITECTURE.md`](../SESSION-ARCHITECTURE.md).
 
 ### Self-healing
 
@@ -94,7 +111,9 @@ import {
 } from '@oxyhq/contracts';
 ```
 
-- **`DeviceSessionState`** is the token-free projection of the document (`updatedAt` as epoch ms). It is the socket payload and the `state` half of every REST response.
+- **`DeviceSessionState`** is the token-free projection of the normalized rows
+  (`updatedAt` as epoch ms). It is the socket payload and the `state` half of
+  every REST response.
 - **`DeviceSessionSync`** (`{ state, activeToken }`) is the REST response body: the state plus a freshly-minted access token for the active account, or `activeToken: null` when there is no active account or its session cannot mint.
 
 The API validates its output against these schemas and `SessionClient` validates its input against the same definitions (`safeParseContract`), so producer and consumer cannot drift.
@@ -106,7 +125,7 @@ The API validates its output against these schemas and `SessionClient` validates
 Router: `packages/api/src/routes/sessionDevice.ts`, mounted at `/session/device` in `server.ts`. `POST /session/device/token` is **public** (no bearer, no cookies) — possession of the `deviceSecret` is the proof. Every other route shares two gates:
 
 1. **`requireSameSiteOrigin`** — browser-enforced CSRF guard (`Origin` allowlist / `Sec-Fetch-Site` fallback).
-2. **Bearer auth** (`authMiddleware`). The `deviceId` is always read from the **bearer JWT's `deviceId` claim** — never from the body, query, or a header. There is no way to address another device's document.
+2. **Bearer auth** (`authMiddleware`). The `deviceId` is always read from the **bearer JWT's `deviceId` claim** — never from the body, query, or a header. There is no way to address another device's state.
 
 | Method | Path | Body | Behavior |
 |--------|------|------|----------|
@@ -116,7 +135,7 @@ Router: `packages/api/src/routes/sessionDevice.ts`, mounted at `/session/device`
 | POST | `/session/device/activate` | `{ contextId }` | Activates one `principal → account` context. `400 accountId_not_accepted` when the body carries an `accountId` at all; `404` when the context is not on this device; `403` plus a healed-state broadcast when it is stale or revoked. Returns `{ data: DeviceActivateResponse }` = `{ directory, activeToken }`. Rate limit `rl:session:device-activate:`. |
 | POST | `/session/device/add` | — | Registers the **caller's own bearer session** (account id from `req.user`, session id from the JWT) into the device set. Idempotent: re-registering the same account+session (the reload handoff) is a pure no-op — no active flip, no revision bump, no broadcast. A different sessionId for an existing account replaces the entry and deactivates the displaced session. `401` when the session record is expired/revoked. |
 | POST | `/session/device/switch` | `{ accountId }` | Sets `activeAccountId` after re-validating the target session. `404` when the account is not on this device; `403` (plus a broadcast of the healed state) when the target session was revoked. |
-| POST | `/session/device/signout` | `{ accountId }`, `{ all: true }`, `{ contextId }` or `{ principalId }` | The four removal meanings. `accountId` removes that account however it is reached, plus the operator cascade, and `all` removes the whole device and clears its `secretHash` — both unchanged. `contextId` removes ONE `principal → account` pair and leaves another principal's route to the same account alone; `principalId` removes ONE person and every context they reach, and nobody else's. The last two elect a replacement active context in the documented order (same principal's personal, then another of that principal's, then the next principal's personal, then none) and answer `{ data: { directory, state, activeToken } }`. Asking for a `contextId` AND a `principalId` in one body is `400` — they are different operations. |
+| POST | `/session/device/signout` | `{ accountId }`, `{ all: true }`, `{ contextId }` or `{ principalId }` | The four removal meanings. `accountId` removes that account however it is reached, plus the operator cascade, and `all` removes the whole device row and clears its `secretHash` — both unchanged. `contextId` removes ONE `principal → account` pair and leaves another principal's route to the same account alone; `principalId` removes ONE person and every context they reach, and nobody else's. The last two elect a replacement active context in the documented order (same principal's personal, then another of that principal's, then the next principal's personal, then none) and answer `{ data: { directory, state, activeToken } }`. Asking for a `contextId` AND a `principalId` in one body is `400` — they are different operations. |
 
 **Response shape (the flat routes):** `{ data: DeviceSessionSync }` — i.e. `{ data: { state, activeToken } }` validating `deviceSessionSyncSchema`. `activeToken` is minted per response after re-validating the active account's session; it is `null` rather than stale when the session cannot mint. `/directory` and `/activate` speak `deviceDirectorySchema` / `deviceActivateResponseSchema` instead, and both are validated against the contract before they ship.
 
@@ -137,7 +156,7 @@ Registration also happens server-side outside this router:
 - `POST /accounts/:id/switch` (account graph, `packages/api/src/routes/accounts.ts`) registers the freshly-minted managed session into the operator's device set with `activate: 'always'` and broadcasts.
 - Every first-party sign-in (`/auth/login`, `/auth/signup`, `/auth/verify`, `/security/2fa/verify-login`) registers itself into its device set with `activate: 'if-empty'` and mints the `deviceSecret` for the response (`finalizeDeviceLogin`, `packages/api/src/services/deviceLogin.service.ts`) — add-only, never steals the device's current active selection.
 
-> **Do not confuse** these routes with the older fingerprint-based listing at `GET /session/device/sessions/:sessionId` / `POST /session/device/logout-all/:sessionId` (routes in `packages/api/src/routes/session.ts`, DTO `DeviceLinkedSession*` in contracts). Those enumerate `Session` documents that share a device fingerprint for the security screen; they are **not** the device set and do not carry `revision`/`activeAccountId`.
+> **Do not confuse** these routes with the older fingerprint-based listing at `GET /session/device/sessions/:sessionId` / `POST /session/device/logout-all/:sessionId` (routes in `packages/api/src/routes/session.ts`, DTO `DeviceLinkedSession*` in contracts). Those enumerate `sessions` rows that share a device fingerprint for the security screen; they are **not** the device set and do not carry `revision`/`activeAccountId`.
 
 ---
 
@@ -207,7 +226,7 @@ The account switcher unions both: accounts already in the device set (instant sw
 **Switching into a graph account** (`POST /accounts/:id/switch`):
 
 1. The operator's `account:act_as` role over the target is verified (`verifyActingAs`); personal accounts are never switch targets (that would be impersonation).
-2. A **real session** is minted for the managed account with `operatedByUserId = operator` and — critically — the **operator's deviceId** inherited from their bearer, so the org session joins the same device document.
+2. A **real session** is minted for the managed account with `operatedByUserId = operator` and — critically — the **operator's deviceId** inherited from their bearer, so the org session joins the same device state.
 3. The session is registered into the device set server-side (`addAccount`, `activate: 'always'`) and broadcast, so the switch survives reload and syncs to every app on the device instantly. The response mirrors the login shape and the SDK plants the returned access token directly.
 4. Session validity stays bound to the membership: revoking `act_as` kills the session, and the healing paths above drop it from the device set.
 

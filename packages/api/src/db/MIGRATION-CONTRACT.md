@@ -1,8 +1,13 @@
-# MongoDB → PostgreSQL migration — binding contract
+# MongoDB → PostgreSQL migration — historical binding contract
 
-Read this before touching migration work. It lives in the repo on purpose: an
-earlier copy sat in a session scratchpad, evaporated when that session ended, and
-seven agents were handed a path to a file that no longer existed.
+> The port is complete and the API runtime is PostgreSQL-only. This file records
+> the constraints that governed the port and remains useful when auditing the
+> resulting schema; it is not a current Mongo operating or rollback runbook.
+
+Read this before auditing a port decision or changing the resulting schema. It
+lives in the repo on purpose: an earlier copy sat in a session scratchpad,
+evaporated when that session ended, and seven agents were handed a path to a file
+that no longer existed.
 
 Stack: Drizzle ORM over **`postgres.js`** (`drizzle-orm/postgres-js`), migrations
 applied by `src/db/migrate.ts` (never `drizzle-kit migrate` in production — the
@@ -86,11 +91,13 @@ bypass of block and restrict enforcement on media, with no error and no log.
 - **`select: false` is now `protectedColumns.ts`.** Drizzle enumerates columns
   explicitly, so a naive port makes hidden columns leak.
 
-## Production safety
+## Historical production safety during the port
 
-Production MongoDB is NOT touched by any code-porting task. It stays live serving
-six backends with its S3 backups running until a separately-approved cutover. Local
-data is disposable. No agent runs a backfill against production.
+During code-porting, production MongoDB was not touched: it stayed live until a
+separately approved cutover, while local data was disposable and agents ran no
+production backfill. That was a migration constraint, not the current
+architecture. The API now opens only PostgreSQL; do not add a Mongo connection,
+URI, model or fallback as a rollback path.
 
 ### Every migration declares which side of a deploy it runs on
 
