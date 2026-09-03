@@ -2127,6 +2127,18 @@
       "title": "Permisos solicitados",
       "basic": "Iniciar sesión y leer tu perfil básico"
     },
+    "resource": {
+      "title": "App de Oxy y recurso protegido"
+    },
+    "writeActions": {
+      "title": "Acciones que puede realizar esta conexión"
+    },
+    "effects": {
+      "write": "Escritura",
+      "external": "Externa",
+      "financial": "Financiera",
+      "security": "Seguridad"
+    },
     "scopes": {
       "openid": "Confirmar tu identidad",
       "profile": "Leer tu perfil básico",
@@ -2147,7 +2159,8 @@
       "federationWrite": "Actuar en servicios federados"
     },
     "account": {
-      "title": "Iniciando sesión como"
+      "title": "Iniciando sesión como",
+      "id": "ID de cuenta: {{id}}"
     },
     "links": {
       "website": "Sitio web",

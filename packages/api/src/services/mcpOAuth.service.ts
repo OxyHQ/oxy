@@ -11,6 +11,12 @@ import {
   verifyMcpAccessTokenSignature,
   type McpAccessTokenClaims,
 } from '@oxyhq/mcp';
+import type {
+  CatalogTool,
+  McpOAuthClientApplication,
+  McpOAuthConsentResponse,
+  PublicApplicationResponse,
+} from '@oxyhq/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import {
@@ -22,8 +28,12 @@ import {
   type McpOauthClientRow,
   type McpOauthGrantRow,
 } from '../db/schema/mcpOAuth';
+import { applications } from '../db/schema/applications';
+import { users } from '../db/schema/users';
 import accountService from './account.service';
 import { listActiveCapabilityCatalogs } from './capabilityCatalog.service';
+import { composeDisplayName } from '../utils/displayName';
+import { serializePublicApplication } from '../utils/serializeApplication';
 
 export const MCP_AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
 export const MCP_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
@@ -56,6 +66,8 @@ export interface McpResourceDescriptor {
   readonly resource: string;
   readonly scopes: readonly string[];
   readonly registeredByApplicationId: string;
+  readonly application: PublicApplicationResponse;
+  readonly tools: readonly CatalogTool[];
 }
 
 export interface McpTokenResponse {
@@ -139,10 +151,28 @@ export async function resolveMcpResource(resource: string): Promise<McpResourceD
   if (!registration?.catalog.externalMcp) {
     throw new McpOAuthError('invalid_request', 'resource is not a registered Oxy MCP server');
   }
+  const [application] = await getDb().select({
+    id: applications.id,
+    name: applications.name,
+    description: applications.description,
+    icon: applications.icon,
+    websiteUrl: applications.websiteUrl,
+    privacyPolicyUrl: applications.privacyPolicyUrl,
+    termsUrl: applications.termsUrl,
+    type: applications.type,
+    isOfficial: applications.isOfficial,
+    isInternal: applications.isInternal,
+    scopes: applications.scopes,
+  }).from(applications).where(and(
+    eq(applications.id, registration.registeredByApplicationId),
+    eq(applications.status, 'active'),
+  )).limit(1);
+  if (!application) {
+    throw new McpOAuthError('invalid_request', 'resource application is not active');
+  }
+  const tools = registration.catalog.tools.filter((tool) => tool.exposure.includes('mcp'));
   const scopes = [...new Set(
-    registration.catalog.tools
-      .filter((tool) => tool.exposure.includes('mcp'))
-      .flatMap((tool) => tool.requiredCapabilities),
+    tools.flatMap((tool) => tool.requiredCapabilities),
   )].sort();
   return {
     appSlug: registration.appSlug,
@@ -150,6 +180,8 @@ export async function resolveMcpResource(resource: string): Promise<McpResourceD
     resource: canonicalMcpResource(registration.catalog.externalMcp.resource),
     scopes,
     registeredByApplicationId: registration.registeredByApplicationId,
+    application: serializePublicApplication(application),
+    tools,
   };
 }
 
@@ -180,6 +212,22 @@ export async function findActiveMcpClient(clientId: string): Promise<McpOauthCli
     .where(and(eq(mcpOauthClients.clientId, clientId), eq(mcpOauthClients.status, 'active')))
     .limit(1);
   return client ?? null;
+}
+
+export function mcpClientApplication(
+  client: McpOauthClientRow,
+  scopes: readonly string[],
+): McpOAuthClientApplication {
+  return {
+    id: client.id,
+    clientId: client.clientId,
+    name: client.clientName,
+    ...(client.clientUri ? { websiteUrl: client.clientUri } : {}),
+    type: 'third_party',
+    isOfficial: false,
+    isInternal: false,
+    scopes: [...scopes],
+  };
 }
 
 export async function registerMcpClient(input: {
@@ -227,6 +275,74 @@ export async function mcpConsentRequired(input: {
   if (!grant) return true;
   const granted = new Set(grant.scopes);
   return input.scopes.some((scope) => !granted.has(scope));
+}
+
+export async function mcpConsentDetails(input: {
+  principalUserId: string;
+  effectiveAccountId: string;
+  client: McpOauthClientRow;
+  descriptor: McpResourceDescriptor;
+  scopes: readonly string[];
+}): Promise<McpOAuthConsentResponse> {
+  assertScopesAllowed(input.scopes, input.descriptor);
+  if (!await currentAccountAuthority({
+    principalUserId: input.principalUserId,
+    effectiveAccountId: input.effectiveAccountId,
+  })) {
+    throw new McpOAuthError('access_denied', 'The approving user can no longer operate this account', 403);
+  }
+  const [account, consentRequired] = await Promise.all([
+    getDb().select({
+      id: users.id,
+      username: users.username,
+      nameFirst: users.nameFirst,
+      nameLast: users.nameLast,
+      nameDisplay: users.nameDisplay,
+      avatar: users.avatar,
+    }).from(users).where(eq(users.id, input.effectiveAccountId)).limit(1).then((rows) => rows[0]),
+    mcpConsentRequired(input),
+  ]);
+  if (!account) {
+    throw new McpOAuthError('access_denied', 'The selected account is no longer active', 403);
+  }
+  const displayName = composeDisplayName({
+    name: {
+      first: account.nameFirst,
+      last: account.nameLast,
+      displayName: account.nameDisplay,
+    },
+    username: account.username,
+  });
+  const grantedCapabilities = new Set(input.scopes);
+  const writeActions = input.descriptor.tools
+    .filter((tool) => tool.effect !== 'read')
+    .filter((tool) => tool.requiredCapabilities.every((capability) => grantedCapabilities.has(capability)))
+    .map((tool) => ({
+      name: tool.name,
+      version: tool.version,
+      description: tool.description,
+      requiredCapabilities: tool.requiredCapabilities,
+      effect: tool.effect,
+    }));
+  return {
+    consentRequired,
+    context: {
+      client: mcpClientApplication(input.client, input.descriptor.scopes),
+      account: {
+        id: account.id,
+        ...(displayName ? { displayName } : {}),
+        ...(account.username ? { handle: account.username } : {}),
+        ...(account.avatar ? { avatar: account.avatar } : {}),
+      },
+      resource: {
+        appId: input.descriptor.appSlug,
+        uri: input.descriptor.resource,
+        application: input.descriptor.application,
+      },
+      capabilities: [...input.scopes],
+      writeActions,
+    },
+  };
 }
 
 export async function authorizeMcpConnection(input: {

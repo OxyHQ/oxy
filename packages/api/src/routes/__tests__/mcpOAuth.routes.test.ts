@@ -5,7 +5,10 @@
  */
 
 import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto';
-import type { AppCapabilityCatalog } from '@oxyhq/contracts';
+import {
+  mcpOAuthConsentResponseSchema,
+  type AppCapabilityCatalog,
+} from '@oxyhq/contracts';
 import { eq } from 'drizzle-orm';
 import express from 'express';
 import request from 'supertest';
@@ -64,13 +67,24 @@ app.use(express.urlencoded({ extended: false }));
 app.use(mcpOAuthDiscoveryRouter);
 app.use('/auth/mcp/oauth', mcpOAuthRouter);
 
-async function fixture(): Promise<{ resource: string; redirectUri: string }> {
-  const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
+async function fixture(): Promise<{
+  resource: string;
+  redirectUri: string;
+  resourceAppName: string;
+  appId: string;
+}> {
+  const username = `mcp-owner-${randomUUID()}`;
+  const [owner] = await getDb().insert(users).values({
+    username,
+    nameDisplay: 'Route Test Workspace',
+    color: 'teal',
+  }).returning({ id: users.id });
   principalUserId = owner.id;
   const appSlug = `mcp-route-${randomUUID()}`;
   const resource = `https://${appSlug}.example.test`;
+  const resourceAppName = `MCP route resource ${randomUUID()}`;
   const [application] = await getDb().insert(applications).values({
-    name: `MCP route resource ${randomUUID()}`,
+    name: resourceAppName,
     ownerAccountId: owner.id,
     status: 'active',
     isInternal: true,
@@ -97,22 +111,40 @@ async function fixture(): Promise<{ resource: string; redirectUri: string }> {
     internalBaseUrl: 'https://api.example.test',
     accountResourceType: 'account',
     externalMcp: { resource },
-    tools: [{
-      name: 'readResource',
-      version: '1.0.0',
-      description: 'Read the selected account resource.',
-      inputSchema: { type: 'object', additionalProperties: false },
-      outputSchema: { type: 'object' },
-      capabilityPackage: 'read',
-      requiredCapabilities: ['resource.read'],
-      resourceTypes: ['account'],
-      effect: 'read',
-      idempotency: 'none',
-      rollback: 'none',
-      exposure: ['mcp'],
-      limitKeys: [],
-      invocation: { method: 'GET', path: '/resource' },
-    }],
+    tools: [
+      {
+        name: 'readResource',
+        version: '1.0.0',
+        description: 'Read the selected account resource.',
+        inputSchema: { type: 'object', additionalProperties: false },
+        outputSchema: { type: 'object' },
+        capabilityPackage: 'read',
+        requiredCapabilities: ['resource.read'],
+        resourceTypes: ['account'],
+        effect: 'read',
+        idempotency: 'none',
+        rollback: 'none',
+        exposure: ['mcp'],
+        limitKeys: [],
+        invocation: { method: 'GET', path: '/resource' },
+      },
+      {
+        name: 'updateResource',
+        version: '1.0.0',
+        description: 'Update the selected account resource.',
+        inputSchema: { type: 'object', additionalProperties: false },
+        outputSchema: { type: 'object' },
+        capabilityPackage: 'create',
+        requiredCapabilities: ['resource.write'],
+        resourceTypes: ['account'],
+        effect: 'write',
+        idempotency: 'required',
+        rollback: 'supported',
+        exposure: ['mcp'],
+        limitKeys: [],
+        invocation: { method: 'PATCH', path: '/resource' },
+      },
+    ],
     events: [],
   };
   await getDb().insert(appCapabilityCatalogRegistrations).values({
@@ -127,7 +159,12 @@ async function fixture(): Promise<{ resource: string; redirectUri: string }> {
     deployedAt: new Date(),
     active: true,
   });
-  return { resource, redirectUri: 'http://127.0.0.1:43123/oauth/callback' };
+  return {
+    resource,
+    redirectUri: 'http://127.0.0.1:43123/oauth/callback',
+    resourceAppName,
+    appId: appSlug,
+  };
 }
 
 beforeAll(async () => {
@@ -187,7 +224,9 @@ it('publishes discovery and completes a resource-bound public-client flow', asyn
   expect(client.body.application).toMatchObject({
     clientId,
     name: 'Route test MCP client',
-    scopes: ['resource.read'],
+    scopes: ['resource.read', 'resource.write'],
+    type: 'third_party',
+    isInternal: false,
   });
   expect(client.body.application).not.toHaveProperty('redirectUris');
 
@@ -198,11 +237,30 @@ it('publishes discovery and completes a resource-bound public-client flow', asyn
       clientId,
       redirectUri: input.redirectUri,
       resource: input.resource,
-      scope: 'resource.read',
+      scope: 'resource.read resource.write',
       accountId: principalUserId,
     });
   expect(consent.status).toBe(200);
-  expect(consent.body).toEqual({ consentRequired: true });
+  expect(mcpOAuthConsentResponseSchema.parse(consent.body)).toMatchObject({
+    consentRequired: true,
+    context: {
+      client: { clientId, name: 'Route test MCP client' },
+      account: { id: principalUserId, displayName: 'Route Test Workspace' },
+      resource: {
+        appId: input.appId,
+        uri: input.resource,
+        application: { name: input.resourceAppName },
+      },
+      capabilities: ['resource.read', 'resource.write'],
+      writeActions: [{
+        name: 'updateResource',
+        version: '1.0.0',
+        description: 'Update the selected account resource.',
+        requiredCapabilities: ['resource.write'],
+        effect: 'write',
+      }],
+    },
+  });
 
   const verifier = 'r'.repeat(64);
   const authorization = await request(app)
@@ -213,7 +271,7 @@ it('publishes discovery and completes a resource-bound public-client flow', asyn
       clientId,
       redirectUri: input.redirectUri,
       resource: input.resource,
-      scope: 'resource.read',
+      scope: 'resource.read resource.write',
       accountId: principalUserId,
       codeChallenge: createHash('sha256').update(verifier).digest('base64url'),
       codeChallengeMethod: 'S256',
@@ -238,7 +296,7 @@ it('publishes discovery and completes a resource-bound public-client flow', asyn
   expect(token.headers['cache-control']).toBe('no-store');
   expect(token.body).toMatchObject({
     token_type: 'Bearer',
-    scope: 'resource.read',
+    scope: 'resource.read resource.write',
     resource: input.resource,
   });
 
@@ -273,4 +331,45 @@ it('rejects insecure remote redirect URIs at dynamic registration', async () => 
   });
   expect(response.status).toBe(400);
   expect(response.body).toMatchObject({ error: 'invalid_request' });
+});
+
+it('requires the selected account and never presents an unrequested write action', async () => {
+  const input = await fixture();
+  const registration = await request(app).post('/auth/mcp/oauth/register').send({
+    client_name: 'Read-only MCP client',
+    redirect_uris: [input.redirectUri],
+    token_endpoint_auth_method: 'none',
+  });
+  const clientId = registration.body.client_id as string;
+
+  const readOnlyConsent = await request(app)
+    .get('/auth/mcp/oauth/consent')
+    .set('authorization', 'Bearer user-session')
+    .query({
+      clientId,
+      redirectUri: input.redirectUri,
+      resource: input.resource,
+      scope: 'resource.read',
+      accountId: principalUserId,
+    });
+  expect(readOnlyConsent.status).toBe(200);
+  expect(readOnlyConsent.body.context).toMatchObject({
+    account: { id: principalUserId },
+    resource: { appId: input.appId, uri: input.resource },
+    capabilities: ['resource.read'],
+    writeActions: [],
+  });
+
+  const mismatchedAccount = await request(app)
+    .get('/auth/mcp/oauth/consent')
+    .set('authorization', 'Bearer user-session')
+    .query({
+      clientId,
+      redirectUri: input.redirectUri,
+      resource: input.resource,
+      scope: 'resource.read',
+      accountId: 'another-account',
+    });
+  expect(mismatchedAccount.status).toBe(403);
+  expect(mismatchedAccount.body).toMatchObject({ error: 'access_denied' });
 });

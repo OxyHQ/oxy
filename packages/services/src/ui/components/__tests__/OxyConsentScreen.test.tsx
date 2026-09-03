@@ -24,6 +24,7 @@ function renderScreen(props: Partial<OxyConsentScreenProps> = {}) {
       application={props.application ?? baseApp}
       scopes={props.scopes ?? ['openid', 'profile']}
       user={props.user}
+      resource={props.resource}
       onAllow={props.onAllow ?? onAllow}
       onDeny={props.onDeny ?? onDeny}
       busy={props.busy}
@@ -136,6 +137,37 @@ describe('OxyConsentScreen', () => {
       user: { displayName: '  Alice A  ', handle: 'alice', avatarUri: 'file-1' },
     });
     expect(getByTestId('consent-account-name').textContent).toBe('Alice A');
+  });
+
+  it('renders the exact MCP app, protected resource, account id and catalog-derived write actions', () => {
+    const { getByTestId } = renderScreen({
+      scopes: ['email.read', 'email.send'],
+      user: {
+        accountId: 'account-mail-1',
+        displayName: 'Oxy Mail',
+        handle: 'oxy-mail-account',
+      },
+      resource: {
+        application: { name: 'Inbox', iconUrl: 'inbox-icon' },
+        uri: 'https://mcp.inbox.oxy.so',
+        writeActions: [{
+          name: 'sendEmail',
+          version: '1.0.0',
+          description: 'Send an email from the selected mailbox.',
+          requiredCapabilities: ['email.send'],
+          effect: 'external',
+        }],
+      },
+    });
+
+    expect(getByTestId('consent-resource-app').textContent).toBe('Inbox');
+    expect(getByTestId('consent-resource-uri').textContent).toBe('https://mcp.inbox.oxy.so');
+    expect(getByTestId('consent-account-id').textContent).toContain('account-mail-1');
+    expect(getByTestId('consent-scope-email.send').textContent).toContain('email.send');
+    expect(getByTestId('consent-write-action-sendEmail').textContent).toContain(
+      'Send an email from the selected mailbox.',
+    );
+    expect(getByTestId('consent-write-action-sendEmail').textContent).toContain('External');
   });
 
   it('falls back to the handle when the account has no display name (D5)', () => {
