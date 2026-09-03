@@ -46,6 +46,7 @@ import {
   type NativeProductAgentDriftField,
   type NativeProductAgentDriftTarget,
   NativeProductAgentStateDriftError,
+  NativeProductAgentAccountAdoptionReviewError,
   NativeProductAgentUsernameCollisionError,
   nativeProductAgentBootstrapFailureResult,
 } from "../src/scripts/nativeProductAgentBootstrapFailure";
@@ -224,6 +225,27 @@ async function requireOxyOrganization(tx: Transaction): Promise<void> {
   });
 }
 
+async function observeBoundApplication(
+  tx: Transaction,
+  applicationId: string,
+): Promise<NativeProductAgentBoundApplication | null> {
+  const [row] = await tx
+    .select({
+      id: applications.id,
+      ownerAccountId: applications.ownerAccountId,
+      type: applications.type,
+      status: applications.status,
+      isOfficial: applications.isOfficial,
+      isInternal: applications.isInternal,
+      createdByUserId: applications.createdByUserId,
+    })
+    .from(applications)
+    .where(eq(applications.id, applicationId))
+    .limit(1)
+    .for("update");
+  return row ?? null;
+}
+
 async function observeAccount(
   tx: Transaction,
   spec: AccountSpec,
@@ -265,24 +287,10 @@ async function observeAccount(
   }
   const usernameHolder = usernameHolders[0];
   if (usernameHolder && usernameHolder.id !== spec.id) {
-    let boundApplication: NativeProductAgentBoundApplication | null = null;
-    if (boundApplicationId !== null) {
-      const [row] = await tx
-        .select({
-          id: applications.id,
-          ownerAccountId: applications.ownerAccountId,
-          type: applications.type,
-          status: applications.status,
-          isOfficial: applications.isOfficial,
-          isInternal: applications.isInternal,
-          createdByUserId: applications.createdByUserId,
-        })
-        .from(applications)
-        .where(eq(applications.id, boundApplicationId))
-        .limit(1)
-        .for("update");
-      boundApplication = row ?? null;
-    }
+    const boundApplication =
+      boundApplicationId === null
+        ? null
+        : await observeBoundApplication(tx, boundApplicationId);
     throw new NativeProductAgentUsernameCollisionError(
       spec.id,
       usernameHolder,
@@ -290,6 +298,55 @@ async function observeAccount(
     );
   }
   if (!row) return { spec, exists: false };
+
+  const path = await tx
+    .select({
+      depth: userAncestors.depth,
+      ancestorId: userAncestors.ancestorId,
+    })
+    .from(userAncestors)
+    .where(eq(userAncestors.userId, spec.id))
+    .orderBy(asc(userAncestors.depth));
+  const canonicalPresentationMatches =
+    row.username === spec.username && row.nameDisplay === spec.displayName;
+  const accountStructureMatches = same(
+    {
+      id: row.id,
+      kind: row.kind,
+      type: row.type,
+      parentAccountId: row.parentAccountId,
+      rootAccountId: row.rootAccountId,
+      accountStatus: row.accountStatus,
+      privacyIsPrivateAccount: row.privacyIsPrivateAccount,
+    },
+    {
+      id: spec.id,
+      kind: spec.kind,
+      type: spec.kind === "bot" ? "automated" : "local",
+      parentAccountId: spec.parentAccountId,
+      rootAccountId: spec.rootAccountId,
+      accountStatus: "active",
+      privacyIsPrivateAccount: spec.kind === "bot",
+    },
+  );
+  const ancestryMatches = same(
+    path,
+    spec.ancestors.map((ancestorId, depth) => ({ depth, ancestorId })),
+  );
+  if (
+    boundApplicationId !== null &&
+    (!canonicalPresentationMatches ||
+      !accountStructureMatches ||
+      !ancestryMatches)
+  ) {
+    throw new NativeProductAgentAccountAdoptionReviewError(
+      spec.id,
+      row,
+      canonicalPresentationMatches,
+      ancestryMatches,
+      await observeBoundApplication(tx, boundApplicationId),
+    );
+  }
 
   assertExact(accountDriftTarget(spec.id, false), `Account ${spec.id}`, row, {
     id: spec.id,
@@ -302,14 +359,6 @@ async function observeAccount(
     accountStatus: "active",
     privacyIsPrivateAccount: spec.kind === "bot",
   });
-  const path = await tx
-    .select({
-      depth: userAncestors.depth,
-      ancestorId: userAncestors.ancestorId,
-    })
-    .from(userAncestors)
-    .where(eq(userAncestors.userId, spec.id))
-    .orderBy(asc(userAncestors.depth));
   assertExact(
     accountDriftTarget(spec.id, true),
     `Account ${spec.id} ancestry`,
