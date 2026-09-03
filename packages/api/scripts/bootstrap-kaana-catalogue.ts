@@ -16,9 +16,21 @@
  * AWS authentication must come from the dedicated ECS task role in production,
  * or an operator's named AWS profile locally. Static AWS keys in env are refused.
  *   INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE_TASK_DEFINITION_ARN
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_BOOTSTRAP_TASK_DEFINITION_ARN
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_IMAGE
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_ATTESTED_AT
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_CLUSTER
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE
+ *     fresh output from the serialized production workflow after two complete
+ *     ECS old-task-zero observations; APPLY binds the dedicated one-shot to its
+ *     local metadata, independently repeats the live ECS proof before DB access,
+ *     and repeats it inside the transaction immediately before commit
  *
- * Apply:
- *   APPLY=1 bun run packages/api/scripts/bootstrap-kaana-catalogue.ts
+ * Production apply:
+ *   dispatch `.github/workflows/bootstrap-kaana-catalogue.yml` from `main`.
+ *   Direct APPLY is unsupported during the rolling scope bridge because the
+ *   workflow owns the deploy lock, double ECS observation and final readback.
  *
  * If no reviewer exists yet, first follow
  * docs/runbooks/bootstrap-catalogue-reviewer.md. This script never grants its
@@ -26,7 +38,7 @@
  */
 
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import {
   KAANA_INITIAL_BALANCED_FORMULA_REF,
   KAANA_INITIAL_MODEL,
@@ -50,6 +62,8 @@ import {
   type KaanaInitialInventoryAttestation,
 } from "../src/config/kaanaInitialInventory";
 import { routingScoreValidityThreshold } from "../src/config/inferenceRoutingScoreValidity";
+import { requireSingleLogicalDeployment } from "../src/config/kaanaBootstrapDeploymentSelection";
+import { assertPlatformScopeWriteRolloutComplete } from "../src/config/inferencePlatformScopeWriteGate";
 import { closePostgres, connectPostgres, getDb } from "../src/config/postgres";
 import {
   inferenceDeploymentRoutingScoreEvents,
@@ -61,6 +75,8 @@ import {
   inferencePublishers,
   inferenceRoutingProfileCandidates,
   inferenceRoutingProfiles,
+  LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
+  normalizeInferenceDeploymentAvailabilityScope,
   priceVersionUnitPrices,
   priceVersions,
   users,
@@ -419,7 +435,7 @@ async function ensureDeployment(
     zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
     subprocessors: null,
     policyUrl: provider.policyUrl,
-    availabilityScope: "internal_alia" as const,
+    availabilityScope: "platform_internal" as const,
     commercialPermission: "standard_application_use" as const,
     permissionState: "approved" as const,
     legalReviewStatus: "approved" as const,
@@ -429,7 +445,7 @@ async function ensureDeployment(
     permissionStateChangedAt: new Date(KAANA_INITIAL_REVIEWED_AT),
     permissionStateChangedByUserId: reviewerUserId!,
     permissionStateNote:
-      "Owner-approved initial internal Alia route; primary-source review 2026-09-02.",
+      "Owner-approved initial platform-internal Kaana route; primary-source review 2026-09-02.",
     status: "active" as const,
     dedicatedCapacity: false,
     priceVersionId,
@@ -439,23 +455,37 @@ async function ensureDeployment(
     upstreamWholesaleCostUnit: null,
     upstreamWholesaleCostPer: null,
   };
-  let [row] = await tx
-    .select()
-    .from(inferenceDeployments)
-    .where(
-      and(
-        eq(inferenceDeployments.modelRevisionId, revisionId),
-        eq(inferenceDeployments.providerSlug, provider.slug),
-        eq(inferenceDeployments.availabilityScope, "internal_alia"),
-      ),
-    );
-  if (row === undefined) {
-    [row] = await tx.insert(inferenceDeployments).values(expected).returning();
+  const readLogicalDeploymentRows = () =>
+    tx
+      .select()
+      .from(inferenceDeployments)
+      .where(
+        and(
+          eq(inferenceDeployments.modelRevisionId, revisionId),
+          eq(inferenceDeployments.providerSlug, provider.slug),
+          or(
+            eq(inferenceDeployments.availabilityScope, "platform_internal"),
+            sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`,
+          ),
+        ),
+      );
+  let rows = await readLogicalDeploymentRows();
+  if (rows.length === 0) {
+    await tx.insert(inferenceDeployments).values(expected);
     inserted.push(`deployment:${provider.deploymentId}`);
+    rows = await readLogicalDeploymentRows();
   }
-  if (row === undefined)
-    throw new Error(`Deployment ${provider.deploymentId} was not created`);
-  assertFields(`deployment:${provider.deploymentId}`, row, expected);
+  const row = requireSingleLogicalDeployment(rows, provider.deploymentId);
+  assertFields(
+    `deployment:${provider.deploymentId}`,
+    {
+      ...row,
+      availabilityScope: normalizeInferenceDeploymentAvailabilityScope(
+        row.availabilityScope,
+      ),
+    },
+    expected,
+  );
 }
 
 async function ensureScorecard(
@@ -618,52 +648,61 @@ async function ensureProfiles(
 }
 
 async function bootstrap(): Promise<BootstrapSummary> {
-  const inventory = await requireLiveInventory();
-  await connectPostgres();
-  const inserted: string[] = [];
-  let summary: BootstrapSummary | undefined;
+  const rolloutGuard = await assertPlatformScopeWriteRolloutComplete(
+    APPLY,
+    process.env,
+  );
   try {
-    await getDb().transaction(async (tx) => {
-      await requireReviewer(tx);
-      await ensurePublisher(tx, inserted);
-      const modelId = await ensureModel(tx, inserted);
-      const revisionId = await ensureRevision(tx, modelId, inserted);
+    const inventory = await requireLiveInventory();
+    await connectPostgres();
+    const inserted: string[] = [];
+    let summary: BootstrapSummary | undefined;
+    try {
+      await getDb().transaction(async (tx) => {
+        await requireReviewer(tx);
+        await ensurePublisher(tx, inserted);
+        const modelId = await ensureModel(tx, inserted);
+        const revisionId = await ensureRevision(tx, modelId, inserted);
 
-      for (const provider of KAANA_INITIAL_PROVIDERS) {
-        await ensureProvider(tx, provider, inserted);
-        const priceVersionId = await ensurePriceVersion(tx, provider, inserted);
-        await ensureDeployment(
-          tx,
-          provider,
-          revisionId,
-          priceVersionId,
+        for (const provider of KAANA_INITIAL_PROVIDERS) {
+          await ensureProvider(tx, provider, inserted);
+          const priceVersionId = await ensurePriceVersion(tx, provider, inserted);
+          await ensureDeployment(
+            tx,
+            provider,
+            revisionId,
+            priceVersionId,
+            inserted,
+          );
+          await ensureScorecard(tx, provider, priceVersionId, inserted);
+        }
+        const routingProfileIds = await ensureProfiles(tx, revisionId, inserted);
+        summary = {
+          inventorySnapshotId: inventory.snapshotId,
+          inventoryIssuedAt: inventory.issuedAt,
+          inventoryVersionId: inventory.versionId,
+          publisher: KAANA_INITIAL_PUBLISHER.slug,
+          model: `${KAANA_INITIAL_PUBLISHER.slug}/${KAANA_INITIAL_MODEL.slug}`,
+          revision: KAANA_INITIAL_MODEL_REFERENCE,
+          providers: KAANA_INITIAL_PROVIDERS.map((provider) => provider.slug),
+          deployments: KAANA_INITIAL_PROVIDERS.map(
+            (provider) => provider.deploymentId,
+          ),
+          routingProfileIds,
           inserted,
-        );
-        await ensureScorecard(tx, provider, priceVersionId, inserted);
-      }
-      const routingProfileIds = await ensureProfiles(tx, revisionId, inserted);
-      summary = {
-        inventorySnapshotId: inventory.snapshotId,
-        inventoryIssuedAt: inventory.issuedAt,
-        inventoryVersionId: inventory.versionId,
-        publisher: KAANA_INITIAL_PUBLISHER.slug,
-        model: `${KAANA_INITIAL_PUBLISHER.slug}/${KAANA_INITIAL_MODEL.slug}`,
-        revision: KAANA_INITIAL_MODEL_REFERENCE,
-        providers: KAANA_INITIAL_PROVIDERS.map((provider) => provider.slug),
-        deployments: KAANA_INITIAL_PROVIDERS.map(
-          (provider) => provider.deploymentId,
-        ),
-        routingProfileIds,
-        inserted,
-      };
-      if (!APPLY) throw new DryRunRollback("dry-run rollback");
-    });
-  } catch (error) {
-    if (!(error instanceof DryRunRollback)) throw error;
+        };
+        await rolloutGuard.assertStillComplete();
+        if (!APPLY) throw new DryRunRollback("dry-run rollback");
+      });
+    } catch (error) {
+      if (!(error instanceof DryRunRollback)) throw error;
+    }
+    if (summary === undefined)
+      throw new Error("Bootstrap transaction produced no summary");
+    return summary;
+  } finally {
+    rolloutGuard.close();
   }
-  if (summary === undefined)
-    throw new Error("Bootstrap transaction produced no summary");
-  return summary;
 }
 
 bootstrap()

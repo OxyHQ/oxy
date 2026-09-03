@@ -41,6 +41,7 @@ jest.mock('../../utils/logger', () => ({
 import type { ModelCatalogueEntry } from '@oxyhq/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { CATALOGUE_AUDIENCE_VARIABLE } from '../../config/rolloutFlags';
+import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import {
   inferenceDeployments,
@@ -124,19 +125,35 @@ async function seed(): Promise<void> {
       ownerAccountId: account.id,
       type: 'internal',
       isInternal: true,
+      scopes: ['inference:invoke'],
     })
     .returning({ id: applications.id });
 
-  // The SAME claim set `middleware/serviceToken.ts` verifies — `type: 'service'`
-  // included, without which this resolves to the public viewer and every
-  // "the internal audience still sees it" control below would pass for the
-  // wrong reason.
+  // A signed token alone no longer establishes the internal viewer: the route
+  // re-resolves this exact credential id so revocation and application status
+  // remain authoritative for the token's lifetime. Seed the live row the real
+  // service-token mint requires, otherwise this fixture correctly resolves as
+  // public and the publication control below measures the wrong audience.
+  const [credential] = await db
+    .insert(applicationCredentials)
+    .values({
+      applicationId: internalApplication.id,
+      name: `Internal Catalogue ${tag}`,
+      publicKey: `oxy_dk_${tag}`,
+      type: 'service',
+      environment: 'production',
+      scopes: ['inference:invoke'],
+      status: 'active',
+      createdByUserId: account.id,
+    })
+    .returning({ id: applicationCredentials.id });
+
   internalToken = jwt.sign(
     {
       type: 'service',
       appId: internalApplication.id,
       appName: `Internal ${tag}`,
-      credentialId: `cred-${tag}`,
+      credentialId: credential.id,
       ownerAccountId: account.id,
       environment: 'production',
       scopes: ['inference:invoke'],

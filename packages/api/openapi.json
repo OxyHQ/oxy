@@ -25602,7 +25602,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              2
+                              3
                             ]
                           },
                           "modelId": {
@@ -25992,7 +25992,7 @@
                           "availabilityScope": {
                             "type": "string",
                             "enum": [
-                              "internal_alia",
+                              "platform_internal",
                               "public_payg",
                               "enterprise",
                               "byok_only",
@@ -26335,7 +26335,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              2
+                              3
                             ]
                           },
                           "modelId": {
@@ -26725,7 +26725,7 @@
                           "availabilityScope": {
                             "type": "string",
                             "enum": [
-                              "internal_alia",
+                              "platform_internal",
                               "public_payg",
                               "enterprise",
                               "byok_only",
@@ -26954,7 +26954,7 @@
                         "schemaVersion": {
                           "type": "number",
                           "enum": [
-                            2
+                            3
                           ]
                         },
                         "modelId": {
@@ -27344,7 +27344,7 @@
                         "availabilityScope": {
                           "type": "string",
                           "enum": [
-                            "internal_alia",
+                            "platform_internal",
                             "public_payg",
                             "enterprise",
                             "byok_only",
@@ -35433,7 +35433,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              2
+                              3
                             ]
                           },
                           "modelId": {
@@ -35823,7 +35823,7 @@
                           "availabilityScope": {
                             "type": "string",
                             "enum": [
-                              "internal_alia",
+                              "platform_internal",
                               "public_payg",
                               "enterprise",
                               "byok_only",
@@ -36166,7 +36166,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              2
+                              3
                             ]
                           },
                           "modelId": {
@@ -36556,7 +36556,7 @@
                           "availabilityScope": {
                             "type": "string",
                             "enum": [
-                              "internal_alia",
+                              "platform_internal",
                               "public_payg",
                               "enterprise",
                               "byok_only",
@@ -36785,7 +36785,7 @@
                         "schemaVersion": {
                           "type": "number",
                           "enum": [
-                            2
+                            3
                           ]
                         },
                         "modelId": {
@@ -37175,7 +37175,7 @@
                         "availabilityScope": {
                           "type": "string",
                           "enum": [
-                            "internal_alia",
+                            "platform_internal",
                             "public_payg",
                             "enterprise",
                             "byok_only",

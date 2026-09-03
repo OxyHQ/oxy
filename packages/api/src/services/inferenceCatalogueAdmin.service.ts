@@ -26,6 +26,7 @@
  */
 
 import { and, eq, ne } from 'drizzle-orm';
+import type { AvailabilityScope } from '@oxyhq/contracts';
 import { getDb } from '../config/postgres';
 import { routingScoreValidityThreshold } from '../config/inferenceRoutingScoreValidity';
 import {
@@ -40,6 +41,7 @@ import {
   inferenceDeployments,
   inferenceModelRevisions,
   inferenceModels,
+  normalizeInferenceDeploymentAvailabilityScope,
   priceVersions,
 } from '../db/schema';
 import { violatesUniqueIndex } from '../utils/postgresErrors';
@@ -143,10 +145,10 @@ export interface DeploymentRoutingScorecard {
   readonly reason: string;
 }
 
-const SERVING_AVAILABILITY_SCOPES = [
+const SERVING_AVAILABILITY_SCOPES: readonly AvailabilityScope[] = [
   'public_payg',
   'oxy_hosted',
-  'internal_alia',
+  'platform_internal',
   'byok_only',
 ] as const;
 const APPROVED_IDENTITY_CONFLICT =
@@ -284,7 +286,7 @@ export async function setDeploymentRoutingScores(input: {
       (deployment) =>
         deployment.permissionState === 'approved' &&
         SERVING_AVAILABILITY_SCOPES.includes(
-          deployment.availabilityScope as (typeof SERVING_AVAILABILITY_SCOPES)[number]
+          normalizeInferenceDeploymentAvailabilityScope(deployment.availabilityScope)
         )
     );
     const minimumValidUntil =
@@ -467,7 +469,7 @@ export async function applyPermissionAction(
         );
       }
       const requiresRoutingReadiness = SERVING_AVAILABILITY_SCOPES.includes(
-        existing.availabilityScope as (typeof SERVING_AVAILABILITY_SCOPES)[number]
+        normalizeInferenceDeploymentAvailabilityScope(existing.availabilityScope)
       );
       if (requiresRoutingReadiness && existing.internalRouteId === null) {
         throw new DeploymentPermissionRefused(

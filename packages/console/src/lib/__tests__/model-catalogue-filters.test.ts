@@ -45,7 +45,7 @@ function entry(overrides: {
   };
 
   return modelCatalogueEntrySchema.parse({
-    schemaVersion: 2,
+    schemaVersion: 3,
     modelId: overrides.modelId,
     publisher: {
       slug: publisherSlug,
@@ -130,6 +130,15 @@ const CATALOGUE: Array<ModelCatalogueEntry> = [
     retainsPayloads: false,
   }),
 ];
+
+describe('the catalogue contract fixture', () => {
+  it('uses schema v3 and rejects a mutation back to the retired v2 entry', () => {
+    expect(CATALOGUE.every((item) => item.schemaVersion === 3)).toBe(true);
+    expect(
+      modelCatalogueEntrySchema.safeParse({ ...CATALOGUE[0], schemaVersion: 2 }).success
+    ).toBe(false);
+  });
+});
 
 /**
  * A catalogue with PRICES, deliberately not tidy.

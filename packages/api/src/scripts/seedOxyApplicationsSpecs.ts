@@ -354,24 +354,12 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Alia',
     description: 'Official Oxy AI platform (chat app, console, canvas, gateway).',
     websiteUrl: 'https://alia.onl',
-    // `internal`, not `first_party`, and this is the load-bearing field of the
-    // whole workstream-14 registration rather than a label.
-    //
-    // `resolveCatalogueViewer` (`services/inferenceCatalogue.service.ts`) grants
-    // the `internal_alia` availability scope to `internal`/`system` applications
-    // ONLY, and it excludes `first_party` on purpose: Console and Accounts are
-    // first-party and customer-facing, so handing that type the internal
-    // audience would put internal-only routes in front of customers. Alia
-    // registered as `first_party` is therefore a PUBLIC catalogue viewer — it
-    // cannot be routed to the very deployments whose availability scope is named
-    // after it, and the symptom is a model that silently is not offered rather
-    // than an error.
-    //
-    // Nothing else narrows: `isTrustedApplication()` already accepts `internal`
-    // exactly as it accepts `first_party`, so the credentialed CORS lane, OAuth
-    // consent auto-approval, service-credential creation and the sign-in dialog
-    // are all unchanged. `computeSeedApplicationPlan` derives `isInternal` from
-    // this field, so the flag follows without a second declaration.
+    // Alia remains `internal` because rollout/canary gates distinguish the agent
+    // runtime from customer-facing official products. Catalogue availability no
+    // longer carries an Alia-specific identity: both `first_party` and `internal`
+    // applications may consume reviewed `platform_internal` Kaana routes.
+    // `computeSeedApplicationPlan` derives `isInternal` from this field, so the
+    // flag follows without a second declaration.
     type: 'internal',
     redirectUris: ['https://alia.onl'],
     // See ALIA_APPLICATION_SCOPES for the grant and, more importantly, for the

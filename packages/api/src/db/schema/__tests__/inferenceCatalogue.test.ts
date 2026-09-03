@@ -449,7 +449,7 @@ describe('a route is unselectable until somebody approves it', () => {
         .insert(inferenceDeployments)
         .values({
           ...(await deploymentDefaults()),
-          availabilityScope: 'internal_alia',
+          availabilityScope: 'platform_internal',
           commercialPermission: 'standard_application_use',
         })
     ).resolves.toBeDefined();

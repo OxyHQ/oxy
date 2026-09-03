@@ -25,6 +25,7 @@ jobs:
           bash .github/scripts/test-run-native-product-agent-bootstrap.sh
           bash .github/scripts/test-report-native-product-agent-task-failure.sh
           bash .github/scripts/test-smoke-inbox-mcp.sh
+          bash .github/scripts/test-attest-kaana-catalogue-rollout.sh
           node scripts/test-check-kaana-dns-boundary.mjs
           node scripts/check-kaana-dns-boundary.mjs
           node scripts/test-check-kaana-identity.mjs
@@ -32,6 +33,7 @@ jobs:
           node scripts/test-service-credential-workflow-ids.mjs
           node scripts/test-seed-oxy-applications-workflow.mjs
           node scripts/test-native-product-agent-bootstrap-workflow.mjs
+          node scripts/test-kaana-catalogue-bootstrap-workflow.mjs
           node scripts/test-check-kaana-request-v2-rollout.mjs
           node scripts/check-kaana-request-v2-rollout.mjs
           node scripts/test-check-kaana-signed-canary.mjs

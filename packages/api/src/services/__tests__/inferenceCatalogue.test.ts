@@ -21,7 +21,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   inferenceDeployments,
@@ -32,6 +32,7 @@ import {
   inferencePublishers,
   inferenceRoutingProfileCandidates,
   inferenceRoutingProfiles,
+  LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
   priceVersions,
   priceVersionUnitPrices,
   users,
@@ -47,6 +48,7 @@ import {
   UNCONSTRAINED_ROUTING,
   UNGRANTABLE_SCOPES,
 } from '../inferenceCatalogue.service';
+import { readInferenceRoutingReadinessRows } from '../inferenceRoutingReadiness.service';
 
 beforeAll(async () => {
   await connectPostgres();
@@ -62,6 +64,65 @@ function suffix(): string {
 
 const INTERNAL_VIEWER = resolveCatalogueViewer({ type: 'internal', isInternal: true });
 
+describe('the rolling availability-scope bridge', () => {
+  it('keeps legacy rows visible to old and new readers but emits only platform_internal', async () => {
+    const legacy = await insertRoute({
+      availabilityScope: 'platform_internal',
+      commercialPermission: 'standard_application_use',
+    });
+    const current = await insertRoute({
+      availabilityScope: 'platform_internal',
+      commercialPermission: 'standard_application_use',
+    });
+
+    // Simulate the bytes left by the previous image. Raw SQL is deliberate:
+    // the new Drizzle write type excludes this storage-only compatibility value.
+    await getDb().execute(sql`
+      update ${inferenceDeployments}
+      set availability_scope = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}
+      where ${inferenceDeployments.id} = ${legacy.deploymentId}
+    `);
+
+    // Old pods still use this exact predicate. The PRE migration must preserve
+    // the row until PR2 backfills it after the bridge has reached production.
+    const oldReader = await getDb()
+      .select({ deploymentId: inferenceDeployments.id })
+      .from(inferenceDeployments)
+      .where(
+        and(
+          eq(inferenceDeployments.id, legacy.deploymentId),
+          sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`
+        )
+      );
+    expect(oldReader).toEqual([{ deploymentId: legacy.deploymentId }]);
+
+    const entries = await listCatalogueForViewer(INTERNAL_VIEWER);
+    const bridged = entries.find((entry) => entry.modelId === legacy.modelId);
+    const native = entries.find((entry) => entry.modelId === current.modelId);
+    expect(bridged?.availabilityScope).toBe('platform_internal');
+    expect(native?.availabilityScope).toBe('platform_internal');
+    expect(JSON.stringify([bridged, native])).not.toContain(
+      LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE
+    );
+
+    const selected = await selectRouteForViewer(
+      INTERNAL_VIEWER,
+      legacy.modelReference,
+      UNCONSTRAINED_ROUTING
+    );
+    expect(selected?.availabilityScope).toBe('platform_internal');
+
+    const publicEntries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER);
+    expect(publicEntries.some((entry) => entry.modelId === legacy.modelId)).toBe(false);
+
+    // Readiness does not expose availabilityScope, but its serving census must
+    // include both storage spellings or the deploy gate would omit a live route.
+    const readiness = await readInferenceRoutingReadinessRows();
+    expect(readiness.some((row) => row.deploymentId === legacy.internalRouteId)).toBe(true);
+    expect(readiness.some((row) => row.deploymentId === current.internalRouteId)).toBe(true);
+  });
+});
+
 interface RouteFixture {
   readonly modelId: string;
   readonly modelReference: string;
@@ -69,6 +130,7 @@ interface RouteFixture {
   readonly revisionRowId: string;
   readonly providerSlug: string;
   readonly deploymentId: string;
+  readonly internalRouteId: string;
 }
 
 /**
@@ -77,7 +139,7 @@ interface RouteFixture {
  * test of "who may see what" needs something visible to somebody.
  */
 async function insertRoute(options: {
-  availabilityScope: 'public_payg' | 'internal_alia' | 'oxy_hosted' | 'byok_only';
+  availabilityScope: 'public_payg' | 'platform_internal' | 'oxy_hosted' | 'byok_only';
   commercialPermission:
     | 'public_resale_approved'
     | 'standard_application_use'
@@ -278,6 +340,7 @@ async function insertRoute(options: {
     revisionRowId: revisionRow.id,
     providerSlug,
     deploymentId: deployment.id,
+    internalRouteId: exactDeploymentId,
   };
 }
 
@@ -362,7 +425,7 @@ async function insertSiblingDeployment(
 describe('an internal-only route cannot be selected by a public credential', () => {
   it('withholds the internal route, serves the public one, and shows the internal viewer both', async () => {
     const internalOnly = await insertRoute({
-      availabilityScope: 'internal_alia',
+      availabilityScope: 'platform_internal',
       commercialPermission: 'standard_application_use',
     });
     const publicRoute = await insertRoute({
@@ -390,7 +453,7 @@ describe('an internal-only route cannot be selected by a public credential', () 
 
   it('keeps the internal route out of the public catalogue listing too', async () => {
     const internalOnly = await insertRoute({
-      availabilityScope: 'internal_alia',
+      availabilityScope: 'platform_internal',
       commercialPermission: 'standard_application_use',
     });
     const publicRoute = await insertRoute({
@@ -415,7 +478,7 @@ describe('an internal-only route cannot be selected by a public credential', () 
     // Deliberately the same answer: distinguishing them would make the detail
     // endpoint an existence oracle for what Oxy runs internally.
     const internalOnly = await insertRoute({
-      availabilityScope: 'internal_alia',
+      availabilityScope: 'platform_internal',
       commercialPermission: 'standard_application_use',
     });
 
@@ -584,7 +647,7 @@ describe('catalogue terms are aggregates, never the terms of a name-sorted route
       (candidate) => candidate.modelId === route.modelId
     );
     expect(entry).toBeDefined();
-    expect(entry?.schemaVersion).toBe(2);
+    expect(entry?.schemaVersion).toBe(3);
 
     // Provider ordering is deterministic customer presentation only. Even
     // though this route sorts first by name, none of its singular commercial
@@ -621,7 +684,7 @@ describe('the permission gate has no exemption', () => {
     // The exemption that does not exist. An internal route needs the same
     // approval a public one does; a branch here is where a gate silently widens.
     const pending = await insertRoute({
-      availabilityScope: 'internal_alia',
+      availabilityScope: 'platform_internal',
       commercialPermission: 'standard_application_use',
       permissionState: 'pending_review',
     });
@@ -630,7 +693,7 @@ describe('the permission gate has no exemption', () => {
     // Control: the same viewer selects an APPROVED internal route, so the case
     // above is measuring the permission state and not the audience.
     const approved = await insertRoute({
-      availabilityScope: 'internal_alia',
+      availabilityScope: 'platform_internal',
       commercialPermission: 'standard_application_use',
     });
     await expect(selectRouteForViewer(INTERNAL_VIEWER, approved.modelId, UNCONSTRAINED_ROUTING)).resolves.toBeDefined();
@@ -652,19 +715,19 @@ describe('the audience is default-deny', () => {
   it.each([
     ['no principal at all', undefined],
     ['an ordinary third-party application', { type: 'third_party', isInternal: false }],
-    ['a first-party but customer-facing application', { type: 'first_party', isInternal: false }],
   ])('resolves %s to the public viewer', (_label, principal) => {
     const viewer = resolveCatalogueViewer(principal);
-    expect(viewer.scopes).not.toContain('internal_alia');
+    expect(viewer.scopes).not.toContain('platform_internal');
     expect(viewer.label).toBe('public');
   });
 
   it.each([
+    ['a staff-controlled first-party application', { type: 'first_party', isInternal: false }],
     ['an internal application', { type: 'internal', isInternal: true }],
     ['a system application', { type: 'system', isInternal: false }],
     ['an application flagged internal', { type: 'third_party', isInternal: true }],
-  ])('resolves %s to the internal viewer', (_label, principal) => {
-    expect(resolveCatalogueViewer(principal).scopes).toContain('internal_alia');
+  ])('resolves %s to a platform viewer', (_label, principal) => {
+    expect(resolveCatalogueViewer(principal).scopes).toContain('platform_internal');
   });
 
   it('grants no viewer a scope that is not grantable yet', async () => {

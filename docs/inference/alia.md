@@ -26,21 +26,19 @@ An ordinary consumer, with three things that make it a first-party one:
 The declaration is `packages/api/src/scripts/seedOxyApplicationsSpecs.ts`, held
 by `packages/api/src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts`.
 
-### `internal`, not `first_party` — this is load-bearing
+### Alia is internal; route availability is platform-wide
 
-`resolveCatalogueViewer` (`packages/api/src/services/inferenceCatalogue.service.ts`)
-grants the `internal_alia` availability scope to `internal` and `system`
-applications only, and excludes `first_party` deliberately: Console and Accounts
-are first-party and customer-facing, so handing that type the internal audience
-would put internal-only routes in front of customers.
+`resolveCatalogueViewer` grants the `platform_internal` availability scope to
+staff-controlled `first_party`, `internal` and `system` applications. This is
+the commercial boundary for reviewed routes that official Oxy products may use
+without claiming public resale rights. Third-party applications and plain user
+bearers see only the public scopes.
 
-Registered as `first_party`, Alia is a **public catalogue viewer** — it cannot be
-routed to the very deployments whose availability scope is named after it, and
-the symptom is a model quietly not being offered rather than an error.
-
-Nothing else narrows as a result. `isTrustedApplication()` accepts `internal`
-exactly as it accepts `first_party`, so the credentialed CORS lane, OAuth consent
-auto-approval, service-credential creation and the sign-in dialog are unchanged.
+Alia remains `internal` because rollout and canary gates distinguish the agent
+runtime from customer-facing official products. That classification no longer
+names or owns a provider route: Kaana is the inference data plane, and Inbox or
+another official product can consume the same reviewed platform route directly
+through Oxy without pretending to be Alia.
 
 ### Scopes: what Alia holds, and what it does not
 
@@ -262,8 +260,8 @@ is not recoverable, only its hash is stored, so a fresh secret means a rotation.
 
 **`service`, not `machine`.** The `oxy_sk_*` machine lane exists so external
 developers can use a standard OpenAI SDK without implementing a token exchange;
-it authenticates on no route today. Alia is a platform-trusted first-party
-service and takes the native lane, which is the one that works.
+it authenticates on no route today. Alia is a platform-trusted internal service
+and takes the native lane, which is the one that works.
 
 The credential's scopes are intersected with the application's at every mint
 (`intersectScopes`), so step 2 must have landed or the intersection drops them.

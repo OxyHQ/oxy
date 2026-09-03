@@ -53,7 +53,7 @@ const model = {
 };
 
 const deployment = {
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   deploymentId: 'dep_1',
   provider: 'oxy-hosted',
   modelReference: 'meta/llama-4-70b@2026-03-01',
@@ -242,6 +242,17 @@ describe('modelRevisionSchema', () => {
 });
 
 describe('modelDeploymentSchema', () => {
+  it('accepts only the current version and the platform-wide internal scope', () => {
+    expect(modelDeploymentSchema.safeParse(deployment).success).toBe(true);
+    expect(modelDeploymentSchema.safeParse({ ...deployment, schemaVersion: 1 }).success).toBe(
+      false,
+    );
+    expect(
+      modelDeploymentSchema.safeParse({ ...deployment, availabilityScope: 'internal_alia' })
+        .success,
+    ).toBe(false);
+  });
+
   it('accepts an empty region set as unattested, never as a fabricated region', () => {
     const parsed = modelDeploymentSchema.parse({ ...deployment, regions: [] });
     expect(parsed.regions).toEqual([]);
@@ -266,7 +277,7 @@ describe('modelDeploymentSchema', () => {
     expect(
       modelDeploymentSchema.safeParse({
         ...deployment,
-        availabilityScope: 'internal_alia',
+        availabilityScope: 'platform_internal',
         commercialPermission: 'standard_application_use',
       }).success,
     ).toBe(true);

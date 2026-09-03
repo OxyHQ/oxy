@@ -265,7 +265,7 @@ jobs:
                 name:$container,
                 command:["node","packages/api/scripts/run-kaana-signed-canary.mjs"],
                 environment:[
-                  {name:"CANARY_CONTRACT_VERSION",value:"2.0.0"},
+                  {name:"CANARY_CONTRACT_VERSION",value:"3.0.0"},
                   {name:"CANARY_EXPECTED_SNAPSHOT_ID",value:$snapshot},
                   {name:"CANARY_DEPLOYMENT_ID",value:$deployment},
                   {name:"CANARY_ROUTING_PROFILE_ID",value:$profile},
@@ -363,7 +363,7 @@ jobs:
             --arg profile "$CANARY_ROUTING_PROFILE_ID" '
               .schemaVersion == 1 and
               .status == "passed" and
-              .contractVersion == "2.0.0" and
+              .contractVersion == "3.0.0" and
               .snapshotId == $snapshot and
               .deploymentId == $deployment and
               (.modelReference | type == "string" and length > 0) and
