@@ -218,9 +218,9 @@ Verify: `GET /billing/cost-centers` (staff bearer) returns five active centres.
 Workflow **Seed Oxy applications** (`.github/workflows/seed-oxy-applications.yml`).
 
 ```
-ref:        main
-only_apps:  Alia
-dry_run:    true      ← then false
+ref:           main
+only_app_ids:  6a2f851751b784a86fd0e934
+dry_run:       true      ← then false
 ```
 
 The plan should show `type: first_party → internal`, `isInternal: false → true`,
