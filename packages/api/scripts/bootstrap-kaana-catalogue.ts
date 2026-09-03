@@ -28,8 +28,9 @@
  *   KAANA_CATALOGUE_PLATFORM_SCOPE_CLUSTER
  *   KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE
  *     fresh output from the serialized production workflow after two complete
- *     ECS old-task-zero observations; APPLY binds the dedicated one-shot and
- *     immutable image to local ECS metadata before any inventory or DB access
+ *     ECS old-task-zero observations; APPLY binds the dedicated one-shot to its
+ *     local metadata, independently repeats the live ECS proof before DB access,
+ *     and repeats it inside the transaction immediately before commit
  *
  * Apply:
  *   APPLY=1 EXPECTED_PLAN_SHA256=... BOOTSTRAP_ACTOR=... \
@@ -774,11 +775,10 @@ async function ensureProfiles(
 }
 
 async function bootstrap(): Promise<BootstrapSummary> {
-  await assertPlatformScopeWriteRolloutComplete(APPLY, process.env);
-  const inventory = await requireLiveInventory();
-  await connectPostgres();
-  const inserted: string[] = [];
-  let summary: BootstrapSummary | undefined;
+  const rolloutGuard = await assertPlatformScopeWriteRolloutComplete(
+    APPLY,
+    process.env,
+  );
   try {
     await getDb().transaction(async (tx) => {
       await tx.execute(
@@ -789,14 +789,31 @@ async function bootstrap(): Promise<BootstrapSummary> {
       const modelId = await ensureModel(tx, inserted);
       const revisionId = await ensureRevision(tx, modelId, inserted);
 
-      for (const provider of KAANA_INITIAL_PROVIDERS) {
-        await ensureProvider(tx, provider, inserted);
-        const priceVersionId = await ensurePriceVersion(tx, provider, inserted);
-        await ensureDeployment(
-          tx,
-          provider,
-          revisionId,
-          priceVersionId,
+        for (const provider of KAANA_INITIAL_PROVIDERS) {
+          await ensureProvider(tx, provider, inserted);
+          const priceVersionId = await ensurePriceVersion(tx, provider, inserted);
+          await ensureDeployment(
+            tx,
+            provider,
+            revisionId,
+            priceVersionId,
+            inserted,
+          );
+          await ensureScorecard(tx, provider, priceVersionId, inserted);
+        }
+        const routingProfileIds = await ensureProfiles(tx, revisionId, inserted);
+        summary = {
+          inventorySnapshotId: inventory.snapshotId,
+          inventoryIssuedAt: inventory.issuedAt,
+          inventoryVersionId: inventory.versionId,
+          publisher: KAANA_INITIAL_PUBLISHER.slug,
+          model: `${KAANA_INITIAL_PUBLISHER.slug}/${KAANA_INITIAL_MODEL.slug}`,
+          revision: KAANA_INITIAL_MODEL_REFERENCE,
+          providers: KAANA_INITIAL_PROVIDERS.map((provider) => provider.slug),
+          deployments: KAANA_INITIAL_PROVIDERS.map(
+            (provider) => provider.deploymentId,
+          ),
+          routingProfileIds,
           inserted,
         );
         await ensureScorecard(tx, provider, priceVersionId, inserted);
@@ -847,9 +864,6 @@ async function bootstrap(): Promise<BootstrapSummary> {
   } catch (error) {
     if (!(error instanceof DryRunRollback)) throw error;
   }
-  if (summary === undefined)
-    throw new Error("Bootstrap transaction produced no summary");
-  return summary;
 }
 
 bootstrap()
