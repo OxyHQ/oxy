@@ -31,6 +31,7 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 | [0017](0017-authorized-routes-in-the-envelope.md) | #972 | The envelope carries an ordered list of PRE-AUTHORIZED ROUTES — the candidates that survived the customer's routing policy — so the data plane fails over by taking the next entry and holds no policy value; a switch outside the policy becomes unrepresentable rather than doubly enforced. Changes 0006 and 0010. |
 | [0018](0018-native-alia-agency-and-app-capability-catalogs.md) | — | Alia uses native current Oxy authority, created agents are separate zero-grant bot accounts, apps own one capability catalog, internal execution uses live-revalidated capability tickets, and external MCP access uses account- and resource-bound central OAuth. |
 | [0019](0019-kaana-byok-custody.md) | #972 | Every provider credential, including BYOK, lives as KMS ciphertext in Kaana PostgreSQL; Oxy stores only customer-facing metadata plus an opaque handle and revision. Source support is implemented while execution stays disabled pending production gates. |
+| [0020](0020-mcp-connections-hold-several-accounts.md) | — | An external MCP connection covers several accounts: Oxy groups grants under the connection, each account approves its own membership through a single-use link on the IdP, and introspection reports the set plus the selected member. Changes 0018. |
 
 ## Related
 

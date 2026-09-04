@@ -74,7 +74,7 @@ async function executeEffect(
     .update(requiredString(input, 'idempotencyKey'))
     .digest('hex');
   const identity = {
-    effectiveAccountId: context.principal.accountId,
+    effectiveAccountId: context.principal.activeAccountId,
     appSlug: INBOX_CAPABILITY_CATALOG.appId,
     tool,
     keyHash,
@@ -103,7 +103,7 @@ async function executeEffect(
 const handlers: Record<string, CatalogToolHandler> = {
   async searchEmails(input, context) {
     const result = await searchMessagesForUser(
-      context.principal.accountId,
+      context.principal.activeAccountId,
       input as SearchEmailCommand,
     );
     return { structuredContent: result };
@@ -111,7 +111,7 @@ const handlers: Record<string, CatalogToolHandler> = {
 
   async getUnreadEmails(input, context) {
     const result = await emailService.listMessages(
-      context.principal.accountId,
+      context.principal.activeAccountId,
       null,
       {
         limit: integer(input, 'limit', 50),
@@ -129,7 +129,7 @@ const handlers: Record<string, CatalogToolHandler> = {
 
   async readEmail(input, context) {
     const message = await emailService.getMessage(
-      context.principal.accountId,
+      context.principal.activeAccountId,
       requiredString(input, 'messageId'),
     );
     if (!message) throw new NotFoundError('Message not found');
@@ -138,7 +138,7 @@ const handlers: Record<string, CatalogToolHandler> = {
 
   async getEmailThread(input, context) {
     const thread = await emailService.getThread(
-      context.principal.accountId,
+      context.principal.activeAccountId,
       requiredString(input, 'messageId'),
     );
     return { structuredContent: { data: thread } };
@@ -147,7 +147,7 @@ const handlers: Record<string, CatalogToolHandler> = {
   async sendEmail(input, context) {
     const result = await executeEffect('sendEmail', input, context, async () => {
       const sent = await sendMessageForUser(
-        context.principal.accountId,
+        context.principal.activeAccountId,
         sendCommand(input),
         requiredString(input, 'idempotencyKey'),
       );
@@ -157,10 +157,10 @@ const handlers: Record<string, CatalogToolHandler> = {
   },
 
   async listMailboxes(_input, context) {
-    await emailService.ensureMailboxes(context.principal.accountId);
+    await emailService.ensureMailboxes(context.principal.activeAccountId);
     return {
       structuredContent: {
-        data: await emailService.listMailboxes(context.principal.accountId),
+        data: await emailService.listMailboxes(context.principal.activeAccountId),
       },
     };
   },
@@ -168,7 +168,7 @@ const handlers: Record<string, CatalogToolHandler> = {
   async listLabels(_input, context) {
     return {
       structuredContent: {
-        data: await emailService.listLabels(context.principal.accountId),
+        data: await emailService.listLabels(context.principal.activeAccountId),
       },
     };
   },
@@ -176,7 +176,7 @@ const handlers: Record<string, CatalogToolHandler> = {
   async moveEmail(input, context) {
     const result = await executeEffect('moveEmail', input, context, async () => ({
       data: await emailService.moveMessage(
-        context.principal.accountId,
+        context.principal.activeAccountId,
         requiredString(input, 'messageId'),
         requiredString(input, 'mailboxId'),
       ),
@@ -191,7 +191,7 @@ const handlers: Record<string, CatalogToolHandler> = {
     }
     const result = await executeEffect('updateEmailFlags', input, context, async () => ({
       data: await emailService.updateMessageFlags(
-        context.principal.accountId,
+        context.principal.activeAccountId,
         requiredString(input, 'messageId'),
         flags as Record<string, boolean>,
       ),
@@ -202,7 +202,7 @@ const handlers: Record<string, CatalogToolHandler> = {
   async getEmailQuota(_input, context) {
     return {
       structuredContent: {
-        data: await emailService.getQuotaUsage(context.principal.accountId),
+        data: await emailService.getQuotaUsage(context.principal.activeAccountId),
       },
     };
   },

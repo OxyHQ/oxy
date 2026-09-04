@@ -29,6 +29,8 @@ type SignUpFormProps = React.ComponentProps<"div"> & {
      * this popup to the relying party.
      */
     responseMode?: string
+    /** `?mcp_link_intent=` — return to `/mcp/link` after the account exists. */
+    mcpLinkIntent?: string
 }
 
 type AvailabilityStatus = "idle" | "checking" | "available" | "taken"
@@ -103,6 +105,7 @@ export function SignUpForm({
     resource,
     responseType,
     responseMode,
+    mcpLinkIntent,
     ...props
 }: SignUpFormProps) {
     const navigate = useNavigate()
@@ -118,6 +121,7 @@ export function SignUpForm({
         if (resource) params.set("resource", resource)
         if (responseType) params.set("response_type", responseType)
         if (responseMode) params.set("response_mode", responseMode)
+        if (mcpLinkIntent) params.set("mcp_link_intent", mcpLinkIntent)
         const query = params.toString()
         return query ? `/login?${query}` : "/login"
     })()
@@ -172,6 +176,7 @@ export function SignUpForm({
                 resource,
                 responseType,
                 responseMode,
+                mcpLinkIntent,
             }))
         } catch (err) {
             const message = describePasskeyError(err)

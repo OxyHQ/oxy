@@ -17,6 +17,7 @@ export function SignUpPage() {
       resource={searchParams.get("resource") ?? undefined}
       responseType={searchParams.get("response_type") ?? undefined}
       responseMode={searchParams.get("response_mode") ?? undefined}
+      mcpLinkIntent={searchParams.get("mcp_link_intent") ?? undefined}
     />
   );
 }

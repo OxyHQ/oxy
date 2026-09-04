@@ -78,6 +78,7 @@ import { devicePairingSessions } from './schema/devicePairingSessions';
 import { domainVerifications } from './schema/domainVerifications';
 import {
   mcpOauthAccessTokens,
+  mcpOauthAccountLinkIntents,
   mcpOauthAuthorizationCodes,
   mcpOauthRefreshTokens,
 } from './schema/mcpOAuth';
@@ -169,6 +170,16 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     reason:
       'Five-minute replay-detection grace after the code deadline. Every exchange ' +
       'filters expiry and atomically marks the row used before issuing tokens.',
+  },
+  {
+    table: mcpOauthAccountLinkIntents,
+    column: mcpOauthAccountLinkIntents.expiresAt,
+    retentionSeconds: 300,
+    reason:
+      'Five-minute replay-detection grace after the link deadline, matching the '
+      + 'authorization codes: approval filters expiry and atomically stamps '
+      + '`used_at`, so a spent invitation is recognised as spent rather than as '
+      + 'an unknown link.',
   },
   {
     table: mcpOauthAccessTokens,

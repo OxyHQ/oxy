@@ -47,6 +47,10 @@ function context(toolName: string): CatalogInvocationContext {
     tool,
     principal: {
       accountId: 'account-1',
+      // The member the connection is acting as — the same account here, since
+      // this connection covers only the one its token was minted for.
+      activeAccountId: 'account-1',
+      connection: null,
       clientId: 'client-1',
       scopes: tool.requiredCapabilities,
       subject: 'account-1',
@@ -80,6 +84,34 @@ describe('Inbox MCP handlers', () => {
       context('readEmail'),
     )).resolves.toEqual({ structuredContent: { data: message } });
     expect(mockGetMessage).toHaveBeenCalledWith('account-1', 'message-1');
+  });
+
+  it('reads the mailbox of the connection member being acted as', async () => {
+    const message = { id: 'message-2', subject: 'From the other account' };
+    mockGetMessage.mockResolvedValue(message);
+    const linked = context('readEmail');
+    const acting = {
+      ...linked,
+      principal: {
+        ...linked.principal,
+        // The token stays bound to `account-1`; the connection is acting as a
+        // member that approved its own membership on the IdP.
+        activeAccountId: 'account-2',
+        connection: {
+          connection_id: 'connection-1',
+          origin_account_id: 'account-1',
+          active_account_id: 'account-2',
+          accounts: [
+            { account_id: 'account-1', is_origin: true, linked_at: '2026-01-01T00:00:00.000Z' },
+            { account_id: 'account-2', is_origin: false, linked_at: '2026-02-01T00:00:00.000Z' },
+          ],
+        },
+      },
+    } as CatalogInvocationContext;
+
+    await expect(INBOX_MCP_HANDLERS.readEmail?.({ messageId: 'message-2' }, acting))
+      .resolves.toEqual({ structuredContent: { data: message } });
+    expect(mockGetMessage).toHaveBeenCalledWith('account-2', 'message-2');
   });
 
   it('rejects a missing or unknown message', async () => {

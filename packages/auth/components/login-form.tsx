@@ -40,6 +40,12 @@ type LoginFormProps = React.ComponentProps<"div"> & {
      * complete a username-first passkey assertion.
      */
     loginHint?: string
+    /**
+     * `?mcp_link_intent=` — the person is here to add the account they sign in
+     * as to an existing MCP connection, so the post-login hop returns to
+     * `/mcp/link` instead of an OAuth request that does not exist.
+     */
+    mcpLinkIntent?: string
 }
 
 type LoginStep = "identifier" | "security-key"
@@ -67,6 +73,7 @@ export function LoginForm({
     responseType,
     responseMode,
     loginHint,
+    mcpLinkIntent,
     ...props
 }: LoginFormProps) {
     const navigate = useNavigate()
@@ -82,6 +89,7 @@ export function LoginForm({
         if (resource) params.set("resource", resource)
         if (responseType) params.set("response_type", responseType)
         if (responseMode) params.set("response_mode", responseMode)
+        if (mcpLinkIntent) params.set("mcp_link_intent", mcpLinkIntent)
         const qs = params.toString()
         return qs ? `/signup?${qs}` : "/signup"
     })()
@@ -203,6 +211,7 @@ export function LoginForm({
             resource,
             responseType,
             responseMode,
+            mcpLinkIntent,
         }))
     }
 

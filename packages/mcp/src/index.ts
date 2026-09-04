@@ -24,9 +24,18 @@ export type {
 export { introspectOxyMcpAccessToken } from './introspection';
 export type { OxyMcpIntrospectionOptions } from './introspection';
 export {
+  requestOxyMcpAccountLink,
+  selectOxyMcpConnectionAccount,
+} from './connections';
+export type { OxyMcpAccountLink } from './connections';
+export { OxyMcpRequestError, postOxyServiceJson } from './serviceRequest';
+export type { OxyMcpServiceRequestOptions } from './serviceRequest';
+export {
   buildProtectedResourceMetadata,
   createMcpAuthInfo,
   issueMcpAccessToken,
+  mcpConnectionStateFrom,
+  mcpConnectionStateSchema,
   mcpPrincipalFromAuthInfo,
   validateMcpAccessTokenClaims,
   verifyMcpAccessToken,
@@ -36,6 +45,7 @@ export type {
   McpAccessTokenClaims,
   McpAccessTokenSignatureVerificationOptions,
   McpAccessTokenSigningOptions,
+  McpConnectionState,
   McpPrincipal,
   McpTokenStatusContext,
   McpTokenValidationOptions,

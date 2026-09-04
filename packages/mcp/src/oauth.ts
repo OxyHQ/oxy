@@ -32,6 +32,50 @@ const AUTH_INFO_CLAIMS_KEY = 'oxy.accessTokenClaims';
 
 export type McpAccessTokenClaims = z.infer<typeof mcpAccessTokenClaimsSchema>;
 
+/**
+ * The account set one MCP connection may act as.
+ *
+ * A token is minted for ONE account — its `account_id`, and that binding is
+ * cryptographic and never widened. A CONNECTION is the thing the person holds
+ * in their assistant, and Oxy lets them add further accounts to it by approving
+ * a single-use link while signed in as each one. Oxy reports the resulting set,
+ * and which member the connector is currently acting as, on introspection; a
+ * resource server serves `active_account_id`, not `account_id`.
+ *
+ * Absent on a connection that was never widened — treat that as the token's own
+ * account being the only member.
+ */
+export const mcpConnectionStateSchema = z.object({
+  connection_id: z.string().trim().min(1),
+  origin_account_id: z.string().trim().min(1),
+  active_account_id: z.string().trim().min(1),
+  accounts: z.array(z.object({
+    account_id: z.string().trim().min(1),
+    is_origin: z.boolean(),
+    linked_at: z.string().trim().min(1),
+  })).default([]),
+});
+
+export type McpConnectionState = z.infer<typeof mcpConnectionStateSchema>;
+
+/**
+ * Read the connection state off an introspection response or token claims.
+ *
+ * Returns null for anything that is not a well-formed connection block, so an
+ * older authority that does not report one degrades to the single-account
+ * behaviour instead of failing the request.
+ */
+export function mcpConnectionStateFrom(value: unknown): McpConnectionState | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const parsed = mcpConnectionStateSchema.safeParse(
+    (value as Record<string, unknown>).connection,
+  );
+  if (!parsed.success) return null;
+  return parsed.data.accounts.some((account) => account.account_id === parsed.data.active_account_id)
+    ? parsed.data
+    : null;
+}
+
 export interface McpAccessTokenSigningOptions {
   privateKey: KeyObject;
   keyId: string;
@@ -70,7 +114,14 @@ export interface McpTokenVerifier extends McpTokenValidationOptions {
 export interface McpPrincipal {
   readonly subject: string;
   readonly clientId: string;
+  /** The account the token itself is bound to — the connection's origin. */
   readonly accountId: string;
+  /**
+   * The account this request must act as: the connection's selected member, or
+   * `accountId` when the connection was never widened. Serve THIS one.
+   */
+  readonly activeAccountId: string;
+  readonly connection: McpConnectionState | null;
   readonly scopes: readonly string[];
   readonly resource: string;
 }
@@ -250,10 +301,20 @@ export function mcpPrincipalFromAuthInfo(
     throw new Error('MCP resource binding mismatch');
   }
 
+  const connection = mcpConnectionStateFrom(claims);
+  // A connection block that disagrees with the token's own account belongs to
+  // another connection: ignore it rather than acting as an account this token
+  // was never introspected for.
+  const usableConnection = connection && connection.origin_account_id === claims.account_id
+    ? connection
+    : null;
+
   return Object.freeze({
     subject: claims.sub,
     clientId: claims.client_id,
     accountId: claims.account_id,
+    activeAccountId: usableConnection?.active_account_id ?? claims.account_id,
+    connection: usableConnection,
     scopes: Object.freeze(claimScopes),
     resource: claims.resource,
   });

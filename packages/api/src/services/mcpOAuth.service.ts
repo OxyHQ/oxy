@@ -24,6 +24,11 @@ import {
 } from '../db/schema/mcpOAuth';
 import accountService from './account.service';
 import { listActiveCapabilityCatalogs } from './capabilityCatalog.service';
+import {
+  resolveMcpConnectionState,
+  revokeMcpConnectionMemberships,
+  type McpConnectionState,
+} from './mcpConnection.service';
 
 export const MCP_AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
 export const MCP_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
@@ -164,10 +169,22 @@ function assertScopesAllowed(requested: readonly string[], descriptor: McpResour
   }
 }
 
-async function currentAccountAuthority(grant: Pick<McpOauthGrantRow, 'principalUserId' | 'effectiveAccountId'>): Promise<boolean> {
+/**
+ * Whether the human who approved a grant can still operate its account.
+ *
+ * Every path that mints, refreshes, introspects or widens a connection asks
+ * this again: losing `account:act_as` (an organization membership removed, an
+ * account archived) must take effect on the next request, not at the next
+ * consent screen.
+ */
+export async function grantAccountAuthorityHolds(
+  grant: Pick<McpOauthGrantRow, 'principalUserId' | 'effectiveAccountId'>,
+): Promise<boolean> {
   const access = await accountService.resolveEffectiveAccess(grant.principalUserId, grant.effectiveAccountId);
   return access?.permissions.includes('account:act_as') ?? false;
 }
+
+const currentAccountAuthority = grantAccountAuthorityHolds;
 
 export function newMcpClientId(): string {
   return `${CLIENT_ID_PREFIX}${randomBytes(24).toString('base64url')}`;
@@ -421,6 +438,9 @@ export async function exchangeMcpAuthorizationCode(input: {
 async function revokeGrant(db: DatabaseOrTransaction, grantId: string, when = new Date()): Promise<void> {
   await db.update(mcpOauthGrants).set({ revokedAt: when, updatedAt: when })
     .where(and(eq(mcpOauthGrants.id, grantId), isNull(mcpOauthGrants.revokedAt)));
+  // An account that revokes its grant leaves every connection it had joined —
+  // including connections started by somebody else's assistant.
+  await revokeMcpConnectionMemberships(db, grantId, when);
   await db.update(mcpOauthAccessTokens).set({ revokedAt: when })
     .where(and(eq(mcpOauthAccessTokens.grantId, grantId), isNull(mcpOauthAccessTokens.revokedAt)));
   await db.update(mcpOauthRefreshTokens).set({ revokedAt: when })
@@ -519,10 +539,24 @@ export async function revokeMcpGrant(input: {
   return true;
 }
 
-export async function introspectMcpAccessToken(
+/**
+ * The live grant behind a presented MCP access token, or null.
+ *
+ * Split out of {@link introspectMcpAccessToken} because every connection-level
+ * call a resource server makes — asking for an account-link URL, switching the
+ * active account — must prove possession of exactly the same live token, under
+ * exactly the same checks. Two copies of these checks would be two places for
+ * one of them to be forgotten.
+ */
+export async function resolveLiveMcpAccessToken(
   token: string,
   callingApplicationId: string,
-): Promise<McpAccessTokenClaims | null> {
+): Promise<{
+  claims: McpAccessTokenClaims;
+  grant: McpOauthGrantRow;
+  client: McpOauthClientRow;
+  descriptor: McpResourceDescriptor;
+} | null> {
   try {
     const signing = capabilityTicketSigningConfig();
     const untrusted = verifyMcpAccessTokenSignature(token, {
@@ -559,10 +593,31 @@ export async function introspectMcpAccessToken(
     });
     const claimScopes = normalizeMcpScopes(claims.scope);
     const storedScopes = normalizeMcpScopes(row.accessScopes);
-    return claimScopes.length === storedScopes.length
-      && claimScopes.every((scope, index) => scope === storedScopes[index])
-      ? claims
-      : null;
+    if (claimScopes.length !== storedScopes.length
+      || claimScopes.some((scope, index) => scope !== storedScopes[index])) return null;
+    return { claims, grant: row.grant, client: row.client, descriptor };
+  } catch {
+    return null;
+  }
+}
+
+export interface McpIntrospectionResult {
+  claims: McpAccessTokenClaims;
+  /** The account set this connection may act as, and which one it is acting as. */
+  connection: McpConnectionState;
+}
+
+export async function introspectMcpAccessToken(
+  token: string,
+  callingApplicationId: string,
+): Promise<McpIntrospectionResult | null> {
+  const resolved = await resolveLiveMcpAccessToken(token, callingApplicationId);
+  if (!resolved) return null;
+  try {
+    return {
+      claims: resolved.claims,
+      connection: await resolveMcpConnectionState(resolved.grant),
+    };
   } catch {
     return null;
   }

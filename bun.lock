@@ -553,7 +553,7 @@
     },
     "packages/mcp": {
       "name": "@oxyhq/mcp",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.30.0",
         "@oxyhq/contracts": "workspace:^",

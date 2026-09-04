@@ -161,6 +161,13 @@ is bound to one exact MCP resource, audience and effective account; it is
 rejected by every other app and account. Multiple accounts are connected in
 separate grants.
 
+> Changed by [ADR 0020](0020-mcp-connections-hold-several-accounts.md): those
+> separate grants can now belong to ONE connection. The token binding above is
+> unchanged — a grant is still one account and a token is still minted for one —
+> but a person adds further accounts to the connector they already have, each
+> approving its own membership on the IdP, and introspection names which member
+> the connection is acting as.
+
 An installed third-party MCP used by Alia remains an external connection. It is
 assigned independently to Alia or an agent and does not become native Oxy
 authority.
