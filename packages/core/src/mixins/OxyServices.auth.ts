@@ -1630,7 +1630,6 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         username?: string;
         deviceName?: string;
         deviceFingerprint?: string;
-        deviceId?: string;
       } = {},
     ): Promise<{ success: true; message: string } | LoginResult> {
       try {
@@ -1699,7 +1698,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      */
     async webauthnLoginVerify(
       response: unknown,
-      envelope: { deviceName?: string; deviceFingerprint?: string; deviceId?: string } = {},
+      envelope: { deviceName?: string; deviceFingerprint?: string } = {},
     ): Promise<LoginResult> {
       try {
         const res = await this.makeRequest<unknown>(

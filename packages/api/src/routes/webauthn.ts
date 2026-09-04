@@ -101,7 +101,6 @@ const loginVerifyLimiter = rateLimit({ prefix: 'rl:webauthn:login-verify:', wind
 interface DeviceEnvelope {
   deviceName?: string;
   deviceFingerprint?: string;
-  deviceId?: string;
 }
 
 /**
