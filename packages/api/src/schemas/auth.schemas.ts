@@ -26,7 +26,8 @@ export const verifyChallengeSchema = z.object({
   timestamp: z.number(),
   deviceName: z.string().trim().optional(),
   deviceFingerprint: z.string().trim().optional(),
-  deviceId: deviceIdField,
+  // No `deviceId`: this body is unauthenticated, and `createSession` treats an
+  // explicit device id as authoritative over everything else it derives.
 });
 
 /**

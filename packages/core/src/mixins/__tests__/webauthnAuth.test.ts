@@ -170,7 +170,6 @@ describe('webauthnLoginVerify', () => {
     const result = await oxy.webauthnLoginVerify(GET_RESPONSE, {
       deviceName: 'Phone',
       deviceFingerprint: 'fp-1',
-      deviceId: 'dev-persisted',
     });
     expect(result).toEqual(SESSION_ARM);
     expect('twoFactorRequired' in result).toBe(false);
@@ -182,7 +181,7 @@ describe('webauthnLoginVerify', () => {
     expect(makeRequest).toHaveBeenCalledWith(
       'POST',
       '/auth/webauthn/login/verify',
-      { response: GET_RESPONSE, deviceName: 'Phone', deviceFingerprint: 'fp-1', deviceId: 'dev-persisted' },
+      { response: GET_RESPONSE, deviceName: 'Phone', deviceFingerprint: 'fp-1' },
       { cache: false, skipAuth: true },
     );
   });

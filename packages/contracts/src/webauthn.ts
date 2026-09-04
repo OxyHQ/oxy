@@ -15,14 +15,22 @@ import { z } from 'zod';
 
 /**
  * Device-session options shared by every first-party sign-in body
- * (`deviceName`/`deviceFingerprint`/`deviceId`). Mirrors what
+ * (`deviceName`/`deviceFingerprint`). Mirrors what
  * `sessionCreateOptionsFromBody` reads in the API so a WebAuthn login/verify can
- * name and pin its resulting session exactly like `/auth/login` or `/auth/verify`.
+ * name its resulting session exactly like `/auth/login` or `/auth/verify`.
+ *
+ * There is deliberately no `deviceId` here. `createSession` treats an explicit
+ * device id as authoritative — `deviceId > stableDeviceKey > UA/IP > random` —
+ * and stamps it verbatim, so on an UNAUTHENTICATED sign-in body it is a caller
+ * naming somebody else's device and having a session, and then a device secret,
+ * minted against it. The legitimate callers that pin a device id are
+ * server-side and already authorized (the account-switch route threading the
+ * operator's own central device id); they pass it to `createSession` directly
+ * and never through a request body.
  */
 const deviceSessionEnvelope = {
   deviceName: z.string().trim().min(1).max(120).optional(),
   deviceFingerprint: z.string().trim().min(1).max(256).optional(),
-  deviceId: z.string().trim().min(1).max(256).optional(),
 } as const;
 
 /**
