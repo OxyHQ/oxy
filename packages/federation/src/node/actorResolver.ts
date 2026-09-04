@@ -81,7 +81,13 @@ async function readBoundedResponseBody(res: Response, maxBytes: number): Promise
 }
 
 async function readBoundedJson(res: Response, maxBytes: number): Promise<Record<string, unknown>> {
-  const value: unknown = JSON.parse(await readBoundedResponseBody(res, maxBytes));
+  const body = await readBoundedResponseBody(res, maxBytes);
+  // An empty body is a REMOTE's answer, not a parser error. Without this,
+  // `JSON.parse('')` throws a SyntaxError whose message names a column number,
+  // which is a worse thing to find in a federation log than the fact that the
+  // instance sent nothing.
+  if (body.length === 0) throw new Error('Remote response has no body');
+  const value: unknown = JSON.parse(body);
   const record = asRecord(value);
   if (!record) throw new Error('Remote response is not a JSON object');
   return record;
