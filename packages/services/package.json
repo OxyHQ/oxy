@@ -155,7 +155,7 @@
     "@react-native-async-storage/async-storage": "^2.0.0",
     "@react-native-community/netinfo": "^12.0.1",
     "@react-native/babel-preset": "^0.86.2",
-    "@release-it/conventional-changelog": "^10.0.6",
+    "@release-it/conventional-changelog": "^12.0.0",
     "@tanstack/query-async-storage-persister": "catalog:",
     "@tanstack/query-sync-storage-persister": "catalog:",
     "@tanstack/react-query": "catalog:",
