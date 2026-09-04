@@ -260,7 +260,7 @@ export async function createMcpAccountLinkIntent(input: {
   await getDb().insert(mcpOauthAccountLinkIntents).values({
     connectionId: connection.id,
     requestedByGrantId: input.grant.id,
-    secretHash: sha256(secret),
+    codeHash: sha256(secret),
     scopes: normalizeMcpScopes(input.scopes),
     approvedGrantId: null,
     usedAt: null,
@@ -282,7 +282,7 @@ async function liveIntent(
   now: Date,
 ): Promise<McpOauthAccountLinkIntentRow> {
   const [intent] = await db.select().from(mcpOauthAccountLinkIntents)
-    .where(eq(mcpOauthAccountLinkIntents.secretHash, sha256(secret)))
+    .where(eq(mcpOauthAccountLinkIntents.codeHash, sha256(secret)))
     .limit(1);
   if (!intent || intent.usedAt || intent.expiresAt <= now) {
     throw new McpOAuthError('invalid_grant', 'This account link is invalid, expired, or already used');

@@ -233,7 +233,8 @@ export const mcpOauthConnectionAccounts = pgTable(
  * The resource server mints one on behalf of a live access token, hands the
  * person the URL, and the person approves it on the IdP while signed in as the
  * account being added. Only the SHA-256 verifier is stored: the URL is the
- * credential, and it is spent on first approval.
+ * credential, and it is spent on first approval — the same lifecycle as an
+ * authorization code, which is why the column is `code_hash`.
  */
 export const mcpOauthAccountLinkIntents = pgTable(
   'mcp_oauth_account_link_intents',
@@ -242,8 +243,17 @@ export const mcpOauthAccountLinkIntents = pgTable(
     connectionId: text().notNull().references(() => mcpOauthConnections.id, { onDelete: 'cascade' }),
     /** The grant whose access token asked for the link. */
     requestedByGrantId: text().notNull().references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
-    /** SHA-256 verifier of the opaque intent secret; the secret is never stored. */
-    secretHash: text().notNull(),
+    /**
+     * SHA-256 verifier of the opaque value in the link URL; it is never stored.
+     *
+     * Named like `mcp_oauth_authorization_codes.code_hash` because it IS that
+     * class of thing — a single-use, short-lived authorization artifact
+     * exchanged for a grant — and NOT a `*_secret_hash`, which in this schema
+     * means a key table with a credential lifecycle (ADR 0005, guarded by
+     * `schemaInvariants.test.ts`). Nothing here is re-presented on later
+     * requests.
+     */
+    codeHash: text().notNull(),
     /** Scopes the joining account is asked to approve — the connection's own. */
     scopes: text().array().notNull().default(sql`'{}'::text[]`),
     /** The membership created when the intent was approved. */
@@ -254,7 +264,7 @@ export const mcpOauthAccountLinkIntents = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    unique('mcp_oauth_account_link_intents_secret_key').on(t.secretHash),
+    unique('mcp_oauth_account_link_intents_code_key').on(t.codeHash),
     index('mcp_oauth_account_link_intents_expiry_idx').on(t.expiresAt),
     index('mcp_oauth_account_link_intents_connection_idx').on(t.connectionId),
   ],

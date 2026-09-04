@@ -1,5 +1,5 @@
 {
-  "id": "b250f11c-60f5-418f-be25-baa20d0e0627",
+  "id": "fa9b22d2-9d4a-41d0-b553-cf1a90eaa8c8",
   "prevId": "ad2b3550-9d96-48a7-81f9-4821b9a2f025",
   "version": "7",
   "dialect": "postgresql",
@@ -17944,8 +17944,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "secret_hash": {
-          "name": "secret_hash",
+        "code_hash": {
+          "name": "code_hash",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -18065,11 +18065,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "mcp_oauth_account_link_intents_secret_key": {
-          "name": "mcp_oauth_account_link_intents_secret_key",
+        "mcp_oauth_account_link_intents_code_key": {
+          "name": "mcp_oauth_account_link_intents_code_key",
           "nullsNotDistinct": false,
           "columns": [
-            "secret_hash"
+            "code_hash"
           ]
         }
       },

@@ -3,14 +3,14 @@ CREATE TABLE "mcp_oauth_account_link_intents" (
 	"id" text PRIMARY KEY NOT NULL,
 	"connection_id" text NOT NULL,
 	"requested_by_grant_id" text NOT NULL,
-	"secret_hash" text NOT NULL,
+	"code_hash" text NOT NULL,
 	"scopes" text[] DEFAULT '{}'::text[] NOT NULL,
 	"approved_grant_id" text,
 	"used_at" timestamp with time zone,
 	"expires_at" timestamp with time zone NOT NULL,
 	"created_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL,
-	CONSTRAINT "mcp_oauth_account_link_intents_secret_key" UNIQUE("secret_hash")
+	CONSTRAINT "mcp_oauth_account_link_intents_code_key" UNIQUE("code_hash")
 );
 --> statement-breakpoint
 CREATE TABLE "mcp_oauth_connection_accounts" (
