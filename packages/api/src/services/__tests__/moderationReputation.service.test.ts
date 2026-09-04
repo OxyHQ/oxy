@@ -210,6 +210,16 @@ async function makeWorld(options: { globalEffects?: boolean } = {}): Promise<Wor
   const bindingId = await makeBinding(applicationId, subjectId);
   const policyVersion = await makePolicy();
   const emitterApplicationId = await makeApplication();
+  const [credential] = await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: emitterApplicationId,
+      name: 'emitter credential',
+      publicKey: `oxy_dk_${uniqueId()}`,
+      type: 'service',
+      environment: 'development',
+    })
+    .returning({ id: applicationCredentials.id });
 
   mockResolveBindingProof.mockResolvedValue({ ok: true, binding: { id: bindingId } });
 
@@ -219,7 +229,7 @@ async function makeWorld(options: { globalEffects?: boolean } = {}): Promise<Wor
     bindingId,
     policyVersion,
     emitterApplicationId,
-    context: { emitterApplicationId },
+    context: { emitterApplicationId, emitterCredentialId: credential.id },
   };
 }
 
@@ -568,7 +578,8 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
     const result = await moderationReputationService.reverseModerationDecision(
       event.decisionId,
       1,
-      'Appeal accepted: the material was quoted criticism, not abuse'
+      'Appeal accepted: the material was quoted criticism, not abuse',
+      world.context.emitterCredentialId!
     );
 
     expect(result.idempotent).toBe(false);
@@ -609,13 +620,15 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
     await moderationReputationService.reverseModerationDecision(
       event.decisionId,
       1,
-      'Appeal accepted'
+      'Appeal accepted',
+      world.context.emitterCredentialId!
     );
 
     const again = await moderationReputationService.reverseModerationDecision(
       event.decisionId,
       1,
-      'Appeal accepted'
+      'Appeal accepted',
+      world.context.emitterCredentialId!
     );
 
     expect(again.idempotent).toBe(true);
@@ -623,12 +636,35 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
     expect((await reputationService.getBalance(world.subjectId)).total).toBe(0);
   });
 
+  it('cannot reverse another service credential\'s colliding decision id', async () => {
+    const owner = await makeWorld();
+    const other = await makeWorld();
+    const decisionId = `dec_shared_${uniqueId().slice(0, 8)}`;
+    const ownerEvent = makeEvent(owner, { decisionId });
+    const otherEvent = makeEvent(other, { decisionId });
+    await moderationReputationService.applyModerationDecision(ownerEvent, owner.context);
+    await moderationReputationService.applyModerationDecision(otherEvent, other.context);
+
+    const result = await moderationReputationService.reverseModerationDecision(
+      decisionId,
+      1,
+      'Appeal accepted',
+      owner.context.emitterCredentialId!
+    );
+
+    expect(result.reversed).toHaveLength(1);
+    expect(result.reversed[0].credentialId).toBe(owner.context.emitterCredentialId);
+    expect((await effectRows(otherEvent.incidentId))[0].status).toBe('applied');
+    expect(await ledgerRows(other.subjectId)).toHaveLength(1);
+  });
+
   it('reversing a decision that produced no effect is an error, not a silent success', async () => {
     await expect(
       moderationReputationService.reverseModerationDecision(
         `dec_never_${uniqueId().slice(0, 8)}`,
         1,
-        'Appeal accepted'
+        'Appeal accepted',
+        world.context.emitterCredentialId!
       )
     ).rejects.toThrow(/No moderation effect/);
   });
@@ -986,7 +1022,8 @@ describe('the service does not trust its caller', () => {
       moderationReputationService.reverseModerationDecision(
         { toString: () => 'anything' } as never,
         1,
-        'Appeal accepted'
+        'Appeal accepted',
+        world.context.emitterCredentialId!
       )
     ).rejects.toThrow(/No moderation effect/);
 
@@ -1065,7 +1102,8 @@ describe('repetition and multi-finding caps', () => {
     await moderationReputationService.reverseModerationDecision(
       first.decisionId,
       1,
-      'Appeal accepted'
+      'Appeal accepted',
+      world.context.emitterCredentialId!
     );
 
     const next = await moderationReputationService.applyModerationDecision(
@@ -1296,7 +1334,8 @@ describe('expireConductStrikes', () => {
     await moderationReputationService.reverseModerationDecision(
       event.decisionId,
       1,
-      'Appeal accepted'
+      'Appeal accepted',
+      world.context.emitterCredentialId!
     );
     await getDb()
       .update(conductStrikes)
