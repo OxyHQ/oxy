@@ -3,7 +3,6 @@
 # Copy this into an app repo as `.github/workflows/publish-update.yml`. It runs
 # `expo export` and publishes the JS bundle + assets to the Oxy Updates service:
 #   - push to `main`  → channel `production`
-#   - pull request     → channel `pr-<number>` (a disposable preview track)
 #
 # Prerequisites:
 #   - Repo secrets OXY_SHIP_CLIENT_ID / OXY_SHIP_SECRET: a `service`-type
@@ -24,7 +23,6 @@ name: Publish OTA update
 on:
   push:
     branches: [main]
-  pull_request:
 
 concurrency:
   group: oxy-updates-${{ github.ref }}
@@ -46,21 +44,17 @@ jobs:
         run: bun install --frozen-lockfile --minimum-release-age=0
       - name: Resolve channel
         id: channel
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "name=pr-${{ github.event.number }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "name=production" >> "$GITHUB_OUTPUT"
-          fi
+        run: echo "name=production" >> "$GITHUB_OUTPUT"
 
       - name: Run oxy-ship publish
         env:
           OXY_SHIP_CLIENT_ID: ${{ secrets.OXY_SHIP_CLIENT_ID }}
           OXY_SHIP_SECRET: ${{ secrets.OXY_SHIP_SECRET }}
           OXY_API_URL: https://api.oxy.so
+          SHIP_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           bunx oxy-ship publish \
             --channel "${{ steps.channel.outputs.name }}" \
             --platform all \
             --git-commit "${{ github.sha }}" \
-            --message "${{ github.event.head_commit.message || github.event.pull_request.title }}"
+            --message "$SHIP_MESSAGE"
