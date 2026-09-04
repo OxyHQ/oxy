@@ -77,7 +77,9 @@ export interface RequiredEnvVars {
   // absent variable can never open one.
   //
   //  - who may reach the public inference edge at all:
-  //    `closed` | `internal` | `first_party` | `allowlist:<appId>,…` | `public`
+  //    `closed` | `internal` | `first_party` | `allowlist:<exactAppId>,…` | `public`
+  //    (`allowlist` admits only those exact IDs; whitespace and malformed IDs
+  //    make the audience unreadable and therefore closed)
   //    (unset = closed; `public` additionally requires BOTH charging to be armed
   //    and the privacy/security review to be recorded)
   INFERENCE_EDGE_AUDIENCE?: string;

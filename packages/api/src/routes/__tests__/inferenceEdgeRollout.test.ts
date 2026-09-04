@@ -597,6 +597,8 @@ describe('each rollout stage admits the applications it names', () => {
   it('serves only the named applications during a closed external beta', async () => {
     const invited = await makeFixture({ fund: '10.00' });
     const uninvited = await makeFixture({ fund: '10.00' });
+    const uninvitedFirstParty = await makeFixture({ type: 'first_party', fund: '10.00' });
+    const uninvitedInternal = await makeFixture({ type: 'internal', fund: '10.00' });
     process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${invited.applicationId}`;
 
     await withServer(fakeKaana({ input: 20, output: 30 }, invited.provider), async (request) => {
@@ -608,13 +610,15 @@ describe('each rollout stage admits the applications it names', () => {
       );
       expect(admitted.status).toBe(200);
 
-      const refused = await request(
-        'POST',
-        '/v1/chat/completions',
-        chatBody(uninvited),
-        bearer(uninvited.token)
-      );
-      expect(refused.status).toBe(403);
+      for (const excluded of [uninvited, uninvitedFirstParty, uninvitedInternal]) {
+        const refused = await request(
+          'POST',
+          '/v1/chat/completions',
+          chatBody(excluded),
+          bearer(excluded.token)
+        );
+        expect(refused.status).toBe(403);
+      }
     });
   });
 

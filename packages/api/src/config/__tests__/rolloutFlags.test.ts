@@ -80,19 +80,26 @@ afterAll(() => {
   }
 });
 
+const ALIA_APPLICATION_ID = '6a2f851751b784a86fd0e934';
+const MENTION_APPLICATION_ID = '6a2f851751b784a86fd0e916';
+const HOMIIO_APPLICATION_ID = '6a2f851751b784a86fd0e922';
+const INBOX_APPLICATION_ID = '6a37b3e61ddfd195b656819b';
+const KAANA_APPLICATION_ID = '68b7c4e19f2a6d0e3c8b5174';
+const ANOTHER_THIRD_PARTY_APPLICATION_ID = '64f7c2a1b8e9d3f4a1c2b3d4';
+
 /** The three tiers, as an admission decision reads them off an Application row. */
 const THIRD_PARTY: EdgeAdmissionPrincipal = {
-  applicationId: 'app_third_party',
+  applicationId: '01991f50-76f7-7c13-88e3-63dd44a80b9d',
   applicationType: 'third_party',
   applicationIsInternal: false,
 };
 const FIRST_PARTY: EdgeAdmissionPrincipal = {
-  applicationId: 'app_first_party',
+  applicationId: '01991f50-76f7-7c13-88e3-63dd44a80b9e',
   applicationType: 'first_party',
   applicationIsInternal: false,
 };
 const INTERNAL: EdgeAdmissionPrincipal = {
-  applicationId: 'app_internal',
+  applicationId: '01991f50-76f7-7c13-88e3-63dd44a80b9f',
   applicationType: 'internal',
   applicationIsInternal: false,
 };
@@ -188,21 +195,65 @@ describe('the edge audience makes each rollout state expressible', () => {
     expect(admitToInferenceEdge(THIRD_PARTY)).toMatchObject({ status: 'refused' });
   });
 
-  it('admits exactly the named applications during a closed beta', () => {
-    process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${THIRD_PARTY.applicationId},app_other`;
+  it('admits exactly the listed IDs, independent of application tier', () => {
+    process.env[EDGE_AUDIENCE_VARIABLE] =
+      `allowlist:${THIRD_PARTY.applicationId},${ANOTHER_THIRD_PARTY_APPLICATION_ID}`;
 
     expect(admitToInferenceEdge(THIRD_PARTY)).toEqual({
       status: 'admitted',
       audience: 'allowlist',
     });
-    // Cumulative: a stage does not lock out the previous stage's callers.
-    expect(admitToInferenceEdge(FIRST_PARTY).status).toBe('admitted');
-    expect(admitToInferenceEdge(INTERNAL).status).toBe('admitted');
-    // The control: a third-party application that is NOT named stays out, so
-    // the case above is not passing because `allowlist` admits everyone.
-    expect(
-      admitToInferenceEdge({ ...THIRD_PARTY, applicationId: 'app_not_in_the_beta' })
-    ).toMatchObject({ status: 'refused', reason: 'outside_audience' });
+    expect(admitToInferenceEdge(FIRST_PARTY)).toMatchObject({
+      status: 'refused',
+      reason: 'outside_audience',
+    });
+    expect(admitToInferenceEdge(INTERNAL)).toMatchObject({
+      status: 'refused',
+      reason: 'outside_audience',
+    });
+  });
+
+  it('can admit only Alia while Mention, Homiio, Inbox and another internal app stay out', () => {
+    process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${ALIA_APPLICATION_ID}`;
+
+    const principals: Record<string, EdgeAdmissionPrincipal> = {
+      alia: {
+        applicationId: ALIA_APPLICATION_ID,
+        applicationType: 'internal',
+        applicationIsInternal: true,
+      },
+      mention: {
+        applicationId: MENTION_APPLICATION_ID,
+        applicationType: 'first_party',
+        applicationIsInternal: false,
+      },
+      homiio: {
+        applicationId: HOMIIO_APPLICATION_ID,
+        applicationType: 'first_party',
+        applicationIsInternal: false,
+      },
+      inbox: {
+        applicationId: INBOX_APPLICATION_ID,
+        applicationType: 'first_party',
+        applicationIsInternal: false,
+      },
+      kaana: {
+        applicationId: KAANA_APPLICATION_ID,
+        applicationType: 'internal',
+        applicationIsInternal: true,
+      },
+    };
+
+    expect(admitToInferenceEdge(principals.alia)).toEqual({
+      status: 'admitted',
+      audience: 'allowlist',
+    });
+    for (const excluded of ['mention', 'homiio', 'inbox', 'kaana']) {
+      expect(admitToInferenceEdge(principals[excluded])).toMatchObject({
+        status: 'refused',
+        reason: 'outside_audience',
+      });
+    }
   });
 
   it('is closed by an allowlist with nobody in it, rather than silently serving the previous stage', () => {
@@ -210,6 +261,26 @@ describe('the edge audience makes each rollout state expressible', () => {
 
     expect(resolveEdgeAudience()).toEqual({ status: 'closed', reason: 'unreadable' });
     expect(admitToInferenceEdge(FIRST_PARTY)).toMatchObject({ status: 'refused' });
+  });
+
+  it.each([
+    [`allowlist: ${ALIA_APPLICATION_ID}`],
+    [`allowlist:${ALIA_APPLICATION_ID} `],
+    [` allowlist:${ALIA_APPLICATION_ID}`],
+    [`allowlist:${ALIA_APPLICATION_ID}, ${HOMIIO_APPLICATION_ID}`],
+    [`allowlist:${ALIA_APPLICATION_ID},`],
+    [`allowlist:,${ALIA_APPLICATION_ID}`],
+    [`allowlist:${ALIA_APPLICATION_ID},${ALIA_APPLICATION_ID}`],
+    ['allowlist:not-an-application-id'],
+  ])('fails closed for a non-canonical exact-ID list: %s', (configured) => {
+    process.env[EDGE_AUDIENCE_VARIABLE] = configured;
+
+    expect(resolveEdgeAudience()).toEqual({ status: 'closed', reason: 'unreadable' });
+    expect(admitToInferenceEdge({
+      applicationId: ALIA_APPLICATION_ID,
+      applicationType: 'internal',
+      applicationIsInternal: true,
+    })).toMatchObject({ status: 'refused', reason: 'unreadable' });
   });
 
   it('is closed by an unreadable value, and says so once rather than on every request', () => {
@@ -552,14 +623,15 @@ describe('describeRolloutFlags answers "what is on here"', () => {
   });
 
   it('names a closed beta’s applications, and the decision behind an armed charge', () => {
-    process.env[EDGE_AUDIENCE_VARIABLE] = 'allowlist:app_alpha,app_beta';
+    process.env[EDGE_AUDIENCE_VARIABLE] =
+      `allowlist:${ALIA_APPLICATION_ID},${HOMIIO_APPLICATION_ID}`;
     process.env[CHARGING_AUTHORIZED_VARIABLE] = ARMED_CHARGING;
 
     const report = describeRolloutFlags();
     expect(report.edge).toMatchObject({
       open: true,
       audience: 'allowlist',
-      allowedApplicationIds: ['app_alpha', 'app_beta'],
+      allowedApplicationIds: [ALIA_APPLICATION_ID, HOMIIO_APPLICATION_ID],
     });
     expect(report.charging).toMatchObject({
       authorized: true,
