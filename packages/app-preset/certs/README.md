@@ -10,9 +10,10 @@ It is the **public** half of the Oxy Updates code-signing keypair. It is safe to
 commit, and it lives here rather than in each app repo so that a key rotation is
 one `@oxyhq/app-preset` bump instead of one edit per app.
 
-The file is absent until the ecosystem keypair is generated. While it is absent
-`withOxyUpdates` still wires the update URL, but the resulting binaries do **not**
-verify manifest signatures, and it emits a build warning saying so.
+The file is absent until the ecosystem keypair is generated. While it is absent,
+`withOxyUpdates` fails closed by default so an OTA-enabled production binary cannot
+be built without manifest signature verification. Development builds can explicitly
+select `codeSigning: 'auto'` (warning) or `codeSigning: false` (no verification).
 
 ## Provisioning (one time, by the platform owner)
 

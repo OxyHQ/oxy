@@ -103,7 +103,7 @@ prebuild applies its config plugin automatically.
 | `clientId` | required | The registered `ApplicationCredential` publicKey |
 | `apiOrigin` | `https://api.oxy.so` | Origin serving `/updates/v1` |
 | `channel` | `production` | Release channel this binary polls |
-| `codeSigning` | `auto` | `require` to fail the build when the certificate is missing; `false` to skip signing |
+| `codeSigning` | `require` | Fails when the certificate is missing; `auto` warns and `false` skips signing (development only) |
 | `certificatePath` | bundled certificate | Only for a key-rotation overlap |
 | `runtimeVersionPolicy` | `appVersion` | `false` leaves whatever the app declared |
 
@@ -120,12 +120,11 @@ receive JS assuming native modules they do not have.
 **Code signing is one certificate for the whole ecosystem**, shipped in this
 package at `certs/oxy-updates-code-signing.pem` rather than copied into each app
 repo, so a rotation is one preset bump. See `certs/README.md` for how it is
-generated and rotated. Until that file exists, `withOxyUpdates` wires the update
-URL but not signature verification and warns on both platforms; because the
-certificate is baked into the native build, a binary shipped in that state can
-never verify a manifest for its lifetime, so **do not ship a store build of an
-OTA-enabled app before the certificate is committed.** Pass
-`{ codeSigning: 'require' }` to make that a build failure instead of a warning.
+generated and rotated. Until that file exists, `withOxyUpdates` fails the build
+by default rather than producing a binary that accepts unsigned manifests for
+its whole lifetime. Development builds may explicitly pass
+`{ codeSigning: 'auto' }` to receive platform warnings, or
+`{ codeSigning: false }` to opt out of verification.
 
 Publishing is `oxy-ship` (`@oxyhq/ship`); see that package's README and its
 `templates/publish-update.yml` CI workflow.
