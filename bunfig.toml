@@ -26,4 +26,5 @@ minimumReleaseAge = 604800
 minimumReleaseAgeExcludes = [
   "@alia.onl/sdk",
   "@oxyhq/bloom",
+  "@oxyhq/contracts",
 ]
