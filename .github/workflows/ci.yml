@@ -237,6 +237,11 @@ jobs:
       - name: Guard the AGENTS.md budget
         run: bun run validate:agents-md
 
+      - name: Guard exact metadata-only Inbox Daily Brief counts
+        run: |
+          node scripts/test-check-inbox-daily-brief.mjs
+          node scripts/check-inbox-daily-brief.mjs
+
       # api tests resolve `@oxyhq/core` (e.g. `registrableApex` in federation
       # helpers) from its published `dist`, like any normal dependency.
       # This job does not build workspace deps, so core's `dist` is absent on a

@@ -1192,6 +1192,7 @@ export {
 
 export type {
     InboxComposeRequest,
+    InboxDailyBriefRequest,
     InboxInferenceTextResponse,
     InboxNaturalSearchResponse,
     InboxSmartRepliesResponse,

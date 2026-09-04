@@ -7,6 +7,33 @@ accepted on this product-UI lane. Oxy
 owns request schemas, prompts, content bounds and output validation, and then
 uses the ordinary reservation, Kaana execution, usage and settlement path.
 
+## Daily Brief day boundary and data minimisation
+
+The Inbox client must compute the start of the user's current local calendar day
+and the start of the next local day, then send both instants as UTC ISO strings
+in `POST /email/ai/daily-brief`:
+
+```json
+{
+  "startAt": "2026-09-02T21:00:00.000Z",
+  "endAt": "2026-09-03T21:00:00.000Z",
+  "stream": true
+}
+```
+
+Oxy cannot reconstruct that boundary from server time. It requires both values
+with the `Z` suffix, requires `endAt > startAt`, and accepts only a 23-25 hour
+window so ordinary, spring-forward and fall-back local days work while an
+arbitrary history range fails closed. The interval is half-open
+`[startAt, endAt)`, which assigns a message on midnight to exactly one day.
+
+The backend issues one account-scoped PostgreSQL aggregate over `messages.date`
+for `total`, `unread`, `starred` and `withAttachments`. Attachment presence is a
+correlated `EXISTS`, so a message with several attachments is counted once.
+There is no message-list limit or sample, and the query never selects sender,
+subject, body, headers or attachment metadata. Only those four integer counts
+are placed in the inference prompt.
+
 The billing application is the exact Inbox record
 `6a37b3e61ddfd195b656819b`. `INBOX_APPLICATION_KEY` selects its revocable
 server-side attribution credential and the resolver refuses any credential for a
