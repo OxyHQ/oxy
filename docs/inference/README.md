@@ -48,7 +48,7 @@ renaming unrelated SMTP, ATProto, device, OAuth or MCP/TNP relay roles.
 | The `oxy_sk_*` bearer middleware | `packages/api/src/middleware/machineCredential.ts` | Mounted on the edge with its per-credential and per-application limiters, and **the lane is shut by default** (`INFERENCE_MACHINE_CREDENTIAL_AUTH`) |
 | Native service tokens (`clientId + clientSecret` → 1h JWT) | `POST /auth/service-token` | Yes |
 | The `inference:*` scope family | `packages/api/src/utils/applicationScopes.ts` | Yes — see the caveat on `inference:models:read` below |
-| Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. The reviewed exact-route bootstrap is `packages/api/scripts/bootstrap-kaana-catalogue.ts`; public visibility remains gated by `INFERENCE_CATALOGUE_AUDIENCE` and its presence in source is not evidence that it ran in production |
+| Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. The reviewed exact-route writer is `packages/api/scripts/bootstrap-kaana-catalogue.ts`; its main-only dry-run/SHA/apply lane is `.github/workflows/bootstrap-kaana-catalogue.yml`. Source presence is not evidence that either ran in production, and public visibility remains gated by `INFERENCE_CATALOGUE_AUDIENCE` |
 | Exact financial ledger: reserve → settle → refund | `packages/api/src/services/inferenceLedger.service.ts` | Yes — the edge reserves before forwarding and settles on every path out, **once charging is authorized**. Unset, it shadow meters: prices the request, records the amount, writes no financial record |
 | Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, and **enforced against the candidate routes** (thirteen controls, the two price ceilings included; only `optimiseFor` is not) |
 | BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts`, `.../services/kaanaCredentialControl.ts` | Yes when the signed Kaana control lane is configured; every uncertain mutation is quarantined and recovered under the same operation ID |
@@ -61,12 +61,15 @@ renaming unrelated SMTP, ATProto, device, OAuth or MCP/TNP relay roles.
 | Rollout flags + the staff readout | `packages/api/src/config/rolloutFlags.ts`, `GET /inference/admin/rollout` | Yes — [rollout.md](./rollout.md) |
 
 **Merged source publishes no models merely by deploying the API.** The reviewed
-`bootstrap:kaana-catalogue` command validates a fresh signed Kaana inventory and
-exact reviewed facts before it can apply model, revision, deployment, pricing,
-score and routing-profile rows. The last production readback recorded in the
-responsibility matrix (2026-08-17) was empty; that is dated evidence, and the
-bootstrap's presence is not proof it ran. `GET /models` returning `[]` is valid
-for an empty or withheld audience, not proof of current production contents.
+`bootstrap:kaana-catalogue` validates a fresh signed Kaana inventory and exact
+reviewed facts before it can apply model, revision, deployment, pricing, score
+and routing-profile rows. Production workflow run `33736747600` on 2026-09-03
+found the exact Inbox profile PK absent; that is dated evidence, and the
+bootstrap workflow's presence is not proof it later ran. `GET /models` returning
+`[]` is valid for an empty or withheld audience, not proof of current production
+contents. The current reviewed deployments are `internal_alia`; their profile
+existing would not by itself make a route visible to the `first_party` Inbox
+principal.
 
 **`inference:models:read` is checked nowhere.** The catalogue is audience-scoped
 by application type, not by scope: an anonymous caller, a user bearer and an

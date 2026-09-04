@@ -50,42 +50,51 @@ absent or unknown ID returns a fail-closed 503 before reservation or Kaana.
 
 ## Production bootstrap
 
-The last recorded production database read, on 2026-08-17, found no
-routing-profile rows. That evidence is dated and is not a statement about the
-current live database. The current state must be proved by the exact-primary-key
+Production readback workflow run `33736747600` on 2026-09-03 found no row for
+the exact Inbox routing-profile primary key. That is dated evidence, not a
+permanent source fact. The current state must be proved by the exact-primary-key
 [Inbox routing-profile PostgreSQL readback](../../.github/workflows/inbox-routing-profile-readback.yml),
 which is SELECT-only and cannot create or repair a row. The required order is:
 
 1. Dry-run, review and then explicitly apply the exact-ID catalogue reviewer
    bootstrap in [the runbook](../runbooks/bootstrap-catalogue-reviewer.md).
-2. Dry-run, review and explicitly apply the canonical Kaana catalogue bootstrap.
+2. Deploy the matching Oxy image and renew the dedicated
+   `oxy-kaana-catalogue-bootstrap` task definition at that same immutable digest.
+   Grant the GitHub OIDC role exact `iam:PassRole` for that task role; do not use
+   the live API task definition or a wildcard role path.
+3. Follow the dry-run/SHA/apply procedure in
+   [the Kaana catalogue bootstrap runbook](../runbooks/kaana-catalogue-bootstrap.md).
    It owns permanent reviewed primary keys; for Inbox, `kaana-v1` is exactly
    `01a06477-94f5-74f0-bc25-4c5c13b93ccd`. The publisher seed is not this
-   bootstrap and does not prove or create the routing-profile row.
-3. From `main`, run the manual readback with the exact reviewed live task
-   definition, immutable live image digest and that exact primary key. Require
-   one matching profile and one matching
-   `openai/gpt-oss-120b@observed-2026-09-01` candidate at priority `100`; do not
-   rediscover either row by name, ordering or an implicit first row.
-4. Run the canonical application seed so exact Inbox application
+   bootstrap and does not prove or create the routing-profile row. Apply ends
+   with one matching profile, one
+   `openai/gpt-oss-120b@observed-2026-09-01` candidate at priority `100`, a
+   SELECT-only readback and a zero-operation idempotency dry run.
+4. Resolve the audience gap before treating that identity as runnable. The
+   reviewed bootstrap deployments are `internal_alia`, while Inbox is
+   `first_party` with `isInternal = false` and can see only `public_payg` and
+   `oxy_hosted`. Publish a separately reviewed eligible deployment and prove
+   resolution for the real Inbox principal. Do not convert Inbox to `internal`
+   or change a commercial scope merely to make the check green.
+5. Run the canonical application seed so exact Inbox application
    `6a37b3e61ddfd195b656819b` gains `inference:invoke`.
-5. Dry-run, review, then apply **Reconcile service credential authority** for
+6. Dry-run, review, then apply **Reconcile service credential authority** for
    that exact application and existing production credential
    `01a06134-022c-72b6-a876-27da37a39e39`. The workflow pins this pair and adds
    only `inference:invoke`; it never looks up a credential by name or order.
-6. Verify the application and credential selected by `INBOX_APPLICATION_KEY`
+7. Verify the application and credential selected by `INBOX_APPLICATION_KEY`
    are active and their effective scope intersection grants `inference:invoke`.
-7. Set the GitHub Actions variable `INBOX_INFERENCE_ROUTING_PROFILE_ID` to that
+8. Set the GitHub Actions variable `INBOX_INFERENCE_ROUTING_PROFILE_ID` to that
    exact ID.
-8. Deploy Oxy, enable the already-gated Kaana execution/charging rollout in its
+9. Deploy Oxy, enable the already-gated Kaana execution/charging rollout in its
    documented order, and smoke one non-stream and one cancelled stream while
    checking reservation settlement and usage attribution.
 
 The permanent source-reviewed ID is an intended identity, not proof that its row
-exists in the live database. Do not configure the GitHub variable from source
-alone: require the successful exact-PK readback in step 3. Until all eight steps
-pass, Inbox inference is intentionally unavailable rather than silently routed
-elsewhere.
+exists in the live database or that an eligible route exists. Do not configure
+the GitHub variable from source alone: require both the successful exact-PK
+readback and the real-principal audience proof. Until all nine steps pass, Inbox
+inference is intentionally unavailable rather than silently routed elsewhere.
 
 The old Oxy-to-Alia `/alia/chat/completions` and `/v1/voice/*` proxies and their
 `ALIA_API_KEY` task binding are removed. Apps that use Alia chat, agents or voice

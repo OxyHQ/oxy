@@ -13,12 +13,18 @@
  *   KAANA_INVENTORY_KEY               live Kaana inventory object key
  *   AWS_REGION                        inventory bucket region
  *
+ * Apply additionally requires the exact matching dry-run authorization:
+ *   EXPECTED_PLAN_SHA256
+ *   BOOTSTRAP_ACTOR
+ *   BOOTSTRAP_REASON
+ *
  * AWS authentication must come from the dedicated ECS task role in production,
  * or an operator's named AWS profile locally. Static AWS keys in env are refused.
  *   INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS
  *
  * Apply:
- *   APPLY=1 bun run packages/api/scripts/bootstrap-kaana-catalogue.ts
+ *   APPLY=1 EXPECTED_PLAN_SHA256=... BOOTSTRAP_ACTOR=... \
+ *     BOOTSTRAP_REASON=... bun run packages/api/scripts/bootstrap-kaana-catalogue.ts
  *
  * If no reviewer exists yet, first follow
  * docs/runbooks/bootstrap-catalogue-reviewer.md. This script never grants its
@@ -26,10 +32,12 @@
  */
 
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import { routingScoreValidityThreshold } from "../src/config/inferenceRoutingScoreValidity";
 import {
   KAANA_INITIAL_BALANCED_FORMULA_REF,
   KAANA_INITIAL_MODEL,
+  KAANA_INITIAL_MODEL_ID,
   KAANA_INITIAL_MODEL_REFERENCE,
   KAANA_INITIAL_PROVIDERS,
   KAANA_INITIAL_PUBLISHER,
@@ -38,18 +46,17 @@ import {
   KAANA_INITIAL_ROUTING_PROFILES,
   KAANA_INITIAL_SCORECARD_REASON,
   KAANA_INITIAL_SCORE_VALID_UNTIL,
-  requireSingleKaanaBootstrapScoreEvent,
   type KaanaInitialProvider,
+  requireSingleKaanaBootstrapScoreEvent,
 } from "../src/config/kaanaInitialCatalogue";
 import {
+  KAANA_INITIAL_INVENTORY_FETCH_TIMEOUT_MS,
+  type KaanaInitialInventoryAttestation,
   assertKaanaInventoryCredentialSource,
   createKaanaInventoryAbortDeadline,
-  KAANA_INITIAL_INVENTORY_FETCH_TIMEOUT_MS,
   readBoundedKaanaInventoryBody,
   validateKaanaInitialInventory,
-  type KaanaInitialInventoryAttestation,
 } from "../src/config/kaanaInitialInventory";
-import { routingScoreValidityThreshold } from "../src/config/inferenceRoutingScoreValidity";
 import { closePostgres, connectPostgres, getDb } from "../src/config/postgres";
 import {
   inferenceDeploymentRoutingScoreEvents,
@@ -65,16 +72,73 @@ import {
   priceVersions,
   users,
 } from "../src/db/schema";
+import {
+  createKaanaCatalogueBootstrapPlan,
+  createKaanaCatalogueReviewedFactsSha256,
+  requireKaanaCatalogueBootstrapApplyAuthorization,
+} from "../src/scripts/kaanaCatalogueBootstrapPlan";
 import { logger } from "../src/utils/logger";
 
 const APPLY = process.env.APPLY === "1";
+const RESULT_PREFIX = "KAANA_CATALOGUE_BOOTSTRAP_RESULT=";
+const BOOTSTRAP_LOCK_NAMESPACE = "oxy-kaana-catalogue-bootstrap-v1";
 // These values are authorities and object identities, not display input. Use
 // the exact configured bytes so whitespace or any other mismatch fails closed
 // instead of silently selecting a different reviewer or inventory object.
-const reviewerUserId = process.env.KAANA_CATALOGUE_REVIEWER_USER_ID;
+const reviewerUserId = process.env.KAANA_CATALOGUE_REVIEWER_USER_ID ?? "";
 const inventoryBucket = process.env.KAANA_INVENTORY_BUCKET;
 const inventoryKey = process.env.KAANA_INVENTORY_KEY;
 const inventoryRegion = process.env.AWS_REGION;
+const expectedPlanSha256 = process.env.EXPECTED_PLAN_SHA256 ?? "";
+const bootstrapActor = process.env.BOOTSTRAP_ACTOR ?? "";
+const bootstrapReason = process.env.BOOTSTRAP_REASON ?? "";
+const REVIEWED_CATALOGUE_FACTS = {
+  publisher: KAANA_INITIAL_PUBLISHER,
+  model: KAANA_INITIAL_MODEL,
+  revision: KAANA_INITIAL_REVISION,
+  providers: KAANA_INITIAL_PROVIDERS,
+  routingProfiles: KAANA_INITIAL_ROUTING_PROFILES,
+  reviewedAt: KAANA_INITIAL_REVIEWED_AT,
+  scoreValidUntil: KAANA_INITIAL_SCORE_VALID_UNTIL,
+  balancedFormulaRef: KAANA_INITIAL_BALANCED_FORMULA_REF,
+  scorecardReason: KAANA_INITIAL_SCORECARD_REASON,
+  deploymentPolicy: {
+    availabilityScope: "internal_alia",
+    commercialPermission: "standard_application_use",
+    permissionState: "approved",
+    legalReviewStatus: "approved",
+    status: "active",
+    dedicatedCapacity: false,
+    regions: [],
+    permissionStateNote:
+      "Owner-approved initial internal Alia route; primary-source review 2026-09-02.",
+    upstreamWholesaleCostAmount: null,
+    upstreamWholesaleCostCurrency: null,
+    upstreamWholesaleCostUnit: null,
+    upstreamWholesaleCostPer: null,
+  },
+  pricePolicy: {
+    status: "active",
+    currency: "USD",
+    effectiveFrom: KAANA_INITIAL_REVIEWED_AT,
+    effectiveUntil: null,
+    supersedesPriceVersionId: null,
+  },
+  scorePolicy: {
+    latencyEvidenceRef: "not-measured:exact-deployment-bootstrap-2026-09-02",
+  },
+  candidatePolicy: {
+    modelId: null,
+    priority: 100,
+  },
+  profilePolicy: {
+    descriptionPrefix: "Oxy-owned ",
+    descriptionSuffix: " routing policy over exact Kaana deployments.",
+    isProductPreset: true,
+  },
+} as const;
+const reviewedFactsSha256 =
+  createKaanaCatalogueReviewedFactsSha256(REVIEWED_CATALOGUE_FACTS);
 
 class DryRunRollback extends Error {}
 
@@ -82,13 +146,19 @@ interface BootstrapSummary {
   inventorySnapshotId: string;
   inventoryIssuedAt: string;
   inventoryVersionId: string;
+  reviewedFactsSha256: string;
   publisher: string;
   model: string;
   revision: string;
+  candidate: {
+    modelReference: string;
+    priority: number;
+  };
   providers: string[];
   deployments: string[];
   routingProfileIds: string[];
   inserted: string[];
+  planSha256: string;
 }
 
 type Transaction = Parameters<
@@ -183,18 +253,38 @@ function assertFields(
   }
 }
 
+function requireAtMostOne<T>(label: string, rows: readonly T[]): T | undefined {
+  if (rows.length > 1) {
+    throw new Error(`${label} resolves to more than one catalogue row`);
+  }
+  return rows.at(0);
+}
+
+function requireExactlyOne<T>(label: string, rows: readonly T[]): T {
+  const row = requireAtMostOne(label, rows);
+  if (row === undefined) {
+    throw new Error(`${label} did not resolve to one catalogue row`);
+  }
+  return row;
+}
+
 async function requireReviewer(tx: Transaction): Promise<void> {
-  if (reviewerUserId === undefined || reviewerUserId.length === 0) {
+  if (reviewerUserId.length === 0) {
     throw new Error("KAANA_CATALOGUE_REVIEWER_USER_ID is required");
   }
-  const [reviewer] = await tx
+  const reviewerRows = await tx
     .select({
       id: users.id,
       isStaff: users.isStaff,
       staffCapabilities: users.staffCapabilities,
     })
     .from(users)
-    .where(eq(users.id, reviewerUserId));
+    .where(eq(users.id, reviewerUserId))
+    .for("update");
+  const reviewer = requireAtMostOne(
+    `Reviewer primary key ${reviewerUserId}`,
+    reviewerRows,
+  );
   if (
     reviewer === undefined ||
     reviewer.isStaff !== true ||
@@ -215,15 +305,19 @@ async function ensurePublisher(
     .values(KAANA_INITIAL_PUBLISHER)
     .onConflictDoNothing({ target: inferencePublishers.slug })
     .returning({ slug: inferencePublishers.slug });
-  if (created.length > 0)
+  requireAtMostOne("Publisher insert", created);
+  if (created.length === 1)
     inserted.push(`publisher:${KAANA_INITIAL_PUBLISHER.slug}`);
 
-  const [row] = await tx
+  const rows = await tx
     .select()
     .from(inferencePublishers)
-    .where(eq(inferencePublishers.slug, KAANA_INITIAL_PUBLISHER.slug));
-  if (row === undefined)
-    throw new Error("The reviewed publisher could not be read after insert");
+    .where(eq(inferencePublishers.slug, KAANA_INITIAL_PUBLISHER.slug))
+    .for("update");
+  const row = requireExactlyOne(
+    `Publisher identity ${KAANA_INITIAL_PUBLISHER.slug}`,
+    rows,
+  );
   assertFields("publisher", row, KAANA_INITIAL_PUBLISHER);
 }
 
@@ -231,17 +325,14 @@ async function ensureModel(
   tx: Transaction,
   inserted: string[],
 ): Promise<string> {
-  let [row] = await tx
+  const existingRows = await tx
     .select()
     .from(inferenceModels)
-    .where(
-      and(
-        eq(inferenceModels.publisherSlug, KAANA_INITIAL_MODEL.publisherSlug),
-        eq(inferenceModels.slug, KAANA_INITIAL_MODEL.slug),
-      ),
-    );
+    .where(eq(inferenceModels.modelId, KAANA_INITIAL_MODEL_ID))
+    .for("update");
+  let row = requireAtMostOne(`Model ID ${KAANA_INITIAL_MODEL_ID}`, existingRows);
   if (row === undefined) {
-    [row] = await tx
+    const createdRows = await tx
       .insert(inferenceModels)
       .values({
         ...KAANA_INITIAL_MODEL,
@@ -249,17 +340,13 @@ async function ensureModel(
         outputModalities: [...KAANA_INITIAL_MODEL.outputModalities],
       })
       .returning();
+    row = requireExactlyOne(`Model ID ${KAANA_INITIAL_MODEL_ID}`, createdRows);
     inserted.push(
       `model:${KAANA_INITIAL_PUBLISHER.slug}/${KAANA_INITIAL_MODEL.slug}`,
     );
   }
-  if (row === undefined)
-    throw new Error("The reviewed model could not be created");
   assertFields("model", row, KAANA_INITIAL_MODEL);
-  if (
-    row.modelId !==
-    `${KAANA_INITIAL_PUBLISHER.slug}/${KAANA_INITIAL_MODEL.slug}`
-  ) {
+  if (row.modelId !== KAANA_INITIAL_MODEL_ID) {
     throw new Error(`The generated model identity is invalid: ${row.modelId}`);
   }
   return row.id;
@@ -270,7 +357,7 @@ async function ensureRevision(
   modelId: string,
   inserted: string[],
 ): Promise<string> {
-  let [row] = await tx
+  const existingRows = await tx
     .select()
     .from(inferenceModelRevisions)
     .where(
@@ -278,9 +365,14 @@ async function ensureRevision(
         eq(inferenceModelRevisions.modelId, modelId),
         eq(inferenceModelRevisions.revision, KAANA_INITIAL_REVISION.revision),
       ),
-    );
+    )
+    .for("update");
+  let row = requireAtMostOne(
+    `Model revision ${KAANA_INITIAL_MODEL_REFERENCE}`,
+    existingRows,
+  );
   if (row === undefined) {
-    [row] = await tx
+    const createdRows = await tx
       .insert(inferenceModelRevisions)
       .values({
         modelId,
@@ -288,10 +380,12 @@ async function ensureRevision(
         releasedAt: new Date(KAANA_INITIAL_REVISION.releasedAt),
       })
       .returning();
+    row = requireExactlyOne(
+      `Model revision ${KAANA_INITIAL_MODEL_REFERENCE}`,
+      createdRows,
+    );
     inserted.push(`revision:${KAANA_INITIAL_MODEL_REFERENCE}`);
   }
-  if (row === undefined)
-    throw new Error("The reviewed model revision could not be created");
   assertFields("revision", row, {
     modelId,
     ...KAANA_INITIAL_REVISION,
@@ -326,14 +420,15 @@ async function ensureProvider(
     .values(expected)
     .onConflictDoNothing({ target: inferenceProviders.slug })
     .returning({ slug: inferenceProviders.slug });
-  if (created.length > 0) inserted.push(`provider:${provider.slug}`);
+  requireAtMostOne(`Provider ${provider.slug} insert`, created);
+  if (created.length === 1) inserted.push(`provider:${provider.slug}`);
 
-  const [row] = await tx
+  const rows = await tx
     .select()
     .from(inferenceProviders)
-    .where(eq(inferenceProviders.slug, provider.slug));
-  if (row === undefined)
-    throw new Error(`Provider ${provider.slug} could not be read`);
+    .where(eq(inferenceProviders.slug, provider.slug))
+    .for("update");
+  const row = requireExactlyOne(`Provider identity ${provider.slug}`, rows);
   assertFields(`provider:${provider.slug}`, row, expected);
 }
 
@@ -342,7 +437,7 @@ async function ensurePriceVersion(
   provider: KaanaInitialProvider,
   inserted: string[],
 ): Promise<string> {
-  let [row] = await tx
+  const existingRows = await tx
     .select()
     .from(priceVersions)
     .where(
@@ -351,23 +446,37 @@ async function ensurePriceVersion(
         eq(priceVersions.provider, provider.slug),
         eq(priceVersions.status, "active"),
       ),
-    );
+    )
+    .for("update");
+  let row = requireAtMostOne(
+    `Active price ${KAANA_INITIAL_MODEL_REFERENCE}:${provider.slug}`,
+    existingRows,
+  );
   const expected = {
-    status: "active" as const,
+    status: REVIEWED_CATALOGUE_FACTS.pricePolicy.status,
     modelReference: KAANA_INITIAL_MODEL_REFERENCE,
     provider: provider.slug,
-    currency: "USD",
-    effectiveFrom: new Date(KAANA_INITIAL_REVIEWED_AT),
-    effectiveUntil: null,
-    supersedesPriceVersionId: null,
+    currency: REVIEWED_CATALOGUE_FACTS.pricePolicy.currency,
+    effectiveFrom: new Date(
+      REVIEWED_CATALOGUE_FACTS.pricePolicy.effectiveFrom,
+    ),
+    effectiveUntil: REVIEWED_CATALOGUE_FACTS.pricePolicy.effectiveUntil,
+    supersedesPriceVersionId:
+      REVIEWED_CATALOGUE_FACTS.pricePolicy.supersedesPriceVersionId,
   };
   if (row === undefined) {
-    [row] = await tx.insert(priceVersions).values(expected).returning();
-    if (row === undefined)
-      throw new Error(`Price version for ${provider.slug} was not created`);
+    const createdRows = await tx
+      .insert(priceVersions)
+      .values(expected)
+      .returning();
+    const createdRow = requireExactlyOne(
+      `Active price ${KAANA_INITIAL_MODEL_REFERENCE}:${provider.slug}`,
+      createdRows,
+    );
+    row = createdRow;
     await tx.insert(priceVersionUnitPrices).values(
       provider.unitPrices.map((price) => ({
-        priceVersionId: row!.id,
+        priceVersionId: createdRow.id,
         unit: price.unit,
         amount: price.amount,
         per: price.per,
@@ -412,49 +521,61 @@ async function ensureDeployment(
   const expected = {
     modelRevisionId: revisionId,
     providerSlug: provider.slug,
-    regions: [] as string[],
+    regions: [...REVIEWED_CATALOGUE_FACTS.deploymentPolicy.regions],
     retainsPayloads: provider.retainsPayloads,
     retentionDays: provider.retentionDays,
     trainsOnCustomerData: provider.trainsOnCustomerData,
     zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
     subprocessors: null,
     policyUrl: provider.policyUrl,
-    availabilityScope: "internal_alia" as const,
-    commercialPermission: "standard_application_use" as const,
-    permissionState: "approved" as const,
-    legalReviewStatus: "approved" as const,
+    availabilityScope:
+      REVIEWED_CATALOGUE_FACTS.deploymentPolicy.availabilityScope,
+    commercialPermission:
+      REVIEWED_CATALOGUE_FACTS.deploymentPolicy.commercialPermission,
+    permissionState: REVIEWED_CATALOGUE_FACTS.deploymentPolicy.permissionState,
+    legalReviewStatus:
+      REVIEWED_CATALOGUE_FACTS.deploymentPolicy.legalReviewStatus,
     legalReviewEvidenceRef: provider.legalEvidenceRef,
     legalReviewedAt: new Date(KAANA_INITIAL_REVIEWED_AT),
-    legalReviewedByUserId: reviewerUserId!,
+    legalReviewedByUserId: reviewerUserId,
     permissionStateChangedAt: new Date(KAANA_INITIAL_REVIEWED_AT),
-    permissionStateChangedByUserId: reviewerUserId!,
+    permissionStateChangedByUserId: reviewerUserId,
     permissionStateNote:
-      "Owner-approved initial internal Alia route; primary-source review 2026-09-02.",
-    status: "active" as const,
-    dedicatedCapacity: false,
+      REVIEWED_CATALOGUE_FACTS.deploymentPolicy.permissionStateNote,
+    status: REVIEWED_CATALOGUE_FACTS.deploymentPolicy.status,
+    dedicatedCapacity:
+      REVIEWED_CATALOGUE_FACTS.deploymentPolicy.dedicatedCapacity,
     priceVersionId,
     internalRouteId: provider.deploymentId,
-    upstreamWholesaleCostAmount: null,
-    upstreamWholesaleCostCurrency: null,
-    upstreamWholesaleCostUnit: null,
-    upstreamWholesaleCostPer: null,
+    upstreamWholesaleCostAmount:
+      REVIEWED_CATALOGUE_FACTS.deploymentPolicy.upstreamWholesaleCostAmount,
+    upstreamWholesaleCostCurrency:
+      REVIEWED_CATALOGUE_FACTS.deploymentPolicy.upstreamWholesaleCostCurrency,
+    upstreamWholesaleCostUnit:
+      REVIEWED_CATALOGUE_FACTS.deploymentPolicy.upstreamWholesaleCostUnit,
+    upstreamWholesaleCostPer:
+      REVIEWED_CATALOGUE_FACTS.deploymentPolicy.upstreamWholesaleCostPer,
   };
-  let [row] = await tx
+  const deploymentRows = await tx
     .select()
     .from(inferenceDeployments)
-    .where(
-      and(
-        eq(inferenceDeployments.modelRevisionId, revisionId),
-        eq(inferenceDeployments.providerSlug, provider.slug),
-        eq(inferenceDeployments.availabilityScope, "internal_alia"),
-      ),
-    );
+    .where(eq(inferenceDeployments.internalRouteId, provider.deploymentId))
+    .for("update");
+  let row = requireAtMostOne(
+    `Exact deployment ID ${provider.deploymentId}`,
+    deploymentRows,
+  );
   if (row === undefined) {
-    [row] = await tx.insert(inferenceDeployments).values(expected).returning();
+    const createdRows = await tx
+      .insert(inferenceDeployments)
+      .values(expected)
+      .returning();
+    row = requireExactlyOne(
+      `Exact deployment ID ${provider.deploymentId}`,
+      createdRows,
+    );
     inserted.push(`deployment:${provider.deploymentId}`);
   }
-  if (row === undefined)
-    throw new Error(`Deployment ${provider.deploymentId} was not created`);
   assertFields(`deployment:${provider.deploymentId}`, row, expected);
 }
 
@@ -479,7 +600,7 @@ async function ensureScorecard(
     priceVersionId,
     latencyScore: provider.scores.latency,
     latencySource: "reviewed_scorecard" as const,
-    latencyEvidenceRef: "not-measured:exact-deployment-bootstrap-2026-09-02",
+    latencyEvidenceRef: REVIEWED_CATALOGUE_FACTS.scorePolicy.latencyEvidenceRef,
     latencyMeasurementWindowStart: reviewedAt,
     latencyMeasurementWindowEnd: reviewedAt,
     latencyValidUntil: validUntil,
@@ -495,28 +616,35 @@ async function ensureScorecard(
     balancedFormulaRef: KAANA_INITIAL_BALANCED_FORMULA_REF,
     balancedValidUntil: validUntil,
     reason: KAANA_INITIAL_SCORECARD_REASON,
-    changedByUserId: reviewerUserId!,
+    changedByUserId: reviewerUserId,
     changedAt: reviewedAt,
   };
-  let [row] = await tx
+  const existingRows = await tx
     .select()
     .from(inferenceDeploymentRoutingScores)
     .where(
       eq(inferenceDeploymentRoutingScores.deploymentId, provider.deploymentId),
-    );
+    )
+    .for("update");
+  let row = requireAtMostOne(
+    `Scorecard deployment ID ${provider.deploymentId}`,
+    existingRows,
+  );
   if (row === undefined) {
-    [row] = await tx
+    const createdRows = await tx
       .insert(inferenceDeploymentRoutingScores)
       .values(expected)
       .returning();
+    row = requireExactlyOne(
+      `Scorecard deployment ID ${provider.deploymentId}`,
+      createdRows,
+    );
     await tx.insert(inferenceDeploymentRoutingScoreEvents).values({
       ...expected,
       createdAt: reviewedAt,
     });
     inserted.push(`scorecard:${provider.deploymentId}`);
   }
-  if (row === undefined)
-    throw new Error(`Scorecard ${provider.deploymentId} was not created`);
   assertFields(`scorecard:${provider.deploymentId}`, row, expected);
 
   // A current row without its immutable provenance event is not "close
@@ -533,7 +661,8 @@ async function ensureScorecard(
         ),
         eq(inferenceDeploymentRoutingScoreEvents.createdAt, reviewedAt),
       ),
-    );
+    )
+    .for("update");
   const event = requireSingleKaanaBootstrapScoreEvent(
     provider.deploymentId,
     events,
@@ -552,14 +681,24 @@ async function ensureProfiles(
 ): Promise<string[]> {
   const ids: string[] = [];
   for (const profile of KAANA_INITIAL_ROUTING_PROFILES) {
-    let [row] = await tx
+    const profileRows = await tx
       .select()
       .from(inferenceRoutingProfiles)
-      .where(eq(inferenceRoutingProfiles.id, profile.id));
-    const [slugOwner] = await tx
+      .where(eq(inferenceRoutingProfiles.id, profile.id))
+      .for("update");
+    let row = requireAtMostOne(
+      `Routing-profile primary key ${profile.id}`,
+      profileRows,
+    );
+    const slugOwnerRows = await tx
       .select({ id: inferenceRoutingProfiles.id })
       .from(inferenceRoutingProfiles)
-      .where(eq(inferenceRoutingProfiles.slug, profile.slug));
+      .where(eq(inferenceRoutingProfiles.slug, profile.slug))
+      .for("update");
+    const slugOwner = requireAtMostOne(
+      `Routing-profile slug ${profile.slug}`,
+      slugOwnerRows,
+    );
     if (slugOwner !== undefined && slugOwner.id !== profile.id) {
       throw new Error(
         `Routing profile slug ${profile.slug} is already owned by unexpected id ${slugOwner.id}`,
@@ -567,46 +706,51 @@ async function ensureProfiles(
     }
     const expected = {
       ...profile,
-      description: `Oxy-owned ${profile.displayName} routing policy over exact Kaana deployments.`,
-      isProductPreset: true,
+      description: `${REVIEWED_CATALOGUE_FACTS.profilePolicy.descriptionPrefix}${profile.displayName}${REVIEWED_CATALOGUE_FACTS.profilePolicy.descriptionSuffix}`,
+      isProductPreset: REVIEWED_CATALOGUE_FACTS.profilePolicy.isProductPreset,
     };
     if (row === undefined) {
-      [row] = await tx
+      const createdRows = await tx
         .insert(inferenceRoutingProfiles)
         .values(expected)
         .returning();
+      row = requireExactlyOne(
+        `Routing-profile primary key ${profile.id}`,
+        createdRows,
+      );
       inserted.push(`profile:${profile.slug}`);
     }
-    if (row === undefined)
-      throw new Error(`Routing profile ${profile.slug} was not created`);
     assertFields(`profile:${profile.slug}`, row, expected);
 
-    let [candidate] = await tx
+    let candidateRows = await tx
       .select()
       .from(inferenceRoutingProfileCandidates)
-      .where(
-        and(
-          eq(inferenceRoutingProfileCandidates.routingProfileId, row.id),
-          eq(inferenceRoutingProfileCandidates.modelRevisionId, revisionId),
-        ),
-      );
+      .where(eq(inferenceRoutingProfileCandidates.routingProfileId, profile.id))
+      .for("update");
     const candidateExpected = {
       routingProfileId: row.id,
-      modelId: null,
+      modelId: REVIEWED_CATALOGUE_FACTS.candidatePolicy.modelId,
       modelRevisionId: revisionId,
-      priority: 100,
+      priority: REVIEWED_CATALOGUE_FACTS.candidatePolicy.priority,
     };
-    if (candidate === undefined) {
-      [candidate] = await tx
+    if (candidateRows.length === 0) {
+      const createdCandidates = await tx
         .insert(inferenceRoutingProfileCandidates)
         .values(candidateExpected)
         .returning();
+      requireExactlyOne(
+        `Routing-profile primary key ${profile.id} candidate`,
+        createdCandidates,
+      );
+      candidateRows = createdCandidates;
       inserted.push(
         `profile-candidate:${profile.slug}:${KAANA_INITIAL_MODEL_REFERENCE}`,
       );
     }
-    if (candidate === undefined)
-      throw new Error(`Candidate for ${profile.slug} was not created`);
+    const candidate = requireExactlyOne(
+      `Routing-profile primary key ${profile.id} reviewed candidate`,
+      candidateRows,
+    );
     assertFields(
       `profile-candidate:${profile.slug}`,
       candidate,
@@ -624,6 +768,9 @@ async function bootstrap(): Promise<BootstrapSummary> {
   let summary: BootstrapSummary | undefined;
   try {
     await getDb().transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${BOOTSTRAP_LOCK_NAMESPACE}, 0))`,
+      );
       await requireReviewer(tx);
       await ensurePublisher(tx, inserted);
       const modelId = await ensureModel(tx, inserted);
@@ -642,13 +789,18 @@ async function bootstrap(): Promise<BootstrapSummary> {
         await ensureScorecard(tx, provider, priceVersionId, inserted);
       }
       const routingProfileIds = await ensureProfiles(tx, revisionId, inserted);
-      summary = {
+      const summaryWithoutPlan = {
         inventorySnapshotId: inventory.snapshotId,
         inventoryIssuedAt: inventory.issuedAt,
         inventoryVersionId: inventory.versionId,
+        reviewedFactsSha256,
         publisher: KAANA_INITIAL_PUBLISHER.slug,
-        model: `${KAANA_INITIAL_PUBLISHER.slug}/${KAANA_INITIAL_MODEL.slug}`,
+        model: KAANA_INITIAL_MODEL_ID,
         revision: KAANA_INITIAL_MODEL_REFERENCE,
+        candidate: {
+          modelReference: KAANA_INITIAL_MODEL_REFERENCE,
+          priority: REVIEWED_CATALOGUE_FACTS.candidatePolicy.priority,
+        },
         providers: KAANA_INITIAL_PROVIDERS.map((provider) => provider.slug),
         deployments: KAANA_INITIAL_PROVIDERS.map(
           (provider) => provider.deploymentId,
@@ -656,6 +808,27 @@ async function bootstrap(): Promise<BootstrapSummary> {
         routingProfileIds,
         inserted,
       };
+      const { planSha256 } = createKaanaCatalogueBootstrapPlan({
+        reviewerUserId,
+        inventorySnapshotId: summaryWithoutPlan.inventorySnapshotId,
+        reviewedFactsSha256: summaryWithoutPlan.reviewedFactsSha256,
+        publisher: summaryWithoutPlan.publisher,
+        model: summaryWithoutPlan.model,
+        revision: summaryWithoutPlan.revision,
+        candidate: summaryWithoutPlan.candidate,
+        providers: summaryWithoutPlan.providers,
+        deployments: summaryWithoutPlan.deployments,
+        routingProfileIds: summaryWithoutPlan.routingProfileIds,
+        wouldInsert: summaryWithoutPlan.inserted,
+      });
+      requireKaanaCatalogueBootstrapApplyAuthorization({
+        apply: APPLY,
+        actualPlanSha256: planSha256,
+        expectedPlanSha256,
+        actor: bootstrapActor,
+        reason: bootstrapReason,
+      });
+      summary = { ...summaryWithoutPlan, planSha256 };
       if (!APPLY) throw new DryRunRollback("dry-run rollback");
     });
   } catch (error) {
@@ -668,15 +841,21 @@ async function bootstrap(): Promise<BootstrapSummary> {
 
 bootstrap()
   .then(async (summary) => {
+    const result = {
+      schemaVersion: 1,
+      database: { engine: "postgresql" },
+      ...summary,
+      applied: APPLY,
+    } as const;
     logger.info(
       APPLY
         ? "Kaana catalogue bootstrap applied"
         : "Kaana catalogue bootstrap dry run",
       {
-        ...summary,
-        applied: APPLY,
+        ...result,
       },
     );
+    process.stdout.write(`${RESULT_PREFIX}${JSON.stringify(result)}\n`);
     await closePostgres();
   })
   .catch(async (error: unknown) => {

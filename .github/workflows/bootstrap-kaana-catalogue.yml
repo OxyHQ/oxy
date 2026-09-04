@@ -1,0 +1,512 @@
+name: Bootstrap reviewed Kaana catalogue
+
+# Manual, dry-run-first PostgreSQL writer for the exact source-reviewed Kaana
+# catalogue. The dedicated task definition is registered by oxy-infra and is
+# never replaced with the live oxy-api task definition.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Dry-run the exact plan or apply the matching reviewed plan
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - apply
+      expected_live_task_definition_arn:
+        description: Exact reviewed live oxy-api task-definition ARN
+        required: true
+        type: string
+      expected_bootstrap_task_definition_arn:
+        description: Exact dedicated oxy-kaana-catalogue-bootstrap task-definition ARN
+        required: true
+        type: string
+      expected_live_image_digest:
+        description: Exact immutable oxy-api image digest shared by live and bootstrap tasks
+        required: true
+        type: string
+      reviewer_user_id:
+        description: Exact PostgreSQL users.id already authorized to publish the catalogue
+        required: true
+        type: string
+      expected_plan_sha256:
+        description: Exact lowercase SHA-256 emitted by the reviewed dry run (apply only)
+        required: false
+        type: string
+      reason:
+        description: Auditable change or ticket reason (apply only)
+        required: false
+        type: string
+
+concurrency:
+  group: kaana-catalogue-bootstrap-production
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  AWS_ACCOUNT_ID: "237343248947"
+  CLUSTER: oxy-cluster
+  LIVE_SERVICE: oxy-api
+  NETWORK_SERVICE: kaana-publisher
+  LIVE_CONTAINER: oxy-api
+  BOOTSTRAP_CONTAINER: kaana-catalogue-bootstrap
+  INVENTORY_SNAPSHOT_ID: snap_7c760c006f5ac633
+  MODEL_ID: openai/gpt-oss-120b
+  MODEL_REFERENCE: openai/gpt-oss-120b@observed-2026-09-01
+  CEREBRAS_DEPLOYMENT_ID: dep_cerebras_gpt_oss_120b_observed_2026_09_01
+  GROQ_DEPLOYMENT_ID: dep_groq_openai_gpt_oss_120b_observed_2026_09_01
+  REVIEWER_USER_ID_EXPECTED: 6981c9178fcdefaf81988ffb
+  PROFILE_LITE_ID: 01a06477-94f5-74f0-bc25-4a1ff59d6945
+  PROFILE_DEFAULT_ID: 01a06477-94f5-74f0-bc25-4c5c13b93ccd
+  PROFILE_CODE_ID: 01a06477-94f5-74f0-bc25-52437e0c724d
+  PROFILE_COWORK_ID: 01a06477-94f5-74f0-bc25-55ea2ebdb2b6
+  PROFILE_BROWSER_ID: 01a06477-94f5-74f0-bc25-5a78baecbef6
+  PROFILE_PRO_ID: 01a06477-94f5-74f0-bc25-5d796b49b616
+  PROFILE_THINKING_ID: 01a06477-94f5-74f0-bc25-628b5f45d802
+  PROFILE_PRO_MAX_ID: 01a06477-94f5-74f0-bc25-658eeb277737
+
+jobs:
+  bootstrap:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run the exact dry-run-first PostgreSQL bootstrap
+        env:
+          REQUESTED_MODE: ${{ inputs.mode }}
+          EXPECTED_LIVE_TASK_DEFINITION_ARN: ${{ inputs.expected_live_task_definition_arn }}
+          EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN: ${{ inputs.expected_bootstrap_task_definition_arn }}
+          EXPECTED_LIVE_IMAGE_DIGEST: ${{ inputs.expected_live_image_digest }}
+          REVIEWER_USER_ID: ${{ inputs.reviewer_user_id }}
+          EXPECTED_PLAN_SHA256_INPUT: ${{ inputs.expected_plan_sha256 }}
+          BOOTSTRAP_REASON_INPUT: ${{ inputs.reason }}
+          BOOTSTRAP_ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export LC_ALL=C
+
+          if [[ ! "$EXPECTED_LIVE_TASK_DEFINITION_ARN" =~ ^arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:[0-9]+$ ]]; then
+            echo '::error::expected_live_task_definition_arn is not one exact production oxy-api revision'
+            exit 64
+          fi
+          if [[ ! "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" =~ ^arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-catalogue-bootstrap:[0-9]+$ ]]; then
+            echo '::error::expected_bootstrap_task_definition_arn is not one exact dedicated bootstrap revision'
+            exit 64
+          fi
+          if [[ ! "$EXPECTED_LIVE_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo '::error::expected_live_image_digest must be one exact lowercase sha256 digest'
+            exit 64
+          fi
+          if [ "$REVIEWER_USER_ID" != "$REVIEWER_USER_ID_EXPECTED" ]; then
+            echo '::error::reviewer_user_id is not the exact source-reviewed PostgreSQL users.id'
+            exit 64
+          fi
+          case "$REQUESTED_MODE" in
+            dry-run)
+              expected_plan=''
+              bootstrap_reason='dry-run only'
+              ;;
+            apply)
+              expected_plan="$EXPECTED_PLAN_SHA256_INPUT"
+              bootstrap_reason="$BOOTSTRAP_REASON_INPUT"
+              if [[ ! "$expected_plan" =~ ^[a-f0-9]{64}$ ]]; then
+                echo '::error::apply requires the exact lowercase SHA-256 from its matching dry run'
+                exit 64
+              fi
+              if [ -z "$bootstrap_reason" ] || [ "$bootstrap_reason" != "${bootstrap_reason# }" ] || [ "$bootstrap_reason" != "${bootstrap_reason% }" ] || [[ "$bootstrap_reason" == *$'\n'* ]] || [[ "$bootstrap_reason" == *$'\r'* ]] || [ "${#bootstrap_reason}" -gt 256 ]; then
+                echo '::error::apply reason must be an exact non-empty single line of at most 256 characters'
+                exit 64
+              fi
+              ;;
+            *)
+              echo '::error::unregistered Kaana catalogue bootstrap mode'
+              exit 64
+              ;;
+          esac
+
+          # Independent exact-value assertions keep a changed env entry from
+          # silently widening the reviewed catalogue in a manual workflow.
+          [ "$INVENTORY_SNAPSHOT_ID" = 'snap_7c760c006f5ac633' ]
+          [ "$MODEL_ID" = 'openai/gpt-oss-120b' ]
+          [ "$MODEL_REFERENCE" = 'openai/gpt-oss-120b@observed-2026-09-01' ]
+          [ "$CEREBRAS_DEPLOYMENT_ID" = 'dep_cerebras_gpt_oss_120b_observed_2026_09_01' ]
+          [ "$GROQ_DEPLOYMENT_ID" = 'dep_groq_openai_gpt_oss_120b_observed_2026_09_01' ]
+          [ "$REVIEWER_USER_ID_EXPECTED" = '6981c9178fcdefaf81988ffb' ]
+          [ "$PROFILE_DEFAULT_ID" = '01a06477-94f5-74f0-bc25-4c5c13b93ccd' ]
+
+          live_service_json=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$LIVE_SERVICE" \
+            --query 'services[0]' --output json)
+          if [ "$(jq -r '.status // "NONE"' <<<"$live_service_json")" != ACTIVE ] || \
+             [ "$(jq '[.deployments[] | select(.status == "PRIMARY" and .rolloutState == "COMPLETED")] | length' <<<"$live_service_json")" != 1 ] || \
+             [ "$(jq '.deployments | length' <<<"$live_service_json")" != 1 ] || \
+             [ "$(jq -r '.desiredCount > 0 and .pendingCount == 0 and .runningCount == .desiredCount' <<<"$live_service_json")" != true ]; then
+            echo '::error::oxy-api is not at one completed non-empty steady deployment'
+            exit 1
+          fi
+          live_task_definition=$(jq -er '.taskDefinition' <<<"$live_service_json")
+          if [ "$live_task_definition" != "$EXPECTED_LIVE_TASK_DEFINITION_ARN" ]; then
+            echo '::error::live oxy-api task definition changed after review'
+            exit 1
+          fi
+          live_task_json=$(aws ecs describe-task-definition \
+            --task-definition "$live_task_definition" \
+            --query taskDefinition --output json)
+          live_image=$(jq -er --arg container "$LIVE_CONTAINER" '
+            [.containerDefinitions[] | select(.name == $container)] |
+            if length == 1 then .[0].image else error("expected one live container") end
+          ' <<<"$live_task_json")
+          immutable_image="237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@$EXPECTED_LIVE_IMAGE_DIGEST"
+          if [ "$live_image" != "$immutable_image" ]; then
+            echo '::error::live oxy-api image changed after review or is not immutable'
+            exit 1
+          fi
+
+          bootstrap_task_json=$(aws ecs describe-task-definition \
+            --task-definition "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" \
+            --query taskDefinition --output json)
+          if ! jq -e \
+            --arg arn "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" \
+            --arg image "$immutable_image" '
+              .taskDefinitionArn == $arn and
+              .status == "ACTIVE" and
+              .family == "oxy-kaana-catalogue-bootstrap" and
+              .networkMode == "awsvpc" and
+              .cpu == "512" and
+              .memory == "1024" and
+              .requiresCompatibilities == ["FARGATE"] and
+              .runtimePlatform == {cpuArchitecture:"ARM64",operatingSystemFamily:"LINUX"} and
+              .executionRoleArn == "arn:aws:iam::237343248947:role/oxy-ecs-execution" and
+              .taskRoleArn == "arn:aws:iam::237343248947:role/oxy-kaana-catalogue-bootstrap" and
+              (.containerDefinitions | length) == 1 and
+              .containerDefinitions[0].name == "kaana-catalogue-bootstrap" and
+              .containerDefinitions[0].essential == true and
+              .containerDefinitions[0].image == $image and
+              .containerDefinitions[0].command == ["bun","run","packages/api/scripts/bootstrap-kaana-catalogue.ts"] and
+              ((.containerDefinitions[0].environment | sort_by(.name)) == ([
+                {name:"AWS_REGION",value:"us-west-2"},
+                {name:"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS",value:"3600"},
+                {name:"KAANA_INVENTORY_BUCKET",value:"oxy-kaana-inventory-usw2-237343248947"},
+                {name:"KAANA_INVENTORY_KEY",value:"inventory/current.json"},
+                {name:"NODE_ENV",value:"production"}
+              ] | sort_by(.name))) and
+              .containerDefinitions[0].secrets == [{
+                name:"DATABASE_URL",
+                valueFrom:"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/DATABASE_URL"
+              }] and
+              .containerDefinitions[0].logConfiguration.logDriver == "awslogs" and
+              .containerDefinitions[0].logConfiguration.options == {
+                "awslogs-group":"/oxy/ecs",
+                "awslogs-region":"us-west-2",
+                "awslogs-stream-prefix":"kaana-catalogue-bootstrap"
+              } and
+              ((.containerDefinitions[0].logConfiguration.secretOptions // []) == [])
+            ' <<<"$bootstrap_task_json" >/dev/null; then
+            echo '::error::dedicated bootstrap task authority or immutable artifact differs from the reviewed shape'
+            exit 1
+          fi
+
+          network_service_json=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$NETWORK_SERVICE" \
+            --query 'services[0]' --output json)
+          if [ "$(jq -r '.status // "NONE"' <<<"$network_service_json")" != ACTIVE ] || \
+             [ "$(jq '[.deployments[] | select(.status == "PRIMARY" and .rolloutState == "COMPLETED")] | length' <<<"$network_service_json")" != 1 ] || \
+             [ "$(jq '.deployments | length' <<<"$network_service_json")" != 1 ] || \
+             [ "$(jq -r '.desiredCount > 0 and .pendingCount == 0 and .runningCount == .desiredCount' <<<"$network_service_json")" != true ]; then
+            echo '::error::kaana-publisher is not at one completed non-empty steady deployment'
+            exit 1
+          fi
+          network=$(jq -ec '
+            .networkConfiguration.awsvpcConfiguration |
+            if .assignPublicIp == "ENABLED" and
+               (.subnets | type == "array" and length > 0) and
+               (.securityGroups | type == "array" and length == 1)
+            then {awsvpcConfiguration:.}
+            else error("invalid publisher network authority") end
+          ' <<<"$network_service_json")
+
+          log_group=$(jq -er '.containerDefinitions[0].logConfiguration.options["awslogs-group"]' <<<"$bootstrap_task_json")
+          log_prefix=$(jq -er '.containerDefinitions[0].logConfiguration.options["awslogs-stream-prefix"]' <<<"$bootstrap_task_json")
+
+          run_task() {
+            local task_label="$1"
+            local task_command="$2"
+            local task_environment="$3"
+            local result_prefix="$4"
+            local overrides run_json task_arn task_json exit_code task_id log_json result_lines
+            overrides=$(jq -nc \
+              --arg container "$BOOTSTRAP_CONTAINER" \
+              --argjson command "$task_command" \
+              --argjson environment "$task_environment" '
+                {containerOverrides:[{name:$container,command:$command,environment:$environment}]}
+              ')
+            run_json=$(aws ecs run-task \
+              --cluster "$CLUSTER" \
+              --task-definition "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" \
+              --launch-type FARGATE \
+              --network-configuration "$network" \
+              --overrides "$overrides" \
+              --started-by "gh-kaana-catalogue-${GITHUB_RUN_ID}")
+            task_arn=$(jq -r '.tasks[0].taskArn // empty' <<<"$run_json")
+            if [ -z "$task_arn" ]; then
+              echo "::error::$task_label task was not started" >&2
+              printf '%s' '{"exitCode":255,"resultCount":0,"result":null}'
+              return
+            fi
+            echo "$task_label task: $task_arn" >&2
+            aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"
+            task_json=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn")
+            exit_code=$(jq -r --arg container "$BOOTSTRAP_CONTAINER" '
+              [.tasks[0].containers[] | select(.name == $container)] |
+              if length == 1 then .[0].exitCode else 255 end
+            ' <<<"$task_json")
+            task_id=${task_arn##*/}
+            log_json='{"events":[]}'
+            result_lines='[]'
+            for _attempt in $(seq 1 10); do
+              log_json=$(aws logs get-log-events \
+                --log-group-name "$log_group" \
+                --log-stream-name "$log_prefix/$BOOTSTRAP_CONTAINER/$task_id" \
+                --start-from-head --output json 2>/dev/null || printf '{"events":[]}')
+              result_lines=$(jq -c --arg prefix "$result_prefix" '
+                [.events[].message | select(startswith($prefix)) | ltrimstr($prefix)]
+              ' <<<"$log_json")
+              [ "$(jq 'length' <<<"$result_lines")" != 0 ] && break
+              sleep 3
+            done
+            jq -nc \
+              --argjson exitCode "$exit_code" \
+              --argjson lines "$result_lines" '
+                {
+                  exitCode:$exitCode,
+                  resultCount:($lines | length),
+                  result:(if ($lines | length) == 1 then (try ($lines[0] | fromjson) catch null) else null end)
+                }
+              '
+          }
+
+          allowed_operations=$(jq -nc --arg revision "$MODEL_REFERENCE" '[
+            "publisher:openai",
+            "model:openai/gpt-oss-120b",
+            ("revision:" + $revision),
+            "provider:cerebras",
+            ("price:" + $revision + ":cerebras"),
+            "deployment:dep_cerebras_gpt_oss_120b_observed_2026_09_01",
+            "scorecard:dep_cerebras_gpt_oss_120b_observed_2026_09_01",
+            "provider:groq",
+            ("price:" + $revision + ":groq"),
+            "deployment:dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+            "scorecard:dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+            "profile:kaana-lite", ("profile-candidate:kaana-lite:" + $revision),
+            "profile:kaana-v1", ("profile-candidate:kaana-v1:" + $revision),
+            "profile:kaana-v1-codea", ("profile-candidate:kaana-v1-codea:" + $revision),
+            "profile:kaana-v1-cowork", ("profile-candidate:kaana-v1-cowork:" + $revision),
+            "profile:kaana-v1-browser", ("profile-candidate:kaana-v1-browser:" + $revision),
+            "profile:kaana-v1-pro", ("profile-candidate:kaana-v1-pro:" + $revision),
+            "profile:kaana-v1-thinking", ("profile-candidate:kaana-v1-thinking:" + $revision),
+            "profile:kaana-v1-pro-max", ("profile-candidate:kaana-v1-pro-max:" + $revision)
+          ]')
+
+          validate_bootstrap_result() {
+            local result="$1"
+            local expected_applied="$2"
+            jq -e \
+              --argjson expectedApplied "$expected_applied" \
+              --arg snapshot "$INVENTORY_SNAPSHOT_ID" \
+              --arg model "$MODEL_ID" \
+              --arg revision "$MODEL_REFERENCE" \
+              --arg cerebras "$CEREBRAS_DEPLOYMENT_ID" \
+              --arg groq "$GROQ_DEPLOYMENT_ID" \
+              --arg lite "$PROFILE_LITE_ID" \
+              --arg default "$PROFILE_DEFAULT_ID" \
+              --arg code "$PROFILE_CODE_ID" \
+              --arg cowork "$PROFILE_COWORK_ID" \
+              --arg browser "$PROFILE_BROWSER_ID" \
+              --arg pro "$PROFILE_PRO_ID" \
+              --arg thinking "$PROFILE_THINKING_ID" \
+              --arg proMax "$PROFILE_PRO_MAX_ID" \
+              --argjson allowed "$allowed_operations" '
+                (keys | sort) == [
+                  "applied","candidate","database","deployments","inserted",
+                  "inventoryIssuedAt","inventorySnapshotId","inventoryVersionId",
+                  "model","planSha256","providers","publisher","reviewedFactsSha256","revision",
+                  "routingProfileIds","schemaVersion"
+                ] and
+                .schemaVersion == 1 and
+                .database == {engine:"postgresql"} and
+                .applied == $expectedApplied and
+                .inventorySnapshotId == $snapshot and
+                (.inventoryIssuedAt | type == "string" and length > 0) and
+                (.inventoryVersionId | type == "string" and length > 0) and
+                (.reviewedFactsSha256 | test("^[a-f0-9]{64}$")) and
+                .publisher == "openai" and
+                .model == $model and
+                .revision == $revision and
+                .candidate == {modelReference:$revision,priority:100} and
+                .providers == ["cerebras","groq"] and
+                .deployments == [$cerebras,$groq] and
+                .routingProfileIds == [$lite,$default,$code,$cowork,$browser,$pro,$thinking,$proMax] and
+                (.planSha256 | test("^[a-f0-9]{64}$")) and
+                (.inserted | type == "array") and
+                (.inserted | all(type == "string")) and
+                ((.inserted | unique | length) == (.inserted | length)) and
+                ((.inserted - $allowed) | length == 0)
+              ' <<<"$result" >/dev/null
+          }
+
+          validate_readback_result() {
+            local result="$1"
+            jq -e --arg id "$PROFILE_DEFAULT_ID" --arg model "$MODEL_REFERENCE" '
+              (keys | sort) == ["candidate","database","routingProfile","schemaVersion","status"] and
+              .schemaVersion == 1 and
+              .status == "passed" and
+              .database == {engine:"postgresql",transactionReadOnly:true,writes:0} and
+              .routingProfile == {
+                id:$id,
+                slug:"kaana-v1",
+                displayName:"Kaana",
+                description:"Oxy-owned Kaana routing policy over exact Kaana deployments.",
+                optimiseFor:"balanced",
+                isProductPreset:true
+              } and
+              .candidate == {modelReference:$model,priority:100}
+            ' <<<"$result" >/dev/null
+          }
+
+          bootstrap_command='["bun","run","packages/api/scripts/bootstrap-kaana-catalogue.ts"]'
+          dry_environment=$(jq -nc \
+            --arg reviewer "$REVIEWER_USER_ID" \
+            --arg actor "$BOOTSTRAP_ACTOR" '[
+              {name:"APPLY",value:"0"},
+              {name:"BOOTSTRAP_ACTOR",value:$actor},
+              {name:"BOOTSTRAP_REASON",value:"dry-run only"},
+              {name:"EXPECTED_PLAN_SHA256",value:""},
+              {name:"KAANA_CATALOGUE_REVIEWER_USER_ID",value:$reviewer}
+            ]')
+          dry_envelope=$(run_task 'dry run' "$bootstrap_command" "$dry_environment" 'KAANA_CATALOGUE_BOOTSTRAP_RESULT=')
+          if [ "$(jq -r '.exitCode' <<<"$dry_envelope")" != 0 ] || \
+             [ "$(jq -r '.resultCount' <<<"$dry_envelope")" != 1 ]; then
+            echo '::error::dry run failed or did not emit exactly one allowlisted result'
+            exit 1
+          fi
+          dry_result=$(jq -ce '.result' <<<"$dry_envelope")
+          validate_bootstrap_result "$dry_result" false || {
+            echo '::error::dry run result does not match the complete reviewed catalogue projection'
+            exit 1
+          }
+          observed_plan=$(jq -r '.planSha256' <<<"$dry_result")
+
+          echo '──────── Kaana catalogue dry run (operator-safe) ────────'
+          jq '{database,inventorySnapshotId,reviewedFactsSha256,model,candidate,deployments,routingProfileIds,inserted,planSha256}' <<<"$dry_result"
+          echo '──────────────────────────────────────────────────────────'
+          {
+            echo '### Reviewed Kaana catalogue dry run'
+            echo
+            echo "- Dedicated task: \`$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN\`"
+            echo "- Immutable image: \`$immutable_image\`"
+            echo "- Inventory content snapshot: \`$INVENTORY_SNAPSHOT_ID\`"
+            echo "- Source-reviewed facts SHA-256: \`$(jq -r '.reviewedFactsSha256' <<<"$dry_result")\`"
+            echo "- Plan SHA-256: \`$observed_plan\`"
+            echo "- Reviewed operations: \`$(jq '.inserted | length' <<<"$dry_result")\`"
+            echo '- PostgreSQL committed writes: 0 (transaction rolled back)'
+            echo '- Task secret bindings: DATABASE_URL only'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$REQUESTED_MODE" = dry-run ]; then
+            exit 0
+          fi
+          if [ "$observed_plan" != "$expected_plan" ]; then
+            echo '::error::fresh dry-run plan no longer matches expected_plan_sha256; review the new plan instead of applying'
+            exit 1
+          fi
+
+          apply_environment=$(jq -nc \
+            --arg reviewer "$REVIEWER_USER_ID" \
+            --arg actor "$BOOTSTRAP_ACTOR" \
+            --arg reason "$bootstrap_reason" \
+            --arg expected "$expected_plan" '[
+              {name:"APPLY",value:"1"},
+              {name:"BOOTSTRAP_ACTOR",value:$actor},
+              {name:"BOOTSTRAP_REASON",value:$reason},
+              {name:"EXPECTED_PLAN_SHA256",value:$expected},
+              {name:"KAANA_CATALOGUE_REVIEWER_USER_ID",value:$reviewer}
+            ]')
+          apply_envelope=$(run_task 'apply' "$bootstrap_command" "$apply_environment" 'KAANA_CATALOGUE_BOOTSTRAP_RESULT=')
+          apply_result=$(jq -c '.result' <<<"$apply_envelope")
+          planned_operations=$(jq -c '.inserted' <<<"$dry_result")
+          apply_verified=true
+          if [ "$(jq -r '.exitCode' <<<"$apply_envelope")" != 0 ] || \
+             [ "$(jq -r '.resultCount' <<<"$apply_envelope")" != 1 ] || \
+             ! validate_bootstrap_result "$apply_result" true || \
+             [ "$(jq -r '.planSha256 // ""' <<<"$apply_result")" != "$expected_plan" ] || \
+             [ "$(jq -c '.inserted // null' <<<"$apply_result")" != "$planned_operations" ]; then
+            apply_verified=false
+          fi
+
+          readback_command='["bun","run","packages/api/scripts/readback-inbox-routing-profile.ts"]'
+          readback_environment=$(jq -nc --arg profile "$PROFILE_DEFAULT_ID" '[
+            {name:"INBOX_ROUTING_PROFILE_READBACK_ID",value:$profile}
+          ]')
+          readback_envelope=$(run_task 'SELECT-only readback' "$readback_command" "$readback_environment" 'INBOX_ROUTING_PROFILE_READBACK_RESULT=')
+          readback_result=$(jq -c '.result' <<<"$readback_envelope")
+          readback_verified=true
+          if [ "$(jq -r '.exitCode' <<<"$readback_envelope")" != 0 ] || \
+             [ "$(jq -r '.resultCount' <<<"$readback_envelope")" != 1 ] || \
+             ! validate_readback_result "$readback_result"; then
+            readback_verified=false
+          fi
+
+          if [ "$apply_verified" != true ]; then
+            if [ "$readback_verified" = true ]; then
+              echo '::notice::SELECT-only readback found the exact profile after an unverified apply outcome'
+            else
+              echo '::notice::SELECT-only readback did not prove the exact profile after an unverified apply outcome'
+            fi
+            echo '::error::apply outcome is ambiguous; no retry or success claim was made'
+            exit 1
+          fi
+          if [ "$readback_verified" != true ]; then
+            echo '::error::apply emitted a valid result but the mandatory SELECT-only exact-PK readback failed'
+            exit 1
+          fi
+
+          noop_envelope=$(run_task 'idempotency dry run' "$bootstrap_command" "$dry_environment" 'KAANA_CATALOGUE_BOOTSTRAP_RESULT=')
+          if [ "$(jq -r '.exitCode' <<<"$noop_envelope")" != 0 ] || \
+             [ "$(jq -r '.resultCount' <<<"$noop_envelope")" != 1 ]; then
+            echo '::error::post-apply idempotency dry run failed or emitted no exact result'
+            exit 1
+          fi
+          noop_result=$(jq -ce '.result' <<<"$noop_envelope")
+          validate_bootstrap_result "$noop_result" false || {
+            echo '::error::post-apply idempotency result is not the reviewed projection'
+            exit 1
+          }
+          if [ "$(jq -c '.inserted' <<<"$noop_result")" != '[]' ]; then
+            echo '::error::post-apply dry run is not a zero-operation no-op'
+            exit 1
+          fi
+
+          {
+            echo
+            echo '### Kaana catalogue apply verification'
+            echo
+            echo "- Applied reviewed plan: \`$expected_plan\`"
+            echo "- Exact Inbox profile PK present: \`$PROFILE_DEFAULT_ID\`"
+            echo "- Exact candidate: \`$MODEL_REFERENCE\` at priority \`100\`"
+            echo '- SELECT-only readback writes: 0'
+            echo '- Idempotency dry-run committed writes: 0; planned operations: 0'
+            echo '- Routing eligibility was not asserted; application audience remains a separate launch gate.'
+          } >> "$GITHUB_STEP_SUMMARY"
