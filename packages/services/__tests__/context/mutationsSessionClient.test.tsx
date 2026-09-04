@@ -182,6 +182,11 @@ function buildStub(baseURL: string) {
   // First-time mint path for `switchToAccount` (Task 4.5's "not yet on the
   // device" branch): mints a brand-new session for whatever account id is
   // requested, mirroring `SwitchAccountResult`.
+  // `logoutAll` revokes the user's sessions on every OTHER device through this
+  // bearer endpoint before the device-scoped `client.signOut({ all: true })`.
+  // Without it on the stub the hook throws `TypeError` and the whole path reads
+  // as a sign-out failure.
+  const logoutAllSessions = jest.fn(async (_sessionId: string) => undefined);
   const switchToAccount = jest.fn(async (accountId: string) => {
     currentAccountId = accountId;
     return {
@@ -196,6 +201,7 @@ function buildStub(baseURL: string) {
   return {
     getUsersByIds,
     switchToAccount,
+    logoutAllSessions,
     stub: {
       config: { authWebUrl: 'https://auth.oxy.so' },
       // `installAuthRefreshHandler` (SDK-owned unified refresh) installs the one
@@ -238,6 +244,7 @@ function buildStub(baseURL: string) {
         async (): Promise<User> => ({ id: currentAccountId, username: `user-${currentAccountId}` } as User),
       ),
       listAccounts: jest.fn(async () => []),
+      logoutAllSessions,
       switchToAccount,
       getUsersByIds,
     },
@@ -327,7 +334,7 @@ async function bootWithDeviceState(deviceState: DeviceSessionState) {
   });
 
   const baseURL = nextBaseURL();
-  const { stub, getUsersByIds, switchToAccount } = buildStub(baseURL);
+  const { stub, getUsersByIds, switchToAccount, logoutAllSessions } = buildStub(baseURL);
   seedWarmSession();
   renderProvider(stub, baseURL);
 
@@ -335,7 +342,7 @@ async function bootWithDeviceState(deviceState: DeviceSessionState) {
   await waitFor(() => expect(captured.sessionsLength).toBe(deviceState.accounts.length));
   await waitFor(() => expect(captured.activeSessionId).toBe(SESSION_A1));
 
-  return { fake, getUsersByIds, stub, switchToAccount };
+  return { fake, getUsersByIds, stub, switchToAccount, logoutAllSessions };
 }
 
 describe('Mutations routed through SessionClient (Task 3)', () => {
@@ -409,13 +416,22 @@ describe('Mutations routed through SessionClient (Task 3)', () => {
     expect(useAuthStore.getState().user).toBeNull();
   });
 
-  it('logoutAll() calls client.signOut({ all: true }) and clears local session state', async () => {
-    const { fake } = await bootWithDeviceState(twoAccountDeviceState());
+  it('logoutAll() revokes other devices, then signs this one out, and clears local session state', async () => {
+    const { fake, logoutAllSessions } = await bootWithDeviceState(twoAccountDeviceState());
 
     await act(async () => {
       await getOxyApi().logoutAll();
     });
 
+    // `client.signOut({ all: true })` is DEVICE-scoped, so on its own it leaves
+    // the user signed in everywhere else. The bearer endpoint is what makes
+    // this "sign out everywhere", and it has to run FIRST: it deliberately
+    // preserves the current session so the device-scoped call below can still
+    // authenticate.
+    expect(logoutAllSessions).toHaveBeenCalledWith(SESSION_A1);
+    expect(logoutAllSessions.mock.invocationCallOrder[0]).toBeLessThan(
+      fake.signOut.mock.invocationCallOrder[0],
+    );
     expect(fake.signOut).toHaveBeenCalledWith({ all: true });
     await waitFor(() => expect(captured.isAuthenticated).toBe(false));
     expect(captured.sessionsLength).toBe(0);
