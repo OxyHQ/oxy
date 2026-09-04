@@ -20,6 +20,10 @@ const failureReporter = readFileSync(
   '.github/scripts/report-native-product-agent-task-failure.sh',
   'utf8',
 );
+const failureProjection = readFileSync(
+  'packages/api/src/scripts/nativeProductAgentBootstrapFailure.ts',
+  'utf8',
+);
 
 for (const exact of [
   '69b2d3df5d12f58c9800d651',
@@ -121,6 +125,15 @@ assert.match(
 );
 assert.match(
   failureReporter,
+  /"account",\s*"ancestryMatches",\s*"boundApplication",\s*"canonicalPresentationMatches",\s*"code",\s*"expectedAccountId",\s*"status"/,
+);
+assert.match(
+  failureReporter,
+  /\.code == "account_adoption_review"[\s\S]*\.expectedAccountId == "6a50444ce8026582b949089d"[\s\S]*\.boundApplication\.id == "6a2f851751b784a86fd0e922"/,
+  'the adoption diagnostic must be limited to the exact Homiio project and application IDs',
+);
+assert.match(
+  failureReporter,
   /\(keys \| sort\) == \[\s*"accountStatus",\s*"id",\s*"kind",\s*"parentAccountId",\s*"privacyIsPrivateAccount",\s*"rootAccountId",\s*"type"\s*\]/,
 );
 assert.match(
@@ -134,8 +147,8 @@ assert.match(
 assert.match(failureReporter, /\{code,planSha256\}/);
 assert.doesNotMatch(
   failureReporter,
-  /\.events|CloudWatch|\{actor|\{reason|\{name|\{secret/,
-  'the reporter must not consume logs or project personal, selector or secret fields',
+  /\.events|CloudWatch|\{actor|\{reason|\{name|\{secret|\.account\.(?:nameDisplay|username)\b/,
+  'the reporter must not consume logs or project personal, selector or secret values',
 );
 assert.match(
   ci,
@@ -229,6 +242,20 @@ assert.match(
   collisionBlock,
   /new NativeProductAgentUsernameCollisionError\(\s*spec\.id,\s*usernameHolder,\s*boundApplication,\s*\)/,
 );
+
+const boundApplicationQueryStart = bootstrap.indexOf(
+  'async function observeBoundApplication(',
+);
+const boundApplicationQueryEnd = bootstrap.indexOf(
+  'async function observeAccount(',
+  boundApplicationQueryStart,
+);
+assert.notEqual(boundApplicationQueryStart, -1, 'bound application helper must exist');
+assert.notEqual(boundApplicationQueryEnd, -1, 'bound application helper end must exist');
+const boundApplicationQuery = bootstrap.slice(
+  boundApplicationQueryStart,
+  boundApplicationQueryEnd,
+);
 for (const projectedField of [
   'id',
   'ownerAccountId',
@@ -239,20 +266,63 @@ for (const projectedField of [
   'createdByUserId',
 ]) {
   assert.match(
-    collisionBlock,
+    boundApplicationQuery,
     new RegExp(`${projectedField}: applications\\.${projectedField}`),
     `bound application query must project ${projectedField}`,
   );
 }
 assert.match(
-  collisionBlock,
-  /\.where\(eq\(applications\.id, boundApplicationId\)\)/,
+  boundApplicationQuery,
+  /\.where\(eq\(applications\.id, applicationId\)\)/,
   'bound application diagnostic must use its exact ID',
 );
 assert.doesNotMatch(
-  collisionBlock,
+  boundApplicationQuery,
   /email|nameDisplay|secret|hash|token|\.insert\(|\.update\(|\.delete\(|\.set\(/i,
   'the collision diagnostic may only read the reviewed application fields',
+);
+
+const adoptionStart = bootstrap.indexOf(
+  'const canonicalPresentationMatches =',
+  collisionEnd,
+);
+const adoptionEnd = bootstrap.indexOf(
+  'assertExact(accountDriftTarget(spec.id, false)',
+  adoptionStart,
+);
+assert.notEqual(adoptionStart, -1, 'adoption diagnostic anchor must exist');
+assert.notEqual(adoptionEnd, -1, 'adoption diagnostic end must exist');
+const adoptionBlock = bootstrap.slice(adoptionStart, adoptionEnd);
+assert.match(
+  adoptionBlock,
+  /if \(boundApplicationId !== null\) \{\s*throw new NativeProductAgentAccountAdoptionReviewError\(/,
+  'an existing exact Homiio project must stop at the fail-closed adoption review gate',
+);
+assert.match(adoptionBlock, /new NativeProductAgentAccountAdoptionReviewError\(/);
+assert.match(adoptionBlock, /await observeBoundApplication\(tx, boundApplicationId\)/);
+assert.doesNotMatch(
+  adoptionBlock,
+  /email|secret|hash|token|\.insert\(|\.update\(|\.delete\(|\.set\(/i,
+  'the adoption diagnostic may not read secrets or write live state',
+);
+
+const adoptionProjectionStart = failureProjection.indexOf(
+  'export class NativeProductAgentAccountAdoptionReviewError',
+);
+const adoptionProjectionEnd = failureProjection.indexOf(
+  'export type NativeProductAgentBootstrapFailureResult',
+  adoptionProjectionStart,
+);
+assert.notEqual(adoptionProjectionStart, -1, 'adoption projection must exist');
+assert.notEqual(adoptionProjectionEnd, -1, 'adoption projection end must exist');
+const adoptionProjection = failureProjection.slice(
+  adoptionProjectionStart,
+  adoptionProjectionEnd,
+);
+assert.doesNotMatch(
+  adoptionProjection,
+  /username|nameDisplay|email|secret|hash|token/i,
+  'the adoption failure envelope must not retain selector, personal or secret fields',
 );
 
 process.stdout.write(
