@@ -9,7 +9,7 @@
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
 import { and, eq, sql } from 'drizzle-orm';
-import { signRequest, canonicalFederationHost } from '@oxyhq/federation';
+import { signRequest, canonicalFederationHost, isSameFederationHost } from '@oxyhq/federation';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxyhq/core/server';
 import { getDb } from '../config/postgres';
 import { federationKeyPairs } from '../db/schema/federationKeyPairs';
@@ -929,11 +929,39 @@ class FederationService {
         ? normalizeFediverseHandle(actor.webfinger)
         : null;
       const hintedAcct = acctHint ? normalizeFediverseHandle(acctHint) : null;
-      // The handle used for storage must come from the WebFinger resource we
-      // resolved and verified before fetching this actor. Actor documents are
-      // attacker-controlled by the actor host, so their optional `webfinger`
-      // field is only a fallback when no trusted hint is available.
-      const acct = hintedAcct || actorWebfinger || `${username.toLowerCase()}@${actorHost}`;
+      // The hint comes from the WebFinger resource we resolved, and
+      // `verifiedAccountForResolution` only VERIFIES it when the resource's
+      // subject disagrees with the requested handle — when they agree it returns
+      // the requested handle unchecked. Anyone who can host a WebFinger endpoint
+      // controls both, so the hint alone proves nothing about who the actor is.
+      //
+      // That matters because the upsert keys on `federationActorUri`: a handle
+      // `victim@evil.com` whose self link names an EXISTING actor URI would
+      // otherwise rewrite that actor's stored username and domain in place,
+      // relabelling somebody else's federated identity onto the attacker's
+      // domain without ever controlling the actor.
+      //
+      // So the hint is only trusted when its domain is the actor's own host, or
+      // when a bridge vouches for the pair — which is the relabelled-bridge case
+      // (`nasa@x.com` on a bird.makeup actor) this hint exists to preserve.
+      // Otherwise fall through to the actor document's own `webfinger` field and
+      // then to the host-derived handle, exactly as an absent hint already does.
+      const hintedHost = hintedAcct ? domainFromHandle(hintedAcct) : null;
+      const hintIsTrusted =
+        hintedHost !== null
+        && (isSameFederationHost(hintedHost, actorHost)
+          || bridgeVouchesForNetwork(actorHost, hintedHost));
+      if (hintedAcct && !hintIsTrusted) {
+        logger.warn('Ignoring WebFinger hint from a host the actor does not vouch for', {
+          hintedAcct,
+          actorHost,
+          actorUri: actor.id,
+        });
+      }
+      const acct =
+        (hintIsTrusted ? hintedAcct : null)
+        || actorWebfinger
+        || `${username.toLowerCase()}@${actorHost}`;
       const domain = domainFromHandle(acct) || actorHost;
 
       return {
