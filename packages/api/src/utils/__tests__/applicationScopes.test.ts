@@ -335,10 +335,18 @@ describe('follow scopes: the user grants them, the platform never assumes them',
 
   it('is no longer ONLY the follow family, and the difference is deliberate', () => {
     // Spelled out rather than asserted as a count. The consent-required set now
-    // has two members that are not follow scopes, and each is here for a stated
-    // reason — so an accidental third addition fails this, and a deliberate one
+    // has three members that are not follow scopes, and each is here for a stated
+    // reason — so an accidental fourth addition fails this, and a deliberate one
     // is a line someone has to write.
-    const CONSENT_REQUIRED_BEYOND_FOLLOWS = ['acting-as:offline', 'podcasts:write'] as const;
+    //
+    // `chains:write` appends signed records to the SUBJECT's chain. A service
+    // credential proves which app is calling and never that the person asked
+    // for anything, so the write needs the subject's own revocable grant.
+    const CONSENT_REQUIRED_BEYOND_FOLLOWS = [
+      'acting-as:offline',
+      'podcasts:write',
+      'chains:write',
+    ] as const;
     expect([...USER_CONSENT_REQUIRED_SCOPES].sort()).toEqual(
       [...MUST_BE_CONSENTED, ...CONSENT_REQUIRED_BEYOND_FOLLOWS].sort()
     );
@@ -393,7 +401,11 @@ describe('follow scopes: the user grants them, the platform never assumes them',
     // than the assertion dropped. Written as a literal, because deriving the
     // expected set from the constants under test would make any edit agree with
     // itself.
-    const DELIBERATELY_BOTH = ['acting-as:offline'];
+    // `chains:write` is the second: staff decide whether an application may
+    // append to anyone's chain at all, and the subject decides whether it may
+    // append to THEIRS. Same shape as `acting-as:offline` — two gates asking
+    // different questions, neither substituting for the other.
+    const DELIBERATELY_BOTH = ['acting-as:offline', 'chains:write'];
     const overlap = PRIVILEGED_APPLICATION_SCOPES.filter((scope) =>
       isUserConsentRequiredScope(scope)
     );

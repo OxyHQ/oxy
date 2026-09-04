@@ -406,6 +406,7 @@ export const USER_CONSENT_REQUIRED_SCOPES = [
   ...FOLLOW_APPLICATION_SCOPES,
   'acting-as:offline',
   'podcasts:write',
+  'chains:write',
 ] as const satisfies readonly ApplicationScope[];
 
 const USER_CONSENT_REQUIRED_SCOPE_SET: ReadonlySet<string> = new Set<string>(
