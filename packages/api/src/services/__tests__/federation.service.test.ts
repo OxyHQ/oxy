@@ -1024,3 +1024,94 @@ describe('isOwnFederationDomain', () => {
     expect(isOwnFederationDomain('www.mastodon.social')).toBe(false);
   });
 });
+
+/**
+ * `fetchActorProfile` decides the handle a federated actor is STORED under, and
+ * the upsert that follows keys on `federationActorUri`. So a hint the caller
+ * did not have to prove is a rewrite of whichever existing actor it names.
+ *
+ * `verifiedAccountForResolution` only verifies the WebFinger subject when it
+ * DISAGREES with the requested handle; when they agree it returns the requested
+ * handle unchecked, and both sides are controlled by whoever hosts the
+ * WebFinger endpoint. These cases pin that the hint must be vouched for by the
+ * actor's own host before it can decide the stored identity.
+ */
+describe('FederationService.fetchActorProfile — the stored handle needs a vouched hint', () => {
+  beforeEach(() => {
+    mockSafeFetch.mockReset();
+  });
+
+  /** An actor document as a remote host would serve it. */
+  function actorDoc(actorUri: string, preferredUsername: string, extra: Record<string, unknown> = {}) {
+    return JSON.stringify({
+      id: actorUri,
+      inbox: `${actorUri}/inbox`,
+      preferredUsername,
+      name: preferredUsername,
+      ...extra,
+    });
+  }
+
+  function serveActor(actorUri: string, preferredUsername: string, extra?: Record<string, unknown>) {
+    mockSafeFetch.mockResolvedValue(
+      makeSafeFetchResult(
+        200,
+        { 'content-type': 'application/activity+json' },
+        actorDoc(actorUri, preferredUsername, extra),
+      ),
+    );
+  }
+
+  it('refuses a hint from a host the actor does not vouch for', async () => {
+    // The attack: `evil.example` serves WebFinger for `victim@evil.example`
+    // whose self link names a REAL actor on another host. Nothing verified that
+    // handle, so it must not become the identity the actor is stored under —
+    // the upsert keys on the actor URI and would relabel the real account.
+    const actorUri = 'https://mastodon.social/users/victim';
+    serveActor(actorUri, 'victim');
+
+    const profile = await federationService.fetchActorProfile(actorUri, 'victim@evil.example');
+
+    expect(profile).not.toBeNull();
+    expect(profile?.username).toBe('victim@mastodon.social');
+    expect(profile?.domain).toBe('mastodon.social');
+  });
+
+  it('honours a hint whose domain IS the actor host', async () => {
+    // Positive control. Without this, a `fetchActorProfile` that had broken
+    // into ignoring every hint would pass the case above and read as a fix.
+    const actorUri = 'https://mastodon.social/users/alice';
+    serveActor(actorUri, 'alice');
+
+    const profile = await federationService.fetchActorProfile(actorUri, 'alice@mastodon.social');
+
+    expect(profile?.username).toBe('alice@mastodon.social');
+    expect(profile?.domain).toBe('mastodon.social');
+  });
+
+  it('honours a bridge hint the actor host vouches for', async () => {
+    // The case the hint exists for: `bird.makeup` republishes X accounts, and
+    // `FEDERATION_BRIDGE_TRUST` records that this API accepts it as vouching
+    // for `x.com`. The derived identity must survive, not collapse back to the
+    // bridge copy.
+    const actorUri = 'https://bird.makeup/users/nasa';
+    serveActor(actorUri, 'nasa');
+
+    const profile = await federationService.fetchActorProfile(actorUri, 'nasa@x.com');
+
+    expect(profile?.username).toBe('nasa@x.com');
+    expect(profile?.domain).toBe('x.com');
+  });
+
+  it('falls back to the actor document’s own webfinger field, not to a rejected hint', async () => {
+    // Ordering matters: a rejected hint must behave exactly like an ABSENT one,
+    // so the actor's self-asserted `webfinger` is next — never the hint.
+    const actorUri = 'https://mastodon.social/users/bob';
+    serveActor(actorUri, 'bob', { webfinger: 'bob@mastodon.social' });
+
+    const profile = await federationService.fetchActorProfile(actorUri, 'bob@evil.example');
+
+    expect(profile?.username).toBe('bob@mastodon.social');
+    expect(profile?.domain).toBe('mastodon.social');
+  });
+});
