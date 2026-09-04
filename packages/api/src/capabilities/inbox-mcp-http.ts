@@ -42,14 +42,16 @@ export function createInboxMcpHttpService() {
     catalog: INBOX_CAPABILITY_CATALOG,
     handlers: INBOX_MCP_HANDLERS,
     authorizationServer: process.env.OXY_API_URL ?? 'https://api.oxy.so',
-    introspectToken: async (token) => introspectMcpAccessToken(
-      token,
-      await registeredApplicationId(),
-    ),
+    introspectToken: async (token) => {
+      const result = await introspectMcpAccessToken(token, await registeredApplicationId());
+      // The connection block rides along with the claims so the transport can
+      // build a principal that knows which member account to serve.
+      return result ? { ...result.claims, connection: result.connection } : null;
+    },
     allowedOrigins: parseInboxMcpAllowedOrigins(process.env.INBOX_MCP_ALLOWED_ORIGINS),
     authorize: async (_input, context) => ({
       allowed: true,
-      effectiveAccountId: context.principal.accountId,
+      effectiveAccountId: context.principal.activeAccountId,
     }),
     logger: {
       error(message, error) {

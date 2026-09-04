@@ -22,11 +22,18 @@ import {
   normalizeMcpScopes,
   refreshMcpAccessToken,
   registerMcpClient,
+  resolveLiveMcpAccessToken,
   resolveMcpResource,
   revokeMcpGrant,
   revokeMcpToken,
   validateMcpRedirectUri,
 } from '../services/mcpOAuth.service';
+import {
+  approveMcpAccountLink,
+  createMcpAccountLinkIntent,
+  describeMcpAccountLinkIntent,
+  setMcpConnectionActiveAccount,
+} from '../services/mcpConnection.service';
 import { listActiveCapabilityCatalogs } from '../services/capabilityCatalog.service';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { logger } from '../utils/logger';
@@ -59,6 +66,19 @@ const tokenLimiter = rateLimit({
   prefix: 'rl:auth:mcp:token:',
   windowMs: 60 * 1_000,
   max: process.env.NODE_ENV === 'development' ? 200 : 60,
+});
+/**
+ * Connection calls arrive from an APP's backend, so every user of that app
+ * shares one source address. Keyed by the calling service instead, like
+ * introspection — an IP-keyed limit here would let one busy app's ordinary
+ * traffic lock out its own users.
+ */
+const connectionLimiter = rateLimit({
+  prefix: 'rl:auth:mcp:connections:',
+  windowMs: 60 * 1_000,
+  max: process.env.NODE_ENV === 'development' ? 1_200 : 600,
+  keyGenerator: (request) =>
+    (request as ServiceAuthRequest).serviceApp?.appId ?? 'unknown',
 });
 const introspectionLimiter = rateLimit({
   prefix: 'rl:auth:mcp:introspect:',
@@ -130,6 +150,12 @@ const tokenRequestSchema = z.discriminatedUnion('grant_type', [
   }),
 ]);
 const revokeSchema = z.object({ token: z.string().min(1), client_id: z.string().min(1) });
+const connectionTokenSchema = z.object({ token: z.string().min(1) }).strict();
+const connectionAccountSchema = z.object({
+  token: z.string().min(1),
+  account_id: z.string().trim().min(1),
+}).strict();
+const linkIntentSchema = z.object({ intent: z.string().trim().min(1) }).strict();
 const introspectSchema = z.object({ token: z.string().min(1) }).strict();
 const grantParamsSchema = z.object({ grantId: z.string().min(1) });
 
@@ -356,8 +382,98 @@ router.post('/introspect', serviceAuthMiddleware, introspectionLimiter, async (r
     const principal = await resolveLiveAgencyServicePrincipal(request.serviceApp);
     if (!principal) throw new McpOAuthError('invalid_client', 'The Oxy service credential is inactive', 401);
     const body = introspectSchema.parse(request.body);
-    const claims = await introspectMcpAccessToken(body.token, principal.applicationId);
-    response.json(claims ? { active: true, ...claims } : { active: false });
+    const result = await introspectMcpAccessToken(body.token, principal.applicationId);
+    response.json(result
+      ? { active: true, ...result.claims, connection: result.connection }
+      : { active: false });
+  } catch (error) {
+    sendMcpOAuthError(response, error);
+  }
+});
+
+/**
+ * The live grant behind a resource server's presented access token.
+ *
+ * Same proof as introspection — a live token for a resource this service
+ * credential registered — because both connection endpoints act on the
+ * connection that token drives.
+ */
+type ResolvedMcpToken = NonNullable<Awaited<ReturnType<typeof resolveLiveMcpAccessToken>>>;
+
+async function connectionCallerGrant(
+  request: ServiceAuthRequest,
+  token: string,
+): Promise<ResolvedMcpToken> {
+  if (!request.serviceApp) {
+    throw new McpOAuthError('invalid_client', 'A live Oxy service credential is required', 401);
+  }
+  const principal = await resolveLiveAgencyServicePrincipal(request.serviceApp);
+  if (!principal) throw new McpOAuthError('invalid_client', 'The Oxy service credential is inactive', 401);
+  const resolved = await resolveLiveMcpAccessToken(token, principal.applicationId);
+  if (!resolved) throw new McpOAuthError('invalid_grant', 'The MCP access token is invalid or revoked', 401);
+  return resolved;
+}
+
+/**
+ * Mint the URL a person opens to connect ANOTHER account to this connection.
+ *
+ * The resource server asks on behalf of the token it is serving; it never
+ * chooses the account. Which account joins is decided on the IdP, by whoever is
+ * signed in there, and only for the scopes this connection already holds.
+ */
+router.post('/connections/link-intent', serviceAuthMiddleware, connectionLimiter, async (request: ServiceAuthRequest, response) => {
+  try {
+    const body = connectionTokenSchema.parse(request.body);
+    const caller = await connectionCallerGrant(request, body.token);
+    const intent = await createMcpAccountLinkIntent({
+      grant: caller.grant,
+      scopes: caller.grant.scopes,
+    });
+    response.set('cache-control', 'no-store');
+    response.json(intent);
+  } catch (error) {
+    sendMcpOAuthError(response, error);
+  }
+});
+
+/** Point the connection at one of its member accounts. */
+router.post('/connections/active', serviceAuthMiddleware, connectionLimiter, async (request: ServiceAuthRequest, response) => {
+  try {
+    const body = connectionAccountSchema.parse(request.body);
+    const caller = await connectionCallerGrant(request, body.token);
+    const connection = await setMcpConnectionActiveAccount({
+      grant: caller.grant,
+      accountId: body.account_id,
+    });
+    response.set('cache-control', 'no-store');
+    response.json({ connection });
+  } catch (error) {
+    sendMcpOAuthError(response, error);
+  }
+});
+
+/** What the IdP renders before the person approves an account link. */
+router.post('/connections/link/describe', authorizeLimiter, authMiddleware, async (request: AuthRequest, response) => {
+  try {
+    const body = linkIntentSchema.parse(request.body);
+    const current = identity(request);
+    response.set('cache-control', 'no-store');
+    response.json(await describeMcpAccountLinkIntent({
+      secret: body.intent,
+      effectiveAccountId: current.effectiveAccountId,
+    }));
+  } catch (error) {
+    sendMcpOAuthError(response, error);
+  }
+});
+
+/** Add the signed-in session's account to the connection that minted the link. */
+router.post('/connections/link/approve', authorizeLimiter, authMiddleware, async (request: AuthRequest, response) => {
+  try {
+    const body = linkIntentSchema.parse(request.body);
+    const current = identity(request);
+    response.set('cache-control', 'no-store');
+    response.json(await approveMcpAccountLink({ secret: body.intent, ...current }));
   } catch (error) {
     sendMcpOAuthError(response, error);
   }

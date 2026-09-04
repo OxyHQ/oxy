@@ -238,6 +238,48 @@ Auth is device-first: `deviceId` + `deviceSecret` as transport (mint via `POST /
 
 **Token-less new-identity onboarding**: the 401 fix (avoiding bearer-protected `getTokenBySession` for a brand-new identity that has no session yet) is preserved — `verifyChallenge`'s internal `setTokens` call handles it.
 
+## External MCP connections — several accounts, one connector (ADR 0020)
+
+A person authorizes an MCP connector once, for one account, and can then add more
+accounts to that same connector without re-authorizing it. Oxy owns the account
+set; a resource server only relays. The shapes:
+
+- **Grant** (`mcp_oauth_grants`) — unchanged: one (principal, account, client,
+  resource), with its own scopes, listed and revoked by that account's owner.
+- **Connection** (`mcp_oauth_connections`) — the connector itself, keyed by the
+  ORIGIN grant (the one whose token family the client refreshes), plus the
+  currently selected member in `active_account_id` (NULL means the origin).
+- **Membership** (`mcp_oauth_connection_accounts`) — one row per member grant. A
+  junction rather than a `connection_id` column on the grant, because one grant
+  can be its own connection's origin AND a member of somebody else's; a column
+  would leak the first connector's account list into the second.
+- **Link intent** (`mcp_oauth_account_link_intents`) — a single-use invitation,
+  stored as a SHA-256 verifier of the opaque secret in the URL.
+
+The flow, from inside an assistant:
+
+1. The app's MCP tool asks its backend, which calls `POST
+   /auth/mcp/oauth/connections/link-intent` (service credential, body `{ token }`
+   = the live MCP access token). Oxy answers with
+   `https://auth.oxy.so/mcp/link?intent=…`, valid once, for 15 minutes.
+2. The person opens it, signs in or switches to the account they want to add, and
+   approves (`src/pages/mcp-link.tsx` → `POST
+   /auth/mcp/oauth/connections/link/{describe,approve}`). Approval writes an
+   ORDINARY grant for that account with the connection's scopes and a membership
+   row. `?mcp_link_intent=` carries the invitation across the sign-in hop.
+3. `POST /auth/mcp/oauth/connections/active` selects a member. Oxy refuses a
+   non-member, or one whose approver no longer holds `account:act_as`.
+4. Introspection answers `{ active: true, …claims, connection: { connection_id,
+   origin_account_id, active_account_id, accounts[] } }`. **The token is never
+   re-minted:** its `account_id` stays the origin account. Serve
+   `connection.active_account_id` — `@oxyhq/mcp` exposes it as
+   `McpPrincipal.activeAccountId`, and `createCatalogMcpHttpService` binds the
+   app's authorization decision to that, not to `accountId`.
+
+Revocation needs no special path: a member revokes its own grant, `revokeGrant`
+retires its memberships, and a selection that is no longer usable falls back to
+the origin account on the next introspection.
+
 ## Auth App (packages/auth)
 
 Standalone Vite app at `auth.oxy.so` — the **OAuth authorize/consent IdP** for third-party "Sign in with Oxy" (login, signup, authorize, recover, social-callback). It renders the shared `@oxyhq/services` auth surfaces via RN Web.

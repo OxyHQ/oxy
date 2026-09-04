@@ -14,6 +14,13 @@ type PostLoginRedirectParams = {
      * opener instead of navigating itself to the relying party.
      */
     responseMode?: string
+    /**
+     * `?mcp_link_intent=` — an in-flight invitation to add THIS account to an
+     * existing MCP connection. It has no relying party and no redirect: the hop
+     * lands back on `/mcp/link`, where the person approves for whichever account
+     * they just signed in as.
+     */
+    mcpLinkIntent?: string
 }
 
 /**
@@ -40,7 +47,13 @@ export function buildPostLoginRedirect({
     resource,
     responseType,
     responseMode,
+    mcpLinkIntent,
 }: PostLoginRedirectParams): string {
+    if (mcpLinkIntent) {
+        const linkUrl = new URL("/mcp/link", window.location.origin)
+        linkUrl.searchParams.set("intent", mcpLinkIntent)
+        return `${linkUrl.pathname}${linkUrl.search}`
+    }
     const nextUrl = new URL("/authorize", window.location.origin)
     if (sessionToken) nextUrl.searchParams.set("token", sessionToken)
     if (redirectUri) nextUrl.searchParams.set("redirect_uri", redirectUri)

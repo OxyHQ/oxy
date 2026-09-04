@@ -119,6 +119,10 @@ describe('MCP OAuth validation', () => {
       subject: 'user-1',
       clientId: 'client-1',
       accountId: 'account-1',
+      // No connection block on the claims: the token's own account is the one
+      // to act as, and there is nothing else the connection could name.
+      activeAccountId: 'account-1',
+      connection: null,
       scopes: ['social.publish', 'social.read'],
       resource: 'https://mcp.mention.earth',
     });
@@ -126,5 +130,54 @@ describe('MCP OAuth validation', () => {
     expect(Object.isFrozen(principal.scopes)).toBe(true);
     expect(() => mcpPrincipalFromAuthInfo({ ...authInfo, clientId: 'other-client' }, principalOptions))
       .toThrow('MCP client binding mismatch');
+  });
+  it('acts as the connection member Oxy selected, not the token account', () => {
+    const connected = {
+      ...claims,
+      connection: {
+        connection_id: 'connection-1',
+        origin_account_id: 'account-1',
+        active_account_id: 'account-2',
+        accounts: [
+          { account_id: 'account-1', is_origin: true, linked_at: '2026-01-01T00:00:00.000Z' },
+          { account_id: 'account-2', is_origin: false, linked_at: '2026-02-01T00:00:00.000Z' },
+        ],
+      },
+    };
+    const principalOptions = {
+      issuer: options.issuer,
+      audience: options.audience,
+      resource: options.resource,
+      maxTokenTtlSeconds: options.maxTokenTtlSeconds,
+      now: options.now,
+    };
+    const principal = mcpPrincipalFromAuthInfo(
+      createMcpAuthInfo('signed-token', connected),
+      principalOptions,
+    );
+    expect(principal.accountId).toBe('account-1');
+    expect(principal.activeAccountId).toBe('account-2');
+    expect(principal.connection?.accounts).toHaveLength(2);
+  });
+
+  it('ignores a connection block that belongs to another connection', () => {
+    const foreign = {
+      ...claims,
+      connection: {
+        connection_id: 'connection-9',
+        origin_account_id: 'account-9',
+        active_account_id: 'account-9',
+        accounts: [{ account_id: 'account-9', is_origin: true, linked_at: '2026-01-01T00:00:00.000Z' }],
+      },
+    };
+    const principal = mcpPrincipalFromAuthInfo(createMcpAuthInfo('signed-token', foreign), {
+      issuer: options.issuer,
+      audience: options.audience,
+      resource: options.resource,
+      maxTokenTtlSeconds: options.maxTokenTtlSeconds,
+      now: options.now,
+    });
+    expect(principal.activeAccountId).toBe('account-1');
+    expect(principal.connection).toBeNull();
   });
 });

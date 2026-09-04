@@ -3,6 +3,7 @@ import {
   mcpAccessTokenClaimsSchema,
   type McpAccessTokenClaims,
 } from './oauth';
+import { validateOxyEndpoint } from './serviceRequest';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -17,32 +18,22 @@ export interface OxyMcpIntrospectionOptions {
   timeoutMs?: number;
 }
 
-function validateEndpoint(value: string): string {
-  const url = new URL(value);
-  const loopback = url.hostname === 'localhost'
-    || url.hostname === '127.0.0.1'
-    || url.hostname === '[::1]';
-  if (url.protocol !== 'https:' && !(loopback && url.protocol === 'http:')) {
-    throw new Error('MCP introspection endpoint must use HTTPS outside local development');
-  }
-  if (url.username || url.password || url.search || url.hash) {
-    throw new Error('MCP introspection endpoint cannot contain credentials, query or fragment');
-  }
-  return value;
-}
-
 /**
  * Ask Oxy for the live state of a resource-bound MCP access token.
  *
  * Results are deliberately not cached: revoking the grant, service credential,
  * account authority or catalog registration must affect the next app request.
+ *
+ * The returned claims carry the connection block when the connection covers
+ * more than one account — read it with `mcpConnectionStateFrom` and serve
+ * `active_account_id`, not `account_id`.
  */
 export async function introspectOxyMcpAccessToken(
   token: string,
   options: OxyMcpIntrospectionOptions,
 ): Promise<McpAccessTokenClaims | null> {
   if (!token.trim()) throw new Error('MCP access token is required for introspection');
-  const endpoint = validateEndpoint(options.endpoint);
+  const endpoint = validateOxyEndpoint(options.endpoint);
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000) {
     throw new Error('MCP introspection timeout must be between 1 and 60000 milliseconds');

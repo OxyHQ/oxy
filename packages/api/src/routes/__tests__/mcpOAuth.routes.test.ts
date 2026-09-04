@@ -274,3 +274,119 @@ it('rejects insecure remote redirect URIs at dynamic registration', async () => 
   expect(response.status).toBe(400);
   expect(response.body).toMatchObject({ error: 'invalid_request' });
 });
+
+it('connects a second account to an existing connection over the wire', async () => {
+  const input = await fixture();
+  const originAccountId = principalUserId;
+  const registration = await request(app).post('/auth/mcp/oauth/register').send({
+    client_name: 'Connection test MCP client',
+    redirect_uris: [input.redirectUri],
+    grant_types: ['authorization_code', 'refresh_token'],
+    response_types: ['code'],
+    token_endpoint_auth_method: 'none',
+  });
+  const clientId = registration.body.client_id as string;
+  const verifier = 'c'.repeat(64);
+  const authorization = await request(app)
+    .post('/auth/mcp/oauth/authorize')
+    .set('authorization', 'Bearer user-session')
+    .send({
+      responseType: 'code',
+      clientId,
+      redirectUri: input.redirectUri,
+      resource: input.resource,
+      scope: 'resource.read',
+      accountId: originAccountId,
+      codeChallenge: createHash('sha256').update(verifier).digest('base64url'),
+      codeChallengeMethod: 'S256',
+    });
+  const token = await request(app)
+    .post('/auth/mcp/oauth/token')
+    .type('form')
+    .send({
+      grant_type: 'authorization_code',
+      code: authorization.body.code,
+      client_id: clientId,
+      redirect_uri: input.redirectUri,
+      code_verifier: verifier,
+      resource: input.resource,
+    });
+  const accessToken = token.body.access_token as string;
+
+  // The resource server asks on behalf of the token it is serving.
+  const intent = await request(app)
+    .post('/auth/mcp/oauth/connections/link-intent')
+    .set('authorization', 'Bearer service-token')
+    .send({ token: accessToken });
+  expect(intent.status).toBe(200);
+  expect(intent.headers['cache-control']).toBe('no-store');
+  expect(intent.body.link_url).toMatch(/^https:\/\/auth\.oxy\.so\/mcp\/link\?intent=/);
+  const secret = new URL(intent.body.link_url as string).searchParams.get('intent');
+
+  // The IdP renders the invitation for whoever opened it, and approves it as
+  // the account that session is signed in as.
+  const [joining] = await getDb().insert(users).values({ color: 'blue' })
+    .returning({ id: users.id });
+  principalUserId = joining.id;
+
+  const description = await request(app)
+    .post('/auth/mcp/oauth/connections/link/describe')
+    .set('authorization', 'Bearer user-session')
+    .send({ intent: secret });
+  expect(description.status).toBe(200);
+  expect(description.body).toMatchObject({
+    client_name: 'Connection test MCP client',
+    scopes: ['resource.read'],
+    already_linked: false,
+  });
+  // The invitation never enumerates the connection's other members.
+  expect(description.body).not.toHaveProperty('accounts');
+
+  const approval = await request(app)
+    .post('/auth/mcp/oauth/connections/link/approve')
+    .set('authorization', 'Bearer user-session')
+    .send({ intent: secret });
+  expect(approval.status).toBe(200);
+  expect(approval.body).toMatchObject({ account_id: joining.id });
+
+  // A spent invitation is spent for everyone.
+  const replay = await request(app)
+    .post('/auth/mcp/oauth/connections/link/approve')
+    .set('authorization', 'Bearer user-session')
+    .send({ intent: secret });
+  expect(replay.status).toBe(400);
+  expect(replay.body).toMatchObject({ error: 'invalid_grant' });
+
+  // Back to the resource server's own lane: the service credential belongs to
+  // the application, not to whoever was signed in on the IdP.
+  principalUserId = originAccountId;
+
+  const switched = await request(app)
+    .post('/auth/mcp/oauth/connections/active')
+    .set('authorization', 'Bearer service-token')
+    .send({ token: accessToken, account_id: joining.id });
+  expect(switched.status).toBe(200);
+  expect(switched.body.connection).toMatchObject({
+    origin_account_id: originAccountId,
+    active_account_id: joining.id,
+  });
+
+  const introspection = await request(app)
+    .post('/auth/mcp/oauth/introspect')
+    .set('authorization', 'Bearer service-token')
+    .send({ token: accessToken });
+  expect(introspection.status).toBe(200);
+  // The token still names the account it was minted for; the connection names
+  // the member the resource server must serve.
+  expect(introspection.body.account_id).toBe(originAccountId);
+  expect(introspection.body.connection).toMatchObject({
+    origin_account_id: originAccountId,
+    active_account_id: joining.id,
+  });
+
+  const refused = await request(app)
+    .post('/auth/mcp/oauth/connections/active')
+    .set('authorization', 'Bearer service-token')
+    .send({ token: accessToken, account_id: originAccountId + '-unknown' });
+  expect(refused.status).toBe(404);
+});

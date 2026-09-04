@@ -146,14 +146,21 @@ describe('external MCP OAuth authority', () => {
       codeVerifier: verifier,
       resource: input.resource,
     });
-    const claims = await introspectMcpAccessToken(tokens.access_token, input.applicationId);
-    expect(claims).toMatchObject({
+    const introspection = await introspectMcpAccessToken(tokens.access_token, input.applicationId);
+    expect(introspection?.claims).toMatchObject({
       sub: input.ownerId,
       account_id: input.ownerId,
       client_id: input.client.clientId,
       resource: input.resource,
       aud: input.descriptor.audience,
       scope: 'resource.read',
+    });
+    // A connection that was never widened still reports itself, with the token's
+    // own account as its only member and the one being acted as.
+    expect(introspection?.connection).toMatchObject({
+      origin_account_id: input.ownerId,
+      active_account_id: input.ownerId,
+      accounts: [{ account_id: input.ownerId, is_origin: true }],
     });
     await expect(introspectMcpAccessToken(tokens.access_token, 'other-application')).resolves.toBeNull();
   });

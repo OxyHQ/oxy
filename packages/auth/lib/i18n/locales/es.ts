@@ -72,6 +72,33 @@ const es: LocaleDict = {
     },
   },
 
+  mcpLink: {
+    title: 'Conectar esta cuenta a {{client}}',
+    subtitle:
+      'Al aprobar, añades {{handle}} a la conexión de {{app}} que tu asistente ya tiene. Tus otras cuentas no se ven afectadas.',
+    scopesTitle: 'Qué podrá hacer la conexión con esta cuenta',
+    revokeHint:
+      'Esta cuenta recibe su propia autorización. Puedes revocarla cuando quieras desde los ajustes de Oxy, sin tocar las demás cuentas de la conexión.',
+    alreadyLinked: '{{handle}} ya está conectada. Aprobar de nuevo solo la renueva.',
+    approve: 'Conectar esta cuenta',
+    useAnother: 'Usar otra cuenta',
+    thisAccount: 'esta cuenta',
+    theAssistant: 'tu asistente',
+    connectedTitle: 'Cuenta conectada',
+    connectedDesc:
+      '{{handle}} ya está disponible en {{client}}. Vuelve y pídele que cambie a esta cuenta.',
+    noRequestTitle: 'No hay ninguna solicitud de conexión',
+    noRequestDesc:
+      'Esta página se abre desde un enlace que genera tu asistente. Pídele que conecte otra cuenta.',
+    unavailableTitle: 'Este enlace ya no es válido',
+    unavailableDesc:
+      'Los enlaces de cuenta son de un solo uso y caducan pronto. Pide uno nuevo a tu asistente.',
+    errors: {
+      loadFailed: 'No se pudo cargar esta solicitud de conexión.',
+      approveFailed: 'No se pudo conectar la cuenta. Pide un enlace nuevo a tu asistente.',
+      switchFailed: 'No se pudo seleccionar esa cuenta. Vuelve a iniciar sesión para continuar.',
+    },
+  },
   authorize: {
     title: 'Continuar a {{app}}',
     subtitle:

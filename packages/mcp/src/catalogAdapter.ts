@@ -50,7 +50,7 @@ export type CatalogMcpAuthorizationDecision =
 export interface CatalogMcpRegistrationOptions {
   authentication: Omit<McpTokenValidationOptions, 'accountId' | 'requiredScopes'>;
   /**
-   * Performs the live app authorization and binds principal.accountId to the
+   * Performs the live app authorization and binds principal.activeAccountId to the
    * domain resource targeted by this invocation. It must fail closed.
    */
   authorize: (
@@ -152,7 +152,9 @@ export function registerCatalogWithMcp(
       if (!authorization.allowed) {
         throw new Error(`MCP authorization denied: ${authorization.reason}`);
       }
-      if (authorization.effectiveAccountId !== principal.accountId) {
+      // The acting account, not the token's own: a connection may cover several
+      // accounts, and the app must serve exactly the member Oxy selected.
+      if (authorization.effectiveAccountId !== principal.activeAccountId) {
         throw new Error('MCP authorization account binding mismatch');
       }
       return normalizeToolResult(definition, await definition.handler(input, context));

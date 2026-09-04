@@ -75,6 +75,33 @@ const en: LocaleDict = {
     },
   },
 
+  mcpLink: {
+    title: 'Connect this account to {{client}}',
+    subtitle:
+      'Approving adds {{handle}} to the {{app}} connection your assistant already has. Your other accounts are not affected.',
+    scopesTitle: 'What the connection may do as this account',
+    revokeHint:
+      'This account gets its own authorization. You can revoke it at any time from your Oxy settings, without touching the other accounts on the connection.',
+    alreadyLinked: '{{handle}} is already connected. Approving again just refreshes it.',
+    approve: 'Connect this account',
+    useAnother: 'Use a different account',
+    thisAccount: 'this account',
+    theAssistant: 'your assistant',
+    connectedTitle: 'Account connected',
+    connectedDesc:
+      '{{handle}} is now available in {{client}}. Go back and ask it to switch to this account.',
+    noRequestTitle: 'No connection request',
+    noRequestDesc:
+      'This page opens from a link your assistant generates. Ask it to connect another account.',
+    unavailableTitle: 'This link is no longer valid',
+    unavailableDesc:
+      'Account links can only be used once and expire quickly. Ask your assistant for a new one.',
+    errors: {
+      loadFailed: 'Unable to load this connection request.',
+      approveFailed: 'The account could not be connected. Ask your assistant for a new link.',
+      switchFailed: 'That account could not be selected. Sign in again to continue.',
+    },
+  },
   authorize: {
     title: 'Continue to {{app}}',
     subtitle:

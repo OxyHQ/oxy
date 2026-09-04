@@ -22,6 +22,7 @@ export function LoginPage() {
       responseType={searchParams.get("response_type") ?? undefined}
       responseMode={searchParams.get("response_mode") ?? undefined}
       loginHint={searchParams.get("login_hint") ?? undefined}
+      mcpLinkIntent={searchParams.get("mcp_link_intent") ?? undefined}
     />
   );
 }

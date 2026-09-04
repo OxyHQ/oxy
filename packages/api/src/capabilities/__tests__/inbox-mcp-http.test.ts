@@ -28,7 +28,18 @@ describe('Inbox MCP HTTP service', () => {
     delete process.env.OXY_API_URL;
     mockCreateCatalogMcpHttpService.mockImplementation((options) => ({ options }));
     mockResolveMcpResource.mockResolvedValue({ registeredByApplicationId: 'application-1' });
-    mockIntrospectMcpAccessToken.mockResolvedValue({ active: true });
+    mockIntrospectMcpAccessToken.mockResolvedValue({
+      claims: { account_id: 'account-1', sub: 'user-1' },
+      connection: {
+        connection_id: 'connection-1',
+        origin_account_id: 'account-1',
+        active_account_id: 'account-2',
+        accounts: [
+          { account_id: 'account-1', is_origin: true, linked_at: '2026-01-01T00:00:00.000Z' },
+          { account_id: 'account-2', is_origin: false, linked_at: '2026-02-01T00:00:00.000Z' },
+        ],
+      },
+    });
   });
 
   afterAll(() => {
@@ -64,7 +75,12 @@ describe('Inbox MCP HTTP service', () => {
       serverName: 'inbox-mcp',
     });
 
-    await expect(options.introspectToken('access-token')).resolves.toEqual({ active: true });
+    // The claims travel with the connection block so the transport can build a
+    // principal that knows which member account to serve.
+    await expect(options.introspectToken('access-token')).resolves.toMatchObject({
+      account_id: 'account-1',
+      connection: { active_account_id: 'account-2' },
+    });
     await options.introspectToken('second-token');
     expect(mockResolveMcpResource).toHaveBeenCalledTimes(1);
     expect(mockResolveMcpResource).toHaveBeenCalledWith('https://mcp.inbox.oxy.so');
@@ -73,9 +89,11 @@ describe('Inbox MCP HTTP service', () => {
       'access-token',
       'application-1',
     );
-    expect(await options.authorize({}, { principal: { accountId: 'account-1' } })).toEqual({
+    expect(await options.authorize({}, {
+      principal: { accountId: 'account-1', activeAccountId: 'account-2' },
+    })).toEqual({
       allowed: true,
-      effectiveAccountId: 'account-1',
+      effectiveAccountId: 'account-2',
     });
 
     const error = new Error('adapter failure');
@@ -91,7 +109,9 @@ describe('Inbox MCP HTTP service', () => {
     const options = mockCreateCatalogMcpHttpService.mock.calls[0][0];
 
     await expect(options.introspectToken('first-token')).rejects.toThrow('temporary failure');
-    await expect(options.introspectToken('second-token')).resolves.toEqual({ active: true });
+    await expect(options.introspectToken('second-token')).resolves.toMatchObject({
+      account_id: 'account-1',
+    });
     expect(mockResolveMcpResource).toHaveBeenCalledTimes(2);
     expect(mockIntrospectMcpAccessToken).toHaveBeenCalledWith(
       'second-token',
