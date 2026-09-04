@@ -10,9 +10,13 @@ The immutable bindings are:
 | Product identity            | Exact value                            |
 | --------------------------- | -------------------------------------- |
 | Oxy organization            | `69b2d3df5d12f58c9800d651`             |
+| Homiio project account      | `6a50444ce8026582b949089d`              |
 | Homiio application          | `6a2f851751b784a86fd0e922`             |
+| Sindi bot account           | `01a0646a-078f-7974-9645-a5e8be237f47` |
 | Sindi service credential    | `01a0648e-ad3f-7608-aa8b-c07bfef6cf73` |
 | Sindi Alia agent            | `01a0646a-078f-7514-9800-9f43ceed7df8` |
+| Clarity project account     | `01a0646a-078f-7f53-848d-a0f82d9f7fa6` |
+| Clarity bot account         | `01a0646a-078f-7120-a993-a03c180c81b0` |
 | Clarity public application  | `01a0646a-2382-74a3-a795-788924d55722` |
 | Clarity public credential   | `01a0646e-2508-7048-8c08-b1f7b3af634f` |
 | Clarity backend application | `01a0648b-8d73-70ad-8e67-1c07ddc5eb6e` |
@@ -29,6 +33,9 @@ use those exact primary keys.
    `run-native-product-agent-bootstrap.sh` from the same reviewed release.
 2. Run `dry-run-bootstrap`. It uses OIDC and a one-shot Fargate task, rolls the
    PostgreSQL transaction back and does not read, create or change SSM secrets.
+   Any `live_state_drift`, owner mismatch or structural mismatch is a hard stop:
+   diagnose the exact immutable fields from an operator-safe projection, never
+   select or repair an account by name, list position or first match.
 3. Review the complete CloudWatch plan and copy the printed lowercase
    `planSha256`.
 4. Run `apply` from the same `main` revision with that exact hash and a

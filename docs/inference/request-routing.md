@@ -200,3 +200,18 @@ verify all of the following against live state:
 
 Until those checks pass, documentation may describe the target architecture and
 the implementation, but must not call the production cutover complete.
+
+For the first Oxy enablement, keep ambient
+`INFERENCE_KAANA_EXECUTION=disabled`. Run the
+[`Kaana signed deployment readback`](../../.github/workflows/kaana-signed-deployment-readback.yml)
+against the exact live Oxy task definition and immutable image digest; it may
+project descriptors only and must record zero provider requests and zero Oxy
+ledger writes. Then run the
+[`Kaana signed production canary`](../../.github/workflows/kaana-signed-canary.yml)
+with one exact `deploymentId` and the exact `snapshotId` from that readback. It
+makes the two explicitly confirmed one-token provider requests while ambient
+execution remains disabled. Only a separate reviewed deploy change may enable
+the ambient flag after both runs pass; product consumers such as Alia are
+enabled after that Oxy rollout and readback, never before it. The complete
+inputs, negative probes and rollback order are in
+[`kaana-request-v2-cutover.md`](../runbooks/kaana-request-v2-cutover.md).

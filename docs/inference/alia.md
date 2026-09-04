@@ -5,9 +5,11 @@ half**. The Alia-side counterpart is
 [OxyHQ/Alia#139](https://github.com/OxyHQ/Alia/issues/139) and is not described
 here.
 
-Status of the whole picture: [README.md](./README.md). **Nothing on this page has
-been run against production.** It is the code and the runbook; the runs are
-operational steps a person takes, in the order below.
+Status of the whole picture: [README.md](./README.md). This page records source
+and the operating contract, not a successful production rollout. A dry-run that
+reports drift is diagnostic evidence only: it provisions nothing and must not be
+reported as completion. The workflow result, exact live task/image and
+post-apply readback are the authority for what production has accepted.
 
 ---
 
