@@ -23,6 +23,7 @@ function makeResolver(
     cached?: TestActor | null;
     cachedKey?: Pick<TestActor, 'uri' | 'publicKeyPem'> | null;
     blockedHosts?: string[];
+    signedFetch?: (url: string) => Promise<Response>;
   } = {},
 ) {
   const blockedHosts = overrides.blockedHosts ?? ['spam.example'];
@@ -37,6 +38,7 @@ function makeResolver(
     federationEnabled: true,
     signedFetch: async (url) => {
       signedFetchCalls.push(url);
+      if (overrides.signedFetch) return overrides.signedFetch(url);
       // A 404 ends `fetchRemoteActor` without exercising the parse/upsert path;
       // these tests only care about WHETHER the fetch was attempted.
       return new Response(null, { status: 404 });
@@ -70,6 +72,36 @@ function makeResolver(
   };
 
   return { resolver: createActorResolver(config), findActorByUriCalls, signedFetchCalls };
+}
+
+/**
+ * A response whose body is pulled lazily, so the test can see HOW MUCH of it the
+ * reader asked for.
+ *
+ * `pulls` and not a `cancel()` flag on purpose. The property under test is that
+ * an oversized body is not DRAINED — that the reader stops early instead of
+ * buffering whatever a hostile instance sends. Whether the source stream's
+ * `cancel()` callback fires is a different question, and one this environment
+ * cannot answer: under jest, `reader.cancel()` does not propagate to the
+ * underlying source, while the same code in plain Node does. Asserting on it
+ * would be asserting on the harness.
+ *
+ * `pulls` is observable either way, and it is the thing that actually bounds
+ * the work: a reader that stopped at the cap has pulled a handful of chunks; one
+ * that drained has pulled all of them.
+ */
+function streamedResponse(chunks: string[], init?: ResponseInit): { response: Response; pulls: () => number } {
+  let pulls = 0;
+  const encoder = new TextEncoder();
+  const response = new Response(new ReadableStream<Uint8Array>({
+    pull(controller) {
+      pulls += 1;
+      const chunk = chunks.shift();
+      if (chunk === undefined) controller.close();
+      else controller.enqueue(encoder.encode(chunk));
+    },
+  }), init);
+  return { response, pulls: () => pulls };
 }
 
 describe('getOrFetchActor — instance domain policy', () => {
@@ -135,5 +167,86 @@ describe('fetchPublicKey — signature lookups stay honest', () => {
     const rig = makeResolver({ cachedKey: null, cached: null });
     await expect(rig.resolver.fetchPublicKey(`${BLOCKED_ACTOR}#main-key`)).resolves.toBeNull();
     expect(rig.signedFetchCalls).toHaveLength(0);
+  });
+});
+
+describe('fetchRemoteActor — bounded remote bodies', () => {
+  /**
+   * A body far larger than the cap, in chunks a quarter of it. A reader that
+   * stops at the cap pulls a handful; one that drains pulls all `count`.
+   */
+  function chunked(chunkBytes: number, count: number, init?: ResponseInit) {
+    return streamedResponse(Array.from({ length: count }, () => 'x'.repeat(chunkBytes)), init);
+  }
+
+  it('stops reading an actor body once it exceeds the decompressed-size cap', async () => {
+    // 24 chunks of an eighth-cap each: 3x the cap on offer. Kept modest on
+    // purpose — a body large enough to make the point but not to make an
+    // UNBOUNDED reader die of memory pressure, which would fail this test for
+    // the wrong reason and hide what it measures.
+    const oversized = chunked(128 * 1024, 24);
+    const rig = makeResolver({ signedFetch: async () => oversized.response });
+
+    await expect(rig.resolver.fetchRemoteActor(ALLOWED_ACTOR)).resolves.toBeNull();
+    expect(oversized.pulls()).toBeLessThan(15);
+  });
+
+  it('drains a body that stays under the cap — the bound is what stops it, not an early return', async () => {
+    // Positive control for the three bounds below: without this, a resolver
+    // that had broken into never reading a body at all would satisfy every
+    // `pulls()` assertion here and read as correctly bounded.
+    const actor = JSON.stringify({
+      id: ALLOWED_ACTOR,
+      inbox: 'https://remote.example/inbox',
+      preferredUsername: 'bob',
+    });
+    const small = streamedResponse(actor.match(/.{1,16}/g) ?? []);
+    const rig = makeResolver({ signedFetch: async () => small.response });
+
+    await rig.resolver.fetchRemoteActor(ALLOWED_ACTOR);
+    // Every chunk, plus the pull that closes the stream.
+    expect(small.pulls()).toBeGreaterThan(Math.ceil(actor.length / 16));
+  });
+
+  it('rejects an oversized actor from Content-Length without consuming its stream', async () => {
+    let cancelled = false;
+    const response = new Response(new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array([123]));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }), { headers: { 'content-length': String(1024 * 1024 + 1) } });
+    const rig = makeResolver({ signedFetch: async () => response });
+
+    await expect(rig.resolver.fetchRemoteActor(ALLOWED_ACTOR)).resolves.toBeNull();
+    expect(cancelled).toBe(true);
+  });
+
+  it('bounds actor-advertised collection responses and fails the count soft', async () => {
+    const actor = JSON.stringify({
+      id: ALLOWED_ACTOR,
+      inbox: 'https://remote.example/inbox',
+      preferredUsername: 'bob',
+      followers: 'https://remote.example/followers',
+    });
+    const oversizedCollection = chunked(8 * 1024, 24);
+    const rig = makeResolver({
+      signedFetch: async (url) => url === ALLOWED_ACTOR
+        ? new Response(actor)
+        : oversizedCollection.response,
+    });
+
+    await expect(rig.resolver.fetchRemoteActor(ALLOWED_ACTOR)).resolves.toBeNull();
+    expect(oversizedCollection.pulls()).toBeLessThan(15);
+  });
+
+  it('caps an error body before attempting the WebFinger fallback', async () => {
+    const oversized = chunked(512, 24, { status: 500 });
+    const rig = makeResolver({ signedFetch: async () => oversized.response });
+
+    await expect(rig.resolver.fetchRemoteActor(ALLOWED_ACTOR)).resolves.toBeNull();
+    expect(oversized.pulls()).toBeLessThan(15);
   });
 });
