@@ -103,12 +103,41 @@ export const moderationEffects = pgTable(
       .notNull()
       .references(() => identityBindings.id, { onDelete: 'restrict' }),
     /**
-     * The emitting application, resolved from its credential — never the body.
+     * The REPORTED application — whose report started the incident, named in the
+     * decision event's body as `reportedApplicationId`.
+     *
+     * NOT the emitter, despite what this comment said until now. Every writer
+     * has always written the reportee (`applyModerationDecision` passes
+     * `reportedApplicationId` here, to `conduct_strikes.application_id`, and to
+     * the ledger's `application_id`), the single reader copies it into
+     * `conduct_strikes.application_id` during repair, and both sibling columns
+     * document the same meaning — "Reporting application" on the ledger,
+     * "Which application's report started the incident" on the strike. The
+     * emitter sentence was wrong from the original Mongo model and survived the
+     * port; it is corrected rather than deleted because acting on it is a
+     * mistake worth naming.
+     *
+     * Body-supplied and therefore not authority on its own. What makes it
+     * trustworthy is the BINDING PROOF checked beside it: `resolveBindingProof`
+     * requires `(bindingProofId, applicationId)` to match a live binding, and a
+     * binding is created only by the named application itself — `POST
+     * /reputation/moderation/bindings` takes its `applicationId` from the
+     * CREDENTIAL and requires the subject's own access token. Binding ids are
+     * returned only to their creator and never echoed by a read path, so naming
+     * another application's id here fails `no_binding_proof`.
      *
      * `RESTRICT`, as the deferred-FK ledger decided before `applications`
-     * landed: the emitter is part of the provenance an effect exists to record,
-     * so deleting it must FAIL rather than erase or orphan the audit trail of
-     * what it caused.
+     * landed: the reporter is part of the provenance an effect exists to
+     * record, so deleting it must FAIL rather than erase or orphan the audit
+     * trail of what it caused.
+     *
+     * THE EMITTER IS NOT STORED HERE, OR ANYWHERE DURABLE.
+     * `applyModerationDecision` validates `context.emitterApplicationId` is
+     * present and then drops it; the only emitter identity that reaches a row is
+     * {@link credentialId}, which is nullable and `SET NULL`. So this table
+     * cannot answer "which application emitted this decision" for a rotated
+     * credential or for a row predating that column — worth knowing before
+     * building any authorization on emitter identity here.
      */
     applicationId: text()
       .notNull()
