@@ -68,7 +68,6 @@ export const BOOTSTRAP_CORE_ORIGINS: ReadonlySet<string> = new Set([
   'https://inbox.oxy.so',
   'https://noted.oxy.so',
   'https://os.oxy.so',
-  'https://pay.oxy.so',
   'https://syra.oxy.so',
   // ── Oxy Website FairCoin redirect ──
   'https://fairco.in',
@@ -95,6 +94,9 @@ export const BOOTSTRAP_CORE_ORIGINS: ReadonlySet<string> = new Set([
   'https://moovo.now',
   'https://go.moovo.now',
   'https://hub.moovo.now',
+  // ── Peable ──
+  'https://peable.to',
+  'https://api.peable.to',
   // ── Mercaria (storefront + dashboard + point-of-sale) ──
   'https://mercaria.co',
   'https://dashboard.mercaria.co',

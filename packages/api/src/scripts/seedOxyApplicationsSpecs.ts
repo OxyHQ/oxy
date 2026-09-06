@@ -404,11 +404,11 @@ export const SEED_APPS: SeedAppSpec[] = [
     redirectUris: ['https://oxy.so', 'https://fairco.in'],
   },
   {
-    name: 'Oxy Pay',
+    name: 'Peable',
     description: 'Official Oxy payments app.',
-    websiteUrl: 'https://pay.oxy.so',
+    websiteUrl: 'https://peable.to',
     type: 'first_party',
-    redirectUris: ['https://pay.oxy.so'],
+    redirectUris: ['https://peable.to'],
     scopes: ['user:read', 'payments:read', 'payments:write'],
   },
   {
