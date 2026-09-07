@@ -17,6 +17,7 @@ import {
   stripPublicPrefix,
   isPublicKey,
   storageKeyForVisibility,
+  IMMUTABLE_ASSET_CACHE_CONTROL,
 } from '../config/cdn';
 import { logger } from '../utils/logger';
 import { ConflictError } from '../utils/error';
@@ -310,6 +311,7 @@ export class AssetService {
 
     await this.s3Service.uploadBuffer(file.storageKey, fileBuffer, {
       contentType: file.mime || mimeType,
+      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
     });
 
     if (file.size !== fileBuffer.length) {
@@ -688,7 +690,8 @@ export class AssetService {
 
       // Upload to S3
       await this.s3Service.uploadBuffer(storageKey, fileBuffer, {
-        contentType: mimeType
+        contentType: mimeType,
+        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
       });
 
       // Queue variant generation
@@ -890,8 +893,14 @@ export class AssetService {
     };
 
     try {
+      // The temp key itself is a uuid and is deleted moments later, but the
+      // promotion below is a server-side `CopyObject` with the default
+      // `MetadataDirective: COPY` — so the content-addressed object inherits
+      // whatever `Cache-Control` this PUT stored. Setting it here is what makes
+      // the promoted object immutable to caches.
       await this.s3Service.uploadStream(tempKey, body, {
         contentType: mimeType,
+        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
         abortSignal: abortController.signal,
       });
       completed = true;
@@ -1371,6 +1380,7 @@ export class AssetService {
 
       await this.s3Service.uploadBuffer(file.storageKey, repaired.buffer, {
         contentType: repaired.mime,
+        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
       });
 
       const updated = await updateFile(file.id, {

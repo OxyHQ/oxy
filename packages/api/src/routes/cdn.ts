@@ -21,7 +21,7 @@ import { assetService } from '../services/assetServiceSingleton';
 import { validate } from '../middleware/validate';
 import { assetIdParams } from '../schemas/assets.schemas';
 import { asyncHandler } from '../utils/asyncHandler';
-import { CDN_REDIRECT_MAX_AGE_SECONDS } from '../config/cdn';
+import { CDN_REDIRECT_CACHE_CONTROL } from '../config/cdn';
 import { logger } from '../utils/logger';
 
 const router = express.Router();
@@ -89,7 +89,7 @@ router.get(
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Resource not found' });
     }
 
-    res.setHeader('Cache-Control', `public, max-age=${CDN_REDIRECT_MAX_AGE_SECONDS}`);
+    res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
     return res.redirect(cdnUrl);
   })
 );

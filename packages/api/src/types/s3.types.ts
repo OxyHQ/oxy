@@ -16,6 +16,14 @@ export interface UploadOptions {
   contentType?: string;
   metadata?: Record<string, string>;
   acl?: 'private' | 'public-read';
+  /**
+   * `Cache-Control` stored ON the object, which S3 (and therefore CloudFront)
+   * replays on every GET. Unlike the presigned-PUT variant below this is set by
+   * US at PUT time, so no client has to replay anything. Content-addressed keys
+   * pass `IMMUTABLE_ASSET_CACHE_CONTROL`; omitting it leaves the object with no
+   * `Cache-Control` at all, which sends clients to heuristic freshness.
+   */
+  cacheControl?: string;
 }
 
 export interface FileInfo {
