@@ -48,7 +48,6 @@ Build order matters and is derived by turbo from the dependency graph: `contract
 | API | `https://api.oxy.so` | AWS ECS Fargate (us-west-2) |
 | Auth (OAuth IdP) | `https://auth.oxy.so` | Cloudflare Pages |
 | Accounts | `https://accounts.oxy.so` | Cloudflare Pages |
-| Inbox | `https://inbox.oxy.so` | Cloudflare Pages, from [OxyHQ/Inbox](https://github.com/OxyHQ/Inbox) |
 | Console | `https://console.oxy.so` | Cloudflare Pages |
 | Mention API | `https://api.mention.earth` | AWS ECS Fargate (us-west-2) |
 | Homiio API | `https://api.homiio.com` | AWS ECS Fargate (us-west-2) |

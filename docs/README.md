@@ -25,7 +25,7 @@ is four things in one Bun-workspaces monorepo:
    `/server` middleware), `@oxyhq/services` (the single UI SDK — `OxyProvider`
    on web and Expo/RN), `@oxyhq/contracts` (Zod API contracts), and
    `@oxyhq/protocol` (signed-record/crypto substrate). Every Oxy app
-   (Mention, Allo, Homiio, Syra, accounts, console, inbox) consumes these for
+   (Mention, Allo, Homiio, Syra, accounts, console) consumes these for
    auth, profiles, payments, and media — zero per-app session code.
 
 3. **Oxy ID — self-sovereign identity.** Account-anchored `did:web` documents,

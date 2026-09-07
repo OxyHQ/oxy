@@ -898,7 +898,6 @@ Acciones: **DELETE** | **REWRITE** | **MERGE→services** | **KEEP** | **CREATE*
 | Path | Acción | Fase |
 |------|--------|------|
 | `packages/accounts/app/+html.tsx` | **DELETE** SSO bootstrap script | 6–7 |
-| `packages/inbox/app/+html.tsx` | **DELETE** SSO bootstrap script | 6–7 |
 | `packages/commons/app/+html.tsx` | **DELETE** SSO bootstrap script | 6–7 |
 | `packages/console/package.json` `@oxyhq/auth` | **REPLACE** `@oxyhq/services` | 3 |
 | `packages/console/src/routes/__root.tsx` etc. | **REWRITE** imports | 3 |
