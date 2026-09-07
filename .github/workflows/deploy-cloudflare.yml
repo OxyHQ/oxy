@@ -131,9 +131,8 @@ jobs:
           # Accounts' PRODUCTION Oxy client id. `packages/accounts/constants/oxy.ts`
           # falls back to a committed id when this is unset. A repo VARIABLE rather
           # than a secret — the id ships inside the bundle. Named per APP because
-          # accounts and commons share `EXPO_PUBLIC_OXY_CLIENT_ID` (inbox did too,
-          # until it moved to OxyHQ/Inbox), so one variable per var NAME could not
-          # serve them.
+          # accounts and commons share `EXPO_PUBLIC_OXY_CLIENT_ID`, so one
+          # variable per var NAME could not serve them.
           EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.ACCOUNTS_OXY_CLIENT_ID }}
       - name: Deploy to Cloudflare Pages
         env:
@@ -158,21 +157,6 @@ jobs:
           smoke:csp
           'CSP smoke'
           'accounts.oxy.so is serving a CSP that blocks its own inline script'
-
-  # deploy-inbox is GONE: the app moved to OxyHQ/Inbox, which now owns the
-  # `oxy-inbox` Pages project and inbox.oxy.so.
-  #
-  # This job had to go BEFORE packages/inbox is deleted, not with it, because
-  # its paths-filter fired on packages/{app-preset,bloom,expo-splash,core,
-  # protocol,services,contracts}/** as well as on packages/inbox/** — packages
-  # that change weekly. Left in place, any routine SDK commit here would rebuild
-  # the old copy of the app and overwrite whatever OxyHQ/Inbox had deployed. Two
-  # writers, both green, and the symptom is "inbox.oxy.so reverted itself" with
-  # nothing to point at.
-  #
-  # packages/inbox itself is removed separately, once the new repo has served a
-  # deploy. Until then the code here is still built and tested by ci.yml's
-  # inbox-test — it just cannot deploy.
 
   deploy-console:
     needs: detect-changes

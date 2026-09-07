@@ -17,7 +17,7 @@ OxyHQServices (`@oxyhq/sdk`, a private Bun-workspaces + Turbo monorepo) is the
    only) and a **backend API** (`api.oxy.so` — the session authority).
 2. **A client SDK** (`@oxyhq/core`, `@oxyhq/services`, `@oxyhq/contracts`,
    `@oxyhq/protocol`) that every Oxy app (Mention, Allo, Homiio, Syra, accounts,
-   console, inbox, …) consumes for auth, session, profiles, payments, and media.
+   console, …) consumes for auth, session, profiles, payments, and media.
    `@oxyhq/services` is the **single UI SDK** — `OxyProvider` serves Expo,
    React Native, and web (React Native Web) alike; there is no separate
    web-only auth package.
@@ -49,7 +49,7 @@ packages/
                                      mounts OxyProvider device-first like every app) — PRIVATE
   accounts/                          Expo "Accounts by Oxy" — keyless, management-only
   commons/                           Expo "Commons by Oxy" — NATIVE-ONLY identity vault
-  inbox/   console/                  Web apps (email, developer console)
+  console/                           Web developer console
   expo-splash/    @oxyhq/expo-splash Shared native-splash toolkit for Oxy Expo apps
   test-app-expo/                     Playground
 ```
@@ -106,7 +106,7 @@ Turbo derives the build order from this graph:
 2. `protocol`
 3. `core`
 4. `services`, `node`, `api` (parallel — all depend on `core`)
-5. `commons`, `accounts`, `inbox`, `console`, web IdP (depend on `core`/`services`)
+5. `commons`, `accounts`, `console`, web IdP (depend on `core`/`services`)
 
 `bun run build:all` (= `turbo run build`) builds every build-required package.
 `contracts`, `protocol`, and `core` build dual CJS + ESM + `.d.ts` via `tsc`;
@@ -207,7 +207,7 @@ and delegates 401 refresh to the session owner.
   post-deploy smoke gate re-checks the live host. Account management is NOT
   hosted here: the IdP's `/settings/*` routes permanently redirect to
   `accounts.oxy.so`.
-- Web RP frontends (accounts, console, inbox, …) → Cloudflare Pages.
+- Web RP frontends (accounts, console, …) → Cloudflare Pages.
 - `@oxyhq/node` → self-hosted by users (Docker + Caddy) or, for the managed
   vault, an Oxy-operated endpoint (`MANAGED_NODE_BASE_URL`).
 

@@ -14,7 +14,7 @@ All Oxy production infrastructure runs on **AWS** in the **us-west-2 (Oregon)** 
 | ECR repos | `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/<app>` | one per service | us-west-2 | linux/arm64 images for each backend |
 | `oxy-github-deploy` | IAM role | — | — | Trust policy for GitHub OIDC; no static AWS keys in GitHub |
 | SES | — | — | us-west-2 | Outbound email |
-| Cloudflare Pages | — | — | — | Static frontends (accounts, auth, console, inbox, os, syra, allo) |
+| Cloudflare Pages | — | — | — | Static frontends (accounts, auth, console, os, syra, allo) |
 
 ### Services running on `oxy-cluster`
 
@@ -35,7 +35,6 @@ All tasks run `assign_public_ip=true` so there is no NAT gateway in the path.
 |---------|-----------|
 | `oxy-accounts` | accounts.oxy.so |
 | `oxy-auth` | auth.oxy.so (third-party OAuth authorize/consent IdP — pure-static Vite SPA; the device-account chooser runs in the device-first SDK, so there is no Pages Function) |
-| `oxy-inbox` | inbox.oxy.so — deployed from [OxyHQ/Inbox](https://github.com/OxyHQ/Inbox) |
 | `oxy-console` | console.oxy.so |
 
 ## Networking
@@ -84,7 +83,7 @@ Shared parameters (the shared parameter namespace) include AWS access-key variab
 | Pages         |                        |  ACM HTTPS          |
 | (frontends:   |                        +----------+----------+
 |  accounts,    |                                   |
-|  auth, inbox, |                  Host-based routing per service
+|  auth,        |                  Host-based routing per service
 |  console)     |                                   |
 +---------------+                                   v
                                        +------------+------------+
