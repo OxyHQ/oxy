@@ -120,6 +120,33 @@ describe('GET /cdn/:id — public CDN origin resolver', () => {
     expect(mockGetPublicCdnUrl).toHaveBeenCalledWith(expect.any(Object), undefined);
   });
 
+  it('keeps the 302 hard-fresh for an hour but lets a client paint from a stale one', async () => {
+    // Two properties in one header, and they pull opposite ways.
+    //
+    // `max-age` is SHORT on purpose: this 302 is the only place the status and
+    // visibility check runs — the 404 cases in this suite — so its freshness
+    // window is exactly how long a just-deleted or just-privatised asset keeps
+    // resolving for a client that already holds the redirect. Raising it trades
+    // that away, which is why the fix for the round trip is the second
+    // directive and not a bigger number here.
+    //
+    // `stale-while-revalidate` removes the once-an-hour BLOCKING round trip per
+    // asset without touching the freshness bound: the client paints from the
+    // stale redirect and refreshes it in the background, so a revoked asset is
+    // corrected after one more render rather than after another whole `max-age`.
+    mockGetFile.mockResolvedValue({
+      _id: PUBLIC_FILE_ID,
+      status: 'active',
+      visibility: 'public',
+      storageKey: 'public/content/2026/03/bb/bb7a29b85077cd58d945959b017bc954.png',
+    });
+    mockGetPublicCdnUrl.mockResolvedValue(ORIGINAL_CDN_URL);
+
+    const res = await requestNoFollow(server, `/cdn/${PUBLIC_FILE_ID}`);
+
+    expect(res.cacheControl).toBe('public, max-age=3600, stale-while-revalidate=86400');
+  });
+
   it('is variant-aware: ?variant=thumb resolves the thumb CDN URL', async () => {
     mockGetFile.mockResolvedValue({
       _id: PUBLIC_FILE_ID,

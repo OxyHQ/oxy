@@ -1,5 +1,9 @@
 import type { S3Service } from './s3Service';
-import { storageKeyForVisibility } from '../config/cdn';
+import {
+  storageKeyForVisibility,
+  HLS_MASTER_PLAYLIST_CACHE_CONTROL,
+  IMMUTABLE_ASSET_CACHE_CONTROL,
+} from '../config/cdn';
 import { logger } from '../utils/logger';
 import sharp from 'sharp';
 import path from 'path';
@@ -560,6 +564,7 @@ export class VariantService {
         const out = await pipeline.toBuffer();
         await this.s3Service.uploadBuffer(variantKey, out, {
           contentType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
+          cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
         });
 
         variants.push({
@@ -868,7 +873,8 @@ export class VariantService {
 
           // Upload to S3
           await this.s3Service.uploadBuffer(posterKey, optimized, {
-            contentType: 'image/jpeg'
+            contentType: 'image/jpeg',
+            cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
           });
 
           const imageMetadata = await sharp(optimized).metadata();
@@ -1054,7 +1060,8 @@ export class VariantService {
 
           // Upload to S3
           await this.s3Service.uploadBuffer(variantKey, variantBuffer, {
-            contentType: 'video/mp4'
+            contentType: 'video/mp4',
+            cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
           });
 
           resolve({
@@ -1193,7 +1200,8 @@ export class VariantService {
             const playlistBuffer = fs.readFileSync(outputPath);
             const playlistKey = this.generateVariantKey(sha256, `hls_${config.type}`, 'm3u8', visibility);
             await this.s3Service.uploadBuffer(playlistKey, playlistBuffer, {
-              contentType: 'application/vnd.apple.mpegurl'
+              contentType: 'application/vnd.apple.mpegurl',
+              cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
             });
 
             // Upload all segment files and delete immediately after upload
@@ -1203,7 +1211,8 @@ export class VariantService {
               const segmentBuffer = fs.readFileSync(segmentPath);
               const segmentKey = this.generateVariantKey(sha256, `hls_${config.type}_${segment}`, 'ts', visibility);
               await this.s3Service.uploadBuffer(segmentKey, segmentBuffer, {
-                contentType: 'video/mp2t'
+                contentType: 'video/mp2t',
+                cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
               });
               // Delete segment immediately after upload (no temp file accumulation)
               try {
@@ -1245,7 +1254,8 @@ export class VariantService {
               const masterPlaylist = this.generateMasterPlaylist(hlsVariants);
               const masterKey = this.generateVariantKey(sha256, 'hls_master', 'm3u8', visibility);
               await this.s3Service.uploadBuffer(masterKey, Buffer.from(masterPlaylist), {
-                contentType: 'application/vnd.apple.mpegurl'
+                contentType: 'application/vnd.apple.mpegurl',
+                cacheControl: HLS_MASTER_PLAYLIST_CACHE_CONTROL,
               });
 
               variants.push({
@@ -1554,6 +1564,7 @@ export class VariantService {
     const key = this.generateVariantKey(file.sha256, config.type, format, file.visibility);
     await this.s3Service.uploadBuffer(key, out, {
       contentType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
+      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
     });
 
     const imgMeta = await sharp(out).metadata();

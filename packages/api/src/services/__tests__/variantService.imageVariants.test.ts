@@ -31,14 +31,20 @@ import { VariantService } from '../variantService';
 import type { S3Service } from '../s3Service';
 import type { FileRecord } from '../../types/file.types';
 
+interface UploadOptions {
+  contentType: string;
+  cacheControl?: string;
+}
+
 interface CapturedUpload {
   key: string;
   buffer: Buffer;
+  options?: UploadOptions;
 }
 
 interface FakeS3 {
   downloadBuffer: jest.Mock<Promise<Buffer>, [string]>;
-  uploadBuffer: jest.Mock<Promise<void>, [string, Buffer, { contentType: string }?]>;
+  uploadBuffer: jest.Mock<Promise<void>, [string, Buffer, UploadOptions?]>;
   fileExists: jest.Mock<Promise<boolean>, [string]>;
   uploads: CapturedUpload[];
 }
@@ -47,8 +53,8 @@ function makeFakeS3(originalBuffer: Buffer): FakeS3 {
   const uploads: CapturedUpload[] = [];
   return {
     downloadBuffer: jest.fn(() => Promise.resolve(originalBuffer)),
-    uploadBuffer: jest.fn((key: string, buffer: Buffer) => {
-      uploads.push({ key, buffer });
+    uploadBuffer: jest.fn((key: string, buffer: Buffer, options?: UploadOptions) => {
+      uploads.push({ key, buffer, options });
       return Promise.resolve();
     }),
     fileExists: jest.fn(() => Promise.resolve(false)),
@@ -228,6 +234,27 @@ describe('VariantService imageVariants — w128 variant', () => {
     expect(stored).toHaveLength(1);
     expect(stored[0].id).toBe(second.id);
     expect(second.id).not.toBe(first.id);
+  });
+
+  it('stores the rendition with an immutable Cache-Control', async () => {
+    // `variants/{y}/{m}/{shard}/{sha256}/{type}.{ext}` names the SOURCE's own
+    // digest, so this key can only ever hold this rendition of this source. It
+    // was nonetheless written with NO `Cache-Control` at all, which sends every
+    // client to heuristic freshness — zero for a rendition minted on demand,
+    // whose `Last-Modified` is now. That is the avatar re-fetch: `w96` is the
+    // variant a feed row's avatar asks for.
+    const fakeS3 = makeFakeS3(await makeSquarePng(512));
+
+    await new VariantService(fakeS3 as unknown as S3Service).ensureImageVariant(
+      await makeFile(),
+      'w96',
+    );
+
+    const uploaded = fakeS3.uploads.find((u) => u.key.endsWith('/w96.webp'));
+    expect(uploaded?.options).toMatchObject({
+      contentType: 'image/webp',
+      cacheControl: 'public, max-age=31536000, immutable',
+    });
   });
 
   it('rejects a variant key that is not in the imageVariants config', async () => {

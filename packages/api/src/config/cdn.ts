@@ -47,8 +47,57 @@ export const PUBLIC_KEY_PREFIX = 'public/';
  * `GET /assets/:id/stream` and `GET /cdn/:id`). The redirect TARGET is
  * content-addressed and stable, so clients/edge caches may safely reuse the 302
  * rather than re-running the S3 existence probe on every request.
+ *
+ * This is deliberately SHORT and must stay short: the 302 is the only place the
+ * status/visibility check runs (`assetService.getPublicCdnUrl` returns null for
+ * a trashed or private file). A cached redirect bypasses that check for its
+ * whole lifetime, so this value is the window in which a just-deleted or
+ * just-privatised asset stays resolvable for a client holding the 302.
  */
-export const CDN_REDIRECT_MAX_AGE_SECONDS = 3600;
+const CDN_REDIRECT_MAX_AGE_SECONDS = 3600;
+
+/**
+ * How long past {@link CDN_REDIRECT_MAX_AGE_SECONDS} a client may paint from the
+ * stale 302 while it revalidates in the background. This buys back the
+ * once-an-hour blocking round trip the redirect otherwise costs per asset
+ * without loosening the freshness bound above: the stale redirect is served at
+ * most once more per client before the revalidation replaces it.
+ */
+const CDN_REDIRECT_STALE_WHILE_REVALIDATE_SECONDS = 86400;
+
+/**
+ * `Cache-Control` for the public-asset CDN redirect. See the two constants above
+ * for why the freshness bound stays at an hour while the paint does not.
+ */
+export const CDN_REDIRECT_CACHE_CONTROL =
+  `public, max-age=${CDN_REDIRECT_MAX_AGE_SECONDS}, ` +
+  `stale-while-revalidate=${CDN_REDIRECT_STALE_WHILE_REVALIDATE_SECONDS}`;
+
+/**
+ * `Cache-Control` written onto every CONTENT-ADDRESSED object we PUT: originals
+ * under `content/{y}/{m}/{shard}/{sha256}.{ext}` and renditions under
+ * `variants/{y}/{m}/{shard}/{sha256}/{type}.{ext}`. The sha256 in the key is the
+ * bytes' own digest, so a given key can only ever hold the one rendition of the
+ * one source — it is immutable by construction and may be cached forever.
+ *
+ * Without this, S3 returns the object with NO `Cache-Control` at all and clients
+ * fall back to heuristic freshness (a fraction of the object's age). A rendition
+ * minted on demand has `Last-Modified` = now, so its heuristic freshness is
+ * ZERO and every subsequent view pays a revalidation round trip before it can
+ * paint — worst exactly for the newest media, which is all a feed shows.
+ */
+export const IMMUTABLE_ASSET_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+
+/**
+ * `Cache-Control` for an HLS MASTER playlist. Its key is content-addressed like
+ * everything else, but its BODY is an index of the renditions that actually
+ * finished: a rendition that fails transiently is simply absent from the master
+ * (`generateHLSStream` counts a failed ffmpeg run as processed and omits it), so
+ * a re-transcode of the same source in the same month legitimately rewrites the
+ * same key with a different body. Only the master has that property — the
+ * segments and per-rendition playlists it points at are immutable.
+ */
+export const HLS_MASTER_PLAYLIST_CACHE_CONTROL = 'public, max-age=3600';
 
 /**
  * Resolve the configured CDN base URL with no trailing slash.

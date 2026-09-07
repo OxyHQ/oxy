@@ -177,6 +177,10 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
     expect(mockGetPublicCdnUrl).toHaveBeenCalledWith(expect.any(Object), 'thumb');
     // Never streamed bytes through our origin.
     expect(mockGetObjectStreamRange).not.toHaveBeenCalled();
+    // Same redirect policy as `GET /cdn/:id`: an hour of hard freshness (this
+    // 302 is where the visibility check lives) plus a stale-serve window, so the
+    // per-asset round trip stops blocking the paint once an hour.
+    expect(res.cacheControl).toBe('public, max-age=3600, stale-while-revalidate=86400');
   });
 
   it('302s a file already keyed under public/ via the fast path (no CDN probe)', async () => {
