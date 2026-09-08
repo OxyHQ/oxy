@@ -751,7 +751,8 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
   # nothing. A migration that never runs is the outage this whole path exists for.
   if ! run_one_shot_command \
     "Migration" \
-    '["node","packages/api/dist/db/migrate.js","--phase=pre"]'; then
+    '["node","packages/api/dist/db/migrate.js","--phase=pre"]' \
+    true; then
     exit 1
   fi
 fi
