@@ -15,12 +15,16 @@ import { getEnvNumber } from '../../config/env';
  * previews to be re-resolved on their next read (a stored doc whose `version` is
  * below this is treated as stale and refreshed in the background).
  *
- * v2 — the resolver now whitespace-normalizes title/description/siteName (a
+ * v2 — the resolver whitespace-normalizes title/description/siteName (a
  * multi-line `<title>` used to be stored verbatim and rendered with a blank line
  * + indent by clients) and prefers `og:` over the document `<title>` / `<meta
  * name="description">`. Both change stored text, so v1 docs must be re-resolved.
+ *
+ * v3 — canonical URLs, JSON-LD article metadata, and explicit preview metadata
+ * carried by bounded 4xx HTML responses are now understood. Cloudflare
+ * challenges and generic error-page titles remain excluded.
  */
-export const LINK_PREVIEW_RESOLVER_VERSION = 2;
+export const LINK_PREVIEW_RESOLVER_VERSION = 3;
 
 /**
  * Age (seconds) after which a stored `resolved` / `empty` preview is considered
