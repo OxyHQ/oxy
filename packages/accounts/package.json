@@ -61,6 +61,7 @@
     "jszip": "catalog:",
     "lottie-react-native": "~7.3.8",
     "nativewind": "catalog:",
+    "posthog-react-native": "4.68.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "catalog:",

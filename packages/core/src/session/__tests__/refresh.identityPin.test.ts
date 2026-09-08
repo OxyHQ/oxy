@@ -146,6 +146,7 @@ describe('refreshDeviceSecretArm — pinned', () => {
       token: 'access-pinned',
       sessionId: 'sess-vault-new',
       userId: 'vault-user',
+      state: MINT_WHILE_SWITCHED.state,
     });
     expect(setTokens).toHaveBeenCalledWith('access-pinned');
     expect(await store.load()).toMatchObject({

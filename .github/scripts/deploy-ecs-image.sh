@@ -20,6 +20,7 @@ INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
 TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"
 TASK_REMOVE_NAMES_JSON="${TASK_REMOVE_NAMES_JSON:-}"
+TASK_EXTRA_CONTAINERS_JSON="${TASK_EXTRA_CONTAINERS_JSON:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
@@ -150,6 +151,25 @@ if ! jq -e '
   all(.[]; type == "string" and test("^[A-Z][A-Z0-9_]{0,127}$"))
 ' <<<"$TASK_REMOVE_NAMES_JSON" >/dev/null; then
   echo "::error::TASK_REMOVE_NAMES_JSON must be an array of at most 50 unique environment variable names."
+  exit 1
+fi
+if [[ -z "$TASK_EXTRA_CONTAINERS_JSON" ]]; then
+  TASK_EXTRA_CONTAINERS_JSON='[]'
+fi
+if ! jq -e --arg primary "$CONTAINER_NAME" '
+  type == "array" and
+  length <= 4 and
+  ([.[].name] | length == (unique | length)) and
+  all(
+    .[];
+    type == "object" and
+    .name != $primary and
+    (.name | type == "string" and test("^[a-z0-9][a-z0-9-]{0,62}$")) and
+    (.image | type == "string" and test("^[A-Za-z0-9./_-]+:[A-Za-z0-9._-]+$")) and
+    .essential == false
+  )
+' <<<"$TASK_EXTRA_CONTAINERS_JSON" >/dev/null; then
+  echo "::error::TASK_EXTRA_CONTAINERS_JSON must contain at most four uniquely named, non-essential container definitions and cannot replace the app container."
   exit 1
 fi
 task_override_name_overlap="$(jq -n \
@@ -619,6 +639,7 @@ jq \
   --argjson taskSecretOverrides "$task_secret_overrides" \
   --argjson taskEnvironmentOverrides "$task_environment_overrides" \
   --argjson taskRemoveNames "$TASK_REMOVE_NAMES_JSON" \
+  --argjson extraContainers "$TASK_EXTRA_CONTAINERS_JSON" \
   '
     del(
       .taskDefinitionArn,
@@ -673,6 +694,11 @@ jq \
               + $taskEnvironmentOverrides
             )
         else . end
+      )
+    | ($extraContainers | map(.name)) as $extraNames
+    | .containerDefinitions = (
+        (.containerDefinitions | map(select(.name as $existing | ($extraNames | index($existing)) == null)))
+        + $extraContainers
       )
   ' \
   "$task_definition_file" >"$rendered_task_definition_file"

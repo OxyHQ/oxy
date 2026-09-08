@@ -1,4 +1,3 @@
-import { io } from 'socket.io-client';
 import {
   SessionClient,
   createSessionClientHost,
@@ -53,7 +52,6 @@ export function createSessionClient(
   const transport = createTokenTransport(oxyServices, getPinnedAccountId);
   const client = new SessionClient(host, {
     transport,
-    socketFactory: io,
     onUnauthenticated,
     getPinnedAccountId,
   });

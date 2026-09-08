@@ -9,6 +9,7 @@ import type {
   RequestOAuthConsentOptions,
 } from '../oauth/explicitOAuthConsent';
 import type { WebAuthMode, WebOAuthSignInResult } from '../oauth/types';
+import type { StorageInterface } from '../utils/storageHelpers';
 
 export interface OxyContextState {
   user: User | null;
@@ -220,6 +221,8 @@ export interface OxyRuntimeProviderProps {
   deviceCredentialStorage?: 'persistent' | 'ephemeral';
   onAuthStateChange?: (user: User | null) => void;
   onError?: (error: ApiError) => void;
+  /** Storage instance owned by the public provider; internal composition seam. */
+  platformStorage?: StorageInterface | null;
 }
 
 /** Internal commit input — session plus zero-cookie device credential. */
@@ -231,4 +234,6 @@ export interface CommitInput {
   expiresAt?: string;
   userId?: string;
   user?: { id: string; username?: string; avatar?: string };
+  /** State returned with a device-token mint, avoiding an immediate REST reread. */
+  deviceState?: import('@oxyhq/contracts').DeviceSessionState;
 }

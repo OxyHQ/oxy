@@ -36,6 +36,22 @@ import type { StorageInterface } from '../utils/storageHelpers';
 const QUERY_CACHE_KEY = 'oxy_query_cache_v3';
 const QUERY_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 const QUERY_PERSIST_THROTTLE_MS = 1_000;
+const MAX_QUERY_RETRIES = 2;
+
+function statusOf(error: unknown): number | null {
+  if (!error || typeof error !== 'object') return null;
+  const value = (error as { status?: unknown; response?: { status?: unknown } }).status
+    ?? (error as { response?: { status?: unknown } }).response?.status;
+  return typeof value === 'number' ? value : null;
+}
+
+/** Retry only failures that another attempt can plausibly change. */
+export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
+  if (failureCount >= MAX_QUERY_RETRIES) return false;
+  const status = statusOf(error);
+  if (status === null) return true; // transport error without an HTTP response
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
 
 /**
  * Query-key prefixes that should survive cold restart. Anything not listed
@@ -117,8 +133,7 @@ export const createQueryClient = (): QueryClient => {
         staleTime: 5 * 60 * 1000,
         // Keep unused data in cache for 30 minutes
         gcTime: 30 * 60 * 1000,
-        // Retry 3 times with exponential backoff
-        retry: 3,
+        retry: shouldRetryQuery,
         retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
         // Refetch on reconnect so stale data is refreshed once online again.
         refetchOnReconnect: true,
@@ -128,8 +143,9 @@ export const createQueryClient = (): QueryClient => {
         networkMode: 'offlineFirst',
       },
       mutations: {
-        // Retry once for mutations
-        retry: 1,
+        // A generic mutation has no proof of idempotency. Individual mutation
+        // definitions may opt into retry only when they carry such a proof.
+        retry: false,
         // Offline-first: pause and queue mutations when offline.
         networkMode: 'offlineFirst',
       },

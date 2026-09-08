@@ -58,7 +58,9 @@ export type {
 } from './ui/runtime';
 export type { OxyContextState } from './ui/context/OxyContext';
 export { useAuth } from './ui/hooks/useAuth';
-export type { AuthState, AuthActions, UseAuthReturn } from './ui/hooks/useAuth';
+export type { AuthState, AuthActions, SignInOutcome, UseAuthReturn } from './ui/hooks/useAuth';
+export { createDeferredProductAnalytics } from './ui/analytics/productAnalytics';
+export type { OxyProductEvent, ProductAnalytics } from './ui/analytics/productAnalytics';
 // Thrown by `switchToAccount` / `switchSession` while `OxyProvider` runs with
 // `sessionMode="identity"` — an identity-bound app authenticates as the owner of
 // the local identity key and cannot switch accounts.
@@ -380,17 +382,10 @@ export type { OxySignInSurfaceAction } from './ui/components/authChooser/types';
 export { useDeviceSwitcher } from './ui/hooks/useDeviceSwitcher';
 export type { UseDeviceSwitcherResult } from './ui/hooks/useDeviceSwitcher';
 
-// Unified "Manage your Oxy Account" screen (the caller's own personal account)
-export { default as ProfileScreen } from './ui/screens/ProfileScreen';
-export { default as ManageAccountScreen } from './ui/screens/ManageAccountScreen';
-export { default as NotificationsScreen } from './ui/screens/NotificationsScreen';
-export { default as PreferencesScreen } from './ui/screens/PreferencesScreen';
-export { default as ConnectedAppsScreen } from './ui/screens/ConnectedAppsScreen';
-
-// Account-graph screens (organization / project / bot accounts)
-export { default as CreateAccountScreen } from './ui/screens/CreateAccountScreen';
-export { default as AccountMembersScreen } from './ui/screens/AccountMembersScreen';
-export { default as AccountSettingsScreen } from './ui/screens/AccountSettingsScreen';
+// Route screens deliberately live at `@oxyhq/services/screens`. Keeping them
+// out of the root graph is load-bearing: the surface registry already imports
+// them with React.lazy(), while a static barrel export turns those lazy chunks
+// back into startup code in Vite and Metro.
 
 // ---------------------------------------------------------------------------
 // Bottom-sheet navigation

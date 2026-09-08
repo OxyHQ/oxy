@@ -22,6 +22,7 @@ configureReanimatedLogger({
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useQueryClient } from '@tanstack/react-query';
 import { OxyProvider, useOxy } from '@oxyhq/services';
+import { productAnalytics } from '@/lib/product-analytics';
 import { KeyManager, logger } from '@oxyhq/core';
 import { useNavigationTheme } from '@oxyhq/bloom/theme';
 import { BloomProvider } from '@oxyhq/bloom/provider';
@@ -223,6 +224,7 @@ function RootLayoutInner() {
             clientId={OXY_CLIENT_ID}
             sessionMode="identity"
             backgroundSession
+            productAnalytics={productAnalytics}
           >
             <LocaleProvider>
               <AppHead />

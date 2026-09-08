@@ -9,9 +9,8 @@ class FakeSocket {
   disconnect() { this.connected = false; }
 }
 const ioMock = jest.fn((_uri: string, _opts?: Record<string, unknown>) => new FakeSocket());
-// `createSessionClient` STATICALLY imports `io` from socket.io-client and injects it as
-// the SessionClient `socketFactory`; this mock stands in for that real dependency so the
-// wiring test can assert the factory reaches — and is invoked by — the client.
+// Core loads socket.io-client only when `start()` needs realtime transport. This
+// mock proves the services factory keeps that boundary lazy.
 jest.mock('socket.io-client', () => ({ __esModule: true, io: (...args: unknown[]) => ioMock(...(args as [string, Record<string, unknown>?])) }));
 
 import { createSessionClient } from '../createSessionClient';
@@ -54,14 +53,14 @@ describe('createSessionClient', () => {
     expect(host.getCurrentAccountId()).toBe('u1');
   });
 
-  test('injects the statically-imported socket.io factory — start() opens a socket without the lazy loader', async () => {
+  test('loads socket.io only when start() opens realtime transport', async () => {
     ioMock.mockClear();
     const oxy = fakeOxy();
 
     const { client } = createSessionClient(oxy as never);
     await client.start();
 
-    // The injected `io` was used to open the session socket at the base URL.
+    // The lazily-loaded `io` opens the session socket at the base URL.
     expect(ioMock).toHaveBeenCalledTimes(1);
     expect(ioMock).toHaveBeenCalledWith('https://api.oxy.so', expect.objectContaining({ transports: ['websocket'] }));
     client.stop();

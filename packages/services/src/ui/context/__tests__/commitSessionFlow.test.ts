@@ -72,6 +72,18 @@ const buildDeps = (
 });
 
 describe('commitDeviceSetAndResolve — cold boot (activate: false)', () => {
+  it('does not re-register when the mint already returned authoritative device state', async () => {
+    const order: string[] = [];
+    const deps = buildDeps(order, { hasDeviceState: true });
+
+    await commitDeviceSetAndResolve(deps);
+    await flush();
+
+    expect(deps.addCurrentAccount).not.toHaveBeenCalled();
+    expect(deps.startSocket).toHaveBeenCalledTimes(1);
+    expect(deps.syncFromClient).toHaveBeenCalledTimes(1);
+  });
+
   it('resolves auth from getCurrentUser BEFORE the device-set reconcile', async () => {
     const order: string[] = [];
     const deps = buildDeps(order);

@@ -661,9 +661,8 @@ export {
 // ---------------------------------------------------------------------------
 export { SessionClient } from './session/SessionClient';
 export type { TokenTransport, SessionClientHost, SessionClientOptions, DeviceCredential, SessionStateOrigin } from './session/SessionClient';
-// The injectable socket factory type: consumers that bundle socket.io-client
-// (services/auth-sdk) pass its `io` export as `socketFactory` so realtime sync
-// never relies on core's lazy dynamic import of a bare specifier.
+// Injectable for tests/specialized hosts; ordinary consumers use core's lazy
+// transport and do not pull socket.io-client into their initial module graph.
 export type { SocketIOFactory, MinimalSocket } from './session/socketLoader';
 
 // Shared SessionClient integration layer: the host adapter, the pure

@@ -76,6 +76,7 @@ const fakeSessionClient = {
   signOutPrincipal: jest.fn(async () => undefined),
   start: jest.fn(async () => undefined),
   bootstrap: jest.fn(async () => undefined),
+  adoptState: jest.fn(() => true),
   addCurrentAccount: jest.fn(async () => undefined),
   registerAndActivate: jest.fn(async () => undefined),
   switchAccount: jest.fn(async () => undefined),

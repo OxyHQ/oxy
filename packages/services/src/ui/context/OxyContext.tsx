@@ -9,7 +9,6 @@ import {
   useState,
 } from 'react';
 import { Linking, Platform } from 'react-native';
-import { io } from 'socket.io-client';
 import { OxyServices, oxyClient } from '@oxyhq/core';
 import type {
   User,
@@ -109,6 +108,23 @@ export type { OxyContextState, OxyRuntimeProviderProps } from './oxyContextTypes
 
 const OxyRuntimeContext = createContext<OxyContextState | null>(null);
 
+type OxyAuthActionsContextState = Pick<
+  OxyContextState,
+  | 'signIn'
+  | 'logout'
+  | 'logoutAll'
+  | 'refreshSessions'
+  | 'oxyServices'
+  | 'switchToAccount'
+  | 'hasIdentity'
+  | 'getPublicKey'
+  | 'showBottomSheet'
+  | 'openAvatarPicker'
+  | 'openAccountDialog'
+>;
+
+const OxyAuthActionsContext = createContext<OxyAuthActionsContextState | null>(null);
+
 /**
  * The SDK's internal runtime provider — the session/account state machine that
  * backs `useOxy()`.
@@ -133,6 +149,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   webAuthMode = 'popup',
   backgroundSession = false,
   deviceCredentialStorage = 'persistent',
+  platformStorage,
   onAuthStateChange,
   onError,
 }) => {
@@ -319,8 +336,17 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   const storageReady = storageReadyRef.current;
 
   useEffect(() => {
+    // `null` means the public provider owns initialization and has not resolved
+    // it yet. `undefined` means this internal provider was mounted directly and
+    // must create its own adapter (primarily tests/advanced composition).
+    if (platformStorage === null) {
+      return;
+    }
     let mounted = true;
-    createPlatformStorage()
+    const storagePromise = platformStorage
+      ? Promise.resolve(platformStorage)
+      : createPlatformStorage();
+    storagePromise
       .then((storageInstance) => {
         storageRef.current = storageInstance;
         storageReady.resolve(storageInstance);
@@ -338,7 +364,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     return () => {
       mounted = false;
     };
-  }, [logger, onError, runtime, storageReady]);
+  }, [logger, onError, platformStorage, runtime, storageReady]);
 
   const {
     currentLanguage,
@@ -592,6 +618,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       if (input.accessToken) {
         oxyServices.setTokens(input.accessToken);
       }
+      if (input.deviceState) {
+        sessionClient.adoptState(input.deviceState);
+      }
 
       // Persist the durable blob when the zero-cookie device credential is present.
       if (input.deviceId && input.deviceSecret) {
@@ -650,6 +679,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       // on the next load).
       await commitDeviceSetAndResolve({
         activate: options.activate,
+        hasDeviceState: input.deviceState !== undefined,
         userId: input.userId,
         fallbackUser: (input.user as unknown as User) ?? null,
         registerAndActivate: (userId) => sessionClient.registerAndActivate(userId),
@@ -784,9 +814,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       oxyServices,
       sessionClient,
       clientId,
-      // Same statically-injected `io` as the SessionClient: gives the QR flow an
-      // instant `/auth-session` `auth_update` wake instead of a slow poll.
-      socketFactory: io,
       commitSession: (session) => handleWebSessionRef.current(session),
       onSignedIn: () => {
         // Close the dialog: pop the morphed frame back to its host surface, or
@@ -1330,6 +1357,35 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     ],
   );
 
+  const authActionsValue = useMemo<OxyAuthActionsContextState>(
+    () => ({
+      signIn,
+      logout,
+      logoutAll,
+      refreshSessions: refreshSessionsForContext,
+      oxyServices,
+      switchToAccount,
+      hasIdentity,
+      getPublicKey,
+      showBottomSheet: showBottomSheetForContext,
+      openAvatarPicker,
+      openAccountDialog,
+    }),
+    [
+      signIn,
+      logout,
+      logoutAll,
+      refreshSessionsForContext,
+      oxyServices,
+      switchToAccount,
+      hasIdentity,
+      getPublicKey,
+      showBottomSheetForContext,
+      openAvatarPicker,
+      openAccountDialog,
+    ],
+  );
+
   // Two contexts, deliberately. The inner one carries the wide compatibility
   // value every `useOxy()` consumer reads, rebuilt whenever any of its members
   // moves. The outer one carries the runtime reference, which never changes
@@ -1337,7 +1393,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // selected and nothing else. Phase 8 retires the inner one.
   return (
     <OxyRuntimeHandleProvider value={runtime}>
-      <OxyRuntimeContext.Provider value={contextValue}>{children}</OxyRuntimeContext.Provider>
+      <OxyAuthActionsContext.Provider value={authActionsValue}>
+        <OxyRuntimeContext.Provider value={contextValue}>{children}</OxyRuntimeContext.Provider>
+      </OxyAuthActionsContext.Provider>
     </OxyRuntimeHandleProvider>
   );
 };
@@ -1380,3 +1438,12 @@ export const useOxy = (): OxyContextState => {
  * there is no fabricated runtime to fall back on.
  */
 export const useOptionalOxy = (): OxyContextState | null => useContext(OxyRuntimeContext);
+
+/** Stable auth commands for selector-based hooks; never carries mutable state. */
+export const useOxyAuthActions = (): OxyAuthActionsContextState => {
+  const actions = useContext(OxyAuthActionsContext);
+  if (!actions) {
+    throw new OxyProviderMissingError();
+  }
+  return actions;
+};

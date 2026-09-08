@@ -55,6 +55,7 @@
     "expo-web-browser": "catalog:",
     "lottie-react-native": "~7.3.8",
     "nativewind": "catalog:",
+    "posthog-react-native": "4.68.0",
     "react": "catalog:",
     "react-native": "catalog:",
     "react-native-css": "^3.0.6",

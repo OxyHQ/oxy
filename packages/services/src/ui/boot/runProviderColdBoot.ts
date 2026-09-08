@@ -185,6 +185,7 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
             sessionId: session.sessionId,
             accessToken: session.accessToken,
             userId: session.userId,
+            deviceState: session.state,
           },
           { activate: false },
         );
@@ -241,4 +242,3 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
     markAuthResolved();
   }
 }
-

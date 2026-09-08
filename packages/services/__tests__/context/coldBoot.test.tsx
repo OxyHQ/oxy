@@ -49,6 +49,7 @@ const fakeSessionClient = {
   subscribe: jest.fn(() => () => undefined),
   start: jest.fn(async () => undefined),
   bootstrap: jest.fn(async () => undefined),
+  adoptState: jest.fn(() => true),
   addCurrentAccount: jest.fn(async () => undefined),
   registerAndActivate: jest.fn(async () => undefined),
   switchAccount: jest.fn(async () => undefined),
@@ -243,10 +244,10 @@ describe('OxyContext cold boot (device-first)', () => {
     expect(capturedContext?.user?.id).toBe(USER_ID);
     // The token was planted from the freshly minted access token.
     expect(stub.getAccessToken()).toBe('cb.minted.access');
-    // Cold boot handoff ensures device-set MEMBERSHIP (addCurrentAccount), not a
-    // deliberate activation (registerAndActivate) — the server's own active
-    // account wins.
-    await waitFor(() => expect(fakeSessionClient.addCurrentAccount).toHaveBeenCalledTimes(1));
+    // The mint already returned authoritative device state, so handoff neither
+    // re-registers nor re-reads the same state.
+    expect(fakeSessionClient.adoptState).toHaveBeenCalledTimes(1);
+    expect(fakeSessionClient.addCurrentAccount).not.toHaveBeenCalled();
     expect(fakeSessionClient.registerAndActivate).not.toHaveBeenCalled();
     expect(fakeSessionClient.start).toHaveBeenCalled();
     // Rotated device credential from mint must reach the SessionClient host.

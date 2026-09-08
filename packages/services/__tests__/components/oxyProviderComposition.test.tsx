@@ -113,10 +113,7 @@ describe('OxyProvider — outlets mount exactly once', () => {
     expect(queryAllByTestId('bloom-surface-host')).toHaveLength(1);
   });
 
-  it('mounts no outlets at all while the boot shell is up', async () => {
-    // No supplied client + persistence still resolving => the boot shell path.
-    // It must not render a second copy of either outlet when the real tree
-    // takes over, which is exactly what a copy in the shell would cause.
+  it('does not block the application tree on persisted-query hydration', async () => {
     let releaseRestore: () => void = () => {};
     attachQueryPersistenceMock.mockImplementationOnce(() => ({
       restored: new Promise<void>((resolve) => {
@@ -131,19 +128,21 @@ describe('OxyProvider — outlets mount exactly once', () => {
       </OxyProvider>,
     );
 
-    expect(queryAllByTestId('bloom-toast-outlet')).toHaveLength(0);
-    expect(queryAllByTestId('bloom-surface-host')).toHaveLength(0);
+    // The client and application tree exist synchronously. Persisted query I/O
+    // is an enhancement, not a startup gate.
+    await findByTestId('probe');
+    expect(queryAllByTestId('bloom-toast-outlet')).toHaveLength(1);
+    expect(queryAllByTestId('bloom-surface-host')).toHaveLength(1);
 
     // Storage init is async, so the persistence attach (and with it the
     // `releaseRestore` handle) only exists once the bootstrap effect gets there.
     await waitFor(() => {
       expect(attachQueryPersistenceMock).toHaveBeenCalledTimes(1);
     });
-    expect(queryAllByTestId('bloom-toast-outlet')).toHaveLength(0);
+    expect(queryAllByTestId('bloom-toast-outlet')).toHaveLength(1);
 
     releaseRestore();
 
-    await findByTestId('probe');
     await waitFor(() => {
       expect(queryAllByTestId('bloom-toast-outlet')).toHaveLength(1);
     });

@@ -15,6 +15,8 @@ export interface CommitDeviceSetAndResolveDeps {
    * reconciles the device set in the background).
    */
   activate: boolean;
+  /** Cold boot already carries authoritative device state from the mint. */
+  hasDeviceState?: boolean;
   /** The committing account id (only used by `registerAndActivate`). */
   userId?: string;
   /** Minimal user carried by the commit input; used if the profile fetch fails. */
@@ -49,6 +51,7 @@ export async function commitDeviceSetAndResolve(
 ): Promise<void> {
   const {
     activate,
+    hasDeviceState = false,
     userId,
     fallbackUser,
     registerAndActivate,
@@ -68,7 +71,7 @@ export async function commitDeviceSetAndResolve(
   const reconcileDeviceSet = async (): Promise<void> => {
     if (activate) {
       await registerAndActivate(userId);
-    } else {
+    } else if (!hasDeviceState) {
       await addCurrentAccount();
     }
     await startSocket();
@@ -124,7 +127,8 @@ export async function commitDeviceSetAndResolve(
   }
 
   // Cold boot: resolve auth from the profile fetch FIRST; reconcile the device
-  // set (membership + socket + sessions projection) in a DETACHED background
+  // set (membership when the mint did not already return it, socket + sessions
+  // projection) in a DETACHED background
   // task so first paint is not blocked behind those round-trips.
   await hydrateAndResolve();
   void reconcileDeviceSet().catch(logReconcileError);

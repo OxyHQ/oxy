@@ -22,6 +22,15 @@ function makeHost(makeRequest: jest.Mock): SessionClientHost {
 const SYNC = (rev: number) => ({ state: STATE(rev), activeToken: { accessToken: `jwt-${rev}`, expiresAt: 'x' } });
 
 describe('SessionClient REST', () => {
+  it('adopts state already returned by a mint without another request', () => {
+    const makeRequest = jest.fn();
+    const c = new SessionClient(makeHost(makeRequest));
+
+    expect(c.adoptState(STATE(2))).toBe(true);
+    expect(c.getState()?.revision).toBe(2);
+    expect(makeRequest).not.toHaveBeenCalled();
+  });
+
   it('bootstrap GETs /session/device/state and applies it', async () => {
     const makeRequest = jest.fn().mockResolvedValueOnce(SYNC(3));
     const host = makeHost(makeRequest);

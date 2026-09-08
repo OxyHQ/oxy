@@ -23,14 +23,15 @@ export { useOxy, useOptionalOxy, OxyProviderMissingError } from './context/OxyCo
 
 // Hooks
 export { useAuth } from './hooks/useAuth';
-export type { AuthState, AuthActions, UseAuthReturn } from './hooks/useAuth';
+export type { AuthState, AuthActions, SignInOutcome, UseAuthReturn } from './hooks/useAuth';
+export { createDeferredProductAnalytics } from './analytics/productAnalytics';
+export type { OxyProductEvent, ProductAnalytics } from './analytics/productAnalytics';
 export { useFollow } from './hooks/useFollow';
 export { useStorage } from './hooks/useStorage';
 export type { UseStorageOptions, UseStorageResult } from './hooks/useStorage';
 
-// Screens
-export { default as ProfileScreen } from './screens/ProfileScreen';
-export { default as ManageAccountScreen } from './screens/ManageAccountScreen';
+// Route screens live at `@oxyhq/services/screens` so client imports preserve
+// the route registry's lazy chunk boundaries.
 
 // Stores
 export { useAuthStore } from './stores/authStore';

@@ -15,6 +15,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import type { ReactNode } from 'react';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { OxyProvider , useOxy } from '@oxyhq/services';
+import { productAnalytics } from '@/lib/product-analytics';
 import { BloomThemeProvider, useNavigationTheme } from '@oxyhq/bloom/theme';
 import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
 import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
@@ -152,7 +153,7 @@ function RootLayoutInner() {
             theme mode from ThemeModeProvider. */}
         <BloomThemeProvider mode={themeMode}>
           <ConnectionStatusToasts />
-          <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} authRedirectUri={OXY_AUTH_REDIRECT_URI}>
+          <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} authRedirectUri={OXY_AUTH_REDIRECT_URI} productAnalytics={productAnalytics}>
             <AppImageResolver>
               <LocaleProvider>
                 <AppHead />

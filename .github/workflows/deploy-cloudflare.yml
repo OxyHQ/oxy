@@ -80,6 +80,8 @@ jobs:
           # than a secret — the id ships inside the bundle. Named per APP because
           # auth and console share `VITE_OXY_CLIENT_ID`.
           VITE_OXY_CLIENT_ID: ${{ vars.AUTH_OXY_CLIENT_ID }}
+          VITE_POSTHOG_ENABLED: ${{ vars.POSTHOG_ENABLED }}
+          VITE_POSTHOG_KEY: ${{ vars.POSTHOG_PROJECT_KEY }}
       # Deploy the static `dist`. Invoke `bunx wrangler` DIRECTLY rather than
       # cloudflare/wrangler-action: that action's `npx --no-install wrangler`
       # path runs npm's Arborist from packages/auth, which rejects the repo-root
@@ -134,6 +136,8 @@ jobs:
           # accounts and commons share `EXPO_PUBLIC_OXY_CLIENT_ID`, so one
           # variable per var NAME could not serve them.
           EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.ACCOUNTS_OXY_CLIENT_ID }}
+          EXPO_PUBLIC_POSTHOG_ENABLED: ${{ vars.POSTHOG_ENABLED }}
+          EXPO_PUBLIC_POSTHOG_KEY: ${{ vars.POSTHOG_PROJECT_KEY }}
       - name: Deploy to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

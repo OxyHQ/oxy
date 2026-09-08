@@ -616,6 +616,16 @@ export class SessionClient {
   }
 
   /**
+   * Adopt server-authoritative state already returned by another session
+   * endpoint. This avoids immediately re-reading `/session/device/state` after
+   * a successful device-token mint while preserving the same validation,
+   * revision ordering and notification path as `bootstrap()`.
+   */
+  adoptState(state: DeviceSessionState): boolean {
+    return this.applyState(state, 'request');
+  }
+
+  /**
    * Read `GET /session/device/directory` and publish it.
    *
    * Calling this is what opts a client into the directory: from here on every

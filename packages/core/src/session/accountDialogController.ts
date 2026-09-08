@@ -64,7 +64,7 @@ import { logger } from '../logger';
 import { extractErrorStatus } from '../utils/errorUtils';
 import { CENTRAL_IDP_APEX } from '../utils/authWebUrl';
 import type { SessionClient } from './SessionClient';
-import type { MinimalSocket, SocketIOFactory } from './socketLoader';
+import { getSocketIO, type MinimalSocket, type SocketIOFactory } from './socketLoader';
 import { resolveActiveContext, type DeviceContext } from './deviceDirectory';
 import type { CommonsSignInHandle } from '../mixins/OxyServices.auth';
 import {
@@ -323,11 +323,11 @@ export interface AccountDialogControllerOptions {
    */
   pollIntervalMs?: number;
   /**
-   * Statically-injected `socket.io-client` factory (its `io` export), same as
-   * {@link SessionClient}'s. When provided, the QR flow subscribes to the
+   * Optional injected `socket.io-client` factory, primarily for tests. Without
+   * one, the optional transport loads only when QR sign-in starts. The flow subscribes to the
    * `/auth-session` namespace for an INSTANT `auth_update` wake instead of relying
-   * on the slow fallback poll. Absent on web builds without a bundled `io` and in
-   * headless/core usage → the controller silently degrades to poll-only.
+   * on the slow fallback poll. If the package is unavailable, the controller
+   * silently degrades to poll-only.
    */
   socketFactory?: SocketIOFactory;
   /**
@@ -1361,15 +1361,16 @@ export class AccountDialogController {
    * survives socket drops. `auth_update` is treated as a pure SIGNAL — the payload
    * is never trusted; `pollOnce` re-checks the authoritative status and claims.
    *
-   * No-op (poll-only) when no `socketFactory` was injected (web without a bundled
-   * `io`, headless/core usage, tests). The namespace needs no auth.
+   * No-op (poll-only) when the optional socket transport is unavailable. The
+   * namespace needs no auth.
    */
-  private openAuthSessionSocket(sessionToken: string): void {
+  private async openAuthSessionSocket(sessionToken: string): Promise<void> {
     this.closeAuthSessionSocket();
-    if (!this.socketFactory) return;
+    const socketFactory = this.socketFactory ?? (await getSocketIO());
+    if (!socketFactory || this.signInToken !== sessionToken) return;
     let socket: MinimalSocket;
     try {
-      socket = this.socketFactory(`${this.oxyServices.getBaseURL()}${AUTH_SESSION_NAMESPACE}`, {
+      socket = socketFactory(`${this.oxyServices.getBaseURL()}${AUTH_SESSION_NAMESPACE}`, {
         transports: ['websocket'],
         autoConnect: true,
         reconnection: true,

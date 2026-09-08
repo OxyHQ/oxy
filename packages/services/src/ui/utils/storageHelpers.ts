@@ -14,7 +14,7 @@ export interface SessionStorageKeys {
 /**
  * Create an in-memory storage implementation used as a safe fallback.
  */
-const MEMORY_STORAGE = (): StorageInterface => {
+export const createMemoryStorage = (): StorageInterface => {
   const store = new Map<string, string>();
 
   return {
@@ -39,7 +39,7 @@ const MEMORY_STORAGE = (): StorageInterface => {
  */
 const createWebStorage = (): StorageInterface => {
   if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
-    return MEMORY_STORAGE();
+    return createMemoryStorage();
   }
 
   return {
@@ -92,7 +92,7 @@ const createNativeStorage = async (): Promise<StorageInterface> => {
     if (__DEV__) {
       console.error('Failed to import AsyncStorage:', error);
     }
-    throw new Error('AsyncStorage is required in React Native environment');
+    return createMemoryStorage();
   }
 };
 
@@ -126,5 +126,4 @@ export const getStorageKeys = (prefix: string = STORAGE_KEY_PREFIX): SessionStor
   sessionIds: `${prefix}_session_ids`,
   language: `${prefix}_language`,
 });
-
 

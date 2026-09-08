@@ -1,6 +1,6 @@
 {
   "name": "@oxyhq/services",
-  "version": "30.2.5",
+  "version": "31.0.0",
   "description": "OxyHQ Expo/React Native SDK \u2014 UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -58,6 +58,18 @@
         "default": "./lib/commonjs/ui/server.js"
       },
       "default": "./lib/module/ui/server.js"
+    },
+    "./screens": {
+      "react-native": "./src/ui/screens/index.ts",
+      "import": {
+        "types": "./lib/typescript/module/ui/screens/index.d.ts",
+        "default": "./lib/module/ui/screens/index.js"
+      },
+      "require": {
+        "types": "./lib/typescript/commonjs/ui/screens/index.d.ts",
+        "default": "./lib/commonjs/ui/screens/index.js"
+      },
+      "default": "./lib/module/ui/screens/index.js"
     },
     "./notifications": {
       "react-native": "./src/notifications/deviceNotifications.ts",
@@ -186,7 +198,6 @@
     "react-native-safe-area-context": "catalog:",
     "react-native-svg": "catalog:",
     "release-it": "catalog:",
-    "socket.io-client": "catalog:",
     "ts-jest": "^29.4.12",
     "typescript": "^5.9.2",
     "zustand": "catalog:"
@@ -195,7 +206,7 @@
   "peerDependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@oxyhq/bloom": "^1.0.0",
-    "@oxyhq/core": "^21.0.0 || ^22.0.0 || ^23.0.0",
+    "@oxyhq/core": "^23.3.0",
     "@react-native-async-storage/async-storage": "^2.0.0",
     "@react-native-community/netinfo": ">=11.4.1",
     "@tanstack/query-async-storage-persister": "catalog:",
@@ -226,7 +237,6 @@
     "react-native-reanimated": ">=4.3.0",
     "react-native-safe-area-context": ">=5.7.0",
     "react-native-svg": ">=15.15.0",
-    "socket.io-client": "^4.8.0",
     "zustand": "^5.0.0"
   },
   "peerDependenciesMeta": {

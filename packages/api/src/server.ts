@@ -1,3 +1,4 @@
+import { shutdownTelemetry } from './telemetry';
 import express from "express";
 import http from "http";
 import { count, ne, sql } from "drizzle-orm";
@@ -504,6 +505,7 @@ async function gracefulShutdown(signal: string) {
   }
   await closeRedis();
   await closePostgres();
+  await shutdownTelemetry();
 
   logger.info('All connections closed, exiting');
   process.exit(0);
@@ -584,10 +586,9 @@ app.get("/health", async (req, res) => {
 //   - `memory`     — this process's RSS and heap figures.
 //   - `database`   — the DATABASE HOSTNAME and database name from
 //                    `DATABASE_URL` (`getDatabaseStats`), i.e. the RDS endpoint.
-//   - `performance.slowOperations` — keyed by `` `${req.method} ${req.path}` ``
-//                    with the path UNPARAMETERIZED, so the list enumerates the
-//                    API's internal surface and carries the concrete ids and
-//                    usernames of whichever requests happened to be slow.
+//   - `performance.slowOperations` — keyed by method + Express route template.
+//                    Concrete ids, usernames, query strings and user agents are
+//                    deliberately never retained by the monitor.
 //
 // `requireStaff` is this repo's existing gate for that audience — the same one
 // `/platform-stats`, `/inference/admin`, `/cost-centers` and the staff-only
