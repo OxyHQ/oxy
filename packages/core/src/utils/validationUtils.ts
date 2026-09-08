@@ -277,10 +277,21 @@ export function isValidObject(value: unknown): boolean {
 }
 
 /**
- * Validate UUID format
+ * Validate UUID format.
+ *
+ * The version nibble accepts **1-8**, the versions RFC 9562 defines. It read
+ * `[1-5]` — RFC 4122's set — which meant this function answered `false` for
+ * every id this ecosystem actually mints: `@oxyhq/db`'s `generatedId()` is a
+ * **uuid v7**, so `users.id`, `files.id` and every other Postgres primary key
+ * since the 2026-07-31 cutover is one. A validator that rejects the only
+ * version its own platform produces is worse than no validator: callers read
+ * `false` as "malformed" and drop a perfectly good id.
+ *
+ * Nil (`00000000-…`) and max (`ffffffff-…`) stay invalid, as does any variant
+ * outside `[89ab]` — this is a FORMAT check, and those two are not identifiers.
  */
 export function isValidUUID(uuid: string): boolean {
-  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return UUID_REGEX.test(uuid);
 }
 

@@ -588,10 +588,28 @@ describe('Validation Utils', () => {
       expect(isValidUUID('550e8400-e29b-41d4-a716-446655440000')).toBe(true);
     });
 
+    /**
+     * The version this ecosystem MINTS. `@oxyhq/db`'s `generatedId()` produces a
+     * uuid v7, so every Postgres primary key since the 2026-07-31 cutover is
+     * one — and the old `[1-5]` version class answered `false` for all of them.
+     * The suite could not see it: both samples above are v1 and v4.
+     */
+    it('accepts a uuid v7 — the version generatedId() produces', () => {
+      expect(isValidUUID('01a0821e-d61a-7a78-b5d1-afb1850bd5a4')).toBe(true);
+      expect(isValidUUID('0197c8f2-1e40-7c9e-8b3a-2f5d6c1a9e04')).toBe(true);
+    });
+
     it('should return false for invalid UUIDs', () => {
       expect(isValidUUID('invalid-uuid')).toBe(false);
       expect(isValidUUID('123-456-789')).toBe(false);
       expect(isValidUUID('')).toBe(false);
+    });
+
+    // A format check, not an identifier check: version 0 and the wrong variant
+    // are still malformed, and widening the version class must not blur that.
+    it('still rejects a zero version nibble and a bad variant', () => {
+      expect(isValidUUID('01a0821e-d61a-0a78-b5d1-afb1850bd5a4')).toBe(false);
+      expect(isValidUUID('01a0821e-d61a-7a78-c5d1-afb1850bd5a4')).toBe(false);
     });
   });
 
