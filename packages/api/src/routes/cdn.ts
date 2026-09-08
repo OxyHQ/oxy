@@ -23,6 +23,7 @@ import { assetIdParams } from '../schemas/assets.schemas';
 import { asyncHandler } from '../utils/asyncHandler';
 import { CDN_REDIRECT_CACHE_CONTROL } from '../config/cdn';
 import { logger } from '../utils/logger';
+import { singleQueryValue } from '../utils/queryString';
 
 const router = express.Router();
 
@@ -58,7 +59,7 @@ router.get(
   validate({ params: assetIdParams }),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { id: fileId } = req.params;
-    const variant = typeof req.query.variant === 'string' ? req.query.variant : undefined;
+    const variant = singleQueryValue(req.query.variant);
 
     const file = await assetService.getFile(fileId);
     if (!file) {

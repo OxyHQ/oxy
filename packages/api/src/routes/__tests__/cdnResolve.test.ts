@@ -163,6 +163,49 @@ describe('GET /cdn/:id — public CDN origin resolver', () => {
     expect(mockGetPublicCdnUrl).toHaveBeenCalledWith(expect.any(Object), 'thumb');
   });
 
+  /**
+   * A repeated `?variant=` arrives from `qs` as an ARRAY, and the
+   * `typeof … === 'string'` test that stood here read that as ABSENT — which
+   * does not 404, it resolves the ORIGINAL. Measured against production:
+   * `?variant=w96&variant=w96` redirected to `/content/…` (the full-resolution
+   * file) where a single `?variant=w96` redirects to `/variants/…`, and the CDN
+   * then caches the original as the answer for that URL. The assertion is on the
+   * ARGUMENT the service receives, because both outcomes are a 302.
+   */
+  it('honours a repeated ?variant= instead of silently resolving the original', async () => {
+    mockGetFile.mockResolvedValue({
+      _id: PUBLIC_FILE_ID,
+      status: 'active',
+      visibility: 'public',
+      storageKey: 'public/content/2026/03/bb/bb7a29b85077cd58d945959b017bc954.png',
+    });
+    mockGetPublicCdnUrl.mockResolvedValue(THUMB_CDN_URL);
+
+    const res = await requestNoFollow(
+      server,
+      `/cdn/${PUBLIC_FILE_ID}?variant=thumb&variant=thumb`,
+    );
+
+    expect(res.status).toBe(302);
+    expect(mockGetPublicCdnUrl).toHaveBeenCalledWith(expect.any(Object), 'thumb');
+  });
+
+  // Two DIFFERENT values are a malformed request either way; last-wins is the
+  // conventional reading and, unlike "absent", it cannot widen what is served.
+  it('takes the last value when a repeated ?variant= disagrees with itself', async () => {
+    mockGetFile.mockResolvedValue({
+      _id: PUBLIC_FILE_ID,
+      status: 'active',
+      visibility: 'public',
+      storageKey: 'public/content/2026/03/bb/bb7a29b85077cd58d945959b017bc954.png',
+    });
+    mockGetPublicCdnUrl.mockResolvedValue(THUMB_CDN_URL);
+
+    await requestNoFollow(server, `/cdn/${PUBLIC_FILE_ID}?variant=w2048&variant=thumb`);
+
+    expect(mockGetPublicCdnUrl).toHaveBeenCalledWith(expect.any(Object), 'thumb');
+  });
+
   it('404s a private file (never streams private bytes, never redirects)', async () => {
     mockGetFile.mockResolvedValue({
       _id: PRIVATE_FILE_ID,
