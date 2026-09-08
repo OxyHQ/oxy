@@ -39,6 +39,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema';
 import { resolveFileMediaMetadata } from '../utils/fileMediaMetadata';
+import { singleQueryValue } from '../utils/queryString';
 
 interface AuthenticatedRequest extends express.Request {
   user?: {
@@ -1432,7 +1433,7 @@ router.get('/:id/url', authMiddleware, validate({ params: assetIdParams, query: 
   const { id: fileId } = req.params;
   const { variant, expiresIn } = req.query;
 
-  const variantType = typeof variant === 'string' ? variant : undefined;
+  const variantType = singleQueryValue(variant);
   const expiry = typeof expiresIn === 'string' ? Number.parseInt(expiresIn) : 3600;
 
   const file = await assetService.getFile(fileId);
@@ -1559,7 +1560,7 @@ router.get('/:id/stream', mediaHeadersMiddleware, validate({ params: assetIdPara
   const userId = getMediaViewerUserId(req);
   const { id: fileId } = req.params;
   const { variant } = req.query;
-  const variantType = typeof variant === 'string' ? variant : undefined;
+  const variantType = singleQueryValue(variant);
 
   const fallback = typeof req.query.fallback === 'string' ? req.query.fallback : '';
 
@@ -1789,7 +1790,7 @@ router.get('/:id/download', validate({ params: assetIdParams }), optionalAuthMid
     throw new ForbiddenError('Access denied');
   }
 
-  const variantType = typeof variant === 'string' ? variant : undefined;
+  const variantType = singleQueryValue(variant);
   const expiry = typeof expiresIn === 'string' ? Number.parseInt(expiresIn) : 3600;
 
   if (!(await assetService.fileContentExists(fileId, file))) {
