@@ -117,6 +117,20 @@ function resolveAbsoluteUrl(value: string, baseUrl: string): string {
   }
 }
 
+function resolveCanonicalUrl(values: Array<string | undefined>, fallbackUrl: string): string {
+  for (const value of values) {
+    if (!value) continue;
+    const resolved = resolveAbsoluteUrl(value, fallbackUrl);
+    try {
+      const parsed = new URL(resolved);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.toString();
+    } catch {
+      // Try the next declared canonical representation.
+    }
+  }
+  return fallbackUrl;
+}
+
 /** Extract `<title>` + meta/link tags from the HTML head (regex; no full DOM parse). */
 function extractMetadataFromHtml(html: string): Record<string, string> {
   const metadata: Record<string, string> = {};
@@ -150,10 +164,77 @@ function extractMetadataFromHtml(html: string): Record<string, string> {
       if (key && attrs.content) metadata[key.toLowerCase()] = attrs.content;
     } else if (tagName === 'link' && attrs.rel?.toLowerCase().includes('icon') && attrs.href) {
       metadata.favicon = attrs.href;
+    } else if (
+      tagName === 'link' &&
+      attrs.rel?.toLowerCase().split(/\s+/).includes('canonical') &&
+      attrs.href
+    ) {
+      metadata.canonical = attrs.href;
     }
   }
 
+  // JSON-LD is the standards-based fallback used by many article/product pages
+  // that omit Open Graph. Only consume the small, presentation-safe subset a
+  // preview needs; arbitrary structured data never leaves this resolver.
+  for (const script of head.matchAll(
+    /<script\b[^>]*type\s*=\s*(["'])application\/ld\+json\1[^>]*>([\s\S]*?)<\/script>/gi,
+  )) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(script[2]);
+    } catch {
+      continue;
+    }
+    const candidates = Array.isArray(parsed)
+      ? parsed
+      : isJsonRecord(parsed) && Array.isArray(parsed['@graph']) ? parsed['@graph'] : [parsed];
+    const entity = candidates.find((candidate) => {
+      if (!isJsonRecord(candidate)) return false;
+      const type = candidate['@type'];
+      const types = Array.isArray(type) ? type : [type];
+      return types.some((value) =>
+        typeof value === 'string' && [
+          'Article',
+          'NewsArticle',
+          'BlogPosting',
+          'WebPage',
+          'Product',
+          'VideoObject',
+          'Event',
+          'Recipe',
+        ].includes(value),
+      );
+    });
+    if (!isJsonRecord(entity)) continue;
+    const imageUrl = readJsonLdImage(entity.image) ?? readJsonLdImage(entity.thumbnailUrl);
+    const title = typeof entity.headline === 'string'
+      ? entity.headline
+      : typeof entity.name === 'string' ? entity.name : undefined;
+    if (title) metadata['jsonld:title'] = title;
+    if (typeof entity.description === 'string') {
+      metadata['jsonld:description'] = entity.description;
+    }
+    if (imageUrl) metadata['jsonld:image'] = imageUrl;
+    break;
+  }
+
   return metadata;
+}
+
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function readJsonLdImage(value: unknown): string | undefined {
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const url = readJsonLdImage(entry);
+      if (url) return url;
+    }
+    return undefined;
+  }
+  if (typeof value === 'string') return value;
+  return isJsonRecord(value) && typeof value.url === 'string' ? value.url : undefined;
 }
 
 /**
@@ -212,7 +293,12 @@ async function fetchMetadataDocument(
       throw new Error(`Blocked interstitial page: ${finalParsed.hostname}${finalParsed.pathname}`);
     }
 
-    if (status < 200 || status >= 300) {
+    const challengeHeader = headerStr(headers['cf-mitigated']).toLowerCase();
+    if (challengeHeader === 'challenge') {
+      return { metadata: {}, finalUrl: result.finalUrl };
+    }
+
+    if (status < 200 || status >= 500) {
       return { metadata: {}, finalUrl: result.finalUrl };
     }
 
@@ -225,7 +311,17 @@ async function fetchMetadataDocument(
       maxBytes: LINK_PREVIEW_HTML_MAX_BYTES,
       stopMarker: HEAD_CLOSE_MARKER,
     });
-    return { metadata: extractMetadataFromHtml(html), finalUrl: result.finalUrl };
+    const metadata = extractMetadataFromHtml(html);
+    // On 4xx pages accept only explicit share/structured metadata. A generic
+    // login or error-page <title> must never become the article's cached title.
+    const hasExplicitPreviewMetadata = Object.keys(metadata).some(
+      (key) =>
+        key.startsWith('og:') || key.startsWith('twitter:') || key.startsWith('jsonld:'),
+    );
+    if (status >= 400 && !hasExplicitPreviewMetadata) {
+      return { metadata: {}, finalUrl: result.finalUrl };
+    }
+    return { metadata, finalUrl: result.finalUrl };
   } finally {
     response.destroy();
   }
@@ -327,14 +423,26 @@ export async function resolveLinkMetadata(normalizedUrl: string): Promise<RawLin
   // a page's `<title>` routinely appends a site suffix ("Article – Dan Q") that
   // duplicates the siteName the card already shows, while `og:title` is clean.
   // This matches how Slack/Twitter/Facebook/Mastodon unfurl.
+  const canonicalUrl = resolveCanonicalUrl([metadata.canonical, metadata['og:url']], finalUrl);
   const result: RawLinkMetadata = {
-    url: finalUrl,
-    title: metadata['og:title'] || metadata['twitter:title'] || metadata.title,
+    url: canonicalUrl,
+    title:
+      metadata['og:title'] ||
+      metadata['twitter:title'] ||
+      metadata['jsonld:title'] ||
+      metadata.title,
     description:
-      metadata['og:description'] || metadata['twitter:description'] || metadata.description,
-    imageUrl: metadata['og:image'] || metadata['twitter:image'] || metadata.image,
-    siteName: metadata['og:site_name'] || extractSiteName(finalUrl),
+      metadata['og:description'] ||
+      metadata['twitter:description'] ||
+      metadata['jsonld:description'] ||
+      metadata.description,
+    imageUrl:
+      metadata['og:image'] ||
+      metadata['twitter:image'] ||
+      metadata['jsonld:image'] ||
+      metadata.image,
+    siteName: metadata['og:site_name'] || extractSiteName(canonicalUrl),
     faviconUrl: metadata.favicon,
   };
-  return finalize(result, finalUrl);
+  return finalize(result, canonicalUrl);
 }
