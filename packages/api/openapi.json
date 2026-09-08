@@ -5214,6 +5214,11 @@
                               "active",
                               "trash"
                             ]
+                          },
+                          "hlsReadyAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "When the adaptive HLS ladder for this asset finished transcoding. ABSENT when there is none — transcoding is asynchronous and per-rendition failures are swallowed, so a video may never get one. Consumers must treat absence as \"no adaptive stream\" and play the progressive original: the `?variant=hls_master` URL is derivable from the id, and building it without this field is what made players fail on a 403 and fall back, once per video per play.\n"
                           }
                         }
                       }

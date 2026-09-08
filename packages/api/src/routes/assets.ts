@@ -1034,6 +1034,19 @@ router.delete(
  *                       status:
  *                         type: string
  *                         enum: [active, trash]
+ *                       hlsReadyAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: >
+ *                           When the adaptive HLS ladder for this asset finished
+ *                           transcoding. ABSENT when there is none — transcoding
+ *                           is asynchronous and per-rendition failures are
+ *                           swallowed, so a video may never get one. Consumers
+ *                           must treat absence as "no adaptive stream" and play
+ *                           the progressive original: the `?variant=hls_master`
+ *                           URL is derivable from the id, and building it without
+ *                           this field is what made players fail on a 403 and
+ *                           fall back, once per video per play.
  *       400:
  *         description: Validation failed (empty array or more than 100 ids).
  *       401:
@@ -1056,16 +1069,36 @@ router.post(
     // Metadata only: never expose bytes, signed URLs, owner ids, storage keys,
     // links, or variants. Deleted tombstones are omitted so a resolved id always
     // maps to a live asset.
+    //
+    // `hlsReadyAt` is NOT the variant list arriving through the back door. The
+    // list is storage detail — keys, formats, renditions — and stays private.
+    // This is one bit of PLAYABILITY, and withholding it forced every consumer
+    // into the same broken guess: the adaptive URL is derivable from the id
+    // (`?variant=hls_master`), so callers built it unconditionally and shipped it
+    // to players, because nothing here would tell them whether the ladder
+    // existed. Upload-time transcoding is asynchronous and per-rendition
+    // failures are swallowed, so for many videos it does not — and the player
+    // discovered that by failing: a 403 on the manifest, a playback error, and a
+    // fallback to the progressive original, once per video per play. Measured in
+    // Mention on a Pixel 10 Pro. A consumer that can ask stops guessing.
     const data = files
       .filter((file) => file.status !== 'deleted')
       .map((file) => {
         const media = resolveFileMediaMetadata(file);
+        // The same readiness test the service itself uses before serving a
+        // variant (`assetService`/`variantService`): a row exists AND it has
+        // been stamped ready. A row without `readyAt` is a transcode that was
+        // started, not one that finished.
+        const hlsMaster = file.variants?.find(
+          (variant) => variant.type === 'hls_master' && variant.readyAt
+        );
         return {
           id: file.id,
           sha256: file.sha256,
           mime: file.mime,
           size: file.size,
           status: file.status,
+          ...(hlsMaster?.readyAt ? { hlsReadyAt: new Date(hlsMaster.readyAt).toISOString() } : {}),
           ...(media.width !== undefined ? { width: media.width } : {}),
           ...(media.height !== undefined ? { height: media.height } : {}),
           ...(media.durationSec !== undefined ? { durationSec: media.durationSec } : {}),
