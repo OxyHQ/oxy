@@ -12,6 +12,12 @@ if [[ ! "$IMAGE_URI" =~ ^.+@sha256:[0-9a-fA-F]{64}$ ]]; then
 fi
 
 CONTAINER_NAME="${CONTAINER_NAME:-$APP}"
+# Remembered before the default lands, so the serial-rollout floor below can
+# raise it WITHOUT overriding a caller who asked for a specific budget.
+MAX_WAIT_SECS_WAS_EXPLICIT=false
+if [[ -n "${MAX_WAIT_SECS:-}" ]]; then
+  MAX_WAIT_SECS_WAS_EXPLICIT=true
+fi
 MAX_WAIT_SECS="${MAX_WAIT_SECS:-1200}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
 ONE_SHOT_START_MAX_WAIT_SECS="${ONE_SHOT_START_MAX_WAIT_SECS:-300}"
@@ -226,6 +232,47 @@ if ! [[ "$service_desired_count" =~ ^[0-9]+$ ]] ||
   echo "::error::ECS service $APP must have a positive desiredCount before deployment (current: ${service_desired_count:-missing}). Scale the service up explicitly before retrying."
   exit 1
 fi
+
+# The rollout surge, as the PERCENTAGE of desiredCount that ECS multiplies (and
+# rounds DOWN) to get the ceiling on running tasks — so this is the smallest
+# value whose floor is `desired + 1`: replace ONE task at a time.
+#
+# It was the literal 200, i.e. "the service may double while it rolls". That
+# asks the ACCOUNT for as much Fargate vCPU again as the service already holds,
+# and on 2026-09-08 that is what stopped oxy-api deploying at all: the account's
+# Fargate On-Demand vCPU quota is 30, the cluster was running ~27.5, and every
+# rollout died placing its first surge task —
+#
+#   (service oxy-api) was unable to place a task. The reason for failure is
+#   You've reached the limit on the number of vCPUs you can run concurrently
+#   (service oxy-api) deployment failed: tasks failed to start
+#
+# — and rolled back. Nothing was wrong with any image; production simply kept
+# serving the previous revision while every deploy job went red.
+#
+# A rolling replacement needs exactly one spare slot. `minimumHealthyPercent`
+# stays at 100, so capacity never dips; the cost is that the rollout is serial,
+# which is what the wait floor below accounts for.
+surge_percent_for_desired_count() {
+  local desired="$1"
+  # ceil((desired + 1) * 100 / desired) in integer arithmetic.
+  echo $(( ((desired + 1) * 100 + desired - 1) / desired ))
+}
+deployment_surge_percent="$(surge_percent_for_desired_count "$service_desired_count")"
+
+# One task at a time means the rollout takes desiredCount rounds of
+# start + health-check grace + deregistration drain. The inherited 1200s budget
+# was sized for a parallel rollout and would now report a false failure on any
+# service with more than a handful of tasks — measured on oxy-api: 90s grace,
+# 60s drain, ~6 tasks. 300s per round plus a fixed 300s of registration and
+# settling, and never below the old default.
+if [[ "$MAX_WAIT_SECS_WAS_EXPLICIT" != "true" ]]; then
+  serial_rollout_budget=$(( 300 * service_desired_count + 300 ))
+  if (( serial_rollout_budget > MAX_WAIT_SECS )); then
+    MAX_WAIT_SECS="$serial_rollout_budget"
+  fi
+fi
+echo "Rollout surge: ${deployment_surge_percent}% of ${service_desired_count} task(s) (one extra), wait budget ${MAX_WAIT_SECS}s."
 
 task_definition_file="$(mktemp)"
 rendered_task_definition_file="$(mktemp)"
@@ -549,11 +596,12 @@ rollback_service() {
     --service "$APP" \
     --task-definition "$current_task_definition" \
     --desired-count "$rollback_desired_count" \
-    --deployment-configuration '{
-      "deploymentCircuitBreaker": {"enable": true, "rollback": true},
-      "minimumHealthyPercent": 100,
-      "maximumPercent": 200
-    }' \
+    --deployment-configuration "$(jq -nc \
+      --argjson maxPercent "$(surge_percent_for_desired_count "$rollback_desired_count")" '{
+        deploymentCircuitBreaker: {enable: true, rollback: true},
+        minimumHealthyPercent: 100,
+        maximumPercent: $maxPercent
+      }')" \
     --output json)"; then
     echo "::error::ECS rejected the rollback to $current_task_definition."
     return 1
@@ -782,11 +830,11 @@ if ! deploy_update_json="$(aws ecs update-service \
   --service "$APP" \
   --task-definition "$new_task_definition" \
   --desired-count "$service_desired_count" \
-  --deployment-configuration '{
-    "deploymentCircuitBreaker": {"enable": true, "rollback": true},
-    "minimumHealthyPercent": 100,
-    "maximumPercent": 200
-  }' \
+  --deployment-configuration "$(jq -nc --argjson maxPercent "$deployment_surge_percent" '{
+    deploymentCircuitBreaker: {enable: true, rollback: true},
+    minimumHealthyPercent: 100,
+    maximumPercent: $maxPercent
+  }')" \
   --output json)"; then
   echo "::error::ECS rejected the service update; restoring the previous task definition defensively."
   if ! rollback_service; then
