@@ -651,15 +651,13 @@ fi
 grep -F 'no longer has the deployed task definition active' \
   "$test_directory/post-task-service-superseded/output.log" >/dev/null
 
-run_release pre-task-capacity-is-fail-fast false true false 0 false 1 healthy 0 '' '' '' '' 1
-if [[ "$(<"$test_directory/pre-task-capacity-is-fail-fast/aws.log.run-task-count")" != "1" ]]; then
-  echo "A pre-deploy migration RunTask refusal was retried." >&2
+run_release pre-task-capacity-retry true true false 0 false 1 healthy 0 '' '' '' '' 1
+if [[ "$(<"$test_directory/pre-task-capacity-retry/aws.log.run-task-count")" != "3" ]]; then
+  echo "The pre-deploy migration and reconciliation did not use the expected bounded retry path." >&2
   exit 1
 fi
-if grep -q '^service:' "$test_directory/pre-task-capacity-is-fail-fast/aws.log"; then
-  echo "A refused pre-deploy migration reached update-service." >&2
-  exit 1
-fi
+grep -F 'waiting 1s before the next bounded retry' \
+  "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
 
 # A hyphen in the parameter path is its own case because it is its own bug: the
 # bracket expression validating this name once matched every character EXCEPT a

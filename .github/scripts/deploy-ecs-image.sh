@@ -423,6 +423,7 @@ run_one_shot_command() {
   local label="$1"
   local command_json="$2"
   local retry_fargate_capacity="${3:-false}"
+  local expected_service_task_definition="${4:-$new_task_definition}"
   local overrides run_json task_json exit_code stopped_reason container_reason
   local start_wait_elapsed=0
   local retry_sleep service_retry_json service_retry_status
@@ -485,7 +486,7 @@ run_one_shot_command() {
     service_retry_running="$(jq -r '.services[0].runningCount // 0' <<<"$service_retry_json")"
     service_retry_pending="$(jq -r '.services[0].pendingCount // 0' <<<"$service_retry_json")"
     if [[ "$service_retry_status" != "ACTIVE" ||
-          "$service_retry_task_definition" != "$new_task_definition" ||
+          "$service_retry_task_definition" != "$expected_service_task_definition" ||
           ! "$service_retry_desired" =~ ^[0-9]+$ ]] ||
        (( service_retry_desired < 1 )); then
       echo "::error::Refusing to retry $label because $APP no longer has the deployed task definition active at positive desiredCount."
@@ -752,7 +753,8 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
   if ! run_one_shot_command \
     "Migration" \
     '["node","packages/api/dist/db/migrate.js","--phase=pre"]' \
-    true; then
+    true \
+    "$current_task_definition"; then
     exit 1
   fi
 fi
