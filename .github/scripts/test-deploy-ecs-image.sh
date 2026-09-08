@@ -307,6 +307,7 @@ aws() {
       local previous_argument=""
       local task_definition=""
       local desired_count=""
+      local deployment_configuration=""
       local output_json=""
       local argument
       for argument in "$@"; do
@@ -314,9 +315,15 @@ aws() {
           task_definition="$argument"
         elif [[ "$previous_argument" == "--desired-count" ]]; then
           desired_count="$argument"
+        elif [[ "$previous_argument" == "--deployment-configuration" ]]; then
+          deployment_configuration="$argument"
         fi
         previous_argument="$argument"
       done
+      local surge_percent="missing"
+      if [[ -n "$deployment_configuration" ]]; then
+        surge_percent="$(jq -r '.maximumPercent // "missing"' <<<"$deployment_configuration")"
+      fi
       if [[ -z "$desired_count" ]]; then
         echo "Mocked update-service requires an explicit --desired-count." >&2
         return 1
@@ -372,9 +379,10 @@ aws() {
           }')"
         fi
       fi
-      printf 'service:%s:desired=%s\n' \
+      printf 'service:%s:desired=%s:surge=%s\n' \
         "$task_definition" \
         "$desired_count" \
+        "$surge_percent" \
         >>"$DEPLOY_TEST_LOG"
       printf '%s\n' "$task_definition" >"$service_task_file"
       if [[ "$*" == *"--output json"* ]]; then
@@ -527,7 +535,6 @@ run_release() {
     APP=deploy-test
     CONTAINER_NAME=deploy-test
     IMAGE_URI="example.invalid/deploy-test@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    MAX_WAIT_SECS=5
     POLL_INTERVAL=1
     ONE_SHOT_START_MAX_WAIT_SECS="$one_shot_start_max_wait_secs"
     RUN_MIGRATIONS="$run_migrations"
@@ -536,6 +543,14 @@ run_release() {
     TASK_ENV_OVERRIDES_JSON="$task_environment_overrides"
     TASK_REMOVE_NAMES_JSON="$task_remove_names"
   )
+  # Cases pin a 5s budget so a hung rollout fails the suite quickly. The one
+  # case that leaves it EMPTY is asserting the script's own floor, which must
+  # scale with the task count and must never override an explicit budget.
+  # `-` and not `:-`: a case sets this to the EMPTY string to mean "pass no
+  # budget at all", and `:-` would substitute the default over exactly that.
+  if [[ -n "${DEPLOY_TEST_MAX_WAIT_SECS-5}" ]]; then
+    release_environment+=(MAX_WAIT_SECS="${DEPLOY_TEST_MAX_WAIT_SECS-5}")
+  fi
   if [[ -n "$post_deploy_tasks_json" ]]; then
     release_environment+=(POST_DEPLOY_TASKS_JSON="$post_deploy_tasks_json")
   else
@@ -569,7 +584,7 @@ run_release() {
 run_release success true false true
 printf '%s\n' \
   metrics:arn \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
   smoke \
   reconcile \
   >"$test_directory/success/expected.log"
@@ -577,12 +592,56 @@ diff -u \
   "$test_directory/success/expected.log" \
   "$test_directory/success/aws.log"
 
+# The rollout surge is ONE task, whatever the service's size — the reason
+# oxy-api could not deploy at all on 2026-09-08 was a hardcoded 200, which asks
+# the account for as much Fargate vCPU again as the service already holds. Six
+# tasks is the shape that failed in production, so it is the shape asserted
+# here; `desired=1` above already covers the degenerate case where one extra
+# task IS a doubling.
+run_release six-task-surge true false false 0 false 6
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=6:surge=117' \
+  smoke \
+  reconcile \
+  >"$test_directory/six-task-surge/expected.log"
+diff -u \
+  "$test_directory/six-task-surge/expected.log" \
+  "$test_directory/six-task-surge/aws.log"
+# `floor(6 × 117%) = 7`: one more than desired, and never two.
+if ! grep -q 'Rollout surge: 117% of 6 task(s) (one extra)' \
+  "$test_directory/six-task-surge/output.log"; then
+  echo "Expected the six-task rollout to announce its surge." >&2
+  exit 1
+fi
+# An explicit budget is the caller's, and the floor must not override it.
+if ! grep -q 'wait budget 5s' "$test_directory/six-task-surge/output.log"; then
+  echo "Expected an explicit MAX_WAIT_SECS to survive the serial-rollout floor." >&2
+  exit 1
+fi
+
+# With no explicit budget, a serial rollout gets one that scales with the task
+# count: 300s per replacement plus 300s of settling. The inherited 1200s default
+# was sized for a rollout that replaced every task at once and would report a
+# false failure on a six-task service.
+DEPLOY_TEST_MAX_WAIT_SECS="" run_release six-task-wait-floor true false false 0 false 6
+if ! grep -q 'wait budget 2100s' "$test_directory/six-task-wait-floor/output.log"; then
+  echo "Expected the six-task rollout to raise its wait budget to 2100s." >&2
+  sed -n '1,20p' "$test_directory/six-task-wait-floor/output.log" >&2
+  exit 1
+fi
+# And a one-task service keeps the old default: its rollout is one round.
+DEPLOY_TEST_MAX_WAIT_SECS="" run_release one-task-wait-floor true false false 0 false 1
+if ! grep -q 'wait budget 1200s' "$test_directory/one-task-wait-floor/output.log"; then
+  echo "Expected a single-task rollout to keep the 1200s default." >&2
+  exit 1
+fi
+
 run_release \
   ordered-post-deploy-tasks \
   true false false 0 false 1 healthy 0 '' '' '' \
   '[{"label":"Post-deploy migration","command":["post-migrate"]},{"label":"Inbox catalog registration","command":["register-catalog"]}]'
 printf '%s\n' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
   smoke \
   post-migrate \
   register-catalog \
@@ -593,7 +652,7 @@ diff -u \
 
 run_release post-task-capacity-retry true false false 0 false 2 healthy 0 '' '' '' '' 2 1
 printf '%s\n' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=2' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=2:surge=150' \
   smoke \
   "run-task-refused:You've reached the limit on the number of vCPUs you can run concurrently" \
   "run-task-refused:You've reached the limit on the number of vCPUs you can run concurrently" \
@@ -613,12 +672,12 @@ grep -F 'waiting 1s before the next bounded retry' \
 
 run_release post-task-capacity-then-failure false false false 1 false 2 healthy 0 '' '' '' '' 1 1
 printf '%s\n' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=2' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=2:surge=150' \
   smoke \
   "run-task-refused:You've reached the limit on the number of vCPUs you can run concurrently" \
   reconcile \
   tasklogs \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1:surge=200' \
   >"$test_directory/post-task-capacity-then-failure/expected.log"
 diff -u \
   "$test_directory/post-task-capacity-then-failure/expected.log" \
@@ -674,7 +733,7 @@ run_release hyphenated-metrics-parameter true false true
 DEPLOY_TEST_METRICS_PARAMETER=/oxy/sampleapp/INTERNAL_METRICS_TOKEN
 printf '%s\n' \
   metrics:arn \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
   smoke \
   reconcile \
   >"$test_directory/hyphenated-metrics-parameter/expected.log"
@@ -685,7 +744,7 @@ diff -u \
 run_release explicit-task-secret true false false 0 true
 printf '%s\n' \
   task-secret:arn \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
   smoke \
   reconcile \
   >"$test_directory/explicit-task-secret/expected.log"
@@ -697,7 +756,7 @@ run_release explicit-task-environment true false false 0 false 1 healthy 0 '' \
   '{"REPLACE_EXISTING":"new","NEW_PLAIN_SETTING":"do-not-log-sensitive-value"}'
 printf '%s\n' \
   task-env:valid \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
   smoke \
   reconcile \
   >"$test_directory/explicit-task-environment/expected.log"
@@ -715,7 +774,7 @@ run_release explicit-task-removal true false false 0 false 1 healthy 0 '' '' \
   '["REMOVE_ENV","REMOVE_SECRET"]'
 printf '%s\n' \
   task-remove:valid \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
   smoke \
   reconcile \
   >"$test_directory/explicit-task-removal/expected.log"
@@ -869,11 +928,11 @@ fi
 
 run_release reconciliation-failure false false false 1
 printf '%s\n' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
   smoke \
   reconcile \
   tasklogs \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1:surge=200' \
   >"$test_directory/reconciliation-failure/expected.log"
 diff -u \
   "$test_directory/reconciliation-failure/expected.log" \
@@ -900,7 +959,7 @@ run_release readiness-success true false false 0 false 1 healthy 0 \
   '["bun","run","packages/api/scripts/verify-inference-routing-readiness.ts"]'
 printf '%s\n' \
   readiness \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
   smoke \
   reconcile \
   >"$test_directory/readiness-success/expected.log"
@@ -934,7 +993,7 @@ fi
 
 run_release transient-zero-deployment true false false 0 false 1 transient-zero-deployment
 printf '%s\n' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
   smoke \
   reconcile \
   >"$test_directory/transient-zero-deployment/expected.log"
@@ -948,8 +1007,8 @@ grep -F \
 
 run_release zero-service-during-deploy false false false 0 false 1 zero-service-during-deploy
 printf '%s\n' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1:surge=200' \
   >"$test_directory/zero-service-during-deploy/expected.log"
 diff -u \
   "$test_directory/zero-service-during-deploy/expected.log" \
@@ -961,8 +1020,8 @@ grep -F \
 
 run_release completed-zero-deployment false false false 0 false 1 completed-zero-deployment
 printf '%s\n' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1:surge=200' \
   >"$test_directory/completed-zero-deployment/expected.log"
 diff -u \
   "$test_directory/completed-zero-deployment/expected.log" \
@@ -974,8 +1033,8 @@ grep -F \
 
 run_release circuit-breaker-rollback false false false 0 false 1 circuit-breaker-rollback
 printf '%s\n' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1:surge=200' \
   >"$test_directory/circuit-breaker-rollback/expected.log"
 diff -u \
   "$test_directory/circuit-breaker-rollback/expected.log" \
