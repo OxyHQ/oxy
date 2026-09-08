@@ -236,13 +236,6 @@ const ACKNOWLEDGED_PACKAGES = [
       + 'auto-loading from a hostile CSS file.',
   },
   {
-    package: 'rollup',
-    reachedBy: '@tanstack/router-plugin -> oxy-console (build)',
-    reason:
-      'Bundling Console at build time. The arbitrary-file-write advisory needs a hostile module '
-      + 'graph, which is our own source.',
-  },
-  {
     package: 'nanoid',
     reachedBy: 'expo-router (app runtime)',
     reason:
