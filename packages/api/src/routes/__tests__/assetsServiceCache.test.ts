@@ -669,6 +669,98 @@ describe('POST /assets/service/by-ids', () => {
     );
   }
 
+  /**
+   * WHETHER A VIDEO HAS AN ADAPTIVE LADDER IS THE ONE THING A PLAYER CANNOT GUESS.
+   *
+   * The `?variant=hls_master` URL is derivable from the id, so a consumer with no
+   * way to ask built it unconditionally and handed it to a player. Transcoding is
+   * asynchronous and per-rendition failures are swallowed, so for many videos the
+   * ladder is simply not there — and the player found out by failing: 403 on the
+   * manifest, a playback error, a fallback to the progressive original, once per
+   * video per play. `hlsReadyAt` is the answer to that question and nothing more:
+   * one timestamp, never the variant list, which stays storage-private.
+   */
+  it('reports hlsReadyAt when the ladder finished transcoding', async () => {
+    grantFilesReadOnce();
+    const readyAt = new Date('2026-09-08T10:00:00.000Z');
+    mockGetFilesByIds.mockResolvedValueOnce([
+      {
+        id: CACHE_FILE_ID,
+        sha256: 'c'.repeat(64),
+        mime: 'video/mp4',
+        size: 4242,
+        status: 'active',
+        variants: [
+          { type: 'poster', key: 'p', readyAt },
+          { type: 'hls_master', key: 'm', readyAt },
+        ],
+      },
+    ]);
+
+    const res = await postByIds([CACHE_FILE_ID]);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].hlsReadyAt).toBe(readyAt.toISOString());
+  });
+
+  it('omits hlsReadyAt for a ladder that was started but never finished', async () => {
+    // A variant row with no `readyAt` is a transcode that began, not one that
+    // succeeded — the same test the service applies before it will serve one.
+    // Reporting it ready is exactly the 403 this field exists to prevent.
+    grantFilesReadOnce();
+    mockGetFilesByIds.mockResolvedValueOnce([
+      {
+        id: CACHE_FILE_ID,
+        sha256: 'd'.repeat(64),
+        mime: 'video/mp4',
+        size: 4242,
+        status: 'active',
+        variants: [{ type: 'hls_master', key: 'm', readyAt: null }],
+      },
+    ]);
+
+    const res = await postByIds([CACHE_FILE_ID]);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0]).not.toHaveProperty('hlsReadyAt');
+  });
+
+  it('omits hlsReadyAt for a video with no ladder at all, and for an image', async () => {
+    grantFilesReadOnce();
+    mockGetFilesByIds.mockResolvedValueOnce([
+      { id: CACHE_FILE_ID, sha256: 'e'.repeat(64), mime: 'video/mp4', size: 1, status: 'active', variants: [{ type: 'poster', key: 'p', readyAt: new Date() }] },
+      { id: USER_FILE_ID, sha256: 'f'.repeat(64), mime: 'image/png', size: 1, status: 'active', variants: [{ type: 'thumb', key: 't', readyAt: new Date() }] },
+    ]);
+
+    const res = await postByIds([CACHE_FILE_ID, USER_FILE_ID]);
+
+    expect(res.status).toBe(200);
+    for (const dto of res.body.data) {
+      expect(dto).not.toHaveProperty('hlsReadyAt');
+    }
+  });
+
+  it('still never leaks the variant list itself', async () => {
+    // The floor under the three above: `hlsReadyAt` is one bit of playability,
+    // and adding it must not turn this endpoint into a storage-key oracle.
+    grantFilesReadOnce();
+    mockGetFilesByIds.mockResolvedValueOnce([
+      {
+        id: CACHE_FILE_ID,
+        sha256: 'a'.repeat(64),
+        mime: 'video/mp4',
+        size: 1,
+        status: 'active',
+        variants: [{ type: 'hls_master', key: 'public/variants/2026/09/aa/secret/hls_master.m3u8', readyAt: new Date() }],
+      },
+    ]);
+
+    const res = await postByIds([CACHE_FILE_ID]);
+
+    expect(res.body.data[0]).not.toHaveProperty('variants');
+    expect(JSON.stringify(res.body)).not.toContain('secret');
+  });
+
   it('returns metadata-only DTOs for known ids and omits deleted ones', async () => {
     grantFilesReadOnce();
     mockGetFilesByIds.mockResolvedValueOnce([
