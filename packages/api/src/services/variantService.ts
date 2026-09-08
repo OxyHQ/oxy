@@ -1302,7 +1302,27 @@ export class VariantService {
   }
 
   /**
-   * Generate HLS master playlist
+   * Generate HLS master playlist.
+   *
+   * The rendition URIs are BASENAMES, and that is the whole content of this
+   * function's correctness. A master playlist's URIs resolve relative to the
+   * MASTER's own URL (RFC 8216 §4.3.4.2), and `generateVariantKey` puts the
+   * master and every rendition in one directory —
+   * `variants/<year>/<month>/<prefix>/<sha256>/<type>.m3u8` — so a sibling is
+   * named by its file name alone.
+   *
+   * It used to emit `variant.playlist`, which is the S3 STORAGE KEY. Measured
+   * against production before this change:
+   *
+   *   master   cloud.oxy.so/variants/2026/09/e8/<sha>/hls_master.m3u8      200
+   *   its URI  public/variants/2026/09/e8/<sha>/hls_360p.m3u8
+   *   resolves cloud.oxy.so/variants/2026/09/e8/<sha>/public/variants/…    403
+   *   correct  cloud.oxy.so/variants/2026/09/e8/<sha>/hls_360p.m3u8        200
+   *
+   * So every ladder this service has produced is unplayable: a player fetches
+   * the master, then 403s on every rendition it lists. The failure is invisible
+   * from the server — the master is served, S3 has all the objects, and the only
+   * broken thing is a string inside a text file.
    */
   private generateMasterPlaylist(variants: Array<{ resolution: string; bitrate: string; playlist: string }>): string {
     let playlist = '#EXTM3U\n#EXT-X-VERSION:3\n\n';
@@ -1310,7 +1330,8 @@ export class VariantService {
     variants.forEach((variant) => {
       const bitrateNumber = this.parseBitrate(variant.bitrate);
       playlist += `#EXT-X-STREAM-INF:BANDWIDTH=${bitrateNumber},RESOLUTION=${variant.resolution}\n`;
-      playlist += `${variant.playlist}\n\n`;
+      const uri = variant.playlist.slice(variant.playlist.lastIndexOf('/') + 1);
+      playlist += `${uri}\n\n`;
     });
 
     return playlist;
