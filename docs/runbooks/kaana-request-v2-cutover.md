@@ -80,7 +80,9 @@ live signed lookup establishes what one means.
 The workflow refuses unless the Oxy service is at one steady deployment with
 `INFERENCE_KAANA_EXECUTION=disabled`, `KAANA_BASE_URL=https://kaana.ai`, the
 reviewed task definition and the reviewed image digest. It derives a throwaway
-one-shot task from that live image, removes every environment binding and
+one-shot task from that live image, retains only the single `oxy-api` container
+(live observability sidecars are deliberately excluded), removes any container
+dependency inherited from the service task, and removes every environment binding and
 secret except the three non-secret Kaana settings plus the ECS-injected Ed25519
 private key, and never exposes or decrypts that key on the GitHub runner. In
 particular, the task has no `DATABASE_URL`, Redis credential, Oxy signing key or

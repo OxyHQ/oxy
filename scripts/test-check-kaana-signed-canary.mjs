@@ -99,6 +99,26 @@ try {
   );
   verdict(productionTaskFamily, 1);
 
+  const retainedCanarySidecar = fixture();
+  roots.push(retainedCanarySidecar);
+  mutate(
+    retainedCanarySidecar,
+    '.github/workflows/kaana-signed-canary.yml',
+    '.containerDefinitions = [',
+    '.containerDefinitions |= map(',
+  );
+  verdict(retainedCanarySidecar, 1);
+
+  const retainedReadbackSidecar = fixture();
+  roots.push(retainedReadbackSidecar);
+  mutate(
+    retainedReadbackSidecar,
+    '.github/workflows/kaana-signed-deployment-readback.yml',
+    '.containerDefinitions = [',
+    '.containerDefinitions |= map(',
+  );
+  verdict(retainedReadbackSidecar, 1);
+
   const weakenedSteadyState = fixture();
   roots.push(weakenedSteadyState);
   mutate(

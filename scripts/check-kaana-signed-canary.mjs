@@ -174,6 +174,11 @@ requireMatch(
 );
 requireMatch(
   workflow,
+  /\.containerDefinitions = \[[\s\S]*?select\(\.name == \$container\)[\s\S]*?del\(\.healthCheck, \.dependsOn\)/,
+  'the throwaway task must retain only oxy-api and remove live sidecar dependencies',
+);
+requireMatch(
+  workflow,
   /\.family = "oxy-oxy-api-kaana-canary"/,
   'the throwaway task must use an isolated task-definition family',
 );
@@ -267,6 +272,11 @@ requireMatch(
   readbackWorkflow,
   /\.environment = \[[\s\S]*?INFERENCE_KAANA_EXECUTION[\s\S]*?KAANA_BASE_URL[\s\S]*?KAANA_EDGE_SIGNING_KEY_ID[\s\S]*?\.secrets = \[\$signing_secret\]/,
   'signed readback must retain only the three non-secret bindings and one ECS-injected signing secret',
+);
+requireMatch(
+  readbackWorkflow,
+  /\.containerDefinitions = \[[\s\S]*?select\(\.name == \$container\)[\s\S]*?del\(\.healthCheck, \.dependsOn\)/,
+  'signed readback must retain only oxy-api and remove live sidecar dependencies',
 );
 const minimizedReadbackTask = readbackWorkflow.slice(
   readbackWorkflow.indexOf('readback_task_json=$(jq'),

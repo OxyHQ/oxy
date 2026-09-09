@@ -94,8 +94,7 @@ jobs:
           live_task_json=$(aws ecs describe-task-definition \
             --task-definition "$live_task_definition" \
             --query taskDefinition --output json)
-          if [ "$(jq -r --arg container "$CONTAINER" '[.containerDefinitions[] | select(.name == $container)] | length' <<<"$live_task_json")" != 1 ] || \
-             [ "$(jq '.containerDefinitions | length' <<<"$live_task_json")" != 1 ]; then
+          if [ "$(jq -r --arg container "$CONTAINER" '[.containerDefinitions[] | select(.name == $container)] | length' <<<"$live_task_json")" != 1 ]; then
             echo '::error::live task must contain exactly one oxy-api container'
             exit 1
           fi
@@ -157,17 +156,16 @@ jobs:
             --argjson signing_secret "$signing_secret" '
               .family = "oxy-oxy-api-kaana-readback"
               |
-              .containerDefinitions |= map(
-                if .name == $container then
+              .containerDefinitions = [
+                .containerDefinitions[] | select(.name == $container) |
                   .environment = [
                     {name:"INFERENCE_KAANA_EXECUTION", value:"disabled"},
                     {name:"KAANA_BASE_URL", value:$origin},
                     {name:"KAANA_EDGE_SIGNING_KEY_ID", value:$key_id}
                   ]
                   | .secrets = [$signing_secret]
-                  | del(.healthCheck)
-                else . end
-              )
+                  | del(.healthCheck, .dependsOn)
+              ]
               | del(
                   .taskDefinitionArn,
                   .revision,
