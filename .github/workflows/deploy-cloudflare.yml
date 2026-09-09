@@ -166,13 +166,23 @@ jobs:
       # fallback, the custom domain — is declared in that file rather than
       # passed here, so a deploy cannot disagree with the config.
       #
-      # `bunx wrangler` DIRECTLY, not `cloudflare/wrangler-action`, for the same
-      # reason the auth job above avoids it and one measurement more: the action
-      # picks its package manager by looking for a lockfile in its
-      # `workingDirectory`, `packages/accounts` has none (the lock is at the
-      # repository root), so it falls back to npm — and npm cannot even parse
-      # this tree, because the root `overrides` pin `@oxyhq/bloom` to `catalog:`,
-      # a bun-only protocol.
+      # `bunx wrangler` DIRECTLY, never `cloudflare/wrangler-action`. The action
+      # installs its own wrangler and picks the package manager by looking for a
+      # lockfile beside `workingDirectory`; `packages/accounts` has none — the
+      # lock is at the repository root — so it falls back to npm, and npm cannot
+      # even parse this tree, because the root `overrides` pin `@oxyhq/bloom` to
+      # `catalog:`, a bun-only protocol. That is the same `npm error code
+      # EOVERRIDE` already recorded on the auth job above.
+      #
+      # It is not a local quirk. Homiio took a PRODUCTION OUTAGE from exactly
+      # this on 2026-08-09 (run 31292337344: `Fail extracting tarball for
+      # "wrangler"` — published nothing, left a stale bundle running against a
+      # changed API) and moved off the action in #291; Mercaria's AGENTS.md
+      # forbids it outright; Alia's Canvas deploy failed on five consecutive
+      # runs before moving off it. Do not "modernise" this back.
+      #
+      # `wrangler@4` is PINNED: an unpinned `bunx wrangler` re-resolves the
+      # latest major on every deploy, changing the deploy path with no diff.
       - name: Deploy the Worker
         working-directory: packages/accounts
         env:
@@ -240,8 +250,8 @@ jobs:
       # `./dist`, which is the only thing `vite build` has ever emitted, and a
       # missing assets directory fails `wrangler deploy` by itself.
       #
-      # `bunx wrangler` DIRECTLY, not `cloudflare/wrangler-action` — see the
-      # accounts job above for the measurement.
+      # `bunx wrangler` DIRECTLY and PINNED, never `cloudflare/wrangler-action`
+      # — see the accounts job above for the measurements.
       - name: Deploy the Worker
         working-directory: packages/console
         env:
