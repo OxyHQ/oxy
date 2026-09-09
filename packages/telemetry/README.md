@@ -4,7 +4,7 @@ Framework-agnostic primitives for anonymous, real-time Oxy activity telemetry.
 The package has no runtime dependencies and does not import Express, Socket.IO,
 Redis, React, React Native or Expo.
 
-Version: `0.1.0`. This workspace package is not published yet.
+Version: `0.1.1`.
 
 ## Entry points
 
@@ -90,9 +90,8 @@ replace their local validation and bucketing logic with
 re-export: consumers move imports directly to the new owner, then the old
 private implementations are deleted in the same integration change.
 
-The central API uses the server entry point in `0.1.0`. Core temporarily retains
-its compatible browser helpers until this package is published and applications
-can migrate without a broken registry dependency.
+The central API uses the server entry point. Core retains deprecated compatibility
+exports while applications migrate their direct imports.
 
 ## Collector, realtime and reconnect
 

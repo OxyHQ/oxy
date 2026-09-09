@@ -47,8 +47,9 @@ export function createBrowserTelemetry(options: BrowserTelemetryOptions = {}): B
   let edgePopPromise: Promise<string | null> | null = null;
 
   const getActivityIdHeader = (): Record<string, string> => {
-    const browserLocation = options.location ?? (typeof window === 'undefined' ? undefined : window.location);
-    if (!browserLocation) return {};
+    const hasInjectedBrowser = Boolean(options.location);
+    const hasBrowserRuntime = typeof window !== 'undefined' && typeof document !== 'undefined';
+    if (!hasInjectedBrowser && !hasBrowserRuntime) return {};
     const now = (options.now ?? Date.now)();
     if (!activityId || now < activityIdCreatedAt || now - activityIdCreatedAt >= (options.activityIdRotationMs ?? DEFAULT_ACTIVITY_ID_ROTATION_MS)) {
       activityId = createUuid(options.crypto ?? globalThis.crypto);

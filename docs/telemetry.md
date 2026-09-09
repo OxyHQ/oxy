@@ -99,8 +99,6 @@ namespace to `@oxy.so/*`. Browser consumers will import
 integration, each consumer changes its import and deletes the superseded local
 implementation in the same commit.
 
-Current status: package source, tests and build exports exist locally at version
-`0.1.0`; it is not published because the npm `@oxy.so` organization has not yet
-granted the release identity access. The central API uses the server entry point.
-Core temporarily retains its compatible browser helpers until this package can
-be published and adopted without breaking existing applications.
+Current status: `@oxy.so/telemetry` is published and the central API uses its
+server entry point. Core keeps deprecated compatibility exports while existing
+applications migrate their direct imports to the new namespace.
