@@ -57,7 +57,7 @@ import { logger } from '../utils/logger';
  * verified to cover all of these.)
  */
 export const BOOTSTRAP_CORE_ORIGINS: ReadonlySet<string> = new Set([
-  // ── oxy.so first-party frontends (Cloudflare Pages) + apex + CDN ──
+  // ── oxy.so first-party frontends + apex + CDN ──
   'https://oxy.so',
   'https://api.oxy.so',
   'https://accounts.oxy.so',

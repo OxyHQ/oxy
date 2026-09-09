@@ -2,12 +2,13 @@
 
 ## Overview
 
-The Oxy API runs on **AWS ECS Fargate** in `us-west-2`. Static frontends ship to **Cloudflare Pages**.
+The Oxy API runs on **AWS ECS Fargate** in `us-west-2`. Static frontends ship to **Cloudflare Workers** (static assets), except `auth.oxy.so`, which is still a **Cloudflare Pages** project because it carries a Pages Functions directory.
 
 | Environment | Platform | URL | Trigger |
 |-------------|----------|-----|---------|
 | **API (production)** | ECS Fargate (us-west-2) | `api.oxy.so` | Push to `main` -> `deploy-aws.yml` |
-| **Static frontends** | Cloudflare Pages | `auth.oxy.so`, `accounts.oxy.so`, `inbox.oxy.so`, `console.oxy.so` | Push to `main` -> `deploy-cloudflare.yml` |
+| **Static frontends** | Cloudflare Workers | `accounts.oxy.so`, `console.oxy.so` | Push to `main` -> `deploy-cloudflare.yml` |
+| **IdP frontend** | Cloudflare Pages | `auth.oxy.so` | Push to `main` -> `deploy-cloudflare.yml` |
 | **Other backends** | ECS Fargate (us-west-2) | `api.mention.earth`, `api.homiio.com`, `api.alia.onl`, `api.syra.oxy.so`, `api.allo.oxy.so` | Per-repo `deploy-aws.yml` |
 
 ## AWS deployment (`api.oxy.so`)
@@ -54,7 +55,7 @@ Task definitions are versioned (`oxy-oxy-api:N`). New revisions are registered w
 | `DEVICE_ID_SALT` | 64-hex salt for `deriveStableDeviceId` |
 | `DATABASE_URL` | Postgres connection string for the `oxy_api` database on `oxy-postgres` |
 | `REDIS_URL` | ElastiCache Valkey URI |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare Pages deploys + DNS-01 ACM validation |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare Workers and Pages deploys + DNS-01 ACM validation |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account |
 
 Shared secrets (AWS access-key variables for SES / app-level S3 usage, shared runtime variables) are mirrored under the shared parameter namespace for cross-service use.
@@ -118,15 +119,17 @@ openssl rand -hex 64
 
 `DEVICE_ID_SALT` must be 64 hex chars — the API refuses to boot without it.
 
-## Static frontends (Cloudflare Pages)
+## Static frontends
 
-`.github/workflows/deploy-cloudflare.yml` builds each affected frontend with `bun x turbo run build --filter=<app>` and deploys via `cloudflare/wrangler-action@v3`.
+`.github/workflows/deploy-cloudflare.yml` builds each affected frontend with `bun x turbo run build --filter=<app>` and deploys with `bunx wrangler@4` — never `cloudflare/wrangler-action`, which selects its package manager from a lockfile in its working directory, finds none in a package here, falls back to npm, and dies on the root `overrides` pinning `@oxyhq/bloom` to the bun-only `catalog:` protocol.
 
-| Project | Source | Notes |
-|---------|--------|-------|
-| `oxy-auth` | `packages/auth/` | Pure-static Vite SPA (no Pages Function, no `_worker.js`) — the OAuth authorize/consent IdP. Post-deploy smoke gate (`bun run smoke:idp`) asserts the SPA renders and that the FedCM manifest stays deleted. |
-| `oxy-accounts` | `packages/accounts/` | Expo Web export |
-| `oxy-console` | `packages/console/` | Nuxt or Vite output |
+A Pages project always serves `<project>.pages.dev`, with no way to switch it off — a second copy of the app on a hostname that is in no CORS allowlist. `accounts` and `console` are therefore Workers, declining that hostname with `workers_dev = false`; `auth` cannot be, because its Pages Functions directory has no config-only Worker equivalent.
+
+| Project | Kind | Source | Notes |
+|---------|------|--------|-------|
+| `oxy-auth` | Pages | `packages/auth/` | Vite SPA plus ONE Pages Functions directory, `functions/hub/*` (the browser DeviceSession hub) — the OAuth authorize/consent IdP. Post-deploy smoke gate (`bun run smoke:idp`) asserts the SPA renders and that the FedCM manifest stays deleted. |
+| `oxy-accounts` | Worker | `packages/accounts/` | Expo Web export with `web.output: 'static'` — real per-route HTML, plus an index.html fallback for dynamic routes. `packages/accounts/wrangler.toml`. |
+| `oxy-console` | Worker | `packages/console/` | Vite SPA, one `index.html`. `packages/console/wrangler.toml`. |
 
 ## Health check
 
