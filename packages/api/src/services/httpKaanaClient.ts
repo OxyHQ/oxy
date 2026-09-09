@@ -57,6 +57,7 @@
 
 import { createHash, sign, type KeyObject } from 'node:crypto';
 import {
+  embeddingResponseSchema,
   deploymentIdSchema,
   inferenceProviderSlugSchema,
   inferenceRegionSchema,
@@ -64,6 +65,7 @@ import {
   modelReferenceSchema,
   normalizedUsageReportSchema,
   type InferenceError,
+  type EmbeddingResponse,
   type InferenceFinishReason,
   type InferenceMessage,
   type InferenceRequest,
@@ -387,6 +389,45 @@ class HttpKaanaClient implements KaanaClient {
     options: KaanaExecuteOptions
   ): Promise<KaanaCompletion> {
     return foldStream(this.stream(envelope, options));
+  }
+
+  async executeEmbedding(
+    envelope: InferenceRequest,
+    options: KaanaExecuteOptions
+  ): Promise<EmbeddingResponse> {
+    const body = Buffer.from(JSON.stringify(envelope), 'utf8');
+    const timestamp = Date.now();
+    const response = await fetch(`${this.config.baseUrl}${KAANA_INFERENCE_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        [KAANA_KEY_ID_HEADER]: this.config.keyId,
+        [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+        [KAANA_SIGNATURE_HEADER]: signEnvelope(
+          this.config.privateKey,
+          this.config.keyId,
+          timestamp,
+          body
+        ),
+      },
+      body,
+      signal: options.signal,
+    });
+    const raw = await readBounded(response);
+    let payload: unknown;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      throw new KaanaProtocolError('The inference data plane returned an embedding response that is not JSON.');
+    }
+    const parsed = embeddingResponseSchema.safeParse(payload);
+    if (!parsed.success) {
+      throw new KaanaProtocolError(
+        `The inference data plane returned an embedding response Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
+      );
+    }
+    return parsed.data;
   }
 }
 

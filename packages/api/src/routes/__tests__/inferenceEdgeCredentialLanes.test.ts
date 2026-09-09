@@ -228,6 +228,12 @@ beforeAll(async () => {
           }
           return currentKaana.execute(envelope, options);
         },
+        executeEmbedding: (envelope, options) => {
+          if (currentKaana === undefined) {
+            throw new Error('no data plane was installed for this test');
+          }
+          return currentKaana.executeEmbedding(envelope, options);
+        },
       },
     })
   );
@@ -549,6 +555,9 @@ function fakeKaana(
     execute: async (envelope) => {
       seen?.push(envelope);
       return build(envelope);
+    },
+    executeEmbedding: () => {
+      throw new Error('this fake serves only completion requests');
     },
   };
 }
@@ -893,6 +902,9 @@ describe('credential rotation during traffic', () => {
     // the rotation genuinely lands MID-REQUEST rather than between two of them.
     currentKaana = {
       attestDeployments: attestFixtureDeployments,
+      executeEmbedding: () => {
+        throw new Error('this fake serves only completion requests');
+      },
       execute: async (envelope) => {
         await inFlight;
         return completionFor(envelope, { input: 12, output: 20, provider: fixture.provider });

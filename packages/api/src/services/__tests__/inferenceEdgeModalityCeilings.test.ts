@@ -32,7 +32,9 @@ import {
   modalityForOperation,
 } from '../inferenceEdge.service';
 import {
+  embeddingsRequestSchema,
   imageGenerationsRequestSchema,
+  normalizeEmbeddingsRequest,
   normalizeImageGenerationsRequest,
   normalizeSpeechRequest,
   speechRequestSchema,
@@ -162,12 +164,8 @@ describe('POST /v1/images/generations — the images ceiling', () => {
 
 describe('the arms with no route yet', () => {
   /**
-   * `embeddings` and `rerank` are members of `EdgeOperation` and have sound
-   * ceilings, but no endpoint: `inferenceContentPartSchema` is
-   * `text | image | audio | file | refusal`, so neither a vector nor a ranking can
-   * be RETURNED. Their arithmetic is asserted anyway, so that whoever adds the
-   * output shape inherits a bound that was reviewed rather than one written under
-   * delivery pressure.
+   * `rerank` is not served yet. Embeddings have their own non-streaming response
+   * contract rather than pretending a vector is an inference content part.
    */
   it('bounds embeddings by the declared input count and the character total', () => {
     expect(ceilingForOperation({ kind: 'embeddings', embeddings: 3 }, 120, 0)).toEqual({
@@ -196,6 +194,47 @@ describe('the arms with no route yet', () => {
       input: 'text',
       output: 'embedding',
     });
+  });
+});
+
+describe('POST /v1/embeddings — normalized request', () => {
+  it('preserves a batch as a text batch and sizes the exact embeddings ceiling', () => {
+    const parsed = embeddingsRequestSchema.parse({
+      model: 'Qwen/Qwen3-Embedding-0.6B',
+      input: ['first', 'second'],
+      dimensions: 1024,
+    });
+    const normalized = normalizeEmbeddingsRequest(parsed);
+
+    expect(normalized.input).toEqual({ format: 'text_batch', texts: ['first', 'second'] });
+    expect(normalized.operation).toEqual({ kind: 'embeddings', embeddings: 2 });
+    expect(ceilingForOperation(normalized.operation, estimateInputTokens(normalized), 0)).toEqual({
+      requests: 1,
+      input_tokens: 27,
+      embeddings: 2,
+    });
+  });
+
+  it('normalizes one string without changing its bytes', () => {
+    const parsed = embeddingsRequestSchema.parse({
+      model: 'Qwen/Qwen3-Embedding-0.6B',
+      input: '  héllo  ',
+    });
+
+    expect(normalizeEmbeddingsRequest(parsed).input).toEqual({
+      format: 'text',
+      text: '  héllo  ',
+    });
+  });
+
+  it('refuses dimensions other than the platform dimension', () => {
+    expect(
+      embeddingsRequestSchema.safeParse({
+        model: 'Qwen/Qwen3-Embedding-0.6B',
+        input: 'hello',
+        dimensions: 768,
+      }).success
+    ).toBe(false);
   });
 });
 

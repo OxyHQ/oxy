@@ -59,6 +59,7 @@
  */
 
 import type {
+  EmbeddingResponse,
   InferenceError,
   InferenceFinishReason,
   InferenceMessage,
@@ -207,6 +208,10 @@ export interface KaanaClient {
     options: KaanaExecuteOptions
   ): Promise<KaanaDeploymentAttestation>;
   execute(envelope: InferenceRequest, options: KaanaExecuteOptions): Promise<KaanaCompletion>;
+  executeEmbedding(
+    envelope: InferenceRequest,
+    options: KaanaExecuteOptions
+  ): Promise<EmbeddingResponse>;
   /**
    * The normalized events as they are produced, then the usage report.
    *

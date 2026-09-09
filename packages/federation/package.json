@@ -93,7 +93,7 @@
     }
   },
   "dependencies": {
-    "@oxyhq/contracts": ">=0.37.0 <0.41.0",
+    "@oxyhq/contracts": ">=0.37.0 <0.42.0",
     "@oxyhq/core": "^20.1.0 || ^21.0.0 || ^22.0.0 || ^23.0.0"
   },
   "peerDependencies": {

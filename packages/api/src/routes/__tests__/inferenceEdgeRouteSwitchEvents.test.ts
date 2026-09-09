@@ -526,6 +526,9 @@ function foldedKaana(
 ): KaanaClient {
   return {
     attestDeployments: attestFixtureDeployments,
+    executeEmbedding: () => {
+      throw new Error('this fake serves only completion requests');
+    },
     execute: async (envelope): Promise<KaanaCompletion> => {
       const now = new Date().toISOString();
       const requestedModelReference =
@@ -586,6 +589,9 @@ function streamingKaana(
 ): KaanaClient {
   return {
     attestDeployments: attestFixtureDeployments,
+    executeEmbedding: () => {
+      throw new Error('this fake serves only streaming completion requests');
+    },
     execute: () => {
       throw new Error('this fake serves only streaming requests');
     },
@@ -1340,6 +1346,9 @@ describe('a completion carrying no routeSwitchEvents field', () => {
 
     const withoutTheField: KaanaClient = {
       attestDeployments: attestFixtureDeployments,
+      executeEmbedding: () => {
+        throw new Error('this fake serves only completion requests');
+      },
       execute: async (envelope): Promise<KaanaCompletion> => {
         const now = new Date().toISOString();
         const servedRoute = envelope.authorizedRoutes[0];

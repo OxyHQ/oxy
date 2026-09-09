@@ -196,6 +196,8 @@ interface FixtureOptions {
   readonly fund?: string;
   readonly maxContextTokens?: number;
   readonly maxOutputTokens?: number;
+  /** Publish an embedding model and price its exact per-vector unit. */
+  readonly embeddings?: boolean;
   /** Publish the route with no price version, so nothing can be quoted. */
   readonly unpriced?: boolean;
   /**
@@ -262,7 +264,7 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       slug: modelSlug,
       displayName: `Model ${tag}`,
       inputModalities: ['text'],
-      outputModalities: ['text'],
+      outputModalities: options.embeddings ? ['embedding'] : ['text'],
       supportsTools: true,
       supportsParallelToolCalls: false,
       supportsStructuredOutput: true,
@@ -313,6 +315,9 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     { priceVersionId: priceVersion.id, unit: 'cached_input_tokens', amount: '3.000000000000', per: 1_000_000 },
     { priceVersionId: priceVersion.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
     { priceVersionId: priceVersion.id, unit: 'reasoning_tokens', amount: '15.000000000000', per: 1_000_000 },
+    ...(options.embeddings
+      ? [{ priceVersionId: priceVersion.id, unit: 'embeddings' as const, amount: '0.001000000000', per: 1 }]
+      : []),
   ]);
 
   await db.insert(inferenceDeployments).values({
@@ -805,6 +810,9 @@ function fakeKaana(
     execute: async (envelope) => {
       seen?.push(envelope);
       return build(envelope);
+    },
+    executeEmbedding: () => {
+      throw new Error('this fake serves only completion requests');
     },
     stream: () => {
       throw new Error('this fake serves only non-streaming requests');
@@ -1593,6 +1601,62 @@ describe('a served request', () => {
       .from(usageReceipts)
       .where(eq(usageReceipts.accountId, fixture.accountId));
     expect(Number(receipt.billed)).toBe(0);
+  });
+});
+
+describe('POST /v1/embeddings', () => {
+  it('forwards the exact text batch and returns a dimension-checked result', async () => {
+    const fixture = await makeFixture({ embeddings: true, fund: '10.000000000000' });
+    const seen: InferenceRequest[] = [];
+    const kaana: KaanaClient = {
+      attestDeployments: attestFixtureDeployments,
+      execute: () => {
+        throw new Error('this fake serves only embedding requests');
+      },
+      executeEmbedding: async (envelope) => {
+        seen.push(envelope);
+        return {
+          schemaVersion: 1,
+          requestId: envelope.attribution.requestId,
+          model: 'Qwen/Qwen3-Embedding-0.6B',
+          dimension: 1024,
+          data: [
+            { index: 0, embedding: Array.from({ length: 1024 }, () => 0.1) },
+            { index: 1, embedding: Array.from({ length: 1024 }, () => 0.2) },
+          ],
+          usage: { inputTokens: 7, totalTokens: 7 },
+        };
+      },
+    };
+
+    await withServer(kaana, async (request) => {
+      const response = await request(
+        'POST',
+        '/v1/embeddings',
+        {
+          model: fixture.modelReference,
+          input: ['first', 'second'],
+          dimensions: 1024,
+        },
+        bearer(fixture.token)
+      );
+
+      expect(response.status).toBe(200);
+      expect(json(response)).toMatchObject({
+        schemaVersion: 1,
+        model: 'Qwen/Qwen3-Embedding-0.6B',
+        dimension: 1024,
+        usage: { inputTokens: 7, totalTokens: 7 },
+      });
+      expect(response.headers['x-oxy-usage-input-tokens']).toBe('7');
+    });
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      modality: 'embedding',
+      input: { format: 'text_batch', texts: ['first', 'second'] },
+      stream: false,
+    });
   });
 });
 

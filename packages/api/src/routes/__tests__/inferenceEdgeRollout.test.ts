@@ -380,6 +380,9 @@ const chatBody = (fixture: Fixture) => ({
 function fakeKaana(units: { input: number; output: number }, provider: string): KaanaClient {
   return {
     attestDeployments: attestFixtureDeployments,
+    executeEmbedding: () => {
+      throw new Error('this fake serves only completion requests');
+    },
     execute: async (envelope: InferenceRequest): Promise<KaanaCompletion> => {
       const servedRoute = envelope.authorizedRoutes.find((route) => route.provider === provider);
       if (servedRoute === undefined) {

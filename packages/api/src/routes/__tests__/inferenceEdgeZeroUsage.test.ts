@@ -357,6 +357,9 @@ function kaanaReporting(
 ): KaanaClient {
   return {
     attestDeployments: attestFixtureDeployments,
+    executeEmbedding: () => {
+      throw new Error('this fake serves only completion requests');
+    },
     execute: async (envelope): Promise<KaanaCompletion> => {
       seen.push(envelope);
       const servedRoute = envelope.authorizedRoutes.find((route) => route.provider === provider);

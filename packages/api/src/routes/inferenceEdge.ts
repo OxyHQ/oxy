@@ -46,7 +46,7 @@
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import type { z } from 'zod';
-import { USAGE_UNITS } from '@oxyhq/contracts';
+import { embeddingSuccessSchema, USAGE_UNITS } from '@oxyhq/contracts';
 import type {
   InferenceContentSource,
   InferenceError,
@@ -66,6 +66,7 @@ import { rateLimit } from '../middleware/rateLimiter';
 import {
   allocateRequestId,
   authenticateEdgeCaller,
+  executeEmbeddingRequest,
   executeInferenceRequest,
   MAX_IDEMPOTENCY_KEY_LENGTH,
   MAX_REQUEST_BYTES,
@@ -82,10 +83,12 @@ import type { KaanaClient } from '../services/kaanaClient';
 import {
   chatCompletionResponseSchema,
   chatCompletionsRequestSchema,
+  embeddingsRequestSchema,
   generationReceiptResponseSchema,
   imageGenerationsRequestSchema,
   imageGenerationsResponseSchema,
   normalizeChatCompletionsRequest,
+  normalizeEmbeddingsRequest,
   normalizeImageGenerationsRequest,
   normalizeResponsesRequest,
   normalizeSpeechRequest,
@@ -732,6 +735,55 @@ export function createInferenceEdgeRouter(
   options: InferenceEdgeRouterOptions = {}
 ): Router {
   const router = Router();
+
+  /**
+   * `POST /v1/embeddings` — non-streaming embedding generation.
+   *
+   * @requestBody embeddingsRequestSchema
+   * @response 200 embeddingSuccessSchema The vectors and provider-reported token usage.
+   */
+  router.post(
+    '/embeddings',
+    edgeGate(sendInferenceError),
+    machineCredentialLimiter,
+    machineApplicationLimiter,
+    inferenceEdgeLimiter,
+    async (req: EdgeRequest, res: Response) => {
+      const edge = req.edge;
+      if (edge === undefined) return;
+      const parsed = embeddingsRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        sendInferenceError(res, parseFailure(parsed.error, edge.requestId));
+        return;
+      }
+      const key = idempotencyKey(req);
+      if (!key.ok) {
+        sendInferenceError(res, idempotencyKeyTooLong(edge.requestId));
+        return;
+      }
+      const normalized = normalizeEmbeddingsRequest(parsed.data);
+      const execution = await executeEmbeddingRequest({
+        requestId: edge.requestId,
+        receivedAt: edge.receivedAt,
+        principal: edge.principal,
+        request: normalized,
+        ...(delegatedUserId(req) === undefined ? {} : { delegatedUserId: delegatedUserId(req) }),
+        ...(key.key === undefined ? {} : { idempotencyKey: key.key }),
+        apiFormat: 'embeddings',
+        endpoint: '/v1/embeddings',
+        signal: connectionSignal(res),
+        ...(options.kaanaClient === undefined ? {} : { kaanaClient: options.kaanaClient }),
+      });
+      if (execution.status === 'refused') {
+        sendInferenceError(res, execution.error);
+        return;
+      }
+      applyInferenceHeaders(res, execution.result.requestId);
+      res.setHeader('X-Oxy-Model', execution.result.model);
+      res.setHeader('X-Oxy-Usage-Input-Tokens', String(execution.result.usage.inputTokens));
+      res.status(200).json(embeddingSuccessSchema.parse(execution.result));
+    }
+  );
 
   /**
    * `POST /v1/responses` — the preferred endpoint.

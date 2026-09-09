@@ -624,6 +624,8 @@ interface RouteEntry {
  */
 const MOUNT_MAP: Record<string, readonly string[]> = {
   'auth.ts': ['/auth'],
+  'resourceIntrospection.ts': ['/auth/resources'],
+  'productCatalogue.ts': ['/v1/products'],
   'authLinking.ts': ['/auth'],
   'assets.ts': ['/assets'],
   'cdn.ts': ['/cdn'],
@@ -677,6 +679,8 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
  */
 const TAG_GROUPS: Record<string, string> = {
   '/auth': 'Authentication',
+  '/auth/resources': 'Authentication',
+  '/v1/products': 'Developer',
   '/assets': 'Files',
   '/cdn': 'Files',
   '/storage': 'Files',

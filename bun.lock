@@ -364,6 +364,7 @@
       "name": "oxy-console",
       "dependencies": {
         "@base-ui/react": "^1.6.0",
+        "@clarity.surf/sdk": "0.1.0",
         "@expo/vector-icons": "^15.0.3",
         "@hugeicons/core-free-icons": "catalog:",
         "@hugeicons/react": "^1.1.9",
@@ -423,7 +424,7 @@
     },
     "packages/contracts": {
       "name": "@oxyhq/contracts",
-      "version": "0.40.0",
+      "version": "0.41.0",
       "dependencies": {
         "zod": "^3.25.64",
       },
@@ -540,7 +541,7 @@
       "name": "@oxyhq/federation",
       "version": "0.17.3",
       "dependencies": {
-        "@oxyhq/contracts": ">=0.37.0 <0.41.0",
+        "@oxyhq/contracts": ">=0.37.0 <0.42.0",
         "@oxyhq/core": "^20.1.0 || ^21.0.0 || ^22.0.0 || ^23.0.0",
       },
       "devDependencies": {
@@ -1296,6 +1297,8 @@
     "@clack/core": ["@clack/core@0.3.5", "", { "dependencies": { "picocolors": "^1.0.0", "sisteransi": "^1.0.5" } }, "sha512-5cfhQNH+1VQ2xLQlmzXMqUoiaH0lRBq9/CLW9lTyMbuKLC3+xEK01tHVvyut++mLOn5urSHmkm6I0Lg9MaJSTQ=="],
 
     "@clack/prompts": ["@clack/prompts@0.7.0", "", { "dependencies": { "@clack/core": "^0.3.3", "is-unicode-supported": "*", "picocolors": "^1.0.0", "sisteransi": "^1.0.5" } }, "sha512-0MhX9/B4iL6Re04jPrttDm+BsP8y6mS7byuv0BvXgdXhbV5PdlsHt55dvNsuBCPZ7xq1oTAOOuotR9NFbQyMSA=="],
+
+    "@clarity.surf/sdk": ["@clarity.surf/sdk@0.1.0", "", {}, "sha512-D31cx229Qqdzp1R4rD+5j38iWnrZGidwE0v3+daTPnMckg8I2CVZXHSnoR+n75YxSSL3CN1yriUji5iNQZn2mQ=="],
 
     "@commitlint/cli": ["@commitlint/cli@21.2.1", "", { "dependencies": { "@commitlint/config-conventional": "^21.2.0", "@commitlint/format": "^21.2.0", "@commitlint/lint": "^21.2.0", "@commitlint/load": "^21.2.0", "@commitlint/read": "^21.2.1", "@commitlint/types": "^21.2.0", "tinyexec": "^1.0.0", "yargs": "^18.0.0" }, "bin": { "commitlint": "cli.js" } }, "sha512-blsZGe29hJ72VGEFVl72IVYX+1vsfINpjA9yWQA6i7OKD/McGEOXg08sKIRKjFk4JvzhV/9n0l3i6NooPLTNfg=="],
 

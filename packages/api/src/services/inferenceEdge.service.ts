@@ -111,6 +111,7 @@ import {
   INFERENCE_SCOPES,
   normalizedUsageReportSchema,
   type ClientRequestMetadata,
+  type EmbeddingSuccess,
   type InferenceEnvironment,
   type InferenceError,
   type InferenceErrorCode,
@@ -508,6 +509,10 @@ export interface EdgeCompletion {
 
 export type EdgeExecution =
   | { readonly status: 'completed'; readonly completion: EdgeCompletion }
+  | { readonly status: 'refused'; readonly error: InferenceError };
+
+export type EdgeEmbeddingExecution =
+  | { readonly status: 'completed'; readonly result: EmbeddingSuccess }
   | { readonly status: 'refused'; readonly error: InferenceError };
 
 /** The customer-visible frames one streamed request produces. */
@@ -1679,6 +1684,103 @@ export async function executeInferenceRequest(
   };
 }
 
+/** Admit, reserve, execute and settle a non-streaming embedding request. */
+export async function executeEmbeddingRequest(
+  context: EdgeExecutionContext
+): Promise<EdgeEmbeddingExecution> {
+  const admission = await admitRequest(context);
+  if (admission.status === 'refused') return { status: 'refused', error: admission.error };
+  const { admitted } = admission;
+  const { route } = admitted;
+
+  try {
+    if (context.kaanaClient === undefined) throw new DataPlaneNotConfiguredError();
+    const response = await context.kaanaClient.executeEmbedding(
+      buildEnvelope(context, admitted, false),
+      { signal: context.signal }
+    );
+    if ('error' in response) {
+      await settleMeasured(
+        context,
+        admitted,
+        settlementFrom(undefined, 'failed', route.provider),
+        route
+      );
+      return {
+        status: 'refused',
+        error: refuseRequest(context, response.error.code, response.error.message, {
+          reason: 'kaana_embedding_failure',
+        }),
+      };
+    }
+    if (
+      context.request.operation.kind !== 'embeddings' ||
+      response.dimension !== 1024 ||
+      response.data.length !== context.request.operation.embeddings ||
+      response.data.some((vector, index) => vector.index !== index)
+    ) {
+      throw new KaanaProtocolError(
+        'The embedding response does not match the admitted count, dimension or index order.'
+      );
+    }
+    if (response.requestId !== context.requestId) {
+      await settleMeasured(
+        context,
+        admitted,
+        settlementFrom(undefined, 'failed', route.provider),
+        route
+      );
+      return {
+        status: 'refused',
+        error: refuseRequest(
+          context,
+          'internal_error',
+          'The inference data plane answered a different request.',
+          { reason: 'request_id_mismatch' }
+        ),
+      };
+    }
+    const units = {
+      input_tokens: response.usage.inputTokens,
+      embeddings: response.data.length,
+    };
+    await settleMeasured(
+      context,
+      admitted,
+      {
+        units,
+        usageSource: 'provider_reported',
+        outcome: 'completed',
+        generationId: undefined,
+        servingProvider: route.provider,
+      },
+      route
+    );
+    await recordEdgeTelemetry(context, {
+      requestedModelReference: admitted.requestedModelReference,
+      statusCode: 200,
+      units,
+      resolvedModelReference: route.modelReference,
+      servingProvider: route.provider,
+      outcome: 'completed',
+      usageSource: 'provider_reported',
+    });
+    return { status: 'completed', result: response };
+  } catch (error) {
+    const failure = classifyForwardFailure(error, context.signal);
+    await settleMeasured(
+      context,
+      admitted,
+      settlementFrom(undefined, failure.outcome, route.provider),
+      route
+    );
+    return {
+      status: 'refused',
+      error: refuseRequest(context, failure.code, failure.message, { reason: failure.reason }),
+    };
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Steps 7-8, streaming                                                      */
 /* -------------------------------------------------------------------------- */
@@ -2712,7 +2814,7 @@ function buildEnvelope(
       routingTarget.kind === 'routing_profile_id' || authorizesCrossModel
         ? routingTarget
         : { kind: 'model', modelReference: route.modelReference },
-    modality: 'text',
+    modality: request.operation.kind === 'embeddings' ? 'embedding' : 'text',
     input: request.input,
     stream,
     maxOutputTokens,

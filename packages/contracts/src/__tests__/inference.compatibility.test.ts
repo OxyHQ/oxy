@@ -37,6 +37,7 @@ import * as accountBilling from "../inference/accountBilling";
 import * as aliaModelRelease from "../inference/aliaModelRelease";
 import * as attribution from "../inference/attribution";
 import * as catalogue from "../inference/catalogue";
+import * as embeddings from "../inference/embeddings";
 import * as entitlement from "../inference/entitlement";
 import * as errors from "../inference/errors";
 import * as identifiers from "../inference/identifiers";
@@ -61,6 +62,7 @@ const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
   aliaModelRelease,
   attribution,
   catalogue,
+  embeddings,
   entitlement,
   errors,
   identifiers,
@@ -205,6 +207,8 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   modelDocumentationSchema: 1,
   // Errors
   inferenceErrorSchema: 1,
+  embeddingSuccessSchema: 1,
+  embeddingFailureSchema: 1,
 };
 
 /**
@@ -223,6 +227,8 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
   "catalogueServingProviderSummarySchema",
   "cataloguePublisherSummarySchema",
   "clientRequestMetadataSchema",
+  "embeddingUsageSchema",
+  "embeddingVectorSchema",
   "inferenceAttributionSchema",
   "inferenceDataPolicySchema",
   "inboxDailyBriefRequestSchema",
@@ -278,6 +284,7 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
 const FROZEN_UNION_SHAPES: string[] = [
   // The routes the control plane authorized, and how each one is authorized
   "authorizedRouteSchema",
+  "embeddingResponseSchema",
   "inferenceContentPartSchema",
   "inferenceContentSourceSchema",
   "inferenceInputSchema",
@@ -461,6 +468,25 @@ const ALIA_RELEASE_MANIFEST = {
 };
 
 const FIXTURES: Record<string, unknown> = {
+  embeddingSuccessSchema: {
+    schemaVersion: 1,
+    requestId: "req_embedding_1",
+    model: "Qwen/Qwen3-Embedding-0.6B",
+    dimension: 3,
+    data: [{ index: 0, embedding: [0.1, 0.2, 0.3] }],
+    usage: { inputTokens: 4, totalTokens: 4 },
+  },
+  embeddingFailureSchema: {
+    schemaVersion: 1,
+    requestId: "req_embedding_2",
+    error: {
+      schemaVersion: 1,
+      code: "service_unavailable",
+      message: "Embedding provider unavailable.",
+      retryable: true,
+      requestId: "req_embedding_2",
+    },
+  },
   inferenceRequestSchema: {
     schemaVersion: 2,
     attribution: ATTRIBUTION,

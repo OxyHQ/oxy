@@ -543,6 +543,22 @@ export const imageGenerationsResponseSchema = z
   })
   .strict();
 
+/** Public non-streaming embedding request. */
+export const embeddingsRequestSchema = z
+  .object({
+    model: modelReferenceSchema,
+    input: z.union([
+      z.string().min(1),
+      z.array(z.string().min(1)).min(1).max(2048),
+    ]),
+    dimensions: z.literal(1024).optional(),
+    clientRequestId: z.string().min(1).max(128).optional(),
+    labels: labelsSchema.optional(),
+  })
+  .strict();
+
+export type EmbeddingsRequest = z.infer<typeof embeddingsRequestSchema>;
+
 /* -------------------------------------------------------------------------- */
 /*  Normalization — both dialects into one shape                              */
 /* -------------------------------------------------------------------------- */
@@ -669,6 +685,24 @@ export function normalizeResponsesRequest(request: ResponsesRequest): Normalized
     tools: request.tools ?? [],
     toolChoice: request.toolChoice,
     responseFormat: request.responseFormat,
+    labels: request.labels,
+    clientRequestId: request.clientRequestId,
+  });
+}
+
+export function normalizeEmbeddingsRequest(request: EmbeddingsRequest): NormalizedEdgeRequest {
+  return defined({
+    operation: {
+      kind: 'embeddings' as const,
+      embeddings: Array.isArray(request.input) ? request.input.length : 1,
+    },
+    target: { kind: 'model' as const, modelReference: request.model },
+    input: Array.isArray(request.input)
+      ? { format: 'text_batch' as const, texts: request.input }
+      : { format: 'text' as const, text: request.input },
+    stream: false,
+    sampling: {},
+    tools: [],
     labels: request.labels,
     clientRequestId: request.clientRequestId,
   });

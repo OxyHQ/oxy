@@ -23,6 +23,8 @@ import linksRoutes from './routes/links';
 import storeRoutes from './routes/store';
 import locationSearchRoutes from './routes/locationSearch';
 import authRoutes from './routes/auth';
+import resourceIntrospectionRoutes from './routes/resourceIntrospection';
+import productCatalogueRoutes from './routes/productCatalogue';
 import mcpOAuthRoutes, { mcpOAuthDiscoveryRouter } from './routes/mcpOAuth';
 import assetRoutes from './routes/assets';
 import cdnRoutes from './routes/cdn';
@@ -658,6 +660,8 @@ app.get('/csrf-token', getCsrfToken);
 app.use(mcpOAuthDiscoveryRouter);
 app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
 app.use("/auth", authRateLimiter, authRoutes);
+app.use('/auth/resources', authRateLimiter, resourceIntrospectionRoutes);
+app.use('/v1/products', productCatalogueRoutes);
 app.use("/auth", userRateLimiter, csrfProtection, authLinkingRoutes); // Auth linking (requires auth)
 app.use("/assets", assetRoutes);
 // Public CDN origin for cloud.oxy.so/<id> (CloudFront OriginPath = /cdn). No

@@ -3003,6 +3003,10 @@
                         "inference:providers:read",
                         "inference:providers:write",
                         "inference:byok:validate",
+                        "clarity:search",
+                        "clarity:index",
+                        "clarity:sites:manage",
+                        "clarity:usage:read",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -3269,6 +3273,10 @@
                         "inference:providers:read",
                         "inference:providers:write",
                         "inference:byok:validate",
+                        "clarity:search",
+                        "clarity:index",
+                        "clarity:sites:manage",
+                        "clarity:usage:read",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -3626,6 +3634,10 @@
                         "inference:providers:read",
                         "inference:providers:write",
                         "inference:byok:validate",
+                        "clarity:search",
+                        "clarity:index",
+                        "clarity:sites:manage",
+                        "clarity:usage:read",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -7525,6 +7537,181 @@
           }
         },
         "operationId": "postAuthRegister"
+      }
+    },
+    "/auth/resources/domains/verify": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "POST /auth/resources/domains/verify",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/resourceIntrospection.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/resourceIntrospection.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "verifiedDomainId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "originHost": {
+                    "type": "string",
+                    "pattern": "^(?!-)[a-z0-9-]{1,63}(?<!-)(?:\\.(?!-)[a-z0-9-]{1,63}(?<!-))+$",
+                    "minLength": 1,
+                    "maxLength": 253
+                  }
+                },
+                "required": [
+                  "accountId",
+                  "verifiedDomainId",
+                  "originHost"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAuthResourcesDomainsVerify"
+      }
+    },
+    "/auth/resources/introspect": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Resource-server token introspection for Clarity. The authenticated CALLER is",
+        "description": "the canonical Clarity backend application; `body.token` is the independent\ncredential whose effective tenant identity Clarity needs to authorize.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/resourceIntrospection.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16384
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAuthResourcesIntrospect"
       }
     },
     "/auth/rotate/challenge": {
@@ -34996,6 +35183,207 @@
         "operationId": "postV1ChatCompletions"
       }
     },
+    "/v1/embeddings": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`POST /v1/embeddings` — non-streaming embedding generation.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inferenceEdge.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The vectors and provider-reported token usage.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "model": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "dimension": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 1024
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "embedding": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            },
+                            "minItems": 1,
+                            "maxItems": 1024
+                          }
+                        },
+                        "required": [
+                          "index",
+                          "embedding"
+                        ]
+                      },
+                      "minItems": 1,
+                      "maxItems": 2048
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "inputTokens": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "totalTokens": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "inputTokens",
+                        "totalTokens"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "requestId",
+                    "model",
+                    "dimension",
+                    "data",
+                    "usage"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "machineCredentialAuth": []
+          },
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$",
+                    "maxLength": 194
+                  },
+                  "input": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "minItems": 1,
+                        "maxItems": 2048
+                      }
+                    ]
+                  },
+                  "dimensions": {
+                    "type": "number",
+                    "enum": [
+                      1024
+                    ]
+                  },
+                  "clientRequestId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 256
+                    }
+                  }
+                },
+                "required": [
+                  "model",
+                  "input"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postV1Embeddings"
+      }
+    },
     "/v1/generations/{id}": {
       "get": {
         "tags": [
@@ -37744,6 +38132,35 @@
           {}
         ],
         "operationId": "getV1ModelsPublisherModelDocumentation"
+      }
+    },
+    "/v1/products": {
+      "get": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "GET /v1/products",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/productCatalogue.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/productCatalogue.ts`, naming a Zod schema the file imports."
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getV1Products"
       }
     },
     "/v1/responses": {
