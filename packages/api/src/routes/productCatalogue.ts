@@ -1,4 +1,5 @@
 import express from 'express';
+import { authMiddleware } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -40,7 +41,7 @@ export const PRODUCT_API_CATALOGUE = {
   ],
 } as const;
 
-router.get('/', (_request, response) => {
+router.get('/', authMiddleware, (_request, response) => {
   response.set('cache-control', 'public, max-age=300, must-revalidate');
   response.json(PRODUCT_API_CATALOGUE);
 });
