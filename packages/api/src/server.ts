@@ -64,6 +64,11 @@ import inferenceRoutingPolicyRoutes from './routes/inferenceRoutingPolicies';
 import inferenceProviderConnectionRoutes from './routes/inferenceProviderConnections';
 import inferenceReportingRoutes from './routes/inferenceReporting';
 import platformStatsRoutes from './routes/platform-stats';
+import {
+  initializePlatformActivity,
+  platformActivityMiddleware,
+  stopPlatformActivity,
+} from './services/platformActivity.service';
 import topicsRoutes from './routes/topics.routes';
 import followsV2Routes, { meFollowsRouter } from './routes/follows.v2.routes';
 import followRegistryV2Routes from './routes/followRegistry.v2.routes';
@@ -289,6 +294,12 @@ const io = new SocketIOServer(server, {
 });
 initializeIO(io);
 
+// Public, aggregate-only activity stream for oxy.so/dashboard. It carries the
+// processing region and a bucket count — never an IP, user, app, route or other
+// request-level value. The Redis adapter fans buckets out across API tasks.
+const platformActivityNamespace = io.of('/platform-activity');
+initializePlatformActivity(platformActivityNamespace);
+
 // Attach Redis adapter for multi-instance broadcast (if Redis available)
 const redis = getRedisClient();
 let userCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null;
@@ -489,6 +500,7 @@ async function gracefulShutdown(signal: string) {
     logger.info('HTTP server closed');
   });
 
+  stopPlatformActivity();
   stopFollowOutboxWorker();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
@@ -635,6 +647,10 @@ app.use((req, _res, next) => {
   }
   next();
 });
+
+// Count completed platform requests into short anonymous buckets. Mount after
+// the /api normaliser so the exclusion set sees canonical paths.
+app.use(platformActivityMiddleware);
 
 // Public signing metadata is cacheable and must remain reachable by every Oxy
 // service verifier. It carries public keys only and sits outside the shared-IP
