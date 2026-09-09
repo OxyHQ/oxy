@@ -6,7 +6,8 @@ audience, change an application's classification, create a reviewer or move a
 provider key.
 
 Run only [Bootstrap reviewed Kaana catalogue](../../.github/workflows/bootstrap-kaana-catalogue.yml)
-from `main`. The workflow uses GitHub OIDC and the persistent
+from `main`. The workflow uses GitHub OIDC through the dedicated
+`oxy-github-kaana-catalogue-bootstrap` role and the persistent
 `oxy-kaana-catalogue-bootstrap` task definition; it never derives a writer from
 the live `oxy-api` task.
 

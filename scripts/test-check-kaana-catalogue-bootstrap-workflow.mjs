@@ -67,6 +67,11 @@ try {
 		},
 		{
 			file: ".github/workflows/bootstrap-kaana-catalogue.yml",
+			from: "role/oxy-github-kaana-catalogue-bootstrap",
+			to: "role/oxy-github-deploy",
+		},
+		{
+			file: ".github/workflows/bootstrap-kaana-catalogue.yml",
 			from: ".image == $image",
 			to: '.image | startswith("237343248947.dkr.ecr")',
 		},
