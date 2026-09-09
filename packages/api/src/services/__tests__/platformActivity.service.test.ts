@@ -53,11 +53,11 @@ describe('platform activity', () => {
     expect(JSON.stringify((namespace.emit as jest.Mock).mock.calls)).not.toContain('private-id');
   });
 
-  it('does not emit a service bucket below the privacy threshold', () => {
+  it('does not emit unsuccessful requests', () => {
     const namespace = { emit: jest.fn() } as unknown as Namespace;
     initializePlatformActivity(namespace);
     const response = new EventEmitter() as unknown as Response;
-    Object.defineProperty(response, 'statusCode', { value: 200 });
+    Object.defineProperty(response, 'statusCode', { value: 500 });
     platformActivityMiddleware(
       { path: '/files/a-private-file-id', headers: {} } as unknown as Request,
       response,

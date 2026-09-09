@@ -15,7 +15,7 @@ export interface PlatformActivityBucket {
 }
 
 const EMIT_INTERVAL_MS = 2_000;
-const MINIMUM_BUCKET_SIZE = 5;
+const MINIMUM_BUCKET_SIZE = 1;
 const EXCLUDED_PATHS = new Set(['/health', '/platform-stats', '/platform-stats/stream']);
 
 const pendingRequestsByFlow = new Map<string, number>();
@@ -55,8 +55,10 @@ function emitBucket(): void {
 
   const emittedAt = new Date().toISOString();
   for (const [flow, requests] of pendingRequestsByFlow) {
-    // Small per-service aggregates are folded into the next window. The event
-    // contains no IP, session, account, path or user-derived coordinate.
+    // Each process emits one aggregate per service and edge for the window.
+    // The event contains no IP, session, account, path or user-derived
+    // coordinate, so a low-volume service remains anonymous without hiding
+    // the real activity the dashboard exists to display.
     if (requests < MINIMUM_BUCKET_SIZE) continue;
     const [sourceRegion = '', service = 'platform'] = flow.split('|');
     const targetRegion = processingRegion();
