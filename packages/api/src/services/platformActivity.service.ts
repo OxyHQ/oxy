@@ -39,6 +39,11 @@ function destinationService(path: string): string {
 
 /** Cloudflare's serving colo, not a user IP or IP-derived coordinate. */
 function ingressRegion(request: Request): string | undefined {
+  const forwardedRegion = request.headers['x-oxy-edge-region'];
+  const forwardedValue = Array.isArray(forwardedRegion) ? forwardedRegion[0] : forwardedRegion;
+  const forwardedColo = forwardedValue?.match(/^[a-z]{3}$/i)?.[0]?.toLowerCase();
+  if (forwardedColo) return `edge-${forwardedColo}`;
+
   const ray = request.headers['cf-ray'];
   const value = Array.isArray(ray) ? ray[0] : ray;
   const colo = value?.match(/-([a-z]{3})$/i)?.[1]?.toLowerCase();

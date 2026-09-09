@@ -69,4 +69,55 @@ describe('platform activity', () => {
 
     expect(namespace.emit).not.toHaveBeenCalled();
   });
+
+  it('uses the validated SDK edge region when the API is not behind Cloudflare', () => {
+    const namespace = { emit: jest.fn() } as unknown as Namespace;
+    initializePlatformActivity(namespace);
+
+    for (let index = 0; index < 5; index += 1) {
+      const response = new EventEmitter() as unknown as Response;
+      Object.defineProperty(response, 'statusCode', { value: 204 });
+      platformActivityMiddleware(
+        {
+          path: '/session/status',
+          headers: { 'x-oxy-edge-region': 'MAD' },
+        } as unknown as Request,
+        response,
+        jest.fn(),
+      );
+      response.emit('finish');
+    }
+
+    jest.advanceTimersByTime(2_000);
+
+    expect(namespace.emit).toHaveBeenCalledWith(
+      PLATFORM_ACTIVITY_EVENT,
+      expect.objectContaining({ sourceRegion: 'edge-mad', requests: 5 }),
+    );
+  });
+
+  it('rejects an invalid forwarded edge region', () => {
+    const namespace = { emit: jest.fn() } as unknown as Namespace;
+    initializePlatformActivity(namespace);
+
+    for (let index = 0; index < 5; index += 1) {
+      const response = new EventEmitter() as unknown as Response;
+      Object.defineProperty(response, 'statusCode', { value: 200 });
+      platformActivityMiddleware(
+        {
+          path: '/messages',
+          headers: { 'x-oxy-edge-region': 'private-location' },
+        } as unknown as Request,
+        response,
+        jest.fn(),
+      );
+      response.emit('finish');
+    }
+
+    jest.advanceTimersByTime(2_000);
+    expect(namespace.emit).toHaveBeenCalledWith(
+      PLATFORM_ACTIVITY_EVENT,
+      expect.not.objectContaining({ sourceRegion: expect.anything() }),
+    );
+  });
 });
