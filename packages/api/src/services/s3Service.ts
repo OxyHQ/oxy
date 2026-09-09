@@ -42,7 +42,7 @@ export class S3Service {
       },
     };
 
-    // Add custom endpoint for DigitalOcean Spaces or other S3-compatible services
+    // Add a custom endpoint for non-AWS S3-compatible services.
     if (config.endpointUrl) {
       clientConfig.endpoint = config.endpointUrl;
       clientConfig.forcePathStyle = config.endpointUrl.includes('localhost') || config.endpointUrl.includes('127.0.0.1');
@@ -599,7 +599,7 @@ export class S3Service {
    */
   getPublicUrl(key: string): string {
     if (this.endpointUrl) {
-      // For DigitalOcean Spaces or other S3-compatible services
+      // For non-AWS S3-compatible services.
       const baseUrl = this.endpointUrl.replace('https://', '');
       return `https://${this.bucketName}.${baseUrl}/${key}`;
     } else {
@@ -613,7 +613,7 @@ export class S3Service {
    */
   private generatePublicUrl(key: string): string {
     if (this.endpointUrl) {
-      // For DigitalOcean Spaces or other S3-compatible services
+      // For non-AWS S3-compatible services.
       const baseUrl = this.endpointUrl.replace('https://', '');
       return `https://${this.bucketName}.${baseUrl}/${key}`;
     } else {
