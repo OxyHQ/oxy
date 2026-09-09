@@ -14,6 +14,7 @@ const files = [
   'packages/api/src/services/inferenceEdge.service.ts',
   'packages/api/src/config/rolloutFlags.ts',
   '.github/workflows/deploy-aws.yml',
+  'docs/release-evidence/kaana-request-v2-cutover-2026-09-09.md',
 ];
 
 function fixture() {
@@ -48,15 +49,25 @@ try {
   roots.push(clean);
   verdict(clean, 0);
 
-  const enabledTooSoon = fixture();
-  roots.push(enabledTooSoon);
+  const disabledAfterCanary = fixture();
+  roots.push(disabledAfterCanary);
   mutate(
-    enabledTooSoon,
+    disabledAfterCanary,
     '.github/workflows/deploy-aws.yml',
-    '"INFERENCE_KAANA_EXECUTION":"disabled"',
     '"INFERENCE_KAANA_EXECUTION":"enabled"',
+    '"INFERENCE_KAANA_EXECUTION":"disabled"',
   );
-  verdict(enabledTooSoon, 1);
+  verdict(disabledAfterCanary, 1);
+
+  const staleCanaryEvidence = fixture();
+  roots.push(staleCanaryEvidence);
+  mutate(
+    staleCanaryEvidence,
+    'docs/release-evidence/kaana-request-v2-cutover-2026-09-09.md',
+    'canary run: 34302325992',
+    'canary run: 0',
+  );
+  verdict(staleCanaryEvidence, 1);
 
   const slugEnvelope = fixture();
   roots.push(slugEnvelope);
