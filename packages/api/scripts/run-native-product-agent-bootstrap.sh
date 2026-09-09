@@ -54,7 +54,7 @@ fi
 
 bootstrap_output_file=$(mktemp /tmp/oxy-native-agent-bootstrap.XXXXXX 2>/dev/null) || fail_pre_entrypoint 70
 bootstrap_status=0
-bun run packages/api/scripts/bootstrap-native-product-agents.ts \
+LOG_LEVEL=silent bun run packages/api/scripts/bootstrap-native-product-agents.ts \
   >"$bootstrap_output_file" 2>/dev/null || bootstrap_status=$?
 result_line=$(grep -a '^NATIVE_PRODUCT_AGENTS_RESULT=' "$bootstrap_output_file" 2>/dev/null | tail -1 || true)
 if [ "$bootstrap_status" -eq 0 ]; then

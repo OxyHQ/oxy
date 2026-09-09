@@ -14,6 +14,7 @@ cat >"$test_root/bin/bun" <<'EOF'
 set -eu
 [ "$1" = run ]
 [ "$2" = packages/api/scripts/bootstrap-native-product-agents.ts ]
+[ "${LOG_LEVEL:-}" = silent ]
 
 if [ "${APPLY:-0}" = '1' ] && [ "${ROLLBACK:-0}" != '1' ]; then
   [ -z "${HOMIIO_SINDI_SERVICE_SECRET_VALUE+x}" ]
