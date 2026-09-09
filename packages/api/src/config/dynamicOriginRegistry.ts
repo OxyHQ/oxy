@@ -57,11 +57,14 @@ import { logger } from '../utils/logger';
  * verified to cover all of these.)
  */
 export const BOOTSTRAP_CORE_ORIGINS: ReadonlySet<string> = new Set([
-  // ── oxy.so first-party frontends (Cloudflare Pages) + apex + CDN ──
+  // ── oxy.so first-party frontends + apex + CDN ──
+  //
+  // No longer all Cloudflare Pages: inbox.oxy.so and noted.oxy.so are Workers,
+  // and `allo.oxy.so` was removed from this list when that alias was retired —
+  // it does not resolve, so admitting it as an origin admits nothing.
   'https://oxy.so',
   'https://api.oxy.so',
   'https://accounts.oxy.so',
-  'https://allo.oxy.so',
   'https://auth.oxy.so',
   'https://cloud.oxy.so',
   'https://console.oxy.so',
