@@ -24,7 +24,7 @@ FROM bun-node AS builder
 WORKDIR /app
 
 # Copy workspace root and override workspaces to only include api + core +
-# protocol + contracts + federation + db. `@oxyhq/api` depends on
+# telemetry + protocol + contracts + federation + db. `@oxyhq/api` depends on
 # `@oxyhq/contracts` + `@oxyhq/protocol` + `@oxyhq/federation` + `@oxyhq/db`
 # (workspace:*); core is retained for the admin scripts that import
 # packages/core/src/* at runtime (and core depends on protocol).
@@ -41,11 +41,12 @@ COPY package.json ./
 # in this reduced server workspace pulled Expo, React Native and Bloom into both
 # the build graph and the production image even though no server package imports
 # them. Package-local dependencies below remain authoritative.
-RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/federation','packages/core','packages/mcp','packages/db','packages/api']; p.workspaces=catalog?{packages,catalog}:packages; p.dependencies={}; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
+RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/federation','packages/telemetry','packages/core','packages/mcp','packages/db','packages/api']; p.workspaces=catalog?{packages,catalog}:packages; p.dependencies={}; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
 
 # Copy package.json files for dependency resolution
 COPY packages/api/package.json packages/api/
 COPY packages/core/package.json packages/core/
+COPY packages/telemetry/package.json packages/telemetry/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/protocol/package.json packages/protocol/
 COPY packages/contracts/package.json packages/contracts/
@@ -76,6 +77,7 @@ RUN set -eu; \
 
 # Copy source code
 COPY packages/core/ packages/core/
+COPY packages/telemetry/ packages/telemetry/
 COPY packages/mcp/ packages/mcp/
 COPY packages/protocol/ packages/protocol/
 COPY packages/contracts/ packages/contracts/
@@ -98,6 +100,7 @@ RUN mkdir -p packages/api/drizzle-runtime/meta \
 # hook), then api.
 RUN bun run --filter @oxyhq/contracts build
 RUN bun run --filter @oxyhq/protocol build
+RUN bun run --filter @oxy.so/telemetry build
 RUN bun run --filter @oxyhq/core build
 RUN bun run --filter @oxyhq/mcp build
 # Federation's public build script rebuilds contracts, protocol and core before
@@ -125,6 +128,7 @@ WORKDIR /app
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/packages/api/package.json packages/api/
 COPY --from=builder /app/packages/core/package.json packages/core/
+COPY --from=builder /app/packages/telemetry/package.json packages/telemetry/
 COPY --from=builder /app/packages/mcp/package.json packages/mcp/
 COPY --from=builder /app/packages/protocol/package.json packages/protocol/
 COPY --from=builder /app/packages/contracts/package.json packages/contracts/
@@ -156,6 +160,7 @@ COPY --from=production-deps /app/node_modules node_modules/
 # admin scripts import the package at runtime.
 COPY --from=builder /app/packages/api/dist packages/api/dist
 COPY --from=builder /app/packages/core/dist packages/core/dist
+COPY --from=builder /app/packages/telemetry/dist packages/telemetry/dist
 COPY --from=builder /app/packages/mcp/dist packages/mcp/dist
 COPY --from=builder /app/packages/protocol/dist packages/protocol/dist
 COPY --from=builder /app/packages/contracts/dist packages/contracts/dist
@@ -169,6 +174,7 @@ COPY --from=builder /app/packages/db/dist packages/db/dist
 COPY --from=builder /app/packages/api/scripts packages/api/scripts
 COPY --from=builder /app/packages/api/src packages/api/src
 COPY --from=builder /app/packages/core/src packages/core/src
+COPY --from=builder /app/packages/telemetry/src packages/telemetry/src
 
 # The SQL migrations + their journal. `dist/db/migrate.js` (built above) reads
 # them from a path resolved relative to itself, so this directory has to sit at
