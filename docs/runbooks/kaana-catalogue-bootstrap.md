@@ -28,7 +28,7 @@ the live `oxy-api` task.
 4. Keep `kaana-publisher` healthy. Its live network configuration is the source
    for the one-shot task because the cluster needs its public-egress setting.
 5. Verify the current Kaana inventory content snapshot remains
-   `snap_7c760c006f5ac633`. The task role can read only the versioned
+   `snap_da7406fdfed50248`. The task role can read only the versioned
    `inventory/current.json` object and the writer refuses stale or mismatched
    content.
 
