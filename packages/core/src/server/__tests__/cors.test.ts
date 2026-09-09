@@ -116,6 +116,16 @@ describe('@oxyhq/core/server createOxyCors', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('includes anonymous activity metadata in the default preflight headers', () => {
+    const mw = createOxyCors({ appOrigins: ['https://app.example.com'] });
+    const req = makeRequest('OPTIONS', 'https://app.example.com');
+    const res = makeResponse();
+    mw(req, res, makeNext());
+
+    expect(res.__headers['Access-Control-Allow-Headers']).toContain('X-Oxy-Edge-Region');
+    expect(res.__headers['Access-Control-Allow-Headers']).toContain('X-Oxy-Activity-Id');
+  });
+
   it('answers preflight for a DENIED origin with 204 and NO CORS headers', () => {
     const mw = createOxyCors();
     const req = makeRequest('OPTIONS', 'https://evil.com');
