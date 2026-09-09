@@ -19,7 +19,7 @@ describe('platform activity', () => {
     jest.useRealTimers();
   });
 
-  it('emits only k-anonymous, route-grouped inbound buckets', () => {
+  it('emits only thresholded, route-grouped inbound buckets with an edge origin', () => {
     const namespace = { emit: jest.fn() } as unknown as Namespace;
     initializePlatformActivity(namespace);
 
@@ -27,7 +27,10 @@ describe('platform activity', () => {
       const response = new EventEmitter() as unknown as Response;
       Object.defineProperty(response, 'statusCode', { value: 200 });
       platformActivityMiddleware(
-        { path: `/messages/private-id-${index}` } as Request,
+        {
+          path: `/messages/private-id-${index}`,
+          headers: { 'cf-ray': '7f00deadbeef-CDG' },
+        } as unknown as Request,
         response,
         jest.fn(),
       );
@@ -41,6 +44,8 @@ describe('platform activity', () => {
       expect.objectContaining({
         direction: 'inbound',
         region: 'us-west-2',
+        sourceRegion: 'edge-cdg',
+        targetRegion: 'us-west-2',
         requests: 5,
         service: 'messages',
       }),
@@ -53,7 +58,11 @@ describe('platform activity', () => {
     initializePlatformActivity(namespace);
     const response = new EventEmitter() as unknown as Response;
     Object.defineProperty(response, 'statusCode', { value: 200 });
-    platformActivityMiddleware({ path: '/files/a-private-file-id' } as Request, response, jest.fn());
+    platformActivityMiddleware(
+      { path: '/files/a-private-file-id', headers: {} } as unknown as Request,
+      response,
+      jest.fn(),
+    );
     response.emit('finish');
 
     jest.advanceTimersByTime(2_000);

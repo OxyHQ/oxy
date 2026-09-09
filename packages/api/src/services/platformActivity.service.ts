@@ -5,6 +5,8 @@ export const PLATFORM_ACTIVITY_EVENT = 'platform_activity';
 
 export interface PlatformActivityBucket {
   region: string;
+  sourceRegion?: string;
+  targetRegion: string;
   requests: number;
   windowStartedAt: string;
   emittedAt: string;
@@ -16,8 +18,8 @@ const EMIT_INTERVAL_MS = 2_000;
 const MINIMUM_BUCKET_SIZE = 5;
 const EXCLUDED_PATHS = new Set(['/health', '/platform-stats', '/platform-stats/stream']);
 
-const pendingRequestsByService = new Map<string, number>();
-const windowStartedAtByService = new Map<string, number>();
+const pendingRequestsByFlow = new Map<string, number>();
+const windowStartedAtByFlow = new Map<string, number>();
 let activityNamespace: Namespace | null = null;
 let emitTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -35,25 +37,37 @@ function destinationService(path: string): string {
   return segment && /^[a-z][a-z0-9-]{0,31}$/i.test(segment) ? segment.toLowerCase() : 'platform';
 }
 
+/** Cloudflare's serving colo, not a user IP or IP-derived coordinate. */
+function ingressRegion(request: Request): string | undefined {
+  const ray = request.headers['cf-ray'];
+  const value = Array.isArray(ray) ? ray[0] : ray;
+  const colo = value?.match(/-([a-z]{3})$/i)?.[1]?.toLowerCase();
+  return colo ? `edge-${colo}` : undefined;
+}
+
 function emitBucket(): void {
   if (!activityNamespace) return;
 
   const emittedAt = new Date().toISOString();
-  for (const [service, requests] of pendingRequestsByService) {
-    // Per-service k-anonymity: a tiny bucket is folded into the next window
-    // rather than exposing that one person used one product at one moment.
+  for (const [flow, requests] of pendingRequestsByFlow) {
+    // Small per-service aggregates are folded into the next window. The event
+    // contains no IP, session, account, path or user-derived coordinate.
     if (requests < MINIMUM_BUCKET_SIZE) continue;
+    const [sourceRegion = '', service = 'platform'] = flow.split('|');
+    const targetRegion = processingRegion();
     const bucket: PlatformActivityBucket = {
-      region: processingRegion(),
+      region: targetRegion,
+      ...(sourceRegion ? { sourceRegion } : {}),
+      targetRegion,
       requests,
-      windowStartedAt: new Date(windowStartedAtByService.get(service) ?? Date.now()).toISOString(),
+      windowStartedAt: new Date(windowStartedAtByFlow.get(flow) ?? Date.now()).toISOString(),
       emittedAt,
       direction: 'inbound',
       service,
     };
     activityNamespace.emit(PLATFORM_ACTIVITY_EVENT, bucket);
-    pendingRequestsByService.delete(service);
-    windowStartedAtByService.delete(service);
+    pendingRequestsByFlow.delete(flow);
+    windowStartedAtByFlow.delete(flow);
   }
 }
 
@@ -72,8 +86,9 @@ export function platformActivityMiddleware(
   res.once('finish', () => {
     if (res.statusCode < 400 && !EXCLUDED_PATHS.has(req.path)) {
       const service = destinationService(req.path);
-      if (!pendingRequestsByService.has(service)) windowStartedAtByService.set(service, Date.now());
-      pendingRequestsByService.set(service, (pendingRequestsByService.get(service) ?? 0) + 1);
+      const flow = `${ingressRegion(req) ?? ''}|${service}`;
+      if (!pendingRequestsByFlow.has(flow)) windowStartedAtByFlow.set(flow, Date.now());
+      pendingRequestsByFlow.set(flow, (pendingRequestsByFlow.get(flow) ?? 0) + 1);
     }
   });
   next();
@@ -83,6 +98,6 @@ export function stopPlatformActivity(): void {
   if (emitTimer) clearInterval(emitTimer);
   emitTimer = null;
   activityNamespace = null;
-  pendingRequestsByService.clear();
-  windowStartedAtByService.clear();
+  pendingRequestsByFlow.clear();
+  windowStartedAtByFlow.clear();
 }
