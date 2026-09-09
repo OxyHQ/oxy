@@ -4,7 +4,7 @@ Framework-agnostic primitives for anonymous, real-time Oxy activity telemetry.
 The package has no runtime dependencies and does not import Express, Socket.IO,
 Redis, React, React Native or Expo.
 
-Version: `0.1.1`.
+Version: `0.1.2`.
 
 ## Entry points
 

@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/telemetry",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Framework-agnostic anonymous activity telemetry primitives for Oxy services.",
   "type": "module",
   "main": "dist/cjs/index.js",
@@ -29,7 +29,14 @@
     },
     "./browser": {
       "browser": {
-        "types": "./dist/types/browser.d.ts",
+        "import": {
+          "types": "./dist/types/browser.d.ts",
+          "default": "./dist/esm/browser.js"
+        },
+        "require": {
+          "types": "./dist/types/browser.d.ts",
+          "default": "./dist/cjs/browser.js"
+        },
         "default": "./dist/esm/browser.js"
       },
       "import": {
