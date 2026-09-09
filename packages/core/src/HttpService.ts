@@ -26,6 +26,7 @@ import type { OxyConfig } from './models/interfaces';
 import type { DeviceSecretMintOutcome } from './session/refresh';
 import { OxyAuthenticationError } from './OxyServices.errors';
 import { getBrowserEdgeRegionHeader } from './utils/edgeRegion';
+import { getBrowserActivityIdHeader } from './utils/activityId';
 
 /**
  * Check if we're running in a native app environment (React Native, not web)
@@ -501,6 +502,7 @@ export class HttpService {
     // should not need to implement a duplicate `/csrf-token` route.
     const csrfToken = isStateChangingMethod && !authHeader ? await this.fetchCsrfToken() : null;
     const edgeRegionHeader = await getBrowserEdgeRegionHeader();
+    const activityIdHeader = getBrowserActivityIdHeader();
 
     // Request function
     const requestFn = async (): Promise<T> => {
@@ -581,6 +583,7 @@ export class HttpService {
         // IP or coordinate. Set it after caller headers so request code cannot
         // accidentally or deliberately substitute a different origin.
         Object.assign(headers, edgeRegionHeader);
+        Object.assign(headers, activityIdHeader);
 
         // `URLSearchParams` is serialised explicitly rather than handed to
         // `fetch` as-is: RN's fetch does not consistently encode it, and doing
@@ -1343,6 +1346,8 @@ export class HttpService {
     headers.set('Authorization', authHeader);
     const edgeRegionHeader = await getBrowserEdgeRegionHeader();
     for (const [name, value] of Object.entries(edgeRegionHeader)) headers.set(name, value);
+    const activityIdHeader = getBrowserActivityIdHeader();
+    for (const [name, value] of Object.entries(activityIdHeader)) headers.set(name, value);
 
     try {
       const fullUrl = this.buildURL(config.url);

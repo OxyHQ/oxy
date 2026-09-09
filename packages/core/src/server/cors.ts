@@ -42,6 +42,7 @@ const DEFAULT_ALLOWED_HEADERS = [
   'X-Oxy-Internal',
   'X-CSRF-Token',
   'X-Oxy-Edge-Region',
+  'X-Oxy-Activity-Id',
 ];
 
 /** How long (seconds) a browser may cache a successful preflight. */

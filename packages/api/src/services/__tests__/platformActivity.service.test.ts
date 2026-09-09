@@ -47,6 +47,7 @@ describe('platform activity', () => {
         sourceRegion: 'edge-cdg',
         targetRegion: 'us-west-2',
         requests: 5,
+        activeClients: 0,
         service: 'messages',
       }),
     );
@@ -93,6 +94,34 @@ describe('platform activity', () => {
     expect(namespace.emit).toHaveBeenCalledWith(
       PLATFORM_ACTIVITY_EVENT,
       expect.objectContaining({ sourceRegion: 'edge-mad', requests: 5 }),
+    );
+  });
+
+  it('counts an active client once across repeated requests', () => {
+    const namespace = { emit: jest.fn() } as unknown as Namespace;
+    initializePlatformActivity(namespace);
+
+    for (let index = 0; index < 3; index += 1) {
+      const response = new EventEmitter() as unknown as Response;
+      Object.defineProperty(response, 'statusCode', { value: 200 });
+      platformActivityMiddleware(
+        {
+          path: '/messages',
+          headers: {
+            'x-oxy-edge-region': 'MAD',
+            'x-oxy-activity-id': 'anonymous-runtime-a1',
+          },
+        } as unknown as Request,
+        response,
+        jest.fn(),
+      );
+      response.emit('finish');
+    }
+
+    jest.advanceTimersByTime(2_000);
+    expect(namespace.emit).toHaveBeenCalledWith(
+      PLATFORM_ACTIVITY_EVENT,
+      expect.objectContaining({ sourceRegion: 'edge-mad', requests: 3, activeClients: 1 }),
     );
   });
 
