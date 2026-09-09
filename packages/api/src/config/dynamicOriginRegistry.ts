@@ -59,9 +59,11 @@ import { logger } from '../utils/logger';
 export const BOOTSTRAP_CORE_ORIGINS: ReadonlySet<string> = new Set([
   // ── oxy.so first-party frontends + apex + CDN ──
   //
-  // No longer all Cloudflare Pages: inbox.oxy.so and noted.oxy.so are Workers,
-  // and `allo.oxy.so` was removed from this list when that alias was retired —
-  // it does not resolve, so admitting it as an origin admits nothing.
+  // `allo.oxy.so` is absent on purpose: that alias was retired, its DNS record
+  // deleted, and it no longer resolves — admitting an origin no browser can be
+  // on admits nothing. `accounts.oxy.so`, `console.oxy.so`, `inbox.oxy.so` and
+  // `noted.oxy.so` now serve from Workers rather than Pages, which changes
+  // nothing here: the origin is the hostname, not what serves it.
   'https://oxy.so',
   'https://api.oxy.so',
   'https://accounts.oxy.so',

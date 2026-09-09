@@ -1,0 +1,58 @@
+# `accounts.oxy.so` is a Worker, not a Pages project.
+#
+# WHY: a Pages project ALWAYS serves `<project>.pages.dev` and Cloudflare offers
+# no way to switch it off — `wrangler pages project` has only `list`, `create`
+# and `delete`. Alia measured the consequence before migrating: `alia.onl` and
+# `alia-app.pages.dev` served byte-identical deployments, and the second was in
+# no CORS allowlist, so it rendered the shell and failed every call it made.
+# `oxy-accounts.pages.dev` is the same defect on this app, and worse here: this
+# is the account surface, and `packages/api/src/config/dynamicOriginRegistry.ts`
+# allowlists `https://accounts.oxy.so` and nothing on `pages.dev`.
+# `workers_dev = false` leaves `accounts.oxy.so` as the only name that reaches
+# this deployment.
+#
+# Verified against wrangler 4.130.0, control-verified: a `--dry-run` accepts
+# `workers_dev`, `html_handling` and `not_found_handling` without comment, while
+# the same run flags an invented top-level key as "Unexpected fields" and
+# rejects an invented key inside `[[routes]]` outright. Recognised, not ignored.
+name = "oxy-accounts"
+compatibility_date = "2026-09-09"
+
+workers_dev = false
+
+# Static assets with no `main`: no Worker script runs, every request is served
+# from the uploaded directory.
+#
+# 115 files, 9.8 MB, largest 5.6 MiB (the Expo web entry bundle): inside the
+# 20,000-file and 25 MiB-per-file limits with room to spare.
+[assets]
+directory = "./dist"
+
+# THIS APP IS NOT A SINGLE-PAGE APP, whatever the fallback below is called.
+# `app.config.js` sets `web.output: 'static'`, so `expo export --platform web`
+# emits REAL PER-ROUTE HTML — 35 files, measured on this build:
+# `security.html`, `sessions.html`, `devices/index.html`, `(tabs)/index.html`
+# and so on, each one server-rendered markup that the client then hydrates.
+# `html_handling` is what serves them (`/security` -> `/security.html`), and it
+# is spelled out rather than left to its default because it, not the fallback,
+# is how nearly every route is answered.
+html_handling = "auto-trailing-slash"
+
+# The fallback exists for the routes that CANNOT have a file. Expo emits a
+# dynamic route under its literal bracket name — `devices/[deviceId].html` — so
+# no asset ever matches `/devices/<a real id>`, and the only thing that has made
+# that URL work is an index.html rewrite. On Pages that was
+# `public/_redirects` (`/*  /index.html  200`), deleted in this same change:
+# Workers' `_redirects` deliberately does not implement 200 rewrites, and this
+# setting is their replacement. Same behaviour, same wart — a miss on a stale
+# hashed `.js` is answered with `text/html` — and that wart is the one already
+# shipping on Pages today, not a new one.
+not_found_handling = "single-page-application"
+
+# The only way in. Cloudflare writes the record for a custom domain itself,
+# which is why the pre-existing proxied record for this hostname has to be
+# DELETED before the first deploy — a Worker custom domain refuses a hostname
+# that already has externally managed records (`code: 100117`).
+[[routes]]
+pattern = "accounts.oxy.so"
+custom_domain = true
