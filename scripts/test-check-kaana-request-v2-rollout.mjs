@@ -49,15 +49,15 @@ try {
   roots.push(clean);
   verdict(clean, 0);
 
-  const disabledAfterCanary = fixture();
-  roots.push(disabledAfterCanary);
+  const permanentExecutionFlag = fixture();
+  roots.push(permanentExecutionFlag);
   mutate(
-    disabledAfterCanary,
+    permanentExecutionFlag,
     '.github/workflows/deploy-aws.yml',
-    '"INFERENCE_KAANA_EXECUTION":"enabled"',
-    '"INFERENCE_KAANA_EXECUTION":"disabled"',
+    '"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600",',
+    '"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","INFERENCE_KAANA_EXECUTION":"enabled",',
   );
-  verdict(disabledAfterCanary, 1);
+  verdict(permanentExecutionFlag, 1);
 
   const staleCanaryEvidence = fixture();
   roots.push(staleCanaryEvidence);

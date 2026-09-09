@@ -20,25 +20,26 @@ every flag, its resolved state, and the reason for that state.
 |---|---|---|---|
 | `INFERENCE_EDGE_AUDIENCE` | `closed` · `internal` · `first_party` · `allowlist:<exactAppId>,…` · `public` | **closed — nobody** | Who may reach `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id` |
 | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `enabled` · `disabled` | **disabled** | Whether an `oxy_sk_…` machine credential authenticates at all |
-| `INFERENCE_KAANA_EXECUTION` | `enabled` · `disabled` | **disabled** | Whether ambient production wiring may construct the signed Kaana client; tests may still inject an explicit client |
+| `INFERENCE_KAANA_EXECUTION` | `enabled` · `disabled` | **enabled** | Emergency kill switch for the signed Kaana client; production omits it after cutover and sets only `disabled` for rollback |
 | `INFERENCE_CHARGING_AUTHORIZED` | `<reason>:<YYYY-MM-DD>` | **shadow metering — nobody is charged** | Whether the edge reserves, settles and moves money |
 | `INFERENCE_CATALOGUE_AUDIENCE` | `internal` · `public` | **internal** | Whether a public viewer is served the published catalogue |
 | `INFERENCE_PRIVACY_REVIEW` | `<reviewer>:<YYYY-MM-DD>` | **no review recorded — a public audience stays closed** | Whether the privacy and security review a public launch is gated on has been recorded |
 
-None of them is a secret — each names a deployment STATE — so all six belong in
-the ECS task definition's plain environment and never in SSM.
+None is a secret. Deployment-state flags belong in the ECS task definition's
+plain environment when they override a default; the completed Kaana cutover
+deliberately omits its default-on kill switch.
 
 ### Every default is the state that does nothing
 
-An unset variable never opens a public surface, never authenticates a customer's
+An unset exposure or money variable never opens a public surface, never authenticates a customer's
 API key, never publishes a catalogue and never charges anybody. That is the
 whole mechanism: a flag you can arm by forgetting a variable is worse than no
 flag, because it reads as a control while defaulting to the dangerous side.
 
 `packages/api/src/config/__tests__/rolloutFlags.test.ts` asserts each default
-with the environment explicitly cleared, and pairs it with a case that OPENS the
-same flag — so "everything is off" is never what a test reading nothing would
-also report. Flipping any default in the module turns that file red.
+with the environment explicitly cleared. Kaana execution is default-on after
+its reviewed cutover; the same suite asserts explicit `disabled` as its
+emergency rollback path.
 
 ### An unreadable value resolves to the safe state, loudly
 

@@ -112,7 +112,7 @@ describe('the safe default', () => {
   it('serves nobody, authenticates no machine key, charges nobody and publishes nothing', () => {
     expect(resolveEdgeAudience()).toEqual({ status: 'closed', reason: 'not_configured' });
     expect(isMachineCredentialLaneEnabled()).toBe(false);
-    expect(isKaanaExecutionEnabled()).toBe(false);
+    expect(isKaanaExecutionEnabled()).toBe(true);
     expect(isChargingAuthorized()).toBe(false);
     expect(isCataloguePublished()).toBe(false);
     // And claims no review has happened. An unset variable must never be read as
@@ -158,6 +158,13 @@ describe('the safe default', () => {
 });
 
 describe('the Kaana execution switch', () => {
+  it('is enabled by default and retains an explicit emergency kill switch', () => {
+    expect(resolveKaanaExecution()).toEqual({ status: 'enabled' });
+
+    process.env[KAANA_EXECUTION_VARIABLE] = 'disabled';
+    expect(resolveKaanaExecution()).toEqual({ status: 'disabled', reason: 'disabled' });
+  });
+
   it('fails closed for an unreadable value and reports why', () => {
     process.env[KAANA_EXECUTION_VARIABLE] = 'yes';
 
@@ -578,7 +585,7 @@ describe('the catalogue audience', () => {
 /* -------------------------------------------------------------------------- */
 
 describe('describeRolloutFlags answers "what is on here"', () => {
-  it('reports every flag closed, with the reason for each, when nothing is set', () => {
+  it('reports safe exposure defaults and normal Kaana wiring when nothing is set', () => {
     expect(describeRolloutFlags()).toEqual({
       edge: {
         variable: EDGE_AUDIENCE_VARIABLE,
@@ -594,8 +601,8 @@ describe('describeRolloutFlags answers "what is on here"', () => {
       },
       kaanaExecution: {
         variable: KAANA_EXECUTION_VARIABLE,
-        enabled: false,
-        disabledReason: 'not_configured',
+        enabled: true,
+        disabledReason: null,
       },
       charging: {
         variable: CHARGING_AUTHORIZED_VARIABLE,

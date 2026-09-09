@@ -7,13 +7,15 @@
  * six at once, so "what is on in production" is one call rather than a grep —
  * and `GET /inference/admin/rollout` is that call over HTTP.
  *
- * ## Every one of them defaults to the state that does nothing
+ * ## Exposure and money switches default to the state that does nothing
  *
  * An unset variable never opens a surface, never authenticates a customer's API
  * key, never publishes a catalogue and — most of all — never charges anybody.
  * That is not a stylistic preference: a flag you can arm by forgetting a
  * variable is worse than no flag, because it looks like a control while
- * defaulting to the dangerous side. Each default is asserted in
+ * defaulting to the dangerous side. Kaana execution is the exception after its
+ * completed cutover: configured signing/origin bindings are ordinary runtime
+ * wiring, while an explicit `disabled` remains the emergency kill switch. Each default is asserted in
  * `__tests__/rolloutFlags.test.ts` with the environment explicitly cleared, so
  * the assertion fails if a default is ever flipped.
  *
@@ -322,20 +324,21 @@ export function isMachineCredentialLaneEnabled(): boolean {
 /* -------------------------------------------------------------------------- */
 
 /**
- * `INFERENCE_KAANA_EXECUTION` is an independent kill switch for constructing
- * the production Kaana client. Explicitly injected clients remain available to
- * tests; ambient production wiring is inert unless this says `enabled`.
+ * `INFERENCE_KAANA_EXECUTION` is an emergency kill switch for constructing the
+ * production Kaana client. Unset and `enabled` both permit normal configured
+ * runtime wiring; only explicit `disabled` closes it. Malformed values fail
+ * closed and are reported.
  */
 export const KAANA_EXECUTION_VARIABLE = 'INFERENCE_KAANA_EXECUTION';
 
 export type KaanaExecutionState =
   | { readonly status: 'enabled' }
-  | { readonly status: 'disabled'; readonly reason: 'not_configured' | 'disabled' | 'unreadable' };
+  | { readonly status: 'disabled'; readonly reason: 'disabled' | 'unreadable' };
 
 export function resolveKaanaExecution(): KaanaExecutionState {
   const configured = process.env[KAANA_EXECUTION_VARIABLE]?.trim();
   if (configured === undefined || configured.length === 0) {
-    return { status: 'disabled', reason: 'not_configured' };
+    return { status: 'enabled' };
   }
   if (configured === 'enabled') return { status: 'enabled' };
   if (configured === 'disabled') return { status: 'disabled', reason: 'disabled' };
@@ -655,7 +658,7 @@ export interface RolloutFlagReport {
   readonly kaanaExecution: {
     readonly variable: string;
     readonly enabled: boolean;
-    readonly disabledReason: 'not_configured' | 'disabled' | 'unreadable' | null;
+    readonly disabledReason: 'disabled' | 'unreadable' | null;
   };
   readonly charging: {
     readonly variable: string;

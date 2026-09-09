@@ -908,7 +908,7 @@ fi
 # additive schema/API rollout and serving enforcement.
 workflow_file="$repository_root/.github/workflows/deploy-aws.yml"
 grep -F 'TASK_ENV_OVERRIDES_JSON: >-' "$workflow_file" >/dev/null
-grep -F '{"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","INBOX_INFERENCE_ROUTING_PROFILE_ID":"${{ vars.INBOX_INFERENCE_ROUTING_PROFILE_ID }}","INFERENCE_KAANA_EXECUTION":"enabled","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}' \
+grep -F '{"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","INBOX_INFERENCE_ROUTING_PROFILE_ID":"${{ vars.INBOX_INFERENCE_ROUTING_PROFILE_ID }}","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}' \
   "$workflow_file" >/dev/null
 grep -F 'TASK_EXTRA_CONTAINERS_JSON: >-' "$workflow_file" >/dev/null
 grep -F '"name":"aws-otel-collector","image":"public.ecr.aws/aws-observability/aws-otel-collector:v0.49.0","essential":false' \

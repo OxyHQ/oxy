@@ -193,10 +193,10 @@ landed the edge streams both public dialects, forwards the data plane's own
 surfaces `route_switch` frames on both dialects. What may still be absent is an
 **enabled, live data-plane lane**. `resolveKaanaDataPlane()` answers `absent` unless `KAANA_BASE_URL`,
 `KAANA_EDGE_SIGNING_KEY_ID` and `KAANA_EDGE_SIGNING_PRIVATE_KEY` are all set.
-The deployment workflow now wires those exact values but independently pins
-`INFERENCE_KAANA_EXECUTION=disabled`; source and configuration therefore do not
-prove that anything has streamed or switched. Only a live enabled canary and its
-telemetry can establish that.
+The deployment workflow wires those exact values and omits the default-on
+execution kill switch after the reviewed cutover. Source and configuration still
+do not prove that anything has streamed or switched; only live probes and
+telemetry establish that.
 
 That distinction gets a **field, not a comment**, because it is the one that will
 matter the day Kaana is deployed: `dataPlane` on the payload reports

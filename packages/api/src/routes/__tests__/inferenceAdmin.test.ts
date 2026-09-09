@@ -1261,8 +1261,8 @@ describe('GET /inference/admin/metrics', () => {
     // process configures no data plane, so nothing can have streamed.
     expect(data.dataPlane).toBe('absent');
     expect(data.dataPlaneExecution).toEqual({
-      enabled: false,
-      disabledReason: 'not_configured',
+      enabled: true,
+      disabledReason: null,
     });
 
     // The two metrics with no data yet. `pending` plus a reason, and NO percentile
