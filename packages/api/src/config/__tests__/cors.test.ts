@@ -80,12 +80,13 @@ describe('ALLOWED_HEADERS', () => {
 
     expect(allowed.has('Idempotency-Key')).toBe(true);
     expect(allowed.has('X-Oxy-Edge-Region')).toBe(true);
+    expect(allowed.has('X-Oxy-Activity-Id')).toBe(true);
   });
 
   it('has exactly the entries reviewed here', () => {
-    // VACUITY FLOOR, as above: seventeen pre-existing entries plus the two
+    // VACUITY FLOOR, as above: seventeen pre-existing entries plus the three
     // explicitly reviewed headers above.
-    expect(ALLOWED_HEADERS).toHaveLength(19);
+    expect(ALLOWED_HEADERS).toHaveLength(20);
   });
 });
 
