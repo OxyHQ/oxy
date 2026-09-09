@@ -58,10 +58,15 @@ import { logger } from '../utils/logger';
  */
 export const BOOTSTRAP_CORE_ORIGINS: ReadonlySet<string> = new Set([
   // ── oxy.so first-party frontends + apex + CDN ──
+  //
+  // `allo.oxy.so` is absent on purpose: that alias was retired, its DNS record
+  // deleted, and it no longer resolves — admitting an origin no browser can be
+  // on admits nothing. `accounts.oxy.so`, `console.oxy.so`, `inbox.oxy.so` and
+  // `noted.oxy.so` now serve from Workers rather than Pages, which changes
+  // nothing here: the origin is the hostname, not what serves it.
   'https://oxy.so',
   'https://api.oxy.so',
   'https://accounts.oxy.so',
-  'https://allo.oxy.so',
   'https://auth.oxy.so',
   'https://cloud.oxy.so',
   'https://console.oxy.so',
