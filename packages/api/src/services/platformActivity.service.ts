@@ -8,14 +8,16 @@ export interface PlatformActivityBucket {
   requests: number;
   windowStartedAt: string;
   emittedAt: string;
+  direction: 'inbound';
+  service: string;
 }
 
 const EMIT_INTERVAL_MS = 2_000;
 const MINIMUM_BUCKET_SIZE = 5;
 const EXCLUDED_PATHS = new Set(['/health', '/platform-stats', '/platform-stats/stream']);
 
-let pendingRequests = 0;
-let windowStartedAt = Date.now();
+const pendingRequestsByService = new Map<string, number>();
+const windowStartedAtByService = new Map<string, number>();
 let activityNamespace: Namespace | null = null;
 let emitTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -23,18 +25,36 @@ function processingRegion(): string {
   return process.env.AWS_REGION || 'unknown';
 }
 
-function emitBucket(): void {
-  if (!activityNamespace || pendingRequests < MINIMUM_BUCKET_SIZE) return;
+/**
+ * A bounded logical destination, never the raw path. Raw paths can contain
+ * account, message and file identifiers, so only the first static route group
+ * may enter the public aggregate stream.
+ */
+function destinationService(path: string): string {
+  const segment = path.split('/').filter(Boolean)[0];
+  return segment && /^[a-z][a-z0-9-]{0,31}$/i.test(segment) ? segment.toLowerCase() : 'platform';
+}
 
-  const bucket: PlatformActivityBucket = {
-    region: processingRegion(),
-    requests: pendingRequests,
-    windowStartedAt: new Date(windowStartedAt).toISOString(),
-    emittedAt: new Date().toISOString(),
-  };
-  pendingRequests = 0;
-  windowStartedAt = Date.now();
-  activityNamespace.emit(PLATFORM_ACTIVITY_EVENT, bucket);
+function emitBucket(): void {
+  if (!activityNamespace) return;
+
+  const emittedAt = new Date().toISOString();
+  for (const [service, requests] of pendingRequestsByService) {
+    // Per-service k-anonymity: a tiny bucket is folded into the next window
+    // rather than exposing that one person used one product at one moment.
+    if (requests < MINIMUM_BUCKET_SIZE) continue;
+    const bucket: PlatformActivityBucket = {
+      region: processingRegion(),
+      requests,
+      windowStartedAt: new Date(windowStartedAtByService.get(service) ?? Date.now()).toISOString(),
+      emittedAt,
+      direction: 'inbound',
+      service,
+    };
+    activityNamespace.emit(PLATFORM_ACTIVITY_EVENT, bucket);
+    pendingRequestsByService.delete(service);
+    windowStartedAtByService.delete(service);
+  }
 }
 
 export function initializePlatformActivity(namespace: Namespace): void {
@@ -51,7 +71,9 @@ export function platformActivityMiddleware(
 ): void {
   res.once('finish', () => {
     if (res.statusCode < 400 && !EXCLUDED_PATHS.has(req.path)) {
-      pendingRequests += 1;
+      const service = destinationService(req.path);
+      if (!pendingRequestsByService.has(service)) windowStartedAtByService.set(service, Date.now());
+      pendingRequestsByService.set(service, (pendingRequestsByService.get(service) ?? 0) + 1);
     }
   });
   next();
@@ -61,6 +83,6 @@ export function stopPlatformActivity(): void {
   if (emitTimer) clearInterval(emitTimer);
   emitTimer = null;
   activityNamespace = null;
-  pendingRequests = 0;
-  windowStartedAt = Date.now();
+  pendingRequestsByService.clear();
+  windowStartedAtByService.clear();
 }

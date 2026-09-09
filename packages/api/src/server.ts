@@ -295,8 +295,9 @@ const io = new SocketIOServer(server, {
 initializeIO(io);
 
 // Public, aggregate-only activity stream for oxy.so/dashboard. It carries the
-// processing region and a bucket count — never an IP, user, app, route or other
-// request-level value. The Redis adapter fans buckets out across API tasks.
+// processing region, a bounded route group and a k-anonymous bucket count —
+// never an IP, user, raw path or other request-level value. The Redis adapter
+// fans buckets out across API tasks.
 const platformActivityNamespace = io.of('/platform-activity');
 initializePlatformActivity(platformActivityNamespace);
 
