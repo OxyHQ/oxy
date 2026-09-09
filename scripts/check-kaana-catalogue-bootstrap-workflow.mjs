@@ -34,10 +34,15 @@ requireMatch(
 	/group: kaana-catalogue-bootstrap-production[\s\S]*?cancel-in-progress: false/,
 	"workflow runs must be serialized without cancellation",
 );
-requireMatch(
+	requireMatch(
 	workflow,
-	/id-token: write[\s\S]*?role-to-assume: arn:aws:iam::237343248947:role\/oxy-github-deploy/,
-	"the workflow must use the reviewed GitHub OIDC role",
+	/id-token: write[\s\S]*?role-to-assume: arn:aws:iam::237343248947:role\/oxy-github-kaana-catalogue-bootstrap/,
+	"the workflow must use the dedicated catalogue-bootstrap GitHub OIDC role",
+);
+forbid(
+	workflow,
+	/role-to-assume: arn:aws:iam::237343248947:role\/oxy-github-deploy/,
+	"the catalogue bootstrap must not use the shared fleet deploy role",
 );
 requireMatch(
 	workflow,
