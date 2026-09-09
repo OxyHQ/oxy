@@ -5,7 +5,8 @@
 | Environment | Platform | URL | Trigger |
 |-------------|----------|-----|---------|
 | **API** | AWS ECS Fargate (us-west-2) | `api.oxy.so` | Push to `main` -> `deploy-aws.yml` |
-| **Static frontends** | Cloudflare Pages | `auth.oxy.so`, `accounts.oxy.so`, `console.oxy.so` | Push to `main` -> `deploy-cloudflare.yml` |
+| **Static frontends** | Cloudflare Workers | `accounts.oxy.so`, `console.oxy.so` | Push to `main` -> `deploy-cloudflare.yml` |
+| **IdP frontend** | Cloudflare Pages (Pages Functions) | `auth.oxy.so` | Push to `main` -> `deploy-cloudflare.yml` |
 | **Other backends** | AWS ECS Fargate (us-west-2) | `api.mention.earth`, `api.homiio.com`, `api.alia.onl`, `api.syra.oxy.so`, `api.allo.oxy.so` | Push to their repos -> per-repo `deploy-aws.yml` |
 
 ## AWS deployment (`api.oxy.so`)
