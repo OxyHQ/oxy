@@ -50,15 +50,10 @@ requireMatch(
   /schemaVersion: 2,[\s\S]*?attribution:/,
   'Oxy buildEnvelope must emit inference request schemaVersion 2',
 );
-requireMatch(
-  deploy,
-  /"INFERENCE_KAANA_EXECUTION":"enabled"/,
-  'the reviewed post-canary deploy must enable Kaana execution explicitly',
-);
 forbid(
   deploy,
-  /"INFERENCE_KAANA_EXECUTION":"disabled"/,
-  'the post-canary deploy must not retain the dark-launch binding',
+  /"INFERENCE_KAANA_EXECUTION":/,
+  'the completed cutover must not retain a permanent Kaana execution environment flag',
 );
 requireMatch(
   evidence,
@@ -67,8 +62,8 @@ requireMatch(
 );
 requireMatch(
   rollout,
-  /if \(configured === undefined \|\| configured\.length === 0\) \{\s*return \{ status: 'disabled', reason: 'not_configured' \};/,
-  'an absent Kaana execution switch must remain fail-closed',
+  /if \(configured === undefined \|\| configured\.length === 0\) \{\s*return \{ status: 'enabled' \};/,
+  'Kaana execution must default on after cutover while retaining the explicit kill switch',
 );
 
 if (failures.length > 0) {

@@ -32,7 +32,8 @@ This is a two-producer rolling cutover, not one deploy. Follow this order:
    targets are rejected. Do not infer readiness from the health string alone or
    treat this direct probe as evidence that the Oxy-owned profile row exists.
 4. Only after step 3, open a second Oxy PR that deliberately changes the deploy
-   binding to `INFERENCE_KAANA_EXECUTION=enabled` and updates the temporary
+   kill switch (initially by setting `enabled`, then removing the redundant
+   default-on binding after cutover) and updates the temporary
    phase gate `scripts/check-kaana-request-v2-rollout.mjs` with the reviewed
    Kaana image/canary evidence. That change must not alter the contract or
    routing target again.
