@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node dist/server.js",
     "dev": "bun --watch src/server.ts",
-    "build": "bun run --filter @oxyhq/contracts build && bun run --filter @oxyhq/protocol build && bun run --filter @oxyhq/core build && bun run --filter @oxyhq/federation build && bun run --filter @oxyhq/db build && bun run --filter @oxyhq/mcp build && tsc",
+    "build": "bun run --filter @oxy.so/telemetry build && bun run --filter @oxyhq/contracts build && bun run --filter @oxyhq/protocol build && bun run --filter @oxyhq/core build && bun run --filter @oxyhq/federation build && bun run --filter @oxyhq/db build && bun run --filter @oxyhq/mcp build && tsc",
     "clean": "rm -rf dist",
     "migrate:locations": "bun run src/utils/migrateLocations.ts",
     "register:commons-clients": "bun run scripts/register-commons-clients.ts",
@@ -60,6 +60,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@oxy.so/telemetry": "workspace:*",
     "@aws-sdk/client-s3": "^3.1087.0",
     "@aws-sdk/lib-storage": "3.1076.0",
     "@aws-sdk/s3-request-presigner": "^3.1087.0",

@@ -113,6 +113,7 @@ chosen by name. See the
 | [`@oxyhq/contracts`](packages/contracts/) | Contract first API schemas in Zod. Zero React or Expo, so server and clients share one source of truth |
 | [`@oxyhq/federation`](packages/federation/) | App agnostic ActivityPub identity and follow layer |
 | [`@oxyhq/core`](packages/core/) | API client, session engine, crypto, types. Node, browsers and React Native |
+| [`@oxy.so/telemetry`](packages/telemetry/) | Framework-agnostic anonymous activity metadata, validation and aggregation primitives |
 
 ### 🚀 Server and SDK
 

@@ -14,6 +14,7 @@
       "packages/federation",
       "packages/db",
       "packages/core",
+      "packages/telemetry",
       "packages/mcp",
       "packages/services",
       "packages/expo-splash",

@@ -1,0 +1,84 @@
+{
+  "name": "@oxy.so/telemetry",
+  "version": "0.1.0",
+  "description": "Framework-agnostic anonymous activity telemetry primitives for Oxy services.",
+  "type": "module",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/types/index.d.ts",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./browser": {
+      "browser": {
+        "types": "./dist/types/browser.d.ts",
+        "default": "./dist/esm/browser.js"
+      },
+      "import": {
+        "types": "./dist/types/browser.d.ts",
+        "default": "./dist/esm/browser.js"
+      },
+      "require": {
+        "types": "./dist/types/browser.d.ts",
+        "default": "./dist/cjs/browser.js"
+      }
+    },
+    "./server": {
+      "import": {
+        "types": "./dist/types/server.d.ts",
+        "default": "./dist/esm/server.js"
+      },
+      "require": {
+        "types": "./dist/types/server.d.ts",
+        "default": "./dist/cjs/server.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oxyhq/sdk",
+    "directory": "packages/telemetry"
+  },
+  "license": "Apache-2.0",
+  "author": "Oxy",
+  "homepage": "https://oxy.so",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "bun run clean && bun run build:cjs && bun run build:esm && bun run build:types",
+    "build:cjs": "tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:types": "tsc -p tsconfig.types.json",
+    "clean": "rm -rf dist",
+    "typescript": "tsc --noEmit",
+    "test": "jest",
+    "lint": "biome lint --error-on-warnings ./src",
+    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run typescript && bun run test && bun run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.5.1",
+    "jest-environment-jsdom": "catalog:",
+    "ts-jest": "^29.4.12",
+    "typescript": "^5.9.2"
+  }
+}

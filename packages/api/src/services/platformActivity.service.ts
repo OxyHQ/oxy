@@ -1,6 +1,12 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { Namespace } from 'socket.io';
 import { getRedisClient } from '../config/redis';
+import {
+  activityFlow,
+  metadataFromHeaders,
+  presenceKeys,
+  serviceFromPath,
+} from '@oxy.so/telemetry/server';
 
 export const PLATFORM_ACTIVITY_EVENT = 'platform_activity';
 
@@ -18,8 +24,6 @@ export interface PlatformActivityBucket {
 
 const EMIT_INTERVAL_MS = 2_000;
 const ACTIVE_CLIENT_WINDOW_MS = 60_000;
-const PRESENCE_BUCKET_MS = 30_000;
-const ACTIVITY_ID_PATTERN = /^[a-z0-9_-]{16,64}$/i;
 const MINIMUM_BUCKET_SIZE = 1;
 const EXCLUDED_PATHS = new Set(['/health', '/platform-stats', '/platform-stats/stream']);
 
@@ -39,34 +43,6 @@ function processingRegion(): string {
  * account, message and file identifiers, so only the first static route group
  * may enter the public aggregate stream.
  */
-function destinationService(path: string): string {
-  const segment = path.split('/').filter(Boolean)[0];
-  return segment && /^[a-z][a-z0-9-]{0,31}$/i.test(segment) ? segment.toLowerCase() : 'platform';
-}
-
-/** Cloudflare's serving colo, not a user IP or IP-derived coordinate. */
-function ingressRegion(request: Request): string | undefined {
-  const forwardedRegion = request.headers['x-oxy-edge-region'];
-  const forwardedValue = Array.isArray(forwardedRegion) ? forwardedRegion[0] : forwardedRegion;
-  const forwardedColo = forwardedValue?.match(/^[a-z]{3}$/i)?.[0]?.toLowerCase();
-  if (forwardedColo) return `edge-${forwardedColo}`;
-
-  const ray = request.headers['cf-ray'];
-  const value = Array.isArray(ray) ? ray[0] : ray;
-  const colo = value?.match(/-([a-z]{3})$/i)?.[1]?.toLowerCase();
-  return colo ? `edge-${colo}` : undefined;
-}
-
-function activityId(request: Request): string | undefined {
-  const header = request.headers['x-oxy-activity-id'];
-  const value = Array.isArray(header) ? header[0] : header;
-  return value && ACTIVITY_ID_PATTERN.test(value) ? value : undefined;
-}
-
-function presenceKey(sourceRegion: string, bucket: number): string {
-  return `platform-activity:clients:${sourceRegion}:${bucket}`;
-}
-
 function observeActiveClient(sourceRegion: string | undefined, clientId: string | undefined): void {
   if (!sourceRegion || !clientId) return;
   const now = Date.now();
@@ -80,9 +56,7 @@ function observeActiveClient(sourceRegion: string | undefined, clientId: string 
 
   const redis = getRedisClient();
   if (!redis) return;
-  const bucket = Math.floor(now / PRESENCE_BUCKET_MS);
-  const currentKey = presenceKey(sourceRegion, bucket);
-  const previousKey = presenceKey(sourceRegion, bucket - 1);
+  const [currentKey, previousKey] = presenceKeys(sourceRegion, now);
   void redis.pipeline().pfadd(currentKey, clientId).expire(currentKey, 90).exec()
     .then(() => redis.pfcount(currentKey, previousKey))
     .then((count) => activeClientCountByOrigin.set(sourceRegion, count))
@@ -134,10 +108,11 @@ export function platformActivityMiddleware(
 ): void {
   res.once('finish', () => {
     if (res.statusCode < 400 && !EXCLUDED_PATHS.has(req.path)) {
-      const service = destinationService(req.path);
-      const sourceRegion = ingressRegion(req);
-      observeActiveClient(sourceRegion, activityId(req));
-      const flow = `${sourceRegion ?? ''}|${service}`;
+      const service = serviceFromPath(req.path);
+      const metadata = metadataFromHeaders(req.headers);
+      const sourceRegion = metadata.edgePop ? `edge-${metadata.edgePop}` : undefined;
+      observeActiveClient(sourceRegion, metadata.activityId);
+      const flow = activityFlow(sourceRegion, service).key;
       if (!pendingRequestsByFlow.has(flow)) windowStartedAtByFlow.set(flow, Date.now());
       pendingRequestsByFlow.set(flow, (pendingRequestsByFlow.get(flow) ?? 0) + 1);
     }
