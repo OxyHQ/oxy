@@ -57,6 +57,10 @@ export const ALLOWED_HEADERS = [
   'X-Device-Fingerprint',
   'x-device-fingerprint',
   'X-Native-App',
+  // Anonymous coarse Cloudflare PoP propagated by browser SDKs. This carries
+  // neither an IP nor an identity and is consumed only by thresholded activity
+  // aggregation.
+  'X-Oxy-Edge-Region',
   // The inference edge reads `Idempotency-Key` on every invoke and dedupes on
   // it. Absent from this list, a browser cannot SEND it at all — the preflight
   // rejects the header — so no browser client could use idempotency support the
