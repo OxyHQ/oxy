@@ -56,7 +56,7 @@ env:
   NETWORK_SERVICE: kaana-publisher
   LIVE_CONTAINER: oxy-api
   BOOTSTRAP_CONTAINER: kaana-catalogue-bootstrap
-  INVENTORY_SNAPSHOT_ID: snap_7c760c006f5ac633
+  INVENTORY_SNAPSHOT_ID: snap_da7406fdfed50248
   MODEL_ID: openai/gpt-oss-120b
   MODEL_REFERENCE: openai/gpt-oss-120b@observed-2026-09-01
   CEREBRAS_DEPLOYMENT_ID: dep_cerebras_gpt_oss_120b_observed_2026_09_01
@@ -139,7 +139,7 @@ jobs:
 
           # Independent exact-value assertions keep a changed env entry from
           # silently widening the reviewed catalogue in a manual workflow.
-          [ "$INVENTORY_SNAPSHOT_ID" = 'snap_7c760c006f5ac633' ]
+          [ "$INVENTORY_SNAPSHOT_ID" = 'snap_da7406fdfed50248' ]
           [ "$MODEL_ID" = 'openai/gpt-oss-120b' ]
           [ "$MODEL_REFERENCE" = 'openai/gpt-oss-120b@observed-2026-09-01' ]
           [ "$CEREBRAS_DEPLOYMENT_ID" = 'dep_cerebras_gpt_oss_120b_observed_2026_09_01' ]

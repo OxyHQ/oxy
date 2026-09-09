@@ -96,7 +96,7 @@ requireMatch(
 );
 
 for (const exact of [
-	"snap_7c760c006f5ac633",
+	"snap_da7406fdfed50248",
 	"openai/gpt-oss-120b",
 	"openai/gpt-oss-120b@observed-2026-09-01",
 	"dep_cerebras_gpt_oss_120b_observed_2026_09_01",

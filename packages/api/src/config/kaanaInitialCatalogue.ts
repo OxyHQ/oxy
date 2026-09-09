@@ -16,7 +16,7 @@ export const KAANA_INITIAL_SCORE_VALID_UNTIL = "2026-10-02T00:00:00.000Z";
 export const KAANA_INITIAL_MODEL_ID = "openai/gpt-oss-120b";
 export const KAANA_INITIAL_MODEL_REFERENCE = `${KAANA_INITIAL_MODEL_ID}@observed-2026-09-01`;
 /** Routing-content hash of the exact live inventory reviewed on 2026-09-02. */
-export const KAANA_INITIAL_INVENTORY_SNAPSHOT_ID = "snap_7c760c006f5ac633";
+export const KAANA_INITIAL_INVENTORY_SNAPSHOT_ID = "snap_da7406fdfed50248";
 
 export const KAANA_INITIAL_PUBLISHER = {
   slug: "openai",
