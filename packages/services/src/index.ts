@@ -342,7 +342,12 @@ export {
   followRecordToStatus,
   followRecordsToStatusMap,
 } from './ui/stores/followTargetStore';
+export { default as PeableButton } from './ui/components/PeableButton';
+export type { PeableButtonProps } from './ui/components/PeableButton';
+/** @deprecated Use `PeableButton` instead. */
 export { default as OxyPayButton } from './ui/components/OxyPayButton';
+/** @deprecated Use `PeableButtonProps` instead. */
+export type { OxyPayButtonProps } from './ui/components/OxyPayButton';
 export { LogoIcon } from './ui/components/logo/LogoIcon';
 export { LogoText } from './ui/components/logo/LogoText';
 

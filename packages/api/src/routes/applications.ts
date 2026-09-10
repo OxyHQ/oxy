@@ -1062,14 +1062,14 @@ router.post(
 
     // Service credentials mint bearer service tokens for Oxy-to-Oxy / internal
     // routes. Only platform-trusted applications may hold them — EXCEPT a
-    // narrow Oxy Pay carve-out: a non-trusted (`third_party`) application MAY
+    // narrow Peable carve-out: a non-trusted (`third_party`) application MAY
     // create a service credential when every requested scope is a payments
     // scope ({@link isPaymentsScope}, i.e. `payments:read`/`payments:write`).
     // Those two scopes are already non-privileged/self-grantable and bounded
-    // to the app's own Oxy Pay Gateway tenant (see `applicationScopes.ts`),
+    // to the app's own Peable Gateway tenant (see `applicationScopes.ts`),
     // and the resulting service token's downstream authority is bounded by
-    // its scopes — the Oxy Pay Gateway only honours `payments:*`. This lets
-    // external Oxy Pay merchants (WooCommerce, Mercaria, etc.) self-serve the
+    // its scopes — the Peable Gateway only honours `payments:*`. This lets
+    // external Peable merchants (WooCommerce, Mercaria, etc.) self-serve the
     // service credential the `@oxy.so/pay` SDK needs, without ever letting a
     // self-service app mint a trusted service token for files/user/
     // federation/etc. Requesting ANY non-payments scope on a service

@@ -409,7 +409,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   },
   {
     name: 'Peable',
-    description: 'Official Oxy payments app.',
+    description: 'Official Peable payments app.',
     websiteUrl: 'https://peable.to',
     type: 'first_party',
     redirectUris: ['https://peable.to'],

@@ -1,9 +1,9 @@
-/** Oxy Pay Gateway scopes — self-grantable on third-party applications. */
+/** Peable Gateway scopes — self-grantable on third-party applications. */
 export const PAYMENTS_SCOPES = ['payments:read', 'payments:write'] as const;
 
 export type PaymentsScope = (typeof PAYMENTS_SCOPES)[number];
 
-/** True for self-service third-party apps that need the Oxy Pay carve-out. */
+/** True for self-service third-party apps that need the Peable carve-out. */
 export function isUntrustedThirdPartyApp(application: {
   type: string;
   isOfficial: boolean;

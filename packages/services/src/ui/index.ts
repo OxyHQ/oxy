@@ -25,7 +25,12 @@ export { LogoText } from './components/logo/LogoText';
 export { RequireOxyAuth } from './components/RequireOxyAuth';
 export type { RequireOxyAuthProps, RequireOxyAuthPrompt } from './components/RequireOxyAuth';
 export { default as FollowButton } from './components/FollowButton';
+export { default as PeableButton } from './components/PeableButton';
+export type { PeableButtonProps } from './components/PeableButton';
+/** @deprecated Use `PeableButton` instead. */
 export { default as OxyPayButton } from './components/OxyPayButton';
+/** @deprecated Use `PeableButtonProps` instead. */
+export type { OxyPayButtonProps } from './components/OxyPayButton';
 export { default as ProfileButton } from './components/ProfileButton';
 
 // Context + hooks

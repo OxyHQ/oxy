@@ -816,7 +816,7 @@ describe('credentials', () => {
     expect(res.status).toBe(403);
   });
 
-  it('the Oxy Pay carve-out lets a non-trusted app create a payments-only service credential', async () => {
+  it('the Peable carve-out lets a non-trusted app create a payments-only service credential', async () => {
     const app = await seedApp({
       type: 'third_party',
       isOfficial: false,
@@ -824,7 +824,7 @@ describe('credentials', () => {
       scopes: ['payments:read', 'payments:write'],
     });
     const res = await requestJson(server, 'POST', `/applications/${app.id}/credentials`, {
-      name: 'oxy-pay-svc',
+      name: 'peable-svc',
       type: 'service',
       environment: 'production',
       scopes: ['payments:read', 'payments:write'],
@@ -833,7 +833,7 @@ describe('credentials', () => {
     expect(res.body.credential?.scopes).toEqual(['payments:read', 'payments:write']);
   });
 
-  it('the Oxy Pay carve-out still rejects a non-trusted app requesting any non-payments scope', async () => {
+  it('the Peable carve-out still rejects a non-trusted app requesting any non-payments scope', async () => {
     const app = await seedApp({
       type: 'third_party',
       isOfficial: false,

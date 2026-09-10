@@ -1412,7 +1412,7 @@
     },
     "details": {
       "cardDetails": "Detalles de la tarjeta",
-      "oxyPay": "Oxy Pay",
+      "peable": "Peable",
       "faircoinPayment": "Pago con FairCoin",
       "paymentDetails": "Detalles del pago",
       "creditCard": "Tarjeta de crédito",
@@ -1438,7 +1438,7 @@
       "amount": "Monto",
       "paymentMethod": "Método de pago",
       "card": "Tarjeta",
-      "oxyPayAccount": "Cuenta Oxy Pay",
+      "peableAccount": "Cuenta Peable",
       "faircoinWallet": "Billetera FairCoin",
       "paidViaQR": "Pagado vía QR",
       "processing": "Procesando...",
@@ -1465,8 +1465,8 @@
         "description": "Paga de forma segura con tu tarjeta de crédito o débito."
       },
       "oxy": {
-        "label": "Oxy Pay",
-        "description": "Usa tu saldo de Oxy Pay en la app."
+        "label": "Peable",
+        "description": "Usa tu saldo de Peable en la app."
       },
       "faircoin": {
         "label": "FAIRWallet",

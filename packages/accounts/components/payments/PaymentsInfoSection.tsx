@@ -9,7 +9,7 @@ import faircoinImage from '@/assets/images/faircoin.jpg';
 import type { GroupedItem } from '@/components/sections/types';
 
 /**
- * "About" section: explanatory cards covering FairCoin, Oxy Pay, FAIRWallet,
+ * "About" section: explanatory cards covering FairCoin, Peable, FAIRWallet,
  * security, and supported payment methods.
  */
 export function PaymentsInfoSection() {
@@ -32,11 +32,11 @@ export function PaymentsInfoSection() {
       subtitle: t('payments.info.fairCoinBody'),
     },
     {
-      id: 'oxy-pay',
+      id: 'peable',
       icon: 'wallet-outline',
       iconColor: colors.sidebarIconPersonalInfo,
-      title: t('payments.info.oxyPay'),
-      subtitle: t('payments.info.oxyPayBody'),
+      title: t('payments.info.peable'),
+      subtitle: t('payments.info.peableBody'),
     },
     {
       id: 'fairwallet',

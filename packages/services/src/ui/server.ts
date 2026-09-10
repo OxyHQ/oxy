@@ -19,7 +19,9 @@ export const OxySignInButton = noopComponent;
 export const LogoIcon = noopComponent;
 export const LogoText = noopComponent;
 export const FollowButton = noopComponent;
-export const OxyPayButton = noopComponent;
+export const PeableButton = noopComponent;
+/** @deprecated Use `PeableButton` instead. */
+export const OxyPayButton = PeableButton;
 
 // Context
 export const useOxy = noopHook;
