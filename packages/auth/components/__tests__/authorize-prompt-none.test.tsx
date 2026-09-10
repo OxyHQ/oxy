@@ -31,7 +31,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { LocaleProvider } from "@/lib/i18n/locale-context"
 import { createServicesMock } from "@/lib/__tests__/setup-services-mock"
 import enDict from "@/lib/i18n/locales/en"
-import type { OxyConsentScreenProps } from "@oxyhq/services"
+import type { OxyConsentScreenProps } from "@oxy.so/services"
 
 const CLIENT_ID = "oxy_dk_test_client"
 /** Deliberately NOT a registered redirect target — nothing may ever bounce here. */

@@ -11,10 +11,10 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useQuery } from '@tanstack/react-query';
-import { alert, toast } from '@oxyhq/bloom';
-import { useOxy } from '@oxyhq/services';
-import type { AutonomyLevel, CapabilityPackage, GrantLimit } from '@oxyhq/contracts';
-import type { AvailableCapabilityCatalog, DelegationGrantView } from '@oxyhq/core';
+import { alert, toast } from '@oxy.so/bloom';
+import { useOxy } from '@oxy.so/services';
+import type { AutonomyLevel, CapabilityPackage, GrantLimit } from '@oxy.so/contracts';
+import type { AvailableCapabilityCatalog, DelegationGrantView } from '@oxy.so/core';
 import { AccountCard, EmptyStateCard, ScreenHeader } from '@/components/ui';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
 import { Section } from '@/components/section';

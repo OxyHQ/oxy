@@ -1,4 +1,4 @@
-import type { AppCapabilityCatalog, CatalogTool } from '@oxyhq/contracts';
+import type { AppCapabilityCatalog, CatalogTool } from '@oxy.so/contracts';
 import { capabilityGrantError } from '../capabilityGrantPolicy';
 
 function tool(input: Partial<CatalogTool> = {}): CatalogTool {

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
-import { normalizedAppEventSchema, type NormalizedAppEvent } from '@oxyhq/contracts';
+import { normalizedAppEventSchema, type NormalizedAppEvent } from '@oxy.so/contracts';
 import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { getEnvBoolean, getEnvNumber } from '../config/env';
 import { getDb, type Database } from '../config/postgres';

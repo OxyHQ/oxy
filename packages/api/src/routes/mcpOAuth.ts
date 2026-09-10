@@ -4,7 +4,7 @@ import { z } from 'zod';
 import {
   mcpOAuthClientInfoResponseSchema,
   mcpOAuthConsentResponseSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import { mcpOauthClients, mcpOauthGrants } from '../db/schema/mcpOAuth';

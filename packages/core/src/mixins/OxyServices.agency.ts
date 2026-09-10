@@ -16,7 +16,7 @@ import type {
   GrantLimit,
   ResourceRef,
   ToolGrantOverride,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { CACHE_TIMES } from './mixinHelpers';
 

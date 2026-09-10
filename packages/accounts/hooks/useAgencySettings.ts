@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import type {
   CreateDelegationGrantInput,
   PutAccountCapabilityPolicyInput,
   UpdateDelegationGrantInput,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 
 export function agencySettingsQueryKey(accountId: string | null | undefined) {
   return ['agency-settings', accountId ?? null] as const;

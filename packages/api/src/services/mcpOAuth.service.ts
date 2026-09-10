@@ -32,6 +32,11 @@ import { applications } from '../db/schema/applications';
 import { users } from '../db/schema/users';
 import accountService from './account.service';
 import { listActiveCapabilityCatalogs } from './capabilityCatalog.service';
+import {
+  resolveMcpConnectionState,
+  revokeMcpConnectionMemberships,
+  type McpConnectionState,
+} from './mcpConnection.service';
 import { composeDisplayName } from '../utils/displayName';
 import { serializePublicApplication } from '../utils/serializeApplication';
 
@@ -196,10 +201,12 @@ function assertScopesAllowed(requested: readonly string[], descriptor: McpResour
   }
 }
 
-async function currentAccountAuthority(grant: Pick<McpOauthGrantRow, 'principalUserId' | 'effectiveAccountId'>): Promise<boolean> {
+export async function grantAccountAuthorityHolds(grant: Pick<McpOauthGrantRow, 'principalUserId' | 'effectiveAccountId'>): Promise<boolean> {
   const access = await accountService.resolveEffectiveAccess(grant.principalUserId, grant.effectiveAccountId);
   return access?.permissions.includes('account:act_as') ?? false;
 }
+
+const currentAccountAuthority = grantAccountAuthorityHolds;
 
 export function newMcpClientId(): string {
   return `${CLIENT_ID_PREFIX}${randomBytes(24).toString('base64url')}`;
@@ -537,6 +544,7 @@ export async function exchangeMcpAuthorizationCode(input: {
 async function revokeGrant(db: DatabaseOrTransaction, grantId: string, when = new Date()): Promise<void> {
   await db.update(mcpOauthGrants).set({ revokedAt: when, updatedAt: when })
     .where(and(eq(mcpOauthGrants.id, grantId), isNull(mcpOauthGrants.revokedAt)));
+  await revokeMcpConnectionMemberships(db, grantId, when);
   await db.update(mcpOauthAccessTokens).set({ revokedAt: when })
     .where(and(eq(mcpOauthAccessTokens.grantId, grantId), isNull(mcpOauthAccessTokens.revokedAt)));
   await db.update(mcpOauthRefreshTokens).set({ revokedAt: when })
@@ -635,10 +643,15 @@ export async function revokeMcpGrant(input: {
   return true;
 }
 
-export async function introspectMcpAccessToken(
+export async function resolveLiveMcpAccessToken(
   token: string,
   callingApplicationId: string,
-): Promise<McpAccessTokenClaims | null> {
+): Promise<{
+  claims: McpAccessTokenClaims;
+  grant: McpOauthGrantRow;
+  client: McpOauthClientRow;
+  descriptor: McpResourceDescriptor;
+} | null> {
   try {
     const signing = capabilityTicketSigningConfig();
     const untrusted = verifyMcpAccessTokenSignature(token, {
@@ -675,10 +688,30 @@ export async function introspectMcpAccessToken(
     });
     const claimScopes = normalizeMcpScopes(claims.scope);
     const storedScopes = normalizeMcpScopes(row.accessScopes);
-    return claimScopes.length === storedScopes.length
-      && claimScopes.every((scope, index) => scope === storedScopes[index])
-      ? claims
-      : null;
+    if (claimScopes.length !== storedScopes.length
+      || claimScopes.some((scope, index) => scope !== storedScopes[index])) return null;
+    return { claims, grant: row.grant, client: row.client, descriptor };
+  } catch {
+    return null;
+  }
+}
+
+export interface McpIntrospectionResult {
+  claims: McpAccessTokenClaims;
+  connection: McpConnectionState;
+}
+
+export async function introspectMcpAccessToken(
+  token: string,
+  callingApplicationId: string,
+): Promise<McpIntrospectionResult | null> {
+  const resolved = await resolveLiveMcpAccessToken(token, callingApplicationId);
+  if (!resolved) return null;
+  try {
+    return {
+      claims: resolved.claims,
+      connection: await resolveMcpConnectionState(resolved.grant),
+    };
   } catch {
     return null;
   }

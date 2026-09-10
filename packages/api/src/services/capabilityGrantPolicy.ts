@@ -5,7 +5,7 @@ import type {
   CatalogTool,
   GrantLimit,
   ToolGrantOverride,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { capabilityLimitError } from './capabilityLimitPolicy';
 
 export const SENSITIVE_CAPABILITY_PACKAGES: ReadonlySet<CapabilityPackage> = new Set([

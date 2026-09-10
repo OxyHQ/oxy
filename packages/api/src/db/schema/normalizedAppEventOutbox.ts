@@ -1,7 +1,7 @@
-import type { NormalizedAppEvent } from '@oxyhq/contracts';
+import type { NormalizedAppEvent } from '@oxy.so/contracts';
 import { sql } from 'drizzle-orm';
 import { check, index, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 
 /**
  * Transactional source of truth for normalized events emitted by Oxy apps.
