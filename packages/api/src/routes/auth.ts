@@ -864,8 +864,8 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
   // This flag is never a gate by itself.
   const originVerified =
     isTrustedApplication(resolvedApp) &&
-    !!boundOrigin &&
-    matchesRegisteredOrigin(registeredOrigins, boundOrigin);
+    !!requestOriginHeader &&
+    matchesRegisteredOrigin(registeredOrigins, requestOriginHeader);
 
   // COARSE requester descriptor for the approval screen ("Chrome on Windows"),
   // so the approver can see WHERE the request came from. It is derived
