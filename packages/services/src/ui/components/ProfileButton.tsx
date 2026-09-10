@@ -266,10 +266,13 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
 
     // ── Expanded row animation ──────────────────────────────────────────────
     // On native everything is statically visible (no hover exists). On web we
-    // reproduce Bluesky's reveal: the row fills with a subtle contrast bg, the
-    // avatar shrinks + slides left, and the name/handle/chevron fade in. The
-    // negative left margin tucks the identity block under the shrunk avatar so
-    // it slides out from behind it as the avatar contracts.
+    // reproduce Bluesky's reveal: the row fills with a subtle contrast bg and
+    // the avatar shrinks + slides left. Bluesky also tucks the identity block
+    // under the avatar with a negative margin, because there the name is
+    // revealed only on hover and slides out from behind the shrinking avatar.
+    // Here the identity is ALWAYS visible in the expanded row, so that tuck
+    // was a permanent overlap: at the default 40px avatar the name started 8px
+    // under it (OxyHQ/Alia#546). The row's own gap is the whole spacing now.
     const reducedMotion = isWeb && prefersReducedMotion();
 
     // Slide the shrunk avatar left so its visual left edge stays put as it
@@ -306,11 +309,6 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
 
     // Expanded mode always shows identity + chevron (console/inbox wide sidebar).
     // Hover only animates the row background and avatar shrink — not text visibility.
-    const identityStyle: ViewStyle | undefined = isWeb
-        ? {
-            marginLeft: -resolvedAvatarSize / 2,
-        }
-        : undefined;
 
     return (
         <View className={className} style={[styles.fullWidth, style]}>
@@ -322,7 +320,7 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
                 {...webInteractionProps}
             >
                 <View style={avatarWrapperStyle}>{avatarNode}</View>
-                <View style={[styles.identity, identityStyle]}>
+                <View style={styles.identity}>
                     <Text
                         style={[styles.displayName, { color: colors.text }]}
                         numberOfLines={1}
