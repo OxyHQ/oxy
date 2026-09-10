@@ -171,8 +171,14 @@ reaches the provider and settlement occurs exactly once.
 
 ### Later modalities — workstream 4
 
-`POST /v1/embeddings`, `/v1/images/generations`, `/v1/audio/transcriptions`,
-`/v1/audio/speech`, `/v1/rerank`, `/v1/batches` — none exists.
+`POST /v1/audio/speech` and `POST /v1/images/generations` are mounted in
+`packages/api/src/routes/inferenceEdge.ts`, synchronous and gated on a route
+whose catalogue capabilities declare that output; Kaana serves neither yet, so
+a request today ends at the route gate. `POST /v1/embeddings` and `/v1/rerank`
+do not exist. `/v1/audio/transcriptions` and `/v1/batches` are deliberately
+not mounted — the comment above the audio route in `inferenceEdge.ts` records
+why (no sound cost ceiling; batches do not fit the reserve → settle protocol
+and need an ADR 0009 amendment).
 
 Note also that `GET /v1/models/:id` is served as **two path segments**,
 `GET /v1/models/:publisher/:model`, because a canonical model id contains a
