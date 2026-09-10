@@ -21,8 +21,9 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="format-detection" content="telephone=no" />
 
-        <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
-        <meta name="theme-color" content="#050505" media="(prefers-color-scheme: dark)" />
+        {/* Startup fallback; Bloom adopts one entry and becomes the runtime owner. */}
+        <meta name="theme-color" content="#faf1f6" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#100d10" media="(prefers-color-scheme: dark)" />
 
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Accounts by Oxy" />

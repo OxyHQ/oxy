@@ -122,6 +122,27 @@ describe('base template bunfig.toml', () => {
   });
 });
 
+describe('base template document theme', () => {
+  test('ships light and dark startup fallbacks for Bloom to adopt', async () => {
+    const templateFile = path.join(
+      __dirname,
+      '..',
+      '..',
+      'templates',
+      'base',
+      'packages',
+      'frontend',
+      'app',
+      '+html.tsx',
+    );
+    const html = await fs.readFile(templateFile, 'utf8');
+
+    expect(html.match(/name="theme-color"/g)).toHaveLength(2);
+    expect(html).toContain('media="(prefers-color-scheme: light)"');
+    expect(html).toContain('media="(prefers-color-scheme: dark)"');
+  });
+});
+
 describe('AWS deploy template', () => {
   test('uses an app-specific role and cannot overwrite shared secrets', async () => {
     const templateFile = path.join(

@@ -65,7 +65,7 @@
   },
   "//peerDependencies": "THE TWO @oxy.so PEERS ARE DELIBERATE. This package couples to them by FILE PATH, not by API: `css/base.css` imports `@oxy.so/bloom/design-tokens/theme.css`, and `plugin/withOxyAppPreset.js` optionally requires `@oxy.so/services/plugins/withSharedIdentityReader`. Both peers retain a measured floor and a breaking-major cap so compatible patches deduplicate in consumers. Never replace either constraint with `*` or an uncapped range.",
   "peerDependencies": {
-    "@oxy.so/bloom": "^1.0.0",
+    "@oxy.so/bloom": "^1.0.7",
     "@oxy.so/services": "^1.0.1",
     "babel-plugin-module-resolver": "*",
     "babel-preset-expo": "*",

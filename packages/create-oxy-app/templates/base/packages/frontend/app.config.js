@@ -34,8 +34,8 @@ module.exports = {
       [
         'expo-splash-screen',
         {
-          backgroundColor: '#ffffff',
-          dark: { backgroundColor: '#000000' },
+          backgroundColor: '#faf1f6',
+          dark: { backgroundColor: '#100d10' },
         },
       ],
       // Shared Oxy native config: android:sharedUserId, iOS keychain group,
