@@ -30,6 +30,7 @@ const isWeb = Platform.OS === 'web';
  */
 const BG_TRANSITION_MS = 150;
 const AVATAR_TRANSITION_MS = 250;
+const OPACITY_TRANSITION_MS = 150;
 const LEAVE_DELAY_MS = 50;
 
 /** Shrunk-avatar scale on hover, matching Bluesky's `scale: 2/3`. */
@@ -266,13 +267,10 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
 
     // ── Expanded row animation ──────────────────────────────────────────────
     // On native everything is statically visible (no hover exists). On web we
-    // reproduce Bluesky's reveal: the row fills with a subtle contrast bg and
-    // the avatar shrinks + slides left. Bluesky also tucks the identity block
-    // under the avatar with a negative margin, because there the name is
-    // revealed only on hover and slides out from behind the shrinking avatar.
-    // Here the identity is ALWAYS visible in the expanded row, so that tuck
-    // was a permanent overlap: at the default 40px avatar the name started 8px
-    // under it (OxyHQ/Alia#546). The row's own gap is the whole spacing now.
+    // reproduce Bluesky's reveal: the row fills with a subtle contrast bg, the
+    // avatar shrinks + slides left, and the name/handle/actions fade in from
+    // behind it. Keeping the identity hidden while inactive is what makes the
+    // negative margin intentional instead of an overlap.
     const reducedMotion = isWeb && prefersReducedMotion();
 
     // Slide the shrunk avatar left so its visual left edge stays put as it
@@ -307,8 +305,24 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
         }
         : undefined;
 
-    // Expanded mode always shows identity + chevron (console/inbox wide sidebar).
-    // Hover only animates the row background and avatar shrink — not text visibility.
+    const identityStyle: ViewStyle | undefined = isWeb
+        ? {
+            marginLeft: -resolvedAvatarSize / 2,
+            opacity: active ? 1 : 0,
+            transitionProperty: 'opacity',
+            transitionDuration: `${OPACITY_TRANSITION_MS}ms`,
+            transitionDelay: active ? '0ms' : `${LEAVE_DELAY_MS}ms`,
+        }
+        : undefined;
+
+    const actionStyle: ViewStyle | undefined = isWeb
+        ? {
+            opacity: active ? 1 : 0,
+            transitionProperty: 'opacity',
+            transitionDuration: `${OPACITY_TRANSITION_MS}ms`,
+            transitionDelay: active ? '0ms' : `${LEAVE_DELAY_MS}ms`,
+        }
+        : undefined;
 
     return (
         <View className={className} style={[styles.fullWidth, style]}>
@@ -320,7 +334,7 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
                 {...webInteractionProps}
             >
                 <View style={avatarWrapperStyle}>{avatarNode}</View>
-                <View style={styles.identity}>
+                <View style={[styles.identity, identityStyle]}>
                     <Text
                         style={[styles.displayName, { color: colors.text }]}
                         numberOfLines={1}
@@ -336,7 +350,7 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
                         </Text>
                     ) : null}
                 </View>
-                <View>
+                <View style={actionStyle}>
                     <MaterialCommunityIcons
                         name="dots-horizontal"
                         size={18}
