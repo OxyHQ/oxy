@@ -90,7 +90,7 @@ const LEADING_HORIZONTAL_WHITESPACE = /\n +/g;
 const EXCESS_BLANK_LINES = /\n{3,}/g;
 
 /**
- * Normalize a SINGLE-LINE text value: page/link-preview titles, `siteName`,
+ * Normalize a SINGLE-LINE text value such as a page title or `siteName`,
  * display names, image alt text, handles, profile field labels.
  *
  * A line break in such a value is never meaningful — it is an artifact of the

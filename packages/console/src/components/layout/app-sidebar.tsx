@@ -9,6 +9,7 @@ import {
   Key01Icon,
   Login01Icon,
   Money01Icon,
+  Search01Icon,
   Settings01Icon,
   SourceCodeIcon,
 } from '@hugeicons/core-free-icons';
@@ -42,6 +43,20 @@ const mainNavItems = [
     title: 'Applications',
     url: '/apps',
     icon: Key01Icon,
+  },
+  {
+    title: 'APIs & Products',
+    url: '/clarity',
+    icon: Search01Icon,
+    items: [
+      { title: 'Clarity overview', url: '/clarity' },
+      { title: 'Search playground', url: '/clarity/search' },
+      { title: 'News', url: '/clarity/news' },
+      { title: 'Index URLs', url: '/clarity/indexing' },
+      { title: 'Sites & crawls', url: '/clarity/sites' },
+      { title: 'Jobs', url: '/clarity/jobs' },
+      { title: 'Usage & quotas', url: '/clarity/usage' },
+    ],
   },
   {
     title: 'Usage',

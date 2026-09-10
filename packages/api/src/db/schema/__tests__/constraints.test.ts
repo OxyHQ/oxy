@@ -16,7 +16,6 @@ import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { blocks } from '../blocks';
 import { labels } from '../labels';
-import { linkPreviews } from '../linkPreviews';
 import { pushTokens } from '../pushTokens';
 import { users } from '../users';
 import { webauthnCredentials } from '../webauthnCredentials';
@@ -104,18 +103,6 @@ describe('id column', () => {
     expect(second.id > first.id).toBe(true);
   });
 
-  it('requires a caller-supplied id where the id IS the content hash', async () => {
-    const sha = randomUUID().replace(/-/g, '').repeat(2).slice(0, 64);
-    await getDb().insert(linkPreviews).values({
-      id: sha,
-      requestedUrl: 'https://example.com/a',
-      canonicalUrl: 'https://example.com/a',
-    });
-
-    const [row] = await getDb().select().from(linkPreviews).where(eq(linkPreviews.id, sha));
-    expect(row.id).toBe(sha);
-    expect(row.status).toBe('pending');
-  });
 });
 
 describe('labels — case-insensitive unique (Mongo collation strength 2)', () => {

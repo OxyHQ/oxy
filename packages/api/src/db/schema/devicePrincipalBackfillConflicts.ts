@@ -30,7 +30,7 @@
  *
  * The primary key is the natural triple. A backfill is idempotent by
  * construction — `ON CONFLICT DO NOTHING` on re-run — and there is nothing a
- * generated id would identify that the triple does not. `link_previews` sets the
+ * generated id would identify that the triple does not. Some content-addressed tables set the
  * precedent that a table whose identity is intrinsic says so by having no
  * generator.
  */

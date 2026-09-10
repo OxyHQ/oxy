@@ -336,6 +336,34 @@ export const domainVerificationRequestSchema = z.object({
 
 export type DomainVerificationRequest = z.infer<typeof domainVerificationRequestSchema>;
 
+const resourceOriginHostSchema = z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.string().min(1).max(253).regex(
+        /^(?!-)[a-z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/,
+        'originHost must be a public DNS hostname without scheme, port or path',
+    ));
+
+/** Clarity resource-server request to bind a site to Oxy domain authority. */
+export const resourceDomainOwnershipRequestSchema = z.object({
+    accountId: z.string().min(1).max(128),
+    verifiedDomainId: z.string().min(1).max(128),
+    originHost: resourceOriginHostSchema,
+}).strict();
+
+export const resourceDomainOwnershipResponseSchema = z.object({
+    verified: z.boolean(),
+    accountId: z.string().min(1).max(128),
+    verifiedDomainId: z.string().min(1).max(128),
+    originHost: resourceOriginHostSchema,
+    verifiedAt: z.string().datetime().optional(),
+    method: z.enum(['dns-txt', 'well-known']).optional(),
+}).strict();
+
+export type ResourceDomainOwnershipRequest = z.infer<typeof resourceDomainOwnershipRequestSchema>;
+export type ResourceDomainOwnershipResponse = z.infer<typeof resourceDomainOwnershipResponseSchema>;
+
 /**
  * The instructions the API returns when a domain verification is requested. The
  * caller may prove ownership EITHER by publishing the `dns` TXT record OR by

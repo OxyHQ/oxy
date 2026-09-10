@@ -18,11 +18,11 @@ import paymentRoutes from './routes/payment.routes';
 import walletRoutes from './routes/wallet.routes';
 import reputationRoutes from './routes/reputation.routes';
 import moderationReputationRoutes from './routes/moderationReputation.routes';
-import linkMetadataRoutes from './routes/linkMetadata';
-import linksRoutes from './routes/links';
 import storeRoutes from './routes/store';
 import locationSearchRoutes from './routes/locationSearch';
 import authRoutes from './routes/auth';
+import resourceIntrospectionRoutes from './routes/resourceIntrospection';
+import productCatalogueRoutes from './routes/productCatalogue';
 import mcpOAuthRoutes, { mcpOAuthDiscoveryRouter } from './routes/mcpOAuth';
 import assetRoutes from './routes/assets';
 import cdnRoutes from './routes/cdn';
@@ -120,7 +120,6 @@ import {
   startTransparencyCheckpointJobs,
   stopTransparencyCheckpointJobs,
 } from './queue/transparencyCheckpoint.queue';
-import { startLinkPreviewWarmJobs, stopLinkPreviewWarmJobs } from './queue/linkPreviewWarm.queue';
 import { startAssetVariantJobs, stopAssetVariantJobs } from './queue/assetVariants.queue';
 import {
   startConductRiskExpiryJobs,
@@ -506,7 +505,6 @@ async function gracefulShutdown(signal: string) {
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
   await stopTransparencyCheckpointJobs();
-  await stopLinkPreviewWarmJobs();
   await stopAssetVariantJobs();
   await stopConductRiskExpiryJobs();
   await stopSubscriptionExpiryJobs();
@@ -675,6 +673,8 @@ app.get('/csrf-token', getCsrfToken);
 app.use(mcpOAuthDiscoveryRouter);
 app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
 app.use("/auth", authRateLimiter, authRoutes);
+app.use('/auth/resources', authRateLimiter, resourceIntrospectionRoutes);
+app.use('/v1/products', productCatalogueRoutes);
 app.use("/auth", userRateLimiter, csrfProtection, authLinkingRoutes); // Auth linking (requires auth)
 app.use("/assets", assetRoutes);
 // Public CDN origin for cloud.oxy.so/<id> (CloudFront OriginPath = /cdn). No
@@ -718,10 +718,6 @@ app.use('/notifications', userRateLimiter, csrfProtection, notificationsRouter);
 app.use('/reputation/moderation', csrfProtection, moderationReputationRoutes);
 app.use('/reputation', csrfProtection, reputationRoutes);
 app.use('/wallet', userRateLimiter, csrfProtection, walletRoutes);
-app.use('/link-metadata', userRateLimiter, linkMetadataRoutes);
-// Ecosystem link-preview (URL unfurl) service. Bearer/service-token reads (no
-// cookie writes → no CSRF); the route applies its own per-principal limiter.
-app.use('/links', linksRoutes);
 // The app store. Mounted bare because the router serves both a public
 // storefront and authenticated writes, so auth and CSRF are declared per route
 // inside it — a blanket middleware here would lock the storefront or leave the
@@ -1342,11 +1338,6 @@ export async function bootstrap(
   // history was not rewritten or suppressed without trusting this server.
   // Never throws; a failed publish retries on the next tick.
   await startTransparencyCheckpointJobs();
-
-  // Start the ecosystem link-preview warm subsystem: per-URL background
-  // resolves (BullMQ when REDIS_URL is set, else an in-process pending set).
-  // All remote I/O is background-only — never on a request's read path.
-  await startLinkPreviewWarmJobs();
 
   // Drain asset variant generation (sharp / ffmpeg) off the upload path. The
   // worker's concurrency is deliberately small — this is the CPU- and

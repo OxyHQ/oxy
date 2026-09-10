@@ -144,8 +144,8 @@ describe('AssetService.initUpload dedupe signing', () => {
     await insertFile({
       sha256: contentHash,
       ownerUserId: null,
-      systemOwner: '__link_preview_cache__',
-      purpose: 'link-preview',
+      systemOwner: '__federation_media_cache__',
+      purpose: 'federation-media-cache',
     });
 
     const fakeS3: FakeS3 = {

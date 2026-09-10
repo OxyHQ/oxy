@@ -108,7 +108,6 @@ export * from './inferenceUsageDailyRollups';
 export * from './inferenceUsageEvents';
 export * from './internalCostCenters';
 export * from './labels';
-export * from './linkPreviews';
 export * from './mailboxes';
 export * from './messageAttachments';
 export * from './messageRecipients';

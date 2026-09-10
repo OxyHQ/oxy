@@ -2,6 +2,7 @@ const config = {
   oxyUrl: import.meta.env.VITE_OXY_URL || 'https://api.oxy.so',
   accountsUrl: import.meta.env.VITE_ACCOUNTS_URL || 'https://accounts.oxy.so',
   docsUrl: import.meta.env.VITE_DOCS_URL || 'https://oxy.so/developers/docs',
+  clarityUrl: import.meta.env.VITE_CLARITY_URL || 'https://api.clarity.surf',
   // Public OAuth client id for this app (the registered `ApplicationCredential`
   // publicKey). Drives the #214 app-identity flow when passed to
   // `OxyProvider`. Public value — safe to commit. Overridable per

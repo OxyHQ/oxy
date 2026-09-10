@@ -10,7 +10,7 @@
  *
  * `CONVENTIONS.md` says a primary key is `text` from `generatedId()`. This table
  * is one of two deliberate exceptions (the other is `inference_providers`), for
- * a reason `link_previews.id` already established: an id that is CONTENT rather
+ * a reason content-addressed ids already established: an id that is CONTENT rather
  * than a surrogate says so by having no generator.
  *
  * A publisher slug is the left half of every canonical model id — `openai` in

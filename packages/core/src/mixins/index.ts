@@ -31,7 +31,6 @@ import { OxyServicesAppDataMixin } from './OxyServices.appData';
 import { OxyServicesCivicMixin } from './OxyServices.civic';
 import { OxyServicesChainsMixin } from './OxyServices.chains';
 import { OxyServicesNodesMixin } from './OxyServices.nodes';
-import { OxyServicesLinksMixin } from './OxyServices.links';
 import { OxyServicesFollowGraphMixin } from './OxyServices.followGraph';
 import { OxyServicesInferenceMixin } from './OxyServices.inference';
 import { OxyServicesDeviceBootMixin } from './OxyServices.deviceBoot';
@@ -71,7 +70,6 @@ type AllMixinInstances =
   & InstanceType<ReturnType<typeof OxyServicesCivicMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesChainsMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesNodesMixin<typeof OxyServicesBase>>>
-  & InstanceType<ReturnType<typeof OxyServicesLinksMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesFollowGraphMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesInferenceMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesDeviceBootMixin<typeof OxyServicesBase>>>
@@ -151,9 +149,6 @@ const MIXIN_PIPELINE: MixinFunction[] = [
     // User nodes / decentralization (Fase 5): register/read/revoke/manage the
     // caller's personal data node + ingest hint.
     OxyServicesNodesMixin,
-    // Link previews / unfurls: SDK-owned link-metadata resolution via oxy-api,
-    // so apps stop scraping link metadata locally.
-    OxyServicesLinksMixin,
     // The user-owned follow graph (#809). One relationship per user and target,
     // shared across applications, with per-application context on top.
     OxyServicesFollowGraphMixin,

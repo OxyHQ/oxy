@@ -150,12 +150,7 @@ describe('every path that writes original_name normalises it', () => {
     expect(await storedName(init.fileId)).toBe(CLEAN_NAME);
   });
 
-  it.each([
-    ['uploadCachedMediaStream', (s: AssetService, src: Readable) =>
-      s.uploadCachedMediaStream(src, 'image/png', MESSY_NAME, 1_000_000)],
-    ['uploadLinkPreviewImageStream', (s: AssetService, src: Readable) =>
-      s.uploadLinkPreviewImageStream(src, 'image/png', MESSY_NAME, 1_000_000)],
-  ])('%s', async (_label, upload) => {
+  it('uploadCachedMediaStream', async () => {
     const service = new AssetService(fakeS3());
     const content = uniqueBody();
     const source = new Readable({
@@ -165,7 +160,7 @@ describe('every path that writes original_name normalises it', () => {
       },
     });
 
-    const file = await upload(service, source);
+    const file = await service.uploadCachedMediaStream(source, 'image/png', MESSY_NAME, 1_000_000);
 
     expect(await storedName(file.id)).toBe(CLEAN_NAME);
   });

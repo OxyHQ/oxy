@@ -9,7 +9,7 @@
  * upserting on it (`routes/credits.ts:13`). That makes this a 1:1 extension of
  * `users`, so its key is `user_id`: a plain `text().primaryKey()` with a real
  * foreign key and NO generator, because the value is always supplied by the
- * caller. Same shape as `link_previews.id`, the exception `CONVENTIONS.md`
+ * caller. This is the content-addressed-id exception `CONVENTIONS.md`
  * records — a table whose id comes from somewhere else says so by having no
  * default.
  *

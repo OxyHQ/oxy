@@ -13,7 +13,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
 import { canonicalFederationHost, isSameFederationHost } from '@oxy.so/federation';
-import { readBoundedBody } from '../services/linkPreview/boundedBody';
+import { readBoundedBody } from '../utils/boundedBody';
 import { getDb } from '../config/postgres';
 import { identityBackups } from '../db/schema/identityBackups';
 import { users } from '../db/schema/users';
