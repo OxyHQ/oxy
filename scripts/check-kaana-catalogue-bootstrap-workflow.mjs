@@ -31,7 +31,7 @@ requireMatch(
 );
 requireMatch(
 	workflow,
-	/group: kaana-catalogue-bootstrap-production[\s\S]*?cancel-in-progress: false/,
+	/group: deploy-oxy-api[\s\S]*?cancel-in-progress: false/,
 	"workflow runs must be serialized without cancellation",
 );
 	requireMatch(
@@ -229,7 +229,7 @@ requireMatch(
 );
 requireMatch(
 	bootstrap,
-	/createKaanaCatalogueReviewedFactsSha256\(REVIEWED_CATALOGUE_FACTS\)[\s\S]*?reviewedFactsSha256: summaryWithoutPlan\.reviewedFactsSha256/,
+	/createKaanaCatalogueReviewedFactsSha256\(\s*REVIEWED_CATALOGUE_FACTS,?\s*\)[\s\S]*?reviewedFactsSha256: summaryWithoutPlan\.reviewedFactsSha256/,
 	"the plan must bind the canonical hash of every source-reviewed catalogue fact",
 );
 forbid(
