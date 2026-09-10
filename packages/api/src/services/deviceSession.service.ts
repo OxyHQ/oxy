@@ -775,6 +775,12 @@ class DeviceSessionService {
           .set({
             ...(await this.resolveActiveFields(tx, current.id, nextActiveAccountId)),
             revision: sql`${deviceSessions.revision} + 1`,
+            // This credential authorizes the exact account session that was
+            // present when it was issued. Re-authenticating that account must
+            // not let the old credential silently follow the replacement.
+            ...(existing && current.backgroundSecretAccountId === input.accountId
+              ? this.clearedBackgroundCredentialFields()
+              : {}),
           })
           .where(eq(deviceSessions.id, current.id));
 
