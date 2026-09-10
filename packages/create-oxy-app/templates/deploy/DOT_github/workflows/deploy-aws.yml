@@ -47,7 +47,6 @@ jobs:
           SSM_SECRET_ALLOWLIST: >-
             DATABASE_URL REDIS_URL
             OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET
-            AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
         run: |
           echo "$SECRETS_JSON" | jq -r --arg allowlist "$SSM_SECRET_ALLOWLIST" '
             ($allowlist | split(" ")) as $allowed
@@ -61,7 +60,7 @@ jobs:
               echo "::warning::skip empty/placeholder secret $k; SSM unchanged"
               continue
             fi
-            case " $SHARED " in *" $k "*) path="/oxy/_shared/$k";; *) path="/oxy/$APP/$k";; esac
+            path="/oxy/$APP/$k"
             printf '%s' "$v" | aws ssm put-parameter \
               --name "$path" \
               --type SecureString \
