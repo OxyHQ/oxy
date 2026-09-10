@@ -376,6 +376,41 @@ describe('POST /auth/session/create — the OAuth binding', () => {
     );
 
     expect(res.status).toBe(200);
+    const row = await stored(sessionToken);
+    expect(row.boundOrigin).toBe('https://rp.example');
+    expect(row.originVerified).toBe(false);
+  });
+
+  it('does not verify a trusted OAuth app from an attacker origin', async () => {
+    const { clientId } = await client({ isOfficial: true, type: 'first_party' });
+    const sessionToken = token();
+
+    const res = await post(
+      '/auth/session/create',
+      { sessionToken, clientId, oauth: oauthBody() },
+      { origin: 'https://evil.example' },
+    );
+
+    expect(res.status).toBe(200);
+    const row = await stored(sessionToken);
+    // Keep showing the intended relying party, but do not turn its registered
+    // redirect URI into proof that this request actually came from that party.
+    expect(row.boundOrigin).toBe('https://rp.example');
+    expect(row.originVerified).toBe(false);
+  });
+
+  it('verifies a trusted OAuth app when the request origin is registered', async () => {
+    const { clientId } = await client({ isOfficial: true, type: 'first_party' });
+    const sessionToken = token();
+
+    const res = await post(
+      '/auth/session/create',
+      { sessionToken, clientId, oauth: oauthBody() },
+      { origin: 'https://rp.example' },
+    );
+
+    expect(res.status).toBe(200);
+    expect((await stored(sessionToken)).originVerified).toBe(true);
   });
 
   it('still rejects a trusted DEVICE sign-in from an unregistered browser origin', async () => {

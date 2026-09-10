@@ -775,6 +775,12 @@ class DeviceSessionService {
           .set({
             ...(await this.resolveActiveFields(tx, current.id, nextActiveAccountId)),
             revision: sql`${deviceSessions.revision} + 1`,
+            // This credential authorizes the exact account session that was
+            // present when it was issued. Re-authenticating that account must
+            // not let the old credential silently follow the replacement.
+            ...(existing && current.backgroundSecretAccountId === input.accountId
+              ? this.clearedBackgroundCredentialFields()
+              : {}),
           })
           .where(eq(deviceSessions.id, current.id));
 
@@ -923,10 +929,9 @@ class DeviceSessionService {
       'all' in target ||
       (boundBackgroundAccountId !== null && removingIds.has(boundBackgroundAccountId));
 
-    // Signout-ALL also revokes the device's `deviceSecret`: clear the secret
-    // hashes so a retained secret can never later mint a token for the now-empty
-    // set. Single-account signout leaves the secret alone — other accounts on the
-    // SAME device still legitimately mint with it.
+    // Every signout revokes the device's shared `deviceSecret`. The credential is
+    // not account-scoped, so retaining it after removing one account would let
+    // that signed-out account mint a token for whichever account remains active.
     //
     // Cleared to NULL, never `''`. Mongo used `$unset`; the Postgres analogue of
     // "absent" is NULL. An empty string is a VALUE — it would collide on
@@ -942,14 +947,10 @@ class DeviceSessionService {
     // have worked while the next app silently rejoined. Single-account signout
     // leaves it alone: the browser's other accounts still legitimately use it.
     const clearedSecrets = {
-      ...('all' in target
-        ? {
-            secretHash: null,
-            prevSecretHash: null,
-            prevSecretExpiresAt: null,
-            ...this.clearedHubHandleFields(),
-          }
-        : {}),
+      secretHash: null,
+      prevSecretHash: null,
+      prevSecretExpiresAt: null,
+      ...('all' in target ? this.clearedHubHandleFields() : {}),
       ...(shouldClearBackground ? this.clearedBackgroundCredentialFields() : {}),
     };
 

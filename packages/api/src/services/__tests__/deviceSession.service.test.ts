@@ -269,6 +269,25 @@ describe('addAccount', () => {
     expect(rows.find((r) => r.accountId === a1)?.sessionId).toBe('s-new');
   });
 
+  it('revokes a background credential when its account session is replaced', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's-old' });
+    mockGetAccessToken.mockResolvedValue({ accessToken: 'jwt-old', expiresAt: new Date() });
+    const credential = await deviceSessionService.issueBackgroundCredential(device, a1);
+
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's-new' });
+
+    const stored = await storedDevice(device);
+    expect(stored.backgroundSecretHash).toBeNull();
+    expect(stored.backgroundSecretAccountId).toBeNull();
+    expect(stored.backgroundSecretExpiresAt).toBeNull();
+    expect(
+      await deviceSessionService.mintFromBackgroundSecret(device, credential?.secret as string)
+    ).toEqual({ ok: false, reason: 'background_credential_invalid' });
+    expect(mockGetAccessToken).not.toHaveBeenCalled();
+  });
+
   it('idempotent re-register with the SAME sessionId is a pure no-op (no deactivate, no revision bump)', async () => {
     const device = deviceId();
     const a1 = await account();
@@ -572,19 +591,23 @@ describe('signout — device-secret cleanup', () => {
     expect(after.backgroundSecretExpiresAt).toBeNull();
   });
 
-  it('single-account signout does NOT clear the device secret (other accounts still mint with it)', async () => {
+  it('single-account signout revokes the shared device secret', async () => {
     const device = deviceId();
     const a1 = await account();
     const a2 = await account();
     await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
     await deviceSessionService.addAccount(device, { accountId: a2, sessionId: 's2' });
-    await deviceSessionService.issueDeviceSecret(device);
-    const before = await storedDevice(device);
+    const previousRetainedSecret = await deviceSessionService.issueDeviceSecret(device);
+    const retainedSecret = await deviceSessionService.issueDeviceSecret(device);
 
     await deviceSessionService.signout(device, { accountId: a1 });
 
     const after = await storedDevice(device);
-    expect(after.secretHash).toBe(before.secretHash);
+    expect(after.secretHash).toBeNull();
+    expect(after.prevSecretHash).toBeNull();
+    expect(after.prevSecretExpiresAt).toBeNull();
+    expect(await deviceSessionService.getStateBySecret(device, retainedSecret as string)).toBeNull();
+    expect(await deviceSessionService.getStateBySecret(device, previousRetainedSecret as string)).toBeNull();
   });
 
   it('single-account signout DOES clear a background credential bound to the removed account', async () => {
@@ -602,8 +625,8 @@ describe('signout — device-secret cleanup', () => {
     const after = await storedDevice(device);
     expect(after.backgroundSecretHash).toBeNull();
     expect(after.backgroundSecretAccountId).toBeNull();
-    // The DEVICE secret survives — a2 is still here and legitimately mints.
-    expect(after.secretHash).not.toBeNull();
+    // The device secret is shared, so removing any account must revoke it too.
+    expect(after.secretHash).toBeNull();
   });
 
   it('single-account signout leaves a background credential bound to a DIFFERENT account alone', async () => {

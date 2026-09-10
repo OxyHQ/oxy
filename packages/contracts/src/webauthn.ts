@@ -3,7 +3,7 @@
  *
  * These schemas describe ONLY the outer Oxy envelope that wraps a WebAuthn
  * ceremony request — the username the client is registering/authenticating as,
- * plus the device-session options every first-party sign-in accepts. The browser
+ * plus non-authoritative device metadata. The browser
  * `RegistrationResponseJSON` / `AuthenticationResponseJSON` payloads are NOT
  * mirrored here: they are validated by `@simplewebauthn/server` inside the route
  * (`verifyRegistrationResponse` / `verifyAuthenticationResponse`), which is the

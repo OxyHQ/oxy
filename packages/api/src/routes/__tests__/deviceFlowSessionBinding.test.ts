@@ -196,14 +196,14 @@ describe('approve then claim, on a device that is already signed in', () => {
 
     const approved = await post(`/auth/session/authorize/${sessionToken}`, {});
     expect(approved.status).toBe(200);
-    // The approve reused the device's existing session, which is the whole
-    // point: it is that session's binding the mint must not narrow.
-    expect((approved.body.data as { sessionId?: string }).sessionId).toBe(sessionId);
+    // A public device-flow request has not proved possession of the supplied
+    // device identity, so approval must mint an isolated app session instead
+    // of attaching to the already signed-in device session.
+    const approvedSessionId = (approved.body.data as { sessionId?: string }).sessionId;
+    expect(typeof approvedSessionId).toBe('string');
+    expect(approvedSessionId).not.toBe(sessionId);
 
-    // The token the approve LEFT ON THE ROW has to still describe that row. It
-    // is a shipped credential, not an intermediate: `buildSessionAuthResponse`
-    // hands `session.accessToken` straight to the client on the webauthn and
-    // public-key sign-in lanes, which reuse through this same branch.
+    // The pre-existing device session and its binding remain untouched.
     const afterApprove = await storedSession(sessionId);
     expect(afterApprove.deviceSessionId).toBe(boundBefore.deviceSessionId);
     sessionCache.clear();

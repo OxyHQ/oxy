@@ -256,8 +256,9 @@ describe('POST /auth/session/authorize/:sessionToken — the bearer is the princ
     expect(mockCreateSession).toHaveBeenCalledWith(
       authenticatedUser._id,
       expect.anything(),
-      expect.objectContaining({ deviceName: 'Acme Widgets App', deviceId: 'dev-abc' }),
+      expect.objectContaining({ deviceName: 'Acme Widgets App' }),
     );
+    expect(mockCreateSession.mock.calls[0]?.[2]).not.toHaveProperty('deviceId');
   });
 
   it('404s a request that is not pending, without minting anything', async () => {

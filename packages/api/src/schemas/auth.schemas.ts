@@ -3,7 +3,6 @@ import { z } from 'zod';
 
 const deviceIdField = z.string().trim().min(1).max(128).optional();
 
-
 // POST /auth/register (public key)
 export const registerPublicKeySchema = z.object({
   publicKey: z.string().trim().min(1),
@@ -87,8 +86,6 @@ export const authSessionCreateSchema = z.object({
   clientId: z.string().trim().min(1).optional(),
   applicationId: z.string().trim().min(1).optional(),
   expiresAt: z.union([z.string(), z.number()]).optional(),
-  /** Originating RP device id — converges QR sign-in onto the same DeviceSession. */
-  deviceId: deviceIdField,
   oauth: authSessionOAuthContextSchema.optional(),
 }).refine(
   (data) => Boolean(data.clientId) || Boolean(data.applicationId),
