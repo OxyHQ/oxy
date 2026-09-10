@@ -3,13 +3,13 @@
  * DELETED from this module. They were a third copy of the username policy —
  * `length >= 4 && /^[a-z0-9]+$/i` plus a coercer that lower-cased and stripped
  * every separator — and it agreed with neither the server nor the SDK. The rule
- * lives once, in `@oxyhq/contracts`, with its own suite; this file now covers the
+ * lives once, in `@oxy.so/contracts`, with its own suite; this file now covers the
  * one thing that is genuinely local, the suggestion generator, and asserts what
  * it generates is storable under that single rule.
  */
 
 import { generateSuggestedUsername } from '@/utils/auth/usernameUtils';
-import { isValidUsername } from '@oxyhq/contracts';
+import { isValidUsername } from '@oxy.so/contracts';
 
 import {
   USERNAME_ADJECTIVES,

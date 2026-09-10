@@ -9,8 +9,8 @@
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
 import { and, eq, sql } from 'drizzle-orm';
-import { signRequest, canonicalFederationHost, isSameFederationHost } from '@oxyhq/federation';
-import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxyhq/core/server';
+import { signRequest, canonicalFederationHost, isSameFederationHost } from '@oxy.so/federation';
+import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
 import { federationKeyPairs } from '../db/schema/federationKeyPairs';
 import { ACCOUNT_KINDS, users } from '../db/schema/users';
@@ -508,7 +508,7 @@ async function signedFetch(url: string, accept: string): Promise<SafeFetchResult
   if (!res) return null;
 
   // Remote 5xx with a signature often means the server could not verify our keyId;
-  // retry unsigned for public resources (same fallback as @oxyhq/federation/node).
+  // retry unsigned for public resources (same fallback as @oxy.so/federation/node).
   if (res.status >= 500) {
     logger.info(`[Federation] signedFetch got ${res.status} for ${url}, retrying unsigned`);
     res.response.destroy();

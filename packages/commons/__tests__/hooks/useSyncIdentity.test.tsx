@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 
 // Stub only the server round-trip; the hook's lock + store wiring stays real.
 const syncIdentityWithServerMock = jest.fn();

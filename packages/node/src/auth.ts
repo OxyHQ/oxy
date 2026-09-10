@@ -1,5 +1,5 @@
 /**
- * Owner authorization for node writes — the implementation of `@oxyhq/protocol`'s
+ * Owner authorization for node writes — the implementation of `@oxy.so/protocol`'s
  * injected {@link OwnerAuth}, bound to the node's configured owner public key.
  *
  * Two write paths, both anchored on the owner key:
@@ -12,19 +12,19 @@
  *  2. **Blob pins** (`PUT /blobs/:hash`) — the body is raw bytes, not a signed
  *     envelope, so the owner proves control with a fresh signed header over the
  *     action ({@link verifyOwnerActionSignature}). This reuses the SAME
- *     `@oxyhq/protocol` secp256k1 verification rather than a shared bearer secret.
+ *     `@oxy.so/protocol` secp256k1 verification rather than a shared bearer secret.
  *
  * The owner-auth message format and key-equality helper live HERE (not in
- * `@oxyhq/protocol`) so the protocol package stays free of `@oxyhq/core` — the
+ * `@oxy.so/protocol`) so the protocol package stays free of `@oxy.so/core` — the
  * node injects this implementation into `createNodeApp`.
  *
- * Public-key equality is compared with `verifySecret` (`@oxyhq/core/server`) —
+ * Public-key equality is compared with `verifySecret` (`@oxy.so/core/server`) —
  * constant-time and length-guarded, the blessed helper for identity equality.
  */
 
-import { verifySignature } from '@oxyhq/protocol';
-import { OWNER_ACTION_BLOB_PIN, OWNER_AUTH_MAX_AGE_MS, type OwnerAuth } from '@oxyhq/protocol/node';
-import { verifySecret } from '@oxyhq/core/server';
+import { verifySignature } from '@oxy.so/protocol';
+import { OWNER_ACTION_BLOB_PIN, OWNER_AUTH_MAX_AGE_MS, type OwnerAuth } from '@oxy.so/protocol/node';
+import { verifySecret } from '@oxy.so/core/server';
 
 /** True iff `publicKey` is the node's configured owner key (case-insensitive, constant-time). */
 export function isOwnerKey(publicKey: string, ownerPublicKey: string): boolean {

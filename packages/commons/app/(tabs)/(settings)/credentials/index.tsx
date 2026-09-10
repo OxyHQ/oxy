@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import type { VerifiableCredentialResponse, CredentialStatus } from '@oxyhq/contracts';
+import type { VerifiableCredentialResponse, CredentialStatus } from '@oxy.so/contracts';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { Screen, StackHeader, Section, GroupedList, CenteredState, SessionGate } from '@/components/ui';

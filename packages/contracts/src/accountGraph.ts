@@ -28,7 +28,7 @@ export type AccountKind = 'personal' | 'organization' | 'project' | 'bot' | 'cha
  * `db/schema/users.ts` mirrors to keep the `users_kind_check` CHECK honest.
  *
  * Deriving the union from the array instead would cost nothing here and be paid
- * by consumers: `kind` travels into `@oxyhq/services` on every device-directory
+ * by consumers: `kind` travels into `@oxy.so/services` on every device-directory
  * context (`deviceContextSchema.kind` → `DeviceContext` → the switcher rows),
  * and an indexed-access type is materially more expensive to check there than a
  * literal union.
@@ -187,7 +187,7 @@ export function isAccountKind(value: unknown): value is AccountKind {
  * that fits nothing here.
  *
  * TO ADD ONE: append an id (lowercase ASCII, `snake_case`) here, publish
- * `@oxyhq/contracts`, then ship a migration that widens
+ * `@oxy.so/contracts`, then ship a migration that widens
  * `users_account_categories_check` — never edit an existing migration — and add
  * an `accounts.accountCategory.<id>` label to each client's locales.
  *

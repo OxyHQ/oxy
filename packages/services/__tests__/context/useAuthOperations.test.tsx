@@ -12,7 +12,7 @@
  * `DeviceManager`, `SignatureService`, `fetchSessionsWithFallback`, the
  * device-first `AuthStateStore`, and the OxyServices network methods are mocked
  * so the test exercises the orchestration logic only — actual network, crypto,
- * and persistence belong to `@oxyhq/core` and are covered by its own tests.
+ * and persistence belong to `@oxy.so/core` and are covered by its own tests.
  *
  * `logout` routes server-side revocation through a mocked `SessionClient`.
  * `logoutAll` first uses the global bearer endpoint to revoke other devices and
@@ -22,9 +22,9 @@
  */
 
 import { renderHook, act } from '@testing-library/react';
-import type { SessionLoginResponse, User } from '@oxyhq/core';
+import type { SessionLoginResponse, User } from '@oxy.so/core';
 
-jest.mock('@oxyhq/core', () => {
+jest.mock('@oxy.so/core', () => {
   return {
     __esModule: true,
     DeviceManager: {
@@ -136,7 +136,7 @@ function buildFakeSessionClient(initialAccounts: FakeSessionAccount[]) {
 /**
  * The runtime surface `useAuthOperations` touches, as a recorder.
  *
- * This suite mocks `@oxyhq/core` wholesale — its subject is the orchestration,
+ * This suite mocks `@oxy.so/core` wholesale — its subject is the orchestration,
  * not the projection — so a real `OxyRuntime` would be built over a mocked core
  * and prove nothing extra. `activeSessionId` is a real mutable fact because the
  * hook READS it back to decide whether there is anything to sign out.
@@ -254,7 +254,7 @@ describe('useAuthOperations.signIn — online flow', () => {
     expect(helpers.oxyServices.requestChallenge).toHaveBeenCalledWith('pubkey-1');
     expect(helpers.oxyServices.verifyChallenge).toHaveBeenCalled();
     // `verifyChallenge` now plants the first access token internally (asserted
-    // in @oxyhq/core's auth mixin tests), so the consumer no longer touches
+    // in @oxy.so/core's auth mixin tests), so the consumer no longer touches
     // `setTokens` directly...
     expect(helpers.oxyServices.setTokens).not.toHaveBeenCalled();
     // ...and hydrates the user from the bearer (`GET /users/me`), NOT a

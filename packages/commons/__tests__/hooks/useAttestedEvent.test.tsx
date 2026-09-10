@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { __emitOxyEvent } from '@/__mocks__/oxyhq-services';
+import { __emitOxyEvent } from '@/__mocks__/oxy-services';
 import { useAttestedEvent } from '@/hooks/civic/useAttestedEvent';
 
 describe('useAttestedEvent', () => {

@@ -1,6 +1,6 @@
 {
-  "package": "@oxyhq/core",
-  "displayName": "@oxyhq/core",
+  "package": "@oxy.so/core",
+  "displayName": "@oxy.so/core",
   "shortName": "core",
   "repo": "https://github.com/OxyHQ/OxyHQServices",
   "category": "sdk",
@@ -16,5 +16,5 @@
     "entry": "src/index.ts"
   },
   "description": "Platform-agnostic OxyServices client, mixins, and crypto. Zero React/RN.",
-  "versionsNote": "Current docs are generated from the main branch for @oxyhq/core 3.4.1; legacy 1.x popup-token docs are intentionally not published."
+  "versionsNote": "Current docs are generated from the main branch for @oxy.so/core 3.4.1; legacy 1.x popup-token docs are intentionally not published."
 }

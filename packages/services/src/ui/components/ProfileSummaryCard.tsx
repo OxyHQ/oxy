@@ -1,9 +1,9 @@
 import type React from 'react';
 import { View, type ViewStyle } from 'react-native';
-import { H4, Text } from '@oxyhq/bloom/typography';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { Card } from '@oxyhq/bloom/card';
-import { PressableScale } from '@oxyhq/bloom/pressable-scale';
+import { H4, Text } from '@oxy.so/bloom/typography';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Card } from '@oxy.so/bloom/card';
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import AvatarCameraBadge from './AvatarCameraBadge';
 
 /**

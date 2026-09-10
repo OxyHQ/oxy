@@ -103,10 +103,10 @@ with an inference credential; either works.
 The id is **two path segments**, not one: a canonical model id contains a slash,
 so a single `:id` segment would never match it.
 
-From the SDK (`@oxyhq/core`):
+From the SDK (`@oxy.so/core`):
 
 ```typescript
-import type { ModelCatalogueEntry, RoutingProfile } from '@oxyhq/contracts';
+import type { ModelCatalogueEntry, RoutingProfile } from '@oxy.so/contracts';
 
 const inference = oxy.inference();   // or new OxyInferenceClient({ credential: 'oxy_sk_…' })
 
@@ -121,8 +121,8 @@ whenever the caller's live audience has no published entries; that answer alone
 does not distinguish an empty catalogue from a deliberately withheld audience.
 The client is [sdk.md](./sdk.md).
 
-Types come from `@oxyhq/contracts` directly — `@oxyhq/services` does not
-re-export them, and neither does `@oxyhq/core`.
+Types come from `@oxy.so/contracts` directly — `@oxy.so/services` does not
+re-export them, and neither does `@oxy.so/core`.
 
 Three behaviours to code against:
 

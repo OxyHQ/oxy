@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
-import { toast } from '@oxyhq/bloom/toast';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { toast } from '@oxy.so/bloom/toast';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowDataTransferHorizontalIcon, Route01Icon } from '@hugeicons/core-free-icons';
 import type { Application, CallerAccess } from '@/hooks/use-applications';

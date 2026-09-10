@@ -125,7 +125,7 @@ import {
   type RoutingTarget,
   type UsageSource,
   type UsageUnit,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { isChargingAuthorized, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
 import { applications } from '../db/schema/applications';

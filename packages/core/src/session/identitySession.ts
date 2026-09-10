@@ -39,7 +39,7 @@ export interface IdentityRequestOptions {
 
 /**
  * Everything an identity-bound client needs to resolve and re-establish its
- * session. `@oxyhq/services` builds one of these (platform-appropriate pin
+ * session. `@oxy.so/services` builds one of these (platform-appropriate pin
  * store) and passes it to the cold boot and the refresh handler.
  */
 export interface IdentityBinding {

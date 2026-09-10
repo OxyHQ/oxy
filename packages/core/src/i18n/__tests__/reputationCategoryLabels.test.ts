@@ -1,4 +1,4 @@
-import { REPUTATION_CATEGORIES } from '@oxyhq/contracts';
+import { REPUTATION_CATEGORIES } from '@oxy.so/contracts';
 import {
   EN_REPUTATION_CATEGORY_LABELS,
   reputationCategoryLabel,

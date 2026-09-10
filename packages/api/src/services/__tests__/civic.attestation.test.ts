@@ -21,9 +21,9 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { and, asc, eq } from 'drizzle-orm';
-import { signedRecordSigningInput } from '@oxyhq/protocol';
+import { signedRecordSigningInput } from '@oxy.so/protocol';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { repoHeads } from '../../db/schema/repoHeads';
 import { reputationTransactions } from '../../db/schema/reputationTransactions';

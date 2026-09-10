@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
-import type { ModelCatalogueEntry, RoutingProfile } from '@oxyhq/contracts';
+import { useAuth } from '@oxy.so/services';
+import type { ModelCatalogueEntry, RoutingProfile } from '@oxy.so/contracts';
 
 // ===========================================================================
 // The model catalogue — read from the real catalogue API (issue #972,
 // workstream 5), not from the retired `/models/stats` envelope.
 //
-// Wire types come from `@oxyhq/contracts`, which is the schema the API parses
+// Wire types come from `@oxy.so/contracts`, which is the schema the API parses
 // its own output with (`modelCatalogueEntrySchema.parse(entry)` in
 // `inferenceCatalogue.service.ts`). Producer and consumer therefore cannot
 // drift: a field the server stops serving stops existing here too.

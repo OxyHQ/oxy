@@ -15,7 +15,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { routingPolicyScopeSchema, type RoutingPolicy } from '@oxyhq/contracts';
+import { routingPolicyScopeSchema, type RoutingPolicy } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
 import { inferenceModelRevisions } from '../../db/schema/inferenceModelRevisions';

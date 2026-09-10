@@ -11,7 +11,7 @@
  *
  *   plugins: [
  *     'expo-updates',
- *     ['@oxyhq/app-preset/plugin/withOxyUpdates', { clientId: OXY_CLIENT_ID }],
+ *     ['@oxy.so/app-preset/plugin/withOxyUpdates', { clientId: OXY_CLIENT_ID }],
  *   ]
  *
  * What it sets:
@@ -85,7 +85,7 @@ const CODE_SIGNING_ALG = 'rsa-v1_5-sha256';
 const CERTIFICATE_PATH = path.join(__dirname, '..', 'certs', 'oxy-updates-code-signing.pem');
 
 /** Plugin name used in build warnings and errors. */
-const PLUGIN_NAME = '@oxyhq/app-preset/plugin/withOxyUpdates';
+const PLUGIN_NAME = '@oxy.so/app-preset/plugin/withOxyUpdates';
 
 module.exports = function withOxyUpdates(config, options = {}) {
   const {
@@ -136,11 +136,11 @@ module.exports = function withOxyUpdates(config, options = {}) {
         `[${PLUGIN_NAME}] code signing is required but the Oxy Updates certificate is missing at `
           + `${certificatePath}. Generate the ecosystem keypair with oxy-api's `
           + '`bun scripts/generate-updates-code-signing.ts`, commit the certificate into '
-          + '@oxyhq/app-preset, and set the private key as UPDATES_CODE_SIGNING_PRIVATE_KEY on oxy-api.',
+          + '@oxy.so/app-preset, and set the private key as UPDATES_CODE_SIGNING_PRIVATE_KEY on oxy-api.',
       );
     } else {
       const warning =
-        'The Oxy Updates code-signing certificate is not present in @oxyhq/app-preset, so this build '
+        'The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build '
         + 'will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in '
         + 'at build time). Do not ship this binary to a store. See the app-preset README, section '
         + '"Oxy Updates (OTA)".';

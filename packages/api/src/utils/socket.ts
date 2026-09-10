@@ -1,6 +1,6 @@
 import type { Server as SocketIOServer } from 'socket.io';
-import type { DeviceSessionState, SessionAccountsChangedReason } from '@oxyhq/contracts';
-import { SESSION_ACCOUNTS_CHANGED_EVENT } from '@oxyhq/contracts';
+import type { DeviceSessionState, SessionAccountsChangedReason } from '@oxy.so/contracts';
+import { SESSION_ACCOUNTS_CHANGED_EVENT } from '@oxy.so/contracts';
 import { logger } from './logger';
 
 let io: SocketIOServer | null = null;

@@ -8,7 +8,7 @@
  * account and persist the PINNED account's identity, whatever the device's
  * active account happens to be.
  */
-import type { DeviceTokenMintResponse } from '@oxyhq/contracts';
+import type { DeviceTokenMintResponse } from '@oxy.so/contracts';
 import type { OxyServices } from '../../OxyServices';
 import type { SessionLoginResponse } from '../../models/session';
 import type { AuthChallenge } from '../../crypto/signatureService';

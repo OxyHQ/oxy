@@ -28,14 +28,14 @@
  */
 
 import { bytesToHex, hexToBytes, utf8ToBytes, bytesToUtf8 } from '@noble/hashes/utils';
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import type { OxyServicesBase } from '../OxyServices.base';
 import type {
   DeviceTransferInfoResponse,
   DeviceTransferInitResponse,
   DeviceTransferApproveResponse,
   DeviceTransferDenyResponse,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { deriveSharedSecret } from '../crypto/ecdh';
 import { hkdfSha256 } from '../crypto/kdf';
 import { encryptAead, decryptAead } from '../crypto/aead';

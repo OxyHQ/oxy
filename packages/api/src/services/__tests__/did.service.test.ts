@@ -6,9 +6,9 @@
  * composition, and the Oxy organisation document.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { buildUserDid, buildDidDocument, buildOxyDidDocument, OXY_DID } from '../did.service';
-import { didDocumentSchema } from '@oxyhq/contracts';
+import { didDocumentSchema } from '@oxy.so/contracts';
 
 
 function newPublicKey(): string {
@@ -265,7 +265,7 @@ describe('DID_WEB_DOMAIN override', () => {
 
     // The server-emitted spelling.
     expect(fresh.parseUserDid(`did:web:api.oxy.so:u:${id}`)).toBe(id);
-    // The SDK spelling (@oxyhq/core OXY_IDENTITY_APEX) — client-signed envelopes
+    // The SDK spelling (@oxy.so/core OXY_IDENTITY_APEX) — client-signed envelopes
     // arrive anchored at the identity apex regardless of DID_WEB_DOMAIN.
     expect(fresh.parseUserDid(`did:web:oxy.so:u:${id}`)).toBe(id);
 

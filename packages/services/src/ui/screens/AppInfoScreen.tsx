@@ -8,15 +8,15 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { packageInfo } from '@oxyhq/core';
-import { toast } from '@oxyhq/bloom/toast';
+import { packageInfo } from '@oxy.so/core';
+import { toast } from '@oxy.so/bloom/toast';
 import OxyServicesLogo from '../../assets/icons/OxyServices';
 import { SettingsIcon } from '../components/SettingsIcon';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 
 interface SystemInfo {
     platform: string;

@@ -4,7 +4,7 @@
  *
  * The suite this replaces mocked `models/UserNode`, `models/User`,
  * `signedRecord.service`, `repoLog.service`, `signature.service` and
- * `@oxyhq/protocol`, so "custodial-signs a node record, stores it, and
+ * `@oxy.so/protocol`, so "custodial-signs a node record, stores it, and
  * materializes a managed UserNode" was checked by reading back the arguments the
  * service had passed to `mockVerifyAndStoreRecord` — a mock that returned
  * `{ ok: true }` no matter what it was handed. Nothing was signed, verified or
@@ -33,12 +33,12 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { eq } from 'drizzle-orm';
 
 const mockSafeFetch = jest.fn();
-jest.mock('@oxyhq/core/server', () => ({
-  ...jest.requireActual('@oxyhq/core/server'),
+jest.mock('@oxy.so/core/server', () => ({
+  ...jest.requireActual('@oxy.so/core/server'),
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
 }));
 

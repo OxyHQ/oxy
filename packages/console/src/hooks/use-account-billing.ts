@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import type {
   AccountBillingState,
   AutoRechargeAttempt,
   BillingInvoice,
   ProductEntitlement,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 // ===========================================================================
 // Account-scoped billing (`/billing/accounts`, issue #972 sections 7.1/7.4/7.5).
@@ -19,7 +19,7 @@ import type {
 // `billing:read` / `billing:manage` come off the account node the API serves
 // (`callerMembership.permissions`), and the pages pass the answer in.
 //
-// The shapes are `@oxyhq/contracts`' own — this surface, unlike the reporting
+// The shapes are `@oxy.so/contracts`' own — this surface, unlike the reporting
 // one, publishes its contract, so there is nothing to restate here.
 //
 // WHAT IS NOT HERE, and where it went. `GET /billing/accounts/:id` answers who

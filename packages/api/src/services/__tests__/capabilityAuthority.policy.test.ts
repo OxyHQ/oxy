@@ -1,4 +1,4 @@
-import type { CatalogTool } from '@oxyhq/contracts';
+import type { CatalogTool } from '@oxy.so/contracts';
 import {
   grantAllowsTool,
   mostRestrictiveAutonomy,

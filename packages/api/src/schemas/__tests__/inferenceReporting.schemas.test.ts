@@ -17,7 +17,7 @@
  *     every one of these endpoints would 400 on its own validated input.
  */
 
-import { USAGE_UNITS } from '@oxyhq/contracts';
+import { USAGE_UNITS } from '@oxy.so/contracts';
 import {
   accountBalanceSchema,
   applicationSpendReportQuery,

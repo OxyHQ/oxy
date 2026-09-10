@@ -48,7 +48,7 @@
  * invalidation anywhere) to a signal whose whole point is that losing it is
  * merely slow, never wrong.
  *
- * Node-only; exported solely from `@oxyhq/core/server`.
+ * Node-only; exported solely from `@oxy.so/core/server`.
  */
 
 import {
@@ -57,7 +57,7 @@ import {
   oxyUserInvalidationEventSchema,
   type OxyUserChangeReason,
   type OxyUserInvalidationEvent,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   evictOxyIdentityCache,
   type OxyIdentityCacheEvictor,

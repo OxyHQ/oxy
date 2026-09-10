@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { AccountNode } from '@oxyhq/core';
+import type { AccountNode } from '@oxy.so/core';
 
 export interface ManagedAccountGroups {
   organizations: AccountNode[];

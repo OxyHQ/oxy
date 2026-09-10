@@ -1,5 +1,5 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import type { SecurityEventType, SecurityEventSeverity, SecurityActivity } from '@oxyhq/core';
+import type { SecurityEventType, SecurityEventSeverity, SecurityActivity } from '@oxy.so/core';
 
 // Severity mapping (matches backend - single source of truth)
 const SECURITY_EVENT_SEVERITY_MAP: Record<SecurityEventType, SecurityEventSeverity> = {

@@ -1,4 +1,23 @@
-name: Deploy Frontend to Cloudflare Pages
+# `accounts` and `console` deploy as WORKERS; `auth` is still a Pages project.
+#
+# A Pages project ALWAYS serves `<project>.pages.dev` and Cloudflare offers no
+# way to switch it off — `wrangler pages project` has only `list`, `create` and
+# `delete`. So every Pages app here has a second, unchosen copy of itself on a
+# hostname that is in no CORS allowlist: it renders the shell and fails every
+# call it makes. A Worker declines its default hostname outright with
+# `workers_dev = false`, which is why the two static apps have moved.
+#
+# `auth` HAS NOT MOVED, and not by omission. It is the only app here with a
+# Cloudflare Pages Functions DIRECTORY — `packages/auth/functions/hub/*`, the
+# browser DeviceSession hub — and `functions/` has no Worker equivalent that a
+# config change can reach: Pages compiles that directory into routes itself,
+# while a Worker needs a `main` script that dispatches `/hub/*` and falls
+# through to the asset binding for everything else. The logic is already
+# portable (`packages/auth/hub/handlers.ts` depends on nothing Worker-specific
+# and is covered by `bun test`), so the move is possible — but it is a rewrite
+# of the routing layer of the IdP that has no staging environment, and it does
+# not belong in the same change as two static asset deploys.
+name: Deploy Frontends to Cloudflare
 
 on:
   push:
@@ -54,7 +73,7 @@ jobs:
           ref: main
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - uses: actions/setup-node@v7
         with:
           node-version: '24.x'
@@ -85,7 +104,7 @@ jobs:
       # Deploy the static `dist`. Invoke `bunx wrangler` DIRECTLY rather than
       # cloudflare/wrangler-action: that action's `npx --no-install wrangler`
       # path runs npm's Arborist from packages/auth, which rejects the repo-root
-      # `overrides["@oxyhq/bloom"]` against this package's newer direct bloom dep
+      # `overrides["@oxy.so/bloom"]` against this package's newer direct bloom dep
       # (`npm error code EOVERRIDE`). The whole monorepo installs with bun, and
       # bun's resolver does not perform that npm-only override validation.
       - name: Deploy to Cloudflare Pages
@@ -119,7 +138,7 @@ jobs:
           ref: main
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - uses: actions/setup-node@v7
         with:
           node-version: '24.x'
@@ -138,11 +157,38 @@ jobs:
           EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.ACCOUNTS_OXY_CLIENT_ID }}
           EXPO_PUBLIC_POSTHOG_ENABLED: ${{ vars.POSTHOG_ENABLED }}
           EXPO_PUBLIC_POSTHOG_KEY: ${{ vars.POSTHOG_PROJECT_KEY }}
-      - name: Deploy to Cloudflare Pages
+      # A WORKER, not a Pages project. A Pages project always serves
+      # `<project>.pages.dev` and Cloudflare offers no way to switch it off, so
+      # `oxy-accounts.pages.dev` was a second copy of the account surface on a
+      # hostname that is in no CORS allowlist. `workers_dev = false` in
+      # `packages/accounts/wrangler.toml` leaves `accounts.oxy.so` as the only
+      # way in. Everything else — the assets directory, the HTML handling, the
+      # fallback, the custom domain — is declared in that file rather than
+      # passed here, so a deploy cannot disagree with the config.
+      #
+      # `bunx wrangler` DIRECTLY, never `cloudflare/wrangler-action`. The action
+      # installs its own wrangler and picks the package manager by looking for a
+      # lockfile beside `workingDirectory`; `packages/accounts` has none — the
+      # lock is at the repository root — so it falls back to npm, and npm cannot
+      # even parse this tree, because the root `overrides` pin `@oxy.so/bloom` to
+      # `catalog:`, a bun-only protocol. That is the same `npm error code
+      # EOVERRIDE` already recorded on the auth job above.
+      #
+      # It is not a local quirk. Homiio took a PRODUCTION OUTAGE from exactly
+      # this on 2026-08-09 (run 31292337344: `Fail extracting tarball for
+      # "wrangler"` — published nothing, left a stale bundle running against a
+      # changed API) and moved off the action in #291; Mercaria's AGENTS.md
+      # forbids it outright; Alia's Canvas deploy failed on five consecutive
+      # runs before moving off it. Do not "modernise" this back.
+      #
+      # `wrangler@4` is PINNED: an unpinned `bunx wrangler` re-resolves the
+      # latest major on every deploy, changing the deploy path with no diff.
+      - name: Deploy the Worker
+        working-directory: packages/accounts
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: bunx wrangler@4 pages deploy packages/accounts/dist --project-name=oxy-accounts --branch=main
+        run: bunx wrangler@4 deploy
       # Post-deploy CSP gate. The static Expo export emits an inline hydration
       # script, and `writePagesHeaders` derives its hash into `dist/_headers`
       # during the build above. Derivation only makes those two agree INSIDE
@@ -151,7 +197,11 @@ jobs:
       # put them back out of sync. None of those break the app visibly — Expo
       # falls back from `hydrateRoot` to a full client render and the only
       # symptom is a console error — so assert it against the LIVE host.
-      # Retries briefly to let the Pages deploy propagate.
+      # Retries briefly to let the deploy propagate.
+      #
+      # It is also the gate on the `_headers` file surviving the move off Pages:
+      # Workers static assets honour `_headers`, and if that ever stopped being
+      # true this job is what says so.
       - name: Post-deploy CSP smoke gate
         working-directory: packages/accounts
         env:
@@ -172,7 +222,7 @@ jobs:
           ref: main
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - uses: actions/setup-node@v7
         with:
           node-version: '24.x'
@@ -188,17 +238,23 @@ jobs:
           # than a secret — the id ships inside the bundle. Named per APP because
           # auth and console share `VITE_OXY_CLIENT_ID`.
           VITE_OXY_CLIENT_ID: ${{ vars.CONSOLE_OXY_CLIENT_ID }}
-      - name: Resolve build output directory
-        run: |
-          if [ -d packages/console/dist ]; then
-            echo "DEPLOY_DIR=packages/console/dist" >> $GITHUB_ENV
-          elif [ -d packages/console/.output/public ]; then
-            echo "DEPLOY_DIR=packages/console/.output/public" >> $GITHUB_ENV
-          else
-            echo "No build output found" && exit 1
-          fi
-      - name: Deploy to Cloudflare Pages
+      # A WORKER, not a Pages project — same reason as accounts above.
+      # `oxy-console.pages.dev` served a second copy of the application registry
+      # on a hostname that is in no CORS allowlist and in no registered
+      # `redirectUris`; `workers_dev = false` in `packages/console/wrangler.toml`
+      # leaves `console.oxy.so` as the only way in.
+      #
+      # The `Resolve build output directory` step that used to sit here is gone
+      # with the Pages deploy that needed it. It chose between `dist` and
+      # `.output/public` at run time; `packages/console/wrangler.toml` names
+      # `./dist`, which is the only thing `vite build` has ever emitted, and a
+      # missing assets directory fails `wrangler deploy` by itself.
+      #
+      # `bunx wrangler` DIRECTLY and PINNED, never `cloudflare/wrangler-action`
+      # — see the accounts job above for the measurements.
+      - name: Deploy the Worker
+        working-directory: packages/console
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: bunx wrangler@4 pages deploy ${{ env.DEPLOY_DIR }} --project-name=oxy-console --branch=main
+        run: bunx wrangler@4 deploy

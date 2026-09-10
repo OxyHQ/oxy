@@ -1,5 +1,5 @@
 {
-  "package": "@oxyhq/accounts",
+  "package": "@oxy.so/accounts",
   "displayName": "Accounts",
   "shortName": "accounts",
   "repo": "https://github.com/OxyHQ/OxyHQServices",

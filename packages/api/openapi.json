@@ -7462,7 +7462,7 @@
         ],
         "security": [],
         "summary": "Register a new account with a public key",
-        "description": "Create a passwordless account bound to a local secp256k1 identity. The client generates a key pair (see `KeyManager` in `@oxyhq/core`), signs `register:{publicKey}:{timestamp}`, and submits the signature. Username and email are optional but recommended for discoverability.\n",
+        "description": "Create a passwordless account bound to a local secp256k1 identity. The client generates a key pair (see `KeyManager` in `@oxy.so/core`), signs `register:{publicKey}:{timestamp}`, and submits the signature. Username and email are optional but recommended for discoverability.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -10843,7 +10843,7 @@
           "Contacts"
         ],
         "summary": "Discover which contacts are on Oxy",
-        "description": "Privacy-preserving contact-book matching. Clients SHA-256 hash each email and phone number locally (lowercased; phone numbers normalised to E.164 — see `utils/contactHash.ts` in `@oxyhq/core`) and upload only the resulting 64-character hex digests. The server intersects them against the indexed `users.hashed_email` / `users.hashed_phone` columns and returns matched Oxy user IDs only when the matched user has opted in to contact discovery for that identifier type.\nPrivacy invariants:\n  - Raw email / phone never traverses this endpoint.\n  - The response contains no PII — only Oxy user IDs and the hash the\n    caller supplied (so the client can map matches back to the local\n    contact that produced them).\n  - The endpoint never writes to the database. Discovery is stateless.\n\nRate limits: 5 requests per minute per authenticated user; up to 200 hashed identifiers per channel (~400 total) per request. Service tokens are explicitly rejected with 403.\n",
+        "description": "Privacy-preserving contact-book matching. Clients SHA-256 hash each email and phone number locally (lowercased; phone numbers normalised to E.164 — see `utils/contactHash.ts` in `@oxy.so/core`) and upload only the resulting 64-character hex digests. The server intersects them against the indexed `users.hashed_email` / `users.hashed_phone` columns and returns matched Oxy user IDs only when the matched user has opted in to contact discovery for that identifier type.\nPrivacy invariants:\n  - Raw email / phone never traverses this endpoint.\n  - The response contains no PII — only Oxy user IDs and the hash the\n    caller supplied (so the client can map matches back to the local\n    contact that produced them).\n  - The endpoint never writes to the database. Discovery is stateless.\n\nRate limits: 5 requests per minute per authenticated user; up to 200 hashed identifiers per channel (~400 total) per request. Service tokens are explicitly rejected with 403.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -28719,26 +28719,6 @@
           "200": {
             "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/platform-stats.ts`, naming a Zod schema the file imports."
           },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -28751,9 +28731,7 @@
           }
         },
         "security": [
-          {
-            "bearerAuth": []
-          }
+          {}
         ],
         "operationId": "getPlatformStats"
       }
@@ -28770,26 +28748,6 @@
           "200": {
             "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/platform-stats.ts`, naming a Zod schema the file imports."
           },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -28802,9 +28760,7 @@
           }
         },
         "security": [
-          {
-            "bearerAuth": []
-          }
+          {}
         ],
         "operationId": "getPlatformStatsStream"
       }
@@ -31731,7 +31687,7 @@
           "Sessions"
         ],
         "summary": "Resolve a session ID to the user it belongs to",
-        "description": "Look up the user record for a given session ID. Requires a valid access token whose user owns the referenced session — callers cannot look up sessions belonging to other users. Used by SDK clients (e.g. `@oxyhq/core`) to hydrate user state from a stored session reference. Expired, revoked, or non-owned sessions return 404.\n",
+        "description": "Look up the user record for a given session ID. Requires a valid access token whose user owns the referenced session — callers cannot look up sessions belonging to other users. Used by SDK clients (e.g. `@oxy.so/core`) to hydrate user state from a stored session reference. Expired, revoked, or non-owned sessions return 404.\n",
         "parameters": [
           {
             "name": "sessionId",
@@ -32760,7 +32716,7 @@
           "Users"
         ],
         "summary": "Permanently delete the current account",
-        "description": "Hard-delete the authenticated user's account. To prove identity at the time of deletion the client signs `delete:{publicKey}:{timestamp}` with the local secp256k1 private key (see `KeyManager.sign` in `@oxyhq/core`). The signature is rejected if it is older than 5 minutes, if the confirmation text does not match the account's username, or if the account has no associated public key.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user.\n",
+        "description": "Hard-delete the authenticated user's account. To prove identity at the time of deletion the client signs `delete:{publicKey}:{timestamp}` with the local secp256k1 private key (see `KeyManager.sign` in `@oxy.so/core`). The signature is rejected if it is older than 5 minutes, if the confirmation text does not match the account's username, or if the account has no associated public key.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -37752,7 +37708,7 @@
           "Inference"
         ],
         "summary": "`POST /v1/responses` — the preferred endpoint.",
-        "description": "Errors are the structured contract shape at the top level rather than the\nplatform's `{ error, message }` envelope: that envelope carries neither\n`requestId` nor `retryable`, and both are load-bearing here.\n\nThe success body also carries `latencyMs`: Oxy's own measurement of this\nrequest, from the moment the edge received it through authentication,\nadmission, routing, the reservation, the upstream call and the settlement of\nthe hold. Most of that interval is the upstream generating tokens, and it is\nnot the round trip a caller measures — a client stopwatch additionally\ncovers DNS, TLS, both network legs and its own parse. `X-Oxy-Latency-Ms`\ncarries the same number on both surfaces. A streamed request reports none:\nits headers are written before the first frame arrives.\n\nA `stream: true` request answers `text/event-stream` instead, and that\nvariant is deliberately not described: no mainstream OpenAPI generator models\nan SSE frame sequence usefully, so the alternative to omitting it is a\nfiction. `inferenceStreamEventSchema` in `@oxyhq/contracts` is the authority\non the frames.",
+        "description": "Errors are the structured contract shape at the top level rather than the\nplatform's `{ error, message }` envelope: that envelope carries neither\n`requestId` nor `retryable`, and both are load-bearing here.\n\nThe success body also carries `latencyMs`: Oxy's own measurement of this\nrequest, from the moment the edge received it through authentication,\nadmission, routing, the reservation, the upstream call and the settlement of\nthe hold. Most of that interval is the upstream generating tokens, and it is\nnot the round trip a caller measures — a client stopwatch additionally\ncovers DNS, TLS, both network legs and its own parse. `X-Oxy-Latency-Ms`\ncarries the same number on both surfaces. A streamed request reports none:\nits headers are written before the first frame arrives.\n\nA `stream: true` request answers `text/event-stream` instead, and that\nvariant is deliberately not described: no mainstream OpenAPI generator models\nan SSE frame sequence usefully, so the alternative to omitting it is a\nfiction. `inferenceStreamEventSchema` in `@oxy.so/contracts` is the authority\non the frames.",
         "parameters": [],
         "responses": {
           "200": {

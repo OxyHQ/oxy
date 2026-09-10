@@ -2,7 +2,7 @@ import {
   registerCatalogWithMcp,
   type CatalogMcpRegistrationOptions,
   type CatalogToolHandlers,
-} from '@oxyhq/mcp';
+} from '@oxy.so/mcp';
 import { INBOX_CAPABILITY_CATALOG } from './inbox.catalog';
 
 /**

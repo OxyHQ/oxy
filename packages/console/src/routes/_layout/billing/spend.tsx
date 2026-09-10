@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import type { ReportRangeDays, SpendDimension } from '@/lib/reporting';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BillingHeader } from '@/components/billing/billing-header';

@@ -40,7 +40,7 @@
  */
 
 import { index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { generatedId, timestamptz } from '@oxyhq/db';
+import { generatedId, timestamptz } from '@oxy.so/db';
 import { devicePrincipals } from './devicePrincipals';
 import { deviceSessions } from './deviceSessions';
 import { users } from './users';

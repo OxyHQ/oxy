@@ -1,5 +1,5 @@
-import type { User } from '@oxyhq/core';
-import { logger as loggerUtil } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
+import { logger as loggerUtil } from '@oxy.so/core';
 import { allowsAutomaticIdpRedirect } from '../oauth/legacyRedirectLanes';
 import type { WebAuthMode } from '../oauth/types';
 import { isWebBrowser } from '../utils/isWebBrowser';

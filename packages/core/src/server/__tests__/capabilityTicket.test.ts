@@ -1,4 +1,4 @@
-import type { CapabilityTicketClaims } from '@oxyhq/contracts';
+import type { CapabilityTicketClaims } from '@oxy.so/contracts';
 import { generateKeyPairSync } from 'node:crypto';
 import type { CapabilityTicketError } from '../capabilityTicket';
 import {

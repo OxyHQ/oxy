@@ -40,8 +40,8 @@
  */
 
 import { and, eq, gte, lt, sql } from 'drizzle-orm';
-import { executeRows } from '@oxyhq/db';
-import { billingInvoiceSchema, type BillingInvoice } from '@oxyhq/contracts';
+import { executeRows } from '@oxy.so/db';
+import { billingInvoiceSchema, type BillingInvoice } from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { accountBalances } from '../db/schema/accountBalances';
 import { billingExternalPayments } from '../db/schema/billingExternalPayments';

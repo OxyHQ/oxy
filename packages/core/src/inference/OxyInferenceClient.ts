@@ -40,7 +40,7 @@
  *
  * ## Field names, and the one place they could drift
  *
- * Every VALUE type here comes from `@oxyhq/contracts` — messages, tools, tool
+ * Every VALUE type here comes from `@oxy.so/contracts` — messages, tools, tool
  * choice, response format, usage quantities, unit prices, error codes. The
  * request FIELD NAMES cannot: they belong to `responsesRequestSchema`, which
  * lives in the API because it is a public dialect rather than an Oxy↔data-plane
@@ -68,8 +68,8 @@ import type {
     UnitPrice,
     UsageQuantity,
     UsageSource,
-} from '@oxyhq/contracts';
-import { INFERENCE_ERROR_CODES, inferenceStreamEventSchema, modelIdSchema } from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
+import { INFERENCE_ERROR_CODES, inferenceStreamEventSchema, modelIdSchema } from '@oxy.so/contracts';
 
 /** The base URL of the Oxy API, when a caller names none. */
 export const OXY_INFERENCE_BASE_URL = 'https://api.oxy.so';

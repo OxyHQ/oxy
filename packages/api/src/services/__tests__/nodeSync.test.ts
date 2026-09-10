@@ -2,7 +2,7 @@
  * Node → Oxy ingest (F5b), against a REAL Postgres and a REAL hash chain.
  *
  * The suite this replaces mocked `models/UserNode`, `models/SignedRecord`,
- * `models/NodeIngestWitness`, `signedRecord.service` and `@oxyhq/protocol`, then
+ * `models/NodeIngestWitness`, `signedRecord.service` and `@oxy.so/protocol`, then
  * asserted on the arguments handed to `SignedRecord.create`. Nothing was ever
  * signed, verified or stored, so the assertions described a Mongoose call shape:
  * `mockVerifyAndStore` returned `{ ok: true }` for a forged envelope as readily
@@ -38,19 +38,19 @@
  * every assertion is scoped to rows the test wrote.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { Readable } from 'node:stream';
 import { asc, eq } from 'drizzle-orm';
 
 const mockSafeFetch = jest.fn();
-jest.mock('@oxyhq/core/server', () => ({
-  ...jest.requireActual('@oxyhq/core/server'),
+jest.mock('@oxy.so/core/server', () => ({
+  ...jest.requireActual('@oxy.so/core/server'),
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
 }));
 
-import { canonicalize, computeRecordId } from '@oxyhq/protocol';
-import { NODE_HEAD_PATH, NODE_LOG_PATH } from '@oxyhq/protocol/node';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { canonicalize, computeRecordId } from '@oxy.so/protocol';
+import { NODE_HEAD_PATH, NODE_LOG_PATH } from '@oxy.so/protocol/node';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { nodeIngestWitnesses } from '../../db/schema/nodeIngestWitnesses';
 import { repoHeads } from '../../db/schema/repoHeads';

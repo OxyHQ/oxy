@@ -18,7 +18,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 export const MCP_OAUTH_CLIENT_STATUSES = ['active', 'revoked'] as const;

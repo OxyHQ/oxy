@@ -299,7 +299,7 @@ const ALLOWED_FINDINGS = [
     rule: 'private-key-body',
     occurrences: 1,
     reason:
-      'The same test-only key pair, for the same suite one package down — `@oxyhq/federation` '
+      'The same test-only key pair, for the same suite one package down — `@oxy.so/federation` '
       + 'owns the signature primitives and `packages/api` owns the fetch that uses them, and '
       + 'each side signs and verifies independently.',
   },

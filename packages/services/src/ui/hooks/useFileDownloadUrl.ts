@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 
 export interface UseFileDownloadUrlOptions {
   variant?: string;

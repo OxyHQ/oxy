@@ -15,8 +15,8 @@ const updateIdentityMarkerMock = jest.fn();
 
 // Control the identity marker (AsyncStorage-backed in production) surgically,
 // while the SecureStore flag round-trips through the real expo-secure-store mock.
-jest.mock('@oxyhq/core', () => {
-  const actual = jest.requireActual('@oxyhq/core');
+jest.mock('@oxy.so/core', () => {
+  const actual = jest.requireActual('@oxy.so/core');
   return {
     ...actual,
     readIdentityMarker: () => readIdentityMarkerMock(),

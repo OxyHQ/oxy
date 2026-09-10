@@ -14,7 +14,7 @@
  * API's already-resolved relationship and effective permissions identically.
  */
 
-import { isDelegatedActAsEligibleKind } from "@oxyhq/contracts";
+import { isDelegatedActAsEligibleKind } from "@oxy.so/contracts";
 import type {
 	AccountKind,
 	AccountMember,

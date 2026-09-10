@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { ClientSession } from '@oxyhq/core';
+import type { ClientSession } from '@oxy.so/core';
 import { queryKeys, invalidateSessionQueries } from '../queries/queryKeys';
 import { mutationKeys } from './mutationKeys';
 import { useOxy } from '../../context/OxyContext';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 
 /**
  * Switch active session

@@ -8,10 +8,10 @@ import type React from 'react';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native-css/components';
 import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { BloomColorScope } from '@oxyhq/bloom/theme';
-import { Text } from '@oxyhq/bloom/typography';
-import type { SwitcherContextRow } from '@oxyhq/core';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { BloomColorScope } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import type { SwitcherContextRow } from '@oxy.so/core';
 import { authChooserStyles as styles } from './styles';
 import { resolveAccentHex, toPreset, type Theme } from './types';
 

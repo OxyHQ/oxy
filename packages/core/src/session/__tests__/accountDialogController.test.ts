@@ -1,4 +1,4 @@
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 import type { OxyServices } from '../../OxyServices';
 import type { User } from '../../models/interfaces';
 import type { SessionLoginResponse, MinimalUserData } from '../../models/session';

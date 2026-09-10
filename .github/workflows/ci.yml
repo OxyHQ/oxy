@@ -104,7 +104,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -244,31 +244,31 @@ jobs:
           node scripts/test-check-inbox-daily-brief.mjs
           node scripts/check-inbox-daily-brief.mjs
 
-      # api tests resolve `@oxyhq/core` (e.g. `registrableApex` in federation
+      # api tests resolve `@oxy.so/core` (e.g. `registrableApex` in federation
       # helpers) from its published `dist`, like any normal dependency.
       # This job does not build workspace deps, so core's `dist` is absent on a
-      # fresh checkout → `Cannot find module '@oxyhq/core'`. Build core (and its
-      # own deps `@oxyhq/contracts` and `@oxyhq/protocol`, which core's tsc build
-      # needs) in topological order so the import resolves.
-      # `@oxyhq/contracts`/`@oxyhq/core/server` are still mapped to source in
-      # jest.config.js; this only provides the bare `@oxyhq/core` dist.
+      # fresh checkout → `Cannot find module '@oxy.so/core'`. Build core (and its
+      # own deps `@oxy.so/contracts`, `@oxy.so/protocol` and `@oxy.so/telemetry`,
+      # which core's tsc build needs) in topological order so the import resolves.
+      # `@oxy.so/contracts`/`@oxy.so/core/server` are still mapped to source in
+      # jest.config.js; this only provides the bare `@oxy.so/core` dist.
       #
-      # `@oxyhq/db` is here for a DIFFERENT reason, and a mapper entry cannot
+      # `@oxy.so/db` is here for a DIFFERENT reason, and a mapper entry cannot
       # replace it. `jest.globalSetup.ts` provisions each worker's database by
       # SPAWNING `bun run db:migrate` — a separate process, which jest's
       # `moduleNameMapper` does not reach — and `src/db/migrate.ts` imports
-      # `@oxyhq/db/migrate`. Every entry point in that package resolves into
+      # `@oxy.so/db/migrate`. Every entry point in that package resolves into
       # `dist/`, which is gitignored and produced by no install hook, so
       # without this build the job dies in global setup with
-      # `Cannot find module '@oxyhq/db/migrate'` before a single test file
+      # `Cannot find module '@oxy.so/db/migrate'` before a single test file
       # loads. Verified by deleting `packages/db/dist` and running the suite.
       - name: Build core SDK, MCP + db (for resolution in api tests)
         run: |
-          bun run --filter @oxyhq/contracts build
-          bun run --filter @oxyhq/protocol build
-          bun run --filter @oxyhq/core build
-          bun run --filter @oxyhq/mcp build
-          bun run --filter @oxyhq/db build
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
+          bun run --filter @oxy.so/mcp build
+          bun run --filter @oxy.so/db build
 
       - name: Run linter
         run: bun run lint
@@ -366,7 +366,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -384,8 +384,8 @@ jobs:
       # `dist/` mirrors `src/`, which leaves those files with zero type
       # coverage. `tsconfig.scripts.json` typechecks them (noEmit) against the
       # same settings. It runs here, after `bun run build`, because that script
-      # already builds every workspace dep the program needs — @oxyhq/contracts,
-      # @oxyhq/protocol, @oxyhq/core, @oxyhq/federation, @oxyhq/db and @oxyhq/mcp
+      # already builds every workspace dep the program needs — @oxy.so/contracts,
+      # @oxy.so/protocol, @oxy.so/core, @oxy.so/federation, @oxy.so/db and @oxy.so/mcp
       # (src/services/
       # federation.service.ts imports it; without its dist this fails TS2307).
       - name: Typecheck one-shot scripts
@@ -414,7 +414,7 @@ jobs:
 
   # bun.lock must match the package.json files (see scripts/check-lockfile-sync.mjs).
   #
-  # Deliberately NOT `bun install --frozen-lockfile --minimum-release-age=0`: measured on bun 1.3.14
+  # Deliberately NOT `bun install --frozen-lockfile --minimum-release-age=0`: measured on bun 1.4.2
   # against this repo, that flag exits 0 on both shapes of desync we actually
   # shipped (a workspace `version` bump, and a widened-but-satisfiable dependency
   # range). It would have caught none of the three incidents while reading like
@@ -427,7 +427,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       # The gate's own fixture tests. Offline (every fixture dependency resolves
       # through the workspace protocol) and the reason the manifest-comparison
       # layer cannot be dropped without something going red.
@@ -450,7 +450,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       # The gate's own fixture tests — mutated copies of the real workflow and
       # env module. No install: the gate reads files and shells out to nothing.
       - run: bun scripts/test-check-deploy-secrets-sync.mjs
@@ -485,7 +485,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       # The gate's own fixture tests, run before the gate — one planted-secret case
       # per rule, built from the rule set the gate itself emits, plus the cases
       # proving it does NOT fire on this tree's deliberate placeholder credentials.
@@ -503,7 +503,7 @@ jobs:
   #
   # Its own job rather than a step inside `api-test` so the check has a NAME in the
   # required set: `check-ci-complete.mjs` then refuses a run where it is not a
-  # dependency of `CI complete`. It needs `@oxyhq/contracts` and `@oxyhq/db` built
+  # dependency of `CI complete`. It needs `@oxy.so/contracts` and `@oxy.so/db` built
   # because the schema modules import them; nothing else.
   schema-policy:
     name: Schema Payload Policy
@@ -518,11 +518,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
-          bun run --filter @oxyhq/contracts build
-          bun run --filter @oxyhq/db build
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/db build
       # The guard's own fixture schemas — a planted payload column per banned
       # pattern, and the narrowness cases proving it does not fire on the boolean
       # capability flags or on the product's own free-text columns.
@@ -530,7 +530,7 @@ jobs:
       - run: bun scripts/check-no-payload-persistence.mjs
 
   # `packages/console` hand-duplicates the API's two permission vocabularies, and
-  # NOTHING can make that drift a compile error: `@oxyhq/core` types the wire field
+  # NOTHING can make that drift a compile error: `@oxy.so/core` types the wire field
   # `AccountMember.permissions` as `string[]`, so no API type ever flows into
   # Console's unions, which are consumed only as parameter types whose call sites
   # pass literals Console itself wrote. #1032 added eleven `inference:*` strings
@@ -554,7 +554,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       # The gate's own fixture cases, run before the gate — both directions of
       # drift, the vacuity floor on a pair of sets that agree perfectly, and a
@@ -593,7 +593,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       # The gate's own fixture cases, run before the gate — the original store.ts
       # keyGenerator verbatim, every banned member and header, both directions of
@@ -618,7 +618,7 @@ jobs:
   # recorded, and `drizzle-kit generate` stamps that from the local wall clock, so
   # a regenerate-after-rebase can land below a sibling that already merged. Twice
   # in one day (`ce0eccc8`, then PR #997) that produced a migration nothing would
-  # ever run. `@oxyhq/db`'s `planLedgerRun` does refuse it — but only in the
+  # ever run. `@oxy.so/db`'s `planLedgerRun` does refuse it — but only in the
   # production one-shot, after the pull request has merged, where the cost is a
   # blocked release. Both gates here were mutation-tested against the real journal
   # and this one goes RED on a swap that leaves `check-migration-phases.mjs` green.
@@ -633,7 +633,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       # Each gate's own fixture tests — mutated copies of the real journal,
       # migrations, deploy workflow and deploy script.
       - run: bun scripts/test-check-migration-phases.mjs
@@ -673,7 +673,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: bun run lint && bun run typescript && bun run build
         working-directory: ./packages/db
@@ -694,7 +694,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: bun run test
         working-directory: ./packages/contracts
@@ -707,9 +707,9 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: bun run --filter @oxyhq/contracts build
+      - run: bun run --filter @oxy.so/contracts build
       - run: bun run test
         working-directory: ./packages/protocol
 
@@ -721,7 +721,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: bun run build && bun run lint && bun run typescript && bun run test
         working-directory: ./packages/federation
@@ -734,11 +734,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
-          bun run --filter @oxyhq/contracts build
-          bun run --filter @oxyhq/protocol build
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
       - run: bun run test
         working-directory: ./packages/core
 
@@ -750,12 +750,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
-          bun run --filter @oxyhq/contracts build
-          bun run --filter @oxyhq/protocol build
-          bun run --filter @oxyhq/core build
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
       - run: bun run test
         working-directory: ./packages/ship
 
@@ -767,12 +767,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
-          bun run --filter @oxyhq/contracts build
-          bun run --filter @oxyhq/protocol build
-          bun run --filter @oxyhq/core build
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
       - run: bun run test
         working-directory: ./packages/node
 
@@ -784,12 +784,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
-          bun run --filter @oxyhq/contracts build
-          bun run --filter @oxyhq/protocol build
-          bun run --filter @oxyhq/core build
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
       - run: bun run test
         working-directory: ./packages/services
       # `postbuild` runs scripts/verify-package.mjs, which packs the tarball and
@@ -812,13 +812,13 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
-          bun run --filter @oxyhq/contracts build
-          bun run --filter @oxyhq/protocol build
-          bun run --filter @oxyhq/core build
-          bun run --filter @oxyhq/services build
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
+          bun run --filter @oxy.so/services build
       - run: bun run test
         working-directory: ./packages/auth
       - run: bunx tsc --noEmit
@@ -832,14 +832,14 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
-          bun run --filter @oxyhq/contracts build
-          bun run --filter @oxyhq/protocol build
-          bun run --filter @oxyhq/core build
-          bun run --filter @oxyhq/services build
-          bun run --filter @oxyhq/expo-splash build
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
+          bun run --filter @oxy.so/services build
+          bun run --filter @oxy.so/expo-splash build
       - run: bun run test
         working-directory: ./packages/commons
 
@@ -852,14 +852,14 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
-          bun run --filter @oxyhq/contracts build
-          bun run --filter @oxyhq/protocol build
-          bun run --filter @oxyhq/core build
-          bun run --filter @oxyhq/services build
-          bun run --filter @oxyhq/expo-splash build
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
+          bun run --filter @oxy.so/services build
+          bun run --filter @oxy.so/expo-splash build
       - run: bun run test
         working-directory: ./packages/accounts
 
@@ -881,7 +881,7 @@ jobs:
   #
   # `--filter=oxy-console...` (with the ellipsis) builds the workspace
   # dependencies too. Without them the build fails on an unresolvable
-  # `@oxyhq/services` and the error names the wrong package entirely.
+  # `@oxy.so/services` and the error names the wrong package entirely.
   #
   # The test step's own vacuity floor is in `packages/console/package.json`:
   # `test` dropped `--passWithNoTests`, which would have reported a green step
@@ -901,7 +901,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - name: Build Console and its workspace dependencies
         run: bunx turbo run build --filter=oxy-console...
@@ -935,17 +935,17 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
 
       - name: Install dependencies
         run: bun install --frozen-lockfile --minimum-release-age=0
-      # The generator imports src/schemas/**, which reach @oxyhq/contracts, and it
+      # The generator imports src/schemas/**, which reach @oxy.so/contracts, and it
       # REFUSES to write a partial document when a schema module cannot be
       # imported — it names this sequence itself when they are missing.
       #
-      # @oxyhq/protocol is here even though nothing in packages/api imports it
+      # @oxy.so/protocol is here even though nothing in packages/api imports it
       # directly: core's BUILT esm output (`dist/esm/crypto/polyfill.js`) imports
-      # it at RUNTIME. Measured on a cold tree — `@oxyhq/core build` SUCCEEDS
+      # it at RUNTIME. Measured on a cold tree — `@oxy.so/core build` SUCCEEDS
       # without protocol's dist, and the generator then dies importing
       # auth.schemas.ts. A build-order list derived from what compiles is not the
       # same list as what runs.
@@ -955,11 +955,11 @@ jobs:
       # already owns that check and this job does not repeat it.
       - name: Build the workspace deps the generator reads
         run: |
-          bun run --filter @oxyhq/contracts build
-          bun run --filter @oxyhq/protocol build
-          bun run --filter @oxyhq/core build
-          bun run --filter @oxyhq/mcp build
-          bun run --filter @oxyhq/db build
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
+          bun run --filter @oxy.so/mcp build
+          bun run --filter @oxy.so/db build
 
       # The gate's own fixture tests, including the positive control: an entry
       # removed from a fixture MOUNT_MAP with the artifact regenerated in the same
@@ -1003,7 +1003,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       # The gate's own fixture tests, offline: every failing branch is driven from a
       # synthesised audit payload, because the live audit on this tree only ever
       # exercises the passing path.
@@ -1058,7 +1058,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
       # The gate's own fixture tests, run before the gate itself — same shape as
       # lockfile-sync, deploy-secrets-sync and migration-phases beside it. No
       # install: both files read YAML through Bun's built-in parser and shell out

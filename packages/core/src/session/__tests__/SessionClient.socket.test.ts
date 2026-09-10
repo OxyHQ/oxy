@@ -1,4 +1,4 @@
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 
 type Handler = (...args: unknown[]) => void;
 class FakeSocket {

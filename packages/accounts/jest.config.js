@@ -29,15 +29,15 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
-    '^@oxyhq/core$': '<rootDir>/../core/src/index.ts',
-    '^@oxyhq/protocol$': '<rootDir>/../protocol/src/index.ts',
-    '^@oxyhq/contracts$': '<rootDir>/../contracts/src/index.ts',
+    '^@oxy.so/core$': '<rootDir>/../core/src/index.ts',
+    '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
     // Mock heavy native modules with lightweight stubs.
     '^react-native$': '<rootDir>/__mocks__/react-native.ts',
     '^@react-native-async-storage/async-storage$':
       '<rootDir>/__mocks__/async-storage.ts',
-    '^@oxyhq/services$': '<rootDir>/__mocks__/oxyhq-services.ts',
-    '^@oxyhq/bloom/theme$': '<rootDir>/__mocks__/bloom-theme.ts',
+    '^@oxy.so/services$': '<rootDir>/__mocks__/oxy-services.ts',
+    '^@oxy.so/bloom/theme$': '<rootDir>/__mocks__/bloom-theme.ts',
     '^expo-router$': '<rootDir>/__mocks__/expo-router.tsx',
     '^expo-secure-store$': '<rootDir>/__mocks__/expo-secure-store.ts',
     '^@expo/vector-icons(/.*)?$': '<rootDir>/__mocks__/expo-vector-icons.tsx',

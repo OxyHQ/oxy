@@ -1,5 +1,5 @@
 /**
- * OxyAccountDialogScreen — the ONE unified account dialog BODY for `@oxyhq/services`.
+ * OxyAccountDialogScreen — the ONE unified account dialog BODY for `@oxy.so/services`.
  *
  * The header (title/subtitle per view + back button) around the headless chooser
  * logic, which lives in `OxyAuthChooser` — the account switcher, sign-in,
@@ -9,7 +9,7 @@
  * header + the scroll body.
  *
  * It is presented as the `AccountDialog` route on the shared Bloom SURFACE STACK
- * (`@oxyhq/bloom/surfaces`) — `OxyContext.openAccountDialog` calls
+ * (`@oxy.so/bloom/surfaces`) — `OxyContext.openAccountDialog` calls
  * `presentDetached('AccountDialog', …, { placement: { base: 'bottom', md:
  * 'center' }, dismissOnBackdrop: false, maxWidth: 420 })`, so the STACK owns the
  * responsive `<Dialog>` chrome and this component renders only its content. That
@@ -18,13 +18,13 @@
  * header close button (and `OxyAuthChooser`'s `onComplete`) drive
  * `useOxy().closeAccountDialog`, which dismisses the surface and runs its exit
  * animation. The view-enum (`accounts|signin|qr|add|signup`) stays internal here,
- * driven by the shared `AccountDialogController` in `@oxyhq/core`.
+ * driven by the shared `AccountDialogController` in `@oxy.so/core`.
  */
 
 import type React from 'react';
 import { useCallback, useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
-import type { AccountDialogSnapshot } from '@oxyhq/core';
+import type { AccountDialogSnapshot } from '@oxy.so/core';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
@@ -53,7 +53,7 @@ const NAV_LOGO = <LogoText height={20} />;
  * the content. Open it via `useOxy().openAccountDialog(view?)` or the imperative
  * `openAccountDialog('signin')`; the view-enum (`accounts|signin|qr|add|signup`)
  * stays internal here, driven by the shared `AccountDialogController` in
- * `@oxyhq/core`. Closing routes through `useOxy().closeAccountDialog`, which
+ * `@oxy.so/core`. Closing routes through `useOxy().closeAccountDialog`, which
  * dismisses the surface and runs its exit animation.
  */
 const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {

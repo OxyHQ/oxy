@@ -2,7 +2,7 @@ import type { PaymentMethod } from './types';
 
 export const PAYMENT_METHODS: PaymentMethod[] = [
     { key: 'card', label: 'Credit/Debit Card', icon: 'card-outline', description: 'Pay securely with your credit or debit card.' },
-    { key: 'oxy', label: 'Oxy Pay', icon: 'wallet-outline', description: 'Use your Oxy Pay in-app balance.' },
+    { key: 'oxy', label: 'Peable', icon: 'wallet-outline', description: 'Use your Peable in-app balance.' },
     { key: 'faircoin', label: 'FAIRWallet', icon: 'qr-code-outline', description: 'Pay with FairCoin by scanning a QR code.' },
 ];
 

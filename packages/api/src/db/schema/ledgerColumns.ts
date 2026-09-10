@@ -11,7 +11,7 @@
  *  1. **Customer money is exact `NUMERIC`, never `double precision`, never
  *     `real`, and never an integer count of minor units.** The scale is the
  *     one the wire contract declares (`INFERENCE_MONEY_SCALE` in
- *     `@oxyhq/contracts`), so a value cannot lose precision crossing the
+ *     `@oxy.so/contracts`), so a value cannot lose precision crossing the
  *     boundary in either direction. `mode: 'string'` is explicit rather than
  *     inherited from drizzle's default: `postgres.js` hands `numeric` back as a
  *     string, and stating it here means a future default change cannot silently
@@ -64,7 +64,7 @@
 
 import { sql, type SQL } from 'drizzle-orm';
 import { bigint, check, numeric, text, type PgColumn } from 'drizzle-orm/pg-core';
-import { INFERENCE_MONEY_SCALE, type UsageUnit } from '@oxyhq/contracts';
+import { INFERENCE_MONEY_SCALE, type UsageUnit } from '@oxy.so/contracts';
 
 /**
  * Integer digits an amount may carry, on top of {@link INFERENCE_MONEY_SCALE}

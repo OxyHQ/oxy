@@ -1,9 +1,9 @@
-import type { RoutingPolicy, UsageUnit } from '@oxyhq/contracts'
+import type { RoutingPolicy, UsageUnit } from '@oxy.so/contracts'
 
 /**
  * Routing policy, as Console reads and writes it.
  *
- * The POLICY itself is `RoutingPolicy` from `@oxyhq/contracts` — the same schema
+ * The POLICY itself is `RoutingPolicy` from `@oxy.so/contracts` — the same schema
  * the API parses its own output with — so the controls cannot drift. What is
  * declared here is only the thin envelope
  * `/inference/routing-policies/*` wraps it in (`routingPolicyId`, `versionId`,

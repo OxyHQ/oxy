@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 import type { LocalConfirmationResult } from '@/lib/biometricAuth';
 
 const requestLocalConfirmationMock = jest.fn<Promise<LocalConfirmationResult>, [string]>();

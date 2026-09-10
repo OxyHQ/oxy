@@ -60,7 +60,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId } from '@oxyhq/db';
+import { createdAt, generatedId } from '@oxy.so/db';
 import { inferenceModelRevisions } from './inferenceModelRevisions';
 import { inferenceModels } from './inferenceModels';
 import { inferenceRoutingPolicyVersions } from './inferenceRoutingPolicyVersions';

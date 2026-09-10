@@ -1,12 +1,12 @@
 ---
 title: Offline & sync
-description: How @oxyhq/services persists queries, queues mutations, and reflects online status.
+description: How @oxy.so/services persists queries, queues mutations, and reflects online status.
 order: 3
 ---
 
 # Offline & sync
 
-`@oxyhq/services` is offline-first out of the box. Every mutation is queued, every important read is cached on disk, and the UI knows when the network goes down. Nothing here is opt-in — wiring up `OxyProvider` lights up all of it.
+`@oxy.so/services` is offline-first out of the box. Every mutation is queued, every important read is cached on disk, and the UI knows when the network goes down. Nothing here is opt-in — wiring up `OxyProvider` lights up all of it.
 
 ## Persisted query cache
 
@@ -35,7 +35,7 @@ Pending mutations sit in the persisted queue and replay automatically when the n
 ## Reading sync status
 
 ```tsx
-import { useMutationStatus } from '@oxyhq/services';
+import { useMutationStatus } from '@oxy.so/services';
 
 function SyncPill() {
   const status = useMutationStatus(); // 'idle' | 'syncing' | 'error'
@@ -49,7 +49,7 @@ function SyncPill() {
 ## Reading online state
 
 ```tsx
-import { useOnlineStatus } from '@oxyhq/services';
+import { useOnlineStatus } from '@oxy.so/services';
 
 function OfflineBanner() {
   const online = useOnlineStatus();
@@ -66,7 +66,7 @@ function OfflineBanner() {
 
 ## What about the HTTP cache?
 
-`@oxyhq/core`'s `HttpService` also keeps a short-lived in-memory cache keyed by `GET:<path>`. Mutations call `clearCacheByPrefix(...)` for the affected prefixes so the next read pulls fresh data. If you write custom endpoints, follow the same pattern:
+`@oxy.so/core`'s `HttpService` also keeps a short-lived in-memory cache keyed by `GET:<path>`. Mutations call `clearCacheByPrefix(...)` for the affected prefixes so the next read pulls fresh data. If you write custom endpoints, follow the same pattern:
 
 ```ts
 await oxy.users.updateProfile(input);

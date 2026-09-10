@@ -3,15 +3,15 @@ import { View, StyleSheet, Platform, useWindowDimensions, ActivityIndicator, Lin
 import { File } from 'expo-file-system';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { logger } from '@oxyhq/core';
+import { logger } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 import { AccountCard, ScreenHeader, Switch } from '@/components/ui';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
-import { useOxy, usePrivacySettings, useUpdatePrivacySettings } from '@oxyhq/services';
-import { alert, toast } from '@oxyhq/bloom';
+import { useOxy, usePrivacySettings, useUpdatePrivacySettings } from '@oxy.so/services';
+import { alert, toast } from '@oxy.so/bloom';
 import { useTranslation } from '@/lib/i18n';
 import { COMMONS_DELETE_ACCOUNT_URL } from '@/constants/oxy';
 

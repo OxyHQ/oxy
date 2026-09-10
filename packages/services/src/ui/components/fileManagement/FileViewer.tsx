@@ -3,10 +3,10 @@ import { useMemo, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image, StyleSheet } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
-import { useTheme } from '@oxyhq/bloom/theme';
-import type { FileMetadata } from '@oxyhq/core';
+import { useTheme } from '@oxy.so/bloom/theme';
+import type { FileMetadata } from '@oxy.so/core';
 import { formatFileSize } from '../../utils/fileManagement';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 
 interface FileViewerProps {
     file: FileMetadata;

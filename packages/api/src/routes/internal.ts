@@ -12,8 +12,8 @@
  *     endpoint below reachable from a browser holding a stolen one.
  *  2. **A platform-TRUSTED calling application.** The service-token mint has a
  *     deliberate carve-out — a non-trusted application MAY mint a service token
- *     from a payments-only credential, so external Oxy Pay merchants can use
- *     `@oxyhq/pay` (`routes/auth.ts`, `POST /auth/service-token`). "Holds a valid
+ *     from a payments-only credential, so external Peable merchants can use
+ *     `@oxy.so/pay` (`routes/auth.ts`, `POST /auth/service-token`). "Holds a valid
  *     service token" is therefore NOT the same set as "is a first-party Oxy
  *     service", and this router needs the second. Without this check a
  *     WooCommerce merchant's payments credential would reach the delegation
@@ -56,8 +56,8 @@
 import express from 'express';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { isDelegatedActAsEligibleKind } from '@oxyhq/contracts';
-import { publicColumns } from '@oxyhq/db/assert';
+import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
+import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
@@ -88,7 +88,7 @@ const router = express.Router();
  * right blast radius and already verified — it comes off the signed token, not
  * off the request.
  *
- * The limit is sized for the SDK's caching. `@oxyhq/core` caches a positive
+ * The limit is sized for the SDK's caching. `@oxy.so/core` caches a positive
  * grant for 5 minutes and a negative for 60 seconds per (appId, userId), so a
  * healthy verifier makes roughly one call per distinct user per five minutes.
  * 600/minute is far above that and far below what an enumeration sweep needs.
@@ -167,7 +167,7 @@ const serviceActingAsVerifyQuery = z.object({
 /**
  * `GET /internal/service-acting-as/verify?appId=&userId=`
  *
- * Answers the one question `@oxyhq/core`'s `oxy.auth()` asks before it will let
+ * Answers the one question `@oxy.so/core`'s `oxy.auth()` asks before it will let
  * a service token name a user in `X-Oxy-User-Id`: does `appId` hold live,
  * user-granted authority to act as `userId`?
  *

@@ -9,9 +9,9 @@
  * this module (the auth app's local Zod schema requiring `name` to be a plain
  * string, dropping every account that had a structured name) is impossible.
  *
- * This package (`@oxyhq/contracts`) is the dedicated, zero-dependency home for
- * these contracts so the backend (`@oxyhq/api`) and the client SDKs
- * (`@oxyhq/core`, `@oxyhq/services`) can all depend on it without
+ * This package (`@oxy.so/contracts`) is the dedicated, zero-dependency home for
+ * these contracts so the backend (`@oxy.so/api`) and the client SDKs
+ * (`@oxy.so/core`, `@oxy.so/services`) can all depend on it without
  * the backend having to depend on a client SDK to obtain its schemas.
  *
  * Faithful to the producers:

@@ -22,7 +22,7 @@ import { userLinkMetadata } from '../../db/schema/userLinkMetadata';
 import { userLocations } from '../../db/schema/userLocations';
 import { users } from '../../db/schema/users';
 import { BadRequestError } from '../../utils/error';
-import { USERNAME_INVALID_MESSAGE } from '@oxyhq/contracts';
+import { USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
 import { userService } from '../user.service';
 
 const uniqueId = () => randomUUID().replace(/-/g, '');

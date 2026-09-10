@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
-import type { RevokeCredentialResult } from '@oxyhq/core';
-import type { VerifiableCredentialResponse } from '@oxyhq/contracts';
+import { useOxy } from '@oxy.so/services';
+import type { RevokeCredentialResult } from '@oxy.so/core';
+import type { VerifiableCredentialResponse } from '@oxy.so/contracts';
 import {
   credentialRevokeErrorCode,
   type CredentialRevokeErrorCode,

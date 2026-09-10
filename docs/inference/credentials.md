@@ -19,7 +19,7 @@ Status of the whole picture: [README.md](./README.md).
 machine lane that authenticates against live routes today.
 
 ```typescript
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 oxy.configureServiceAuth('oxy_dk_…', 'the-secret-shown-once');

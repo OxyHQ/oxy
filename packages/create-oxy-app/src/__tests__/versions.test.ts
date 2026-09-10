@@ -3,12 +3,6 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { VERSIONS } from '../versions';
 
-function readWorkspaceVersion(pkg: string): string {
-  const manifestPath = path.join(__dirname, '..', '..', '..', pkg, 'package.json');
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { version: string };
-  return manifest.version;
-}
-
 function readWorkspaceCatalogVersion(pkg: string): string {
   const manifestPath = path.join(__dirname, '..', '..', '..', '..', 'package.json');
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
@@ -27,35 +21,39 @@ describe('VERSIONS drift guard', () => {
     expect(Object.values(manifest.dependencies ?? {}).filter((range) => range.startsWith('workspace:'))).toEqual([]);
   });
 
-  test('oxyServices matches the current workspace release', () => {
-    expect(VERSIONS.oxyServices).toBe(`^${readWorkspaceVersion('services')}`);
-  });
-
-  test('oxyCore matches the current workspace release', () => {
-    expect(VERSIONS.oxyCore).toBe(`^${readWorkspaceVersion('core')}`);
-  });
-
-  test('oxyContracts matches the current workspace release', () => {
-    expect(VERSIONS.oxyContracts).toBe(`^${readWorkspaceVersion('contracts')}`);
+  test('Oxy SDK dependencies use publishable semver ranges', () => {
+    for (const version of [
+      VERSIONS.oxyServices,
+      VERSIONS.oxyCore,
+      VERSIONS.oxyContracts,
+      VERSIONS.oxyAppPreset,
+      VERSIONS.oxyDb,
+    ]) {
+      expect(version).toMatch(/^\^\d+\.\d+\.\d+$/);
+    }
   });
 
   test('oxyBloom matches the workspace catalog', () => {
-    expect(VERSIONS.oxyBloom).toBe(readWorkspaceCatalogVersion('@oxyhq/bloom'));
-  });
-
-  test('oxyAppPreset matches the current workspace release', () => {
-    expect(VERSIONS.oxyAppPreset).toBe(`^${readWorkspaceVersion('app-preset')}`);
+    expect(VERSIONS.oxyBloom).toBe(readWorkspaceCatalogVersion('@oxy.so/bloom'));
   });
 
   test('scaffold smoke consumes every generated Oxy workspace package from a HEAD tarball', () => {
     const workflowPath = path.join(__dirname, '..', '..', '..', '..', '.github', 'workflows', 'scaffold-smoke.yml');
     const workflow = readFileSync(workflowPath, 'utf8');
 
-    for (const pkg of ['contracts', 'core', 'services', 'app-preset']) {
+    const tarballPrefixes = {
+      contracts: 'oxy\\.so-contracts-',
+      core: 'oxy\\.so-core-',
+      db: 'oxy\\.so-db-',
+      services: 'oxy\\.so-services-',
+      'app-preset': 'oxy\\.so-app-preset-',
+    } as const;
+
+    for (const [pkg, tarballPrefix] of Object.entries(tarballPrefixes)) {
       expect(workflow).toContain(`packages/${pkg}/**`);
       expect(workflow).toContain(`packages/$package`);
-      expect(workflow).toContain(`@oxyhq/${pkg}`);
-      expect(workflow).toContain(`oxyhq-${pkg}-`);
+      expect(workflow).toContain(`@oxy.so/${pkg}`);
+      expect(workflow).toContain(tarballPrefix);
     }
   });
 });

@@ -1,7 +1,7 @@
 /**
  * The catalogue's identifier grammars, as SQL literals.
  *
- * `@oxyhq/contracts` declares these patterns for the WIRE (`publisherSlugSchema`,
+ * `@oxy.so/contracts` declares these patterns for the WIRE (`publisherSlugSchema`,
  * `modelSlugSchema`, `modelRevisionLabelSchema` in `inference/identifiers.ts`).
  * They are restated here for the DATABASE, and the restatement is deliberate
  * rather than duplication that got missed:
@@ -29,7 +29,7 @@
 
 /**
  * One path segment of a canonical model id — lowercase, URL-safe, no leading or
- * trailing separator. Mirrors `SLUG_PATTERN` in `@oxyhq/contracts`.
+ * trailing separator. Mirrors `SLUG_PATTERN` in `@oxy.so/contracts`.
  *
  * Written as a single-quoted SQL string literal, ready for `sql.raw`.
  */

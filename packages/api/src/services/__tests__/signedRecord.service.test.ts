@@ -28,11 +28,11 @@
  * being empty.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { signedRecordSigningInput, verifyEnvelopeSignature } from '@oxyhq/protocol';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { signedRecordSigningInput, verifyEnvelopeSignature } from '@oxy.so/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { signedRecords } from '../../db/schema/signedRecords';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';

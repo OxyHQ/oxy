@@ -37,7 +37,7 @@ function cspOf(block: string): string {
   return line.trim().slice('Content-Security-Policy:'.length).trim();
 }
 
-describe('@oxyhq/core/server buildOxyCspDirectives', () => {
+describe('@oxy.so/core/server buildOxyCspDirectives', () => {
   it('carries the Cloudflare Insights beacon on BOTH halves of the baseline', () => {
     // The bug this helper exists for: the script host alone leaves the beacon
     // loading but unable to report, which looks fixed and is not.
@@ -148,7 +148,7 @@ describe('@oxyhq/core/server buildOxyCspDirectives', () => {
   });
 });
 
-describe('@oxyhq/core/server formatOxyCspPolicy', () => {
+describe('@oxy.so/core/server formatOxyCspPolicy', () => {
   it('serializes directives into a single CSP header value', () => {
     const policy = formatOxyCspPolicy(buildOxyCspDirectives());
     expect(policy).toContain("script-src 'self' https://static.cloudflareinsights.com");
@@ -157,7 +157,7 @@ describe('@oxyhq/core/server formatOxyCspPolicy', () => {
   });
 });
 
-describe('@oxyhq/core/server buildOxyPagesHeaders', () => {
+describe('@oxy.so/core/server buildOxyPagesHeaders', () => {
   it('emits a Cloudflare Pages _headers block with CSP and hardening headers', () => {
     const block = buildOxyPagesHeaders();
     expect(block.startsWith('/*\n')).toBe(true);
@@ -198,7 +198,7 @@ function expoExportHtml(body = EXPO_HYDRATE_SCRIPT): string {
   ].join('');
 }
 
-describe('@oxyhq/core/server extractInlineScripts', () => {
+describe('@oxy.so/core/server extractInlineScripts', () => {
   it('returns inline bodies and skips external scripts', () => {
     expect(extractInlineScripts(expoExportHtml())).toEqual([EXPO_HYDRATE_SCRIPT]);
   });
@@ -226,7 +226,7 @@ describe('@oxyhq/core/server extractInlineScripts', () => {
   });
 });
 
-describe('@oxyhq/core/server buildOxyPagesHeaders inline-script hashes', () => {
+describe('@oxy.so/core/server buildOxyPagesHeaders inline-script hashes', () => {
   it('allows the built HTML\'s inline script by hash', () => {
     const block = buildOxyPagesHeaders({ html: [expoExportHtml()] });
     expect(cspSourcesFor(cspOf(block), 'script-src')).toEqual([
@@ -283,7 +283,7 @@ describe('@oxyhq/core/server buildOxyPagesHeaders inline-script hashes', () => {
   });
 });
 
-describe('@oxyhq/core/server createOxySecurityHeaders', () => {
+describe('@oxy.so/core/server createOxySecurityHeaders', () => {
   it('sends the resolved baseline as a real Content-Security-Policy header', () => {
     const policy = renderPolicy({});
 

@@ -2,7 +2,7 @@
 /**
  * Block publishes that bypass Bun's workspace: protocol substitution.
  *
- * @oxyhq/core@12.10.1 was broken because `npm publish` left literal
+ * @oxy.so/core@12.10.1 was broken because `npm publish` left literal
  * `workspace:^` strings in the published manifest. `bun publish` substitutes
  * them to real semver ranges before packing.
  *

@@ -10,19 +10,19 @@
       "@/*": [
         "./*"
       ],
-      "@oxyhq/services": [
+      "@oxy.so/services": [
         "../services/src"
       ],
-      "@oxyhq/services/*": [
+      "@oxy.so/services/*": [
         "../services/src/*"
       ],
-      "@oxyhq/services/core": [
+      "@oxy.so/services/core": [
         "../services/src/core"
       ],
-      "@oxyhq/services/full": [
+      "@oxy.so/services/full": [
         "../services/src"
       ],
-      "@oxyhq/services/ui": [
+      "@oxy.so/services/ui": [
         "../services/src/ui"
       ]
     }

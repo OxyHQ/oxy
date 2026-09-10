@@ -52,7 +52,7 @@ export type RouteName =
  * dependencies out of the evaluation path of every consumer that merely touches
  * the SDK.
  *
- * What defers the load must NOT be `require()`. `@oxyhq/services` ships an ESM
+ * What defers the load must NOT be `require()`. `@oxy.so/services` ships an ESM
  * build, and a `require()` in ESM output forces web bundlers into CommonJS
  * interop: rolldown-vite defers every module in the required subgraph behind a
  * lazy initializer and then hands a consumer that statically imported one of

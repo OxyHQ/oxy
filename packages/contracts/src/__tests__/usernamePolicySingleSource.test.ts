@@ -16,7 +16,7 @@
  * ## Why a gate rather than a comment
  *
  * The rules did not diverge loudly. SEVEN accumulated across five packages —
- * four that validated (`@oxyhq/api`, `@oxyhq/core`, `@oxyhq/commons`, and one
+ * four that validated (`@oxy.so/api`, `@oxy.so/core`, `@oxy.so/commons`, and one
  * written inline in `AccountService.resolveUniqueUsername`) and three that
  * COERCED, silently deleting the characters they disliked. The file that declared
  * itself the enforced one listed two of the six others. The one it missed was the

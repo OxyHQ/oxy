@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@oxyhq/services'
+import { useAuth } from '@oxy.so/services'
 import type {
   InferenceEnvironment,
   ProviderConnection,
   ProviderCredentialValidationDeployment,
   ProviderCredentialValidationOperation,
-} from '@oxyhq/contracts'
+} from '@oxy.so/contracts'
 import type { ProviderConnectionView } from '@/lib/provider-connection'
 import { toProviderConnectionView } from '@/lib/provider-connection'
 

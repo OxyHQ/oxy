@@ -5,14 +5,14 @@ import {
   USAGE_UNITS,
   currencyCodeSchema,
   exactDecimalSchema,
-} from '@oxyhq/contracts'
+} from '@oxy.so/contracts'
 import type { ReactNode } from 'react'
 import type {
   ModelCatalogueEntry,
   RoutingProfile,
   UnitPrice,
   UsageUnit,
-} from '@oxyhq/contracts'
+} from '@oxy.so/contracts'
 import type { RoutingPolicyControls } from '@/lib/routing-policy'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ACCOUNT_KINDS } from '@oxyhq/contracts';
-import type { AccountKind, AccountNode, AccountRelationship } from '@oxyhq/core';
+import { ACCOUNT_KINDS } from '@oxy.so/contracts';
+import type { AccountKind, AccountNode, AccountRelationship } from '@oxy.so/core';
 import { buildWorkspaceTree } from '../workspace-tree';
 
 function node(

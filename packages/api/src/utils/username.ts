@@ -3,7 +3,7 @@
  * judged.
  *
  * This file no longer decides what is legal. That is one rule, in one place:
- * `usernameSchema` in `@oxyhq/contracts`, imported by every write path here and
+ * `usernameSchema` in `@oxy.so/contracts`, imported by every write path here and
  * by every client. This module answers the other question — what string the
  * policy is applied TO — and the two are deliberately separate:
  * canonicalization is about the same name written two ways, policy is about
@@ -15,7 +15,7 @@
  * now makes a seventh impossible to add quietly.
  */
 
-import { normalizeInlineText } from '@oxyhq/core';
+import { normalizeInlineText } from '@oxy.so/core';
 
 /**
  * Canonicalize a submitted username before it is validated, compared, or stored.

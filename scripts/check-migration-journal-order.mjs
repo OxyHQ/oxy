@@ -20,7 +20,7 @@
  *
  * WHY THE RUNTIME GUARD IS NOT ENOUGH, AND WHAT THIS ADDS
  *
- * `@oxyhq/db`'s `planLedgerRun` (`packages/db/src/migrate/ledger.ts`) already
+ * `@oxy.so/db`'s `planLedgerRun` (`packages/db/src/migrate/ledger.ts`) already
  * refuses this: it computes `unreachableEntries` against the LIVE ledger and
  * throws `UnreachableMigrationError` rather than reporting a clean run. That
  * guard is real and must stay — it is the only thing that can see the database.
@@ -165,7 +165,7 @@ for (let position = 1; position < entries.length; position += 1) {
       `${entry.tag} has when=${entry.when}, which is not newer than ${previous.tag}'s ` +
       `when=${previous.when}. A migration is applied only when its \`when\` is strictly newer than ` +
       'the newest already recorded, so once a database has applied ' +
-      `${previous.tag} this one is unreachable: raw drizzle steps over it in silence, and @oxyhq/db's ` +
+      `${previous.tag} this one is unreachable: raw drizzle steps over it in silence, and @oxy.so/db's ` +
       'migrator refuses the whole run. Regenerate it (rename the file and its journal entry) with a ' +
       '`when` above every entry before it — never edit the ledger.'
     );

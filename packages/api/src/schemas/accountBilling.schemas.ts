@@ -9,7 +9,7 @@
  * gates those on staff as well; the schema is what makes an unexpected shape
  * stop at the boundary rather than being quietly discarded.
  *
- * Amounts are `exactDecimalSchema` from `@oxyhq/contracts`, never `z.number()`.
+ * Amounts are `exactDecimalSchema` from `@oxy.so/contracts`, never `z.number()`.
  * A JSON number cannot carry `0.000003` losslessly through every client, and the
  * ledger's whole arrangement is that money is an exact decimal STRING from the
  * wire to the column. A `z.number()` here would be the one place the invariant
@@ -23,7 +23,7 @@ import {
   billingProfileStatusSchema,
   currencyCodeSchema,
   exactDecimalSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { LEDGER_AUTHORITATIVE_NOTE } from './inferenceReporting.schemas';
 
 /** An id in a path segment. Bounded so a pathological path is refused early. */
@@ -159,7 +159,7 @@ export const reconciliationBody = z
  * the convention rather than restated, because two spellings of
  * "authoritative" is exactly the drift the convention exists to prevent.
  *
- * The ROWS stay `billingInvoiceSchema` from `@oxyhq/contracts`: the invoice is a
+ * The ROWS stay `billingInvoiceSchema` from `@oxy.so/contracts`: the invoice is a
  * shared shape, and the envelope is this API's way of describing what kind of
  * number it just handed over.
  */

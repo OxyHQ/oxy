@@ -10,7 +10,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 import { messages } from './messages';
 import type { EmailAddress } from './messages';

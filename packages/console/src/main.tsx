@@ -1,6 +1,6 @@
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from '@tanstack/react-router';
-import { BloomThemeProvider } from '@oxyhq/bloom/theme';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import { getRouter } from './router';
 import './styles.css';
 

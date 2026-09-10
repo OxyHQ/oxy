@@ -96,11 +96,11 @@ import {
   uniqueIndex,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 import {
   priceVersionStatusSchema,
   USAGE_UNITS,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   currencyCode,
   currencyCodeCheck,

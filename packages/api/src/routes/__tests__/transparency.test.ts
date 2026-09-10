@@ -4,14 +4,14 @@
  * These endpoints exist to be consumed by people auditing Oxy, including from
  * other origins and from tooling that is not a browser — so this suite locks
  * that they are PUBLIC (no auth), CORS-open, and that the response shapes match
- * the `@oxyhq/contracts` schemas a verifier parses. The service is mocked; the
+ * the `@oxy.so/contracts` schemas a verifier parses. The service is mocked; the
  * checkpoint math is covered in the service and protocol suites.
  */
 
 import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
-import { transparencyCheckpointSchema, transparencyInclusionProofSchema } from '@oxyhq/contracts';
+import { transparencyCheckpointSchema, transparencyInclusionProofSchema } from '@oxy.so/contracts';
 
 const CHECKPOINT = {
   index: 3,

@@ -680,7 +680,7 @@ describe('settle charges the exact usage and releases the rest atomically', () =
 /**
  * The unit set PARTITIONS a request — `cached_input_tokens` is a sibling of
  * `input_tokens`, not a detail inside it, and the same for `reasoning_tokens`
- * and `output_tokens` (`@oxyhq/contracts`' `USAGE_UNITS`). `computeCharge`
+ * and `output_tokens` (`@oxy.so/contracts`' `USAGE_UNITS`). `computeCharge`
  * prices every reported unit and sums, so that sum is the request's cost only
  * under the partition reading.
  *

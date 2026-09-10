@@ -45,7 +45,7 @@
 
 import { and, asc, desc, eq, isNotNull, sql, type Column, type SQL } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { qualified } from '@oxyhq/db';
+import { qualified } from '@oxy.so/db';
 import { userLocations } from '../db/schema/userLocations';
 import { users } from '../db/schema/users';
 import { logger } from '../utils/logger';

@@ -7,7 +7,7 @@
  * title/subtitle/relative-time formatting used by the activity rows.
  */
 
-import type { SecurityActivity, SecurityEventType } from '@oxyhq/core';
+import type { SecurityActivity, SecurityEventType } from '@oxy.so/core';
 import type { TranslateFn } from '@/lib/i18n';
 
 const MS_PER_MINUTE = 60_000;

@@ -48,7 +48,7 @@ import type {
   InferenceRequest,
   InferenceStreamEvent,
   InferenceStreamRouteSwitchEvent,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';

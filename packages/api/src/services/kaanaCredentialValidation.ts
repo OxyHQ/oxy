@@ -3,7 +3,7 @@ import {
   kaanaCredentialValidationOutcomeSchema,
   kaanaCredentialValidationTaskSchema,
   type KaanaCredentialValidationTask,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   resolveKaanaDataPlane,
   type KaanaDataPlaneConfig,

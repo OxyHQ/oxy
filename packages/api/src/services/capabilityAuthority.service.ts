@@ -8,8 +8,8 @@ import {
   type GrantLimit,
   type PolicyDecision,
   type ResourceRef,
-} from '@oxyhq/contracts';
-import { issueCapabilityTicket } from '@oxyhq/core/server';
+} from '@oxy.so/contracts';
+import { issueCapabilityTicket } from '@oxy.so/core/server';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import { getDb } from '../config/postgres';
 import {

@@ -1,4 +1,4 @@
-import type { CatalogInvocationContext } from '@oxyhq/mcp';
+import type { CatalogInvocationContext } from '@oxy.so/mcp';
 
 const mockSearchMessages = jest.fn();
 const mockSendMessage = jest.fn();

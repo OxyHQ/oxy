@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { Linking, Platform } from 'react-native';
-import { OxyServices, oxyClient } from '@oxyhq/core';
+import { OxyServices, oxyClient } from '@oxy.so/core';
 import type {
   User,
   SessionLoginResponse,
@@ -17,7 +17,7 @@ import type {
   PersistedAuthState,
   AccountDialogController,
   AccountDialogView,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import {
   KeyManager,
   establishIdentitySession,
@@ -25,7 +25,7 @@ import {
   startTokenRefreshScheduler,
   createAccountDialogController,
   logger as loggerUtil,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import {
   registerAccountDialogControls,
   notifyAccountDialogVisibility,
@@ -1156,7 +1156,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   );
 
   // Thin passthroughs to the platform-agnostic KeyManager. NOTE: both now THROW
-  // `IdentityUnavailableError` (from `@oxyhq/core`) when identity storage is
+  // `IdentityUnavailableError` (from `@oxy.so/core`) when identity storage is
   // locked/unreadable, instead of flattening that into `false`/`null`. We keep
   // the signatures and deliberately let the typed error PROPAGATE to the caller
   // — a locked keychain must never be misreported as "no identity". `hasIdentity`

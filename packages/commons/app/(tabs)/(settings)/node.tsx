@@ -26,7 +26,7 @@ import {
 } from '@/hooks/useNode';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { useTranslation } from '@/lib/i18n';
-import type { UserNodeMode, UserNodeStatus } from '@oxyhq/core';
+import type { UserNodeMode, UserNodeStatus } from '@oxy.so/core';
 import type { CivicTone } from '@/lib/civic/card-presentation';
 import type { MaterialCommunityIconName } from '@/types/icons';
 

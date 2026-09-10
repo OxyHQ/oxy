@@ -11,7 +11,7 @@
  */
 
 import { pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt } from '@oxyhq/db';
+import { createdAt } from '@oxy.so/db';
 import { users } from './users';
 
 export const accountClosureFences = pgTable('account_closure_fences', {

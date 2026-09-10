@@ -129,7 +129,7 @@ describe('Validation Utils', () => {
    * `isValidUsername` and `USERNAME_REGEX` were REMOVED from this module: they
    * were a second username policy, looser than the one the server enforced, so
    * the SDK could call a name valid and the API 400 it. The rule now lives once,
-   * in `@oxyhq/contracts`, and its own suite covers it. What survives here is the
+   * in `@oxy.so/contracts`, and its own suite covers it. What survives here is the
    * one thing this module still does with a username — sanitise-then-validate,
    * asserted below to answer from that single policy.
    */
@@ -260,7 +260,7 @@ describe('Validation Utils', () => {
     it('constructs the `u`-flag regexes without throwing', () => {
       expect(() => new RegExp(DISPLAY_NAME_DISALLOWED_SOURCE, 'u')).not.toThrow();
       expect(() => new RegExp(DISPLAY_NAME_ORPHANED_MARK_SOURCE, 'u')).not.toThrow();
-      // Global variants are what @oxyhq/api compiles for the strip path.
+      // Global variants are what @oxy.so/api compiles for the strip path.
       expect(() => new RegExp(DISPLAY_NAME_DISALLOWED_SOURCE, 'gu')).not.toThrow();
       expect(() => new RegExp(DISPLAY_NAME_ORPHANED_MARK_SOURCE, 'gu')).not.toThrow();
     });
@@ -557,7 +557,7 @@ describe('Validation Utils', () => {
       expect(/\\[pP]\{/.test(DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE)).toBe(false);
       expect(/\\[pP]\{/.test(DISPLAY_NAME_NAME_SEPARATORS_RANGES)).toBe(false);
       expect(() => new RegExp(DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE, 'u')).not.toThrow();
-      // Global variant is what @oxyhq/api compiles for the strip path.
+      // Global variant is what @oxy.so/api compiles for the strip path.
       expect(() => new RegExp(DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE, 'gu')).not.toThrow();
     });
 
@@ -589,7 +589,7 @@ describe('Validation Utils', () => {
     });
 
     /**
-     * The version this ecosystem MINTS. `@oxyhq/db`'s `generatedId()` produces a
+     * The version this ecosystem MINTS. `@oxy.so/db`'s `generatedId()` produces a
      * uuid v7, so every Postgres primary key since the 2026-07-31 cutover is
      * one — and the old `[1-5]` version class answered `false` for all of them.
      * The suite could not see it: both samples above are v1 and v4.
@@ -686,7 +686,7 @@ describe('Validation Utils', () => {
       expect(validateAndSanitizeUserInput('  testuser  ', 'username')).toBe('testuser');
       expect(validateAndSanitizeUserInput('ab', 'username')).toBeNull(); // too short
       expect(validateAndSanitizeUserInput(123, 'username')).toBeNull();
-      // Answers from the one policy in `@oxyhq/contracts`, not from a rule of its
+      // Answers from the one policy in `@oxy.so/contracts`, not from a rule of its
       // own: a dot and an edge separator are rejected here because they are
       // rejected there.
       expect(validateAndSanitizeUserInput('my-bot', 'username')).toBe('my-bot');

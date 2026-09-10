@@ -59,7 +59,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { applications } from './applications';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 import { reputationTransactions } from './reputationTransactions';
 import { users } from './users';
 

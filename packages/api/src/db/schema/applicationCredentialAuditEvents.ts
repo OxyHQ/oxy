@@ -84,7 +84,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, jsonb, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
 import { users } from './users';

@@ -1,5 +1,5 @@
-import type { DeviceDirectory, DeviceSessionState } from '@oxyhq/contracts';
-import type { ClientSession, DeviceContext, User } from '@oxyhq/core';
+import type { DeviceDirectory, DeviceSessionState } from '@oxy.so/contracts';
+import type { ClientSession, DeviceContext, User } from '@oxy.so/core';
 import {
   accountIdsOf,
   activeSessionIdOf,
@@ -10,7 +10,7 @@ import {
   normalizeUserIdentity,
   resolveActiveContext,
   sessionsArraysEqual,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import type { IdentitySessionBinding } from '../session/identityBinding';
 import type { OxyRuntimeSnapshot, OxyRuntimeStatus, OxyTokenStatus } from './types';
 

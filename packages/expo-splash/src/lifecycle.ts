@@ -7,7 +7,7 @@ import * as SplashScreen from 'expo-splash-screen';
  *
  * The Oxy splash pattern makes the NATIVE OS splash the single splash on native
  * (app logo centered by `expo-splash-screen` + Oxy branding pinned to the bottom
- * by the `@oxyhq/expo-splash` config plugin). The app HOLDS the OS splash at
+ * by the `@oxy.so/expo-splash` config plugin). The app HOLDS the OS splash at
  * module load and HIDES it once it is ready to paint real UI, so there is no
  * blank gap between the OS splash and the first real frame — and no duplicate
  * custom splash on native.

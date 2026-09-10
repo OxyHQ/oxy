@@ -18,7 +18,7 @@ beforeEach(() => {
   mockDnsLookup.mockReset();
 });
 
-describe('@oxyhq/core/server safeFetch — isBlockedIp', () => {
+describe('@oxy.so/core/server safeFetch — isBlockedIp', () => {
   it('blocks private / loopback / metadata / reserved IPv4 ranges', () => {
     const blocked = [
       '127.0.0.1', // loopback
@@ -68,7 +68,7 @@ describe('@oxyhq/core/server safeFetch — isBlockedIp', () => {
   });
 });
 
-describe('@oxyhq/core/server safeFetch — assertSafePublicUrl', () => {
+describe('@oxy.so/core/server safeFetch — assertSafePublicUrl', () => {
   it('rejects literal private / metadata IP URLs without any DNS', async () => {
     const cases: Array<[string, RegExp]> = [
       ['http://169.254.169.254/latest/meta-data/', /blocked range/],
@@ -176,7 +176,7 @@ describe('@oxyhq/core/server safeFetch — assertSafePublicUrl', () => {
  * (A full real-https.request verification against Bun was performed out of band;
  * this unit test guards the array-vs-triple contract under Jest/Node.)
  */
-describe('@oxyhq/core/server safeFetch — pinned lookup {all:true} contract', () => {
+describe('@oxy.so/core/server safeFetch — pinned lookup {all:true} contract', () => {
   function makePinnedLookup(pinnedIp: string, pinnedFamily: 4 | 6): LookupFunction {
     return ((
       _hostname: string,

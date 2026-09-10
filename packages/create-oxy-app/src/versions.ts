@@ -13,11 +13,11 @@ export const VERSIONS = {
   // installs from npm, not from this workspace. So a pin tracks the PUBLISHED
   // version, never `packages/<pkg>/package.json`: a workspace version that has
   // been bumped but not yet published names a range nothing can resolve.
-  oxyServices: '^31.0.0', // @oxyhq/services
-  oxyCore: '^23.3.0', // @oxyhq/core
-  oxyBloom: '^1.14.0', // @oxyhq/bloom
-  oxyContracts: '^0.40.0', // @oxyhq/contracts
-  oxyAppPreset: '^0.5.0', // @oxyhq/app-preset
+  oxyServices: '^31.0.0', // @oxy.so/services
+  oxyCore: '^23.3.0', // @oxy.so/core
+  oxyBloom: '^1.0.0', // @oxy.so/bloom
+  oxyContracts: '^1.0.0', // @oxy.so/contracts
+  oxyAppPreset: '^0.5.0', // @oxy.so/app-preset
 
   // --- Expo SDK 57 core ---
   expo: '^57.0.6',
@@ -34,7 +34,7 @@ export const VERSIONS = {
   expoVectorIcons: '^15.1.1', // @expo/vector-icons
 
   // --- Oxy SDK UI optional peers (toast / haptics / avatar crop / file picking / QR sign-in) ---
-  // These are declared OPTIONAL by @oxyhq/services, but the screens that name
+  // These are declared OPTIONAL by @oxy.so/services, but the screens that name
   // them are reachable from its root barrel — and `tsc` resolves the specifier
   // of an `import()` even when the call is lazy — so a consumer of the barrel
   // must install them or fail to typecheck with TS2307. Adding a screen to the
@@ -95,12 +95,12 @@ export const VERSIONS = {
 
   // --- Backend datastore (PostgreSQL via drizzle) ---
   // drizzle-orm and postgres are pinned EXACTLY, not caret-ranged: they are the
-  // peer dependencies @oxyhq/db declares, and drizzle's minor releases have
+  // peer dependencies @oxy.so/db declares, and drizzle's minor releases have
   // changed generated DDL. One resolved version per ecosystem backend is what
   // keeps a scaffolded app's migrations comparable with everyone else's.
-  // @oxyhq/db — column builders, casing authority, migration ledger. Published
+  // @oxy.so/db — column builders, casing authority, migration ledger. Published
   // version, not the workspace one (see the Oxy SDK note at the top).
-  oxyDb: '^0.1.2',
+  oxyDb: '^1.0.0',
   drizzleOrm: '0.45.2', // drizzle-orm
   postgres: '3.4.9', // postgres (postgres.js driver)
   drizzleKit: '0.31.10', // drizzle-kit — devDependency; generates migrations only
@@ -109,4 +109,4 @@ export const VERSIONS = {
 export type VersionKey = keyof typeof VERSIONS;
 
 /** Bun version pinned across CI + Dockerfiles for reproducible installs. */
-export const BUN_VERSION = '1.3.14';
+export const BUN_VERSION = '1.4.2';

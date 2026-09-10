@@ -59,7 +59,7 @@ answers *on whose behalf*, and it never answers *who pays*.
 - Its absence is normal. A machine credential calling on its own behalf has no
   delegated user, and nothing synthesizes one.
 - **How much it is checked depends on which surface you are on, and it is worth
-  knowing which.** On the service-authenticated Oxy routes, `@oxyhq/core/server`
+  knowing which.** On the service-authenticated Oxy routes, `@oxy.so/core/server`
   resolves it against an explicit acting-as grant, so it is never trusted as an
   assertion. On the inference edge it is shape-checked and bounded (a real Oxy
   user id, at most 64 characters) and **not resolved against a grant** — it is
@@ -85,7 +85,7 @@ import {
   getOxyBillingPrincipal,   // OxyBillingPrincipal | null  — who is charged
   getOxyDelegatedUserId,    // string | null               — on whose behalf
   getOxyRequestAttribution, // both, as one object
-} from '@oxyhq/core/server';
+} from '@oxy.so/core/server';
 ```
 
 `getOxyBillingPrincipal` reads the service-token principal and nothing else —

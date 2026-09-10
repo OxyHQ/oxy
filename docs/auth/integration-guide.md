@@ -1,7 +1,7 @@
 # Sign in with Oxy — Third-Party Integration Guide
 
 > **Audience:** developers integrating "Sign in with Oxy" into an app that is **not** an official Oxy app — any web SPA, server-rendered site, or native app on any domain.
-> **Model:** standard OAuth 2.0 Authorization Code, with PKCE (RFC 7636, S256) for public clients. No browser tricks, no Oxy session cookies on your domain, no hidden iframes, and nothing that reaches `auth.oxy.so` on page load — a hop to `auth.oxy.so` and back that only ever starts from the user's click. Build it yourself as a plain top-level redirect (Steps 2–4), or let `@oxyhq/services` run it as a popup that leaves your page mounted ([Step 5](#popup-mode--keep-your-page-mounted-issue-691-phases-27b)).
+> **Model:** standard OAuth 2.0 Authorization Code, with PKCE (RFC 7636, S256) for public clients. No browser tricks, no Oxy session cookies on your domain, no hidden iframes, and nothing that reaches `auth.oxy.so` on page load — a hop to `auth.oxy.so` and back that only ever starts from the user's click. Build it yourself as a plain top-level redirect (Steps 2–4), or let `@oxy.so/services` run it as a popup that leaves your page mounted ([Step 5](#popup-mode--keep-your-page-mounted-issue-691-phases-27b)).
 >
 > Official Oxy apps integrate differently (in-app dialog + device-session sync) — see [`docs/auth/device-session.md`](./device-session.md). This guide is for everyone else.
 
@@ -13,7 +13,7 @@ The mental model is the same as Google Sign-In:
 | `client_id` | `oxy_dk_…` (an `ApplicationCredential` public key) |
 | Consent screen | `auth.oxy.so/authorize` + `OxyConsentScreen` |
 | OAuth 2.0 Authorization Code + PKCE | `auth.oxy.so/authorize` → `POST api.oxy.so/auth/oauth/token` |
-| "Sign in with Google" button | `OxySignInButton` from `@oxyhq/services`, or your own link |
+| "Sign in with Google" button | `OxySignInButton` from `@oxy.so/services`, or your own link |
 | Connected apps in Google Account | Accounts → Connected apps (`GET /auth/grants`, revoke) |
 
 ---
@@ -44,7 +44,7 @@ sequenceDiagram
 
 Key properties:
 
-- The diagram is the **redirect** transport — what Steps 2–4 build by hand. `@oxyhq/services`' default popup transport swaps the two `Redirect` arrows for a `window.open` + `postMessage` back to the opener; every other step, including the token exchange, is identical.
+- The diagram is the **redirect** transport — what Steps 2–4 build by hand. `@oxy.so/services`' default popup transport swaps the two `Redirect` arrows for a `window.open` + `postMessage` back to the opener; every other step, including the token exchange, is identical.
 - The flow only ever starts from a user gesture. Nothing in it runs on page load.
 - The authorization code is **single-use** and expires after ~60 seconds. Replay, expiry, or a `redirect_uri` mismatch all return the same `400 invalid_grant`, with one shared description that never says which check failed.
 - Tokens are **never in a URL** — only the short-lived `code` and your `state` cross the redirect.
@@ -72,12 +72,12 @@ Your **`client_id`** is the credential's public key (`oxy_dk_…`).
 
 ## Step 2 — Web SPA (public client + PKCE)
 
-Use the helpers from `@oxyhq/core` — `generatePkcePair()`, `generateOAuthState()`, and `buildOAuthAuthorizeUrl()` (see `packages/core/src/utils/oauthPkce.ts`). They run identically on web, Node, and React Native.
+Use the helpers from `@oxy.so/core` — `generatePkcePair()`, `generateOAuthState()`, and `buildOAuthAuthorizeUrl()` (see `packages/core/src/utils/oauthPkce.ts`). They run identically on web, Node, and React Native.
 
 **Start the flow** (e.g. from your sign-in button's click handler):
 
 ```typescript
-import { generatePkcePair, generateOAuthState, buildOAuthAuthorizeUrl } from '@oxyhq/core';
+import { generatePkcePair, generateOAuthState, buildOAuthAuthorizeUrl } from '@oxy.so/core';
 
 const OXY_CLIENT_ID = 'oxy_dk_your_client_id';
 const REDIRECT_URI = 'https://merchant.example/auth/callback';
@@ -164,7 +164,7 @@ async function handleOAuthCallback(): Promise<OxyTokenResponse> {
 }
 ```
 
-Alternatively, render `<OxySignInButton />` from `@oxyhq/services` and let the SDK generate the PKCE pair and redirect for you — see [Step 5](#step-5--the-oxysigninbutton-sdk-ui). On web the button persists the handshake under the exported `OXY_OAUTH_STATE_STORAGE_KEY` / `OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY` `sessionStorage` keys, which your callback reads back exactly as above.
+Alternatively, render `<OxySignInButton />` from `@oxy.so/services` and let the SDK generate the PKCE pair and redirect for you — see [Step 5](#step-5--the-oxysigninbutton-sdk-ui). On web the button persists the handshake under the exported `OXY_OAUTH_STATE_STORAGE_KEY` / `OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY` `sessionStorage` keys, which your callback reads back exactly as above.
 
 ---
 
@@ -196,12 +196,12 @@ Two supported options, mirroring Google Sign-In on mobile:
 | Option | When | How |
 |--------|------|-----|
 | **A — OAuth + custom scheme** | Any native app | Register a `redirectUri` like `myapp://oauth/callback`; open `auth.oxy.so/authorize` in an in-app auth session (`WebBrowser.openAuthSessionAsync`); capture the `code` from the deep link; exchange with PKCE (or on your backend) |
-| **B — SDK button** | App already using `@oxyhq/services` | `<OxySignInButton oauthRedirectUri onOAuthResult />` — the SDK builds the URL, opens the auth session, and hands you the handshake |
+| **B — SDK button** | App already using `@oxy.so/services` | `<OxySignInButton oauthRedirectUri onOAuthResult />` — the SDK builds the URL, opens the auth session, and hands you the handshake |
 
 With Option B, the button opens the authorize URL via `expo-web-browser` (falling back to `Linking.openURL` when it isn't installed) and surfaces the OAuth handshake through `onOAuthResult` so **you** finish the token exchange:
 
 ```tsx
-import { OxyProvider, OxySignInButton, type OxyOAuthResult } from '@oxyhq/services';
+import { OxyProvider, OxySignInButton, type OxyOAuthResult } from '@oxy.so/services';
 
 async function completeOAuth({ redirectUrl, state, codeVerifier }: OxyOAuthResult) {
   if (!redirectUrl) return; // auth session dismissed, or Linking fallback —
@@ -253,7 +253,7 @@ trip to the IdP must begin with a real user gesture.
 
 ```tsx
 import { Button, Platform } from 'react-native';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 const SINDI_SCOPES = ['inference:invoke', 'acting-as:offline'] as const;
 
@@ -292,7 +292,7 @@ both redirect URIs explicitly; no wildcard or inferred callback is accepted.
 
 ## Step 5 — The OxySignInButton (SDK UI)
 
-`OxySignInButton` (from `@oxyhq/services`) is the branded "Sign in with Oxy" button. On press it resolves your Application's public identity via `GET /auth/oauth/client/:clientId` (SDK: `oxyServices.getPublicApplication(clientId)`) and routes by type:
+`OxySignInButton` (from `@oxy.so/services`) is the branded "Sign in with Oxy" button. On press it resolves your Application's public identity via `GET /auth/oauth/client/:clientId` (SDK: `oxyServices.getPublicApplication(clientId)`) and routes by type:
 
 | Resolved `type` / flags | Action on press |
 |-------------------------|-----------------|
@@ -300,7 +300,7 @@ both redirect URIs explicitly; no wildcard or inferred callback is accepted.
 | `third_party` | **OAuth authorize** at `auth.oxy.so/authorize` with SDK-generated `state` + PKCE — as a popup by default on web, or a full-page redirect (see [Popup mode](#popup-mode--keep-your-page-mounted-issue-691-phases-27b)); native always uses an in-app auth session |
 
 ```tsx
-import { OxyProvider, OxySignInButton, useAuth } from '@oxyhq/services';
+import { OxyProvider, OxySignInButton, useAuth } from '@oxy.so/services';
 
 export function App() {
   return (
@@ -346,7 +346,7 @@ How popup mode behaves:
 - The SDK performs the PKCE exchange and commits the session itself, in the SAME window your button lives in — your page's route, scroll position, and any unsaved state survive because the tab never navigates.
 - If the browser blocks the popup (or `window.open` fails), the SDK automatically falls back to the ordinary full-page redirect — you don't need to handle that case. That fallback lands on your `redirectUri` with `?code=`, and the SDK completes it on the next mount, so **keep your callback route working even in popup mode**.
 - Only the authorization code, your `state`, and a standard OAuth error code ever cross the popup boundary. The PKCE `code_verifier` never leaves the opener's memory.
-- Popup mode is an `@oxyhq/services` (`OxyProvider` + `OxySignInButton`, or `useOxy().startWebOAuthSignIn`) feature — the manual `fetch`-based flow in [Step 2](#step-2--web-spa-public-client--pkce) is redirect-only.
+- Popup mode is an `@oxy.so/services` (`OxyProvider` + `OxySignInButton`, or `useOxy().startWebOAuthSignIn`) feature — the manual `fetch`-based flow in [Step 2](#step-2--web-spa-public-client--pkce) is redirect-only.
 - Neither mode makes the SDK navigate on its own. The authorize hop always starts from a user gesture; see item 1 below.
 
 ---
@@ -355,12 +355,12 @@ How popup mode behaves:
 
 ### Your backend validates Oxy bearer tokens
 
-Use `@oxyhq/core/server` — do not hand-roll bearer parsing or token-decoding middleware:
+Use `@oxy.so/core/server` — do not hand-roll bearer parsing or token-decoding middleware:
 
 ```typescript
 import express from 'express';
-import { OxyServices } from '@oxyhq/core';
-import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxyhq/core/server';
+import { OxyServices } from '@oxy.so/core';
+import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
 
 const app = express();
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
@@ -381,7 +381,7 @@ Every consent your app receives appears in the user's Oxy account under **Connec
 - `GET /auth/grants` (Bearer) — lists the user's authorized third-party apps: `{ data: [{ applicationId, name, logoUrl?, scopes, firstGrantedAt, lastUsedAt }] }`
 - `DELETE /auth/grants/:applicationId` (Bearer) — revokes the grant (idempotent). The next authorize for your app prompts for consent again.
 
-SDK equivalents on `@oxyhq/core` (`packages/core/src/mixins/OxyServices.connectedApps.ts`): `listConnectedApps()`, `revokeAppGrant(applicationId)`, plus `getPublicApplication(clientId)` for the public identity lookup.
+SDK equivalents on `@oxy.so/core` (`packages/core/src/mixins/OxyServices.connectedApps.ts`): `listConnectedApps()`, `revokeAppGrant(applicationId)`, plus `getPublicApplication(clientId)` for the public identity lookup.
 
 Design your app so a revoked grant simply means the user is signed out of it until they authorize again.
 
@@ -398,8 +398,8 @@ Third-party integration is **standard OAuth only**. Do not expect — or try to 
 5. **No client secret in a browser or app bundle.** SPAs and native apps use `public` credentials + PKCE. Only a server may hold a `confidential` secret.
 6. **No skipping `state` validation.** Always generate `state` with `generateOAuthState()` and reject any callback whose `state` doesn't match — this is your CSRF defense across the redirect.
 7. **No tokens in URLs.** Only the single-use `code` and your `state` cross the redirect; the token exchange is always a POST body.
-8. **No app-local bearer parsers or auth interceptors.** Backends use `@oxyhq/core/server`; clients that also talk to their own backend use `oxyServices.createLinkedClient({ baseURL })` from `@oxyhq/core`.
-9. **No legacy web-only auth SDK.** The platform has exactly one UI SDK — `@oxyhq/services` (`OxyProvider`) — plus the headless client `@oxyhq/core`. The previous separate web auth SDK package was deleted from the monorepo; do not install or import it.
+8. **No app-local bearer parsers or auth interceptors.** Backends use `@oxy.so/core/server`; clients that also talk to their own backend use `oxyServices.createLinkedClient({ baseURL })` from `@oxy.so/core`.
+9. **No legacy web-only auth SDK.** The platform has exactly one UI SDK — `@oxy.so/services` (`OxyProvider`) — plus the headless client `@oxy.so/core`. The previous separate web auth SDK package was deleted from the monorepo; do not install or import it.
 10. **No embedded first-party dialog for third-party apps.** A `third_party` application always goes through the consent-bearing OAuth redirect. Consent is what makes the grant revocable and auditable.
 
 ---

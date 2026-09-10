@@ -9,7 +9,7 @@
  * deps-injection style `commitSessionFlow.test.ts` uses.
  */
 
-import type { LoginSessionResult } from '@oxyhq/contracts';
+import type { LoginSessionResult } from '@oxy.so/contracts';
 import {
   runPasskeyLogin,
   runPasskeyRegister,

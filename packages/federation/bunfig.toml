@@ -1,4 +1,4 @@
-# @oxyhq/federation is a JEST package — see jest.config.js.
+# @oxy.so/federation is a JEST package — see jest.config.js.
 #
 # `bun test` (bun's own runner) is NOT a supported way to run this suite. Even
 # when bun's runner happens to pass today, it ignores jest.config.js and can

@@ -21,7 +21,7 @@
  *     sets `Vary: Origin` for correct caching,
  *   - answers CORS preflight (`OPTIONS`) with `204`.
  *
- * Node/Express-only: exported solely from `@oxyhq/core/server`.
+ * Node/Express-only: exported solely from `@oxy.so/core/server`.
  */
 
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
@@ -41,6 +41,8 @@ const DEFAULT_ALLOWED_HEADERS = [
   'X-Oxy-User-Id',
   'X-Oxy-Internal',
   'X-CSRF-Token',
+  'X-Oxy-Edge-Region',
+  'X-Oxy-Activity-Id',
 ];
 
 /** How long (seconds) a browser may cache a successful preflight. */

@@ -1,4 +1,4 @@
-import type { CatalogTool, GrantLimit } from '@oxyhq/contracts';
+import type { CatalogTool, GrantLimit } from '@oxy.so/contracts';
 
 function duplicateLimit(limits: readonly GrantLimit[]): boolean {
   const keys = limits.map((limit) => `${limit.tool}\0${limit.key}`);

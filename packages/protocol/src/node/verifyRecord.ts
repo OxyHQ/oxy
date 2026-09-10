@@ -20,7 +20,7 @@
  * configured owner public key, not a DID lookup.
  */
 
-import { signedRecordEnvelopeSchema, type SignedRecordEnvelope } from '@oxyhq/contracts';
+import { signedRecordEnvelopeSchema, type SignedRecordEnvelope } from '@oxy.so/contracts';
 import { computeRecordId } from '../envelope/recordId';
 import { verifyEnvelopeSignature } from '../envelope/sign';
 

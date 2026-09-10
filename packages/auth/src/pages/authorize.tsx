@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, Link, useNavigate, Navigate } from "react-router-dom";
-import type { PublicApplication, SwitcherContextRow } from "@oxyhq/core";
-import { OxyConsentScreen, useDeviceSwitcher, useOxy } from "@oxyhq/services";
+import type { PublicApplication, SwitcherContextRow } from "@oxy.so/core";
+import { OxyConsentScreen, useDeviceSwitcher, useOxy } from "@oxy.so/services";
 
-import { Button } from "@oxyhq/bloom/button";
+import { Button } from "@oxy.so/bloom/button";
 import {
   AuthFormLayout,
   AuthFormHeader,
@@ -132,7 +132,7 @@ function SilentPromptRefused() {
  * runs.
  *
  * WHY IT IS ANSWERED AT ALL: every gesture-less lane was deleted, and
- * `@oxyhq/core`'s `buildOAuthAuthorizeUrl` narrowed its `prompt` union to
+ * `@oxy.so/core`'s `buildOAuthAuthorizeUrl` narrowed its `prompt` union to
  * `'login' | 'consent'` so no first-party caller can construct such a request
  * any more. But `prompt` is read off the query string, so an arbitrary caller
  * can still send it. Ignoring it would be the accidental answer: a caller asking

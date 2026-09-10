@@ -7,12 +7,12 @@ import type {
 } from 'react-native';
 import { ActivityIndicator } from 'react-native';
 import { useOxy } from '../context/OxyContext';
-import { toast } from '@oxyhq/bloom/toast';
-import { Button } from '@oxyhq/bloom/button';
+import { toast } from '@oxy.so/bloom/toast';
+import { Button } from '@oxy.so/bloom/button';
 import { useFollow, useFollowForButton } from '../hooks/useFollow';
 import { useFollowStore } from '../stores/followStore';
-import { useTheme } from '@oxyhq/bloom/theme';
-import type { OxyServices, BulkFollowResult, BulkUnfollowResult } from '@oxyhq/core';
+import { useTheme } from '@oxy.so/bloom/theme';
+import type { OxyServices, BulkFollowResult, BulkUnfollowResult } from '@oxy.so/core';
 import { useShallow } from 'zustand/react/shallow';
 
 const DEFAULT_FOLLOW_ALL_LABEL = 'Follow all';

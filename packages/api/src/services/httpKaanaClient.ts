@@ -72,7 +72,7 @@ import {
   type NormalizedUsageReport,
   type UsageQuantity,
   type UsageSource,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { z } from 'zod';
 import {
   kaanaPublicKeyBase64,

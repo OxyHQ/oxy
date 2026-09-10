@@ -118,7 +118,7 @@
 
 import { sql } from "drizzle-orm";
 import { check, index, jsonb, pgTable, text } from "drizzle-orm/pg-core";
-import { createdAt, generatedId, inList } from "@oxyhq/db";
+import { createdAt, generatedId, inList } from "@oxy.so/db";
 import { inferenceProviderConnections } from "./inferenceProviderConnections";
 import { users } from "./users";
 

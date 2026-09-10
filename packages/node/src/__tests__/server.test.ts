@@ -9,14 +9,14 @@
 import { createHash } from 'node:crypto';
 import request from 'supertest';
 import pino from 'pino';
-import { signMessage } from '@oxyhq/protocol';
+import { signMessage } from '@oxy.so/protocol';
 import {
   DEFAULT_APP_NAMESPACE,
   DEFAULT_SERVICE_TYPE,
   DEFAULT_WELL_KNOWN_PATH,
   OWNER_AUTH_HEADERS,
   PROTOCOL_VERSION,
-} from '@oxyhq/protocol/node';
+} from '@oxy.so/protocol/node';
 import { createApp } from '../app';
 import { NodeStore } from '../store/nodeStore';
 import type { NodeConfig } from '../config';

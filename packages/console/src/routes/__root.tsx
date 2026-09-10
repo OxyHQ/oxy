@@ -1,9 +1,9 @@
 import { Outlet, createRootRoute } from '@tanstack/react-router';
 import { Suspense, lazy } from 'react';
 import { QueryClient } from '@tanstack/react-query';
-import { OxyProvider } from '@oxyhq/services';
-import { BloomThemeProvider } from '@oxyhq/bloom/theme';
-import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
+import { OxyProvider } from '@oxy.so/services';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AccountProvider } from '@/hooks/use-account';
 import { LocaleProvider } from '@/lib/i18n';

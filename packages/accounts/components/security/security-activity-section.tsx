@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import { alert } from '@oxyhq/bloom';
-import type { SecurityActivity } from '@oxyhq/core';
+import { alert } from '@oxy.so/bloom';
+import type { SecurityActivity } from '@oxy.so/core';
 import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 import { ThemedText } from '@/components/themed-text';

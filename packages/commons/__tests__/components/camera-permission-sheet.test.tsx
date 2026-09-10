@@ -19,7 +19,7 @@ interface MockDialogProps {
 let mockDialogProps: MockDialogProps | null = null;
 let mockDialogControl: { open: jest.Mock; close: jest.Mock } | null = null;
 
-jest.mock('@oxyhq/bloom/dialog', () => {
+jest.mock('@oxy.so/bloom/dialog', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const R = require('react') as typeof import('react');
   return {

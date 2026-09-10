@@ -1,4 +1,4 @@
-# @oxyhq/node is a JEST package — see jest.config.js.
+# @oxy.so/node is a JEST package — see jest.config.js.
 #
 # `bun test` (bun's own runner) is NOT a supported way to run this suite: it
 # ignores jest.config.js and half-runs the suite. This preload aborts that run

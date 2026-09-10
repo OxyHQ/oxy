@@ -47,7 +47,7 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxyhq/contracts';
+import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
 import { authSessions } from '../../db/schema/authSessions';

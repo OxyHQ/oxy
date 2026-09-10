@@ -38,7 +38,7 @@ import {
     type HubAuthorizeRequest,
     type HubAuthorizeResult,
     type HubSession,
-} from "@oxyhq/contracts"
+} from "@oxy.so/contracts"
 
 /**
  * The env shape the flag is read from — `import.meta.env` in the app, a plain

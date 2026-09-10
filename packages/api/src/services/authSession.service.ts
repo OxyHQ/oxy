@@ -35,9 +35,9 @@
 
 import type { Request } from 'express';
 import { and, eq, gt, sql } from 'drizzle-orm';
-import { isDelegatedActAsEligibleKind } from '@oxyhq/contracts';
+import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
 import { v7 as uuidv7 } from 'uuid';
-import { publicColumns } from '@oxyhq/db/assert';
+import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { appGrants } from '../db/schema/appGrants';
 import { applications } from '../db/schema/applications';

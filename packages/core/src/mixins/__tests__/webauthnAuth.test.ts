@@ -10,7 +10,7 @@
  * session arm; register/verify (link) returns `{ success, message }` WITHOUT
  * planting a token.
  */
-import type { LoginResult } from '@oxyhq/contracts';
+import type { LoginResult } from '@oxy.so/contracts';
 import { OxyServices } from '../../OxyServices';
 
 const SESSION_ARM: LoginResult = {

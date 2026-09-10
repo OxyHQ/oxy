@@ -9,7 +9,7 @@
  * The handler this replaces ran `:userId` through the legacy 24-hex id predicate
  * in `utils/validation.ts` (`/^[0-9a-f]{24}$/i`) and answered
  * `404 {error:'NOT_FOUND', message:'DID not found'}` on a miss. Every row created
- * since the cutover carries a **uuid v7** (`@oxyhq/db`'s `generatedId()`),
+ * since the cutover carries a **uuid v7** (`@oxy.so/db`'s `generatedId()`),
  * which that regex rejects — so a real, fully-provisioned account's DID document
  * 404'd BEFORE ANY QUERY RAN, and the answer was byte-identical to "no such
  * account". `did:web` is a PUBLIC contract consumed by third-party resolvers and
@@ -35,7 +35,7 @@
  * JSON shape is what remote resolvers parse.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';

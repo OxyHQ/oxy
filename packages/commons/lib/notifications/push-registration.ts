@@ -8,7 +8,7 @@
  * The orchestration is pure — every side effect is injected — so the two rules
  * that matter are testable without a device:
  *   1. Nothing is sent until the OS permission is granted AND a token exists.
- *   2. The token that IS sent came from `getExpoPushTokenAsync`; `@oxyhq/core`
+ *   2. The token that IS sent came from `getExpoPushTokenAsync`; `@oxy.so/core`
  *      rejects anything else before a request leaves the client.
  *
  * Registration additionally requires a SESSION — `registerPushToken` is
@@ -16,20 +16,20 @@
  * gates on `canUsePrivateApi`).
  *
  * The device half — OS permission, platform tag, and the Expo push token itself
- * — is the shared `@oxyhq/services` adapter, the one place in the ecosystem that
+ * — is the shared `@oxy.so/services` adapter, the one place in the ecosystem that
  * touches `expo-notifications`. What stays here is Commons policy: the ORDER the
  * preconditions are checked in, and the Commons `clientId` the registration is
  * scoped to.
  */
 
-import type { PushTokenPlatform, RegisterPushTokenInput } from '@oxyhq/core';
-import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxyhq/contracts';
+import type { PushTokenPlatform, RegisterPushTokenInput } from '@oxy.so/core';
+import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxy.so/contracts';
 import {
   ensureNotificationChannel,
   getExpoPushToken,
   hasNotificationPermission,
   pushTokenPlatform,
-} from '@oxyhq/services/notifications';
+} from '@oxy.so/services/notifications';
 import { OXY_CLIENT_ID } from '@/constants/oxy';
 
 /**
@@ -42,7 +42,7 @@ export interface ApprovalChannelCopy {
   description: string;
 }
 
-/** The `@oxyhq/core` surface this module drives (satisfied by `OxyServices`). */
+/** The `@oxy.so/core` surface this module drives (satisfied by `OxyServices`). */
 export interface PushTokenRegistry {
   registerPushToken: (input: RegisterPushTokenInput) => Promise<void>;
   unregisterPushToken: (expoPushToken: string) => Promise<void>;

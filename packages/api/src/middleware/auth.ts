@@ -40,7 +40,7 @@ dotenv.config();
  * `_id` is also not Mongo baggage on this value. `users.id` holds the 24-char
  * ObjectId hex verbatim by the migration contract's own decree, and carrying
  * `_id` beside `id` on this document is the documented contract
- * (`@oxyhq/contracts` `resolveUserId` = `user.id ?? user._id`).
+ * (`@oxy.so/contracts` `resolveUserId` = `user.id ?? user._id`).
  *
  * ## The cast is gone, which is the other half of the change
  *

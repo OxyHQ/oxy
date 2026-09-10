@@ -1,4 +1,4 @@
-import { ACCOUNT_KINDS } from '@oxyhq/contracts';
+import { ACCOUNT_KINDS } from '@oxy.so/contracts';
 import type { User } from '../../models/interfaces';
 import type { AccountNode } from '../../mixins/OxyServices.accounts';
 import { canSwitchIntoAccount, isSwitchTargetAccount } from '../accountSwitchTargets';

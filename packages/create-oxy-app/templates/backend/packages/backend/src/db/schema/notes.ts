@@ -22,12 +22,12 @@
  * both to the runtime handle (`db/postgres.ts`) and to drizzle-kit
  * (`drizzle.config.ts`). Do not spell the SQL name by hand — and note that
  * `column.name` on a drizzle column is the TypeScript property name, not the
- * SQL one. `sqlColumnName()` from `@oxyhq/db` is the way to get the SQL name if
+ * SQL one. `sqlColumnName()` from `@oxy.so/db` is the way to get the SQL name if
  * hand-written SQL ever needs it.
  */
 
 import { index, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 
 export const notes = pgTable(
   'notes',

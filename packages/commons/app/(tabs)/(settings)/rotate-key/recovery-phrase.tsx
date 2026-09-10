@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { RecoveryPhraseService } from '@oxyhq/core';
-import { alert } from '@oxyhq/bloom';
+import { RecoveryPhraseService } from '@oxy.so/core';
+import { alert } from '@oxy.so/bloom';
 import { useColors } from '@/hooks/useColors';
 import { RecoveryPhraseStep } from '@/components/auth/RecoveryPhraseStep';
 import { CenteredState, Button, useScreenBottomPad } from '@/components/ui';

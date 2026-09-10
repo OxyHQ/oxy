@@ -20,15 +20,15 @@
  * nobody decided about.
  *
  * Both lists are this schema's own DATA — they name this schema's tables and
- * columns, so they have no home in `@oxyhq/db`. The `DeferredForeignKey` shape
+ * columns, so they have no home in `@oxy.so/db`. The `DeferredForeignKey` shape
  * itself is no longer declared here, though: it is identical to
- * `@oxyhq/db/assert`'s own export of the same name (the gate that walks this
+ * `@oxy.so/db/assert`'s own export of the same name (the gate that walks this
  * list, `findIdColumnViolations`, now lives there too), so this file imports
  * the type rather than keeping a second copy that could drift from it.
  */
 
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
-import type { DeferredForeignKey } from '@oxyhq/db/assert';
+import type { DeferredForeignKey } from '@oxy.so/db/assert';
 import { appAffinitySeenEvents } from './appAffinitySeenEvents';
 import { appEndorsementEdges } from './appEndorsementEdges';
 import { appUpdates } from './appUpdates';

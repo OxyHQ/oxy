@@ -27,8 +27,8 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { Linking, Platform, View } from 'react-native';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import {
     AdmonitionRoot,
     AdmonitionRow,
@@ -36,12 +36,12 @@ import {
     AdmonitionContent,
     AdmonitionText,
     AdmonitionButton,
-} from '@oxyhq/bloom/admonition';
-import { surfaces as bloomSurfaces } from '@oxyhq/bloom/surfaces';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { toast } from '@oxyhq/bloom/toast';
-import { getNormalizedUserHandle, logger } from '@oxyhq/core';
-import type { FileMetadata } from '@oxyhq/core';
+} from '@oxy.so/bloom/admonition';
+import { surfaces as bloomSurfaces } from '@oxy.so/bloom/surfaces';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { getNormalizedUserHandle, logger } from '@oxy.so/core';
+import type { FileMetadata } from '@oxy.so/core';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';

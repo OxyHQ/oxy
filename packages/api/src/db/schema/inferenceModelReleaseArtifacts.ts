@@ -28,7 +28,7 @@
 
 import { sql } from 'drizzle-orm';
 import { bigint, check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId } from '@oxyhq/db';
+import { createdAt, generatedId } from '@oxy.so/db';
 import { inferenceModelReleases } from './inferenceModelReleases';
 
 export const inferenceModelReleaseArtifacts = pgTable(

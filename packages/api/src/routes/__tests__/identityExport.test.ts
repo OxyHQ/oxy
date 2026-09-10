@@ -34,14 +34,14 @@
  * unrelated to the export path are stubbed, so the router module can load.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
 import { eq } from 'drizzle-orm';
-import { canonicalize } from '@oxyhq/protocol';
-import { exportBundleSchema, type SignedRecordEnvelope } from '@oxyhq/contracts';
+import { canonicalize } from '@oxy.so/protocol';
+import { exportBundleSchema, type SignedRecordEnvelope } from '@oxy.so/contracts';
 
 /** The account `authMiddleware` injects for the current test. */
 let currentUserId = '';

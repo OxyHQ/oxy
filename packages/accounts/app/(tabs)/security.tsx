@@ -4,7 +4,7 @@ import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
-import { useOxy, useUserDevices, useRecentSecurityActivity } from '@oxyhq/services';
+import { useOxy, useUserDevices, useRecentSecurityActivity } from '@oxy.so/services';
 import { type DeviceRecord } from '@/utils/device-utils';
 import { useTranslation } from '@/lib/i18n';
 import { useBiometricSettings } from '@/hooks/useBiometricSettings';

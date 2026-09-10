@@ -1,7 +1,7 @@
 # create-oxy-app
 
 Scaffold a new Oxy ecosystem app — an Expo / React Native + Express monorepo
-wired to the Oxy SDK (`@oxyhq/services`, `@oxyhq/app-preset`) with the canonical
+wired to the Oxy SDK (`@oxy.so/services`, `@oxy.so/app-preset`) with the canonical
 provider stack, device-first auth, Bloom theming, and an AWS deploy workflow.
 
 ## Usage
@@ -34,14 +34,14 @@ bunx create-oxy-app my-app --yes
 ```
 my-app/
   packages/
-    frontend/       Expo Router · NativeWind · Bloom · @oxyhq/services
+    frontend/       Expo Router · NativeWind · Bloom · @oxy.so/services
     shared-types/   Shared TypeScript types
-    backend/        Express · PostgreSQL (drizzle) · Socket.IO · @oxyhq/core/server  (optional)
+    backend/        Express · PostgreSQL (drizzle) · Socket.IO · @oxy.so/core/server  (optional)
   docker-compose.postgres.yml     Local Postgres for the backend                     (optional)
   .github/workflows/deploy-aws.yml                                                   (optional)
 ```
 
-All Expo config comes from **`@oxyhq/app-preset`** — the config plugin,
+All Expo config comes from **`@oxy.so/app-preset`** — the config plugin,
 `createOxyMetroConfig`, the Babel/ESLint configs, `base.css`, and the tsconfig
 bases — so apps track the ecosystem with a version bump instead of copy-pasting.
 
@@ -54,7 +54,7 @@ session.
 ## The backend's datastore
 
 Generated backends run on **PostgreSQL** via drizzle-orm + postgres.js, built
-through **`@oxyhq/db`** — the same substrate every Oxy backend uses, so a new app
+through **`@oxy.so/db`** — the same substrate every Oxy backend uses, so a new app
 inherits the ecosystem's column builders, casing authority, migration ledger and
 deploy-phase planner rather than reinventing them.
 

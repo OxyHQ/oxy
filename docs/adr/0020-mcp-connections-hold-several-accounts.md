@@ -52,7 +52,7 @@ without touching anyone else's.
 **Oxy reports the set, and which member is selected, on introspection.** The
 access token is never re-minted or widened: its `account_id` stays the origin
 account, and the connection block travels beside the claims. A resource server
-serves `active_account_id`; `@oxyhq/mcp` exposes it as `McpPrincipal.activeAccountId`,
+serves `active_account_id`; `@oxy.so/mcp` exposes it as `McpPrincipal.activeAccountId`,
 so an app that reads the principal gets it without deciding anything.
 
 **Switching is an authorization decision, not a preference.** `POST

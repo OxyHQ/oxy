@@ -54,7 +54,7 @@ describe('the profile read path is NOT held to the write policy', () => {
    * rather than passing because everything passes.
    */
   it('and the write policy would reject every one of those federated handles', async () => {
-    const { usernameSchema } = await import('@oxyhq/contracts');
+    const { usernameSchema } = await import('@oxy.so/contracts');
     for (const handle of FEDERATED_HANDLES) {
       expect(usernameSchema.safeParse(handle).success).toBe(false);
     }

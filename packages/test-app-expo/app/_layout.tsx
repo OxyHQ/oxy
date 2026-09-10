@@ -5,9 +5,9 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { OxyProvider } from '@oxyhq/services';
-import { BloomThemeProvider, useNavigationTheme } from '@oxyhq/bloom/theme';
-import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
+import { OxyProvider } from '@oxy.so/services';
+import { BloomThemeProvider, useNavigationTheme } from '@oxy.so/bloom/theme';
+import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4100';
 const AUTH_REDIRECT_URI = Linking.createURL('/');

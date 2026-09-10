@@ -3,7 +3,7 @@
  *
  * THE BUG THIS GUARDS AGAINST
  * ---------------------------
- * @oxyhq/core exports a module-level `oxyClient` singleton. Apps commonly build
+ * @oxy.so/core exports a module-level `oxyClient` singleton. Apps commonly build
  * their imperative api clients against it (reading `oxyClient.getAccessToken()`
  * to construct `Authorization` headers) while passing ONLY `baseURL` to
  * OxyProvider. In that configuration the runtime constructs its OWN OxyServices
@@ -16,7 +16,7 @@
  * restore, refresh, AND sign-out/clear — so any imperative consumer reading the
  * singleton always observes the live token (or null when logged out).
  *
- * This test renders the REAL OxyRuntimeProvider against the REAL @oxyhq/core and
+ * This test renders the REAL OxyRuntimeProvider against the REAL @oxy.so/core and
  * asserts the singleton tracks the provider instance's token. Only the
  * network/socket seams that fire at mount (web SSO, session socket) are stubbed
  * so the test is deterministic offline; the token-mirroring wiring under test
@@ -36,7 +36,7 @@
 
 import { render, waitFor, act, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { oxyClient, type User } from '@oxyhq/core';
+import { oxyClient, type User } from '@oxy.so/core';
 
 // Neutralize the mount-time network effects so the provider settles
 // deterministically without a backend. Forcing the cold boot onto the native

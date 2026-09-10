@@ -1,6 +1,6 @@
 /**
  * `bun test` preload entry. Order matters:
- *   1. the contracts-source resolver is registered FIRST so `@oxyhq/contracts`
+ *   1. the contracts-source resolver is registered FIRST so `@oxy.so/contracts`
  *      resolves from source (not the built `dist/`) for every test file and
  *      transitive import — the suite no longer depends on workspace build order;
  *   2. module mocks are registered next so any static imports in test files (or

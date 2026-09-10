@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ViewStyle, TextStyle } from 'react-native';
-import { Button as BloomButton } from '@oxyhq/bloom/button';
+import { Button as BloomButton } from '@oxy.so/bloom/button';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 

@@ -1,6 +1,6 @@
 import { createPublicKey, verify as verifyBytes } from 'node:crypto';
 import jwt from 'jsonwebtoken';
-import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '@oxyhq/core/server';
+import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '@oxy.so/core/server';
 import { serviceTokenPublicJwks } from '../config/serviceTokenSigning';
 
 /**
@@ -14,8 +14,8 @@ import { serviceTokenPublicJwks } from '../config/serviceTokenSigning';
  * `verifyServiceToken` is the SINGLE SOURCE OF TRUTH for the service-token
  * contract; every consumer verifies through here.
  *
- * The environment vocabulary comes from `@oxyhq/core/server` rather than the
- * drizzle schema on purpose: `@oxyhq/core`'s own service-token verification
+ * The environment vocabulary comes from `@oxy.so/core/server` rather than the
+ * drizzle schema on purpose: `@oxy.so/core`'s own service-token verification
  * narrows against the same tuple, so the API's verifier and the SDK's cannot
  * disagree about which environments exist, and this module keeps its
  * schema-free dependency shape.

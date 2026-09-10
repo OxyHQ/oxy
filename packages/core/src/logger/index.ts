@@ -1,5 +1,5 @@
 /**
- * @oxyhq/core/logger — the ecosystem-wide logging chokepoint.
+ * @oxy.so/core/logger — the ecosystem-wide logging chokepoint.
  *
  * A tiny, dependency-free, universal logger that works unchanged in React
  * Native, browsers, Node, and Bun. Every Oxy app and package should log

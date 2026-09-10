@@ -9,7 +9,7 @@
  */
 
 import { Linking } from 'react-native';
-import { logger, persistOAuthReturnPath } from '@oxyhq/core';
+import { logger, persistOAuthReturnPath } from '@oxy.so/core';
 
 /** Minimal shape of the optional `expo-web-browser` auth-session result. */
 interface WebBrowserAuthResult {

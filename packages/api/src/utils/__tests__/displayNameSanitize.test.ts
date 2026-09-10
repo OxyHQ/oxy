@@ -1,4 +1,4 @@
-import { isValidDisplayName } from '@oxyhq/core';
+import { isValidDisplayName } from '@oxy.so/core';
 import {
   MAX_DISPLAY_NAME_LENGTH,
   cleanDisplayName,
@@ -242,7 +242,7 @@ describe('displayNameSanitize', () => {
   // the script allowlist admits them exactly like any real Han letter and no
   // script- or category-level rule could drop them without also rejecting every
   // Chinese, Japanese and Korean name. They are subtracted from the allowlist by
-  // an explicit code-point denylist in @oxyhq/core, which this module inherits
+  // an explicit code-point denylist in @oxy.so/core, which this module inherits
   // through DISPLAY_NAME_DISALLOWED_SOURCE — there is no separate pattern here,
   // which is why the strip path and the core reject gate cannot drift.
   describe('cleanDisplayName — symbol-letter denylist', () => {

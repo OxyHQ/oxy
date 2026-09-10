@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { useOptionalOxy } from '../context/OxyContext';
-import { translate } from '@oxyhq/core';
+import { translate } from '@oxy.so/core';
 
 /**
- * The locale `@oxyhq/core`'s translator falls back to. Mirrors its own
+ * The locale `@oxy.so/core`'s translator falls back to. Mirrors its own
  * `FALLBACK`, so a surface rendered without a provider reads the same strings
  * an unrecognised locale would.
  */

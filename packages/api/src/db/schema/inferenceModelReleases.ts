@@ -2,7 +2,7 @@
  * `inference_model_releases` — one signed Alia model release manifest, as
  * ingested (issue #972 §12).
  *
- * `@oxyhq/contracts`' `aliaModelReleaseManifestSchema` defined the document a
+ * `@oxy.so/contracts`' `aliaModelReleaseManifestSchema` defined the document a
  * year's worth of catalogue columns can be built from, and shipped with "no HTTP
  * write path … the schema lands; the endpoint waits for a real manifest to
  * ingest". This table is what an endpoint writes: the manifest's own identity, the
@@ -58,7 +58,7 @@
  */
 
 import { integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { inferenceModelRevisions } from './inferenceModelRevisions';
 import { users } from './users';
 

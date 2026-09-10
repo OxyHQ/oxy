@@ -92,7 +92,7 @@ function uniqueUsername(prefix: string): string {
 
 /**
  * The same, carrying the label a `bot` account's handle must end in
- * (`botUsernameSchema`, `@oxyhq/contracts`). Every `POST /accounts` below mints a
+ * (`botUsernameSchema`, `@oxy.so/contracts`). Every `POST /accounts` below mints a
  * bot because the colour question is easiest to ask of one, so the handles have
  * to satisfy the bot policy or the 400 under test never arrives.
  */

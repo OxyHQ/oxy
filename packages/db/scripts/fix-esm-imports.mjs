@@ -5,7 +5,7 @@
  * 2. Resolves directory imports to index.js
  * 3. Adds import attributes for JSON imports
  *
- * `@oxyhq/db`'s only runtime imports are its `drizzle-orm`/`postgres` peer
+ * `@oxy.so/db`'s only runtime imports are its `drizzle-orm`/`postgres` peer
  * dependencies, resolved via bare package specifiers that Node's own resolver
  * handles directly — so no CJS default-import interop rewrites are needed
  * here. What `tsconfig.esm.json`'s `moduleResolution: "bundler"` does leave

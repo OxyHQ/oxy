@@ -45,8 +45,8 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList } from '@oxyhq/db';
-import { usageRefundReasonSchema } from '@oxyhq/contracts';
+import { createdAt, generatedId, inList } from '@oxy.so/db';
+import { usageRefundReasonSchema } from '@oxy.so/contracts';
 import { currencyCode, currencyCodeCheck, exactAmount } from './ledgerColumns';
 import { usageReceipts } from './usageReceipts';
 import { usageReservations } from './usageReservations';

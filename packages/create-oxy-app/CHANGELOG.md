@@ -5,7 +5,7 @@
 ### Changed
 
 - Updated generated projects to the current compatible Oxy SDK release set.
-- Removed the CLI's accidental runtime dependency on `@oxyhq/core`.
+- Removed the CLI's accidental runtime dependency on `@oxy.so/core`.
 
 ## 0.2.0
 

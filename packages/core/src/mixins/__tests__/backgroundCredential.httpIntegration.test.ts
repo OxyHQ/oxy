@@ -1,4 +1,4 @@
-import type { DeviceBackgroundCredentialResponse } from '@oxyhq/contracts';
+import type { DeviceBackgroundCredentialResponse } from '@oxy.so/contracts';
 import { OxyServices } from '../../OxyServices';
 
 /**

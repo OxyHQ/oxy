@@ -3,8 +3,8 @@
 > The DID layer, cryptographically signed records (the per-user hash chain),
 > signed data export, domain verification, and "Sign in with Oxy". The
 > user-facing app is **Commons by Oxy** (`packages/commons`, native-only); the
-> engine is in `@oxyhq/api`; the crypto + SDK surface is in `@oxyhq/core`; wire
-> types are in `@oxyhq/contracts`.
+> engine is in `@oxy.so/api`; the crypto + SDK surface is in `@oxy.so/core`; wire
+> types are in `@oxy.so/contracts`.
 >
 > Related: [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
 > [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
@@ -111,13 +111,13 @@ smuggling unsigned `seq`/`prev`/`collection`/`rkey` metadata onto a v1 record.
 - `recordId = sha256(signedRecordSigningInput(fields))`
   (`computeRecordId`, `signatureService.ts:72`). The next record's `prev` points
   at this `recordId` — that's the chain link.
-- Crypto: secp256k1 ECDSA (`@noble/curves` through `@oxyhq/protocol/secp256k1`),
+- Crypto: secp256k1 ECDSA (`@noble/curves` through `@oxy.so/protocol/secp256k1`),
   SHA-256, DER-encoded signature, hex.
   Algorithm tag `ES256K-DER-SHA256`.
   The September 2026 migration uses `@noble/curves` 1.9.7, the highest 1.x
   release, because it is the newest line that exposes both `import` and
   `require` and supports Node 18. Version 2.x is ESM-only and requires Node
-  20.19+, which conflicts with `@oxyhq/protocol`'s published dual CJS/ESM and
+  20.19+, which conflicts with `@oxy.so/protocol`'s published dual CJS/ESM and
   Node 18 contract.
 
 ### The hash chain and RepoHead
@@ -163,7 +163,7 @@ Rejection reasons are an explicit enum (`invalid_envelope`, `subject_mismatch`,
 `chain_conflict`, `untrusted_issuer`). `verifyAndStoreRecord` appends + upserts
 the head atomically, retrying on `chain_conflict` via a unique index backstop.
 
-Because the verify code is in `@oxyhq/core`, a record signed in the Commons vault
+Because the verify code is in `@oxy.so/core`, a record signed in the Commons vault
 verifies **identically** on Oxy and on a personal data node — no re-implementation.
 
 ### Publishing records (SDK)

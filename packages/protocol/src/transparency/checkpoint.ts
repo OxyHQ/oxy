@@ -13,7 +13,7 @@
  * prevCheckpointHash}` — never from the surrounding storage document, and never
  * from other signatures. That is what makes a checkpoint CO-SIGNABLE: the
  * operator and any number of independent witnesses (e.g. user-run
- * `@oxyhq/node` deployments) each sign the identical bytes with their own key,
+ * `@oxy.so/node` deployments) each sign the identical bytes with their own key,
  * with zero coordination and in any order. Two conflicting roots for one
  * `index`, each carrying valid signatures, is then transferable proof of
  * equivocation that needs no cooperation from the operator to demonstrate.

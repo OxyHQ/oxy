@@ -3,7 +3,7 @@
  * node. A node stores and serves ONE owner's append-only signed-record log
  * (their "personal repo") plus the content-addressed blobs the records point at.
  *
- * This is the engine extracted from `@oxyhq/node` so the SAME code can back many
+ * This is the engine extracted from `@oxy.so/node` so the SAME code can back many
  * app-node deployments (the Oxy identity node, a future Mention node) that
  * differ only by ENV: the namespace they serve, their well-known manifest path,
  * their advertised protocol id + service-type, and their owner key. Everything
@@ -16,7 +16,7 @@
  *                  a stable sentinel.
  *  - `ownerAuth` — the single write authority. Records and blob pins are
  *                  authorized against the node's configured owner key. This is
- *                  injected (rather than importing `@oxyhq/core/server`) so the
+ *                  injected (rather than importing `@oxy.so/core/server`) so the
  *                  protocol package never depends on core.
  *  - `config`    — the wire-shape knobs (well-known path, protocol id,
  *                  service-type, mode, blob ceiling, collection allowlist).
@@ -34,7 +34,7 @@
  */
 
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { computeRecordId } from '../envelope/recordId';
 import type { RecordStore, BlobStore } from '../chain/recordStore';
 import { createRateLimiter, DEFAULT_WRITE_RATE_LIMIT, type RateLimitConfig } from './rateLimit';
@@ -69,7 +69,7 @@ export interface NodeApp extends Express {
 
 /**
  * Thrown by a {@link BlobStore.putBlob} implementation when bytes do not hash to
- * the supplied address. Defined here (rather than in `@oxyhq/node`) so the node
+ * the supplied address. Defined here (rather than in `@oxy.so/node`) so the node
  * app can map it to `hash_mismatch` without importing the store implementation.
  */
 export class BlobHashMismatchError extends Error {
@@ -87,7 +87,7 @@ export type NodeStoreLike = RecordStore & BlobStore;
 
 /**
  * The owner authority for node writes (the single write principal). Injected so
- * the protocol package stays free of `@oxyhq/core` — `@oxyhq/node` provides an
+ * the protocol package stays free of `@oxy.so/core` — `@oxy.so/node` provides an
  * implementation bound to its configured owner key.
  */
 export interface OwnerAuth {

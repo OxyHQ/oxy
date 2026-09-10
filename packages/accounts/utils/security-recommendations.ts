@@ -1,4 +1,4 @@
-import type { ClientSession, SecurityActivity } from '@oxyhq/core';
+import type { ClientSession, SecurityActivity } from '@oxy.so/core';
 
 /** Stable identifier for each security recommendation the app can surface. */
 export type SecurityRecommendationId =

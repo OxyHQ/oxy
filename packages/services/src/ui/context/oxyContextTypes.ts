@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, AccountDialogController, AccountDialogView, ApiError, SessionClient, SessionMode } from '@oxyhq/core';
+import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, AccountDialogController, AccountDialogView, ApiError, SessionClient, SessionMode } from '@oxy.so/core';
 import type { UseFollowHook } from '../hooks/useFollow.types';
 import type { useLanguageManagement } from '../hooks/useLanguageManagement';
 import type { RouteName } from '../navigation/routes';
@@ -235,5 +235,5 @@ export interface CommitInput {
   userId?: string;
   user?: { id: string; username?: string; avatar?: string };
   /** State returned with a device-token mint, avoiding an immediate REST reread. */
-  deviceState?: import('@oxyhq/contracts').DeviceSessionState;
+  deviceState?: import('@oxy.so/contracts').DeviceSessionState;
 }

@@ -17,8 +17,8 @@
  * oxy-api (the protocol store has no notion of "public collections").
  */
 
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
-import type { ChainHead } from '@oxyhq/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
+import type { ChainHead } from '@oxy.so/protocol';
 import { oxyRecordStore, subjectKeyForUser, DEFAULT_LOG_LIMIT } from './oxyRecordStore';
 import { NODE_COLLECTION } from '../utils/nodes.constants';
 

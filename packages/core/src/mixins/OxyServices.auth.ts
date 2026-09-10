@@ -8,8 +8,8 @@ import type {
   UserNameResponse,
   LoginResult,
   CommonsDenyReason,
-} from '@oxyhq/contracts';
-import { loginResultSchema, safeParseContract } from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
+import { loginResultSchema, safeParseContract } from '@oxy.so/contracts';
 import type { SessionLoginResponse } from '../models/session';
 import type { OxyServicesBase } from '../OxyServices.base';
 import type { PublicApplication } from './OxyServices.connectedApps';
@@ -20,7 +20,7 @@ export {
 import { OxyAuthenticationError } from '../OxyServices.errors';
 import { KeyManager } from '../crypto/keyManager';
 import { SignatureService } from '../crypto/signatureService';
-import { loadNodeCrypto } from '@oxyhq/protocol';
+import { loadNodeCrypto } from '@oxy.so/protocol';
 import { logger } from '../logger';
 import { normalizeUserIdentity, normalizeUserIdentityOrNull } from '../utils/userIdentity';
 
@@ -1013,7 +1013,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      * case, so a cold-boot caller can fall through to the next step.
      *
      * The cold-boot wiring that CALLS this lives in `OxyContext`
-     * (`@oxyhq/services`); this method just performs the exchange.
+     * (`@oxy.so/services`); this method just performs the exchange.
      *
      * @param opts.requestOptions - Optional per-call transport overrides
      *   (`retry`, `timeout`) forwarded to BOTH the `requestChallenge` and

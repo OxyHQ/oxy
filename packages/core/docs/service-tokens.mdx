@@ -44,7 +44,7 @@ The endpoint is `POST /auth/service-token`. Body: `{ apiKey, apiSecret }` — `a
 The `publicKey` half is a **public identifier**, not a key: it is designed to be shipped in clients and is served unauthenticated by `GET /auth/oauth/client/:clientId`. It never authenticates on its own — only the pair, exchanged here, produces a bearer.
 
 ```ts
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 oxy.configureServiceAuth(process.env.OXY_CLIENT_ID!, process.env.OXY_CLIENT_SECRET!);
@@ -75,7 +75,7 @@ Internal services that expose their own HTTP surface should validate inbound ser
 
 ```ts
 import express from 'express';
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 const app = express();

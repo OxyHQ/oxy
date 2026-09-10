@@ -1,10 +1,10 @@
 ---
-title: '@oxyhq/core'
+title: '@oxy.so/core'
 description: Platform-agnostic OxyServices client, session engine, and cryptographic primitives.
 order: 0
 ---
 
-# @oxyhq/core
+# @oxy.so/core
 
 The platform-agnostic foundation of the Oxy SDK. **Zero React, zero React Native, zero Expo dependencies** — it runs identically in Node, Bun, Vite, Next.js, Cloudflare Workers, and React Native.
 
@@ -12,19 +12,19 @@ The platform-agnostic foundation of the Oxy SDK. **Zero React, zero React Native
 
 ## What it is
 
-`@oxyhq/core` is the universal client, session, and crypto layer for the Oxy platform. The UI SDK (`@oxyhq/services`, for Expo/RN and web via React Native Web) builds on top of it. Use core directly when you need API access from a Node server, an Edge runtime, a service worker, or anywhere React is not in play.
+`@oxy.so/core` is the universal client, session, and crypto layer for the Oxy platform. The UI SDK (`@oxy.so/services`, for Expo/RN and web via React Native Web) builds on top of it. Use core directly when you need API access from a Node server, an Edge runtime, a service worker, or anywhere React is not in play.
 
 The package ships two public entry points:
 
-- `@oxyhq/core` — `OxyServices` client + mixins, `SessionClient` and the device-first cold boot, models, error types, platform helpers, `KeyManager` / `SignatureService` / `RecoveryPhraseService`, OAuth + PKCE helpers, and the shared color/theme/error utilities used across the Oxy ecosystem
-- `@oxyhq/core/server` — Express-only helpers for request identity, rate limiting, CORS, SSRF-safe fetch, and constant-time secret comparison
+- `@oxy.so/core` — `OxyServices` client + mixins, `SessionClient` and the device-first cold boot, models, error types, platform helpers, `KeyManager` / `SignatureService` / `RecoveryPhraseService`, OAuth + PKCE helpers, and the shared color/theme/error utilities used across the Oxy ecosystem
+- `@oxy.so/core/server` — Express-only helpers for request identity, rate limiting, CORS, SSRF-safe fetch, and constant-time secret comparison
 
-All client/runtime symbols below are reachable from the package root. Server-only Express helpers live under `@oxyhq/core/server` so browser and React Native bundles never import Express.
+All client/runtime symbols below are reachable from the package root. Server-only Express helpers live under `@oxy.so/core/server` so browser and React Native bundles never import Express.
 
 ## Install
 
 ```sh
-bun add @oxyhq/core
+bun add @oxy.so/core
 ```
 
 The package is dual CJS + ESM and works in every JavaScript runtime that supports `fetch`.
@@ -32,8 +32,8 @@ The package is dual CJS + ESM and works in every JavaScript runtime that support
 ## Quick start
 
 ```ts
-import { OxyServices } from '@oxyhq/core';
-import type { User } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
+import type { User } from '@oxy.so/core';
 
 const oxy = new OxyServices({
   baseURL: 'https://api.oxy.so',
@@ -74,14 +74,14 @@ The server-side `DeviceSession` is the single session authority: one document pe
 - **`runSessionColdBoot`** (`src/boot/sessionColdBoot.ts`) — deterministic, short-circuit cold boot. Restores silently when device state exists; otherwise resolves logged-out. It never redirects to a login page.
 - **Zero-cookie transport** — every successful sign-in returns `deviceId` + a 256-bit `deviceSecret`, persisted first-party (localStorage per web origin; SecureStore on native). `mintFromDeviceSecret` (`OxyServices.deviceBoot.ts`) POSTs `{ deviceId, deviceSecret }` to `POST /session/device/token` (no bearer, no cookies) to mint/refresh a short access token and rotate the secret in-use. There is no cookie, no refresh-token family, and no `#oxy_boot` bootstrap hop. Full API and socket contract: [device sessions](../../../docs/auth/device-session.md).
 
-React apps do not use `SessionClient` directly — `OxyProvider` from `@oxyhq/services` wires it up.
+React apps do not use `SessionClient` directly — `OxyProvider` from `@oxy.so/services` wires it up.
 
 ### OAuth + PKCE helpers (third party)
 
 Third-party "Sign in with Oxy" is standard OAuth 2.0 Authorization Code + PKCE against `auth.oxy.so`:
 
 ```ts
-import { generatePkcePair, generateOAuthState, buildOAuthAuthorizeUrl } from '@oxyhq/core';
+import { generatePkcePair, generateOAuthState, buildOAuthAuthorizeUrl } from '@oxy.so/core';
 
 const [pkce, state] = await Promise.all([generatePkcePair(), generateOAuthState()]);
 const authorizeUrl = buildOAuthAuthorizeUrl({
@@ -102,7 +102,7 @@ See the [integration guide](../../../docs/auth/integration-guide.md) for the ful
 `KeyManager` owns secp256k1 keypairs used for Oxy's recovery phrase login (all methods are static). It enforces atomic persistence, integrity probes, and refuses to clobber a healthy identity:
 
 ```ts
-import { KeyManager, RecoveryPhraseService } from '@oxyhq/core';
+import { KeyManager, RecoveryPhraseService } from '@oxy.so/core';
 
 if (!(await KeyManager.hasIdentity())) {
   const identity = await RecoveryPhraseService.generateIdentityWithRecovery();
@@ -117,7 +117,7 @@ if (!(await KeyManager.hasIdentity())) {
 Oxy API payloads may expose either `id` or Mongo-style `_id`. Use the identity helpers before storing user payloads in app state:
 
 ```ts
-import { getNormalizedUserId, normalizeUserIdentity } from '@oxyhq/core';
+import { getNormalizedUserId, normalizeUserIdentity } from '@oxy.so/core';
 
 const userId = getNormalizedUserId(user);
 const normalized = normalizeUserIdentity(user);
@@ -126,7 +126,7 @@ const normalized = normalizeUserIdentity(user);
 For display and profile routing, use `getNormalizedUserHandle()` instead of rebuilding handles in each app. It removes a leading `@`, keeps an existing `user@instance` handle intact, and appends `instance` / `federation.domain` only for federated users:
 
 ```ts
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 
 getNormalizedUserHandle({ username: 'alice' });
 getNormalizedUserHandle({ username: 'alice', isFederated: true, instance: 'example.social' });
@@ -169,7 +169,7 @@ The API recognises service tokens (`type: 'service'` in the JWT payload) statele
 ### Sign in with a recovery phrase
 
 ```ts
-import { OxyServices, RecoveryPhraseService, SignatureService } from '@oxyhq/core';
+import { OxyServices, RecoveryPhraseService, SignatureService } from '@oxy.so/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 

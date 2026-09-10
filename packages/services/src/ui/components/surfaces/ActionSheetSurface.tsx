@@ -1,8 +1,8 @@
 import type React from 'react';
 import { Text, View } from 'react-native';
-import { Button } from '@oxyhq/bloom/button';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { surfaces, type SurfaceControls } from '@oxyhq/bloom/surfaces';
+import { Button } from '@oxy.so/bloom/button';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { surfaces, type SurfaceControls } from '@oxy.so/bloom/surfaces';
 
 /**
  * A single choice in an {@link ActionSheetSurface} — a labelled button that

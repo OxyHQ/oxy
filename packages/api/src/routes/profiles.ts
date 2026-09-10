@@ -69,7 +69,7 @@ import {
   recommendationRequestSchema,
   type RecommendationRequest,
   type RecommendationBoost,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 interface AuthRequest extends Request {
   user?: {

@@ -5,7 +5,7 @@
  * upstream provider credential; Oxy keeps a reference to it and the metadata
  * around it, and hands the reference to the data plane at serving time. Nothing
  * here returns a credential, and nothing here can: every response body is
- * `providerConnectionSchema` from `@oxyhq/contracts`, which is `.strict()` and
+ * `providerConnectionSchema` from `@oxy.so/contracts`, which is `.strict()` and
  * declares no field one could occupy.
  *
  * ## Two principals, the same two lanes the routing policies use

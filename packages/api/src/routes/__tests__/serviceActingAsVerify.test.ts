@@ -3,7 +3,7 @@
  * Postgres, with the REAL service-token middleware.
  *
  * This endpoint is the only thing standing between a service token and
- * impersonation of any user: `@oxyhq/core`'s `oxy.auth()` attaches
+ * impersonation of any user: `@oxy.so/core`'s `oxy.auth()` attaches
  * `req.userId` from the `X-Oxy-User-Id` header if and only if this answers
  * `authorized: true`. So the suite is built around what must be REFUSED, and
  * every refusal has its own case: no grant, a revoked grant, a grant naming

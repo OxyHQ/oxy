@@ -17,7 +17,7 @@ const registerWithPasskey = mock(async (_params: { username: string }) => undefi
 // expose the full services surface both auth forms consume — not just the two
 // signup needs — to stay leak-safe if another test file's mock is registered
 // later in the same run.
-mock.module("@oxyhq/services", () => ({
+mock.module("@oxy.so/services", () => ({
     useOxy: () => ({
         handleWebSession: async () => undefined,
         registerWithPasskey,

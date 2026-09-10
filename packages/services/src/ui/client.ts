@@ -5,7 +5,7 @@
  * These are direct exports without runtime detection overhead.
  *
  * @example
- * import { OxyProvider, useOxy, LogoIcon } from '@oxyhq/services/ui/client';
+ * import { OxyProvider, useOxy, LogoIcon } from '@oxy.so/services/ui/client';
  */
 
 // Components
@@ -16,7 +16,12 @@ export type { OxyAuthPromptProps } from './components/OxyAuthPrompt';
 export { LogoIcon } from './components/logo/LogoIcon';
 export { LogoText } from './components/logo/LogoText';
 export { default as FollowButton } from './components/FollowButton';
+export { default as PeableButton } from './components/PeableButton';
+export type { PeableButtonProps } from './components/PeableButton';
+/** @deprecated Use `PeableButton` instead. */
 export { default as OxyPayButton } from './components/OxyPayButton';
+/** @deprecated Use `PeableButtonProps` instead. */
+export type { OxyPayButtonProps } from './components/OxyPayButton';
 
 // Context
 export { useOxy, useOptionalOxy, OxyProviderMissingError } from './context/OxyContext';
@@ -30,7 +35,7 @@ export { useFollow } from './hooks/useFollow';
 export { useStorage } from './hooks/useStorage';
 export type { UseStorageOptions, UseStorageResult } from './hooks/useStorage';
 
-// Route screens live at `@oxyhq/services/screens` so client imports preserve
+// Route screens live at `@oxy.so/services/screens` so client imports preserve
 // the route registry's lazy chunk boundaries.
 
 // Stores

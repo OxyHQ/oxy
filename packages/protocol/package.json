@@ -1,6 +1,6 @@
 {
-  "name": "@oxyhq/protocol",
-  "version": "0.3.0",
+  "name": "@oxy.so/protocol",
+  "version": "1.0.1",
   "description": "Oxy Protocol — the app-agnostic base substrate: signed-record envelope, canonical JSON, signature/verification, and platform crypto. Reused by any Oxy app to decentralize its own content.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -100,13 +100,13 @@
   },
   "release-it": {
     "git": {
-      "tagName": "@oxyhq/protocol@${version}",
-      "tagAnnotation": "Release @oxyhq/protocol@${version}",
-      "commitMessage": "chore(protocol): release @oxyhq/protocol@${version}"
+      "tagName": "@oxy.so/protocol@${version}",
+      "tagAnnotation": "Release @oxy.so/protocol@${version}",
+      "commitMessage": "chore(protocol): release @oxy.so/protocol@${version}"
     },
     "github": {
       "release": true,
-      "releaseName": "@oxyhq/protocol@${version}"
+      "releaseName": "@oxy.so/protocol@${version}"
     },
     "npm": {
       "publish": true
@@ -114,7 +114,7 @@
   },
   "dependencies": {
     "@noble/curves": "catalog:",
-    "@oxyhq/contracts": "workspace:^",
+    "@oxy.so/contracts": "workspace:^",
     "zod": "^3.25.64"
   },
   "peerDependencies": {
@@ -145,6 +145,7 @@
     "@types/node": "^22.20.1",
     "@types/supertest": "catalog:",
     "expo-crypto": "~56.0.3",
+    "expo-modules-core": "catalog:",
     "expo-secure-store": "~56.0.4",
     "express": "catalog:",
     "jest": "^30.5.1",

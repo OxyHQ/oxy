@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const makeRequest = vi.fn()
 
-vi.mock('@oxyhq/services', () => ({
+vi.mock('@oxy.so/services', () => ({
   useAuth: () => ({
     oxyServices: { makeRequest },
     isAuthenticated: true,

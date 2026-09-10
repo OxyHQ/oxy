@@ -8,7 +8,7 @@
  * account, and deciding switchability from anything other than `available`.
  */
 
-import type { DeviceDirectory } from '@oxyhq/contracts';
+import type { DeviceDirectory } from '@oxy.so/contracts';
 import { projectDevicePrincipals } from '../deviceDirectory';
 import { buildSwitcherRows, showsPrincipalHeaders } from '../deviceSwitcherRows';
 

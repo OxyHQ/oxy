@@ -6,7 +6,7 @@
  * `getNormalizedUserHandle`.
  */
 
-import { getNormalizedUserHandle, type DisplayNameUserShape } from '@oxyhq/core';
+import { getNormalizedUserHandle, type DisplayNameUserShape } from '@oxy.so/core';
 
 /**
  * Formats a date string to a readable format (e.g., "Feb 21, 2025")

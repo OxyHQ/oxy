@@ -8,7 +8,7 @@
  * `webauthn` passkey carries none.
  */
 
-import type { AuthMethodEntry } from '@oxyhq/contracts';
+import type { AuthMethodEntry } from '@oxy.so/contracts';
 
 /** The verification-method fragment for the primary identity key. */
 export const IDENTITY_VERIFICATION_METHOD_ID = '#key-1';

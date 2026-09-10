@@ -11,7 +11,7 @@
  * ```
  *
  * and every account created after the cutover carries a **uuid v7** id
- * (`@oxyhq/db`'s `generatedId()`), which that regex rejects. So for such
+ * (`@oxy.so/db`'s `generatedId()`), which that regex rejects. So for such
  * an account the write threw before touching a table and the read threw before
  * querying — sign-in, sign-out, email change, device added, profile update, all
  * of it. Because almost every caller `await`s the helper inside a `try` that

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
-import { toast } from '@oxyhq/bloom';
-import { useOxy } from '@oxyhq/services';
+import { toast } from '@oxy.so/bloom';
+import { useOxy } from '@oxy.so/services';
 import * as Contacts from 'expo-contacts';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import { useTranslation } from '@/lib/i18n';
 import { hashContacts } from '@/lib/contacts/hash';
 

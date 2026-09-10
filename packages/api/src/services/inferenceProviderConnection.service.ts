@@ -47,8 +47,8 @@ import {
   type KaanaCredentialOutcomeRequest,
   type ProviderConnection,
   type ProviderConnectionStatus,
-} from "@oxyhq/contracts";
-import { uuidv7 } from "@oxyhq/db";
+} from "@oxy.so/contracts";
+import { uuidv7 } from "@oxy.so/db";
 import { getDb, type Transaction } from "../config/postgres";
 import { applications } from "../db/schema/applications";
 import {

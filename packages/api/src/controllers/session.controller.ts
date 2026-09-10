@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { and, asc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
-import { publicColumns } from '@oxyhq/db/assert';
+import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { authChallenges } from '../db/schema/authChallenges';
 import { notifications } from '../db/schema/notifications';
@@ -24,7 +24,7 @@ import { userService } from '../services/user.service';
 import securityActivityService from '../services/securityActivityService';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
 import type { AuthRequest } from '../middleware/auth';
-import { isValidUsername, USERNAME_INVALID_MESSAGE } from '@oxyhq/contracts';
+import { isValidUsername, USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
 import { normalizeUsername } from '../utils/username';
 import type { SessionCreateOptions } from '../types/session.types';
 

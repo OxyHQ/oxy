@@ -41,15 +41,15 @@ Access tokens expire (typically 15 minutes). Sign-in also returns a `deviceId` +
 
 If the user has 2FA enabled, `POST /auth/login` returns `{ twoFactorRequired: true, loginToken }` and you must finish with `POST /security/2fa/verify-login`. The final response is the same `AuthSuccess` shape.
 
-First-party apps never hand-roll this: `OxyProvider` (from `@oxyhq/services`) restores the session silently from the server-side device session on cold boot. See [device sessions](/developers/docs/api#device-sessions) below.
+First-party apps never hand-roll this: `OxyProvider` (from `@oxy.so/services`) restores the session silently from the server-side device session on cold boot. See [device sessions](/developers/docs/api#device-sessions) below.
 
 ### Service token (server-to-server)
 
 Used by internal Oxy services and trusted integrations. Exchange a `service`-type `ApplicationCredential` (the `oxy_dk_…` publicKey as `apiKey` plus its secret) at `POST /auth/service-token` to receive a 1-hour service JWT. Send it as `Authorization: Bearer <token>`; for delegated calls add `X-Oxy-User-Id: <userId>` so the API can attribute the action to a specific user.
 
-Service tokens have a `type: 'service'` claim that the `auth()` middleware in `@oxyhq/core` recognises without a session DB lookup, making them ideal for high-volume server-to-server traffic.
+Service tokens have a `type: 'service'` claim that the `auth()` middleware in `@oxy.so/core` recognises without a session DB lookup, making them ideal for high-volume server-to-server traffic.
 
-See [Service Tokens in @oxyhq/core](/developers/docs/core) for the client pattern.
+See [Service Tokens in @oxy.so/core](/developers/docs/core) for the client pattern.
 
 ### Application OAuth (third party)
 
@@ -156,8 +156,8 @@ Webhook secrets rotate automatically whenever `webhookUrl` changes (`PATCH /appl
 
 You almost never need to hand-write `fetch` against this API — pick the SDK that matches your runtime:
 
-- [`@oxyhq/core`](/developers/docs/core) — Node, Bun, Cloudflare Workers, server-side. Includes the `OxyServices` client used by the UI SDK, plus `@oxyhq/core/server` Express middleware.
-- [`@oxyhq/services`](/developers/docs/services) — Expo, React Native, **and web** (React Native Web). `OxyProvider`, auth dialogs, native key storage, and screen flows. This is the single UI SDK for every platform.
+- [`@oxy.so/core`](/developers/docs/core) — Node, Bun, Cloudflare Workers, server-side. Includes the `OxyServices` client used by the UI SDK, plus `@oxy.so/core/server` Express middleware.
+- [`@oxy.so/services`](/developers/docs/services) — Expo, React Native, **and web** (React Native Web). `OxyProvider`, auth dialogs, native key storage, and screen flows. This is the single UI SDK for every platform.
 
 Each SDK is generated against the same OpenAPI document you see at [`/developers/docs/api`](/developers/docs/api) so SDK shapes never drift from the wire format.
 
@@ -182,7 +182,7 @@ Each SDK is generated against the same OpenAPI document you see at [`/developers
 
 User/profile responses expose `name.displayName` as an **optional** field.
 Clients render it when present and fall back to the normalized handle
-(`displayName ?? handle` via `getNormalizedUserHandle` from `@oxyhq/core`) —
+(`displayName ?? handle` via `getNormalizedUserHandle` from `@oxy.so/core`) —
 never rebuild names from structured name parts.
 
 ## Examples

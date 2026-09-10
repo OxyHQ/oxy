@@ -22,7 +22,7 @@ import {
   ACCOUNT_CATEGORY_IDS,
   CHILD_ACCOUNT_KINDS,
   type AccountCategoryId,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
 import { MAX_ACCOUNT_DEPTH, userAncestors } from '../../db/schema/userAncestors';
@@ -61,7 +61,7 @@ function uniqueUsername(prefix: string): string {
 
 /**
  * A handle legal for `kind`. Only `bot` differs — `botUsernameSchema`
- * (`@oxyhq/contracts`) requires its handle to end in `bot` — so a loop over every
+ * (`@oxy.so/contracts`) requires its handle to end in `bot` — so a loop over every
  * child kind has to carry the label for that one member, or the iteration 400s
  * on a question that has nothing to do with what the case is testing.
  */

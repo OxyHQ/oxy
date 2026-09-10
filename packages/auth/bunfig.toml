@@ -1,7 +1,7 @@
 # bun test config for the auth (Vite IdP) app.
 #
 # The preload script registers a jsdom-backed DOM environment AND stubs
-# native-only Bloom modules (e.g. `@oxyhq/bloom/avatar`) so client tests can
+# native-only Bloom modules (e.g. `@oxy.so/bloom/avatar`) so client tests can
 # import React components that transitively pull `react-native` without bun's
 # parser choking on Flow syntax.
 [test]

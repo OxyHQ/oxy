@@ -36,7 +36,7 @@
  *
  * This does NOT set `req.serviceApp`, and that is the security-relevant choice
  * in the whole module. A service token's gate is that only a platform-TRUSTED
- * application may hold a `service` credential at all (plus the narrow Oxy Pay
+ * application may hold a `service` credential at all (plus the narrow Peable
  * carve-out); everything mounted behind `serviceAuthMiddleware` — federation,
  * accounts provisioning, chains, notifications, signals — is written against
  * that. A machine credential is by design self-serve for external developers,
@@ -62,7 +62,7 @@
 
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { and, eq } from 'drizzle-orm';
-import { verifySecret } from '@oxyhq/core/server';
+import { verifySecret } from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
 import type { ApplicationCredentialEnvironment } from '../db/schema/applicationCredentials';

@@ -17,7 +17,7 @@ import { join } from 'node:path';
  * stack, so rendering it in jsdom would need a dozen throw-away module stubs and
  * would assert far less than it costs. Reading the mount site is the precise,
  * stable way to guard the one configuration line that matters — the same
- * source-assertion approach `@oxyhq/core` uses for its shipped-regex policy.
+ * source-assertion approach `@oxy.so/core` uses for its shipped-regex policy.
  */
 const ROOT_LAYOUT_SOURCE = readFileSync(
   join(__dirname, '..', '..', 'app', '_layout.tsx'),
@@ -39,14 +39,14 @@ describe('Commons root layout', () => {
 
   it('keeps session restore in the SDK — no app-local auto-connect driver', () => {
     // The boot-time "connect the session from the local key" driver lives in
-    // `@oxyhq/core`'s cold boot now. Re-adding an app-local one would race the
+    // `@oxy.so/core`'s cold boot now. Re-adding an app-local one would race the
     // SDK's pinned lanes and re-create the duplication this app deleted.
     expect(ROOT_LAYOUT_SOURCE).not.toMatch(/useSessionAutoConnect|sessionConnectStore/);
   });
 
   it('mounts shared connection-status toasts at the app root', () => {
     expect(ROOT_LAYOUT_SOURCE).toMatch(
-      /import\s+\{\s*ConnectionStatusToasts\s*\}\s+from\s+'@oxyhq\/bloom\/connection-status'/,
+      /import\s+\{\s*ConnectionStatusToasts\s*\}\s+from\s+'@oxy.so\/bloom\/connection-status'/,
     );
     expect(ROOT_LAYOUT_SOURCE).toMatch(/<ConnectionStatusToasts\s*\/>/);
     // Outside OxyProvider so offline toasts still render during the boot shell.

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'expo-router';
-import { useOxy, useUpdateProfile } from '@oxyhq/services';
+import { useOxy, useUpdateProfile } from '@oxy.so/services';
 import { useColors } from '@/hooks/useColors';
 import { UsernameStep } from '@/components/auth/UsernameStep';
 import { useNetworkStatus } from '@/hooks/auth/useNetworkStatus';

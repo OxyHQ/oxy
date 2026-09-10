@@ -24,8 +24,8 @@
 import type React from 'react';
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Text } from '@oxyhq/bloom/typography';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '../context/OxyContext';
 import { OxySignInButton } from './OxySignInButton';
 import { LogoIcon } from './logo/LogoIcon';

@@ -1,4 +1,4 @@
-import { commonsDenyReasonSchema, usernameSchema } from '@oxyhq/contracts';
+import { commonsDenyReasonSchema, usernameSchema } from '@oxy.so/contracts';
 import { z } from 'zod';
 
 const deviceIdField = z.string().trim().min(1).max(128).optional();
@@ -134,7 +134,7 @@ export const authSessionAuthorizeSignedSchema = z.object({
 
 // POST /auth/session/deny/:authorizeCode
 // Optional reason from the closed `COMMONS_DENY_REASONS` set, whose single
-// declaration lives in `@oxyhq/contracts` — the same one the persisted
+// declaration lives in `@oxy.so/contracts` — the same one the persisted
 // `AuthSession.deniedReason` enum and the client SDK read. Anything outside it
 // (including a free-form string) is rejected with 400 before the handler runs.
 export const authSessionDenySchema = z.object({

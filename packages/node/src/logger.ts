@@ -1,6 +1,6 @@
 /**
  * Minimal structured logger for the node, built on pino (the same logger
- * `@oxyhq/api` uses). Level is env-driven via `OXY_NODE_LOG_LEVEL` (default
+ * `@oxy.so/api` uses). Level is env-driven via `OXY_NODE_LOG_LEVEL` (default
  * `info`). No secrets are ever logged.
  */
 

@@ -1,7 +1,7 @@
 /**
  * In-session access-token refresh plumbing.
  *
- * These guard the HttpService surface that `@oxyhq/services`' OxyContext now
+ * These guard the HttpService surface that `@oxy.so/services`' OxyContext now
  * drives via `setAuthRefreshHandler`: a 401 re-mints through the handler and
  * retries the ORIGINAL request with the fresh token; an unrecoverable refresh
  * clears tokens and notifies listeners (the reconcile signal that flips the RN

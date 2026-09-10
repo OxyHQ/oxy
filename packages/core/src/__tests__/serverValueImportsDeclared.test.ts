@@ -1,11 +1,11 @@
 /**
- * Every package `@oxyhq/core/server` VALUE-imports must be a real dependency.
+ * Every package `@oxy.so/core/server` VALUE-imports must be a real dependency.
  *
  * ## The failure this exists for, which happened
  *
  * `helmet` was declared an OPTIONAL peer dependency. `src/server/securityHeaders.ts`
  * imports it at the top level, and the server barrel re-exports that module — so
- * importing *anything* from `@oxyhq/core/server` loads helmet, and a consumer
+ * importing *anything* from `@oxy.so/core/server` loads helmet, and a consumer
  * that believed the "optional" marking did not install it.
  *
  * The result was a backend that could not boot: `Cannot find package 'helmet'`.
@@ -72,7 +72,7 @@ function packageNameOf(specifier: string): string {
 
 const files = readdirSync(serverDir).filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'));
 
-describe('@oxyhq/core/server value imports are installable', () => {
+describe('@oxy.so/core/server value imports are installable', () => {
   it('reads a non-trivial number of server modules', () => {
     // Vacuity floor: a traversal that found nothing would satisfy every
     // assertion below by having nothing to check.

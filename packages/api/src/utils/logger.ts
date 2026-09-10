@@ -14,7 +14,7 @@ const isDev = process.env.NODE_ENV === 'development';
  * overrides `toString`, `toJSON` and `Symbol.for('nodejs.util.inspect.custom')`,
  * the last being exactly what pino reaches for. A `ProviderCredentialValue` cannot
  * become a string by accident, whatever the field is called. Free-text error
- * messages are refused separately, by `@oxyhq/contracts`' `safeErrorTextSchema`
+ * messages are refused separately, by `@oxy.so/contracts`' `safeErrorTextSchema`
  * through `utils/inferenceEdgeErrors.ts`, and the inference edge's own log lines
  * are pinned by `routes/__tests__/inferenceEdge.test.ts`.
  *

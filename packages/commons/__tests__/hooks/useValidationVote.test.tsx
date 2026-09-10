@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 
 const authenticateMock = jest.fn<Promise<{ success: boolean; error?: string }>, [string?]>();
 jest.mock('@/lib/biometricAuth', () => ({

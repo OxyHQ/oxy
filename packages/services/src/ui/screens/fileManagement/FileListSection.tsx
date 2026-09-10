@@ -8,9 +8,9 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import Ionicons from '../../icons/Ionicons';
-import type { FileMetadata } from '@oxyhq/core';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import type { useTheme } from '@oxyhq/bloom/theme';
+import type { FileMetadata } from '@oxy.so/core';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import type { useTheme } from '@oxy.so/bloom/theme';
 
 type ThemeColors = ReturnType<typeof useTheme>['colors'];
 

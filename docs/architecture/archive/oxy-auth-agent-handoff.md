@@ -34,7 +34,7 @@
 
 | Fase | Subagente | Tarea típica |
 |------|-----------|--------------|
-| 0 | `explore` | Grep inventario, consumidores `@oxyhq/auth` |
+| 0 | `explore` | Grep inventario, consumidores `@oxy.so/auth` |
 | 1 | `oxy-api` | DeviceSession model/service/routes/socket |
 | 1 | `oxy-core` | SessionClient + deviceSession mixin (post-contracts) |
 | 2 | `oxy-api` + contracts | Zod schemas, Console fields |
@@ -72,7 +72,7 @@ Contrato:
 - Si una idea no está en esos docs → STOP, pregunta a Nate. No inventes alternativas.
 - Cero cookies de sesión (oxy_rt, fedcm_session). Cero FedCM/SSO iframe/bounce.
 - Clean cut: sin @deprecated, shims, feature flags legacy, migraciones app-level, back-compat.
-- Un solo SDK UI: @oxyhq/services (OxyProvider). Eliminar @oxyhq/auth (auth-sdk).
+- Un solo SDK UI: @oxy.so/services (OxyProvider). Eliminar @oxy.so/auth (auth-sdk).
 - Commons-first; password en UI colapsada "Sign in without the app".
 - Bloom Dialog para auth (placement={{ base: 'bottom', md: 'center' }}), NO bottom sheet auth.
 - Fix upstream: auth compartido SOLO en core + services + api. Apps NO implementan restore local.
@@ -102,10 +102,10 @@ Al terminar cada fase: ejecuta el Gate de salida de esa fase en el handoff y rep
 |---|--------|
 | D1 | Tratar `oxy-auth-platform.md` + este handoff como **contrato**. Cualquier desviación requiere aprobación explícita de Nate. |
 | D2 | Implementar auth/sesión **solo** en `contracts`, `core`, `services`, `api`. Apps consumen SDK; no duplican lógica. |
-| D3 | Usar `@oxyhq/core/server` en backends (`createOxyAuthMiddleware`, `getRequiredOxyUserId`) — nunca parsers bearer locales en apps. |
+| D3 | Usar `@oxy.so/core/server` en backends (`createOxyAuthMiddleware`, `getRequiredOxyUserId`) — nunca parsers bearer locales en apps. |
 | D4 | RP con backend propio → `oxyServices.createLinkedClient({ baseURL })` — nunca interceptors Axios/fetch auth en apps. |
 | D5 | Perfiles en UI → `name.displayName ?? getNormalizedUserHandle(user)` — nunca recomponer nombre desde first/last/username. |
-| D6 | Publicar `@oxyhq/contracts` **antes** que consumidores npm externos cuando añadas schemas nuevos. |
+| D6 | Publicar `@oxy.so/contracts` **antes** que consumidores npm externos cuando añadas schemas nuevos. |
 | D7 | Rate limits API: cada `rateLimit()` con `prefix` único `rl:<scope>:`. |
 | D8 | Socket rooms derivados de identidad **servidor** (`socket.user.id`, `device:<deviceId>` del token) — nunca room IDs del cliente. |
 | D9 | Invalidar `userCache` tras writes de usuario en API (regla existente — no romper). |
@@ -119,7 +119,7 @@ Al terminar cada fase: ejecuta el Gate de salida de esa fase en el handoff y rep
 | X2 | Mantener `WebOxyProvider` “un release más” con `@deprecated` | Clean cut | Fusionar en `OxyProvider` y borrar auth-sdk |
 | X3 | “Arreglar” cross-domain con cookies o iframe | Chrome 3PC / frágil | deviceId + DeviceSession por origen; socket post-login |
 | X4 | Ocultar Commons/QR con `crossApex.ts` o heurísticas de apex | Oculta producto | Siempre mostrar Commons-first en official apps |
-| X5 | Sign-in en bottom sheet custom | Plan = Bloom Dialog | `@oxyhq/bloom/dialog` |
+| X5 | Sign-in en bottom sheet custom | Plan = Bloom Dialog | `@oxy.so/bloom/dialog` |
 | X6 | Auth local en Mention/accounts/console (restore, callbacks) | Duplica SDK | Solo `OxyProvider` + `clientId` |
 | X7 | Merge entera rama `impl/session-sync-p1` si aparece | Traería cookies/FedCM | Cherry-pick / reimplementar spec sin transport cookie |
 | X8 | Implementar `POST /session/device/token` final sin Fase 2c | Spec token mint pendiente | Stub mínimo o esperar workshop |
@@ -130,7 +130,7 @@ Al terminar cada fase: ejecuta el Gate de salida de esa fase en el handoff y rep
 | X13 | `bun test` en raíz del monorepo | ~81 falsos fallos en api | `cd packages/api && bun run test` |
 | X14 | Sync cross-domain silenciosa para third party | No es Google-style OAuth | OAuth por RP; DeviceSession solo ecosistema Oxy |
 | X15 | Auto-redirect a login en cold boot | UX acordada | Silencioso si hay sesión; Dialog solo vía ProfileButton |
-| X16 | Poner sesiones/tokens en `@oxyhq/node` o “descentralizar login” | Auth ≠ data plane | DeviceSession en **api.oxy.so**; nodos solo signed records |
+| X16 | Poner sesiones/tokens en `@oxy.so/node` o “descentralizar login” | Auth ≠ data plane | DeviceSession en **api.oxy.so**; nodos solo signed records |
 | X17 | Bloquear reads de perfil/feed esperando respuesta del node | Rompe invariante F5 | Reads Oxy API; node ingest **background** (`safeFetch`) |
 
 ---
@@ -158,7 +158,7 @@ flowchart TB
   end
 
   subgraph nodeLayer [Capa 3 — Datos descentralizados F5]
-    Node["@oxyhq/node — user-operated"]
+    Node["@oxy.so/node — user-operated"]
     Ingest[Oxy API ingest background]
     Node --> Ingest
   end
@@ -171,7 +171,7 @@ flowchart TB
 | Capa | Qué resuelve | Dónde vive | ¿En scope fases 0–7? |
 |------|--------------|------------|----------------------|
 | **Auth / sesión** | Quién está logueado, multicuenta, switch, third party OAuth | `api.oxy.so`, DeviceSession, `OxyProvider` | **SÍ — foco del plan** |
-| **Identidad (Oxy ID)** | Claves, DID, signed records, domain verify, Sign in with Oxy (Commons) | Commons, `identity/*`, `did.service.ts`, `@oxyhq/core` crypto | **Tocar solo donde auth se une** (Commons sign-in, step-up Verify) |
+| **Identidad (Oxy ID)** | Claves, DID, signed records, domain verify, Sign in with Oxy (Commons) | Commons, `identity/*`, `did.service.ts`, `@oxy.so/core` crypto | **Tocar solo donde auth se une** (Commons sign-in, step-up Verify) |
 | **Nodos (F5)** | Dónde el usuario **posee** sus records firmados; réplica read en Oxy | `packages/node`, `UserNode`, ingest worker | **NO — fuera de scope** salvo no romper |
 
 ### Invariantes descentralización (NO romper)
@@ -180,7 +180,7 @@ Tomadas de [`docs/nodes/README.md`](../nodes/README.md) y [`docs/identity/README
 
 1. **Reads de apps NUNCA await un node.** Perfil, feed, session restore → `api.oxy.so`. Node fetch = background ingest vía `safeFetch`.
 2. **El DID `#oxy-node` service** se deriva del row `UserNode` en Mongo (`did.service.ts`) — **no** probando liveness al node en el read path.
-3. **Misma crypto en todas partes:** firma Commons = verifica en Oxy API = verifica en `@oxyhq/node` (`@oxyhq/core` `verifyRecordEnvelope`). El replanteo auth **no** añade crypto nueva en nodes.
+3. **Misma crypto en todas partes:** firma Commons = verifica en Oxy API = verifica en `@oxy.so/node` (`@oxy.so/core` `verifyRecordEnvelope`). El replanteo auth **no** añade crypto nueva en nodes.
 4. **Commons-first sign-in** (este plan) es el puente humano a la identidad self-sovereign; **no** sustituye DeviceSession ni mueve tokens al node.
 5. **Federación ActivityPub** (`packages/api/src/routes/federation.ts`) es otro eje — no confundir con DeviceSession ni OAuth RP.
 
@@ -196,7 +196,7 @@ Tomadas de [`docs/nodes/README.md`](../nodes/README.md) y [`docs/identity/README
 
 ### Docs de contexto (leer, no implementar en fases auth)
 
-- [`docs/nodes/README.md`](../nodes/README.md) — protocolo `@oxyhq/node`, API `/oxy/log`, blobs
+- [`docs/nodes/README.md`](../nodes/README.md) — protocolo `@oxy.so/node`, API `/oxy/log`, blobs
 - [`docs/identity/README.md`](../identity/README.md) — DID, records, Commons
 - [`docs/architecture/overview.md`](./overview.md) §1 — cuatro productos en un repo
 
@@ -216,7 +216,7 @@ Tomadas de [`docs/nodes/README.md`](../nodes/README.md) y [`docs/identity/README
 |------|----------------|--------------------------|
 | Transporte sesión | `deviceId` + `deviceSecret` + storage first-party | Cookies `oxy_rt_*`, `fedcm_session` |
 | Cross-domain web | Primera visita origen nuevo = logged-out; tras sign-in = auto + socket | SSO bounce, silent iframe, FedCM |
-| SDK UI | Un `@oxyhq/services` `OxyProvider` (Expo + RN Web) | `@oxyhq/auth` auth-sdk, dual providers |
+| SDK UI | Un `@oxy.so/services` `OxyProvider` (Expo + RN Web) | `@oxy.so/auth` auth-sdk, dual providers |
 | Sign-in UX official | Commons-first; password colapsado | FedCM, redirect IdP para first-party |
 | Sign-in UX third party | OAuth redirect `auth.oxy.so` + PKCE | Embedded Dialog sin consent |
 | Modal auth | Bloom Dialog bottom/center | Bottom sheet SignIn, RN Modal paralelo |
@@ -225,7 +225,7 @@ Tomadas de [`docs/nodes/README.md`](../nodes/README.md) y [`docs/identity/README
 | Token mint | Híbrido deviceSecret + Commons sign step-up | Refresh en cookies |
 | Migraciones | Ninguna — clean cut | Scripts migrate, dual read paths |
 | auth-sdk | Eliminar paquete | Mantener para web “por tamaño bundle” |
-| Auth en `@oxyhq/node` | Sesión siempre en api.oxy.so | Login descentralizado / tokens en node |
+| Auth en `@oxy.so/node` | Sesión siempre en api.oxy.so | Login descentralizado / tokens en node |
 | Node read path | Background ingest only | Await node en GET perfil/session |
 | Nombre usuario-facing | “Sign in with Oxy” (nunca “Sign in with Commons”) | — |
 | Display name DTO | `displayName ?? handle` vía core | Cadenas first/last/username en UI |
@@ -357,7 +357,7 @@ El agente **no avanza** sin cumplir todo lo de la fase actual.
 ### Gate Fase 0
 
 - [ ] Tabla inventario § [Inventario por archivo](#inventario-por-archivo) revisada file-by-file
-- [ ] Lista consumidores `@oxyhq/auth`: `console`, `test-app-vite`, root scripts
+- [ ] Lista consumidores `@oxy.so/auth`: `console`, `test-app-vite`, root scripts
 - [ ] Baseline tests anotado: contracts 81, core 623, api 997, services 178, auth IdP 10
 - [ ] Confirmado: p1 branch ausente → Fase 1 = implement from spec
 
@@ -378,7 +378,7 @@ El agente **no avanza** sin cumplir todo lo de la fase actual.
 
 ### Gate Fase 3
 
-- [ ] `console` y `test-app-vite` compilan con `@oxyhq/services` only
+- [ ] `console` y `test-app-vite` compilan con `@oxy.so/services` only
 - [ ] `packages/auth-sdk` eliminado del workspace
 - [ ] Web path funciona con `OxyProvider` único
 - [ ] `bun run test` PASS services + core
@@ -399,7 +399,7 @@ El agente **no avanza** sin cumplir todo lo de la fase actual.
 ### Gate Fase 6
 
 - [ ] accounts, inbox, console sin bootstrap SSO en `+html.tsx`
-- [ ] Sin `@oxyhq/auth` en dependencias apps oficiales migradas
+- [ ] Sin `@oxy.so/auth` en dependencias apps oficiales migradas
 
 ### Gate Fase 7 (final)
 
@@ -463,10 +463,10 @@ El agente **no avanza** sin cumplir todo lo de la fase actual.
 - Mantener `WebOxyProvider` export deprecated
 - Script Mongo migrate `devicesessions` desde cookies — **no hay migración**
 - Bottom sheet para EditProfile etc. (solo auth va a Dialog en Fase 4; resto bottom sheet puede quedar)
-- Publicar `@oxyhq/contracts` civic types — reglas AGENTS unchanged
+- Publicar `@oxy.so/contracts` civic types — reglas AGENTS unchanged
 - Fase 2c token mint **forma final**
 - Infra AWS / Cloudflare / DNS changes
-- **`@oxyhq/node` protocol, ingest worker, UserNode model** — ver § Auth vs nodos
+- **`@oxy.so/node` protocol, ingest worker, UserNode model** — ver § Auth vs nodos
 - `packages/commons` A0 clientId EAS — pending ops Nate
 
 ---
@@ -510,7 +510,7 @@ El **nuevo `DeviceSession`** del plan = modelo mongoose `devicesessions` + `/ses
 
 - [ ] Confirmar grep de cada patrón en § [Verificación must-be-zero](#verificación-must-be-zero)
 - [ ] Marcar cada fila de § [Inventario por archivo](#inventario-por-archivo) como hecha en Fase 7
-- [ ] Listar consumidores `@oxyhq/auth` en monorepo: `console`, `test-app-vite`, root scripts
+- [ ] Listar consumidores `@oxy.so/auth` en monorepo: `console`, `test-app-vite`, root scripts
 - [ ] Documentar gaps RN Web para auth.oxy.so (Fase 5)
 - [ ] Entregable: actualizar tabla “Estado” al final de este doc cuando Fase 7 cierre
 
@@ -539,11 +539,11 @@ Crear (no cherry-pick — p1 ausente):
 - [ ] Switch persiste tras reload (reemplaza bug `oxy_active_authuser` / `oxy_rt`)
 - [ ] Socket sync instantáneo entre apps mismo `deviceId`
 
-**Cliente (parte de Fase 1/2):** `SessionClient` en `@oxyhq/core` — ver plan maestro § cold boot.
+**Cliente (parte de Fase 1/2):** `SessionClient` en `@oxy.so/core` — ver plan maestro § cold boot.
 
 ### Fase 2 — Contratos + Console + workshop token
 
-- [ ] Publicar `@oxyhq/contracts` antes de consumidores externos
+- [ ] Publicar `@oxy.so/contracts` antes de consumidores externos
 - [ ] Session events, logout actions, consent schemas
 - [ ] Console: `privacyPolicyUrl` / `termsUrl` en Application
 - [ ] **Fase 2c:** workshop Nate → spec `POST /session/device/token` (deviceSecret mint)
@@ -551,7 +551,7 @@ Crear (no cherry-pick — p1 ausente):
 ### Fase 3 — Fusionar auth-sdk → services
 
 - [ ] Portar `WebOxyProvider` → `OxyContext` (web path unificado)
-- [ ] Migrar `console`, `test-app-vite` de `@oxyhq/auth` → `@oxyhq/services`
+- [ ] Migrar `console`, `test-app-vite` de `@oxy.so/auth` → `@oxy.so/services`
 - [ ] Eliminar `packages/auth-sdk/` y workspace en root `package.json`
 - [ ] Eliminar script `auth:build`
 - [ ] Un solo export: `OxyProvider`, `useAuth` / `useOxy`
@@ -571,12 +571,12 @@ Duplicados a consolidar (merge, no copiar dos veces):
 
 - [ ] `OxySignInDialog` — Bloom `<Dialog placement={{ base: 'bottom', md: 'center' }}>`
 - [ ] `OxySignInButton`: official → Dialog; `third_party` → OAuth redirect + PKCE
-- [ ] `buildOAuthAuthorizeUrl` + PKCE helpers en `@oxyhq/core`
+- [ ] `buildOAuthAuthorizeUrl` + PKCE helpers en `@oxy.so/core`
 - [ ] Un solo `OxyAccountMenu` + `OxyAccountSwitcher` (device + account graph)
 - [ ] Eliminar auth routes de `bottomSheetManager` / `SignInModal` RN Modal paralelo
 - [ ] Eliminar `crossApex.ts` gating
 
-### Fase 5 — auth.oxy.so sobre @oxyhq/services (RN Web)
+### Fase 5 — auth.oxy.so sobre @oxy.so/services (RN Web)
 
 - [ ] IdP monta componentes services (authorize, consent, login, signup)
 - [ ] Eliminar `useDeviceAccounts` + `refresh-all`
@@ -608,7 +608,7 @@ Ver sección completa en [`oxy-auth-platform.md` § third party](./oxy-auth-plat
 1. **Console:** Application `type: third_party`, `redirectUris`, credential `public` (PKCE) o `confidential`
 2. **Web:** redirect `auth.oxy.so/authorize?client_id&redirect_uri&code_challenge&state` → callback → `POST /auth/oauth/token`
 3. **SDK:** `OxySignInButton` detecta tipo vía `GET /auth/oauth/client/:clientId`
-4. **Backend RP:** `createOxyAuthMiddleware` de `@oxyhq/core/server`
+4. **Backend RP:** `createOxyAuthMiddleware` de `@oxy.so/core/server`
 5. **Revoke:** Accounts Connected apps → `DELETE /auth/grants/:applicationId`
 
 ### Official vs third party
@@ -659,7 +659,7 @@ Ver sección completa en [`oxy-auth-platform.md` § third party](./oxy-auth-plat
 | Área | HOY (legacy) | OBJETIVO |
 |------|--------------|----------|
 | Session authority web | Cookies + FedCM + SSO bounce | deviceId + DeviceSession + token mint |
-| Web SDK | `@oxyhq/auth` WebOxyProvider | `@oxyhq/services` OxyProvider |
+| Web SDK | `@oxy.so/auth` WebOxyProvider | `@oxy.so/services` OxyProvider |
 | Native SDK | OxyProvider + bottom sheet sign-in | OxyProvider + Bloom Dialog |
 | IdP session | refresh-all cookies | OAuth shell; usuario login inline |
 | Cross-app sync | Incompleto / cookies | socket `session_state` |
@@ -681,7 +681,7 @@ Montar en `packages/api/src/routes/sessionDevice.ts` (prefijo `/session/device`)
 | POST | `/switch` | Bearer | `{ accountId }` → activeAccountId + revision++ |
 | POST | `/signout` | Bearer | Quita cuenta o all; revision++ |
 
-**Schema respuesta:** validar salida con `deviceSessionStateSchema` de `@oxyhq/contracts`.
+**Schema respuesta:** validar salida con `deviceSessionStateSchema` de `@oxy.so/contracts`.
 
 **Socket:** tras cada mutación → `broadcastDeviceState(deviceId, state)` → emit `session_state`.
 
@@ -696,7 +696,7 @@ Montar en `packages/api/src/routes/sessionDevice.ts` (prefijo `/session/device`)
 | | auth.oxy.so (IdP) | Apps Oxy (RP official) | Third party web |
 |--|-------------------|------------------------|-----------------|
 | Rol | OAuth + consent + login/signup UI | Consumen sesión device-first | Consumen OAuth tokens |
-| Provider | Componentes `@oxyhq/services` (Fase 5) | `OxyProvider` | `OxyProvider` o redirect manual |
+| Provider | Componentes `@oxy.so/services` (Fase 5) | `OxyProvider` | `OxyProvider` o redirect manual |
 | Session restore | Usuario login en IdP **solo para OAuth flow** | DeviceSession cold boot | Token en storage RP |
 | refresh-all | **ELIMINAR** | **NUNCA existió en target** | N/A |
 | WebOxyProvider | **PROHIBIDO** | **PROHIBIDO** (post Fase 3) | **PROHIBIDO** |
@@ -707,10 +707,10 @@ Post-migración el IdP **no es** session authority del ecosistema — es pantall
 
 ## Package boundaries (no violar)
 
-- `@oxyhq/contracts` — solo Zod; nunca react/RN/expo.
-- `@oxyhq/core` — sin react/RN; ESM sin `require()`.
-- `@oxyhq/services` — no re-export core/contracts; RN + RN Web.
-- `@oxyhq/api` — schemas desde contracts; auth server desde `@oxyhq/core/server`.
+- `@oxy.so/contracts` — solo Zod; nunca react/RN/expo.
+- `@oxy.so/core` — sin react/RN; ESM sin `require()`.
+- `@oxy.so/services` — no re-export core/contracts; RN + RN Web.
+- `@oxy.so/api` — schemas desde contracts; auth server desde `@oxy.so/core/server`.
 - Apps (`accounts`, `inbox`, …) — solo import services/core/contracts; **cero** lógica auth duplicada.
 
 ---
@@ -736,8 +736,8 @@ await fetch('https://api.oxy.so/auth/refresh-all', { credentials: 'include' });
 ### Wrong — dual provider web
 
 ```tsx
-<WebOxyProvider> {/* @oxyhq/auth */}
-  <OxyProvider> {/* @oxyhq/services */}
+<WebOxyProvider> {/* @oxy.so/auth */}
+  <OxyProvider> {/* @oxy.so/services */}
 ```
 
 ### Right — single provider
@@ -778,9 +778,9 @@ window.location.href = buildOAuthAuthorizeUrl({ clientId, redirectUri, pkce });
 
 Cuando toque release externo:
 
-1. `@oxyhq/contracts` publish + verify clean install
-2. `@oxyhq/core` publish
-3. `@oxyhq/services` publish
+1. `@oxy.so/contracts` publish + verify clean install
+2. `@oxy.so/core` publish
+3. `@oxy.so/services` publish
 4. Bump consumidores (Mention, etc.)
 
 Docker API build: contracts → core → api (ya en Dockerfile).
@@ -814,7 +814,7 @@ Acciones: **DELETE** | **REWRITE** | **MERGE→services** | **KEEP** | **CREATE*
 | Root `package.json` workspace `packages/auth-sdk` | **DELETE** | 3 |
 | Root script `auth:build` | **DELETE** | 3 |
 
-### `@oxyhq/core`
+### `@oxy.so/core`
 
 | Path | Acción | Fase |
 |------|--------|------|
@@ -838,7 +838,7 @@ Acciones: **DELETE** | **REWRITE** | **MERGE→services** | **KEEP** | **CREATE*
 | `src/SessionClient.ts` (nuevo) | **CREATE** | 1–2 |
 | `src/mixins/OxyServices.deviceSession.ts` (nuevo) | **CREATE** | 1–2 |
 
-### `@oxyhq/api`
+### `@oxy.so/api`
 
 | Path | Acción | Fase |
 |------|--------|------|
@@ -876,7 +876,7 @@ Acciones: **DELETE** | **REWRITE** | **MERGE→services** | **KEEP** | **CREATE*
 | `src/pages/authorize.tsx` | **REWRITE** (services components, sin FedCM) | 5 |
 | OAuth/consent/legal pages | **KEEP** / reimplement | 5 |
 
-### `@oxyhq/services`
+### `@oxy.so/services`
 
 | Path | Acción | Fase |
 |------|--------|------|
@@ -899,7 +899,7 @@ Acciones: **DELETE** | **REWRITE** | **MERGE→services** | **KEEP** | **CREATE*
 |------|--------|------|
 | `packages/accounts/app/+html.tsx` | **DELETE** SSO bootstrap script | 6–7 |
 | `packages/commons/app/+html.tsx` | **DELETE** SSO bootstrap script | 6–7 |
-| `packages/console/package.json` `@oxyhq/auth` | **REPLACE** `@oxyhq/services` | 3 |
+| `packages/console/package.json` `@oxy.so/auth` | **REPLACE** `@oxy.so/services` | 3 |
 | `packages/console/src/routes/__root.tsx` etc. | **REWRITE** imports | 3 |
 | `examples/web-react-auth.tsx` | **REWRITE** | 7 |
 | `examples/expo-54-universal-auth.tsx` | **REWRITE** | 7 |
@@ -936,11 +936,11 @@ Handoffs raíz si reaparecen (`SESSION-SYNC-*`, `ACCOUNT_SWITCH_*`): **DELETE** 
 | Doc | Contenido nuevo |
 |-----|-----------------|
 | `docs/SESSION-ARCHITECTURE.md` | DeviceSession + SessionClient + socket; cero cookies |
-| `docs/AUTHENTICATION.md` | Quick start `@oxyhq/services`; Commons-first; third party OAuth |
+| `docs/AUTHENTICATION.md` | Quick start `@oxy.so/services`; Commons-first; third party OAuth |
 | `docs/auth/README.md` | IdP OAuth-only |
 | `docs/ARCHITECTURE.md` | Sin FedCM/SSO |
 | `packages/services/docs/ARCHITECTURE.md` | services único SDK UI |
-| `README.md` | Sin `@oxyhq/auth` |
+| `README.md` | Sin `@oxy.so/auth` |
 | `wiki/Service-Tokens.md` | Application no DeveloperApp |
 | `wiki/Architecture.md` | device-first |
 | `examples/*.tsx` | OxyProvider + Dialog / OAuth |
@@ -982,7 +982,7 @@ getSsoCallbackBootstrapScript
 oxy_rt_
 AuthManager
 establishDeviceRefreshSlot
-@oxyhq/auth
+@oxy.so/auth
 packages/auth-sdk
 oxy_active_authuser
 crossDomainAuth
@@ -996,7 +996,7 @@ Comando sugerido:
 
 ```bash
 cd /home/nate/Oxy/OxyHQServices
-rg -l 'fedcm_session|refresh-all|WebOxyProvider|signInWithFedCM|sso/exchange|__oxy/sso-callback|getSsoCallbackBootstrapScript|oxy_rt_|AuthManager|@oxyhq/auth|packages/auth-sdk|oxy_active_authuser|crossDomainAuth|DeveloperApp|signInWithRedirect' packages docs --glob '!**/CHANGELOG.md'
+rg -l 'fedcm_session|refresh-all|WebOxyProvider|signInWithFedCM|sso/exchange|__oxy/sso-callback|getSsoCallbackBootstrapScript|oxy_rt_|AuthManager|@oxy.so/auth|packages/auth-sdk|oxy_active_authuser|crossDomainAuth|DeveloperApp|signInWithRedirect' packages docs --glob '!**/CHANGELOG.md'
 # Debe devolver vacío
 ```
 
@@ -1074,10 +1074,10 @@ bun run services:build
 | 0 | audit | ✅ 2026-07-05 — [`oxy-auth-audit.md`](./oxy-auth-audit.md); baselines main: contracts 150 / core 723 / api 1358 / services 165 / auth 51+9f(env); **blockers §10 del audit esperan decisión Nate** |
 | 1 | reconcile-p1 / DeviceSession | ✅ 2026-07-05 — ya estaba en main (waves 1+2); gate re-scoped verificado + colisión DTO resuelta (`DeviceLinkedSession*`, PR #556) |
 | 2 | contracts | 🟡 schemas ya en main+npm; **2b ✅** (PR #556); **2c ⬜ BLOQUEADA hasta workshop Nate** — decisión 2026-07-06: objetivo final cero-cookies confirmado, pero NO tocar transporte (oxy_device + refresh family + bootstrap/exchange se mantienen tal cual) hasta workshop explícito; orden acordado 5→6→7→workshop 2c |
-| 3 | merge-auth-sdk | ✅ 2026-07-05 — console en @oxyhq/services; auth-sdk ELIMINADO; rolldown-vite + vite-plugin-react-native-web; bloom ^0.29.2 (PR #557) |
+| 3 | merge-auth-sdk | ✅ 2026-07-05 — console en @oxy.so/services; auth-sdk ELIMINADO; rolldown-vite + vite-plugin-react-native-web; bloom ^0.29.2 (PR #557) |
 | 4 | unify-ui | ✅ 2026-07-06 — OxyAccountDialog sobre Bloom Dialog (placement bottom/md-center; mata bug RNW Modal+StrictMode); OxySignInButton bifurcado official→Dialog / third_party→OAuth+PKCE; helpers PKCE en core; i18n scan* keys |
 | 5 | auth-idp-rnweb | ✅ 2026-07-06 — IdP sobre rolldown-vite+RN-Web; OxyProvider modo-IdP (coldBoot=false, sin session authority); OxyConsentScreen (services) en authorize; superficie sign-in services en login; /settings/* eliminadas→redirect accounts.oxy.so; browser-verified. Detalle previo: — gate re-scoped con Nate: checkboxes refresh-all/FedCM-server ya satisfechos en main; integración = provider services modo-IdP (sin cold boot / sin session authority, fix upstream limpio) + montar piezas services existentes (QR/device-flow) + OxyConsentScreen nueva en services; consent/password/signup/recover conservan shell DOM+Bloom; /settings/* (rotas: POST /auth/refresh borrado) → DELETE + redirect permanente (password/linked→accounts.oxy.so/security, sessions→/sessions). REGLA DURABLE: el IdP NO expone gestión de cuenta — accounts.oxy.so es el único dueño |
-| 6 | migrate-apps | ✅ 2026-07-06 — inbox sin bearer manual (SDK http same-origin + SSE/socket justificados); examples reescritos device-first; test-app-expo con clientId; oxy-main-domain (well-known FedCM) eliminado. Bootstrap SSO en +html.tsx y @oxyhq/auth en apps ya estaban a 0 desde main/F3 |
+| 6 | migrate-apps | ✅ 2026-07-06 — inbox sin bearer manual (SDK http same-origin + SSE/socket justificados); examples reescritos device-first; test-app-expo con clientId; oxy-main-domain (well-known FedCM) eliminado. Bootstrap SSO en +html.tsx y @oxy.so/auth en apps ya estaban a 0 desde main/F3 |
 | 7 | clean-cut-docs | ✅ 2026-07-06 — clean cut código+docs+AGENTS; grep must-be-zero = 0 (2 supervivientes justificados en audit § DONE); openapi regenerado. **PROYECTO COMPLETO salvo workshop 2c (transporte) pendiente de Nate** |
 
 ---
@@ -1138,8 +1138,8 @@ Si dos documentos discrepan, gana este orden:
 
 ## Resumen una página (pegar en chat si contexto limitado)
 
-**Objetivo:** Google-style account platform; device-first auth **centralizado en api.oxy.so**; datos/records **opcionalmente descentralizados** en `@oxyhq/node` (capa separada — no mover sesión ahí).  
-**SDK:** one `@oxyhq/services` OxyProvider; delete auth-sdk.  
+**Objetivo:** Google-style account platform; device-first auth **centralizado en api.oxy.so**; datos/records **opcionalmente descentralizados** en `@oxy.so/node` (capa separada — no mover sesión ahí).
+**SDK:** one `@oxy.so/services` OxyProvider; delete auth-sdk.
 **Official apps:** DeviceSession + socket + Commons-first Dialog.  
 **Third party:** OAuth PKCE via auth.oxy.so + Console.  
 **Phases:** 0 audit → 1 DeviceSession API → 2 contracts → 3 merge auth-sdk → 4 Bloom Dialog UI → 5 IdP on services → 6 migrate apps → 7 delete all legacy + docs.  

@@ -10,7 +10,7 @@ import {
   validateMcpAccessTokenClaims,
   verifyMcpAccessTokenSignature,
   type McpAccessTokenClaims,
-} from '@oxyhq/mcp';
+} from '@oxy.so/mcp';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import {

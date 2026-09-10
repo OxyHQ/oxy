@@ -347,7 +347,11 @@ export const SEED_APPS: SeedAppSpec[] = [
     description: 'Official Oxy encrypted messaging app.',
     websiteUrl: 'https://allo.you',
     type: 'first_party',
-    redirectUris: ['https://allo.you', 'https://allo.oxy.so'],
+    // One redirect URI, because Allo has one hostname. `https://allo.oxy.so`
+    // was the second until that alias was retired (Allo #128): its DNS record is
+    // deleted and it no longer resolves, so leaving it registered would keep a
+    // redirect target that can never be reached but is still accepted here.
+    redirectUris: ['https://allo.you'],
   },
   {
     id: ALIA_APPLICATION_ID,
@@ -405,7 +409,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   },
   {
     name: 'Peable',
-    description: 'Official Oxy payments app.',
+    description: 'Official Peable payments app.',
     websiteUrl: 'https://peable.to',
     type: 'first_party',
     redirectUris: ['https://peable.to'],

@@ -1,13 +1,13 @@
 {
-  "name": "@oxyhq/node",
-  "version": "0.2.0",
+  "name": "@oxy.so/node",
+  "version": "1.0.0",
   "description": "Oxy personal data node — a self-hostable server that stores and serves a user's own signed records (their personal repo) for Oxy to ingest/mirror (Fase 5 decentralization)",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "bun run --filter @oxyhq/contracts build && bun run --filter @oxyhq/protocol build && bun run --filter @oxyhq/core build && tsc",
+    "build": "bun run --filter @oxy.so/contracts build && bun run --filter @oxy.so/protocol build && bun run --filter @oxy.so/core build && tsc",
     "start": "node dist/index.js",
     "clean": "rm -rf dist",
     "test": "jest"
@@ -26,9 +26,9 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@oxyhq/contracts": "workspace:*",
-    "@oxyhq/core": "workspace:*",
-    "@oxyhq/protocol": "workspace:*",
+    "@oxy.so/contracts": "workspace:*",
+    "@oxy.so/core": "workspace:*",
+    "@oxy.so/protocol": "workspace:*",
     "better-sqlite3": "^12.11.1",
     "express": "catalog:",
     "pino": "catalog:"

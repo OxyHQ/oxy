@@ -22,6 +22,7 @@ import { validate } from '../middleware/validate';
 import { assetIdParams } from '../schemas/assets.schemas';
 import { asyncHandler } from '../utils/asyncHandler';
 import { CDN_REDIRECT_CACHE_CONTROL } from '../config/cdn';
+import { sendAssetRedirect } from '../utils/cdnRedirect';
 import { logger } from '../utils/logger';
 import { singleQueryValue } from '../utils/queryString';
 
@@ -90,8 +91,9 @@ router.get(
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Resource not found' });
     }
 
+    // Cacheable redirect: bodiless, and not rangeable. See `sendAssetRedirect`.
     res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
-    return res.redirect(cdnUrl);
+    return sendAssetRedirect(res, cdnUrl);
   })
 );
 

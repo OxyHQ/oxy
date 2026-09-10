@@ -3,7 +3,7 @@
  * any dialog chrome.
  *
  * A thin React Native binding over the headless `AccountDialogController` in
- * `@oxyhq/core` (bound via `useSyncExternalStore`) — the same data/state
+ * `@oxy.so/core` (bound via `useSyncExternalStore`) — the same data/state
  * machine {@link OxyAccountDialogScreen} renders, extracted so it can be mounted in
  * TWO places: wrapped in Bloom's `<Dialog>` by `OxyAccountDialogScreen` (the normal
  * in-app surface), and mounted bare by a future auth.oxy.so hub page for the
@@ -36,10 +36,10 @@
 import type React from 'react';
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import { Linking, Platform } from 'react-native';
-import { toast } from '@oxyhq/bloom/toast';
-import { surfaces } from '@oxyhq/bloom/surfaces';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { getNormalizedUserHandle, isOxyRpOrigin, type User } from '@oxyhq/core';
+import { toast } from '@oxy.so/bloom/toast';
+import { surfaces } from '@oxy.so/bloom/surfaces';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { getNormalizedUserHandle, isOxyRpOrigin, type User } from '@oxy.so/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../context/OxyContext';
 import { useDeviceSwitcher } from '../hooks/useDeviceSwitcher';

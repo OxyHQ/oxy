@@ -44,7 +44,7 @@ La sección "Estado del repo al generar este handoff" del handoff se escribió d
 | 2 contracts | schemas + publish | ✅ mayormente: `contracts/src/deviceSession.ts` + `deviceBoot.ts` en main; npm publicado (contracts 0.10.0, core 7.1.1, services 17.0.0, auth-sdk 9.0.0 — versiones package.json = npm) |
 | 2b console-registry | privacy/terms URLs | ❌ PENDIENTE — `Application` sin `privacyPolicyUrl`/`termsUrl` (§8.1) |
 | 2c token mint | deviceSecret workshop | ❌ PENDIENTE — **main usa transporte distinto al plan** (§7) — BLOQUEANTE workshop Nate |
-| 3 merge-auth-sdk | eliminar @oxyhq/auth | ❌ PENDIENTE — auth-sdk vivo (42 archivos src); consumidor único real: **console** (12 archivos) |
+| 3 merge-auth-sdk | eliminar @oxy.so/auth | ❌ PENDIENTE — auth-sdk vivo (42 archivos src); consumidor único real: **console** (12 archivos) |
 | 4 unify-ui | Dialog + botón + menú único | 🟡 PARCIAL — hecho en main: `OxyAccountDialog` + `OxySignInButton` en services, `SignInModal`/`AccountMenu`/`ProfileMenu`/`AccountSwitcher`/`crossApex`/`activeAuthuser`/`useWebSSO` **ya borrados**; pendiente: `OxySignInDialog` sobre Bloom `<Dialog placement>` (OxyAccountDialog usa Bloom avatar/button/typography pero hay que verificar contenedor Dialog), bifurcación third_party→OAuth redirect + PKCE helpers en core, rutas auth fuera de `bottomSheetManager` |
 | 5 auth-idp-rnweb | IdP monta services | ❌ PENDIENTE — IdP = React DOM propio; FedCM/SSO server routes **ya borradas** del IdP; gaps RN Web en §8.2 |
 | 6 migrate-apps | apps sin auth local | 🟡 PARCIAL — bootstrap SSO en `+html.tsx` **ya quitado** (accounts/inbox/commons); accounts FedCM sign-in **ya quitado**; pendiente: console→services (Fase 3), **inbox bearer manual** (6 archivos, viola D4), `test-app-expo` sin clientId |
@@ -72,8 +72,8 @@ La sección "Estado del repo al generar este handoff" del handoff se escribió d
 | contracts | **150 pass** | |
 | core | **723 pass** | |
 | api | **1358 pass** | |
-| services | **165 pass** | requiere `@oxyhq/protocol` + core `dist/` compilados |
-| auth (IdP, bun test) | **51 pass / 9 fail / 4 errors** | fallos = leak `mock.module` conocido (CommonsSignIn) + resolución `@oxyhq/core` en worktree; en árbol viejo daba 125/125 — tratar como flaky/env, verificar en rama impl antes de Fase 1+ |
+| services | **165 pass** | requiere `@oxy.so/protocol` + core `dist/` compilados |
+| auth (IdP, bun test) | **51 pass / 9 fail / 4 errors** | fallos = leak `mock.module` conocido (CommonsSignIn) + resolución `@oxy.so/core` en worktree; en árbol viejo daba 125/125 — tratar como flaky/env, verificar en rama impl antes de Fase 1+ |
 
 (Los números del handoff — contracts 81, core 623, api 997, services 178, auth 10 — eran de la base stale y quedan obsoletos.)
 
@@ -86,7 +86,7 @@ Rama stale actual (referencia): contracts 107, core 724, api 1311, services 219 
 | Patrón | hits/files | Naturaleza | Acción |
 |--------|-----------|------------|--------|
 | `WebOxyProvider` | 177/44 | auth-sdk vivo + console + docs | Fase 3 |
-| `@oxyhq/auth` | 147/64 | ídem + docs | Fase 3 |
+| `@oxy.so/auth` | 147/64 | ídem + docs | Fase 3 |
 | `oxy_device` | 126/42 | **transporte vigente wave 2** (no está en lista must-be-zero; ver §7) | Fase 2c decide |
 | `AuthManager` | 19/9 | solo docs + 1 comentario `core/HttpService.ts` | Fase 7 docs |
 | `oxy_rt_` | 15/11 | comentarios "legacy removed" + docs + `packages/auth` (IdP fingerprint/types) + openapi.json | Fase 7 |
@@ -110,7 +110,7 @@ Rama stale actual (referencia): contracts 107, core 724, api 1311, services 219 
 
 ---
 
-## 6. Consumidores `@oxyhq/auth`
+## 6. Consumidores `@oxy.so/auth`
 
 | Consumidor | Realidad |
 |------------|----------|
@@ -139,7 +139,7 @@ Implicación: adoptar el plan literal = **extirpar de main** `cookieKeyHash`, `r
 
 ### 8.2 RN Web para auth.oxy.so (Fase 5)
 
-`packages/auth` = Vite 6.3.5 + React 19 + react-router 7 + Hono; **ya tiene** `react-native-web ^0.21.2` + alias `react-native→react-native-web` (para hojas Bloom). **Fatal hoy para montar services:** stubs a módulo vacío de gesture-handler, react-native-svg, safe-area-context, screens, expo-router, expo-modules-core (OxyProvider requiere GestureHandlerRootView + SafeAreaProvider; QR requiere svg; reanimated importado estático). `@oxyhq/services` no tiene splits `*.web.*` (34 guards `Platform.OS==='web'`); Vite consumiría `lib/module` de bob (services build previo obligatorio). Skews: root override pinna `@oxyhq/bloom` 0.20.0 vs `^0.24.1` declarado; `packages/auth/node_modules/react-native-web@0.19.13` anidado shadowea el 0.21.2 raíz. Páginas IdP: authorize/login/signup/recover/social-callback/settings/* (KEEP→reimplementar); sin superficie FedCM/SSO server ya.
+`packages/auth` = Vite 6.3.5 + React 19 + react-router 7 + Hono; **ya tiene** `react-native-web ^0.21.2` + alias `react-native→react-native-web` (para hojas Bloom). **Fatal hoy para montar services:** stubs a módulo vacío de gesture-handler, react-native-svg, safe-area-context, screens, expo-router, expo-modules-core (OxyProvider requiere GestureHandlerRootView + SafeAreaProvider; QR requiere svg; reanimated importado estático). `@oxy.so/services` no tiene splits `*.web.*` (34 guards `Platform.OS==='web'`); Vite consumiría `lib/module` de bob (services build previo obligatorio). Skews: root override pinna `@oxy.so/bloom` 0.20.0 vs `^0.24.1` declarado; `packages/auth/node_modules/react-native-web@0.19.13` anidado shadowea el 0.21.2 raíz. Páginas IdP: authorize/login/signup/recover/social-callback/settings/* (KEEP→reimplementar); sin superficie FedCM/SSO server ya.
 
 ### 8.3 Multicuenta (grafo vs DeviceSession)
 
@@ -149,7 +149,7 @@ Grafo completo en main (`account.service.ts`, `/accounts`, `POST /accounts/:id/s
 
 | App | Pendiente |
 |-----|-----------|
-| console | Migrar a `@oxyhq/services` (Fase 3) |
+| console | Migrar a `@oxy.so/services` (Fase 3) |
 | inbox | **Bearer manual** `oxyServices.httpService.getAccessToken()` + `Authorization:` en 6 archivos (aliaApi/hooks/socket) — viola D4; migrar a `createLinkedClient` |
 | accounts/commons | limpio (bootstrap fuera, FedCM fuera) |
 | test-app-expo | `OxyProvider` sin `clientId` |
@@ -196,7 +196,7 @@ Grafo completo en main (`account.service.ts`, `/accounts`, `POST /accounts/:id/s
 
 ## DONE (2026-07-06) — verificación Fase 7
 
-- [x] Grep §5 = 0 hits en `packages/` + `docs/` + `examples/` + `wiki/` (excl. CHANGELOG, `docs/superpowers/` histórico y los 3 docs canónicos del plan que citan los strings como inventario). 2 supervivientes deliberados: assert negativo `oxy_rt_` en `accountsSwitch.test.ts:275` (guard anti-reintroducción) y `@oxyhq/auth-app` (nombre del paquete IdP).
+- [x] Grep §5 = 0 hits en `packages/` + `docs/` + `examples/` + `wiki/` (excl. CHANGELOG, `docs/superpowers/` histórico y los 3 docs canónicos del plan que citan los strings como inventario). 2 supervivientes deliberados: assert negativo `oxy_rt_` en `accountsSwitch.test.ts:275` (guard anti-reintroducción) y `@oxy.so/auth-app` (nombre del paquete IdP).
 - [x] `packages/auth-sdk/` eliminado (PR #557); console en services
 - [x] `ssoBounce.ts` + exports core eliminados; seeds sin sso-callback; examples reescritos; openapi regenerado (208 paths, 0 restos fedcm/sso); `oxy-main-domain/web-identity` eliminado
 - [x] Docs: DELETE (EXPO_54_GUIDE) + 4 stubs reescritos + docs/ARCHITECTURE/README/overview + guías services + READMEs/wiki
@@ -216,4 +216,4 @@ Fases 0–7 + 2c completas, en main y en producción. Sesión device-first cero-
 **Limpieza auth posterior (2026-07):** eliminados `fedcmToken`, `approvedClientsCache`, script `migrate-fedcm-grants`, API imperativa `showSignInModal` → `openAccountDialog`, prefijo rate-limit `rl:fedcm:service:` → `rl:idp:service:`, namespace hash `fedcm` → `idp` en `deriveServiceDeviceId`, split de `OxyContext` en módulos tipados.
 
 Tests verdes (referencia): contracts 127 · services 192 · auth IdP 63+. Issues aparte (fuera de este cierre): migraciones Alia/TNP.
-- [x] **Decisión IdP chooser (2026-07-06, Nate) — IMPLEMENTADA en PR3 #568:** el chooser de cuentas de `auth.oxy.so` (`packages/auth`) usa EXACTAMENTE el mismo mecanismo que `accounts.oxy.so`, `@oxyhq/services` y el resto de apps — SIN excepción cookie/resolve. ELIMINADO: lane `oxy_device` + `POST /auth/device/resolve` + `lib/device-accounts.ts` + `lib/use-device-accounts.ts` + `functions/api/device-accounts.ts` + `lib/types.ts` (`DeviceAccount`) + contrato `deviceResolve*` en `@oxyhq/contracts`. El IdP enumera cuentas por la vía device-first SDK por-origen: `main.tsx` quita `coldBoot={false}` (cold boot normal), el login usa `useOxy().signInWithPassword`/`completeTwoFactorSignIn` (persisten `{deviceId, deviceSecret}` + plantan token), y el chooser (`login-form.tsx` + `authorize.tsx`) usa `useSwitchableAccounts` + `switchToAccount` con el bearer de la cuenta activa (`oxyServices.getAccessToken()`) para `POST /auth/oauth/authorize`. Reconciliación login↔OAuth-authorize LIMPIA (sin rediseño OAuth). Signup + social-callback migrados al mismo funnel (`handleWebSession`); `socialAuth.ts` gana `finalizeDeviceLogin` (paridad deviceSecret). Mecanismo `authuser` eliminado (cuenta activa = objetivo). **El IdP sigue siendo shell OAuth/authorize/consent — NO es RP.** La pantalla "New sign-in detected" (`securityAlert`) se RESTAURÓ extremo a extremo por el contrato device-first (tipo `SecurityAlert` en `LoginSessionResult` → `signInWithPassword`/`completeTwoFactorSignIn` → paso `security-alert`; nota: el endpoint 2FA no corre anomaly-check, igual que main). AGENTS.md del repo reescrito (muere la "IdP exception"); `~/AGENTS.md` global se actualiza al merge.
+- [x] **Decisión IdP chooser (2026-07-06, Nate) — IMPLEMENTADA en PR3 #568:** el chooser de cuentas de `auth.oxy.so` (`packages/auth`) usa EXACTAMENTE el mismo mecanismo que `accounts.oxy.so`, `@oxy.so/services` y el resto de apps — SIN excepción cookie/resolve. ELIMINADO: lane `oxy_device` + `POST /auth/device/resolve` + `lib/device-accounts.ts` + `lib/use-device-accounts.ts` + `functions/api/device-accounts.ts` + `lib/types.ts` (`DeviceAccount`) + contrato `deviceResolve*` en `@oxy.so/contracts`. El IdP enumera cuentas por la vía device-first SDK por-origen: `main.tsx` quita `coldBoot={false}` (cold boot normal), el login usa `useOxy().signInWithPassword`/`completeTwoFactorSignIn` (persisten `{deviceId, deviceSecret}` + plantan token), y el chooser (`login-form.tsx` + `authorize.tsx`) usa `useSwitchableAccounts` + `switchToAccount` con el bearer de la cuenta activa (`oxyServices.getAccessToken()`) para `POST /auth/oauth/authorize`. Reconciliación login↔OAuth-authorize LIMPIA (sin rediseño OAuth). Signup + social-callback migrados al mismo funnel (`handleWebSession`); `socialAuth.ts` gana `finalizeDeviceLogin` (paridad deviceSecret). Mecanismo `authuser` eliminado (cuenta activa = objetivo). **El IdP sigue siendo shell OAuth/authorize/consent — NO es RP.** La pantalla "New sign-in detected" (`securityAlert`) se RESTAURÓ extremo a extremo por el contrato device-first (tipo `SecurityAlert` en `LoginSessionResult` → `signInWithPassword`/`completeTwoFactorSignIn` → paso `security-alert`; nota: el endpoint 2FA no corre anomaly-check, igual que main). AGENTS.md del repo reescrito (muere la "IdP exception"); `~/AGENTS.md` global se actualiza al merge.

@@ -1,6 +1,6 @@
 import type React from 'react';
 import { render } from '@testing-library/react';
-import type { PublicCard } from '@oxyhq/contracts';
+import type { PublicCard } from '@oxy.so/contracts';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
 
 interface MockAction {
@@ -26,7 +26,7 @@ let mockAttestQrState = {
   regenerate: mockRegenerate,
 };
 
-jest.mock('@oxyhq/bloom/dialog', () => {
+jest.mock('@oxy.so/bloom/dialog', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const R = require('react') as typeof import('react');
   return {

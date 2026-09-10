@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Asset, AssetUploadProgress, AssetLink } from '@oxyhq/core';
+import type { Asset, AssetUploadProgress, AssetLink } from '@oxy.so/core';
 
 interface AssetState {
   // Asset data

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
-import { toast } from '@oxyhq/bloom/toast';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { toast } from '@oxy.so/bloom/toast';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import type { CreateBudgetInput } from '@/hooks/use-inference-reporting';
 import type { Budget } from '@/lib/reporting';

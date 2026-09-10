@@ -7,7 +7,7 @@
  */
 
 import { generateSecp256k1KeyPair } from '../secp256k1';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import {
   checkContinuity,
   verifyEnvelope,

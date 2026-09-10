@@ -59,7 +59,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { applications } from './applications';
 import { deviceAccountContexts } from './deviceAccountContexts';
 import { deviceSessions } from './deviceSessions';

@@ -9,7 +9,7 @@
 ## Run:    docker run --env-file .env -p 8080:8080 oxy-api
 ##
 
-FROM oven/bun:1.3.14-alpine@sha256:5acc90a93e91ff07bf72aa90a7c9f0fa189765aec90b47bdbf2152d2196383c0 AS bun-bin
+FROM oven/bun:1.4.2-alpine@sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f AS bun-bin
 
 FROM node:24-alpine AS bun-node
 
@@ -17,21 +17,21 @@ FROM node:24-alpine AS bun-node
 # wrapper retained multiple @oven platform binaries and added 346 MiB to the
 # runtime while only one 85 MiB executable can ever run in a given image.
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
-RUN test "$(bun --version)" = "1.3.14"
+RUN test "$(bun --version)" = "1.4.2"
 
 FROM bun-node AS builder
 
 WORKDIR /app
 
 # Copy workspace root and override workspaces to only include api + core +
-# protocol + contracts + federation + db. `@oxyhq/api` depends on
-# `@oxyhq/contracts` + `@oxyhq/protocol` + `@oxyhq/federation` + `@oxyhq/db`
+# telemetry + protocol + contracts + federation + db. `@oxy.so/api` depends on
+# `@oxy.so/contracts` + `@oxy.so/protocol` + `@oxy.so/federation` + `@oxy.so/db`
 # (workspace:*); core is retained for the admin scripts that import
 # packages/core/src/* at runtime (and core depends on protocol).
 #
 # A workspace:* dependency missing from this list is not a degraded build, it
 # is no build at all: `bun install` below exits 1 with
-# `@oxyhq/db@workspace:* failed to resolve`. Every entry in packages/api's
+# `@oxy.so/db@workspace:* failed to resolve`. Every entry in packages/api's
 # `dependencies` that reads `workspace:*` must appear here.
 #
 # Remove bun.lock since the workspace change invalidates it — bun will
@@ -41,11 +41,12 @@ COPY package.json ./
 # in this reduced server workspace pulled Expo, React Native and Bloom into both
 # the build graph and the production image even though no server package imports
 # them. Package-local dependencies below remain authoritative.
-RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/federation','packages/core','packages/mcp','packages/db','packages/api']; p.workspaces=catalog?{packages,catalog}:packages; p.dependencies={}; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
+RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/federation','packages/telemetry','packages/core','packages/mcp','packages/db','packages/api']; p.workspaces=catalog?{packages,catalog}:packages; p.dependencies={}; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
 
 # Copy package.json files for dependency resolution
 COPY packages/api/package.json packages/api/
 COPY packages/core/package.json packages/core/
+COPY packages/telemetry/package.json packages/telemetry/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/protocol/package.json packages/protocol/
 COPY packages/contracts/package.json packages/contracts/
@@ -76,6 +77,7 @@ RUN set -eu; \
 
 # Copy source code
 COPY packages/core/ packages/core/
+COPY packages/telemetry/ packages/telemetry/
 COPY packages/mcp/ packages/mcp/
 COPY packages/protocol/ packages/protocol/
 COPY packages/contracts/ packages/contracts/
@@ -93,20 +95,21 @@ RUN mkdir -p packages/api/drizzle-runtime/meta \
 # Build contracts first (api depends on it at runtime via dist/cjs), then
 # protocol (the signed-record crypto base core + api consume), then federation
 # (HTTP signatures for outbound ActivityPub fetches), then core (api imports
-# @oxyhq/core/server — safeFetch etc.), then db (every entry point in
-# @oxyhq/db resolves into dist/, which is gitignored and produced by no install
+# @oxy.so/core/server — safeFetch etc.), then db (every entry point in
+# @oxy.so/db resolves into dist/, which is gitignored and produced by no install
 # hook), then api.
-RUN bun run --filter @oxyhq/contracts build
-RUN bun run --filter @oxyhq/protocol build
-RUN bun run --filter @oxyhq/core build
-RUN bun run --filter @oxyhq/mcp build
+RUN bun run --filter @oxy.so/contracts build
+RUN bun run --filter @oxy.so/protocol build
+RUN bun run --filter @oxy.so/telemetry build
+RUN bun run --filter @oxy.so/core build
+RUN bun run --filter @oxy.so/mcp build
 # Federation's public build script rebuilds contracts, protocol and core before
 # compiling itself. Those exact artifacts were produced above, so invoke only
 # Federation's three package-local compilation phases here.
 RUN bun run --cwd packages/federation build:cjs \
     && bun run --cwd packages/federation build:esm \
     && bun run --cwd packages/federation build:types
-RUN bun run --filter @oxyhq/db build
+RUN bun run --filter @oxy.so/db build
 RUN bun run --cwd packages/api tsc -p tsconfig.json
 
 # ── Production dependency tree ────────────────────────────────────
@@ -125,6 +128,7 @@ WORKDIR /app
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/packages/api/package.json packages/api/
 COPY --from=builder /app/packages/core/package.json packages/core/
+COPY --from=builder /app/packages/telemetry/package.json packages/telemetry/
 COPY --from=builder /app/packages/mcp/package.json packages/mcp/
 COPY --from=builder /app/packages/protocol/package.json packages/protocol/
 COPY --from=builder /app/packages/contracts/package.json packages/contracts/
@@ -142,7 +146,7 @@ FROM node:24-alpine
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN apk add --no-cache ffmpeg curl \
-    && test "$(bun --version)" = "1.3.14"
+    && test "$(bun --version)" = "1.4.2"
 
 WORKDIR /app
 
@@ -150,12 +154,13 @@ COPY --from=production-deps /app/package.json ./
 COPY --from=production-deps /app/packages packages/
 COPY --from=production-deps /app/node_modules node_modules/
 
-# Copy built artifacts. @oxyhq/db's dist is needed HERE and not only in the
+# Copy built artifacts. @oxy.so/db's dist is needed HERE and not only in the
 # builder: `bun install --production` above resolves the same `workspace:*`, and
 # both `dist/server.js` and the `packages/api/src` copied below for the one-shot
 # admin scripts import the package at runtime.
 COPY --from=builder /app/packages/api/dist packages/api/dist
 COPY --from=builder /app/packages/core/dist packages/core/dist
+COPY --from=builder /app/packages/telemetry/dist packages/telemetry/dist
 COPY --from=builder /app/packages/mcp/dist packages/mcp/dist
 COPY --from=builder /app/packages/protocol/dist packages/protocol/dist
 COPY --from=builder /app/packages/contracts/dist packages/contracts/dist
@@ -169,6 +174,7 @@ COPY --from=builder /app/packages/db/dist packages/db/dist
 COPY --from=builder /app/packages/api/scripts packages/api/scripts
 COPY --from=builder /app/packages/api/src packages/api/src
 COPY --from=builder /app/packages/core/src packages/core/src
+COPY --from=builder /app/packages/telemetry/src packages/telemetry/src
 
 # The SQL migrations + their journal. `dist/db/migrate.js` (built above) reads
 # them from a path resolved relative to itself, so this directory has to sit at

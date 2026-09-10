@@ -79,7 +79,7 @@ const PACKAGE_ROOT = path.resolve(__dirname, '..');
  * the worst possible shape for a tool that writes a PUBLISHED contract: the
  * output looks complete, nothing about the run says otherwise, and the drift is
  * discovered later by whoever trusted it. Measured before this change —
- * `@oxyhq/contracts` and `@oxyhq/db` unbuilt dropped `components.schemas` from
+ * `@oxy.so/contracts` and `@oxy.so/db` unbuilt dropped `components.schemas` from
  * 7 to 4, and the run still reported success.
  *
  * A generator that quietly emits a partial contract is worse than the drift it
@@ -481,7 +481,7 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
       // invisible. A discriminated union used to fall through to the `default`
       // arm below and be published as `{}` — which in OpenAPI does not mean
       // "shape unknown", it means ANY VALUE IS VALID. Measured on `main`: eleven
-      // discriminated unions in `@oxyhq/contracts`' inference namespace alone
+      // discriminated unions in `@oxy.so/contracts`' inference namespace alone
       // were published as unconstrained, `inferenceContentPartSchema` among them
       // — so the published contract said a chat message's content array accepts
       // anything at all, and a generated client typed it `Any`.
@@ -495,7 +495,7 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
     }
     case 'ZodBranded': {
       // A brand is a compile-time-only distinction; the wire shape is the inner
-      // schema's. Reached from `@oxyhq/contracts` identifier types.
+      // schema's. Reached from `@oxy.so/contracts` identifier types.
       return zodToOpenApi((def as { type: ZodTypeAny }).type);
     }
     case 'ZodAny':
@@ -521,7 +521,7 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
  * Load one module a schema reference resolves through, memoized.
  *
  * `specifier` is what the route file wrote — `../schemas/email.schemas` or
- * `@oxyhq/contracts` — narrowed by `schemaModuleSpecifier` before it gets here,
+ * `@oxy.so/contracts` — narrowed by `schemaModuleSpecifier` before it gets here,
  * so nothing with side effects is ever imported.
  */
 const loadedSchemaModules = new Map<string, Record<string, unknown>>();
@@ -736,7 +736,7 @@ const TAG_GROUPS: Record<string, string> = {
  * `/v1` surface was published as taking an empty body.
  *
  * A map also could not express the second half of the truth: a route may validate
- * against a schema from `@oxyhq/contracts` rather than from `src/schemas/`, and 20
+ * against a schema from `@oxy.so/contracts` rather than from `src/schemas/`, and 20
  * `validate()` references do exactly that. One entry per file cannot name two
  * modules.
  *
@@ -789,7 +789,7 @@ function schemaModuleSpecifier(specifier: string): string | undefined {
   // same TypeScript source.
   const bare = specifier.replace(/\.js$/, '');
   if (bare.startsWith('../schemas/')) return bare;
-  if (bare === '@oxyhq/contracts') return bare;
+  if (bare === '@oxy.so/contracts') return bare;
   return undefined;
 }
 
@@ -1440,7 +1440,7 @@ function resolveRouteSchema(route: RouteEntry, reference: string): ZodTypeAny | 
       filename: route.filename,
       identifier,
       reason: `imported from "${specifier}", which this generator will not import. Schemas must `
-        + 'come from ../schemas/* or @oxyhq/contracts.',
+        + 'come from ../schemas/* or @oxy.so/contracts.',
     });
     return undefined;
   }
@@ -1865,13 +1865,13 @@ async function main(): Promise<void> {
     }
     console.error(
       '  The usual cause is unbuilt workspace dependencies — these modules import\n'
-      + '  `@oxyhq/contracts` and `@oxyhq/db`, which resolve through their build output.\n'
+      + '  `@oxy.so/contracts` and `@oxy.so/db`, which resolve through their build output.\n'
       + '  Build them first, from the repository root (this is the same sequence\n'
       + '  `ci.yml` runs before the api tests, for the same reason):\n\n'
-      + '      bun run --filter @oxyhq/contracts build\n'
-      + '      bun run --filter @oxyhq/protocol build\n'
-      + '      bun run --filter @oxyhq/core build\n'
-      + '      bun run --filter @oxyhq/db build\n\n'
+      + '      bun run --filter @oxy.so/contracts build\n'
+      + '      bun run --filter @oxy.so/protocol build\n'
+      + '      bun run --filter @oxy.so/core build\n'
+      + '      bun run --filter @oxy.so/db build\n\n'
       + `  ${OUTPUT_JSON} is UNCHANGED. The previous document is still the committed\n`
       + '  contract, which is the correct outcome: a stale document is recoverable,\n'
       + '  a silently truncated one that ships to consumers is not.\n',
@@ -1910,7 +1910,7 @@ async function main(): Promise<void> {
     }
     console.error(
       '  Schemas are resolved through the route file\'s OWN import statements, from\n'
-      + '  ../schemas/* or @oxyhq/contracts. Nothing else is imported, because a route file\n'
+      + '  ../schemas/* or @oxy.so/contracts. Nothing else is imported, because a route file\n'
       + '  also imports its services and middleware.\n\n'
       + `  ${OUTPUT_JSON} is UNCHANGED.\n`,
     );

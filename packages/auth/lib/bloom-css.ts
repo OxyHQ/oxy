@@ -10,8 +10,8 @@
  *     win over `"base"` because they're appended later. Removing the scope
  *     element via `restoreBasePreset(scope)` lets the base preset bleed through.
  */
-import { APP_COLOR_NAMES, type AppColorName } from "@oxyhq/bloom/color-presets"
-import { getPresetVars } from "@oxyhq/bloom/preset-vars"
+import { APP_COLOR_NAMES, type AppColorName } from "@oxy.so/bloom/color-presets"
+import { getPresetVars } from "@oxy.so/bloom/preset-vars"
 
 const BASE_SCOPE = "base"
 const STYLE_ID_PREFIX = "bloom-color-preset-"

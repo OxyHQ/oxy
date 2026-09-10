@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { OxyServices } from '@oxyhq/core';
-import type { RealLifeAttestationResult } from '@oxyhq/contracts';
+import type { OxyServices } from '@oxy.so/core';
+import type { RealLifeAttestationResult } from '@oxy.so/contracts';
 import { userIdFromDid } from '@/lib/civic/did';
 import { attestErrorCode, type AttestErrorCode } from '@/lib/civic/civic-errors';
 

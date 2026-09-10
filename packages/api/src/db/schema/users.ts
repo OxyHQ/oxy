@@ -91,8 +91,8 @@ import {
   type AccountCategoryKind,
   type AccountKind as ContractAccountKind,
   type TrustTier,
-} from '@oxyhq/contracts';
-import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from '@oxyhq/db';
+} from '@oxy.so/contracts';
+import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
 
 /**
  * Named color presets a user may pick. `oxy` is premium-gated at the service
@@ -138,7 +138,7 @@ export const USER_TYPES = ['local', 'federated', 'agent', 'automated'] as const;
  * Account-graph classification. `personal` is the only kind that may
  * authenticate directly; the rest are operated through `account_members`.
  *
- * Derived from `@oxyhq/contracts`, which owns the vocabulary. `satisfies` proves
+ * Derived from `@oxy.so/contracts`, which owns the vocabulary. `satisfies` proves
  * every value here is a valid contract kind; the `Gap` type below proves the
  * reverse, so adding a kind in contracts fails THIS file's typecheck — and
  * therefore the `users_kind_check` CHECK constraint built from this list — rather
@@ -172,7 +172,7 @@ export const THEME_MODES = ['light', 'dark', 'system'] as const;
  * the removed value, forever, with an error naming a column the caller never
  * mentioned. Measured on a real Postgres 17, `NOT VALID` included (which exempts
  * the initial scan and nothing else). Withdrawing a category is
- * `RETIRED_ACCOUNT_CATEGORY_IDS` in `@oxyhq/contracts`; it never touches this.
+ * `RETIRED_ACCOUNT_CATEGORY_IDS` in `@oxy.so/contracts`; it never touches this.
  */
 export const ACCOUNT_CATEGORY_IDS = [
   ...CONTRACT_ACCOUNT_CATEGORY_IDS,
@@ -376,7 +376,7 @@ export const users = pgTable(
      *
      * Elements are stable opaque ids; the visible label lives in each client's
      * locales, keyed by the id, and never in this column (see
-     * `@oxyhq/contracts` `accountGraph.ts`).
+     * `@oxy.so/contracts` `accountGraph.ts`).
      *
      * NOT NULL with an empty default: absent and "chose none" are the same
      * state, and `<@` is satisfied by `{}` trivially, so a nullable column would

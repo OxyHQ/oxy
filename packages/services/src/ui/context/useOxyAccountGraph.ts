@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type RefObject } from 'react';
-import type { OxyServices, AccountNode, CreateAccountInput, AccountDialogController, SessionClient } from '@oxyhq/core';
-import { logger as loggerUtil } from '@oxyhq/core';
+import type { OxyServices, AccountNode, CreateAccountInput, AccountDialogController, SessionClient } from '@oxy.so/core';
+import { logger as loggerUtil } from '@oxy.so/core';
 import { isUnauthorizedStatus } from './oxyContextHelpers';
 import { IdentityBoundSessionError } from '../session';
 import type { CommitInput } from './oxyContextTypes';

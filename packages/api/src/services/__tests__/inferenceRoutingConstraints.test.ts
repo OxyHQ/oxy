@@ -58,7 +58,7 @@ import {
   unitPriceSchema,
   type RoutingPolicy,
   type UsageUnit,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   inferenceDeployments,

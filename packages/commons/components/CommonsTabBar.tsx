@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { TabBar, TabBarButton, type TabBarItem } from '@oxyhq/bloom/tab-bar';
+import { TabBar, TabBarButton, type TabBarItem } from '@oxy.so/bloom/tab-bar';
 import {
   Person_Filled_Corner2_Rounded,
   Person_Stroke2_Corner2_Rounded,
@@ -8,7 +8,7 @@ import {
   SettingsGear2_Stroke2_Corner0_Rounded,
   Star_Filled_Corner0_Rounded,
   Star_Stroke2_Corner0_Rounded,
-} from '@oxyhq/bloom/icons';
+} from '@oxy.so/bloom/icons';
 import type { BottomTabBarProps } from 'expo-router/tabs';
 
 import { useTranslation } from '@/lib/i18n';

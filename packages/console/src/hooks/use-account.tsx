@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@oxyhq/services'
-import { getNormalizedUserHandle } from '@oxyhq/core'
+import { useAuth } from '@oxy.so/services'
+import { getNormalizedUserHandle } from '@oxy.so/core'
 import type { UseQueryResult } from '@tanstack/react-query'
 import type {
   AccountKind,
@@ -14,11 +14,11 @@ import type {
   AccountSuccessResult,
   CreateAccountInput,
   UpdateAccountInput,
-} from '@oxyhq/core'
+} from '@oxy.so/core'
 import { hasImplicitOwnership } from '@/lib/account-access'
 
 // ===========================================================================
-// Types — re-exported from @oxyhq/core so the Console shares the single
+// Types — re-exported from @oxy.so/core so the Console shares the single
 // source of truth (the `accounts` mixin / unified account graph) rather than
 // maintaining a parallel copy that can drift from the API contract.
 // ===========================================================================

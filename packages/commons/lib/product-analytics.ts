@@ -1,4 +1,4 @@
-import { createDeferredProductAnalytics, type ProductAnalytics } from '@oxyhq/services';
+import { createDeferredProductAnalytics, type ProductAnalytics } from '@oxy.so/services';
 
 const key = process.env.EXPO_PUBLIC_POSTHOG_KEY?.trim();
 const enabled = process.env.EXPO_PUBLIC_POSTHOG_ENABLED === 'true' && Boolean(key);

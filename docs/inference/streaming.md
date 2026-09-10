@@ -24,7 +24,7 @@ of streaming and none of its point. The Oxy route and data-plane client implemen
 the validated SSE path when Kaana execution is configured. An unconfigured path
 refuses before opening a stream and keeps no charge.
 
-`OxyInferenceClient.stream()` is merged and published in `@oxyhq/core@23.1.0`
+`OxyInferenceClient.stream()` is merged and published in `@oxy.so/core@23.1.0`
 by [#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the merged Kaana
 runtime v2 source. It requests `stream: true`, decodes frames incrementally
 against the shared event contract, forwards `AbortSignal`, and exposes protocol

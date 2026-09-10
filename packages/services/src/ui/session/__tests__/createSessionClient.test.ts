@@ -1,4 +1,4 @@
-import { SessionClient } from '@oxyhq/core';
+import { SessionClient } from '@oxy.so/core';
 
 type Handler = (...args: unknown[]) => void;
 class FakeSocket {
@@ -76,7 +76,7 @@ describe('createSessionClient', () => {
     // The client was constructed with the callback (no direct getter is exposed;
     // constructing without throwing + wiring the socket factory is the contract
     // this factory owns — the callback firing on a zero-account applied state is
-    // covered by @oxyhq/core's SessionClient tests).
+    // covered by @oxy.so/core's SessionClient tests).
     expect(client).toBeInstanceOf(SessionClient);
     await client.start();
     expect(ioMock).toHaveBeenCalledTimes(1);

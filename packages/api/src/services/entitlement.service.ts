@@ -40,7 +40,7 @@
  */
 
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { executeRows } from '@oxyhq/db';
+import { executeRows } from '@oxy.so/db';
 import {
   costCenterSchema,
   costCenterSpendSchema,
@@ -53,7 +53,7 @@ import {
   type PlanAllowance,
   type ProductEntitlement,
   type ProductPlan,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { billingSubscriptions } from '../db/schema/billingSubscriptions';
 import { internalCostCenters } from '../db/schema/internalCostCenters';

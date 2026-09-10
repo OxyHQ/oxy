@@ -1,4 +1,4 @@
-# @oxyhq/app-preset
+# @oxy.so/app-preset
 
 The **Oxy distro of Expo** — the shared configuration every Oxy app (Mention,
 Homiio, Allo, accounts, Commons, …) used to copy-paste, centralized into one
@@ -14,15 +14,15 @@ and JSON.
 
 | Piece | Import | Replaces |
 | --- | --- | --- |
-| Config plugin | `['@oxyhq/app-preset', {}]` | `withSharedUserId` + iOS keychain entitlement + `expo-build-properties` + `@oxyhq/services/plugins/withSharedIdentityReader` |
-| Android release build | `@oxyhq/app-preset/plugin/withOxyAndroidRelease` | R8 `-optimize` ProGuard file + shared-keystore release signing (opt-in, see below) |
-| Android WebP resources | `@oxyhq/app-preset/plugin/withOxyAndroidWebp` | re-encoding generated mipmaps/splash bitmaps to real lossless WebP (opt-in, needs `sharp`) |
-| Oxy Updates (OTA) | `@oxyhq/app-preset/plugin/withOxyUpdates` | the `expo-updates` manifest URL, release channel, `runtimeVersion` policy and the shared code-signing certificate (opt-in, see below) |
-| Metro | `@oxyhq/app-preset/metro` | monorepo watch folders, block list, symlink + package-exports resolution, web-font/wasm asset exts, release minifier, NativeWind wrapper |
-| Babel | `@oxyhq/app-preset/babel` | `babel-preset-expo` + `module-resolver` + `react-native-worklets/plugin` |
-| ESLint | `@oxyhq/app-preset/eslint` | `eslint-config-expo/flat` + `dist/*` ignore |
-| CSS base | `@oxyhq/app-preset/base.css` | Tailwind v4 + NativeWind + Bloom design-token imports + SDK `@source` globs |
-| tsconfig | `@oxyhq/app-preset/tsconfig/{base,frontend,backend}.json` | the shared strict/composite TypeScript bases |
+| Config plugin | `['@oxy.so/app-preset', {}]` | `withSharedUserId` + iOS keychain entitlement + `expo-build-properties` + `@oxy.so/services/plugins/withSharedIdentityReader` |
+| Android release build | `@oxy.so/app-preset/plugin/withOxyAndroidRelease` | R8 `-optimize` ProGuard file + shared-keystore release signing (opt-in, see below) |
+| Android WebP resources | `@oxy.so/app-preset/plugin/withOxyAndroidWebp` | re-encoding generated mipmaps/splash bitmaps to real lossless WebP (opt-in, needs `sharp`) |
+| Oxy Updates (OTA) | `@oxy.so/app-preset/plugin/withOxyUpdates` | the `expo-updates` manifest URL, release channel, `runtimeVersion` policy and the shared code-signing certificate (opt-in, see below) |
+| Metro | `@oxy.so/app-preset/metro` | monorepo watch folders, block list, symlink + package-exports resolution, web-font/wasm asset exts, release minifier, NativeWind wrapper |
+| Babel | `@oxy.so/app-preset/babel` | `babel-preset-expo` + `module-resolver` + `react-native-worklets/plugin` |
+| ESLint | `@oxy.so/app-preset/eslint` | `eslint-config-expo/flat` + `dist/*` ignore |
+| CSS base | `@oxy.so/app-preset/base.css` | Tailwind v4 + NativeWind + Bloom design-token imports + SDK `@source` globs |
+| tsconfig | `@oxy.so/app-preset/tsconfig/{base,frontend,backend}.json` | the shared strict/composite TypeScript bases |
 
 ## Usage
 
@@ -31,7 +31,7 @@ and JSON.
 ```js
 plugins: [
   // …app-specific plugins…
-  ['@oxyhq/app-preset', {}],
+  ['@oxy.so/app-preset', {}],
 ]
 ```
 
@@ -39,24 +39,24 @@ This adds `android:sharedUserId="so.oxy.shared"`, the iOS
 `keychain-access-groups` entitlement (`$(AppIdentifierPrefix)group.so.oxy.shared`),
 the Oxy `expo-build-properties` defaults (iOS `deploymentTarget 16.4`; Android
 `compileSdk 36` / `targetSdk 35` / ProGuard + resource shrinking), and the
-`@oxyhq/services` shared-identity reader plugin (Android signature permission +
+`@oxy.so/services` shared-identity reader plugin (Android signature permission +
 `<queries>` for silent "Sign in with Oxy").
 
 Each piece is individually disableable and overridable:
 
 ```js
-['@oxyhq/app-preset', {
+['@oxy.so/app-preset', {
   sharedUserId: 'so.oxy.shared',        // false → skip android:sharedUserId
   keychainGroup: 'group.so.oxy.shared', // false → skip iOS keychain entitlement
   ios: { deploymentTarget: '17.0' },    // deep-merges over defaults; false → skip iOS build props
   android: { targetSdkVersion: 34 },    // deep-merges over defaults; false → skip Android build props
-  sharedIdentityReader: true,           // false → skip @oxyhq/services reader plugin
+  sharedIdentityReader: true,           // false → skip @oxy.so/services reader plugin
 }]
 ```
 
 #### Android release-build plugins (opt-in)
 
-These two are deliberately NOT part of `['@oxyhq/app-preset', {}]`: one writes a
+These two are deliberately NOT part of `['@oxy.so/app-preset', {}]`: one writes a
 signing config and the other needs `sharp` installed, so both are registered
 explicitly by apps that ship to Play.
 
@@ -64,9 +64,9 @@ explicitly by apps that ship to Play.
 plugins: [
   // FIRST in the array so it RUNS LAST — mods execute in reverse registration
   // order, and this has to run after every image generator (splash included).
-  '@oxyhq/app-preset/plugin/withOxyAndroidWebp',
+  '@oxy.so/app-preset/plugin/withOxyAndroidWebp',
   // …app-specific plugins…
-  '@oxyhq/app-preset/plugin/withOxyAndroidRelease',
+  '@oxy.so/app-preset/plugin/withOxyAndroidRelease',
 ]
 ```
 
@@ -87,7 +87,7 @@ opt-in because it needs the app's own registered client id.
 
 ```js
 plugins: [
-  ['@oxyhq/app-preset/plugin/withOxyUpdates', { clientId: OXY_CLIENT_ID }],
+  ['@oxy.so/app-preset/plugin/withOxyUpdates', { clientId: OXY_CLIENT_ID }],
 ]
 ```
 
@@ -126,13 +126,13 @@ its whole lifetime. Development builds may explicitly pass
 `{ codeSigning: 'auto' }` to receive platform warnings, or
 `{ codeSigning: false }` to opt out of verification.
 
-Publishing is `oxy-ship` (`@oxyhq/ship`); see that package's README and its
+Publishing is `oxy-ship` (`@oxy.so/ship`); see that package's README and its
 `templates/publish-update.yml` CI workflow.
 
 ### 2. Metro (`metro.config.js`)
 
 ```js
-const { createOxyMetroConfig } = require('@oxyhq/app-preset/metro');
+const { createOxyMetroConfig } = require('@oxy.so/app-preset/metro');
 
 module.exports = createOxyMetroConfig(__dirname, {
   sharedTypesPackage: '@myapp/shared-types', // optional
@@ -151,20 +151,20 @@ defaults without replacing them.
 ### 3. Babel (`babel.config.js`)
 
 ```js
-module.exports = require('@oxyhq/app-preset/babel');
+module.exports = require('@oxy.so/app-preset/babel');
 ```
 
 ### 4. ESLint (`eslint.config.js`)
 
 ```js
-const oxyConfig = require('@oxyhq/app-preset/eslint');
+const oxyConfig = require('@oxy.so/app-preset/eslint');
 module.exports = [...oxyConfig];
 ```
 
 ### 5. CSS (`global.css`)
 
 ```css
-@import "@oxyhq/app-preset/base.css";
+@import "@oxy.so/app-preset/base.css";
 
 /* App-specific globs (later rules win on overlap): */
 @source "./app/**/*.{js,jsx,ts,tsx}";
@@ -175,9 +175,9 @@ module.exports = [...oxyConfig];
 
 ```jsonc
 // frontend
-{ "extends": "@oxyhq/app-preset/tsconfig/frontend.json", "compilerOptions": { "paths": { "@/*": ["./*"] } }, "include": ["**/*.ts", "**/*.tsx"] }
+{ "extends": "@oxy.so/app-preset/tsconfig/frontend.json", "compilerOptions": { "paths": { "@/*": ["./*"] } }, "include": ["**/*.ts", "**/*.tsx"] }
 // backend
-{ "extends": "@oxyhq/app-preset/tsconfig/backend.json", "compilerOptions": { "rootDir": "./", "outDir": "dist" }, "include": ["**/*.ts"] }
+{ "extends": "@oxy.so/app-preset/tsconfig/backend.json", "compilerOptions": { "rootDir": "./", "outDir": "dist" }, "include": ["**/*.ts"] }
 ```
 
 ## Peer dependencies

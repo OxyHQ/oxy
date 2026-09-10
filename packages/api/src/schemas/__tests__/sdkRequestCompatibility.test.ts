@@ -2,7 +2,7 @@
  * The SDK's request type and the edge's request schema, held together
  * (issue #972, workstream 15).
  *
- * `@oxyhq/core`'s `OxyResponsesRequest` names the fields a customer sends to
+ * `@oxy.so/core`'s `OxyResponsesRequest` names the fields a customer sends to
  * `POST /v1/responses`. `responsesRequestSchema` decides which fields are
  * accepted. They are two declarations of one wire shape and they live in
  * different packages — the schema stays here because it is a PUBLIC DIALECT
@@ -24,7 +24,7 @@
  * control is what proves it does not.
  */
 
-import type { OxyResponsesRequest } from '@oxyhq/core';
+import type { OxyResponsesRequest } from '@oxy.so/core';
 import { normalizeResponsesRequest, responsesRequestSchema } from '../inferenceEdge.schemas';
 
 /**

@@ -3,7 +3,7 @@ import type {
   CatalogInvocationContext,
   CatalogToolHandler,
   CatalogToolHandlers,
-} from '@oxyhq/mcp';
+} from '@oxy.so/mcp';
 
 import {
   searchMessagesForUser,

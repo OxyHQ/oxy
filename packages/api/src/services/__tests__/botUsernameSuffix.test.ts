@@ -4,7 +4,7 @@
  *
  * ## The rule, and where it is enforced
  *
- * `botUsernameSchema` in `@oxyhq/contracts` is the declaration; this asserts the
+ * `botUsernameSchema` in `@oxy.so/contracts` is the declaration; this asserts the
  * three write paths actually ask it. There are exactly three, because `kind` is
  * set once and never updated (`updateUserProfile`'s `allowedFields` does not
  * list it, and `updateAccount` takes no kind), so a handle is held to its
@@ -42,7 +42,7 @@ import {
   usernameSchemaForAccountKind,
   BOT_USERNAME_INVALID_MESSAGE,
   USERNAME_INVALID_MESSAGE,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
 import { accountService } from '../account.service';

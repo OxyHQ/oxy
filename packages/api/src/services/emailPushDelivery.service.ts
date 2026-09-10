@@ -11,7 +11,7 @@
  * `PushToken.find({ userId, applicationId })` CAST both values: the Mongoose
  * schema declares each as a `Schema.Types.ObjectId`, so a value that is not
  * 24-char hex raised a `CastError` rather than matching no rows. Both ids are
- * now **uuid v7** for anything minted after the cutover (`@oxyhq/db`'s
+ * now **uuid v7** for anything minted after the cutover (`@oxy.so/db`'s
  * `generatedId()`), and `resolveApplicationIdFromClientId` hands this function
  * exactly such an id. The throw landed in `sendInboxEmailPush`'s own catch, so
  * the whole inbox push for that identity disappeared into a `logger.warn` with
@@ -22,7 +22,7 @@
  * either id shape.
  */
 
-import { INBOX_EMAIL_PUSH_CHANNEL, INBOX_EMAIL_PUSH_TYPE } from '@oxyhq/contracts';
+import { INBOX_EMAIL_PUSH_CHANNEL, INBOX_EMAIL_PUSH_TYPE } from '@oxy.so/contracts';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { pushTokens } from '../db/schema/pushTokens';

@@ -1,7 +1,7 @@
 {
-  "name": "@oxyhq/services",
-  "version": "31.0.0",
-  "description": "OxyHQ Expo/React Native SDK \u2014 UI components, screens, and native features",
+  "name": "@oxy.so/services",
+  "version": "1.0.1",
+  "description": "OxyHQ Expo/React Native SDK — UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
   "types": "lib/typescript/commonjs/index.d.ts",
@@ -141,20 +141,20 @@
   },
   "release-it": {
     "git": {
-      "tagName": "@oxyhq/services@${version}",
-      "tagAnnotation": "Release @oxyhq/services@${version}",
-      "commitMessage": "chore(services): release @oxyhq/services@${version}"
+      "tagName": "@oxy.so/services@${version}",
+      "tagAnnotation": "Release @oxy.so/services@${version}",
+      "commitMessage": "chore(services): release @oxy.so/services@${version}"
     },
     "github": {
       "release": true,
-      "releaseName": "@oxyhq/services@${version}"
+      "releaseName": "@oxy.so/services@${version}"
     },
     "npm": {
       "publish": true
     }
   },
   "dependencies": {
-    "@oxyhq/contracts": "workspace:*",
+    "@oxy.so/contracts": "workspace:*",
     "@simplewebauthn/browser": "^13.3.0",
     "color": "^4.2.3"
   },
@@ -163,7 +163,7 @@
     "@commitlint/cli": "^21.2.1",
     "@commitlint/config-conventional": "^21.2.0",
     "@expo/vector-icons": "^15.0.3",
-    "@oxyhq/core": "workspace:*",
+    "@oxy.so/core": "workspace:*",
     "@react-native-async-storage/async-storage": "^2.0.0",
     "@react-native-community/netinfo": "^12.0.1",
     "@react-native/babel-preset": "^0.86.2",
@@ -173,22 +173,30 @@
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-query-persist-client": "catalog:",
     "@testing-library/jest-dom": "^6.4.2",
+    "@testing-library/react": "^16.3.2",
     "@types/color": "^4.2.1",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.19.43",
     "@types/react": "*",
+    "@oxy.so/bloom": "catalog:",
     "copyfiles": "^2.4.1",
     "expo-constants": "catalog:",
     "expo-file-system": "catalog:",
     "expo-haptics": "catalog:",
     "expo-image": "catalog:",
+    "expo-image-manipulator": "catalog:",
     "expo-linear-gradient": "catalog:",
     "expo-notifications": "catalog:",
+    "expo-modules-core": "catalog:",
+    "expo-secure-store": "catalog:",
     "expo-web-browser": "catalog:",
     "husky": "^4.3.8",
     "jest": "^30.5.1",
     "lint-staged": "^15.2.4",
     "nativewind": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-native": "catalog:",
     "react-native-builder-bob": "^0.43.0",
     "react-native-css": "^3.0.6",
     "react-native-gesture-handler": "catalog:",
@@ -198,15 +206,16 @@
     "react-native-safe-area-context": "catalog:",
     "react-native-svg": "catalog:",
     "release-it": "catalog:",
+    "socket.io-client": "catalog:",
     "ts-jest": "^29.4.12",
     "typescript": "^5.9.2",
     "zustand": "catalog:"
   },
-  "//@oxyhq/bloom": "RE-RAISE THIS FLOOR ON EVERY BREAKING BLOOM RELEASE, in the same commit as the root package.json catalog entry and the code that requires it. Bloom is now at or above 1.0.0, so the breaking position is the MAJOR and `^1.0.0` means `>=1.0.0 <2.0.0`: 1.x minors are admitted on semver's additive promise, and Bloom 2.0.0 is refused until someone raises this deliberately. The CAP is the part that is load-bearing. An earlier revision of this key recorded the opposite trade -- an uncapped `>=` floor, accepted so that intentionally-breaking Bloom 0.x minors would not be blocked -- and that trade is now closed by evidence rather than by preference: an unbounded range is exactly what let `bun install` pair this package with Bloom 1.0.0 and emit no warning at all, and 1.0.0 broke it four ways (a deleted provider, a renamed confirm option, a renamed Chip fill, and two REMOVED SUBPATHS that fail at bundle time, before any typecheck runs). A floor is a claim about what was measured; a cap is the claim that nothing beyond it was.",
+  "//@oxy.so/bloom": "RE-RAISE THIS FLOOR ON EVERY BREAKING BLOOM RELEASE, in the same commit as the root package.json catalog entry and the code that requires it. Bloom is now at or above 1.0.0, so the breaking position is the MAJOR and `^1.0.0` means `>=1.0.0 <2.0.0`: 1.x minors are admitted on semver's additive promise, and Bloom 2.0.0 is refused until someone raises this deliberately. The CAP is the part that is load-bearing. An earlier revision of this key recorded the opposite trade -- an uncapped `>=` floor, accepted so that intentionally-breaking Bloom 0.x minors would not be blocked -- and that trade is now closed by evidence rather than by preference: an unbounded range is exactly what let `bun install` pair this package with Bloom 1.0.0 and emit no warning at all, and 1.0.0 broke it four ways (a deleted provider, a renamed confirm option, a renamed Chip fill, and two REMOVED SUBPATHS that fail at bundle time, before any typecheck runs). A floor is a claim about what was measured; a cap is the claim that nothing beyond it was.",
   "peerDependencies": {
     "@expo/vector-icons": "^15.0.3",
-    "@oxyhq/bloom": "^1.0.0",
-    "@oxyhq/core": "23.3.0",
+    "@oxy.so/bloom": "^1.0.0",
+    "@oxy.so/core": "^1.0.1",
     "@react-native-async-storage/async-storage": "^2.0.0",
     "@react-native-community/netinfo": ">=11.4.1",
     "@tanstack/query-async-storage-persister": "catalog:",

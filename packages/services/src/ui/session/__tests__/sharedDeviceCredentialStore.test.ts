@@ -1,14 +1,14 @@
 /**
  * The platform half of the shared DeviceSession credential.
  *
- * `@oxyhq/core` owns and tests the RULES; what is pinned here is the mapping from
+ * `@oxy.so/core` owns and tests the RULES; what is pinned here is the mapping from
  * each platform's failure shapes onto them — and that mapping is where the
  * dangerous mistake lives. `expo-secure-store` returns `null` for a missing item
  * and THROWS when the keychain refuses; the Android broker answers with an
  * explicit status. Collapsing either failure into "absent" is what would let a
  * locked device look like one that never had a session.
  */
-import type { SharedDeviceCredentialStore } from '@oxyhq/core';
+import type { SharedDeviceCredentialStore } from '@oxy.so/core';
 
 const CRED = { deviceId: 'dev-shared', deviceSecret: 'ds-shared' };
 const STORAGE_KEY = 'oxy_shared_device_session_v1';

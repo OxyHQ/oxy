@@ -151,7 +151,7 @@ describe('the v2 claim set', () => {
     expect(claims.sub).toBe(SUBJECT);
   });
 
-  it('keeps the v1 claims that @oxyhq/core/server reads decode-only', () => {
+  it('keeps the v1 claims that @oxy.so/core/server reads decode-only', () => {
     // A third-party app backend holds no signing secret, so it decodes the
     // token, looks the session up over HTTP by `sessionId`, and compares
     // `userId` against what it gets back. Dropping either would sign every

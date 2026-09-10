@@ -3,7 +3,7 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import {
   appCapabilityCatalogSchema,
   type AppCapabilityCatalog,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { appCapabilityCatalogRegistrations } from '../db/schema/agency';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';

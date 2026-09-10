@@ -4,7 +4,7 @@
  * The client FAPI auto-detection helper was removed in the device-first cutover
  * (which is why this file is now named for what it actually is, not the old
  * `fapiAutoDetect`). What survives is the pure registrable-domain kernel, still
- * used by the `@oxyhq/core/server` CORS layer (the `*.oxy.so` same-apex trust
+ * used by the `@oxy.so/core/server` CORS layer (the `*.oxy.so` same-apex trust
  * check) and its re-export surface.
  */
 

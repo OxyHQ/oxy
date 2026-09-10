@@ -4,12 +4,12 @@ jest.mock('../../components/oauthNavigation', () => ({
   redirectToAuthorize: jest.fn(),
 }));
 
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 import {
   computeCodeChallenge,
   OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY,
   OXY_OAUTH_STATE_STORAGE_KEY,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { redirectToAuthorize } from '../../components/oauthNavigation';
 import {
   startWebOAuthSignIn,

@@ -66,7 +66,11 @@ describe('native product agent identities', () => {
   it('grants Clarity only user:read and exact official web/native redirects', () => {
     const app = NATIVE_PRODUCT_AGENTS.products.clarity.application;
     expect(app.scopes).toEqual(['user:read']);
-    expect(app.redirectUris).toEqual(['https://clarity.oxy.so', 'clarity://']);
+    expect(app.redirectUris).toEqual([
+      'https://clarity.surf',
+      'https://clarity.oxy.so',
+      'clarity://',
+    ]);
     expect(NATIVE_PRODUCT_AGENTS.products.clarity.backendApplication.scopes).toEqual([
       'user:read',
       'inference:invoke',

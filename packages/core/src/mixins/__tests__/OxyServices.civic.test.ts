@@ -29,15 +29,15 @@
  * they isolate the SDK's request shaping from native key storage.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import type {
   ExportAttestation,
   PublicCard,
   SignedRecordEnvelope,
   VerifiableCredentialResponse,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { OxyServices } from '../../OxyServices';
-import { canonicalize, signMessage } from '@oxyhq/protocol';
+import { canonicalize, signMessage } from '@oxy.so/protocol';
 import { SignatureService } from '../../crypto/signatureService';
 import { parseAttestPayload, parseIdPayload, verifyPublicCardAttestation } from '../OxyServices.civic';
 

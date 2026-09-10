@@ -5,8 +5,8 @@ import {
   type IdentityBinding,
   type OxyServices,
   type SessionMode,
-} from '@oxyhq/core';
-import type { SessionClient } from '@oxyhq/core';
+} from '@oxy.so/core';
+import type { SessionClient } from '@oxy.so/core';
 import { loadPersistedDeviceCredential } from '../utils/deviceCredential';
 import { createPlatformSharedDeviceCredentialStore } from '../session/sharedDeviceCredentialStore';
 import { tryCompleteOAuthReturn } from '../utils/oauthReturn';
@@ -93,7 +93,7 @@ export interface RunProviderColdBootOptions {
 }
 
 /**
- * Device-first cold boot for `@oxyhq/services` providers.
+ * Device-first cold boot for `@oxy.so/services` providers.
  *
  * Ordered pipeline:
  * 1. Complete an OAuth authorization-code return already on the URL (web)

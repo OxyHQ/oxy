@@ -1,8 +1,8 @@
 /**
- * @oxyhq/contracts — single source of truth for API request/response contracts.
+ * @oxy.so/contracts — single source of truth for API request/response contracts.
  *
- * Zod schemas plus their inferred types, shared by the backend (`@oxyhq/api`)
- * and the client SDKs (`@oxyhq/core`, `@oxyhq/services`). The
+ * Zod schemas plus their inferred types, shared by the backend (`@oxy.so/api`)
+ * and the client SDKs (`@oxy.so/core`, `@oxy.so/services`). The
  * producer validates its output and every consumer validates its input against
  * exactly the same definitions, so the wire shape cannot drift.
  *
@@ -786,6 +786,22 @@ export type {
     ProviderErrorPassthrough,
     InferenceError,
 } from './inference/errors';
+
+export {
+    embeddingVectorSchema,
+    embeddingUsageSchema,
+    embeddingSuccessSchema,
+    embeddingFailureSchema,
+    embeddingResponseSchema,
+} from './inference/embeddings';
+
+export type {
+    EmbeddingVector,
+    EmbeddingUsage,
+    EmbeddingSuccess,
+    EmbeddingFailure,
+    EmbeddingResponse,
+} from './inference/embeddings';
 
 export {
     // Price versions and the snapshot a settled receipt keeps.

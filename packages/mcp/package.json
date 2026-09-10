@@ -1,6 +1,6 @@
 {
-  "name": "@oxyhq/mcp",
-  "version": "0.6.0",
+  "name": "@oxy.so/mcp",
+  "version": "1.0.0",
   "description": "Canonical Oxy app catalog to MCP transport and OAuth resource validation",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -40,13 +40,14 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@oxyhq/contracts": "workspace:^",
+    "@oxy.so/contracts": "workspace:^",
     "zod": "^4.5.4"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.19.43",
+    "jest": "^30.5.1",
     "typescript": "^5.9.2"
   }
 }

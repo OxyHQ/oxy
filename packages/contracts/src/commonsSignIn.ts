@@ -16,7 +16,7 @@
  *                 than an ordinary cancel, so a UI may only offer it where the
  *                 user genuinely said so.
  *
- * Why this lives in `@oxyhq/contracts` rather than in either consumer: the same
+ * Why this lives in `@oxy.so/contracts` rather than in either consumer: the same
  * closed set is enforced in three places — the request schema of the API route,
  * the `enum` of the persisted `AuthSession.deniedReason` field, and the client
  * SDK's `denyCommonsSignIn` parameter. Two hand-maintained copies of a wire

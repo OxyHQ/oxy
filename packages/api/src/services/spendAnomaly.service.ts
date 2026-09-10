@@ -55,7 +55,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { executeRows } from '@oxyhq/db';
+import { executeRows } from '@oxy.so/db';
 import { getDb } from '../config/postgres';
 import { inferenceSpendAnomalies } from '../db/schema/inferenceSpendAnomalies';
 import { logger } from '../utils/logger';

@@ -106,7 +106,7 @@ would change what any account is charged, the code is wrong.**
 - **The service-token claim set** gains the owning account and the credential's
   effective scopes, or an equivalent locally resolvable envelope, so a verifier
   can name the responsible account without a lookup (workstream 2.2). The claim
-  name `appId` is **not** renamed — `@oxyhq/core`'s service-token verification
+  name `appId` is **not** renamed — `@oxy.so/core`'s service-token verification
   reads it.
 
 ## Alternatives rejected

@@ -53,7 +53,7 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
   useOxy: () => ctx,
 }));
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn() },
 }));
 

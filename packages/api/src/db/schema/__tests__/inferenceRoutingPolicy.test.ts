@@ -14,7 +14,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import { modelIdSchema, modelReferenceSchema, routingPolicySchema } from '@oxyhq/contracts';
+import { modelIdSchema, modelReferenceSchema, routingPolicySchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { applicationCredentials } from '../applicationCredentials';
 import { applications } from '../applications';
@@ -229,7 +229,7 @@ async function insertVersion(
 describe('routing policy vocabularies agree with the contract', () => {
   /**
    * The three closed sets are declared as SQL CHECKs here and as zod enums in
-   * `@oxyhq/contracts`, which are different languages and therefore cannot share
+   * `@oxy.so/contracts`, which are different languages and therefore cannot share
    * one string. They must nonetheless agree, so each is driven through the
    * CONTRACT and asserted in BOTH directions — every value the database admits
    * must parse, and a value neither admits must be refused by both.

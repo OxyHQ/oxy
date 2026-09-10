@@ -44,7 +44,7 @@ interface IManagedAccount {
 ### Client-side User interface additions
 
 ```typescript
-// Added to User interface in @oxyhq/core
+// Added to User interface in @oxy.so/core
 {
   isManagedAccount?: boolean;
   managedBy?: string;  // userId of owner
@@ -89,7 +89,7 @@ Server-side flow:
 
 The core mechanism. Inserted into the auth chain after token validation, before route handlers.
 
-### Flow in `@oxyhq/core` `auth()` middleware
+### Flow in `@oxy.so/core` `auth()` middleware
 
 ```
 1. Normal JWT validation → req.user = authenticated user
@@ -118,7 +118,7 @@ The middleware needs to verify ownership. Two options:
 
 **Chosen: Option A with caching.** First request validates via API, result cached for 5 minutes in-memory. Cache key: `managed:${userId}:${accountId}`.
 
-## SDK Changes (`@oxyhq/core`)
+## SDK Changes (`@oxy.so/core`)
 
 ### OxyServices new methods
 
@@ -154,7 +154,7 @@ if (this._actingAsUserId) {
 }
 ```
 
-## RN SDK Changes (`@oxyhq/services`)
+## RN SDK Changes (`@oxy.so/services`)
 
 ### OxyContext additions
 
@@ -185,7 +185,7 @@ createManagedAccount(data): Promise<ManagedAccountResponse>;
 **Acting-as banner (new component):**
 - Subtle banner at top of app: "Acting as [name]" with tap to switch back
 - Only shown when `actingAs` is not null
-- Exported from @oxyhq/services for apps to use
+- Exported from @oxy.so/services for apps to use
 
 ## App Integration
 

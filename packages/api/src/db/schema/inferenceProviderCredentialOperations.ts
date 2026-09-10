@@ -11,7 +11,7 @@
 
 import { sql } from 'drizzle-orm';
 import { bigint, check, foreignKey, index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, inList, updatedAt } from '@oxyhq/db';
+import { createdAt, inList, updatedAt } from '@oxy.so/db';
 import {
   inferenceProviderConnections,
   PROVIDER_CONNECTION_ENVIRONMENTS,

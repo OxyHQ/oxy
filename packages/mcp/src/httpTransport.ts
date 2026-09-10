@@ -1,4 +1,4 @@
-import type { AppCapabilityCatalog } from '@oxyhq/contracts';
+import type { AppCapabilityCatalog } from '@oxy.so/contracts';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';

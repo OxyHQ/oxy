@@ -1,10 +1,10 @@
 import type React from 'react';
 import { View } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { H4, Text } from '@oxyhq/bloom/typography';
-import { IconCircle } from '@oxyhq/bloom/icon-circle';
-import { BenefitList, BenefitRow } from '@oxyhq/bloom/benefit-list';
-import * as Icons from '@oxyhq/bloom/icons';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { H4, Text } from '@oxy.so/bloom/typography';
+import { IconCircle } from '@oxy.so/bloom/icon-circle';
+import { BenefitList, BenefitRow } from '@oxy.so/bloom/benefit-list';
+import * as Icons from '@oxy.so/bloom/icons';
 import type { BaseScreenProps } from '../../types/navigation';
 import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';

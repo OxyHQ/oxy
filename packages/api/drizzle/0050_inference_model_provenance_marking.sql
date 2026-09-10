@@ -74,7 +74,7 @@
 -- everywhere, and the constraint admits every row a text-only model has.
 --
 -- `SQLSTATE 23514` (check_violation) rather than a bespoke code, so
--- `@oxyhq/db`'s `isCheckViolation` recognises it like any other constraint
+-- `@oxy.so/db`'s `isCheckViolation` recognises it like any other constraint
 -- failure — a caller must never have to string-match a message.
 --
 -- STAMPING or VERIFYING a marking on generated content is NOT here. That is the

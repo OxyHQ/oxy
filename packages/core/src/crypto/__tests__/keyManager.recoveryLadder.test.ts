@@ -33,8 +33,8 @@ jest.mock(
   { virtual: true },
 );
 
-jest.mock('@oxyhq/protocol', () => {
-  const actual = jest.requireActual('@oxyhq/protocol');
+jest.mock('@oxy.so/protocol', () => {
+  const actual = jest.requireActual('@oxy.so/protocol');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { createAsyncStorageMock } = require('./identityMocks');
   const asyncStorage = createAsyncStorageMock();

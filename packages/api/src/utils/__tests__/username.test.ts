@@ -1,7 +1,7 @@
 /**
  * `normalizeUsername` is CANONICALIZATION, not policy.
  *
- * The policy left this module — it is `usernameSchema` in `@oxyhq/contracts`,
+ * The policy left this module — it is `usernameSchema` in `@oxy.so/contracts`,
  * with its own suite. What remains here is the other half: the value the policy
  * is applied TO. The two are tested together below, because the interesting
  * property is the COMPOSITION — normalize, then judge — and in particular that
@@ -9,7 +9,7 @@
  * happens to be legal.
  */
 
-import { isValidUsername } from '@oxyhq/contracts';
+import { isValidUsername } from '@oxy.so/contracts';
 import { normalizeUsername } from '../username';
 
 /** Non-breaking space, spelled with an escape so the code point is unambiguous. */

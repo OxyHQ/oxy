@@ -24,7 +24,7 @@
 
 import { index, integer, pgTable, text } from 'drizzle-orm/pg-core';
 import { appListings } from './appListings';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { files } from './files';
 
 /** Which frame a shot was taken in — the store groups by it on the page. */

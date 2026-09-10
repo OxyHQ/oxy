@@ -42,7 +42,7 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, pgTable, text } from 'drizzle-orm/pg-core';
 import { APPLICATION_SCOPES } from '../../utils/applicationScopes';
-import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /**

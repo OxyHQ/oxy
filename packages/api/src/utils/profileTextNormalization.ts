@@ -54,7 +54,7 @@
  * be allowed to grow a user document without limit.
  */
 
-import { normalizeInlineText } from '@oxyhq/core';
+import { normalizeInlineText } from '@oxy.so/core';
 import { cleanDisplayName } from './displayNameSanitize';
 
 /** Max stored length of a link card's title, in code units after normalization. */

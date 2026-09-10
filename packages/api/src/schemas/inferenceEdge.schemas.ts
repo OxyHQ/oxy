@@ -13,9 +13,9 @@
  *    representation lives on `/v1/responses`; Oxy-specific response metadata
  *    rides in headers so the body stays parseable by a stock client.
  *
- * ## Why these schemas live in the API and not in `@oxyhq/contracts`
+ * ## Why these schemas live in the API and not in `@oxy.so/contracts`
  *
- * `@oxyhq/contracts` is the Oxy↔data-plane contract: shapes two independently
+ * `@oxy.so/contracts` is the Oxy↔data-plane contract: shapes two independently
  * deployed services must agree on. These two are neither. They are what a THIRD
  * PARTY's client sends — one of them defined by another vendor — and they are
  * normalized into `inferenceRequestSchema` before anything downstream sees them.
@@ -51,7 +51,7 @@ import {
   type SamplingParameters,
   type ToolChoice,
   type ToolDefinition,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 /* -------------------------------------------------------------------------- */
 /*  Shared                                                                    */
@@ -266,7 +266,7 @@ export type ChatCompletionsRequest = z.infer<typeof chatCompletionsRequestSchema
 /**
  * The settled receipt as a customer reads it back.
  *
- * Deliberately NOT `usageReceiptSchema` from `@oxyhq/contracts`, even though the
+ * Deliberately NOT `usageReceiptSchema` from `@oxy.so/contracts`, even though the
  * two describe the same settlement. That schema embeds
  * `inferenceAttributionSchema`, which carries the AUTHENTICATED PRINCIPAL —
  * including its effective inference scopes. A stored receipt does not keep
@@ -431,7 +431,7 @@ export const generationReceiptResponseSchema = z
  * the honest options are an undescribed `text/event-stream` or a fiction. Each
  * schema below describes the NON-STREAMING body only, which is the one a
  * generated client can actually parse. `inferenceStreamEventSchema` in
- * `@oxyhq/contracts` remains the authority on the frames themselves.
+ * `@oxy.so/contracts` remains the authority on the frames themselves.
  */
 
 /**

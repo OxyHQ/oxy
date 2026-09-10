@@ -1,8 +1,8 @@
 import type { ReactNode, RefObject } from 'react';
 import type { QueryClient } from '@tanstack/react-query';
 import type { RouteName } from '../navigation/routes';
-import type { User } from '@oxyhq/core';
-import type { ClientSession, SessionMode } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
+import type { ClientSession, SessionMode } from '@oxy.so/core';
 import type { WebAuthMode } from '../oauth/types';
 import type { ProductAnalytics } from '../analytics/productAnalytics';
 

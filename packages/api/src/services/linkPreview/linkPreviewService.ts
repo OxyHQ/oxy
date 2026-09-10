@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
-import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxyhq/core/server';
-import type { LinkPreview } from '@oxyhq/contracts';
+import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
+import type { LinkPreview } from '@oxy.so/contracts';
 import { getDb } from '../../config/postgres';
 import { linkPreviews } from '../../db/schema';
 import { assetService } from '../assetServiceSingleton';

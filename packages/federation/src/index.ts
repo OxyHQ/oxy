@@ -1,5 +1,5 @@
 /**
- * @oxyhq/federation — the app-agnostic federation substrate (isomorphic `.` entry).
+ * @oxy.so/federation — the app-agnostic federation substrate (isomorphic `.` entry).
  *
  * The pluggable network-connector CONTRACT and the normalized, cross-network
  * DTOs every connector produces. An app's content/MTN core never knows about

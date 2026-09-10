@@ -2,9 +2,9 @@
  * Node-protocol shape constants — the wire-level contract of an Oxy-protocol
  * data node, shared by the generic node app factory ({@link ./nodeApp}), the
  * HTTP {@link ./nodeClient.NodeClient}, and any app's node deployment
- * (`@oxyhq/node`, a future `mention-node`).
+ * (`@oxy.so/node`, a future `mention-node`).
  *
- * These were previously hardcoded inside `@oxyhq/node`; they live here so the
+ * These were previously hardcoded inside `@oxy.so/node`; they live here so the
  * SAME values drive a server and a client without either side re-declaring (and
  * drifting) the contract. Deployment-specific knobs (owner key, port, data dir)
  * are still resolved per-deployment from the environment — only the protocol's
@@ -18,7 +18,7 @@
  */
 export const PROTOCOL_VERSION = 'oxy-node/1' as const;
 
-/** Default well-known manifest path (the existing `@oxyhq/node` value). */
+/** Default well-known manifest path (the existing `@oxy.so/node` value). */
 export const DEFAULT_WELL_KNOWN_PATH = '/.well-known/oxy-node.json';
 
 /** Default DID-document service-type label advertised by a node deployment. */

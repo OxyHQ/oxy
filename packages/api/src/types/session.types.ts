@@ -18,7 +18,7 @@ export interface SessionValidationResult {
    * differently.
    *
    * It carries `_id` (the account id) beside `id`, which is the documented
-   * contract (`@oxyhq/contracts` `resolveUserId` = `user.id ?? user._id`). See
+   * contract (`@oxy.so/contracts` `resolveUserId` = `user.id ?? user._id`). See
    * `middleware/auth.ts` for why `req.user._id` — not `id` — is the account id
    * every authenticated call site reads.
    */

@@ -14,7 +14,7 @@
  * The two derivations require the FULL seed, so a device compromise that leaks
  * only the raw 32-byte private key can neither locate nor decrypt the backup.
  *
- * Wire shapes come from `@oxyhq/contracts` (`EncryptedBackupEnvelope`,
+ * Wire shapes come from `@oxy.so/contracts` (`EncryptedBackupEnvelope`,
  * `BackupUploadRequest`, `BackupStatusResponse`) — the API validates its
  * request/response against the same schemas, so producer and consumer cannot
  * drift.
@@ -28,7 +28,7 @@ import type {
   BackupStatusResponse,
   BackupUploadRequest,
   EncryptedBackupEnvelope,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { KeyManager, IdentityAlreadyExistsError } from '../crypto/keyManager';
 import { RecoveryPhraseService, BACKUP_KDF_ENCRYPTION_INFO } from '../crypto/recoveryPhrase';

@@ -1,7 +1,7 @@
 /**
  * `prompt=none` (OIDC silent authentication) against the IdP's authorize page.
  *
- * Phase 7b removed every gesture-less lane, and `@oxyhq/core`'s
+ * Phase 7b removed every gesture-less lane, and `@oxy.so/core`'s
  * `buildOAuthAuthorizeUrl` narrowed its `prompt` union so no first-party caller
  * can construct such a request. `prompt` is still read off the query string,
  * though, so an arbitrary caller can still send it — and the page's answer must
@@ -209,7 +209,7 @@ function installMocks(): void {
     ...realExports,
     deliverOAuthResult,
   }))
-  mock.module("@oxyhq/services", () =>
+  mock.module("@oxy.so/services", () =>
     createServicesMock({
       useOxy: () => ({
         user: null,

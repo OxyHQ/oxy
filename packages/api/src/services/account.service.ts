@@ -39,7 +39,7 @@ import { getDb, type Database } from '../config/postgres';
 import { accountMembers } from '../db/schema/accountMembers';
 import { userAncestors, MAX_ACCOUNT_DEPTH } from '../db/schema/userAncestors';
 import { users } from '../db/schema/users';
-import { publicColumns } from '@oxyhq/db/assert';
+import { publicColumns } from '@oxy.so/db/assert';
 import {
   PROTECTED_COLUMNS_BY_TABLE,
   USERS_PROTECTED_COLUMNS,
@@ -53,7 +53,7 @@ import {
   newlyAddedRetiredCategories,
   usernameSchemaForAccountKind,
   type AccountCategoryId,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   effectivePermissionsForMember,
   permissionsForAccountRole,
@@ -66,7 +66,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from '../utils/error';
-import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxyhq/core';
+import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxy.so/core';
 import {
   assertColorNotReserved,
   isUserColorPreset,
@@ -426,7 +426,7 @@ export class AccountService {
     // checked immediately above, and every child kind accepts categories
     // (`ACCOUNT_CATEGORY_KINDS`). A child kind that did not would make this
     // silently permissive, which is why the two lists are asserted equal in
-    // `@oxyhq/contracts`' own test rather than left to agree by luck.
+    // `@oxy.so/contracts`' own test rather than left to agree by luck.
     const db = getDb();
     const parent = await loadAccount(db, parentAccountId);
     if (!parent) {

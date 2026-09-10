@@ -25,7 +25,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, inList, updatedAt } from '@oxyhq/db';
+import { createdAt, inList, updatedAt } from '@oxy.so/db';
 import { SLUG_CHECK_PATTERN } from './inferenceSlug';
 
 /**

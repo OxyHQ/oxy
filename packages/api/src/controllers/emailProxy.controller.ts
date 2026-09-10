@@ -7,7 +7,7 @@
 
 import type { IncomingMessage } from 'node:http';
 import type { Request, Response as ExpressResponse } from 'express';
-import { safeFetch, SsrfRejection } from '@oxyhq/core/server';
+import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
 import { BadRequestError } from '../utils/error';
 import { logger } from '../utils/logger';
 import crypto from 'crypto';

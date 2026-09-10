@@ -19,7 +19,7 @@
  * session service, and the socket emitter.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';

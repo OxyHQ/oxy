@@ -16,7 +16,7 @@ Production-ready patterns and best practices for building apps with Oxy.
 ### ✅ DO: Handle Authentication State Properly
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useEffect } from 'react';
 
 function ProtectedComponent() {
@@ -73,7 +73,7 @@ await oxyServices.setTokens(token);
 ### ✅ DO: Use Try-Catch Blocks
 
 ```typescript
-import { OxyAuthenticationError } from '@oxyhq/services';
+import { OxyAuthenticationError } from '@oxy.so/services';
 
 async function fetchUserData() {
   try {
@@ -340,7 +340,7 @@ function ProfileScreen({ userId }: { userId: string }) {
 ### ✅ DO: Mock Oxy Services in Tests
 
 ```typescript
-// __mocks__/@oxyhq/services.ts
+// __mocks__/@oxy.so/services.ts
 export const useOxy = jest.fn(() => ({
   user: { id: '1', name: 'Test User' },
   isAuthenticated: true,
@@ -353,8 +353,8 @@ export const useOxy = jest.fn(() => ({
 }));
 
 // Component.test.tsx
-import { useOxy } from '@oxyhq/services';
-jest.mock('@oxyhq/services');
+import { useOxy } from '@oxy.so/services';
+jest.mock('@oxy.so/services');
 
 test('renders user profile', () => {
   (useOxy as jest.Mock).mockReturnValue({
@@ -393,7 +393,7 @@ test('handles authentication error', async () => {
 
 ```typescript
 // services/userService.ts
-import { oxyClient } from '@oxyhq/core';
+import { oxyClient } from '@oxy.so/core';
 
 export const userService = {
   async getUserProfile(userId: string) {

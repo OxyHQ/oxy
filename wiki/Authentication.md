@@ -44,18 +44,18 @@ Client -> POST /session/device/token { deviceId, deviceSecret }
 Server -> { accessToken, expiresAt, nextDeviceSecret, state }
 ```
 
-The mint echoes the proven secret as `nextDeviceSecret` (stable — multiple origins sharing one device can refresh concurrently). Persist `nextDeviceSecret` **before** using the returned access token so a reload never diverges from the server. Sign-in rotates the secret in-use (the prior hash stays valid for a short grace). The SDK cold boot (`runSessionColdBoot` in `@oxyhq/core`) owns this end to end — apps never implement local session restore.
+The mint echoes the proven secret as `nextDeviceSecret` (stable — multiple origins sharing one device can refresh concurrently). Persist `nextDeviceSecret` **before** using the returned access token so a reload never diverges from the server. Sign-in rotates the secret in-use (the prior hash stays valid for a short grace). The SDK cold boot (`runSessionColdBoot` in `@oxy.so/core`) owns this end to end — apps never implement local session restore.
 
 ## CSRF
 
 With no ambient session cookie, state-changing requests are authenticated by the bearer access token and are **not** vulnerable to CSRF; bearer-authenticated writes do not fetch a CSRF token. CSRF protection (double-submit) remains only for any residual cookie-credentialed, cookie-only write paths.
 
-## Auth middleware (`@oxyhq/core/server`)
+## Auth middleware (`@oxy.so/core/server`)
 
 Backends use the shared helpers — never app-local `AuthRequest` / `requireAuth` / bearer parsers.
 
 ```typescript
-import { createOxyAuthMiddleware, createOptionalOxyAuth, getRequiredOxyUserId } from '@oxyhq/core/server';
+import { createOxyAuthMiddleware, createOptionalOxyAuth, getRequiredOxyUserId } from '@oxy.so/core/server';
 
 // Require authentication
 app.use('/api/protected', createOxyAuthMiddleware(oxy));
@@ -82,7 +82,7 @@ const userId = getRequiredOxyUserId(req);
 Use the shared socket authenticator — derive rooms from `socket.user.id`, never from client-supplied ids, and ownership-check before joins.
 
 ```typescript
-import { authSocket } from '@oxyhq/core/server';
+import { authSocket } from '@oxy.so/core/server';
 
 // Server
 io.use(oxy.authSocket());

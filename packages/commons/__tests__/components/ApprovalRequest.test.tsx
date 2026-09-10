@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
-import type { CommonsApprovalInfo, PublicApplication } from '@oxyhq/core';
-import { __resetOxyState } from '@/__mocks__/oxyhq-services';
+import type { CommonsApprovalInfo, PublicApplication } from '@oxy.so/core';
+import { __resetOxyState } from '@/__mocks__/oxy-services';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
 import { parseApprovalLink } from '@/lib/commons-signin/parse-approval-link';
 import {

@@ -1,4 +1,4 @@
-import { useAuth } from "@oxyhq/services"
+import { useAuth } from "@oxy.so/services"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -111,7 +111,7 @@ export function AuthDemo() {
         </CardHeader>
         <CardContent>
           <pre className="overflow-auto rounded-md bg-muted p-4 text-xs">
-{`import { useAuth } from '@oxyhq/services';
+{`import { useAuth } from '@oxy.so/services';
 
 function MyComponent() {
   const { user, isAuthenticated, signIn, signOut } = useAuth();

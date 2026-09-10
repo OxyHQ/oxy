@@ -12,7 +12,7 @@ import {
   Settings01Icon,
   SourceCodeIcon,
 } from '@hugeicons/core-free-icons';
-import { ProfileButton, useAuth } from '@oxyhq/services';
+import { ProfileButton, useAuth } from '@oxy.so/services';
 import { NavMain } from './nav-main';
 import { NavApps } from './nav-apps';
 import { SidebarHeaderBrand } from './sidebar-header';

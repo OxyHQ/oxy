@@ -7,7 +7,7 @@
  *
  * The Oxy ID QR encodes ONLY this DID (`oxycommons://card?did=…`), so the scanner
  * must recover the `userId` from it before resolving the signed public card via
- * `oxyServices.getPublicCard(userId)`. `@oxyhq/core` owns the inverse
+ * `oxyServices.getPublicCard(userId)`. `@oxy.so/core` owns the inverse
  * (`buildUserDid`); the parser lives here because the scanner is a Commons-only
  * concern. Pure + dependency-free (Hermes / jsdom safe — no `URL` global).
  */

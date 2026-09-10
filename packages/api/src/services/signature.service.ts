@@ -10,7 +10,7 @@ import {
   normalizeSecp256k1PublicKey,
   signSecp256k1Digest,
   verifySecp256k1Digest,
-} from '@oxyhq/protocol/secp256k1';
+} from '@oxy.so/protocol/secp256k1';
 import crypto from 'crypto';
 
 // Challenge expiration time in milliseconds (5 minutes)

@@ -25,7 +25,7 @@
  *
  * The wire shapes (`PublicCard`, `SignedPublicCard`, `ExportAttestation`,
  * `RealLifeAttestationResult`, `ValidationRequestSummary`, `ValidationVoteResult`,
- * `SignedRecordEnvelope`) come from `@oxyhq/contracts` — the single source of
+ * `SignedRecordEnvelope`) come from `@oxy.so/contracts` — the single source of
  * truth the API validates its output against — so producer and consumer cannot
  * drift. The public Oxy ID card's attestation is an `ES256K-DER-SHA256` signature
  * over `canonicalize(card)` (the exact bytes the server signed, with ONLY the
@@ -66,9 +66,9 @@ import type {
   ValidationVoteResult,
   VerifiableCredentialResponse,
   VouchResult,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import type { OxyServicesBase } from '../OxyServices.base';
-import { canonicalize, verifySignature } from '@oxyhq/protocol';
+import { canonicalize, verifySignature } from '@oxy.so/protocol';
 import { SignatureService } from '../crypto/signatureService';
 import { buildUserDid } from './OxyServices.identity';
 import { CACHE_TIMES } from './mixinHelpers';

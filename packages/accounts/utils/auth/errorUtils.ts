@@ -1,4 +1,4 @@
-import { handleHttpError, ErrorCodes } from '@oxyhq/core';
+import { handleHttpError, ErrorCodes } from '@oxy.so/core';
 
 /** Narrow an unknown thrown value to its optional `code`/`message` fields. */
 interface CodedError {

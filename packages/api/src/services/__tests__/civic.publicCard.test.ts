@@ -29,10 +29,10 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { eq } from 'drizzle-orm';
-import { canonicalize } from '@oxyhq/protocol';
-import type { PublicCard } from '@oxyhq/contracts';
+import { canonicalize } from '@oxy.so/protocol';
+import type { PublicCard } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { personhoodStatuses } from '../../db/schema/personhoodStatuses';
 import { reputationBalances } from '../../db/schema/reputationBalances';

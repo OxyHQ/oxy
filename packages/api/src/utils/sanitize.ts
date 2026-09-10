@@ -16,11 +16,11 @@
  * Never apply either to passwords, hashes, or binary data.
  *
  * Whitespace/Unicode normalization is NOT implemented here: `sanitizePlainText`
- * delegates it to the canonical `normalizeMultilineText` from `@oxyhq/core`.
+ * delegates it to the canonical `normalizeMultilineText` from `@oxy.so/core`.
  * This module owns only entity decoding and tag stripping.
  */
 
-import { normalizeMultilineText } from '@oxyhq/core';
+import { normalizeMultilineText } from '@oxy.so/core';
 
 /**
  * Escape HTML special characters to prevent XSS.

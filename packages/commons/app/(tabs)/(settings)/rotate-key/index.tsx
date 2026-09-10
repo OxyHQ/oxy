@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColors } from '@/hooks/useColors';
 import { Screen, StackHeader, ImportantBanner } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';

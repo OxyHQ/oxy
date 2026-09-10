@@ -2,7 +2,7 @@ import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon, ArrowRight01Icon, Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
 import { useState } from 'react';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';

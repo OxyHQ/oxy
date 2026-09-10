@@ -1,14 +1,14 @@
 /** @type {import('tailwindcss').Config} */
-const { bloomTailwindPreset } = require('@oxyhq/bloom/tailwind-preset');
+const { bloomTailwindPreset } = require('@oxy.so/bloom/tailwind-preset');
 
 module.exports = {
   presets: [bloomTailwindPreset],
   content: [
     './app/**/*.{js,jsx,ts,tsx}',
     './components/**/*.{js,jsx,ts,tsx}',
-    '../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}',
+    '../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}',
     '../services/src/**/*.{ts,tsx}',
-    '../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}',
+    '../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}',
   ],
   theme: {
     extend: {

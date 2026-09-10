@@ -19,12 +19,14 @@ import { retryAsync } from './utils/asyncUtils';
 import { handleHttpError, parseHttpErrorBody } from './utils/errorUtils';
 import { jwtDecode } from 'jwt-decode';
 import { isNative, getPlatformOS } from './utils/platform';
-import { isReactNative } from '@oxyhq/protocol';
+import { isReactNative } from '@oxy.so/protocol';
 import { computeIdentityTag, fnv1a32 } from './utils/cacheKey';
 import { redactUrlQuery } from './utils/redactUrl';
 import type { OxyConfig } from './models/interfaces';
 import type { DeviceSecretMintOutcome } from './session/refresh';
 import { OxyAuthenticationError } from './OxyServices.errors';
+import { getBrowserEdgeRegionHeader } from './utils/edgeRegion';
+import { getBrowserActivityIdHeader } from './utils/activityId';
 
 /**
  * Check if we're running in a native app environment (React Native, not web)
@@ -499,6 +501,8 @@ export class HttpService {
     // clients are not vulnerable to ambient-cookie CSRF, and linked app APIs
     // should not need to implement a duplicate `/csrf-token` route.
     const csrfToken = isStateChangingMethod && !authHeader ? await this.fetchCsrfToken() : null;
+    const edgeRegionHeader = await getBrowserEdgeRegionHeader();
+    const activityIdHeader = getBrowserActivityIdHeader();
 
     // Request function
     const requestFn = async (): Promise<T> => {
@@ -574,6 +578,12 @@ export class HttpService {
             headers[key] = value;
           });
         }
+
+        // This is Cloudflare's coarse serving PoP (for example `mad`), never an
+        // IP or coordinate. Set it after caller headers so request code cannot
+        // accidentally or deliberately substitute a different origin.
+        Object.assign(headers, edgeRegionHeader);
+        Object.assign(headers, activityIdHeader);
 
         // `URLSearchParams` is serialised explicitly rather than handed to
         // `fetch` as-is: RN's fetch does not consistently encode it, and doing
@@ -1334,6 +1344,10 @@ export class HttpService {
     // Authentication is owned by this SDK instance. A caller cannot replace
     // the bearer with a different session or leak one across linked apps.
     headers.set('Authorization', authHeader);
+    const edgeRegionHeader = await getBrowserEdgeRegionHeader();
+    for (const [name, value] of Object.entries(edgeRegionHeader)) headers.set(name, value);
+    const activityIdHeader = getBrowserActivityIdHeader();
+    for (const [name, value] of Object.entries(activityIdHeader)) headers.set(name, value);
 
     try {
       const fullUrl = this.buildURL(config.url);
@@ -1429,7 +1443,7 @@ export class HttpService {
    * the resulting token (or `null` when cleared). Returns an unsubscribe
    * function; call it on teardown to avoid leaks.
    *
-   * This is the single hook downstream code (e.g. @oxyhq/services' OxyProvider)
+   * This is the single hook downstream code (e.g. @oxy.so/services' OxyProvider)
    * uses to keep an external token sink — such as the shared `oxyClient`
    * singleton — in lockstep with the active session, regardless of which code
    * path mutated the token.

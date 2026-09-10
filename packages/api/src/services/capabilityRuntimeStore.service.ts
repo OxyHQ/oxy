@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { auditEventSchema, type AuditEvent, type CapabilityTicketClaims } from '@oxyhq/contracts';
+import { auditEventSchema, type AuditEvent, type CapabilityTicketClaims } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { capabilityAuditEvents, capabilityIdempotencyKeys } from '../db/schema/agency';
 import { mailboxes } from '../db/schema/mailboxes';

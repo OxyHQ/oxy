@@ -11,7 +11,7 @@
  *   - with no verified pin the (unpinned) mint lane is skipped entirely rather
  *     than adopting whichever account the device is currently switched to.
  */
-import type { DeviceTokenMintResponse } from '@oxyhq/contracts';
+import type { DeviceTokenMintResponse } from '@oxy.so/contracts';
 import type { OxyServices } from '../../OxyServices';
 import type { SessionLoginResponse } from '../../models/session';
 import type { AuthChallenge } from '../../crypto/signatureService';

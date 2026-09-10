@@ -33,7 +33,7 @@ internal object OxyBackgroundSessionApi {
    * The two server verdicts that PROVE the credential is finished, and the only
    * two that may delete it.
    *
-   * This mirrors `@oxyhq/core`'s `refresh.ts` rule deliberately, and for the same
+   * This mirrors `@oxy.so/core`'s `refresh.ts` rule deliberately, and for the same
    * hard-won reason: ANY other 401 — a proxy or middleware 401, an ALB answering
    * for a starting instance, an HTML error page during a deploy — is NOT proof
    * that a credential is bad. Treating an ambiguous 401 as revocation is what

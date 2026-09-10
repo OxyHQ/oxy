@@ -6,7 +6,7 @@
  */
 
 import { isWeb, isIOS, isAndroid } from '../utils/platform';
-import { type ExpoCryptoLike, type ExpoSecureStoreLike, isReactNative, isNodeJS, loadAsyncStorage, loadExpoCrypto, loadNodeCrypto, loadSecureStore, loadSharedIdentityBridge } from '@oxyhq/protocol';
+import { type ExpoCryptoLike, type ExpoSecureStoreLike, isReactNative, isNodeJS, loadAsyncStorage, loadExpoCrypto, loadNodeCrypto, loadSecureStore, loadSharedIdentityBridge } from '@oxy.so/protocol';
 import {
   deriveSecp256k1PublicKey,
   generateSecp256k1KeyPair,
@@ -16,7 +16,7 @@ import {
   normalizeSecp256k1PublicKey,
   signSecp256k1Digest,
   verifySecp256k1Digest,
-} from '@oxyhq/protocol/secp256k1';
+} from '@oxy.so/protocol/secp256k1';
 import { isDev, logger } from '../logger';
 import { hkdfSha256 } from './kdf';
 import {
@@ -31,7 +31,7 @@ import {
  * Options for expo-secure-store calls made by KeyManager.
  *
  * Defined as a standalone interface (not extending expo-secure-store's
- * `SecureStoreOptions`) so that server / Node.js consumers of @oxyhq/core
+ * `SecureStoreOptions`) so that server / Node.js consumers of @oxy.so/core
  * do not transitively pull in expo-modules-core's type declarations under
  * NodeNext module resolution (which would cause NodeJS.Timeout / number
  * pollution across all timer APIs). The fields mirror SecureStoreOptions
@@ -146,7 +146,7 @@ export type IdentityRecoveryResult =
 /**
  * HKDF salt that domain-separates every identity-scoped seed produced by
  * {@link KeyManager.deriveScopedSeed}. Versioned so a future scheme change is a
- * new, non-colliding tag. The per-app domain (e.g. Oxy Pay's FairCoin wallet)
+ * new, non-colliding tag. The per-app domain (e.g. Peable's FairCoin wallet)
  * is carried by the caller's `info` string, not this salt.
  */
 const SCOPED_SEED_KDF_SALT = 'oxy-identity-scoped-seed-v1';
@@ -294,7 +294,7 @@ const ANDROID_ACCOUNT_TYPE = 'com.oxy.account';
 /**
  * Initialize React Native specific modules
  *
- * Delegates to `@oxyhq/protocol`'s `platform/crypto`, a per-platform module
+ * Delegates to `@oxy.so/protocol`'s `platform/crypto`, a per-platform module
  * (`crypto.ts` vs `crypto.native.ts`) selected by the
  * consumer's bundler. On RN it returns a statically-imported handle to
  * `expo-secure-store`; off RN it throws (and is never called because every
@@ -878,7 +878,7 @@ export class KeyManager {
         );
       }
     } else if (isAndroid()) {
-      // Android: write through the cross-app bridge (`@oxyhq/expo-oxy-identity`)
+      // Android: write through the cross-app bridge (`@oxy.so/expo-oxy-identity`)
       // when present — it persists into Commons's hardware-backed
       // EncryptedSharedPreferences behind a signature-protected ContentProvider,
       // so same-key Oxy apps can read it. When the bridge is not linked, fall
@@ -2567,12 +2567,14 @@ export class KeyManager {
    *
    * The domain separation is carried by `info` (e.g. `"oxypay/faircoin/v1"`),
    * so distinct apps/purposes get independent seeds from the same identity.
+   * That legacy Peable tag is a cryptographic contract and must not be renamed:
+   * changing it would derive a different wallet for every existing user.
    * The output is HKDF keying material, never the private key itself — a
-   * consumer (e.g. Oxy Pay's FairCoin HD wallet) can feed it straight into
+   * consumer (e.g. Peable's FairCoin HD wallet) can feed it straight into
    * `HDKey.fromMasterSeed` and never touches the identity key.
    *
    * Key source (native only): prefers the shared ecosystem identity written to
-   * `group.so.oxy.shared` (what a Relying Party like Oxy Pay reads), then falls
+   * `group.so.oxy.shared` (what a Relying Party like Peable reads), then falls
    * back to this device's primary identity (Commons/Accounts). Both reproduce
    * from the user's Oxy recovery phrase, so the derived seed is recoverable.
    *
@@ -2604,4 +2606,3 @@ export class KeyManager {
 }
 
 export default KeyManager;
-

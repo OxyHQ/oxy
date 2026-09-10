@@ -8,8 +8,8 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
-import { toast } from '@oxyhq/bloom/toast';
-import type { OxyServices } from '@oxyhq/core';
+import { toast } from '@oxy.so/bloom/toast';
+import type { OxyServices } from '@oxy.so/core';
 import type { Translate } from './types';
 
 export type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken';

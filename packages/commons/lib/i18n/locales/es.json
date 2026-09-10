@@ -576,8 +576,8 @@
       "subtitle": "Tu monedero dentro de la app para los servicios de Oxy",
       "transactions": "Transacciones",
       "payments": "Pagos",
-      "oxyPay": "Oxy Pay",
-      "oxyPaySubtitle": "Saldo: {{balance}} — Paga suscripciones, servicios y funciones",
+      "peable": "Peable",
+      "peableSubtitle": "Saldo: {{balance}} — Paga suscripciones, servicios y funciones",
       "fairwallet": "FAIRWallet",
       "fairwalletSubtitle": "Pagos directos en FairCoin escaneando códigos QR"
     },
@@ -585,15 +585,15 @@
       "card": "Tarjeta de crédito/débito",
       "cardWithMethod": "{{method}} •••• — Pagos con tarjeta seguros",
       "cardEmpty": "Pagos con tarjeta seguros — Sin tarjeta registrada",
-      "oxyPay": "Oxy Pay",
-      "oxyPaySubtitle": "Saldo: {{balance}} — Usa el saldo de tu monedero dentro de la app",
+      "peable": "Peable",
+      "peableSubtitle": "Saldo: {{balance}} — Usa el saldo de tu monedero dentro de la app",
       "fairwallet": "FAIRWallet",
       "fairwalletSubtitle": "Paga con FairCoin mediante código QR"
     },
     "expanded": {
       "cardBody": "Pagos con tarjeta seguros procesados a través de los servicios de Oxy. Los datos de tu tarjeta se cifran y se gestionan mediante procesadores de pago seguros. Se carga al adquirir suscripciones o servicios.",
-      "oxyPayTitle": "Monedero Oxy Pay",
-      "oxyPayBody": "Tu monedero dentro de la app usa FairCoin como moneda base. Usa tu saldo para pagar suscripciones, funciones premium y servicios del ecosistema Oxy. Tu saldo actual aparece en la parte superior.",
+      "peableTitle": "Monedero Peable",
+      "peableBody": "Tu monedero dentro de la app usa FairCoin como moneda base. Usa tu saldo para pagar suscripciones, funciones premium y servicios del ecosistema Oxy. Tu saldo actual aparece en la parte superior.",
       "fairwalletBody": "FAIRWallet permite pagos directos en FairCoin mediante código QR. Al pagar, elige FAIRWallet como método y escanea el QR con tu app de FairCoin. Las transacciones usan tecnología blockchain para transparencia y seguridad."
     },
     "history": {
@@ -626,14 +626,14 @@
     "info": {
       "fairCoin": "FairCoin (⊜)",
       "fairCoinBody": "FairCoin es la criptomoneda base de todos los servicios de Oxy. Todas las transacciones, incluidas suscripciones, servicios y compras dentro de la app, se realizan en FairCoin.",
-      "oxyPay": "Oxy Pay",
-      "oxyPayBody": "Oxy Pay es tu monedero dentro de la app que guarda tu saldo de FairCoin. Úsalo para pagar suscripciones, funciones premium y servicios del ecosistema Oxy. Tu saldo aparece en la parte superior.",
+      "peable": "Peable",
+      "peableBody": "Peable es tu monedero dentro de la app que guarda tu saldo de FairCoin. Úsalo para pagar suscripciones, funciones premium y servicios del ecosistema Oxy. Tu saldo aparece en la parte superior.",
       "fairwallet": "FAIRWallet",
       "fairwalletBody": "FAIRWallet permite pagos directos en FairCoin mediante código QR. Al pagar, puedes elegir FAIRWallet como método y escanear el QR generado con tu app de FairCoin.",
       "security": "Seguridad y privacidad",
       "securityBody": "Todos los pagos se procesan de forma segura mediante los servicios de Oxy. Tu información de pago está cifrada y nunca se guarda en tu dispositivo. Los datos de tarjeta los gestionan procesadores seguros, y las transacciones de criptomoneda usan blockchain para transparencia y seguridad.",
       "paymentMethods": "Métodos de pago",
-      "paymentMethodsBody": "Puedes pagar con tarjeta de crédito/débito, con el saldo de Oxy Pay o con FAIRWallet. Al comprar suscripciones o servicios, la pasarela de pago te guiará en el proceso y podrás elegir el método que prefieras."
+      "paymentMethodsBody": "Puedes pagar con tarjeta de crédito/débito, con el saldo de Peable o con FAIRWallet. Al comprar suscripciones o servicios, la pasarela de pago te guiará en el proceso y podrás elegir el método que prefieras."
     },
     "fairCoinBanner": {
       "title": "Monedero FairCoin",

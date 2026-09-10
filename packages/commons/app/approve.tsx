@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Linking, Platform, BackHandler } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useOxy } from '@oxyhq/services';
-import { Dialog, useDialogControl, type DialogAction } from '@oxyhq/bloom/dialog';
+import { useOxy } from '@oxy.so/services';
+import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
 import { useColors } from '@/hooks/useColors';
 import { CenteredState } from '@/components/ui/centered-state';
 import { useTranslation } from '@/lib/i18n';
@@ -30,7 +30,7 @@ const APPROVED_RETURN_DELAY_MS = 1000;
  *   - a same-device deep link `oxycommons://approve?...` / `commons://approve?...`
  *
  * Rendered as a Bloom bottom sheet (`<Dialog placement="bottom">`) — the same
- * Bloom surface `@oxyhq/services`' `OxyAccountDialog` uses. The screen owns only
+ * Bloom surface `@oxy.so/services`' `OxyAccountDialog` uses. The screen owns only
  * the sheet, the request lifecycle, and the terminal states; the request itself
  * is rendered by `ApprovalRequest`, which is the concise one-primary-action
  * surface issue #691 Phase 5 asks for: `Confirm identity` opens the device

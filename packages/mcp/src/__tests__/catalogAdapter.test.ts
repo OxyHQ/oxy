@@ -1,4 +1,4 @@
-import type { AppCapabilityCatalog } from '@oxyhq/contracts';
+import type { AppCapabilityCatalog } from '@oxy.so/contracts';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -122,7 +122,7 @@ class AuthenticatedTransport implements Transport {
   }
 }
 
-describe('@oxyhq/mcp catalog adapter', () => {
+describe('@oxy.so/mcp catalog adapter', () => {
   it('derives exactly the MCP-exposed tools and complete schemas from the catalog', () => {
     const definitions = createCatalogMcpToolDefinitions(catalog, {
       searchNotes: async () => ({ structuredContent: { count: 1 } }),

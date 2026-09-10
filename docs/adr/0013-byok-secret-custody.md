@@ -29,7 +29,7 @@ That leaves one question, and everything else in the workstream is downstream of
 it: **where does the credential live?**
 
 The epic answers it — "Vault/KMS/managed secret storage, not PostgreSQL or
-client-visible state" — and `providerConnectionSchema` in `@oxyhq/contracts` was
+client-visible state" — and `providerConnectionSchema` in `@oxy.so/contracts` was
 written so a secret cannot be REPRESENTED: the object is `.strict()`, so a
 producer attaching `apiKey`/`secret`/`token` fails the parse, and `keyPrefix` is
 capped at 12 characters so the one field designed to show part of a key cannot be

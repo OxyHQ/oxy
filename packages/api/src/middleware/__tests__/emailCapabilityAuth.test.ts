@@ -1,7 +1,7 @@
 import type { NextFunction, Response } from 'express';
 import { generateKeyPairSync } from 'node:crypto';
-import type { CapabilityTicketClaims, PolicyDecision } from '@oxyhq/contracts';
-import { issueCapabilityTicket } from '@oxyhq/core/server';
+import type { CapabilityTicketClaims, PolicyDecision } from '@oxy.so/contracts';
+import { issueCapabilityTicket } from '@oxy.so/core/server';
 
 const mockReauthorize = jest.fn<Promise<PolicyDecision>, [CapabilityTicketClaims]>();
 const mockMailboxExists = jest.fn();

@@ -2,19 +2,19 @@ import type React from 'react';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import Ionicons from '../icons/Ionicons';
-import { toast } from '@oxyhq/bloom/toast';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Search } from '@oxyhq/bloom/search';
-import { Button } from '@oxyhq/bloom/button';
+import { toast } from '@oxy.so/bloom/toast';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Search } from '@oxy.so/bloom/search';
+import { Button } from '@oxy.so/bloom/button';
 import {
     Accordion,
     AccordionItem,
     AccordionTrigger,
     AccordionContent,
-} from '@oxyhq/bloom/accordion';
-import { Text } from '@oxyhq/bloom/typography';
+} from '@oxy.so/bloom/accordion';
+import { Text } from '@oxy.so/bloom/typography';
 import type { BaseScreenProps } from '../types/navigation';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/OxyContext';

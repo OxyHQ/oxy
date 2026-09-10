@@ -64,6 +64,11 @@ import inferenceRoutingPolicyRoutes from './routes/inferenceRoutingPolicies';
 import inferenceProviderConnectionRoutes from './routes/inferenceProviderConnections';
 import inferenceReportingRoutes from './routes/inferenceReporting';
 import platformStatsRoutes from './routes/platform-stats';
+import {
+  initializePlatformActivity,
+  platformActivityMiddleware,
+  stopPlatformActivity,
+} from './services/platformActivity.service';
 import topicsRoutes from './routes/topics.routes';
 import followsV2Routes, { meFollowsRouter } from './routes/follows.v2.routes';
 import followRegistryV2Routes from './routes/followRegistry.v2.routes';
@@ -88,7 +93,7 @@ import {
   TOKEN_ANOMALY_SWEEP_INTERVAL_MS,
 } from './services/tokenAnomaly.service';
 import { RECONCILIATION_SWEEP_INTERVAL_MS } from './db/schema/billingReconciliation';
-import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
+import { sweepAllExpiredRows } from '@oxy.so/db/expiry';
 import { EXPIRY_SWEEP_INTERVAL_MS, EXPIRY_SWEEP_TARGETS } from './db/expiry';
 import { AUTO_RECHARGE_SWEEP_INTERVAL_MS } from './db/schema/billingAutoRechargeAttempts';
 import { RESERVATION_EXPIRY_SWEEP_INTERVAL_MS } from './db/schema/usageReservations';
@@ -288,6 +293,13 @@ const io = new SocketIOServer(server, {
   cors: SOCKET_IO_CORS_CONFIG,
 });
 initializeIO(io);
+
+// Public, aggregate-only activity stream for oxy.so/dashboard. It carries the
+// processing region, a bounded route group and a k-anonymous bucket count —
+// never an IP, user, raw path or other request-level value. The Redis adapter
+// fans buckets out across API tasks.
+const platformActivityNamespace = io.of('/platform-activity');
+initializePlatformActivity(platformActivityNamespace);
 
 // Attach Redis adapter for multi-instance broadcast (if Redis available)
 const redis = getRedisClient();
@@ -489,6 +501,7 @@ async function gracefulShutdown(signal: string) {
     logger.info('HTTP server closed');
   });
 
+  stopPlatformActivity();
   stopFollowOutboxWorker();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
@@ -635,6 +648,10 @@ app.use((req, _res, next) => {
   }
   next();
 });
+
+// Count completed platform requests into short anonymous buckets. Mount after
+// the /api normaliser so the exclusion set sees canonical paths.
+app.use(platformActivityMiddleware);
 
 // Public signing metadata is cacheable and must remain reachable by every Oxy
 // service verifier. It carries public keys only and sits outside the shared-IP
@@ -1079,14 +1096,10 @@ export async function bootstrap(
   // ready.
   await waitForDatabaseConnection(startupTimeoutMs);
 
-  // Build the dynamic CORS origin snapshot from the Application registry now
-  // that the database is connected. The registry boot-seeds from the
-  // bootstrap-core set synchronously at import, so requests before this
-  // resolves are still safe; this adds the registered
-  // first-party/third-party app origins.
-  // Background-safe (fail-soft) — never blocks startup.
-  await refreshOriginRegistry();
+  // Repair legacy empty allowlists first, then publish one complete registry
+  // snapshot. Startup fails closed if that authoritative read is unavailable.
   await reconcileOfficialRedirectUris();
+  await refreshOriginRegistry({ required: true });
 
   // Seed platform-default reputation rules (idempotent) — currently the
   // cross-app `endorsement_received` rule awarded by /app-signals/ingest.

@@ -1,5 +1,5 @@
 import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto';
-import type { AppCapabilityCatalog } from '@oxyhq/contracts';
+import type { AppCapabilityCatalog } from '@oxy.so/contracts';
 import { and, eq, isNull } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { appCapabilityCatalogRegistrations } from '../../db/schema/agency';

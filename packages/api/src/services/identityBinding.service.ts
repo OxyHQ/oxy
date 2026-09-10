@@ -49,7 +49,7 @@
  * ```
  *
  * That regex rejects the **uuid v7 every row created after the Postgres cutover
- * carries** (`@oxyhq/db`'s `generatedId()`). `resolveBindingProof`
+ * carries** (`@oxy.so/db`'s `generatedId()`). `resolveBindingProof`
  * therefore answered `no_binding_proof` BEFORE QUERYING for any post-cutover
  * binding — so `applyModerationDecision` could not apply an effect at all for
  * such an account, however well-formed the event, however real the seeded
@@ -67,7 +67,7 @@
  */
 
 import { and, eq } from 'drizzle-orm';
-import type { ModerationEffectSkipReason } from '@oxyhq/contracts';
+import type { ModerationEffectSkipReason } from '@oxy.so/contracts';
 
 import { getDb } from '../config/postgres';
 import { appGrants, identityBindings } from '../db/schema';

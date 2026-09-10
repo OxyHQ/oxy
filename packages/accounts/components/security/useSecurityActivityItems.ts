@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useRouter } from 'expo-router';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { alert } from '@oxyhq/bloom';
-import type { SecurityActivity } from '@oxyhq/core';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { alert } from '@oxy.so/bloom';
+import type { SecurityActivity } from '@oxy.so/core';
 import { useTranslation } from '@/lib/i18n';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { formatDate } from '@/utils/date-utils';

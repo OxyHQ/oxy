@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { useTheme } from '@oxyhq/bloom/theme';
-import type { ThemeColors } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
+import type { ThemeColors } from '@oxy.so/bloom/theme';
 import { DomainColors, type DomainColorKey } from '@/constants/theme';
 
 /** Bloom theme colors merged with accounts-specific domain colors. */

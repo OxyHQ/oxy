@@ -1,4 +1,4 @@
-import { normalizedAppEventSchema, type NormalizedAppEvent } from '@oxyhq/contracts';
+import { normalizedAppEventSchema, type NormalizedAppEvent } from '@oxy.so/contracts';
 import { logger } from '../utils/logger';
 import { inboxServiceClient } from './inbox-service-client';
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import type {
   AddScreenshotInput,
   PublisherListing,
@@ -7,12 +7,12 @@ import type {
   StoreScreenshot,
   UpdateScreenshotInput,
   WriteListingInput,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 
 // ===========================================================================
 // The application's store listing.
 //
-// Unlike the Updates hooks next door, these go through named `@oxyhq/core`
+// Unlike the Updates hooks next door, these go through named `@oxy.so/core`
 // methods rather than `makeRequest`: the store HAS a mixin, and reaching past
 // it would put URL strings and response-envelope knowledge in the Console —
 // which is exactly the drift the SDK exists to prevent.

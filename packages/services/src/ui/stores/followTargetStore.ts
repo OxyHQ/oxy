@@ -23,7 +23,7 @@
  */
 
 import { create } from 'zustand';
-import type { FollowApplicationMode, FollowRecord, FollowStatus } from '@oxyhq/contracts';
+import type { FollowApplicationMode, FollowRecord, FollowStatus } from '@oxy.so/contracts';
 
 /** The status of one target, or `undefined` when it has never been read. */
 type StatusMap = Record<string, FollowStatus | undefined>;

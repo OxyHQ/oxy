@@ -1,4 +1,4 @@
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 
 /**
  * Shared image-upload helpers for Console logo / avatar widgets.

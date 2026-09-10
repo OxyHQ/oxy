@@ -54,7 +54,7 @@ import {
   webauthnLoginVerifyRequestSchema,
   isValidUsername,
   USERNAME_INVALID_MESSAGE,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { notifications } from '../db/schema/notifications';
 import { userAuthMethods } from '../db/schema/userAuthMethods';

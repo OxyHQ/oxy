@@ -26,7 +26,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { personhoodVouches } from '../../db/schema/personhoodVouches';
 import { sessions } from '../../db/schema/sessions';

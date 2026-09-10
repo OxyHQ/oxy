@@ -1,4 +1,4 @@
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 import { SessionClient, type SessionClientHost } from '../SessionClient';
 
 const STATE = (rev: number): DeviceSessionState => ({

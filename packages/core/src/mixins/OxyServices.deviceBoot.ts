@@ -4,7 +4,7 @@
  * The client half of the zero-cookie device transport: the single network call
  * the cold boot (`sessionColdBoot`) and the unified re-mint handler (`refresh.ts`)
  * make to turn a first-party `deviceId` + `deviceSecret` into a fresh access
- * token. The response is validated against the `@oxyhq/contracts`
+ * token. The response is validated against the `@oxy.so/contracts`
  * `deviceTokenMintResponseSchema`, so producer (oxy-api) and consumer cannot
  * drift — an unexpected shape throws here rather than silently corrupting the
  * persisted store.
@@ -24,7 +24,7 @@ import {
   safeParseContract,
   type DeviceBackgroundCredentialResponse,
   type DeviceTokenMintResponse,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { extractErrorStatus } from '../utils/errorUtils';
 

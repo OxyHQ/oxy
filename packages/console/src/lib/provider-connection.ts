@@ -2,7 +2,7 @@ import type {
   ProviderConnection,
   ProviderConnectionScope,
   ProviderConnectionStatus,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import type { ProviderConnectionAuditEvent } from '@/hooks/use-provider-connections';
 
 /**

@@ -41,8 +41,8 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz } from '@oxyhq/db';
-import { EXTERNAL_PAYMENT_KINDS, EXTERNAL_PAYMENT_PROVIDERS } from '@oxyhq/contracts';
+import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
+import { EXTERNAL_PAYMENT_KINDS, EXTERNAL_PAYMENT_PROVIDERS } from '@oxy.so/contracts';
 import { billingLedgerEntries } from './billingLedgerEntries';
 import { currencyCode, currencyCodeCheck, exactAmount } from './ledgerColumns';
 import { users } from './users';

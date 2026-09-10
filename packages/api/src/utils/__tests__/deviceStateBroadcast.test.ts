@@ -1,7 +1,7 @@
 jest.mock('../logger', () => ({ logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() } }));
 import { initializeIO, closeIO, broadcastDeviceState, broadcastSessionAccountsChanged } from '../socket';
-import type { DeviceSessionState } from '@oxyhq/contracts';
-import { SESSION_ACCOUNTS_CHANGED_EVENT } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
+import { SESSION_ACCOUNTS_CHANGED_EVENT } from '@oxy.so/contracts';
 
 const state: DeviceSessionState = { deviceId: 'd1', accounts: [], activeAccountId: null, revision: 5, updatedAt: 1720000000000 };
 

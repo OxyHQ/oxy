@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Add01Icon, Delete02Icon, Image01Icon } from '@hugeicons/core-free-icons';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import type {Application, CallerAccess} from '@/hooks/use-applications';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -302,9 +302,9 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Oxy Pay permissions</h2>
+          <h2 className="text-sm font-semibold text-foreground">Peable permissions</h2>
           <p className="text-sm text-muted-foreground">
-            Grant payments scopes before creating a service credential for Oxy Pay integrations.
+            Grant payments scopes before creating a service credential for Peable integrations.
           </p>
         </div>
         <div className="space-y-3 rounded-lg border border-border p-3">

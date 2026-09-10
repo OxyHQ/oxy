@@ -11,7 +11,7 @@
  * ## `envelope` is `jsonb`, and that is a measured decision
  *
  * Verification NEVER reads the stored bytes back: `canonicalize()`
- * (`@oxyhq/protocol`, `envelope/canonicalJson.ts`) sorts keys at every level and
+ * (`@oxy.so/protocol`, `envelope/canonicalJson.ts`) sorts keys at every level and
  * re-serializes from the PARSED value, so `jsonb`'s key reordering, duplicate-key
  * collapse, number re-formatting and unicode unescaping are representation-only
  * and produce a byte-identical signing input. `__tests__/signedRecords.test.ts`
@@ -66,9 +66,9 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { oxySignedRecordTypeSchema } from '@oxyhq/contracts';
-import type { OxySignedRecordType, SignedRecordEnvelope } from '@oxyhq/contracts';
-import { createdAt, generatedId, inList } from '@oxyhq/db';
+import { oxySignedRecordTypeSchema } from '@oxy.so/contracts';
+import type { OxySignedRecordType, SignedRecordEnvelope } from '@oxy.so/contracts';
+import { createdAt, generatedId, inList } from '@oxy.so/db';
 import { users } from './users';
 
 /**

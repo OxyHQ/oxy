@@ -2,7 +2,7 @@
  * Canonical contract for the Oxy user-invalidation broadcast.
  *
  * Oxy owns identity, but consumers cache it: Mention keeps a Redis summary per
- * post author, and every backend using `@oxyhq/core` holds the SDK's own GET
+ * post author, and every backend using `@oxy.so/core` holds the SDK's own GET
  * response cache. Both go stale the moment a profile is edited, and neither has
  * any way to find out — the writer is a different process in a different repo.
  * This is the signal that tells them.

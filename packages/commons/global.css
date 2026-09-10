@@ -1,6 +1,6 @@
 /* Shared Oxy Tailwind v4 + NativeWind + Bloom base (imports + SDK @source globs).
-   See @oxyhq/app-preset/base.css. App-specific globs and theme follow below. */
-@import "@oxyhq/app-preset/base.css";
+   See @oxy.so/app-preset/base.css. App-specific globs and theme follow below. */
+@import "@oxy.so/app-preset/base.css";
 
 @source "./app/**/*.{js,jsx,ts,tsx}";
 @source "./components/**/*.{js,jsx,ts,tsx}";

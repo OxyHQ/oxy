@@ -49,13 +49,13 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { logger } from '@oxyhq/core';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { logger } from '@oxy.so/core';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useSurfaceHeader, type SurfaceHeaderContent } from '../hooks/useSurfaceHeader';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import type { BaseScreenProps } from '../types/navigation';
 
 /** Component name used in `logger` context for filtered diagnostics. */

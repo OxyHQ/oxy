@@ -31,7 +31,7 @@ fork and publish, or drop the feature.
 
 NFC was a convenience layer over a QR flow that already carries the identical
 bytes: the NFC tag content is byte-for-byte the string produced by
-`buildAttestQrPayload` in `@oxyhq/core`. Removing it costs one tap of
+`buildAttestQrPayload` in `@oxy.so/core`. Removing it costs one tap of
 convenience and buys the removal of a patch, an abandoned dependency, a
 hand-rolled config plugin, an Android-only code path that can only be verified
 on real hardware, and the ongoing maintenance of Kotlin/Java we would otherwise
@@ -39,11 +39,11 @@ have to own.
 
 Rejected alternatives:
 
-- **Own Expo module (`@oxyhq/expo-nfc-hce`).** Correct if NFC were load-bearing.
+- **Own Expo module (`@oxy.so/expo-nfc-hce`).** Correct if NFC were load-bearing.
   It is not: the QR path is complete and cross-platform (iOS can never emit HCE
   anyway — Apple gives no HCE to third-party apps, so NFC was always
   Android-emitter-only).
-- **Fork and publish `@oxyhq/react-native-hce`.** Trades a patch for ownership of
+- **Fork and publish `@oxy.so/react-native-hce`.** Trades a patch for ownership of
   an abandoned legacy-architecture library, including its new-architecture risk
   under RN 0.86.
 - **Upstream PR to `appidea/react-native-hce`.** Correct citizenship but ships
@@ -139,7 +139,7 @@ Over-deleting here would break the QR flow, so the following stay:
 - **`app/+native-intent.ts`.** The card deep-link rewrite. One comment mentions
   "QR / NFC tag"; drop the NFC half.
 - **`buildAttestQrPayload`, `parseAttestPayload` and the `oxycommons://attest`
-  scheme in `@oxyhq/core`.** These are the QR contract.
+  scheme in `@oxy.so/core`.** These are the QR contract.
 - **The entire civic backend** (`packages/api/src/routes/civic.ts`, the jury and
   attestation services, the `civic:attested` socket emit). Unchanged.
 

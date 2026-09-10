@@ -14,7 +14,7 @@
  * WHY A GATE AND NOT A TYPECHECK
  *
  * There is no compile signal for this drift, and that is not an oversight in the
- * Console — it is structural. `@oxyhq/core` types the wire field as
+ * Console — it is structural. `@oxy.so/core` types the wire field as
  * `AccountMember.permissions: string[]`, not as a permission union, so nothing
  * flows from the API into Console's local unions. Console's copies are consumed
  * only as PARAMETER types (`hasPermission(account, permissions:

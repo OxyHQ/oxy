@@ -29,21 +29,21 @@ module.exports = {
   ],
     moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
-    '^@oxyhq/core$': '<rootDir>/../core/src/index.ts',
-    '^@oxyhq/protocol$': '<rootDir>/../protocol/src/index.ts',
-    '^@oxyhq/contracts$': '<rootDir>/../contracts/src/index.ts',
+    '^@oxy.so/core$': '<rootDir>/../core/src/index.ts',
+    '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
     // Mock heavy native modules with lightweight stubs.
     '^react-native$': '<rootDir>/__mocks__/react-native.ts',
     '^@react-native-async-storage/async-storage$':
       '<rootDir>/__mocks__/async-storage.ts',
-    '^@oxyhq/services$': '<rootDir>/__mocks__/oxyhq-services.ts',
+    '^@oxy.so/services$': '<rootDir>/__mocks__/oxy-services.ts',
     // The push adapter ships behind its own entry point. It maps to the SAME
     // stub as the barrel so a test asserting on `installForegroundNotificationHandler`
     // sees the one `jest.fn()` instance no matter which specifier the code under
     // test imported it from.
-    '^@oxyhq/services/notifications$': '<rootDir>/__mocks__/oxyhq-services.ts',
-    '^@oxyhq/bloom/theme$': '<rootDir>/__mocks__/bloom-theme.ts',
-    '^@oxyhq/bloom/composition-bar$': '<rootDir>/__mocks__/bloom-composition-bar.tsx',
+    '^@oxy.so/services/notifications$': '<rootDir>/__mocks__/oxy-services.ts',
+    '^@oxy.so/bloom/theme$': '<rootDir>/__mocks__/bloom-theme.ts',
+    '^@oxy.so/bloom/composition-bar$': '<rootDir>/__mocks__/bloom-composition-bar.tsx',
     '^react-native-reanimated$': '<rootDir>/__mocks__/react-native-reanimated.ts',
     '^react-native-keyboard-controller$':
       '<rootDir>/__mocks__/react-native-keyboard-controller.ts',

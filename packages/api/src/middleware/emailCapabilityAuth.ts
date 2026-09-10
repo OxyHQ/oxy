@@ -2,13 +2,13 @@ import { createHash, randomUUID } from 'node:crypto';
 import Ajv, { type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import type { NextFunction, Request, Response } from 'express';
-import type { CapabilityTicketClaims, CatalogTool, PolicyDecision } from '@oxyhq/contracts';
+import type { CapabilityTicketClaims, CatalogTool, PolicyDecision } from '@oxy.so/contracts';
 import {
   CapabilityTicketError,
   inputSatisfiesCapabilityLimits,
   readCapabilityAuthorization,
   verifyCapabilityTicket,
-} from '@oxyhq/core/server';
+} from '@oxy.so/core/server';
 import { INBOX_CAPABILITY_CATALOG } from '../capabilities/inbox.catalog';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import { reauthorizeCapabilityTicket } from '../services/capabilityAuthority.service';

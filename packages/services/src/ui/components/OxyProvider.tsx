@@ -5,9 +5,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { OxyProviderProps } from '../types/navigation';
 import { OxyRuntimeProvider, type OxyRuntimeProviderProps } from '../context/OxyContext';
 import { QueryClientProvider, focusManager, onlineManager } from '@tanstack/react-query';
-import { SurfaceProvider } from '@oxyhq/bloom/surfaces';
-import { ToastOutlet } from '@oxyhq/bloom/toast';
-import { logger as loggerUtil } from '@oxyhq/core';
+import { SurfaceProvider } from '@oxy.so/bloom/surfaces';
+import { ToastOutlet } from '@oxy.so/bloom/toast';
+import { logger as loggerUtil } from '@oxy.so/core';
 import { RequireOxyAuth } from './RequireOxyAuth';
 import { attachQueryPersistence, createQueryClient } from '../hooks/queryClient';
 import { createMemoryStorage, createPlatformStorage, type StorageInterface } from '../utils/storageHelpers';
@@ -35,7 +35,7 @@ const isWeb = Platform.OS === 'web';
  *
  * Usage:
  * ```tsx
- * import { OxyProvider, useAuth } from '@oxyhq/services';
+ * import { OxyProvider, useAuth } from '@oxy.so/services';
  *
  * function App() {
  *   return (
@@ -206,7 +206,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
 
     // Core content: QueryClient + OxyContext + UI overlays.
     //
-    // Theming is owned by `@oxyhq/bloom`. Consumers must mount their own
+    // Theming is owned by `@oxy.so/bloom`. Consumers must mount their own
     // `<BloomThemeProvider>` in their app root and configure it directly
     // (defaultColorPreset, defaultMode, persistKey, storage, fonts, etc.).
     // OxyProvider does NOT wrap a BloomThemeProvider — that would create a

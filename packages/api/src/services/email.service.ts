@@ -24,8 +24,8 @@ import {
   type SQL,
   type SQLWrapper,
 } from 'drizzle-orm';
-import { safeFetch, SsrfRejection } from '@oxyhq/core/server';
-import { publicColumns } from '@oxyhq/db/assert';
+import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
+import { publicColumns } from '@oxy.so/db/assert';
 import { getDb, type Database } from '../config/postgres';
 import { bundles } from '../db/schema/bundles';
 import { contacts } from '../db/schema/contacts';
@@ -4050,7 +4050,7 @@ class EmailService {
   /**
    * Fetch an unsubscribe URL through the SSRF-safe primitive.
    *
-   * `safeFetch` (from `@oxyhq/core/server`) performs a DNS-pinned lookup that
+   * `safeFetch` (from `@oxy.so/core/server`) performs a DNS-pinned lookup that
    * closes the DNS-rebind TOCTOU window the prior hand-rolled
    * `lookup()` + `fetch()` check left open, denies private/metadata IP ranges,
    * and re-validates every redirect hop. Redirects are disallowed here

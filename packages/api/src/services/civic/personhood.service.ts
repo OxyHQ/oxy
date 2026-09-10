@@ -22,10 +22,10 @@
 
 import { z } from 'zod';
 import { and, count, eq, inArray, sql } from 'drizzle-orm';
-import { verifyEnvelopeSignature, type RejectionReason } from '@oxyhq/protocol';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { verifyEnvelopeSignature, type RejectionReason } from '@oxy.so/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { getDb } from '../../config/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { personhoodStatuses } from '../../db/schema/personhoodStatuses';
 import { personhoodVouches } from '../../db/schema/personhoodVouches';
 import { reputationBalances } from '../../db/schema/reputationBalances';
@@ -56,7 +56,7 @@ import { logger } from '../../utils/logger';
 
 /**
  * The `record` payload of a `personhood_vouch` signed envelope (API-internal —
- * the wire envelope is validated against `@oxyhq/contracts`; only this inner
+ * the wire envelope is validated against `@oxy.so/contracts`; only this inner
  * payload shape is API-private). `about` is the subject's DID; `stake` is an
  * optional caller-chosen stake (clamped server-side); `context` is an opaque
  * note from the vouching UI.

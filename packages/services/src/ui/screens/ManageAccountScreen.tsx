@@ -7,18 +7,18 @@ import {
     Platform,
 } from 'react-native';
 import Ionicons from '../icons/Ionicons';
-import { toast } from '@oxyhq/bloom/toast';
-import { surfaces } from '@oxyhq/bloom/surfaces';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Text } from '@oxyhq/bloom/typography';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { toast } from '@oxy.so/bloom/toast';
+import { surfaces } from '@oxy.so/bloom/surfaces';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import {
     getAccountDisplayName,
     getAccountFallbackHandle,
     getNormalizedUserHandle,
     logger as loggerUtil,
     packageInfo,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import ProfileSummaryCard from '../components/ProfileSummaryCard';
 import { SettingsIcon } from '../components/SettingsIcon';

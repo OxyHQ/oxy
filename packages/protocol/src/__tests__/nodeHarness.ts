@@ -1,5 +1,5 @@
 /**
- * Shared test harness for the `@oxyhq/protocol/node` suites — an in-memory
+ * Shared test harness for the `@oxy.so/protocol/node` suites — an in-memory
  * `RecordStore`/`BlobStore`, an owner-key `OwnerAuth`, a silent logger, and a
  * signed-envelope forge. Not a test file (no `.test.ts` suffix) — imported by
  * the node app / client suites so they exercise `createNodeApp` + `NodeClient`
@@ -9,7 +9,7 @@
 
 import { generateSecp256k1KeyPair } from '../secp256k1';
 import { createHash } from 'node:crypto';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { checkContinuity } from '../chain/continuity';
 import { signEnvelope, signMessage, verifySignature } from '../envelope/sign';
 import type { AppendOutcome, ChainHead } from '../chain/types';

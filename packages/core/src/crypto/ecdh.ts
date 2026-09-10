@@ -2,7 +2,7 @@
  * ECDH shared-secret derivation (secp256k1)
  *
  * Derives a raw 32-byte ECDH shared secret from a local private key and a
- * remote public key, using the shared `@oxyhq/protocol` secp256k1 primitive.
+ * remote public key, using the shared `@oxy.so/protocol` secp256k1 primitive.
  * This is the key-exchange
  * step for the Commons device-to-device transfer flow: each side computes the
  * same shared secret, which is then run through `hkdfSha256` to derive the
@@ -15,7 +15,7 @@
  * ESM/CJS safe: static `import` only, no `require()`.
  */
 
-import { deriveSecp256k1SharedSecret } from '@oxyhq/protocol/secp256k1';
+import { deriveSecp256k1SharedSecret } from '@oxy.so/protocol/secp256k1';
 
 /**
  * Compute the ECDH shared secret between a local private key and a remote

@@ -239,11 +239,11 @@ deployment ambiguous.
 
 ## Consequences
 
-- `@oxyhq/contracts` owns the shared actor, resource, grant, automation, ticket,
+- `@oxy.so/contracts` owns the shared actor, resource, grant, automation, ticket,
   event, audit and catalog contracts.
-- `@oxyhq/core/server` owns policy resolution plus capability-ticket signing and
+- `@oxy.so/core/server` owns policy resolution plus capability-ticket signing and
   verification.
-- `@oxyhq/mcp` owns catalog adaptation, protected-resource metadata and external
+- `@oxy.so/mcp` owns catalog adaptation, protected-resource metadata and external
   token validation. It does not own app domain logic.
 - Oxy stores normalized delegations and the catalog registry. Alia stores
   automation definitions, runs and steps.

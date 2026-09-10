@@ -1,5 +1,5 @@
 {
-  "package": "@oxyhq/auth-app",
+  "package": "@oxy.so/auth-app",
   "displayName": "Auth App",
   "shortName": "auth",
   "repo": "https://github.com/OxyHQ/OxyHQServices",

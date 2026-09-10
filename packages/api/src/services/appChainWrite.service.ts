@@ -11,7 +11,7 @@
  *
  * The envelope is issued by `OXY_DID` and signed with `OXY_PRIVATE_KEY`. Apps do
  * not carry their own issuer DID on the shared chain, because the protocol does
- * not allow it: `ResolvedVerificationMethods` (`@oxyhq/protocol`) declares
+ * not allow it: `ResolvedVerificationMethods` (`@oxy.so/protocol`) declares
  * `custodialIssuer`/`custodialPublicKey` in the SINGULAR, and `isAuthorizedKey`
  * accepts exactly two shapes — `issuer === subject` with the subject's own keys,
  * or that one custodial issuer. Admitting per-app issuers would mean widening a
@@ -52,7 +52,7 @@
  */
 
 import { and, eq } from 'drizzle-orm';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import { appGrants } from '../db/schema/appGrants';

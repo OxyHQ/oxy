@@ -3,11 +3,11 @@
  *
  * These replace `typeof import('expo-crypto')` and
  * `typeof import('expo-secure-store')` in the built declaration files of
- * `@oxyhq/protocol` and `@oxyhq/core`.
+ * `@oxy.so/protocol` and `@oxy.so/core`.
  *
  * ## Why structural interfaces instead of `typeof import('expo-*')`?
  *
- * Under NodeNext module resolution (used by `@oxyhq/api` and `@oxyhq/node`),
+ * Under NodeNext module resolution (used by `@oxy.so/api` and `@oxy.so/node`),
  * `expo-crypto` ships with `"exports": {}` (empty exports map). TypeScript
  * traverses into the package anyway via the `types` field, which transitively
  * loads `expo-modules-core`. That pollution makes `setInterval`/`setTimeout`
@@ -23,7 +23,7 @@
 
 /**
  * Minimal structural interface for the subset of `expo-crypto` used by
- * `@oxyhq/protocol` (SHA-256 hashing in RN) and `@oxyhq/core` (key-manager
+ * `@oxy.so/protocol` (SHA-256 hashing in RN) and `@oxy.so/core` (key-manager
  * random-byte generation).
  *
  * The real `expo-crypto` namespace satisfies this interface structurally.
@@ -49,7 +49,7 @@ export interface ExpoCryptoLike {
 
 /**
  * Minimal structural interface for the subset of `expo-secure-store` used by
- * `@oxyhq/core` `KeyManager` for on-device identity storage.
+ * `@oxy.so/core` `KeyManager` for on-device identity storage.
  *
  * The real `expo-secure-store` namespace satisfies this interface structurally.
  *
@@ -77,14 +77,14 @@ export interface ExpoSecureStoreLike {
 }
 
 /**
- * Structural interface for the `@oxyhq/expo-oxy-identity` native module — the
+ * Structural interface for the `@oxy.so/expo-oxy-identity` native module — the
  * cross-app shared Oxy identity bridge.
  *
  * On Android the keypair crosses the process boundary through a
  * signature-protected `ContentProvider` hosted by Commons; on iOS every method
- * is a no-op (the Keychain Access Group path in `@oxyhq/core`'s `KeyManager`
- * owns iOS sharing). Typed structurally here so `@oxyhq/protocol` and
- * `@oxyhq/core` can reference the bridge without a hard dependency on the
+ * is a no-op (the Keychain Access Group path in `@oxy.so/core`'s `KeyManager`
+ * owns iOS sharing). Typed structurally here so `@oxy.so/protocol` and
+ * `@oxy.so/core` can reference the bridge without a hard dependency on the
  * optional native module.
  */
 export interface SharedIdentityBridge {

@@ -13,7 +13,7 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { logger } from '../utils/logger';
 import { ConfigurationError, getEnvNumber } from './env';
-import { DATABASE_CASING } from '@oxyhq/db';
+import { DATABASE_CASING } from '@oxy.so/db';
 import * as schema from '../db/schema';
 
 /**
@@ -99,7 +99,7 @@ export async function connectPostgres(): Promise<Database> {
   // Drizzle applies `casing` at RUNTIME when building SQL, drizzle-kit applies
   // it at GENERATE time when emitting DDL. They must agree or queries reference
   // columns the migrations never created — so both read the SAME constant, and
-  // `@oxyhq/db` owns it.
+  // `@oxy.so/db` owns it.
   db = drizzle(instanceClient, { schema, casing: DATABASE_CASING });
 
   logger.info('Connected to PostgreSQL successfully', { maxPoolSize });

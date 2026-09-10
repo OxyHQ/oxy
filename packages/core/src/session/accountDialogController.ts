@@ -50,13 +50,13 @@
  *
  * The controller owns NO surface PRESENTATION: whether the account dialog is
  * mounted, visible, or dismissed is the job of the shared surface stack
- * (`@oxyhq/services` presents the `AccountDialog` surface into `@oxyhq/bloom`'s
+ * (`@oxy.so/services` presents the `AccountDialog` surface into `@oxy.so/bloom`'s
  * stack). This is a headless state machine only — it exposes `setView` /
  * `add` / `startSignup` (the view axis) and `cancelSignIn` (device-flow
  * teardown), never an `open` / `close` / `visible`.
  */
 
-import type { DeviceDirectory } from '@oxyhq/contracts';
+import type { DeviceDirectory } from '@oxy.so/contracts';
 import type { OxyServices } from '../OxyServices';
 import type { SessionLoginResponse, MinimalUserData } from '../models/session';
 import type { User } from '../models/interfaces';

@@ -5,7 +5,7 @@ import {
   isOperatorSwitchTargetKind,
   type AccountCategoryId,
   type ChildAccountKind,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   authMiddleware,
   serviceAuthMiddleware,
@@ -25,7 +25,7 @@ import {
   type EffectiveAccess,
 } from '../services/account.service';
 import type { ApplicationScope } from '../utils/applicationScopes';
-import { publicColumns } from '@oxyhq/db/assert';
+import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { users } from '../db/schema/users';

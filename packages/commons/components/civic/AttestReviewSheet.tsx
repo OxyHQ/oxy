@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo } from 'react';
 import { View, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Dialog, useDialogControl, type DialogAction } from '@oxyhq/bloom/dialog';
-import type { PublicCard, CardTrustTier, RealLifeAttestationResult } from '@oxyhq/contracts';
-import { trustTierLabel } from '@oxyhq/core';
+import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
+import type { PublicCard, CardTrustTier, RealLifeAttestationResult } from '@oxy.so/contracts';
+import { trustTierLabel } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { CenteredState } from '@/components/ui/centered-state';

@@ -3,14 +3,14 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { Server as SocketIOServer } from 'socket.io';
 import type { Socket } from 'socket.io';
-import { oxyClient } from '@oxyhq/core';
+import { oxyClient } from '@oxy.so/core';
 import {
   createOxyAuthMiddleware,
   createOxyCors,
   createOxyRateLimit,
   getRequiredOxyUserId,
-} from '@oxyhq/core/server';
-import type { OxyAuthenticatedRequest } from '@oxyhq/core/server';
+} from '@oxy.so/core/server';
+import type { OxyAuthenticatedRequest } from '@oxy.so/core/server';
 import type { HealthResponse } from '@{{APP_SLUG}}/shared-types';
 import {
   assertMigrationsCurrent,

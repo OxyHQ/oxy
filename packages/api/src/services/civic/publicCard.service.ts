@@ -16,10 +16,10 @@
  * pre-prod); in production it is always present — exactly like the export bundle.
  */
 
-import type { PublicCard, SignedPublicCard, ExportAttestation, PersonhoodStatus as PersonhoodStatusValue } from '@oxyhq/contracts';
-import { signedPublicCardSchema } from '@oxyhq/contracts';
-import { getNormalizedUserHandle } from '@oxyhq/core';
-import { canonicalize } from '@oxyhq/protocol';
+import type { PublicCard, SignedPublicCard, ExportAttestation, PersonhoodStatus as PersonhoodStatusValue } from '@oxy.so/contracts';
+import { signedPublicCardSchema } from '@oxy.so/contracts';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import { canonicalize } from '@oxy.so/protocol';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../../config/postgres';
 import { personhoodStatuses } from '../../db/schema/personhoodStatuses';

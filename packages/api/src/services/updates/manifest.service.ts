@@ -29,7 +29,7 @@
 
 import crypto from 'crypto';
 import { and, asc, desc, eq } from 'drizzle-orm';
-import type { UpdatePlatform } from '@oxyhq/contracts';
+import type { UpdatePlatform } from '@oxy.so/contracts';
 import { getDb } from '../../config/postgres';
 import { appUpdateAssets, appUpdates, updateChannelRollbacks, updateChannels } from '../../db/schema';
 import { updateAssetCdnUrl, sha256HexToBase64Url } from './assetKeys';

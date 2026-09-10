@@ -31,7 +31,7 @@
 import { index, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { applications } from './applications';
 import { followTargetKinds } from './followTargetKinds';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import type { FollowKindCapabilities } from './followTargetKinds';
 import { users } from './users';
 

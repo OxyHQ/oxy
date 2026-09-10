@@ -54,7 +54,7 @@ import {
   type BrowserHubResolveResponse,
   type HubAuthorizeResult,
   type HubSession,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { z } from 'zod';
 import { clearedHubCookieHeader, hubCookieHeader, readHubHandle } from './cookie';
 import { apiGet, apiPost, type HubEnv, type UpstreamFailure } from './upstream';

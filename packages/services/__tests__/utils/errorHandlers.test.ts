@@ -147,7 +147,7 @@ describe('handleAuthError', () => {
   });
 
   it('reads the status off a flat ApiError (the shape every SDK request failure has)', () => {
-    // `handleHttpError` in @oxyhq/core rejects with `{ message, code, status }`
+    // `handleHttpError` in @oxy.so/core rejects with `{ message, code, status }`
     // and NO `response` wrapper, so a status read that only looked at
     // `response.status` reported every real SDK failure as 500.
     const onError = jest.fn();

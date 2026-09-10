@@ -74,7 +74,7 @@
  * fixture schema and requires this to flag it — the positive control that a
  * clean run is a real absence.
  *
- * Needs `@oxyhq/db` and `@oxyhq/contracts` BUILT, because the schema modules
+ * Needs `@oxy.so/db` and `@oxy.so/contracts` BUILT, because the schema modules
  * import them. That is why this runs in the `api-test` job after the workspace
  * builds rather than in a job of its own.
  *
@@ -284,8 +284,8 @@ try {
   console.error(
     `The schema module ${schemaModulePath} could not be imported, so no column was inspected:\n`
     + `${error.message}\n\n`
-    + 'It imports @oxyhq/db and @oxyhq/contracts, which resolve into their built `dist/`. Run\n'
-    + '`bun run --filter @oxyhq/contracts build` and `bun run --filter @oxyhq/db build` first.',
+    + 'It imports @oxy.so/db and @oxy.so/contracts, which resolve into their built `dist/`. Run\n'
+    + '`bun run --filter @oxy.so/contracts build` and `bun run --filter @oxy.so/db build` first.',
   );
   process.exit(1);
 }

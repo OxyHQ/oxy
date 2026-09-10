@@ -22,8 +22,8 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { ModerationSeverity, SignedRecordEnvelope } from '@oxyhq/contracts';
-import { signedRecordSigningInput } from '@oxyhq/protocol';
+import type { ModerationSeverity, SignedRecordEnvelope } from '@oxy.so/contracts';
+import { signedRecordSigningInput } from '@oxy.so/protocol';
 import SignatureService from '../signature.service';
 import { buildUserDid, OXY_DID } from '../did.service';
 import { getHead, materializeCurrent } from '../repoLog.service';

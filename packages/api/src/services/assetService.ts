@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
 import { type Readable, Transform } from 'stream';
-import { normalizeInlineText } from '@oxyhq/core';
-import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxyhq/core/server';
+import { normalizeInlineText } from '@oxy.so/core';
+import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import type { S3Service } from './s3Service';
 import {
   FEDERATION_MEDIA_CACHE_PURPOSE,
@@ -183,7 +183,7 @@ export class AssetService {
 
   /**
    * Fetch a remote federation image for storage repair through the shared,
-   * DNS-pinned {@link safeFetch} (`@oxyhq/core/server`). safeFetch resolves the
+   * DNS-pinned {@link safeFetch} (`@oxy.so/core/server`). safeFetch resolves the
    * host once, connects to the validated IP, re-validates every redirect hop,
    * and denies private/loopback/link-local/metadata IPs — closing the
    * DNS-rebinding TOCTOU window that a separate validate-then-`fetch` left open.
@@ -457,7 +457,11 @@ export class AssetService {
         return variant;
       }
       if (this.variantService.isVideoMp4Rendition(variantType)) {
-        return this.variantService.ensureVideoMp4Rendition(fileObj, variantType);
+        // MP4 renditions are generated during the trusted upload pipeline. Do
+        // not generate a missing rendition here: ensureVariant is also reached
+        // from unauthenticated public media routes, where transcoding on demand
+        // would let arbitrary callers consume unbounded FFmpeg CPU and memory.
+        throw new Error(`Video rendition ${variantType} is not available`);
       }
       // A SIZE name (`thumb`, `w320`, …) asked of a video means "an image of
       // this asset at that size", which for a video is a render of its poster

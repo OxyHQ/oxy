@@ -4,7 +4,7 @@
 
 **Goal:** Remove all user IP persistence (raw, hashed at rest, geo-derived) from oxy-api; hash the transient rate-limit keys; scrub logs; purge historical prod data.
 
-**Architecture:** Deletion-heavy change across `packages/api` (models, services, middleware, routes), one type removal in `@oxyhq/core`, IP rendering removal in `packages/accounts`, plus a one-shot purge script. One NEW module: `packages/api/src/utils/ipKey.ts` (HMAC-hashed rate-limit key).
+**Architecture:** Deletion-heavy change across `packages/api` (models, services, middleware, routes), one type removal in `@oxy.so/core`, IP rendering removal in `packages/accounts`, plus a one-shot purge script. One NEW module: `packages/api/src/utils/ipKey.ts` (HMAC-hashed rate-limit key).
 
 **Tech Stack:** Express + Mongoose + express-rate-limit@^7.5 (exports `ipKeyGenerator`) + rate-limit-redis. Tests: Jest (ts-jest) — run per-package `bun run test`, NEVER blanket `bun test`.
 
@@ -436,7 +436,7 @@ git commit -m "feat(api): civic anti-sybil is device-only; logs carry no IPs"
 
 ---
 
-### Task 6: Dormant `ApiKeyUsage.ipAddress` + `@oxyhq/core` type
+### Task 6: Dormant `ApiKeyUsage.ipAddress` + `@oxy.so/core` type
 
 **Files:**
 - Modify: `packages/api/src/models/ApiKeyUsage.ts:15,72-74`
@@ -455,7 +455,7 @@ git add packages/api/src/models/ApiKeyUsage.ts packages/core/src/models/interfac
 git commit -m "feat(core+api): remove ipAddress from SecurityActivity type and dormant ApiKeyUsage field"
 ```
 
-NOTE: this is an SDK type removal — `@oxyhq/core` gets its version bump + npm publish with the next release train (do NOT publish from this branch; see AGENTS.md publish rules).
+NOTE: this is an SDK type removal — `@oxy.so/core` gets its version bump + npm publish with the next release train (do NOT publish from this branch; see AGENTS.md publish rules).
 
 ---
 

@@ -27,10 +27,10 @@ Creating, rotating and revoking an `oxy_sk_…` credential is
 
 ---
 
-## `@oxyhq/core` — `OxyInferenceClient`
+## `@oxy.so/core` — `OxyInferenceClient`
 
 ```typescript
-import { OxyInferenceClient } from '@oxyhq/core';
+import { OxyInferenceClient } from '@oxy.so/core';
 
 // The OpenAI-style lane: one string, no session anywhere in the picture.
 const inference = new OxyInferenceClient({
@@ -45,7 +45,7 @@ const inference = oxyServices.inference();
 
 ```typescript
 // The Oxy auth lane, in a platform-trusted service.
-import { OxyInferenceClient } from '@oxyhq/core';
+import { OxyInferenceClient } from '@oxy.so/core';
 
 oxyServices.configureServiceAuth('oxy_dk_…', 'the-secret-shown-once');
 const inference = new OxyInferenceClient({
@@ -70,7 +70,7 @@ life.
 | `stream(request, options?)` | `POST /v1/responses` with validated SSE |
 | `getGeneration(id)` | `GET /v1/generations/:id` |
 
-`stream(request, options?)` is merged and published in `@oxyhq/core@23.1.0` by
+`stream(request, options?)` is merged and published in `@oxy.so/core@23.1.0` by
 [#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the merged Kaana
 runtime v2 source. It sends `stream: true`, propagates cancellation and
 validates the versioned SSE event union. That package publication does not prove
@@ -118,7 +118,7 @@ of current production contents. See [catalogue.md](./catalogue.md).
 Every refusal is an `OxyInferenceError`:
 
 ```typescript
-import { OxyInferenceError } from '@oxyhq/core';
+import { OxyInferenceError } from '@oxy.so/core';
 
 try {
   await inference.respond({ model: 'acme/some-model', input: 'hello' });
@@ -183,7 +183,7 @@ Four compatibility rules matter, and all four are deliberate:
   silently having no effect on a request you were billed for.
 - **`stream: true` uses OpenAI-compatible SSE** when the deployed Kaana path is
   configured and enabled. An unavailable data plane is refused before opening a
-  stream. The typed `@oxyhq/core` decoder is published in `@oxyhq/core@23.1.0`;
+  stream. The typed `@oxy.so/core` decoder is published in `@oxy.so/core@23.1.0`;
   live reachability remains a separate rollout gate.
 - **Oxy-specific response metadata rides in headers**, so the body stays exactly
   what a stock client parses.

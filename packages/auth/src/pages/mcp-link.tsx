@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
-import type { SwitcherContextRow } from "@oxyhq/core";
-import { getNormalizedUserHandle } from "@oxyhq/core";
-import { useDeviceSwitcher, useOxy } from "@oxyhq/services";
+import type { SwitcherContextRow } from "@oxy.so/core";
+import { getNormalizedUserHandle } from "@oxy.so/core";
+import { useDeviceSwitcher, useOxy } from "@oxy.so/services";
 
-import { Button } from "@oxyhq/bloom/button";
+import { Button } from "@oxy.so/bloom/button";
 import {
   AuthFormHeader,
   AuthFormLayout,

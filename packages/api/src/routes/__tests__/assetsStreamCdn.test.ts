@@ -101,6 +101,7 @@ interface RawResponse {
   status: number;
   location?: string;
   cacheControl?: string;
+  acceptRanges?: string;
   body: string;
 }
 
@@ -122,6 +123,7 @@ async function requestNoFollow(
             status: res.statusCode ?? 0,
             location: res.headers.location,
             cacheControl: res.headers['cache-control'],
+            acceptRanges: res.headers['accept-ranges'],
             body: raw,
           });
         });
@@ -181,6 +183,30 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
     // 302 is where the visibility check lives) plus a stale-serve window, so the
     // per-asset round trip stops blocking the paint once an hour.
     expect(res.cacheControl).toBe('public, max-age=3600, stale-while-revalidate=86400');
+  });
+
+  it('redirects a RANGED request instead of range-slicing a cached 302 into a 416', async () => {
+    // This redirect is cacheable, and `res.redirect` used to ship a ~130-byte
+    // HTML courtesy page with it. CloudFront then answered ranged requests out
+    // of that cached BODY, so any range past 130 bytes came back 416 — which is
+    // what a video player asks for on every seek and resume, and what painted
+    // "Video unavailable" over assets whose bytes were fine. Nothing to slice,
+    // and a header that says ranges do not apply.
+    mockGetFile.mockResolvedValue({
+      _id: PREFIXED_PUBLIC_FILE_ID,
+      visibility: 'public',
+      storageKey: 'public/content/2026/06/aa/aaaa.png',
+      variants: [],
+    });
+
+    const res = await requestNoFollow(server, `/assets/${PREFIXED_PUBLIC_FILE_ID}/stream`, {
+      Range: 'bytes=1000000-',
+    });
+
+    expect(res.status).toBe(302);
+    expect(res.location).toBe('https://cloud.oxy.so/content/2026/06/aa/aaaa.png');
+    expect(res.acceptRanges).toBe('none');
+    expect(res.body).toBe('');
   });
 
   it('302s a file already keyed under public/ via the fast path (no CDN probe)', async () => {

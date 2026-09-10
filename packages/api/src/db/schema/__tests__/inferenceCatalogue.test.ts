@@ -20,7 +20,7 @@ import {
   modelRevisionLabelSchema,
   modelSlugSchema,
   publisherSlugSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { inferenceDeployments } from '../inferenceDeployments';
 import { inferenceModelRevisions, INFERENCE_REVISION_IMMUTABLE_COLUMNS, INFERENCE_REVISION_IMMUTABILITY_TRIGGER_NAME } from '../inferenceModelRevisions';

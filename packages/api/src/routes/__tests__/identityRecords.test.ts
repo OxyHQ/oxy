@@ -1,7 +1,7 @@
 /**
  * Signed-record endpoints (B5) — the HTTP envelope, against a REAL Postgres.
  *
- * Locks the EXACT response shapes the `@oxyhq/core` identity mixin parses:
+ * Locks the EXACT response shapes the `@oxy.so/core` identity mixin parses:
  *  - POST /identity/records                       → { envelope, verified }
  *  - GET  /identity/records/:userId/:type          → { record }
  *  - GET  /identity/records/:userId/:type/verify   → { verified, reason? }
@@ -26,8 +26,8 @@ import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 const PUBLIC_KEY = generateSecp256k1KeyPair().publicKey;
 
@@ -70,7 +70,7 @@ jest.mock('../../services/nodeRegistry.service', () => ({
   sweepNodeLiveness: jest.fn(),
 }));
 
-jest.mock('@oxyhq/core/server', () => ({ safeFetch: jest.fn() }));
+jest.mock('@oxy.so/core/server', () => ({ safeFetch: jest.fn() }));
 jest.mock('../../utils/userCache', () => ({ __esModule: true, default: { invalidate: jest.fn() } }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },

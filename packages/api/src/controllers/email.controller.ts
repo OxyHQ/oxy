@@ -7,7 +7,7 @@
 
 import type { Request, Response } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
-import type { CapabilityTicketClaims } from '@oxyhq/contracts';
+import type { CapabilityTicketClaims } from '@oxy.so/contracts';
 import { emailService } from '../services/email.service';
 import { smtpOutbound } from '../services/smtp.outbound';
 import { assetService } from '../services/assetServiceSingleton';

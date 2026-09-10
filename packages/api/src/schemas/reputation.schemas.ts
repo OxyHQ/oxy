@@ -5,12 +5,12 @@
  * Every REQUEST BODY the reputation endpoints accept — `awardReputationSchema`,
  * `createReputationDisputeSchema`, `resolveReputationDisputeSchema`,
  * `upsertReputationRuleSchema`, `reverseReputationTransactionSchema` — is owned
- * by `@oxyhq/contracts`, so the validation this server runs and the input types
- * `@oxyhq/core` exposes are one definition. Import those directly from
- * `@oxyhq/contracts`; do not re-declare them here.
+ * by `@oxy.so/contracts`, so the validation this server runs and the input types
+ * `@oxy.so/core` exposes are one definition. Import those directly from
+ * `@oxy.so/contracts`; do not re-declare them here.
  */
 import { z } from 'zod';
-import { reputationInfluenceContextSchema } from '@oxyhq/contracts';
+import { reputationInfluenceContextSchema } from '@oxy.so/contracts';
 
 /** Route params with :userId (ObjectId or publicKey accepted by the route). */
 export const reputationUserIdParams = z.object({

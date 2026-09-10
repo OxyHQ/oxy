@@ -3,7 +3,7 @@
 The `device_sessions` PostgreSQL row plus its normalized principal/context rows
 are the **single server-side authority** for "which accounts are signed in on
 this device, and which one is active". Every Oxy surface that shows or mutates
-the signed-in account set — RP apps via `OxyProvider` (`@oxyhq/services`), the
+the signed-in account set — RP apps via `OxyProvider` (`@oxy.so/services`), the
 IdP account chooser on auth.oxy.so — reads and writes that same state, and every
 mutation is pushed in realtime to all apps on the device via one socket room.
 
@@ -94,7 +94,7 @@ Dead entries never sit in the set silently:
 
 ---
 
-## Contracts (`@oxyhq/contracts`)
+## Contracts (`@oxy.so/contracts`)
 
 Defined in `packages/contracts/src/deviceSession.ts`, exported from the package root:
 
@@ -108,7 +108,7 @@ import {
   type DeviceSessionState,
   type ActiveToken,
   type DeviceSessionSync,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 ```
 
 - **`DeviceSessionState`** is the token-free projection of the normalized rows
@@ -174,12 +174,12 @@ server.to(`device:${state.deviceId}`).emit('session_state', state); // DeviceSes
 
 ---
 
-## Client — `SessionClient` (`@oxyhq/core`)
+## Client — `SessionClient` (`@oxy.so/core`)
 
-`packages/core/src/session/` implements the client half. Apps normally never touch it — `OxyProvider` from `@oxyhq/services` wires it up (see the [integration guide](./integration-guide.md)); the surface below is for SDK/internal work.
+`packages/core/src/session/` implements the client half. Apps normally never touch it — `OxyProvider` from `@oxy.so/services` wires it up (see the [integration guide](./integration-guide.md)); the surface below is for SDK/internal work.
 
 ```typescript
-import { OxyServices, createSessionClient, type DeviceSessionState } from '@oxyhq/core';
+import { OxyServices, createSessionClient, type DeviceSessionState } from '@oxy.so/core';
 import { io } from 'socket.io-client';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });

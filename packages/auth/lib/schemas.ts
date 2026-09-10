@@ -4,7 +4,7 @@
  * The user / account / session RESPONSE contracts (`currentUserResponseSchema`,
  * `deviceLinkedSessionsResponseSchema`) plus the
  * device-flow `publicApplicationSchema` / `sessionStatusSchema` are NOT defined
- * here — they are owned by `@oxyhq/contracts` as the single source of truth
+ * here — they are owned by `@oxy.so/contracts` as the single source of truth
  * shared between the API (producer) and every consumer. Importing them straight
  * from the contracts package (not via the client SDK) keeps the wire shape from
  * drifting (a local `name: z.string()` previously rejected every structured-name
@@ -22,12 +22,12 @@ import {
     publicApplicationSchema,
     sessionStatusSchema,
     safeParseContract,
-} from "@oxyhq/contracts"
+} from "@oxy.so/contracts"
 import type {
     PublicApplicationResponse,
     SessionStatusResponse,
     ApplicationTypeContract,
-} from "@oxyhq/contracts"
+} from "@oxy.so/contracts"
 
 // Canonical, contracts-owned schemas re-exported for local import sites.
 export {
@@ -70,7 +70,7 @@ export const oauthStateSchema = z.object({
  * `null`) returns `true` so the caller renders the consent screen rather than
  * auto-approving on a parse error.
  *
- * The schema is `oauthConsentDecisionSchema` from `@oxyhq/contracts`, which the
+ * The schema is `oauthConsentDecisionSchema` from `@oxy.so/contracts`, which the
  * API now also parses its own response against. The local copy this file used to
  * carry was a flat `{consentRequired: boolean, reason: enum}` and admitted pairs
  * the server can never emit — `{consentRequired: true, reason: 'trusted'}` among

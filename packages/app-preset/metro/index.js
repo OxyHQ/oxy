@@ -1,14 +1,14 @@
 /**
- * @oxyhq/app-preset — Metro config factory.
+ * @oxy.so/app-preset — Metro config factory.
  *
  * Lifts the shared Metro configuration every Oxy Expo app used to copy-paste:
  * monorepo watch folders, the block list, symlink + package-exports resolution
- * (required by @oxyhq/bloom's subpath exports), the web-font/wasm asset
+ * (required by @oxy.so/bloom's subpath exports), the web-font/wasm asset
  * extensions, the release minifier tuning, and the NativeWind wrapper.
  *
  * Usage — a three-line metro.config.js:
  *
- *   const { createOxyMetroConfig } = require('@oxyhq/app-preset/metro');
+ *   const { createOxyMetroConfig } = require('@oxy.so/app-preset/metro');
  *   module.exports = createOxyMetroConfig(__dirname, {
  *     sharedTypesPackage: '@myapp/shared-types',
  *   });
@@ -110,7 +110,7 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     ],
     // Enable symlinks for workspace resolution.
     unstable_enableSymlinks: true,
-    // Enable package.json "exports" resolution (required by @oxyhq/bloom subpath exports).
+    // Enable package.json "exports" resolution (required by @oxy.so/bloom subpath exports).
     unstable_enablePackageExports: true,
     sourceExts: unique([
       ...config.resolver.sourceExts,
@@ -197,7 +197,7 @@ function withBloomSingleInstance(nativeWindConfig, projectRoot) {
     }
 
     const resolveContext =
-      moduleName === '@oxyhq/bloom' || moduleName.startsWith('@oxyhq/bloom/')
+      moduleName === '@oxy.so/bloom' || moduleName.startsWith('@oxy.so/bloom/')
         ? { ...context, originModulePath: bloomOrigin }
         : context;
 

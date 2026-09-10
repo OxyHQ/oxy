@@ -53,7 +53,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { and, eq } from 'drizzle-orm';
-import type { InferenceRequest } from '@oxyhq/contracts';
+import type { InferenceRequest } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountBalances } from '../../db/schema/accountBalances';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';

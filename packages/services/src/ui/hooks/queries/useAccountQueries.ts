@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
-import { authenticatedApiCall } from '@oxyhq/core';
-import type { ConnectedApp, User } from '@oxyhq/core';
+import { authenticatedApiCall } from '@oxy.so/core';
+import type { ConnectedApp, User } from '@oxy.so/core';
 import { queryKeys } from './queryKeys';
 import { mutationKeys } from '../mutations/mutationKeys';
 import { useOxy } from '../../context/OxyContext';

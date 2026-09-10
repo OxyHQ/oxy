@@ -9,7 +9,7 @@
  *     migration could silently leave it behind. A functional test would never
  *     notice: every insert still works.
  *  2. **The value sets in the schema equal the ones on the wire.** The columns
- *     take their enums from `@oxyhq/contracts`, so a drift would be a compile
+ *     take their enums from `@oxy.so/contracts`, so a drift would be a compile
  *     error — but the CHECK constraints are rendered from those tuples into SQL
  *     at migration time, so this asserts the constraint in `pg_constraint`
  *     admits exactly the contract's values and nothing else.
@@ -27,7 +27,7 @@ import {
   EXTERNAL_PAYMENT_PROVIDERS,
   RECONCILIATION_DISCREPANCY_KINDS,
   RECONCILIATION_RUN_STATUSES,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import {
   EXTERNAL_PAYMENTS_IMMUTABILITY_TRIGGER,

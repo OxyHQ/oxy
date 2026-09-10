@@ -11,7 +11,7 @@
 import {
   generateSecp256k1KeyPair,
   normalizeSecp256k1PublicKey,
-} from '@oxyhq/protocol/secp256k1';
+} from '@oxy.so/protocol/secp256k1';
 import { secp256k1PublicKeyToMultikey } from '../multikey';
 
 

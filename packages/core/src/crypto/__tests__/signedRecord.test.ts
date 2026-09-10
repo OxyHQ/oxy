@@ -1,25 +1,25 @@
 /**
- * Signed-record envelope tests — the DEVICE-key-bound path in `@oxyhq/core`.
+ * Signed-record envelope tests — the DEVICE-key-bound path in `@oxy.so/core`.
  *
  * `SignatureService.signRecord` / `signRecordV2` read the device key from
- * `KeyManager` and delegate the cryptography to `@oxyhq/protocol`'s
+ * `KeyManager` and delegate the cryptography to `@oxy.so/protocol`'s
  * `signEnvelope`. These tests prove the orchestration: an envelope built from a
  * stored key round-trips through the protocol's `verifyEnvelopeSignature`, and
  * tampering breaks it. The pure canonical-bytes / `computeRecordId` guards live
- * in `@oxyhq/protocol`'s own suite.
+ * in `@oxy.so/protocol`'s own suite.
  *
  * We mock `KeyManager.getPrivateKey` with a real secp256k1 private key,
  * so the signing/verification is genuine cryptography (not a stub).
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import {
   canonicalize,
   signedRecordSigningInput,
   verifySignature,
   verifyEnvelopeSignature,
-} from '@oxyhq/protocol';
+} from '@oxy.so/protocol';
 import { KeyManager } from '../keyManager';
 import { SignatureService } from '../signatureService';
 

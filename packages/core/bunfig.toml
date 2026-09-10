@@ -1,4 +1,4 @@
-# @oxyhq/core is a JEST package — see jest.config.cjs.
+# @oxy.so/core is a JEST package — see jest.config.cjs.
 #
 # `bun test` (bun's own runner) is NOT a supported way to run this suite, and
 # core is the worst case in the monorepo: `bun run test` reports 1282/1282 pass,

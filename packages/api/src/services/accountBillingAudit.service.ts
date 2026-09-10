@@ -83,7 +83,7 @@
  *
  * ## Direction is a field, not a sign
  *
- * `exactDecimalSchema` (`@oxyhq/contracts`) is non-negative BY REGEX, and its
+ * `exactDecimalSchema` (`@oxy.so/contracts`) is non-negative BY REGEX, and its
  * docblock states the rule the whole ledger is built on: direction is carried by
  * the shape, never by a sign, because "a signed amount is how a reversal
  * silently becomes a second charge". A negative `amount` string would be outside
@@ -168,7 +168,7 @@
  * MAPPER rather than through the ordering, and `new Date(v).toISOString()` does
  * the same thing by hand. Only the wire `createdAt` is normalised to ISO.
  *
- * `created_at`'s DEFAULT is `date_trunc('milliseconds', now())` (`@oxyhq/db`'s
+ * `created_at`'s DEFAULT is `date_trunc('milliseconds', now())` (`@oxy.so/db`'s
  * `createdAt()`), so every row written by today's ledger writers is already
  * millisecond-precision and would survive the lossy path. That is a property of
  * a column default in another package, not of this module: the column itself is

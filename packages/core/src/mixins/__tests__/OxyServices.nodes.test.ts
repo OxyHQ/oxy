@@ -21,7 +21,7 @@
  * key storage — mirroring the civic mixin tests.
  */
 
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { OxyServices } from '../../OxyServices';
 import { SignatureService } from '../../crypto/signatureService';
 import type { UserNodeStatus } from '../OxyServices.nodes';

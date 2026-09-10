@@ -47,7 +47,7 @@
  *
  * The real router, the real body schema, the real purge service, the real
  * `userService` graph teardown, the real `assetService.deleteFile` and the real
- * `@oxyhq/federation` canonicaliser all run. Only S3 (an object store, not a
+ * `@oxy.so/federation` canonicaliser all run. Only S3 (an object store, not a
  * store of record) and the service-credential middleware are substituted.
  */
 
@@ -89,7 +89,7 @@ jest.mock('../../services/securityActivityService', () => ({ __esModule: true, d
 // which is reproduced here over the REAL canonicaliser so `www.oxy.so` is
 // refused by the apex guard for the same reason the real one refuses it.
 jest.mock('../../services/federation.service', () => {
-  const { canonicalFederationHost } = jest.requireActual('@oxyhq/federation');
+  const { canonicalFederationHost } = jest.requireActual('@oxy.so/federation');
   return {
     __esModule: true,
     getUserPublicKey: jest.fn(),
@@ -118,8 +118,8 @@ jest.mock('../../utils/logger', () => ({
  * "no" for a candidate the query returned (see the re-verification test below).
  * Every other export, and every other call, is the genuine implementation.
  */
-jest.mock('@oxyhq/federation', () => {
-  const actual = jest.requireActual('@oxyhq/federation');
+jest.mock('@oxy.so/federation', () => {
+  const actual = jest.requireActual('@oxy.so/federation');
   return { __esModule: true, ...actual, isSameFederationHost: jest.fn(actual.isSameFederationHost) };
 });
 
@@ -139,13 +139,13 @@ import federationRouter from '../federation';
 
 type UserType = (typeof USER_TYPES)[number];
 
-type FederationModule = typeof import('@oxyhq/federation');
+type FederationModule = typeof import('@oxy.so/federation');
 
 const { isSameFederationHost: realIsSameFederationHost } =
-  jest.requireActual<FederationModule>('@oxyhq/federation');
+  jest.requireActual<FederationModule>('@oxy.so/federation');
 const federationModule = jest.requireMock<
   FederationModule & { isSameFederationHost: jest.Mock }
->('@oxyhq/federation');
+>('@oxy.so/federation');
 
 interface JsonResponse {
   status: number;

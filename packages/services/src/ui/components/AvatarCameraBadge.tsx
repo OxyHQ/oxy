@@ -2,7 +2,7 @@ import type React from 'react';
 import type { ViewStyle } from 'react-native';
 import { View } from 'react-native-css/components';
 import Ionicons from '../icons/Ionicons';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 /**
  * The camera overlay badge on a pressable avatar — the "tap to change your

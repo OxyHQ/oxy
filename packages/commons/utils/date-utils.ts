@@ -10,7 +10,7 @@ import {
   getAccountDisplayName as coreGetAccountDisplayName,
   getNormalizedUserHandle,
   type DisplayNameUserShape,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 
 function readDisplayName(user: DisplayNameUserShape | null | undefined): string {
   const name = user?.name;

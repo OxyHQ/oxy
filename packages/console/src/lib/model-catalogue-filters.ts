@@ -1,4 +1,4 @@
-import type { InferenceModality, ModelCatalogueEntry } from '@oxyhq/contracts';
+import type { InferenceModality, ModelCatalogueEntry } from '@oxy.so/contracts';
 import { isUnitPriceAtMost } from '@/lib/money';
 
 /**

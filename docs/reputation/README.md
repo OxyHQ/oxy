@@ -5,7 +5,7 @@
 > F2 real-life QR attestation + validator jury, F3 proof-of-personhood, F4
 > verifiable credentials. The civic engine lives in
 > `packages/api/src/services/civic/` + `routes/civic.ts`; the SDK surface is in
-> `@oxyhq/core`; wire types in `@oxyhq/contracts/src/civic.ts`.
+> `@oxy.so/core`; wire types in `@oxy.so/contracts/src/civic.ts`.
 >
 > Related: [Identity / Oxy ID](../identity/README.md) · [Nodes](../nodes/README.md) ·
 > [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
@@ -88,15 +88,15 @@ validation).
 
 Enforced by `packages/api/src/routes/__tests__/reputationReadAuthz.test.ts`.
 
-### Types (`@oxyhq/contracts/src/reputation.ts`)
+### Types (`@oxy.so/contracts/src/reputation.ts`)
 
-**Every reputation type is owned by `@oxyhq/contracts`** — the closed value sets
+**Every reputation type is owned by `@oxy.so/contracts`** — the closed value sets
 (`REPUTATION_CATEGORIES`, `TRUST_TIERS`, `REPUTATION_TRANSACTION_STATUSES`,
 `REPUTATION_TARGET_ENTITY_TYPES`, `REPUTATION_DISPUTE_STATUSES`,
 `REPUTATION_INFLUENCE_CONTEXTS`), the response entities, the write-endpoint
-request bodies, and the `isFullReputationBalance` narrowing guard. `@oxyhq/core`
+request bodies, and the `isFullReputationBalance` narrowing guard. `@oxy.so/core`
 declares none of them and re-exports none of them; import them from
-`@oxyhq/contracts` directly.
+`@oxy.so/contracts` directly.
 
 That single ownership is load-bearing, not tidiness. Each API serializer in
 `packages/api/src/routes/reputation.routes.ts` builds a `const dto:
@@ -143,7 +143,7 @@ only, sweep the `GET:/reputation/` cache): `awardReputation`,
 `reverseReputationTransaction`, `voidReputationTransaction`,
 `recalculateReputation`, `upsertReputationRule`, `createReputationDispute`,
 `resolveReputationDispute`, `getReputationDisputeQueue`. All of their argument
-and return types come from `@oxyhq/contracts`.
+and return types come from `@oxy.so/contracts`.
 
 > **Not pending.** Karma was hard-replaced by this ledger (b28f886b), and the
 > `karmas`/`karmarules` collections were verified empty cluster-wide before the

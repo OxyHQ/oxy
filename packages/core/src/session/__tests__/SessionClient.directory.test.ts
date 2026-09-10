@@ -11,7 +11,7 @@
  *   4. an idempotent activation moves nothing, so it reconciles nothing and
  *      wakes nobody — the client-side reading of the server's `changed: false`.
  */
-import type { DeviceDirectory, DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceDirectory, DeviceSessionState } from '@oxy.so/contracts';
 import { SessionClient, type SessionClientHost } from '../SessionClient';
 import { resolveDeviceContext } from '../deviceDirectory';
 import { computeIdentityTag } from '../../utils/cacheKey';

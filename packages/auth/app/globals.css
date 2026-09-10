@@ -4,10 +4,10 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "nativewind/theme";
-@import "@oxyhq/bloom/design-tokens/theme.css";
+@import "@oxy.so/bloom/design-tokens/theme.css";
 
 /*
- * The IdP renders @oxyhq/services className screens (OxyProvider,
+ * The IdP renders @oxy.so/services className screens (OxyProvider,
  * OxyConsentScreen, OxyAccountDialog, AccountChooser) and their Bloom UI on
  * web. Tailwind v4 only scans the app's own tree by default, so the LAYOUT
  * utilities those workspace packages emit (flex-1, flex-row, items-center,
@@ -16,8 +16,8 @@
  * built lib — never all of node_modules. Paths are relative to THIS file
  * (packages/auth/app/) → repo-root node_modules.
  */
-@source "../../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}";
-@source "../../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}";
+@source "../../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}";
+@source "../../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";
 
 @custom-variant dark (&:is(.dark *));
 

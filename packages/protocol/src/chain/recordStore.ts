@@ -22,7 +22,7 @@
  * pre-append continuity check is only the fast-path rejection.
  */
 
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import type { AppendOutcome, ChainHead } from './types';
 
 export interface RecordStore {

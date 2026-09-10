@@ -2,12 +2,12 @@
  * Signing & verification — explicit-key crypto for signed-record envelopes.
  *
  * Stateless: every function takes the key material explicitly (no KeyManager,
- * no secure storage). `@oxyhq/core` binds these to a device key; nodes and the
+ * no secure storage). `@oxy.so/core` binds these to a device key; nodes and the
  * API verify with them. The scheme is `ES256K-DER-SHA256` everywhere:
  * secp256k1 over the SHA-256 of the canonical bytes, DER-encoded.
  */
 
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { signedRecordSigningInput, type SignedRecordSigningFields } from './signingInput';
 import { sha256 } from './recordId';
 import {
@@ -24,7 +24,7 @@ const ALG = 'ES256K-DER-SHA256' as const;
  *
  * Hashes the message with SHA-256, then signs the digest with secp256k1,
  * returning the DER-encoded hex signature. The low-level primitive behind both
- * {@link signEnvelope} and `@oxyhq/core`'s device-key signing helpers.
+ * {@link signEnvelope} and `@oxy.so/core`'s device-key signing helpers.
  */
 export async function signMessage(message: string, privateKeyHex: string): Promise<string> {
   const digest = await sha256(message);

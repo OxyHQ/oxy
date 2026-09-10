@@ -16,7 +16,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 
 /**
  * What a challenge may be spent on. A challenge minted for one flow can never be

@@ -11,13 +11,13 @@ import {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { useOxy, useCurrentUser } from '@oxyhq/services';
-import { buildUserDid } from '@oxyhq/core';
-import { Fab } from '@oxyhq/bloom/fab';
-import { useTabBarFootprint } from '@oxyhq/bloom/tab-bar';
+import { useOxy, useCurrentUser } from '@oxy.so/services';
+import { buildUserDid } from '@oxy.so/core';
+import { Fab } from '@oxy.so/bloom/fab';
+import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Screen, Section, Callout } from '@/components/ui';
 import { Ticket as OxyID } from '@/components/OxyID';
 import { FrontSide } from '@/components/OxyID/front-side';

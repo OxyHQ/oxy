@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { routingPolicySchema } from '@oxyhq/contracts'
-import type { ModelCatalogueEntry, RoutingPolicy } from '@oxyhq/contracts'
+import { routingPolicySchema } from '@oxy.so/contracts'
+import type { ModelCatalogueEntry, RoutingPolicy } from '@oxy.so/contracts'
 import type { StoredRoutingPolicy } from '@/lib/routing-policy'
 import {
   catalogueLicences,

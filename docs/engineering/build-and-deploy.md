@@ -26,7 +26,7 @@ Inbound mail for `*@oxy.so` is delivered as follows:
 5. Inbox UI at `inbox.oxy.so` reads `GET /email/mailboxes` + `GET /email/messages`.
 
 **Critical config invariants** — if any drifts, inbound mail silently disappears:
-- Worker var `API_URL` MUST equal `https://api.oxy.so` (NOT `mail.oxy.so` — that hostname still resolves to the retired DigitalOcean droplet `159.223.227.58` and returns 502).
+- Worker var `API_URL` MUST equal `https://api.oxy.so` (`mail.oxy.so` is a retired hostname, not an API route).
 - Worker secret `EMAIL_INBOUND_WEBHOOK_SECRET` MUST equal SSM `/oxy/oxy-api/EMAIL_INBOUND_WEBHOOK_SECRET` (mismatch → API returns 401 → Cloudflare bounces).
 - The raw body parser at `server.ts:95` MUST be registered BEFORE the global `express.json()` middleware (otherwise the JSON parser eats the RFC822 stream and `simpleParser` gets an empty Buffer).
 - `app.use('/email/inbound', emailInboundRoutes)` MUST be registered BEFORE `app.use('/email', ...)` in `server.ts` (otherwise the protected `/email` mount catches the unauthenticated webhook first).
@@ -56,9 +56,9 @@ aws --profile oxy --region us-west-2 logs tail /oxy/ecs --log-stream-name-prefix
   | grep -iE 'inbound|envelope|delivered'
 ```
 
-**Migration cleanup (2026-06-12):** ✅ DigitalOcean fully removed from the inbox path.
+**Current mail state:**
 - SPF for `oxy.so` now reads `v=spf1 include:amazonses.com include:_spf.mx.cloudflare.net ~all`.
-- DNS A record `mail.oxy.so` (→ `159.223.227.58`) deleted.
+- The legacy `mail.oxy.so` A record is absent.
 - Worker `email-inbound` redeployed with `API_URL=https://api.oxy.so` (ECS).
 - Outbound: SES via `SMTP_RELAY_HOST` only. nodemailer v8 removed the legacy `{ direct: true }` MX path — `smtp.outbound.ts` now fails fast if `SMTP_RELAY_HOST` is unset.
 
@@ -91,8 +91,8 @@ Look up the exact `.bun/<pkg>@<ver>+<hash>/` directory in the running image (it 
 ## Commands
 
 ```bash
-bun run core:build               # Build @oxyhq/core
-bun run services:build           # Build @oxyhq/services
+bun run core:build               # Build @oxy.so/core
+bun run services:build           # Build @oxy.so/services
 bun run build:all                # Build all (order: contracts -> core -> services -> rest)
 bun run test                     # Run all workspace tests (Jest via turbo — see note below)
 bun run dev                      # Dev mode across workspaces
@@ -101,59 +101,59 @@ bun install                      # Install all workspace deps
 
 **Shared dependency versions live in `workspaces.catalog` (root `package.json`), not in the manifests.** A package shared by two or more workspaces is declared there once and referenced as `"catalog:"` everywhere it is used, root `overrides` included — an override reading `"catalog:"` still rewrites transitive resolutions. Bumping one is a single edit plus `bun install`. A package with a range that legitimately differs per workspace (`packages/core` and `packages/protocol` target Expo SDK 56 while the apps are on 57) stays literal, because a catalog entry would be asserting an agreement that does not exist.
 
-This is safe for PUBLISHED packages only because of `scripts/assert-bun-publish.mjs`: `bun pm pack` substitutes a `catalog:` reference to the catalog's own range, while `npm pack` ships the literal string `catalog:`, which no consumer can resolve — the exact failure that broke `@oxyhq/core@12.10.1` with `workspace:`, one protocol later. Verified on the real `@oxyhq/core` and `@oxyhq/services` tarballs.
+This is safe for PUBLISHED packages only because of `scripts/assert-bun-publish.mjs`: `bun pm pack` substitutes a `catalog:` reference to the catalog's own range, while `npm pack` ships the literal string `catalog:`, which no consumer can resolve — the exact failure that broke `@oxy.so/core@12.10.1` with `workspace:`, one protocol later. Verified on the real `@oxy.so/core` and `@oxy.so/services` tarballs.
 
-**`bun install` refuses to RESOLVE a dependency published in the last week** (`minimumReleaseAge` in `bunfig.toml`), where a compromised release is most likely to still be live. Resolution only — a frozen install is never affected, cold cache included. Anything that re-resolves must opt out, which is why `scripts/check-lockfile-sync.mjs` passes `--minimum-release-age=0`; without it a dependency published this week fails that check for a week with nothing actually wrong. Excludes match EXACT names (a `"@oxyhq/*"` glob parses and silently matches nothing), and only registry-sourced first-party packages need listing — the `@oxyhq/*` packages built here are workspaces.
+**`bun install` refuses to RESOLVE a dependency published in the last week** (`minimumReleaseAge` in `bunfig.toml`), where a compromised release is most likely to still be live. Resolution only — a frozen install is never affected, cold cache included. Anything that re-resolves must opt out, which is why `scripts/check-lockfile-sync.mjs` passes `--minimum-release-age=0`; without it a dependency published this week fails that check for a week with nothing actually wrong. Excludes match EXACT names (a `"@oxy.so/*"` glob parses and silently matches nothing), and only registry-sourced first-party packages need listing — the `@oxy.so/*` packages built here are workspaces.
 
 **Test runners — per-package split (CRITICAL):**
-- `@oxyhq/api`, `@oxyhq/core`, `@oxyhq/services`, `@oxyhq/contracts`, and the `commons` app use **Jest** (ts-jest / jest-expo). Their `test` script invokes `jest`.
+- `@oxy.so/api`, `@oxy.so/core`, `@oxy.so/services`, `@oxy.so/contracts`, and the `commons` app use **Jest** (ts-jest / jest-expo). Their `test` script invokes `jest`.
 - `packages/auth` (the standalone Vite IdP app) uses **Bun's native `bun test`** — configured via `packages/auth/bunfig.toml` (`[test] preload`), NOT jest. Its `test` script is `bun test lib/__tests__ components/__tests__` (the earlier `server/__tests__` suite no longer exists — do not reference it).
 - THE RULE: always run each package's OWN `bun run test` script, which dispatches to the correct runner. At the monorepo root, `bun run test` delegates through turbo and is safe. NEVER blanket-invoke `bun test` across the monorepo — it runs Bun's native runner over the Jest packages, producing dozens of false failures in core and api (`jest.resetModules`, `jest.advanceTimersByTimeAsync`, and other Jest APIs are unavailable under Bun's runner). Do NOT assume all packages are Jest — the auth app (`packages/auth`) is bun-test.
 - Per-package baselines, as last verified 2026-07-19 (when run under the correct runner): contracts **147**, core **1052**, api **1808**, services **305**, auth IdP **59**, commons **411**. These drift as suites grow — re-verify with each package's own `bun run test` rather than trusting a number here that's gone stale.
 
 ## Architecture
 
-Monorepo (`@oxyhq/sdk`) using Bun workspaces + Turbo. Build order matters: `contracts` -> `core` -> `services` -> rest (turbo derives this from the dependency graph). **`@oxyhq/services` is the single UI SDK for web AND native** (RN Web on web) — the former standalone web SDK package was deleted from the monorepo; do not recreate it.
+Monorepo (`@oxy.so/sdk`) using Bun workspaces + Turbo. Build order matters: `contracts` -> `core` -> `services` -> rest (turbo derives this from the dependency graph). **`@oxy.so/services` is the single UI SDK for web AND native** (RN Web on web) — the former standalone web SDK package was deleted from the monorepo; do not recreate it.
 
 ```
 packages/
-  contracts/      @oxyhq/contracts  Contract-first API schemas (Zod) — zero React/RN/Expo
-  protocol/       @oxyhq/protocol   Shared protocol layer
-  core/           @oxyhq/core       Platform-agnostic foundation (zero React/RN)
-  services/       @oxyhq/services   Expo/React Native SDK — the ONLY UI SDK (web via RN Web + native)
-  api/            @oxyhq/api        Express.js backend API
-  node/           @oxyhq/node       User-operated data node (signed-records replica)
-  federation/     @oxyhq/federation App-agnostic ActivityPub identity + follow engine substrate (connector contract, HTTP signatures, bridge relabelling — see "Federation" below)
+  contracts/      @oxy.so/contracts  Contract-first API schemas (Zod) — zero React/RN/Expo
+  protocol/       @oxy.so/protocol   Shared protocol layer
+  core/           @oxy.so/core       Platform-agnostic foundation (zero React/RN)
+  services/       @oxy.so/services   Expo/React Native SDK — the ONLY UI SDK (web via RN Web + native)
+  api/            @oxy.so/api        Express.js backend API
+  node/           @oxy.so/node       User-operated data node (signed-records replica)
+  federation/     @oxy.so/federation App-agnostic ActivityPub identity + follow engine substrate (connector contract, HTTP signatures, bridge relabelling — see "Federation" below)
   accounts/                         Expo accounts app ("Accounts by Oxy" — keyless, management-only)
   commons/                          Expo identity vault app ("Commons by Oxy" — NATIVE-ONLY, no web build)
-  auth/                             Vite IdP app (auth.oxy.so — OAuth authorize/consent on @oxyhq/services, device-first like every app)
-  console/                          Developer portal (Vite + @oxyhq/services)
+  auth/                             Vite IdP app (auth.oxy.so — OAuth authorize/consent on @oxy.so/services, device-first like every app)
+  console/                          Developer portal (Vite + @oxy.so/services)
   test-app-expo/                    Expo test/playground app
-  expo-splash/    @oxyhq/expo-splash
-  app-preset/     @oxyhq/app-preset Shared Expo config plugin + Metro/Babel/CSS/ESLint/tsconfig bases for every Oxy app
+  expo-splash/    @oxy.so/expo-splash
+  app-preset/     @oxy.so/app-preset Shared Expo config plugin + Metro/Babel/CSS/ESLint/tsconfig bases for every Oxy app
   create-oxy-app/ create-oxy-app    `bun create oxy-app` scaffolder — generates the canonical packages/frontend+backend+shared-types monorepo
-  ship/           @oxyhq/ship       oxy-ship CLI — publishes Expo OTA updates to the Oxy Updates service
+  ship/           @oxy.so/ship       oxy-ship CLI — publishes Expo OTA updates to the Oxy Updates service
 ```
 
 **Dependency graph:**
 ```
-@oxyhq/contracts      no internal deps (only zod)
-@oxyhq/core           dep: @oxyhq/contracts
-@oxyhq/services       dep: @oxyhq/core + @oxyhq/contracts
-@oxyhq/api            dep: @oxyhq/contracts + @oxyhq/core/server for auth middleware
-@oxyhq/federation     dep: @oxyhq/core (isomorphic entry has zero Express/Mongo deps; `./node` subpath adds them)
-accounts              dep: @oxyhq/core + @oxyhq/services
-commons               dep: @oxyhq/core + @oxyhq/services  (NATIVE-ONLY — no web build/CF Pages)
-console               dep: @oxyhq/core + @oxyhq/services  (RN Web via Vite)
-auth (IdP)            dep: @oxyhq/core + @oxyhq/services  (RN Web via Vite, device-first cold boot)
-test-app-expo         dep: @oxyhq/services
+@oxy.so/contracts      no internal deps (only zod)
+@oxy.so/core           dep: @oxy.so/contracts
+@oxy.so/services       dep: @oxy.so/core + @oxy.so/contracts
+@oxy.so/api            dep: @oxy.so/contracts + @oxy.so/core/server for auth middleware
+@oxy.so/federation     dep: @oxy.so/core (isomorphic entry has zero Express/Mongo deps; `./node` subpath adds them)
+accounts              dep: @oxy.so/core + @oxy.so/services
+commons               dep: @oxy.so/core + @oxy.so/services  (NATIVE-ONLY — no web build/CF Pages)
+console               dep: @oxy.so/core + @oxy.so/services  (RN Web via Vite)
+auth (IdP)            dep: @oxy.so/core + @oxy.so/services  (RN Web via Vite, device-first cold boot)
+test-app-expo         dep: @oxy.so/services
 ```
 
-**Expo native-module version alignment (accounts, commons, test-app-expo):** when `@oxyhq/services`' pinned version of a native module (e.g. `react-native-svg`, `react-native-safe-area-context`, `react-native-keyboard-controller`) diverges from the version the current Expo SDK bundles, align the whole monorepo UP to the higher version and add that package to `expo.install.exclude` in the app's `package.json` — this stops `expo install --fix` / expo-doctor from downgrading it back to the SDK-bundled version. Never let two versions of the same native module coexist across the workspace. `react-native-svg` + `react-native-safe-area-context` are excluded in all three apps; `react-native-keyboard-controller` is additionally excluded in accounts and commons (test-app-expo doesn't depend on it).
+**Expo native-module version alignment (accounts, commons, test-app-expo):** when `@oxy.so/services`' pinned version of a native module (e.g. `react-native-svg`, `react-native-safe-area-context`, `react-native-keyboard-controller`) diverges from the version the current Expo SDK bundles, align the whole monorepo UP to the higher version and add that package to `expo.install.exclude` in the app's `package.json` — this stops `expo install --fix` / expo-doctor from downgrading it back to the SDK-bundled version. Never let two versions of the same native module coexist across the workspace. `react-native-svg` + `react-native-safe-area-context` are excluded in all three apps; `react-native-keyboard-controller` is additionally excluded in accounts and commons (test-app-expo doesn't depend on it).
 
-## @oxyhq/contracts — Contract-First API Schemas
+## @oxy.so/contracts — Contract-First API Schemas
 
-Package: `packages/contracts` → `@oxyhq/contracts`. SINGLE SOURCE OF TRUTH for API request/response contracts.
+Package: `packages/contracts` → `@oxy.so/contracts`. SINGLE SOURCE OF TRUTH for API request/response contracts.
 
 **What it contains:**
 - Zod schemas: `userNameSchema` (`displayName` field is optional — `z.string().optional()`), `userResponseSchema` (includes `did?` + `verifiedDomains?`), `userProfileUpdateSchema`, `currentUserResponseSchema`, `deviceSessionAccountSchema`, `deviceSessionsResponseSchema`
@@ -167,16 +167,16 @@ Package: `packages/contracts` → `@oxyhq/contracts`. SINGLE SOURCE OF TRUTH for
 
 **Dockerfile:** both builder and production stages MUST include `packages/contracts`: COPY the directory, build it before core/api, copy its `dist` into the production stage. Any future workspace package consumed by oxy-api MUST be added to the Dockerfile the same way or `bun install` in the ECS image fails to resolve `workspace:*`.
 
-**Rule:** new shared API contracts go in `@oxyhq/contracts`. Server validates output against them; clients validate input and derive `z.infer<>` types. This prevents the Zod-drift class of bug (field-shape mismatch causing `safeParse` to silently return null and the auth app to show logged-out state). Do NOT re-introduce local schema copies in `packages/auth/lib/schemas.ts` — use `@oxyhq/contracts` directly or keep schemas strictly in sync.
+**Rule:** new shared API contracts go in `@oxy.so/contracts`. Server validates output against them; clients validate input and derive `z.infer<>` types. This prevents the Zod-drift class of bug (field-shape mismatch causing `safeParse` to silently return null and the auth app to show logged-out state). Do NOT re-introduce local schema copies in `packages/auth/lib/schemas.ts` — use `@oxy.so/contracts` directly or keep schemas strictly in sync.
 
 **CI / test build-order — resolve workspace deps from source (CRITICAL):**
-`.github/workflows/ci.yml` job `api-test` runs `bun install` then `bun run test` in `packages/api` — it does NOT build workspace deps first. `@oxyhq/contracts` and `@oxyhq/core` ship compiled, so tests importing them fail in CI with `Cannot find module` unless mapped to source. Fixed by resolving both from their TypeScript source in test configs:
-- **api (Jest):** `moduleNameMapper` in `packages/api/jest.config.js` → `'^@oxyhq/contracts$': '<rootDir>/../contracts/src/index.ts'` and `'^@oxyhq/core/server$': '<rootDir>/../core/src/server/index.ts'` (the latter added because `@oxyhq/api` now imports `safeFetch`/`SsrfRejection` from `@oxyhq/core/server` for federation and email SSRF fixes — PRs #259/#264/#266).
-- **auth (bun test):** `mock.module('@oxyhq/contracts', …)` in `packages/auth/lib/__tests__/setup-contracts-source.ts`, loaded first via `packages/auth/lib/__tests__/preload.ts` (mirrors the existing `mock.module` pattern in `lib/__tests__/setup-mocks.ts` for `@oxyhq/bloom/avatar`).
+`.github/workflows/ci.yml` job `api-test` runs `bun install` then `bun run test` in `packages/api` — it does NOT build workspace deps first. `@oxy.so/contracts` and `@oxy.so/core` ship compiled, so tests importing them fail in CI with `Cannot find module` unless mapped to source. Fixed by resolving both from their TypeScript source in test configs:
+- **api (Jest):** `moduleNameMapper` in `packages/api/jest.config.js` → `'^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts'` and `'^@oxy.so/core/server$': '<rootDir>/../core/src/server/index.ts'` (the latter added because `@oxy.so/api` now imports `safeFetch`/`SsrfRejection` from `@oxy.so/core/server` for federation and email SSRF fixes — PRs #259/#264/#266).
+- **auth (bun test):** `mock.module('@oxy.so/contracts', …)` in `packages/auth/lib/__tests__/setup-contracts-source.ts`, loaded first via `packages/auth/lib/__tests__/preload.ts` (mirrors the existing `mock.module` pattern in `lib/__tests__/setup-mocks.ts` for `@oxy.so/bloom/avatar`).
 
-RULE: any package whose tests import a build-required workspace dep (`@oxyhq/contracts`, `@oxyhq/core/server`, etc.) MUST either map that dep to `src/` in the test config (Jest `moduleNameMapper` or bun-test `mock.module` preload) OR the CI job must build the dep first. The contracts source uses extensionless relative imports (`from './userResponse'`), which work under both ts-jest and bun's resolver.
+RULE: any package whose tests import a build-required workspace dep (`@oxy.so/contracts`, `@oxy.so/core/server`, etc.) MUST either map that dep to `src/` in the test config (Jest `moduleNameMapper` or bun-test `mock.module` preload) OR the CI job must build the dep first. The contracts source uses extensionless relative imports (`from './userResponse'`), which work under both ts-jest and bun's resolver.
 
-**api BUILD now pre-builds `@oxyhq/core` (source change):** `packages/api/package.json` build script is `bun run --filter @oxyhq/contracts build && bun run --filter @oxyhq/core build && tsc`. This is required because `@oxyhq/api` imports `@oxyhq/core/server` (safeFetch, SsrfRejection) — without the core `dist/`, tsc fails TS2307 and downstream TS18046. The federation (`federation.service.ts`) and email (`email.service.ts`) services now route outbound fetches of user/remote-supplied URLs through `safeFetch` (https-only + streaming byte caps) instead of hand-rolled DNS checks.
+**api BUILD now pre-builds `@oxy.so/core` (source change):** `packages/api/package.json` build script is `bun run --filter @oxy.so/contracts build && bun run --filter @oxy.so/core build && tsc`. This is required because `@oxy.so/api` imports `@oxy.so/core/server` (safeFetch, SsrfRejection) — without the core `dist/`, tsc fails TS2307 and downstream TS18046. The federation (`federation.service.ts`) and email (`email.service.ts`) services now route outbound fetches of user/remote-supplied URLs through `safeFetch` (https-only + streaming byte caps) instead of hand-rolled DNS checks.
 
 Build-vs-source distinction: production/Docker consumes the built `dist/` (the Dockerfile builds `packages/contracts` then `packages/core` before `packages/api`); tests consume the TS source via the mappings above. Both are intentional.
 
@@ -189,7 +189,7 @@ Build-vs-source distinction: production/Docker consumes the built `dist/` (the D
 - `packages/core/src/mixins/OxyServices.contacts.ts` — `contacts.discoverContacts(hashedEmails, hashedPhones)` privacy-first contact discovery
 - `packages/core/src/mixins/OxyServices.workspaces.ts` — `workspaces` mixin (CRUD + members + transfer); `Workspace`/`WorkspaceMember` types
 - `packages/core/src/mixins/OxyServices.applications.ts` — `getApplications(workspaceId?)` + `getPublicApplication(clientId)`; `PublicApplication` type
-- `packages/core/src/server/index.ts` — public `@oxyhq/core/server` exports
+- `packages/core/src/server/index.ts` — public `@oxy.so/core/server` exports
 - `packages/core/src/server/auth.ts` — `createOptionalOxyAuth`, `createOxyAuthMiddleware`, `requireOxyAuth`, `getRequiredOxyUserId`
 - `packages/core/src/server/rateLimit.ts` — `createOxyRateLimit`
 - `packages/core/src/server/safeFetch.ts` — `safeFetch(url, opts)`, `assertSafePublicUrl` (SSRF-safe fetch; DNS-pinned, private-IP denylist, bounded redirects, Bun `{all:true}` lookup-array contract)
@@ -200,7 +200,7 @@ Build-vs-source distinction: production/Docker consumes the built `dist/` (the D
 - `packages/core/src/mixins/OxyServices.identity.ts` — `identity` mixin: `resolveDid`, `getMyDid`, `listAuthMethods`, `linkIdentityKey`, `unlinkAuthMethod`, `linkPassword`, `signRecord`, `publishRecord`, `getRecord`, `verifyRecord`, `exportMyData`, `requestDomainVerification`, `verifyDomain`, `listDomains`, `removeDomain`
 - `packages/core/src/mixins/OxyServices.civic.ts` — `civic` mixin: `getPublicCard`, `getMyIdPayload`, `parseIdPayload`, `buildAttestQrPayload`, `parseAttestPayload`, `submitRealLifeAttestation`, `getValidatorInbox`, `submitValidationVote`, `denyValidation`, `vouchForPerson`, `withdrawVouch`, `getPersonhood`, `getMyPersonhood`, `issueCredential`, `listCredentials`, `listMyCredentials`, `verifyCredential`, `revokeCredential`
 - `packages/core/src/session/` — `SessionClient`, `createSessionClient`, `createSessionClientHost`, session-state projection, account-dialog controller, auth-state store, token-refresh scheduler
-- `packages/core/src/session/SessionClient.ts` — `SessionClient.onServerEvent(event, listener)`: generic subscription to named server-pushed Socket.IO events (survives reconnects; unsubscribe fn returned). Consumed via the `useOxyEvent(event, handler)` hook exported from `@oxyhq/services`.
+- `packages/core/src/session/SessionClient.ts` — `SessionClient.onServerEvent(event, listener)`: generic subscription to named server-pushed Socket.IO events (survives reconnects; unsubscribe fn returned). Consumed via the `useOxyEvent(event, handler)` hook exported from `@oxy.so/services`.
 - `packages/core/src/session/identityPin.ts` / `identitySession.ts` — the `sessionMode: 'identity'` pin store + `resolveIdentityPin`/`establishIdentitySession` (issue #691 Phase 1)
 - `packages/core/src/utils/commonsDelivery.ts` — `selectCommonsDelivery` (issue #691 Phase 4 automatic delivery decision)
 - `packages/api/src/utils/applicationCapabilities.ts` — `APPLICATION_CAPABILITIES`, `IDENTITY_APPROVAL_CAPABILITY`, `hasApplicationCapability` (staff-only `Application.capabilities` vocabulary)
@@ -214,7 +214,7 @@ Build-vs-source distinction: production/Docker consumes the built `dist/` (the D
 - `packages/services/src/ui/utils/oauthReturn.ts` — `tryCompleteOAuthReturn` (consume a `?code=`/`?error=` already on the URL), `replaceUrlAfterOAuthReturn` (restore the deep link + notify the router via `popstate`)
 - `packages/services/src/ui/session/identityBinding.ts` — `IdentityBoundSessionError` (thrown by `switchToAccount`/`switchSession` in `sessionMode: 'identity'`)
 - `packages/services/src/index.ts` — all public UI SDK exports (web + native); includes `LogoIcon`, `LogoText`
-- `packages/services/src/notifications/deviceNotifications.ts` — the ONE `expo-notifications` adapter, reached ONLY as `@oxyhq/services/notifications` (never the root barrel — see Package Boundaries)
+- `packages/services/src/notifications/deviceNotifications.ts` — the ONE `expo-notifications` adapter, reached ONLY as `@oxy.so/services/notifications` (never the root barrel — see Package Boundaries)
 - **`packages/services/src/ui/context/OxyContext.tsx`** — auth provider + `useOxy()` (web + native); types in `oxyContextTypes.ts`, account graph in `useOxyAccountGraph.ts`, imperative dialog in `navigation/accountDialogManager.ts` (`openAccountDialog('signin')`)
 - `packages/services/src/ui/components/OxyProvider.tsx` — the ONE provider component (device-first cold boot on by default; every consumer including the IdP mounts it the same way)
 - `packages/services/src/ui/components/OxyAccountDialog.tsx` — unified account switcher + sign-in dialog (Bloom `<Dialog>`)
@@ -228,7 +228,7 @@ Build-vs-source distinction: production/Docker consumes the built `dist/` (the D
 Durable record of releases whose version number does NOT tell you what changed.
 Check here before assuming a range is safe.
 
-### `@oxyhq/core@13.2.0` — a BREAKING change shipped under a MINOR (deprecated)
+### `@oxy.so/core@13.2.0` — a BREAKING change shipped under a MINOR (deprecated)
 
 `13.2.0` changed **`buildPaginationParams`'s return type from `URLSearchParams`
 to `Record<string, string>`** — a runtime-breaking change to a function exported
@@ -247,7 +247,7 @@ pick it up silently.
 - **Status:** `13.2.0` is deprecated on npm. npm now resolves `^13.0.0` to
   `13.0.0` rather than `13.2.0`; an explicit `13.2.0` install still works but
   warns. The identical content is published as **`14.0.0`** under the correct
-  major — **prefer `^14.0.0`**. `@oxyhq/services@23.1.0` pinned `core@^13.2.0`
+  major — **prefer `^14.0.0`**. `@oxy.so/services@23.1.0` pinned `core@^13.2.0`
   and is deprecated in favour of `23.2.0`, which pins `^14.0.0`.
 
 Full detail: `packages/core/CHANGELOG.md`.

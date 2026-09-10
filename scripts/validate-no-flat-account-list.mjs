@@ -34,7 +34,7 @@
  * ## The rules
  *
  *   1. **Retired identifiers**, anywhere in tracked source. The exported names
- *      and module paths that left `@oxyhq/core` and `@oxyhq/services` in the
+ *      and module paths that left `@oxy.so/core` and `@oxy.so/services` in the
  *      cutover. Every one of them is verified absent from this tree; a match is
  *      always a reintroduction.
  *   2. **Scoped bans** — a call that is perfectly legitimate elsewhere but is
@@ -108,7 +108,7 @@ const fixtureFloors = process.env.FLAT_ACCOUNT_LIST_VALIDATOR_FIXTURE_FLOORS ===
 const RETIRED_IDENTIFIERS = [
   {
     name: "SwitchableAccount",
-    was: "@oxyhq/core's flat switcher row — one ACCOUNT, with no answer to whose route it is",
+    was: "@oxy.so/core's flat switcher row — one ACCOUNT, with no answer to whose route it is",
     instead: "SwitcherPrincipalRow / DeviceContext, grouped by the person who can operate them",
   },
   {
@@ -133,7 +133,7 @@ const RETIRED_IDENTIFIERS = [
   },
   {
     name: "useSwitchableAccounts",
-    was: "@oxyhq/services' hook over that projection",
+    was: "@oxy.so/services' hook over that projection",
     instead: "useDeviceSwitcher",
   },
   {

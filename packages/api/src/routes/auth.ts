@@ -10,18 +10,18 @@ import type {
   CommonsDenyReason,
   OauthAuthorizeCodeResponse,
   OauthConsentDecision,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   oauthAuthorizeCodeResponseSchema,
   oauthConsentDecisionSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import express from 'express';
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { SessionController } from '../controllers/session.controller';
-import { publicColumns } from '@oxyhq/db/assert';
+import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { appGrants } from '../db/schema/appGrants';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
@@ -208,7 +208,7 @@ router.use('/webauthn', webauthnRouter);
  *     summary: Register a new account with a public key
  *     description: >
  *       Create a passwordless account bound to a local secp256k1 identity.
- *       The client generates a key pair (see `KeyManager` in `@oxyhq/core`),
+ *       The client generates a key pair (see `KeyManager` in `@oxy.so/core`),
  *       signs `register:{publicKey}:{timestamp}`, and submits the
  *       signature. Username and email are optional but recommended for
  *       discoverability.
@@ -2256,7 +2256,7 @@ async function userExists(userId: string): Promise<boolean> {
  * `commons://` + `oxycommons://` as its whole redirect surface
  * (`scripts/seedOxyApplicationsSpecs.ts`), both of which derive to `"null"`.
  *
- * Mirrors `OPAQUE_ORIGIN` in `@oxyhq/core`'s `server/cors.ts`, which refuses the
+ * Mirrors `OPAQUE_ORIGIN` in `@oxy.so/core`'s `server/cors.ts`, which refuses the
  * same value on both sides of the CORS allowlist for the same reason.
  */
 const OPAQUE_ORIGIN = 'null';
@@ -3277,7 +3277,7 @@ router.post(
     //
     // #937 asks for a third party to receive no DeviceSession credential at all.
     // That is the right end state and it is NOT what this ships, deliberately:
-    // `exchangeOAuthCode` in `@oxyhq/core` hard-requires `deviceId` AND
+    // `exchangeOAuthCode` in `@oxy.so/core` hard-requires `deviceId` AND
     // `deviceSecret` and throws without them, so omitting the pair here breaks
     // every third-party "Sign in with Oxy" through the SDK — silently, since the
     // throw is caught and reported as `exchange-failed`. Closing that needs a
@@ -3704,7 +3704,7 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
   // Service tokens are bearer credentials for Oxy-to-Oxy / internal routes;
   // self-service third-party applications must not be able to mint them even if
   // they somehow hold a historical `service` credential row — EXCEPT via the
-  // same narrow Oxy Pay carve-out enforced at credential-creation time
+  // same narrow Peable carve-out enforced at credential-creation time
   // (`applications.ts` POST /:appId/credentials): a non-trusted application MAY
   // mint a service token from a credential whose OWN scopes are a non-empty,
   // payments-only set ({@link isPaymentsScope}, i.e. `payments:read`/
@@ -3713,9 +3713,9 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
   // app's FULL granted scope set (`intersectScopes` fallback), so a scopeless
   // credential must never qualify here — only an explicit, payments-only
   // credential does. Both payments scopes are already non-privileged/
-  // self-grantable and tenant-scoped, and the Oxy Pay Gateway only honours
-  // `payments:*`, so this lets external Oxy Pay merchants (WooCommerce,
-  // Mercaria, etc.) mint the payments-scoped service token the `@oxyhq/pay`
+  // self-grantable and tenant-scoped, and the Peable Gateway only honours
+  // `payments:*`, so this lets external Peable merchants (WooCommerce,
+  // Mercaria, etc.) mint the payments-scoped service token the `@oxy.so/pay`
   // SDK needs without ever letting a self-service app mint a token carrying
   // any other capability.
   const app = await findActiveApplicationById(credential.applicationId);
@@ -3748,9 +3748,9 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
   // name the responsible account, and it is resolved SERVER-side from the
   // presented credential, never accepted from the request. `environment` (F2.0)
   // mirrors the minting credential's own `ApplicationCredential.environment` so
-  // downstream services (e.g. the Oxy Pay Gateway) can enforce test/live
+  // downstream services (e.g. the Peable Gateway) can enforce test/live
   // isolation without a second DB lookup. `issuer`/`audience` MUST match what
-  // `@oxyhq/core`'s `oxy.auth()` / `oxy.serviceAuth()` verifies against
+  // `@oxy.so/core`'s `oxy.auth()` / `oxy.serviceAuth()` verifies against
   // (`OXY_JWT_ISSUER`/`OXY_JWT_AUDIENCE` in `OxyServices.utility.ts`) —
   // omitting them left every real service token unverifiable by any external
   // consumer of the SDK.

@@ -111,7 +111,7 @@ One line, in the `.sql` file, no default:
 The deploy applies them itself — `pre` before the rollout, `post` after — so the
 ordering is not something anyone has to remember. `scripts/check-migration-phases.mjs`
 fails the pull request when a migration omits the marker or when the deploy stops
-applying migrations; `@oxyhq/db`'s `migrate/phases.ts` carries the full reasoning.
+applying migrations; `@oxy.so/db`'s `migrate/phases.ts` carries the full reasoning.
 
 Two rules follow, and both bite:
 

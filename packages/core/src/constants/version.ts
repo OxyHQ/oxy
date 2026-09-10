@@ -4,7 +4,7 @@
  */
 
 export const packageInfo = {
-    name: "@oxyhq/services",
+    name: "@oxy.so/services",
     version: "5.2.1",
     description: "Reusable OxyHQ module to handle authentication, user management, reputation system (Oxy Trust) and more 🚀",
     main: "lib/commonjs/node/index.js",

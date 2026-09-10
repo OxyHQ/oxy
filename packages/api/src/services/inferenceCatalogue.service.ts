@@ -4,7 +4,7 @@
  *
  * Issue #972, workstreams 5 and 11. Decided in
  * `docs/adr/0008-catalogue-concept-separation.md`; the wire shapes are
- * `@oxyhq/contracts`' `inference/catalogue.ts`.
+ * `@oxy.so/contracts`' `inference/catalogue.ts`.
  *
  * Four things live here and nowhere else:
  *
@@ -51,14 +51,14 @@ import type {
   RoutingProfile,
   UnitPrice,
   UsageUnit,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   INFERENCE_MONEY_SCALE,
   modelCatalogueEntrySchema,
   priceSnapshotSchema,
   routingProfileSchema,
-} from '@oxyhq/contracts';
-import type { SelectedRow } from '@oxyhq/db';
+} from '@oxy.so/contracts';
+import type { SelectedRow } from '@oxy.so/db';
 import { getDb } from '../config/postgres';
 import {
   inferenceDeployments,
@@ -1627,7 +1627,7 @@ export interface EdgeRoute {
  * vocabulary **cannot express a ranking**. `POST /v1/rerank` consumes text and
  * returns indices with relevance scores, which is none of the five. So rerank
  * constrains its INPUT and leaves its output unconstrained, rather than claiming
- * a modality that would be false. A `ranking` member would be a `@oxyhq/contracts`
+ * a modality that would be false. A `ranking` member would be a `@oxy.so/contracts`
  * enum change, and therefore a two-repo release (Kaana derives its own contract
  * from the published package and gates on drift) — not something to smuggle in
  * behind an endpoint.

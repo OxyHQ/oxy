@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import {
   installForegroundNotificationHandler,
   type ForegroundPresentation,
-} from '@oxyhq/services/notifications';
+} from '@oxy.so/services/notifications';
 import { authRequestCodeFromPush } from '@/lib/notifications/auth-request-push';
 
 /**
@@ -36,7 +36,7 @@ import { authRequestCodeFromPush } from '@/lib/notifications/auth-request-push';
  * requires the biometric gate plus the on-device identity signature.
  *
  * What lives here is the POLICY — which payload earns a banner. The install
- * itself is the shared `@oxyhq/services` adapter, which owns the one-shot,
+ * itself is the shared `@oxy.so/services` adapter, which owns the one-shot,
  * process-wide latch (`setNotificationHandler` is global, last-writer-wins
  * state) and the native-only guard. So this effect can stay a plain mount hook:
  * a remount hands the adapter the same decision again and the adapter no-ops,

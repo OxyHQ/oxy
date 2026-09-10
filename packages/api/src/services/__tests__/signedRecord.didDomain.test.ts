@@ -25,10 +25,10 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { asc, eq } from 'drizzle-orm';
-import { computeRecordId } from '@oxyhq/protocol';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { computeRecordId } from '@oxy.so/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { repoHeads } from '../../db/schema/repoHeads';
 import { signedRecords } from '../../db/schema/signedRecords';
@@ -44,7 +44,7 @@ interface Signer {
   privateKey: string;
 }
 
-/** The spelling the shipped SDK signs with (`@oxyhq/core` OXY_IDENTITY_APEX). */
+/** The spelling the shipped SDK signs with (`@oxy.so/core` OXY_IDENTITY_APEX). */
 function sdkDid(userId: string): string {
   return `did:web:oxy.so:u:${userId}`;
 }

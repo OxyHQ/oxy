@@ -24,10 +24,10 @@
  * scope — that belongs to `repoLog.test.ts` / `oxyRecordStore.test.ts`.
  */
 
-import { generateSecp256k1KeyPair, verifySecp256k1Digest } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair, verifySecp256k1Digest } from '@oxy.so/protocol/secp256k1';
 import { createHash } from 'node:crypto';
-import { signedRecordSigningInput } from '@oxyhq/protocol';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { signedRecordSigningInput } from '@oxy.so/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 const oxyKey = generateSecp256k1KeyPair();
 const OXY_PUBLIC = oxyKey.publicKey;

@@ -66,8 +66,8 @@
  * without the document being regenerated.
  *
  * Layers 1 to 4 read the COMMITTED bytes and need no build. Layer 5 runs the
- * generator, which refuses to write unless `@oxyhq/contracts`, `@oxyhq/core` and
- * `@oxyhq/db` are built — it names them itself when they are not.
+ * generator, which refuses to write unless `@oxy.so/contracts`, `@oxy.so/core` and
+ * `@oxy.so/db` are built — it names them itself when they are not.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -350,7 +350,7 @@ function anonymousEmailOperations(paths) {
  * `{}` is VALID OpenAPI and it means "any value is acceptable", so it is
  * indistinguishable from a considered decision to accept anything. Before the
  * generator grew a `ZodDiscriminatedUnion` case, every discriminated union in
- * `@oxyhq/contracts` converted to exactly this — including
+ * `@oxy.so/contracts` converted to exactly this — including
  * `inferenceContentPartSchema`, so the contract said a chat message's content array
  * accepts anything at all.
  */
@@ -647,7 +647,7 @@ if (undescribed.length > 0) {
       '    annotate the object the handler passes to `res.json` with the schema\'s own\n' +
       '    `z.infer<typeof …>` so `tsc` holds the two together.\n' +
       'Both identifiers must be IMPORTED by the route file, from ../schemas/* or\n' +
-      '@oxyhq/contracts. Then regenerate with `bun run openapi:generate`.',
+      '@oxy.so/contracts. Then regenerate with `bun run openapi:generate`.',
   );
 }
 

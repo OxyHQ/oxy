@@ -289,9 +289,13 @@ describe('time to first token', () => {
     });
     expect(metrics.timeToFirstTokenMs).not.toHaveProperty('p50Ms');
     // The field that makes that pending READABLE: with no data plane configured,
-    // nothing can have streamed, so this pending needs no investigation.
+    // nothing can have streamed, so this pending needs no investigation. That
+    // conclusion rests on `dataPlane` alone and is unaffected by the execution
+    // gate, which since #1216 defaults to ON when
+    // `INFERENCE_KAANA_EXECUTION` is unset. Asserted rather than left out, so
+    // that a future change back to fail-closed shows up here.
     expect(metrics.dataPlane).toBe('absent');
-    expect(metrics.dataPlaneExecution.enabled).toBe(false);
+    expect(metrics.dataPlaneExecution.enabled).toBe(true);
   });
 
   it('distinguishes an empty window from a window whose rows carry no value', async () => {
@@ -660,9 +664,14 @@ describe('the payload', () => {
     // Derived from `resolveKaanaDataPlane()`, not asserted: it is what tells a
     // reader whether a pending metric is expected or a fault.
     expect(metrics.dataPlane).toBe('absent');
+    // Unset `INFERENCE_KAANA_EXECUTION` means enabled since #1216 ("default
+    // execution on after cutover"): only an explicit `disabled`, or a value the
+    // resolver cannot read, closes the gate. `disabledReason` is therefore null
+    // here rather than 'not_configured' — a reason `resolveKaanaExecution` no
+    // longer has any way to return.
     expect(metrics.dataPlaneExecution).toEqual({
-      enabled: false,
-      disabledReason: 'not_configured',
+      enabled: true,
+      disabledReason: null,
     });
     // A required literal rather than prose: telemetry is written outside the
     // ledger transaction, and every surface built on it has to say so.

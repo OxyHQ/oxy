@@ -9,7 +9,7 @@ import {
   DISPLAY_NAME_LETTERS_RANGES,
   DISPLAY_NAME_NAME_SEPARATORS_RANGES,
 } from './displayNamePolicyRanges.generated';
-import { usernameSchema } from '@oxyhq/contracts';
+import { usernameSchema } from '@oxy.so/contracts';
 
 /**
  * Maximum stored length of a display name, in code units after cleaning.
@@ -132,7 +132,7 @@ export function isValidPassword(password: string): boolean {
  *
  * This is the SINGLE definition of the policy: the character-class sources below
  * are the ONE source of truth, shared between the API strip/gate
- * (`@oxyhq/api` `displayNameSanitize.ts` builds its global-flag patterns from
+ * (`@oxy.so/api` `displayNameSanitize.ts` builds its global-flag patterns from
  * them) and client-side inline validation (the RN profile editor via
  * {@link isValidDisplayName}) so the two can never drift. It is platform-agnostic
  * (no react/react-native/expo).
@@ -144,7 +144,7 @@ export function isValidPassword(password: string): boolean {
  * allowlisted Script_Extensions, INTERSECTED with General_Category L (so letters
  * only), MINUS the symbol-letter denylist — 120823 code points. Interpolated
  * into the negated class below, which is why both the reject gate here and the
- * `@oxyhq/api` strip path inherit the denylist without a second pattern.
+ * `@oxy.so/api` strip path inherit the denylist without a second pattern.
  */
 export const DISPLAY_NAME_ALLOWED_SCRIPTS = DISPLAY_NAME_ALLOWED_SCRIPTS_RANGES;
 
@@ -281,7 +281,7 @@ export function isValidObject(value: unknown): boolean {
  *
  * The version nibble accepts **1-8**, the versions RFC 9562 defines. It read
  * `[1-5]` — RFC 4122's set — which meant this function answered `false` for
- * every id this ecosystem actually mints: `@oxyhq/db`'s `generatedId()` is a
+ * every id this ecosystem actually mints: `@oxy.so/db`'s `generatedId()` is a
  * **uuid v7**, so `users.id`, `files.id` and every other Postgres primary key
  * since the 2026-07-31 cutover is one. A validator that rejects the only
  * version its own platform produces is worse than no validator: callers read
@@ -378,7 +378,7 @@ export function validateAndSanitizeUserInput(input: unknown, type: 'string' | 'e
     case 'email':
       return isValidEmail(sanitized) ? sanitized : null;
     case 'username':
-      // The ONE policy, from `@oxyhq/contracts`. This module used to declare a
+      // The ONE policy, from `@oxy.so/contracts`. This module used to declare a
       // second one (`^[a-zA-Z0-9_-]{3,30}$`) that the server did not enforce, so
       // the SDK could call a name valid and the API 400 it.
       return usernameSchema.safeParse(sanitized).success ? sanitized : null;

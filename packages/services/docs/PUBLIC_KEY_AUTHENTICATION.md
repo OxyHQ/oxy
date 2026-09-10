@@ -95,7 +95,7 @@ Web fallback: if the user is on the web, apps can send them to the auth gateway 
 Third-party apps can implement "Sign in with Oxy" using the `OxySignInButton` component:
 
 ```typescript
-import { OxySignInButton } from '@oxyhq/services';
+import { OxySignInButton } from '@oxy.so/services';
 
 function LoginScreen() {
   return (
@@ -119,7 +119,7 @@ This button:
 If you need more control over the authentication flow:
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 function CustomAuthScreen() {
   const { showBottomSheet } = useOxy();
@@ -176,7 +176,7 @@ Note: These endpoints are also available under `/auth` (e.g., `POST /auth/verify
 #### Example: User Registration
 
 ```typescript
-import { KeyManager, SignatureService } from '@oxyhq/core';
+import { KeyManager, SignatureService } from '@oxy.so/core';
 
 // Client-side (in Oxy Accounts app)
 async function registerUser() {
@@ -236,12 +236,12 @@ async function signIn() {
 
 ## Crypto Module API
 
-The crypto module is exported from `@oxyhq/core`:
+The crypto module is exported from `@oxy.so/core`:
 
 ### KeyManager
 
 ```typescript
-import { KeyManager } from '@oxyhq/core';
+import { KeyManager } from '@oxy.so/core';
 
 // Generate new identity
 const publicKey = await KeyManager.createIdentity();
@@ -268,7 +268,7 @@ const publicKey = KeyManager.derivePublicKey(privateKeyHex);
 ### SignatureService
 
 ```typescript
-import { SignatureService } from '@oxyhq/core';
+import { SignatureService } from '@oxy.so/core';
 
 // Sign a message (uses stored private key)
 const signature = await SignatureService.sign('Hello, World!');
@@ -299,7 +299,7 @@ const { signature, timestamp } = await SignatureService.signRequestData({
 ### RecoveryPhraseService
 
 ```typescript
-import { RecoveryPhraseService } from '@oxyhq/core';
+import { RecoveryPhraseService } from '@oxy.so/core';
 
 // Generate new identity with recovery phrase (12 words)
 const { phrase, words, publicKey } = await RecoveryPhraseService.generateIdentityWithRecovery();
@@ -340,7 +340,7 @@ const publicKey = await RecoveryPhraseService.derivePublicKeyFromPhrase(phrase);
 Always verify signatures server-side before processing sensitive operations:
 
 ```typescript
-import { SignatureService } from '@oxyhq/core';
+import { SignatureService } from '@oxy.so/core';
 
 // Server-side
 function verifyRequest(publicKey: string, data: any, signature: string, timestamp: number) {
@@ -437,12 +437,12 @@ Use `OxySignInButton` or the `OxyAuth` screen (see "Cross-App Authentication Flo
 
 ### "Property 'Buffer' doesn't exist" (React Native)
 
-This error should no longer occur as of version 5.15.6+. The `@oxyhq/services` package now includes a Buffer polyfill that is automatically loaded.
+This error should no longer occur as of version 5.15.6+. The `@oxy.so/services` package now includes a Buffer polyfill that is automatically loaded.
 
 If you see this error on an older version, update to the latest version:
 
 ```bash
-npm update @oxyhq/services
+npm update @oxy.so/services
 ```
 
 The crypto module automatically polyfills the `Buffer` global required by the BIP39 library when running in React Native environments.

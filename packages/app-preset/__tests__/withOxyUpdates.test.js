@@ -130,12 +130,13 @@ test('skips signing entirely when codeSigning is false, even with a certificate 
   });
 });
 
-test('requires code signing by default and throws when the certificate is absent', () => {
+test('throws when required code signing has no certificate', () => {
   assert.throws(
     () =>
       withOxyUpdates(baseConfig(), {
         clientId: CLIENT_ID,
         certificatePath: path.join(os.tmpdir(), 'oxy-updates-absent.pem'),
+        codeSigning: 'require',
       }),
     /code signing is required but the Oxy Updates certificate is missing/,
   );

@@ -1,11 +1,11 @@
-# @oxyhq/node — Oxy data node (reusable multi-app base)
+# @oxy.so/node — Oxy data node (reusable multi-app base)
 
 A small, self-hostable server that stores **your own signed records** (your
 personal "repo") and serves them so an app can ingest/mirror them. The node is
 the **source of truth** for the data you author; the app keeps a fast read copy.
 
 This is Fase 5 (decentralization) of the Oxy ID / Commons platform. The runnable
-engine lives in [`@oxyhq/protocol/node`](../protocol) (`createNodeApp`, the
+engine lives in [`@oxy.so/protocol/node`](../protocol) (`createNodeApp`, the
 SQLite store interface, the record verifier, the `NodeClient`); this package is
 the thin **deployment** of that engine — its SQLite store, env config, owner-key
 authority, and bootstrap. Because the engine is app-agnostic, **the same image
@@ -14,7 +14,7 @@ serves many app-node deployments by ENV alone**: the default `OXY_NODE_*`
 (built in workstream B3) is the **same base** with `MENTION_NODE_*` /
 `app.mention` env — no fork.
 
-All cryptography is reused from `@oxyhq/protocol` — a record signed by your key
+All cryptography is reused from `@oxy.so/protocol` — a record signed by your key
 (via the Commons vault's `SignatureService` / envelope **v2**) verifies on the
 node with the **exact same code** Oxy uses. No crypto is re-implemented.
 
@@ -93,8 +93,8 @@ owner key.
 
 ### Docker (one-liner)
 
-Build from the **monorepo root** (the image pulls `@oxyhq/core` +
-`@oxyhq/contracts` as workspace deps):
+Build from the **monorepo root** (the image pulls `@oxy.so/core` +
+`@oxy.so/contracts` as workspace deps):
 
 ```bash
 docker build --platform linux/arm64 -f packages/node/Dockerfile -t oxy-node .
@@ -117,12 +117,12 @@ caddy run --config ./Caddyfile
 ### Local dev
 
 ```bash
-OXY_NODE_OWNER_PUBLIC_KEY=<pubkey> bun run --filter @oxyhq/node dev
+OXY_NODE_OWNER_PUBLIC_KEY=<pubkey> bun run --filter @oxy.so/node dev
 ```
 
 ## Scripts
 
-- `bun run --filter @oxyhq/node dev` — watch-mode dev server
-- `bun run --filter @oxyhq/node build` — build deps + `tsc` → `dist/`
-- `bun run --filter @oxyhq/node start` — `node dist/index.js`
-- `bun run --filter @oxyhq/node test` — Jest (ts-jest)
+- `bun run --filter @oxy.so/node dev` — watch-mode dev server
+- `bun run --filter @oxy.so/node build` — build deps + `tsc` → `dist/`
+- `bun run --filter @oxy.so/node start` — `node dist/index.js`
+- `bun run --filter @oxy.so/node test` — Jest (ts-jest)
