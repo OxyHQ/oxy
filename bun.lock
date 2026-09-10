@@ -516,6 +516,13 @@
         "postgres": "^3.4.9",
       },
     },
+    "packages/doctor": {
+      "name": "@oxy.so/doctor",
+      "version": "0.1.0",
+      "bin": {
+        "oxy-doctor": "./src/cli.mjs",
+      },
+    },
     "packages/expo-splash": {
       "name": "@oxyhq/expo-splash",
       "version": "0.2.0",
@@ -1948,6 +1955,8 @@
     "@oxc-project/runtime": ["@oxc-project/runtime@0.101.0", "", {}, "sha512-t3qpfVZIqSiLQ5Kqt/MC4Ge/WCOGrrcagAdzTcDaggupjiGxUx4nJF2v6wUCXWSzWHn5Ns7XLv13fCJEwCOERQ=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.101.0", "", {}, "sha512-nuFhqlUzJX+gVIPPfuE6xurd4lST3mdcWOhyK/rZO0B9XWMKm79SuszIQEnSMmmDhq1DC8WWVYGVd+6F93o1gQ=="],
+
+    "@oxy.so/doctor": ["@oxy.so/doctor@workspace:packages/doctor"],
 
     "@oxy.so/telemetry": ["@oxy.so/telemetry@workspace:packages/telemetry"],
 

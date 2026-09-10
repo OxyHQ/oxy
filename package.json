@@ -27,6 +27,7 @@
       "packages/commons",
       "packages/test-app-expo",
       "packages/console",
+      "packages/doctor",
       "packages/ship",
       "packages/test-app-vite"
     ],

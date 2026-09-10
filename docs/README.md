@@ -1,5 +1,8 @@
 # OxyHQServices — Platform Documentation
 
+Dependency health: [`@oxy.so/doctor`](../packages/doctor/README.md) is the
+read-only CLI for local and CI checks; pair it with Renovate-managed update PRs.
+
 Comprehensive developer documentation for the Oxy platform: the identity
 provider, the SDK, the "Oxy ID" self-sovereign identity + civic layer, and the
 decentralization (user data nodes) layer.

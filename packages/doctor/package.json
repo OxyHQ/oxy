@@ -1,0 +1,24 @@
+{
+  "name": "@oxy.so/doctor",
+  "version": "0.1.0",
+  "description": "Read-only health checks for Oxy ecosystem repositories",
+  "type": "module",
+  "bin": {
+    "oxy-doctor": "./src/cli.mjs"
+  },
+  "exports": {
+    ".": "./src/checks.mjs"
+  },
+  "files": ["src", "README.md"],
+  "scripts": {
+    "test": "bun test tests",
+    "prepublishOnly": "bun run test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "SEE LICENSE IN LICENSE"
+}
