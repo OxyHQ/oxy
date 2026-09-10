@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const migration = readFileSync(
-  join(__dirname, '../../../../drizzle/0074_outstanding_brother_voodoo.sql'),
+  join(__dirname, '../../../../drizzle/0079_furry_stranger.sql'),
   'utf8'
 );
 
