@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "OxyHQ SDK Foundation — API client, authentication, cryptographic identity, and shared utilities",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -86,7 +86,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "bun run build:cjs && bun run build:esm && bun run build:types && bun run copy-assets",
+    "build": "bun run build:cjs && bun run build:esm && bun run build:types && bun run copy-assets && node scripts/mark-module-formats.mjs",
     "copy-assets": "cp -r src/i18n/locales dist/cjs/i18n/locales && cp -r src/i18n/locales dist/esm/i18n/locales",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs",
@@ -94,8 +94,9 @@
     "clean": "rm -rf dist",
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
+    "test:package": "node scripts/verify-package-formats.mjs",
     "lint": "biome lint --error-on-warnings ./src",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build",
+    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build && bun run test:package",
     "release": "rm -rf dist && bun run build && release-it",
     "generate:display-name-policy": "node scripts/generateDisplayNamePolicyRanges.mjs"
   },
