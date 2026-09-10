@@ -3,8 +3,8 @@
  *
  * Two-lane Origin policy derived from the Application registry
  * (`./dynamicOriginRegistry`):
- *  - TRUSTED origins (first-party / internal / system / official apps, the
- *    bootstrap-core seed, and `OXY_EXTRA_ALLOWED_ORIGINS`) get the credentialed
+ *  - TRUSTED origins (first-party / internal / system / official apps and
+ *    `OXY_EXTRA_ALLOWED_ORIGINS`) get the credentialed
  *    lane: `Access-Control-Allow-Origin: <origin>` + `Access-Control-Allow-
  *    Credentials: true`. The origin is ALWAYS echoed back, NEVER `*`, because
  *    the response carries credentials.

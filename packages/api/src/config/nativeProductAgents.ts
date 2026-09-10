@@ -48,8 +48,8 @@ export const NATIVE_PRODUCT_AGENTS = {
       application: {
         id: '01a0646a-2382-74a3-a795-788924d55722',
         name: 'Clarity',
-        websiteUrl: 'https://clarity.oxy.so',
-        redirectUris: ['https://clarity.oxy.so', 'clarity://'],
+        websiteUrl: 'https://clarity.surf',
+        redirectUris: ['https://clarity.surf', 'https://clarity.oxy.so', 'clarity://'],
         scopes: ['user:read'],
       },
       backendApplication: {

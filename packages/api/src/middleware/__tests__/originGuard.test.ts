@@ -28,6 +28,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { requireSameSiteOrigin, isAllowedOrigin } from '../originGuard';
+import { setOriginSnapshotForTests } from '../../config/dynamicOriginRegistry';
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 const ORIGINAL_GUARD_MODE = process.env.ORIGIN_GUARD_MODE;
@@ -75,6 +76,10 @@ describe('isAllowedOrigin', () => {
     'https://dashboard.mercaria.co',
     'https://pos.mercaria.co',
   ];
+
+  beforeEach(() => {
+    setOriginSnapshotForTests([...EXACT_ALLOWED, ...APP_ORIGIN_ALLOWED], []);
+  });
 
   const REJECTED = [
     'https://evil.com',

@@ -6,8 +6,8 @@
  *  - third-party active apps → non-credentialed (bearer) lane;
  *  - everything else → denied.
  *
- * The boot seed (bootstrap-core ∪ OXY_EXTRA_ALLOWED_ORIGINS) keeps first-party
- * origins trusted even before/without a refresh, and `refresh()` FAILS SAFE:
+ * Explicit `OXY_EXTRA_ALLOWED_ORIGINS` are available before a refresh, and
+ * background `refresh()` FAILS SAFE:
  * every failure path leaves the previous snapshot standing rather than
  * publishing a narrower one.
  *
@@ -62,7 +62,6 @@ import {
   setOriginSnapshotForTests,
   resetOriginRegistryForTests,
   getExtraAllowedOrigins,
-  BOOTSTRAP_CORE_ORIGINS,
 } from '../dynamicOriginRegistry';
 import { isLoopbackOrigin } from '../../utils/origin';
 
@@ -122,14 +121,7 @@ beforeEach(() => {
   resetOriginRegistryForTests();
 });
 
-describe('boot seed (no refresh)', () => {
-  it('treats every bootstrap-core origin as trusted/credentialed', () => {
-    for (const origin of BOOTSTRAP_CORE_ORIGINS) {
-      expect(isTrustedOrigin(origin)).toBe(true);
-      expect(getCorsDecision(origin)).toEqual({ allow: true, credentials: true });
-    }
-  });
-
+describe('before the authoritative refresh', () => {
   it('denies an unregistered origin', () => {
     expect(isTrustedOrigin('https://unknown.example.com')).toBe(false);
     expect(getCorsDecision('https://unknown.example.com')).toEqual({
@@ -167,8 +159,6 @@ describe('refresh() — trusted vs third-party routing', () => {
       expect(getCorsDecision(origin)).toEqual({ allow: true, credentials: true });
     }
 
-    // Bootstrap origins survive a refresh.
-    expect(getCorsDecision('https://oxy.so')).toEqual({ allow: true, credentials: true });
   });
 
   it('ignores an application that is not active', async () => {
@@ -202,16 +192,12 @@ describe('refresh() — trusted vs third-party routing', () => {
     });
   });
 
-  it('lets trusted win when a third-party app registers a trusted/bootstrap origin', async () => {
-    // A third-party app maliciously/accidentally registers a bootstrap origin.
-    await registerApp({ type: 'third_party', redirectUris: ['https://oxy.so/cb'] });
+  it('lets trusted win when trusted and third-party apps register the same origin', async () => {
     await registerApp({ isOfficial: true, redirectUris: ['https://shared.example.com/cb'] });
     await registerApp({ type: 'third_party', redirectUris: ['https://shared.example.com/other'] });
 
     await refreshOriginRegistry();
 
-    // Bootstrap origin must stay credentialed, never demoted to third-party.
-    expect(getCorsDecision('https://oxy.so')).toEqual({ allow: true, credentials: true });
     // Origin claimed by BOTH a trusted and a third-party app stays trusted.
     expect(isTrustedOrigin('https://shared.example.com')).toBe(true);
     expect(getCorsDecision('https://shared.example.com')).toEqual({
@@ -264,9 +250,11 @@ describe('refresh() — fails SAFE', () => {
       allow: true,
       credentials: true,
     });
-    for (const origin of BOOTSTRAP_CORE_ORIGINS) {
-      expect(getCorsDecision(origin)).toEqual({ allow: true, credentials: true });
-    }
+  });
+
+  it('throws on a required startup refresh instead of serving stale configuration', async () => {
+    failDatabaseRead = true;
+    await expect(refreshOriginRegistry({ required: true })).rejects.toThrow('database down');
   });
 });
 

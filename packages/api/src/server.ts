@@ -1096,14 +1096,10 @@ export async function bootstrap(
   // ready.
   await waitForDatabaseConnection(startupTimeoutMs);
 
-  // Build the dynamic CORS origin snapshot from the Application registry now
-  // that the database is connected. The registry boot-seeds from the
-  // bootstrap-core set synchronously at import, so requests before this
-  // resolves are still safe; this adds the registered
-  // first-party/third-party app origins.
-  // Background-safe (fail-soft) — never blocks startup.
-  await refreshOriginRegistry();
+  // Repair legacy empty allowlists first, then publish one complete registry
+  // snapshot. Startup fails closed if that authoritative read is unavailable.
   await reconcileOfficialRedirectUris();
+  await refreshOriginRegistry({ required: true });
 
   // Seed platform-default reputation rules (idempotent) — currently the
   // cross-app `endorsement_received` rule awarded by /app-signals/ingest.
