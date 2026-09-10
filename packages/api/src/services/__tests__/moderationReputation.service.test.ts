@@ -128,7 +128,7 @@ interface World {
   bindingId: string;
   policyVersion: string;
   emitterApplicationId: string;
-  context: { emitterApplicationId: string; emitterCredentialId?: string };
+  context: { emitterApplicationId: string; emitterCredentialId: string };
 }
 
 /**
@@ -579,7 +579,7 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
       event.decisionId,
       1,
       'Appeal accepted: the material was quoted criticism, not abuse',
-      world.context.emitterCredentialId!
+      world.context.emitterCredentialId
     );
 
     expect(result.idempotent).toBe(false);
@@ -621,14 +621,14 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
       event.decisionId,
       1,
       'Appeal accepted',
-      world.context.emitterCredentialId!
+      world.context.emitterCredentialId
     );
 
     const again = await moderationReputationService.reverseModerationDecision(
       event.decisionId,
       1,
       'Appeal accepted',
-      world.context.emitterCredentialId!
+      world.context.emitterCredentialId
     );
 
     expect(again.idempotent).toBe(true);
@@ -649,7 +649,7 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
       decisionId,
       1,
       'Appeal accepted',
-      owner.context.emitterCredentialId!
+      owner.context.emitterCredentialId
     );
 
     expect(result.reversed).toHaveLength(1);
@@ -659,12 +659,13 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
   });
 
   it('reversing a decision that produced no effect is an error, not a silent success', async () => {
+    const world = await makeWorld();
     await expect(
       moderationReputationService.reverseModerationDecision(
         `dec_never_${uniqueId().slice(0, 8)}`,
         1,
         'Appeal accepted',
-        world.context.emitterCredentialId!
+        world.context.emitterCredentialId
       )
     ).rejects.toThrow(/No moderation effect/);
   });
@@ -1023,7 +1024,7 @@ describe('the service does not trust its caller', () => {
         { toString: () => 'anything' } as never,
         1,
         'Appeal accepted',
-        world.context.emitterCredentialId!
+        world.context.emitterCredentialId
       )
     ).rejects.toThrow(/No moderation effect/);
 
@@ -1103,7 +1104,7 @@ describe('repetition and multi-finding caps', () => {
       first.decisionId,
       1,
       'Appeal accepted',
-      world.context.emitterCredentialId!
+      world.context.emitterCredentialId
     );
 
     const next = await moderationReputationService.applyModerationDecision(
@@ -1335,7 +1336,7 @@ describe('expireConductStrikes', () => {
       event.decisionId,
       1,
       'Appeal accepted',
-      world.context.emitterCredentialId!
+      world.context.emitterCredentialId
     );
     await getDb()
       .update(conductStrikes)
