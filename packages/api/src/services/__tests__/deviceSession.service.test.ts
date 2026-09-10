@@ -275,6 +275,7 @@ describe('addAccount', () => {
     await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's-old' });
     mockGetAccessToken.mockResolvedValue({ accessToken: 'jwt-old', expiresAt: new Date() });
     const credential = await deviceSessionService.issueBackgroundCredential(device, a1);
+    mockGetAccessToken.mockClear();
 
     await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's-new' });
 
