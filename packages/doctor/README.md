@@ -13,8 +13,8 @@ bunx @oxy.so/doctor --ci
 bunx @oxy.so/doctor --json
 ```
 
-It checks direct dependencies under canonical `@oxy.so/*`, transitional
-`@oxyhq/*`, `@clarity.surf/*`, and `@alia.onl/*` against npm, reports duplicate
+It checks direct dependencies under the canonical `@oxy.so/*` scope against
+npm, reports duplicate
 versions in `bun.lock`, and fails
 clearly when the lockfile is missing. `--ci` exits 1 for findings; operational
 failures use status 2. Default mode is informational.

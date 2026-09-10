@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
-export const FIRST_PARTY_SCOPES = ['@oxy.so/', '@oxyhq/', '@clarity.surf/', '@alia.onl/'];
+export const FIRST_PARTY_SCOPES = ['@oxy.so/'];
 export const isFirstPartyPackage = (name) => FIRST_PARTY_SCOPES.some((scope) => name.startsWith(scope));
 
 export function compareVersions(left, right) {
