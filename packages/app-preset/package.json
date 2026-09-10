@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/app-preset",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "The Oxy distro of Expo — centralized Expo config plugin, Metro/Babel/ESLint factories, Tailwind base CSS and TypeScript bases shared by every Oxy app (Mention, Homiio, Allo, accounts, …). A zero-build package: apps replace copy-pasted config with a single dependency bump.",
   "main": "./app.plugin.js",
   "publishConfig": {
@@ -63,10 +63,10 @@
     "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs",
     "test": "node --test __tests__/*.test.js"
   },
-  "//peerDependencies": "THE TWO @oxy.so PEERS ARE DELIBERATE. This package couples to them by FILE PATH, not by API: `css/base.css` imports `@oxy.so/bloom/design-tokens/theme.css`, and `plugin/withOxyAppPreset.js` optionally requires `@oxy.so/services/plugins/withSharedIdentityReader`. Services is exact-pinned so every preset release names the one SDK generation whose plugin path was verified. Bloom retains a measured floor and a breaking-major cap. Never replace either constraint with `*` or an uncapped range.",
+  "//peerDependencies": "THE TWO @oxy.so PEERS ARE DELIBERATE. This package couples to them by FILE PATH, not by API: `css/base.css` imports `@oxy.so/bloom/design-tokens/theme.css`, and `plugin/withOxyAppPreset.js` optionally requires `@oxy.so/services/plugins/withSharedIdentityReader`. Both peers retain a measured floor and a breaking-major cap so compatible patches deduplicate in consumers. Never replace either constraint with `*` or an uncapped range.",
   "peerDependencies": {
     "@oxy.so/bloom": "^1.0.0",
-    "@oxy.so/services": "1.0.0",
+    "@oxy.so/services": "^1.0.1",
     "babel-plugin-module-resolver": "*",
     "babel-preset-expo": "*",
     "eslint": ">=9.0.0",

@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 1.0.1
+
+### Fixed
+
+- Compatible `@oxy.so/services` patches now deduplicate in consuming apps.
+
 ## 0.4.1
 
 ### Fixed

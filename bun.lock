@@ -196,13 +196,13 @@
     },
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "devDependencies": {
         "expo": "catalog:",
       },
       "peerDependencies": {
         "@oxy.so/bloom": "^1.0.0",
-        "@oxy.so/services": "1.0.0",
+        "@oxy.so/services": "^1.0.1",
         "babel-plugin-module-resolver": "*",
         "babel-preset-expo": "*",
         "eslint": ">=9.0.0",
