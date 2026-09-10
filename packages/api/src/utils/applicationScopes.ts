@@ -24,7 +24,7 @@
  *   notifications for arbitrary recipients. PRIVILEGED — only Oxy platform staff
  *   may grant it.
  * - `payments:read` / `payments:write` permit a service credential to read and
- *   manage the Oxy Pay Gateway resources (merchants, payment intents, webhook
+ *   manage the Peable Gateway resources (merchants, payment intents, webhook
  *   deliveries) belonging to ITS OWN Application. Non-privileged — same
  *   pattern as `files:write`/`updates:publish`: authority is scoped to the
  *   app's own tenant, never cross-tenant.
@@ -250,7 +250,7 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   Today the service-token MINT already refuses untrusted applications, so an
  *   untrusted app holding this scope authorises nothing. That is a second gate,
  *   not a reason to leave this one out: the mint's trust check exists to protect
- *   the service lane as a whole, and if the narrow Oxy Pay carve-out there ever
+ *   the service lane as a whole, and if the narrow Peable carve-out there ever
  *   widens, this classification is what still stands between a self-service app
  *   and an offline delegation grant.
 
@@ -457,7 +457,7 @@ export function isPrivilegedScope(scope: string): scope is ApplicationScope {
 }
 
 /**
- * Oxy Pay Gateway scopes — the only scopes {@link APPLICATION_SCOPES} grants
+ * Peable Gateway scopes — the only scopes {@link APPLICATION_SCOPES} grants
  * that authorise payments resources. Used by the `POST /applications/:appId/credentials`
  * route (`applications.ts`) as the boundary of a narrow trust carve-out: a
  * non-trusted (`third_party`) application may create a `type:'service'`
@@ -477,7 +477,7 @@ const PAYMENTS_APPLICATION_SCOPE_SET: ReadonlySet<ApplicationScope> = new Set<Ap
   PAYMENTS_APPLICATION_SCOPES
 );
 
-/** True when `scope` is one of the Oxy Pay Gateway scopes. */
+/** True when `scope` is one of the Peable Gateway scopes. */
 export function isPaymentsScope(scope: string): scope is ApplicationScope {
   return PAYMENTS_APPLICATION_SCOPE_SET.has(scope as ApplicationScope);
 }

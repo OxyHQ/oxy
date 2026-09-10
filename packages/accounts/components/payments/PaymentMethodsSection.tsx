@@ -17,7 +17,7 @@ interface PaymentMethodsSectionProps {
 }
 
 /**
- * "Payment methods" section: lists the saved card, Oxy Pay, and FAIRWallet
+ * "Payment methods" section: lists the saved card, Peable, and FAIRWallet
  * options. Tapping a row toggles an inline details panel describing that
  * method.
  */
@@ -43,12 +43,12 @@ export function PaymentMethodsSection({ subscription, balance }: PaymentMethodsS
       showChevron: true,
     },
     {
-      id: 'oxy-pay-method',
+      id: 'peable-method',
       icon: 'wallet-outline',
       iconColor: colors.sidebarIconPayments,
-      title: t('payments.methods.oxyPay'),
-      subtitle: t('payments.methods.oxyPaySubtitle', { balance: formatFairCoinBalance(balance) }),
-      onPress: () => toggleExpanded('oxy-pay-method'),
+      title: t('payments.methods.peable'),
+      subtitle: t('payments.methods.peableSubtitle', { balance: formatFairCoinBalance(balance) }),
+      onPress: () => toggleExpanded('peable-method'),
       showChevron: true,
     },
     {
@@ -77,11 +77,11 @@ export function PaymentMethodsSection({ subscription, balance }: PaymentMethodsS
               </Text>
             </>
           )}
-          {expanded === 'oxy-pay-method' && (
+          {expanded === 'peable-method' && (
             <>
-              <Text style={[styles.expandedTitle, { color: colors.text }]}>{t('payments.expanded.oxyPayTitle')}</Text>
+              <Text style={[styles.expandedTitle, { color: colors.text }]}>{t('payments.expanded.peableTitle')}</Text>
               <Text style={[styles.expandedBody, { color: colors.textSecondary }]}>
-                {t('payments.expanded.oxyPayBody')}
+                {t('payments.expanded.peableBody')}
               </Text>
             </>
           )}

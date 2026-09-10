@@ -302,9 +302,9 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Oxy Pay permissions</h2>
+          <h2 className="text-sm font-semibold text-foreground">Peable permissions</h2>
           <p className="text-sm text-muted-foreground">
-            Grant payments scopes before creating a service credential for Oxy Pay integrations.
+            Grant payments scopes before creating a service credential for Peable integrations.
           </p>
         </div>
         <div className="space-y-3 rounded-lg border border-border p-3">

@@ -16,7 +16,12 @@ export type { OxyAuthPromptProps } from './components/OxyAuthPrompt';
 export { LogoIcon } from './components/logo/LogoIcon';
 export { LogoText } from './components/logo/LogoText';
 export { default as FollowButton } from './components/FollowButton';
+export { default as PeableButton } from './components/PeableButton';
+export type { PeableButtonProps } from './components/PeableButton';
+/** @deprecated Use `PeableButton` instead. */
 export { default as OxyPayButton } from './components/OxyPayButton';
+/** @deprecated Use `PeableButtonProps` instead. */
+export type { OxyPayButtonProps } from './components/OxyPayButton';
 
 // Context
 export { useOxy, useOptionalOxy, OxyProviderMissingError } from './context/OxyContext';

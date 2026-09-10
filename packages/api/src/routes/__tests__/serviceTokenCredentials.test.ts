@@ -7,7 +7,7 @@
  * the credential must be USABLE (`active`, or `deprecated` within its rotation
  * grace), the SECRET must match its stored SHA-256 hash under a constant-time
  * comparison, and the owning application must be platform-trusted — except for
- * the narrow Oxy Pay carve-out keyed on the CREDENTIAL's own payments-only
+ * the narrow Peable carve-out keyed on the CREDENTIAL's own payments-only
  * scopes.
  *
  * The previous version mocked `models/ApplicationCredential` /
@@ -297,7 +297,7 @@ describe('POST /auth/service-token — the secret and the credential type', () =
   });
 });
 
-describe('POST /auth/service-token — the trust gate and the Oxy Pay carve-out', () => {
+describe('POST /auth/service-token — the trust gate and the Peable carve-out', () => {
   it('rejects a NON-trusted application', async () => {
     const client = await serviceClient(
       { scopes: ['user:read'] },

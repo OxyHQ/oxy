@@ -3704,7 +3704,7 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
   // Service tokens are bearer credentials for Oxy-to-Oxy / internal routes;
   // self-service third-party applications must not be able to mint them even if
   // they somehow hold a historical `service` credential row — EXCEPT via the
-  // same narrow Oxy Pay carve-out enforced at credential-creation time
+  // same narrow Peable carve-out enforced at credential-creation time
   // (`applications.ts` POST /:appId/credentials): a non-trusted application MAY
   // mint a service token from a credential whose OWN scopes are a non-empty,
   // payments-only set ({@link isPaymentsScope}, i.e. `payments:read`/
@@ -3713,8 +3713,8 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
   // app's FULL granted scope set (`intersectScopes` fallback), so a scopeless
   // credential must never qualify here — only an explicit, payments-only
   // credential does. Both payments scopes are already non-privileged/
-  // self-grantable and tenant-scoped, and the Oxy Pay Gateway only honours
-  // `payments:*`, so this lets external Oxy Pay merchants (WooCommerce,
+  // self-grantable and tenant-scoped, and the Peable Gateway only honours
+  // `payments:*`, so this lets external Peable merchants (WooCommerce,
   // Mercaria, etc.) mint the payments-scoped service token the `@oxy.so/pay`
   // SDK needs without ever letting a self-service app mint a token carrying
   // any other capability.
@@ -3748,7 +3748,7 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
   // name the responsible account, and it is resolved SERVER-side from the
   // presented credential, never accepted from the request. `environment` (F2.0)
   // mirrors the minting credential's own `ApplicationCredential.environment` so
-  // downstream services (e.g. the Oxy Pay Gateway) can enforce test/live
+  // downstream services (e.g. the Peable Gateway) can enforce test/live
   // isolation without a second DB lookup. `issuer`/`audience` MUST match what
   // `@oxy.so/core`'s `oxy.auth()` / `oxy.serviceAuth()` verifies against
   // (`OXY_JWT_ISSUER`/`OXY_JWT_AUDIENCE` in `OxyServices.utility.ts`) —

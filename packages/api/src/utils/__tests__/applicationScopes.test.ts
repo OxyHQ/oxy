@@ -137,7 +137,7 @@ describe('payments:read / payments:write (F2.0)', () => {
     ]);
   });
 
-  it('classifies only the Oxy Pay gateway scopes via isPaymentsScope', () => {
+  it('classifies only the Peable gateway scopes via isPaymentsScope', () => {
     expect(PAYMENTS_APPLICATION_SCOPES).toEqual(['payments:read', 'payments:write']);
     expect(isPaymentsScope('payments:read')).toBe(true);
     expect(isPaymentsScope('payments:write')).toBe(true);

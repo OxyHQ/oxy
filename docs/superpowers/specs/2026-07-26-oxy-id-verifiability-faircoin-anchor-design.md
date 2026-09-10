@@ -151,7 +151,7 @@ The reputation ledger and every derived score (`reputation.service.ts`, `Reputat
 
 ### Destination address
 
-`KeyManager.deriveScopedSeed('oxypay/faircoin/v1')` (`packages/core/src/crypto/keyManager.ts:2624`) already derives a domain-separated 32-byte seed from the on-device identity key via HKDF, without exposing the private key, and reproducible from the user's 12-word phrase. So a user's FairCoin wallet is already a function of their Oxy ID and survives device loss.
+`KeyManager.deriveScopedSeed('oxypay/faircoin/v1')` (`packages/core/src/crypto/keyManager.ts:2624`) already derives a domain-separated 32-byte seed from the on-device identity key via HKDF, without exposing the private key, and reproducible from the user's 12-word phrase. The pre-Peable string is intentionally permanent: it is a cryptographic domain contract, and renaming it would derive different wallets. So a user's FairCoin wallet is already a function of their Oxy ID and survives device loss.
 
 The server **cannot** derive that address (the input key never leaves the device). Therefore the client publishes it: a signed record on the user's own chain, collection `app.oxy.payout`, `rkey` `faircoin`, containing the address (and the HD derivation index used). This is the right shape — no wallet-linking UI, no server-side key custody, the declaration is self-signed and auditable, and it goes through the existing `verifyAndStoreRecord` path with no new trust assumption. A payout with no such record is simply not paid.
 

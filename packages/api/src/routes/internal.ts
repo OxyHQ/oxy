@@ -12,7 +12,7 @@
  *     endpoint below reachable from a browser holding a stolen one.
  *  2. **A platform-TRUSTED calling application.** The service-token mint has a
  *     deliberate carve-out — a non-trusted application MAY mint a service token
- *     from a payments-only credential, so external Oxy Pay merchants can use
+ *     from a payments-only credential, so external Peable merchants can use
  *     `@oxy.so/pay` (`routes/auth.ts`, `POST /auth/service-token`). "Holds a valid
  *     service token" is therefore NOT the same set as "is a first-party Oxy
  *     service", and this router needs the second. Without this check a

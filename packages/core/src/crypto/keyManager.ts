@@ -146,7 +146,7 @@ export type IdentityRecoveryResult =
 /**
  * HKDF salt that domain-separates every identity-scoped seed produced by
  * {@link KeyManager.deriveScopedSeed}. Versioned so a future scheme change is a
- * new, non-colliding tag. The per-app domain (e.g. Oxy Pay's FairCoin wallet)
+ * new, non-colliding tag. The per-app domain (e.g. Peable's FairCoin wallet)
  * is carried by the caller's `info` string, not this salt.
  */
 const SCOPED_SEED_KDF_SALT = 'oxy-identity-scoped-seed-v1';
@@ -2567,12 +2567,14 @@ export class KeyManager {
    *
    * The domain separation is carried by `info` (e.g. `"oxypay/faircoin/v1"`),
    * so distinct apps/purposes get independent seeds from the same identity.
+   * That legacy Peable tag is a cryptographic contract and must not be renamed:
+   * changing it would derive a different wallet for every existing user.
    * The output is HKDF keying material, never the private key itself — a
-   * consumer (e.g. Oxy Pay's FairCoin HD wallet) can feed it straight into
+   * consumer (e.g. Peable's FairCoin HD wallet) can feed it straight into
    * `HDKey.fromMasterSeed` and never touches the identity key.
    *
    * Key source (native only): prefers the shared ecosystem identity written to
-   * `group.so.oxy.shared` (what a Relying Party like Oxy Pay reads), then falls
+   * `group.so.oxy.shared` (what a Relying Party like Peable reads), then falls
    * back to this device's primary identity (Commons/Accounts). Both reproduce
    * from the user's Oxy recovery phrase, so the derived seed is recoverable.
    *
@@ -2604,4 +2606,3 @@ export class KeyManager {
 }
 
 export default KeyManager;
-

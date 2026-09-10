@@ -87,7 +87,7 @@ const PaymentReviewStep: React.FC<PaymentReviewStepProps> = ({
                     {paymentMethod === 'oxy' ? (
                         <SettingsListItem
                             icon={<Ionicons name="wallet-outline" size={20} color={colors.primary} />}
-                            title={t('payment.review.oxyPayAccount')}
+                            title={t('payment.review.peableAccount')}
                             description={t('payment.details.balance', { balance: '⊜ 123.45' })}
                             showChevron={false}
                         />
