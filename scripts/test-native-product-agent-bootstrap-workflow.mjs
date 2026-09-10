@@ -295,8 +295,13 @@ assert.notEqual(adoptionEnd, -1, 'adoption diagnostic end must exist');
 const adoptionBlock = bootstrap.slice(adoptionStart, adoptionEnd);
 assert.match(
   adoptionBlock,
-  /if \(boundApplicationId !== null\) \{\s*throw new NativeProductAgentAccountAdoptionReviewError\(/,
-  'an existing exact Homiio project must stop at the fail-closed adoption review gate',
+  /row\.username === spec\.username && displayNameDisposition !== "drift"/,
+  'the canonical presentation check must accept the explicitly classified legacy Homiio display name',
+);
+assert.match(
+  adoptionBlock,
+  /boundApplicationId !== null &&\s*\(!canonicalPresentationMatches \|\|\s*!accountStructureMatches \|\|\s*!ancestryMatches\)/,
+  'a bound Homiio project must stop at adoption review unless presentation, structure, and ancestry are all recognized',
 );
 assert.match(adoptionBlock, /new NativeProductAgentAccountAdoptionReviewError\(/);
 assert.match(adoptionBlock, /await observeBoundApplication\(tx, boundApplicationId\)/);
