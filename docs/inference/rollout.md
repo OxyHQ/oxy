@@ -320,6 +320,23 @@ through one predicate
 (`packages/api/src/utils/applicationTier.ts`) shared with the catalogue's
 audience — a self-service application cannot promote its own tier.
 
+The `internal_alia` → `platform_internal` storage rename has its own rolling
+gate: deploy the PRE expand plus dual-read/current-write bridge first; perform
+the POST backfill/new-only CHECK in a later release only after exact deployment
+readback; remove the bridge in a third release only after the legacy-row count is
+zero. The complete query and rollback rule are in
+[catalogue.md](./catalogue.md#rolling-storage-rename-three-releases-in-order).
+During the expand deployment, an applying catalogue bootstrap is additionally
+blocked until a serialized, double ECS readback proves the old task count is
+zero and binds the dedicated one-shot to the live service's immutable image.
+The one-shot repeats that live proof before PostgreSQL and inside the transaction
+immediately before commit, so a final failure rolls every catalogue write back.
+Production APPLY also requires the dedicated task role's live
+`ecs:DescribeServices`, `ecs:ListTasks` and `ecs:DescribeTasks` authority from
+oxy-infra PR #125; source alone does not make that IAM permission live. Use the
+production workflow and metadata-plus-live-ECS gate in
+[catalogue.md](./catalogue.md#bootstrap-gate-during-the-expand-release).
+
 **A stage is not reached by setting a variable.** Every stage above is also
 gated on things this repository cannot switch: a data plane to forward to, a
 catalogue with contents, anomaly and fraud controls, and the reconciliation the

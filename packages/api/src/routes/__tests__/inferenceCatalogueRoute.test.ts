@@ -6,14 +6,13 @@
  * it constructs by hand. That leaves one thing untested and it is the half an
  * attacker touches: **where the viewer comes from**. `viewerForRequest` in this
  * router decides, per request, which audience a caller belongs to — and every
- * one of its branches resolves to the PUBLIC viewer except one.
+ * third-party and unresolved branches resolve to the PUBLIC viewer.
  *
- * A test that only checked "the internal application sees the internal route"
- * would pass against a router that handed the internal audience to EVERYBODY.
- * So each case below is stated as a pair over the SAME fixture: the internal
- * route is present for exactly one caller and absent for all the others, and the
- * public route is present for all of them — the second half being what proves a
- * "not found" is a withholding rather than an empty database.
+ * A test that only checked "an official application sees the platform route"
+ * would pass against a router that handed that audience to everybody. So each
+ * case below is stated as a pair over the same fixture: the platform route is
+ * present for first-party/internal/system callers and absent for third-party or
+ * unresolved callers, while the public route proves the read is not empty.
  *
  * Nothing here counts rows it does not own. `GET /models` lists the whole
  * catalogue, and sibling suites seed into the same database, so every assertion
@@ -131,7 +130,7 @@ interface RouteFixture {
  * in EVERY fixture rather than in one specially-prepared row.
  */
 async function insertRoute(options: {
-  availabilityScope: 'public_payg' | 'internal_alia' | 'oxy_hosted';
+  availabilityScope: 'public_payg' | 'platform_internal' | 'oxy_hosted';
   permissionState?: 'pending_review' | 'approved' | 'suspended';
 }): Promise<RouteFixture> {
   const db = getDb();
@@ -194,7 +193,7 @@ async function insertRoute(options: {
     zeroDataRetentionAvailable: true,
     availabilityScope: options.availabilityScope,
     commercialPermission:
-      options.availabilityScope === 'internal_alia'
+      options.availabilityScope === 'platform_internal'
         ? 'standard_application_use'
         : 'public_resale_approved',
     status: 'active',
@@ -223,6 +222,8 @@ async function insertRoute(options: {
 async function tokenForApplication(input: {
   type: 'internal' | 'system' | 'first_party' | 'third_party';
   isInternal?: boolean;
+  applicationStatus?: 'active' | 'suspended';
+  credentialStatus?: 'active' | 'revoked';
 }): Promise<string> {
   const [account] = await getDb()
     .insert(users)
@@ -236,10 +237,30 @@ async function tokenForApplication(input: {
       createdByUserId: account.id,
       type: input.type,
       isInternal: input.isInternal ?? false,
+      status: input.applicationStatus ?? 'active',
+      scopes: ['inference:models:read'],
     })
     .returning({ id: applications.id });
 
-  return signServiceToken({ appId: application.id, ownerAccountId: account.id });
+  const [credential] = await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: application.id,
+      name: `Catalogue Service ${suffix()}`,
+      publicKey: `oxy_dk_${suffix()}`,
+      type: 'service',
+      environment: 'production',
+      scopes: ['inference:models:read'],
+      status: input.credentialStatus ?? 'active',
+      createdByUserId: account.id,
+    })
+    .returning({ id: applicationCredentials.id });
+
+  return signServiceToken({
+    appId: application.id,
+    ownerAccountId: account.id,
+    credentialId: credential.id,
+  });
 }
 
 /**
@@ -323,6 +344,7 @@ async function withMachineLane(
 function signServiceToken(input: {
   appId: string;
   ownerAccountId: string;
+  credentialId?: string;
   secret?: string;
 }): string {
   return jwt.sign(
@@ -330,7 +352,7 @@ function signServiceToken(input: {
       type: 'service',
       appId: input.appId,
       appName: 'Catalogue Fixture App',
-      credentialId: `cred-${suffix()}`,
+      credentialId: input.credentialId ?? `cred-${suffix()}`,
       ownerAccountId: input.ownerAccountId,
       environment: 'production',
       scopes: ['inference:invoke'],
@@ -411,13 +433,9 @@ describe('the audience is resolved from the request, and every branch but one is
       'an ordinary third-party application',
       async () => tokenForApplication({ type: 'third_party' }),
     ],
-    [
-      'a FIRST-PARTY application, which is deliberately not internal',
-      async () => tokenForApplication({ type: 'first_party' }),
-    ],
   ])('resolves %s to the public audience', async (_label, makeToken) => {
     const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
-    const internalRoute = await insertRoute({ availabilityScope: 'internal_alia' });
+    const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
     const token = await makeToken();
 
     const response = await request(MOUNT, { token });
@@ -430,23 +448,49 @@ describe('the audience is resolved from the request, and every branch but one is
   });
 
   it.each([
+    ['type: first_party', { type: 'first_party' as const }],
     ['type: internal', { type: 'internal' as const }],
     ['type: system', { type: 'system' as const }],
     ['isInternal on an otherwise third-party application', {
       type: 'third_party' as const,
       isInternal: true,
     }],
-  ])('resolves %s to the internal audience', async (_label, application) => {
+  ])('resolves %s to the platform audience', async (_label, application) => {
     const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
-    const internalRoute = await insertRoute({ availabilityScope: 'internal_alia' });
+    const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
     const token = await tokenForApplication(application);
 
     const response = await request(MOUNT, { token });
     expect(response.status).toBe(200);
     expect(entryFor(response.body, 'data', publicRoute.modelId)).toBeDefined();
-    // The one branch that widens. Paired with the six above, this is what makes
+    // The branch that widens official applications. Paired with the public
+    // cases above, this is what makes
     // the withholding a decision rather than an accident.
     expect(entryFor(response.body, 'data', internalRoute.modelId)).toBeDefined();
+  });
+});
+
+describe('service-token catalogue access follows live credential and application state', () => {
+  it.each([
+    ['a suspended first-party application', { applicationStatus: 'suspended' as const }],
+    ['a revoked first-party service credential', { credentialStatus: 'revoked' as const }],
+  ])('withholds platform_internal from %s', async (_label, state) => {
+    const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
+    const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
+
+    // Positive control over the same audience and rows: a live first-party
+    // credential really does see the platform route. If this fails, the denial
+    // below would be green without exercising revocation at all.
+    const activeToken = await tokenForApplication({ type: 'first_party' });
+    const active = await request(MOUNT, { token: activeToken });
+    expect(entryFor(active.body, 'data', publicRoute.modelId)).toBeDefined();
+    expect(entryFor(active.body, 'data', internalRoute.modelId)).toBeDefined();
+
+    const disabledToken = await tokenForApplication({ type: 'first_party', ...state });
+    const disabled = await request(MOUNT, { token: disabledToken });
+    expect(disabled.status).toBe(200);
+    expect(entryFor(disabled.body, 'data', publicRoute.modelId)).toBeDefined();
+    expect(entryFor(disabled.body, 'data', internalRoute.modelId)).toBeUndefined();
   });
 });
 
@@ -467,14 +511,14 @@ describe('the audience is resolved from the request, and every branch but one is
  * difficulty: the public viewer is served a real catalogue, so "the request
  * worked" is exactly what the bug produced. Every case below therefore turns on a
  * row that is visible to the credential's application and NOT to an anonymous
- * caller — an `internal_alia` deployment — with the `public_payg` route as the
+ * caller — a `platform_internal` deployment — with the `public_payg` route as the
  * control proving the caller could read the catalogue at all.
  */
 describe('a machine credential resolves the audience of the application that holds it', () => {
   it('serves the internal audience to an internal application’s oxy_sk_ bearer, and withholds it from an anonymous one', async () => {
     await withMachineLane('enabled', async () => {
       const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
-      const internalRoute = await insertRoute({ availabilityScope: 'internal_alia' });
+      const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
       const token = await machineTokenForApplication({ type: 'internal' });
 
       const response = await request(MOUNT, { token });
@@ -483,7 +527,7 @@ describe('a machine credential resolves the audience of the application that hol
       // resolution and not a failed read.
       expect(entryFor(response.body, 'data', publicRoute.modelId)).toBeDefined();
       // The measurement. Under the bug this was `undefined`: the machine bearer
-      // resolved public, and a public viewer is served no `internal_alia` route.
+      // resolved public, and a public viewer is served no `platform_internal` route.
       expect(entryFor(response.body, 'data', internalRoute.modelId)).toBeDefined();
 
       // The DISCRIMINATOR the two viewers cannot share, on the detail read: the
@@ -502,7 +546,7 @@ describe('a machine credential resolves the audience of the application that hol
   it('serves the PUBLIC audience to an ordinary third-party application’s oxy_sk_ bearer', async () => {
     await withMachineLane('enabled', async () => {
       const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
-      const internalRoute = await insertRoute({ availabilityScope: 'internal_alia' });
+      const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
       // The lane resolving a credential is not a widening. Without this case the
       // suite above would also pass against a router that handed the internal
       // audience to every machine bearer it managed to resolve.
@@ -518,7 +562,7 @@ describe('a machine credential resolves the audience of the application that hol
   it('resolves a REVOKED machine credential to the public audience', async () => {
     await withMachineLane('enabled', async () => {
       const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
-      const internalRoute = await insertRoute({ availabilityScope: 'internal_alia' });
+      const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
       const token = await machineTokenForApplication({ type: 'internal', status: 'revoked' });
 
       const response = await request(MOUNT, { token });
@@ -545,7 +589,7 @@ describe('a machine credential resolves the audience of the application that hol
 describe('the machine lane’s rollout flag gates the catalogue exactly as it gates the edge', () => {
   it('withholds the internal audience from a machine bearer while the lane is shut, and grants it once open', async () => {
     const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
-    const internalRoute = await insertRoute({ availabilityScope: 'internal_alia' });
+    const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
     const token = await machineTokenForApplication({ type: 'internal' });
 
     await withMachineLane('unset', async () => {
@@ -576,9 +620,9 @@ describe('an unapproved route is served to nobody, internal audience included', 
     ['pending_review', 'pending_review' as const],
     ['suspended', 'suspended' as const],
   ])('withholds a %s route from BOTH audiences', async (_label, permissionState) => {
-    const approved = await insertRoute({ availabilityScope: 'internal_alia' });
+    const approved = await insertRoute({ availabilityScope: 'platform_internal' });
     const unapproved = await insertRoute({
-      availabilityScope: 'internal_alia',
+      availabilityScope: 'platform_internal',
       permissionState,
     });
 
@@ -601,7 +645,7 @@ describe('an unapproved route is served to nobody, internal audience included', 
 
 describe('the detail read is not an existence oracle for the internal catalogue', () => {
   it('answers 404 for a withheld model and byte-identically for one that does not exist', async () => {
-    const internalRoute = await insertRoute({ availabilityScope: 'internal_alia' });
+    const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
 
     const withheld = await request(`${MOUNT}/${internalRoute.modelId}`, { token: null });
     expect(withheld.status).toBe(404);
@@ -683,7 +727,7 @@ describe('the served JSON carries no internal route id and no wholesale cost', (
 describe('GET /models/stats keeps Console’s envelope and invents nothing', () => {
   it('serves the same audience-scoped entries in the {models, count, timestamp} shape', async () => {
     const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
-    const internalRoute = await insertRoute({ availabilityScope: 'internal_alia' });
+    const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
 
     const stats = await request(`${MOUNT}/stats`, { token: null });
     expect(stats.status).toBe(200);
@@ -711,7 +755,7 @@ describe('GET /models/stats keeps Console’s envelope and invents nothing', () 
       expect(entry).not.toHaveProperty(invented);
     }
     // CONTROL: the object is a real entry, so the absences above are absences.
-    expect(entry.schemaVersion).toBe(2);
+    expect(entry.schemaVersion).toBe(3);
     expect(entry.displayName).toBe('Catalogue Fixture Model');
   });
 });

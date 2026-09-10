@@ -1,6 +1,6 @@
 {
-  "id": "dcab78b7-5b44-4748-a2e5-95eb8d503128",
-  "prevId": "d5b73a0e-64da-41ec-be76-b344a5671f69",
+  "id": "9dd561b1-d393-4ef2-912a-c1335c35df7c",
+  "prevId": "dcab78b7-5b44-4748-a2e5-95eb8d503128",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -11506,7 +11506,7 @@
       "checkConstraints": {
         "inference_deployments_availability_scope_check": {
           "name": "inference_deployments_availability_scope_check",
-          "value": "\"inference_deployments\".\"availability_scope\" in ('internal_alia', 'public_payg', 'enterprise', 'byok_only', 'oxy_hosted')"
+          "value": "\"inference_deployments\".\"availability_scope\" in ('internal_alia', 'platform_internal', 'public_payg', 'enterprise', 'byok_only', 'oxy_hosted')"
         },
         "inference_deployments_commercial_permission_check": {
           "name": "inference_deployments_commercial_permission_check",

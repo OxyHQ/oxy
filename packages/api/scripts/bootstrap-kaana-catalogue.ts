@@ -21,6 +21,16 @@
  * AWS authentication must come from the dedicated ECS task role in production,
  * or an operator's named AWS profile locally. Static AWS keys in env are refused.
  *   INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE_TASK_DEFINITION_ARN
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_BOOTSTRAP_TASK_DEFINITION_ARN
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_IMAGE
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_ATTESTED_AT
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_CLUSTER
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE
+ *     fresh output from the serialized production workflow after two complete
+ *     ECS old-task-zero observations; APPLY binds the dedicated one-shot to its
+ *     local metadata, independently repeats the live ECS proof before DB access,
+ *     and repeats it inside the transaction immediately before commit
  *
  * Apply:
  *   APPLY=1 EXPECTED_PLAN_SHA256=... BOOTSTRAP_ACTOR=... \
@@ -34,6 +44,7 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { and, eq, sql } from "drizzle-orm";
 import { routingScoreValidityThreshold } from "../src/config/inferenceRoutingScoreValidity";
+import { assertPlatformScopeWriteRolloutComplete } from "../src/config/inferencePlatformScopeWriteGate";
 import {
   KAANA_INITIAL_BALANCED_FORMULA_REF,
   KAANA_INITIAL_MODEL,
@@ -103,7 +114,7 @@ const REVIEWED_CATALOGUE_FACTS = {
   balancedFormulaRef: KAANA_INITIAL_BALANCED_FORMULA_REF,
   scorecardReason: KAANA_INITIAL_SCORECARD_REASON,
   deploymentPolicy: {
-    availabilityScope: "internal_alia",
+    availabilityScope: "platform_internal",
     commercialPermission: "standard_application_use",
     permissionState: "approved",
     legalReviewStatus: "approved",
@@ -111,7 +122,7 @@ const REVIEWED_CATALOGUE_FACTS = {
     dedicatedCapacity: false,
     regions: [],
     permissionStateNote:
-      "Owner-approved initial internal Alia route; primary-source review 2026-09-02.",
+      "Owner-approved initial platform-internal route; primary-source review 2026-09-02.",
     upstreamWholesaleCostAmount: null,
     upstreamWholesaleCostCurrency: null,
     upstreamWholesaleCostUnit: null,
@@ -137,8 +148,9 @@ const REVIEWED_CATALOGUE_FACTS = {
     isProductPreset: true,
   },
 } as const;
-const reviewedFactsSha256 =
-  createKaanaCatalogueReviewedFactsSha256(REVIEWED_CATALOGUE_FACTS);
+const reviewedFactsSha256 = createKaanaCatalogueReviewedFactsSha256(
+  REVIEWED_CATALOGUE_FACTS,
+);
 
 class DryRunRollback extends Error {}
 
@@ -330,7 +342,10 @@ async function ensureModel(
     .from(inferenceModels)
     .where(eq(inferenceModels.modelId, KAANA_INITIAL_MODEL_ID))
     .for("update");
-  let row = requireAtMostOne(`Model ID ${KAANA_INITIAL_MODEL_ID}`, existingRows);
+  let row = requireAtMostOne(
+    `Model ID ${KAANA_INITIAL_MODEL_ID}`,
+    existingRows,
+  );
   if (row === undefined) {
     const createdRows = await tx
       .insert(inferenceModels)
@@ -457,9 +472,7 @@ async function ensurePriceVersion(
     modelReference: KAANA_INITIAL_MODEL_REFERENCE,
     provider: provider.slug,
     currency: REVIEWED_CATALOGUE_FACTS.pricePolicy.currency,
-    effectiveFrom: new Date(
-      REVIEWED_CATALOGUE_FACTS.pricePolicy.effectiveFrom,
-    ),
+    effectiveFrom: new Date(REVIEWED_CATALOGUE_FACTS.pricePolicy.effectiveFrom),
     effectiveUntil: REVIEWED_CATALOGUE_FACTS.pricePolicy.effectiveUntil,
     supersedesPriceVersionId:
       REVIEWED_CATALOGUE_FACTS.pricePolicy.supersedesPriceVersionId,
@@ -762,6 +775,10 @@ async function ensureProfiles(
 }
 
 async function bootstrap(): Promise<BootstrapSummary> {
+  const rolloutGuard = await assertPlatformScopeWriteRolloutComplete(
+    APPLY,
+    process.env,
+  );
   const inventory = await requireLiveInventory();
   await connectPostgres();
   const inserted: string[] = [];
@@ -829,10 +846,13 @@ async function bootstrap(): Promise<BootstrapSummary> {
         reason: bootstrapReason,
       });
       summary = { ...summaryWithoutPlan, planSha256 };
+      await rolloutGuard.assertStillComplete();
       if (!APPLY) throw new DryRunRollback("dry-run rollback");
     });
   } catch (error) {
     if (!(error instanceof DryRunRollback)) throw error;
+  } finally {
+    rolloutGuard.close();
   }
   if (summary === undefined)
     throw new Error("Bootstrap transaction produced no summary");

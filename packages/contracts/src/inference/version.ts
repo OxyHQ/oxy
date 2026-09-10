@@ -100,4 +100,4 @@
  * change to, say, the catalogue reject every in-flight inference request; the
  * per-shape `schemaVersion` is what a message is validated against.
  */
-export const INFERENCE_CONTRACT_VERSION = '2.0.0';
+export const INFERENCE_CONTRACT_VERSION = '3.0.0';

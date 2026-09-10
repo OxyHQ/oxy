@@ -40,7 +40,7 @@
  * retired `models-stats.ts` did with its literal `isHealthy: true`.
  */
 
-import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type {
   AuthorizedRoute,
   AvailabilityScope,
@@ -72,6 +72,9 @@ import {
   inferenceRoutingProfiles,
   priceVersions,
   priceVersionUnitPrices,
+  LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
+  NORMALIZED_INFERENCE_DEPLOYMENT_AVAILABILITY_SCOPE,
+  normalizeInferenceDeploymentAvailabilityScope,
   SELECTABLE_PERMISSION_STATE,
 } from '../db/schema';
 import type { InferenceModalityValue } from '../db/schema/inferenceModels';
@@ -160,21 +163,22 @@ export type CatalogueApplicationPrincipal = ApplicationClassification;
  * That is the default-deny direction: the way to see more is to present an
  * internal application credential, never to present nothing.
  *
- * The `internal` TIER is the one `classifyApplicationTier` computes, shared with
- * the inference edge's rollout audience so the two cannot come to different
- * answers about the same row. `first_party` is deliberately not internal here:
- * Console and Accounts are first-party and customer-facing, and handing them the
- * internal audience would put internal-only routes into the model list a
- * customer reads.
+ * `platform_internal` is available to staff-controlled first-party, internal
+ * and system applications. That is an audience boundary, not a resale claim:
+ * third-party applications and plain user bearers remain on the public scopes.
+ * The exact tier still comes from `classifyApplicationTier`, shared with the
+ * inference edge's rollout gate, so catalogue and execution cannot classify the
+ * same application differently.
  */
 export function resolveCatalogueViewer(
   application: CatalogueApplicationPrincipal | undefined
 ): CatalogueViewer {
-  if (classifyApplicationTier(application) !== 'internal') return PUBLIC_CATALOGUE_VIEWER;
+  const tier = classifyApplicationTier(application);
+  if (tier === 'third_party') return PUBLIC_CATALOGUE_VIEWER;
 
   return {
-    scopes: [...PUBLIC_CATALOGUE_SCOPES, 'internal_alia'],
-    label: 'internal',
+    scopes: [...PUBLIC_CATALOGUE_SCOPES, 'platform_internal'],
+    label: tier,
   };
 }
 
@@ -198,13 +202,20 @@ const OFFERABLE_STATUSES = ['active', 'degraded'] as const;
  * and exactly one place a widening could happen.
  *
  * All three conditions are required, and the permission one has no exemption:
- * an `internal_alia` route with `permission_state = 'pending_review'` is
- * invisible to Alia too. That costs one staff approval per internal route and
- * buys a gate with no branch in it.
+ * a `platform_internal` route with `permission_state = 'pending_review'` is
+ * invisible to every official product too. That costs one staff approval per
+ * platform route and buys a gate with no branch in it.
  */
 function selectableDeploymentWhere(viewer: CatalogueViewer) {
+  const availability = viewer.scopes.includes('platform_internal')
+    ? or(
+        inArray(inferenceDeployments.availabilityScope, [...viewer.scopes]),
+        sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`
+      )
+    : inArray(inferenceDeployments.availabilityScope, [...viewer.scopes]);
+
   return and(
-    inArray(inferenceDeployments.availabilityScope, [...viewer.scopes]),
+    availability,
     eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
     inArray(inferenceDeployments.status, [...OFFERABLE_STATUSES])
   );
@@ -410,7 +421,7 @@ export interface ConstrainedCandidate {
  */
 const CONSTRAINT_COLUMNS = {
   providerSlug: inferenceDeployments.providerSlug,
-  availabilityScope: inferenceDeployments.availabilityScope,
+  availabilityScope: NORMALIZED_INFERENCE_DEPLOYMENT_AVAILABILITY_SCOPE,
   regions: inferenceDeployments.regions,
   retainsPayloads: inferenceDeployments.retainsPayloads,
   retentionDays: inferenceDeployments.retentionDays,
@@ -1194,7 +1205,7 @@ function buildCatalogueEntry(
     });
 
   const entry = {
-    schemaVersion: 2 as const,
+    schemaVersion: 3 as const,
     modelId: model.modelId,
     publisher: {
       slug: model.publisherSlug,
@@ -1305,7 +1316,7 @@ export async function listCatalogueForViewer(
 
   const db = getDb();
 
-  const deploymentRows = await db
+  const storedDeploymentRows = await db
     .select({
       ...CUSTOMER_SAFE_DEPLOYMENT_COLUMNS,
       // Join keys, not part of the customer shape — see the serializer, whose
@@ -1322,6 +1333,16 @@ export async function listCatalogueForViewer(
       eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
     )
     .where(selectableDeploymentWhere(viewer));
+
+  // During the rolling storage rename the database may still contain the
+  // legacy value written by an older pod. Normalize immediately after the
+  // read, before catalogue policy or any customer-facing serializer sees it.
+  // The typed Drizzle column remains on the allow-list so its structural
+  // protection continues to be checked by SelectedRow without a cast.
+  const deploymentRows = storedDeploymentRows.map((row) => ({
+    ...row,
+    availabilityScope: normalizeInferenceDeploymentAvailabilityScope(row.availabilityScope),
+  }));
 
   if (deploymentRows.length === 0) return [];
 
@@ -2121,7 +2142,7 @@ export async function resolveEdgeRoute(
     modelReference: composeModelReference(resolvedModelId, row.revision),
     provider: row.providerSlug,
     regions: row.regions,
-    availabilityScope: row.availabilityScope as AvailabilityScope,
+    availabilityScope: row.availabilityScope,
     priceVersionId,
     ...(row.customerProviderCredential === undefined
       ? {}
