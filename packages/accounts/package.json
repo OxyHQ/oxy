@@ -29,6 +29,7 @@
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-query-persist-client": "catalog:",
     "babel-plugin-module-resolver": "^5.0.2",
+    "babel-preset-expo": "catalog:",
     "expo": "catalog:",
     "expo-blur": "catalog:",
     "expo-build-properties": "catalog:",

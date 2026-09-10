@@ -54,6 +54,7 @@
         "@tanstack/react-query": "catalog:",
         "@tanstack/react-query-persist-client": "catalog:",
         "babel-plugin-module-resolver": "^5.0.2",
+        "babel-preset-expo": "catalog:",
         "expo": "catalog:",
         "expo-blur": "catalog:",
         "expo-build-properties": "catalog:",
@@ -212,6 +213,8 @@
       "version": "1.0.1",
       "devDependencies": {
         "expo": "catalog:",
+        "nativewind": "catalog:",
+        "tailwindcss": "4.3.3",
       },
       "peerDependencies": {
         "@oxy.so/bloom": "^1.0.0",
@@ -235,10 +238,8 @@
         "eslint",
         "eslint-config-expo",
         "expo-build-properties",
-        "nativewind",
         "react-native-worklets",
         "sharp",
-        "tailwindcss",
       ],
     },
     "packages/auth": {
@@ -316,6 +317,7 @@
         "@shopify/react-native-skia": "catalog:",
         "@tanstack/react-query": "catalog:",
         "babel-plugin-module-resolver": "^5.0.2",
+        "babel-preset-expo": "catalog:",
         "expo": "catalog:",
         "expo-blur": "catalog:",
         "expo-build-properties": "catalog:",
@@ -684,6 +686,7 @@
       "name": "@oxy.so/services",
       "version": "1.0.3",
       "dependencies": {
+        "@expo/config-plugins": "catalog:",
         "@oxy.so/contracts": "workspace:*",
         "@simplewebauthn/browser": "^13.3.0",
         "color": "^4.2.3",
@@ -952,6 +955,7 @@
   },
   "catalog": {
     "@biomejs/biome": "^1.9.4",
+    "@expo/config-plugins": "57.0.9",
     "@hugeicons/core-free-icons": "^3.3.0",
     "@lottiefiles/dotlottie-react": "^0.19.9",
     "@noble/curves": "^1.9.7",
@@ -965,6 +969,7 @@
     "@types/supertest": "^6.0.2",
     "@vitejs/plugin-react": "^5.2.0",
     "axios": "^1.18.1",
+    "babel-preset-expo": "57.0.11",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-kit": "0.31.10",

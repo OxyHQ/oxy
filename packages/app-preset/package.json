@@ -79,7 +79,9 @@
     "tailwindcss": ">=4.0.0"
   },
   "devDependencies": {
-    "expo": "catalog:"
+    "expo": "catalog:",
+    "nativewind": "catalog:",
+    "tailwindcss": "4.3.3"
   },
   "peerDependenciesMeta": {
     "@oxy.so/bloom": {
@@ -103,16 +105,10 @@
     "expo-build-properties": {
       "optional": true
     },
-    "nativewind": {
-      "optional": true
-    },
     "react-native-worklets": {
       "optional": true
     },
     "sharp": {
-      "optional": true
-    },
-    "tailwindcss": {
       "optional": true
     }
   }

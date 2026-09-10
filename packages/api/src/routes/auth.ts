@@ -104,7 +104,7 @@ import {
   grantApplicationIdParams,
 } from '../schemas/auth.schemas';
 import { normaliseOrigin, isLoopbackOrigin } from '../utils/origin';
-import { deriveCoarseClientLabel } from '../utils/deviceUtils';
+import { deriveCoarseClientLabel, generateDeviceId } from '../utils/deviceUtils';
 import { serializePublicApplication } from '../utils/serializeApplication';
 import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
 import { composeDisplayName, formatUserNameResponse } from '../utils/displayName';
@@ -1288,6 +1288,10 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
       {
         deviceName: deviceName || `${appLabel} App`,
         deviceFingerprint,
+        // The public device-flow request has not proved possession of the
+        // approver's device. A fresh identity prevents createSession from
+        // reusing and later invalidating that browser's existing session.
+        deviceId: generateDeviceId(),
       }
     );
     newSessionId = newSession.sessionId;
