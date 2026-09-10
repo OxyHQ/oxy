@@ -26,7 +26,7 @@
  */
 
 import { and, eq, ne } from 'drizzle-orm';
-import type { AvailabilityScope } from '@oxyhq/contracts';
+import type { AvailabilityScope } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { routingScoreValidityThreshold } from '../config/inferenceRoutingScoreValidity';
 import {
