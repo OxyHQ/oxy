@@ -100,7 +100,7 @@ export const VERSIONS = {
   // keeps a scaffolded app's migrations comparable with everyone else's.
   // @oxy.so/db — column builders, casing authority, migration ledger. Published
   // version, not the workspace one (see the Oxy SDK note at the top).
-  oxyDb: '^0.1.2',
+  oxyDb: '^1.0.0',
   drizzleOrm: '0.45.2', // drizzle-orm
   postgres: '3.4.9', // postgres (postgres.js driver)
   drizzleKit: '0.31.10', // drizzle-kit — devDependency; generates migrations only
@@ -109,4 +109,4 @@ export const VERSIONS = {
 export type VersionKey = keyof typeof VERSIONS;
 
 /** Bun version pinned across CI + Dockerfiles for reproducible installs. */
-export const BUN_VERSION = '1.3.14';
+export const BUN_VERSION = '1.4.2';
