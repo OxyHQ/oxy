@@ -682,7 +682,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "dependencies": {
         "@oxy.so/contracts": "workspace:*",
         "@simplewebauthn/browser": "^13.3.0",
