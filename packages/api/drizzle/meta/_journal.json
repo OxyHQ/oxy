@@ -540,6 +540,13 @@
       "when": 1789060000000,
       "tag": "0077_narrow_homiio_reputation_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1789062295577,
+      "tag": "0078_agency_authority_and_event_outbox",
+      "breakpoints": true
     }
   ]
 }
