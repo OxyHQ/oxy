@@ -277,6 +277,7 @@ Reputation awards are NEVER self-issued. The flow: users generate signed attesta
 - **QR schemes:** ALL use `oxycommons://` — `oxycommons://card` (share identity card), `oxycommons://attest?subject=…&ctx=…&nonce=…&exp=…` (real-life attestation), `oxycommons://approve?v=1&code=<authorizeCode>&...` (sign-in handoff). `oxydni://` scheme is removed entirely.
 
 
+## No-IP invariant
 
 Threat model: state-actor harassment of users. The platform must **never persist a user IP address** — raw, hashed, or geo-derived (country included, e.g. `cf-ipcountry`) — in the database, logs (pino fields), metrics metadata, or response DTOs. Salted hashes of the IPv4 space are brute-forceable by anyone with server access, so hashing is NOT an acceptable at-rest form.
 

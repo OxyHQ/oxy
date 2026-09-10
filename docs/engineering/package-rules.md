@@ -3,7 +3,7 @@
 > Moved out of `AGENTS.md` unchanged — the compressed rules stay there, this is
 > the evidence behind each one.
 
-## Package Boundaries (strict)
+## Package boundaries
 
 - **@oxy.so/contracts** must never import `react`, `react-native`, or `expo-*`. Only `zod` allowed. Platform-agnostic — both server and client import from it directly.
 - **@oxy.so/core** must never import `react`, `react-native`, or `expo-*`. Dynamic imports (`await import(...)`) for optional RN modules are allowed.
@@ -11,7 +11,13 @@
 - **A module that names an OPTIONAL peer must never be reachable from the root barrel — give it its own export subpath.** `tsc` resolves the specifier of an `import()` even when the call is lazy and wrapped in try/catch, so a barrel re-export drags the specifier into EVERY consumer's type graph and turns an optional peer into a hard install requirement (`TS2307`, plus `TS7006` cascades where parameters lose contextual typing). This is resolver-asymmetric and therefore easy to ship unnoticed: web/Vite consumers resolve the package through `lib/**/*.d.ts` and `skipLibCheck: true` hides it, while Metro/RN consumers resolve the `react-native` condition (published `src/`) and fail. Metro itself is fine — an unresolvable DYNAMIC `import()` bundles cleanly and the `catch` handles it at runtime; only a STATIC import fails the Metro build. The push adapter is the worked example: `@oxy.so/services/notifications` (`packages/services/src/notifications/deviceNotifications.ts`), kept out of the barrel by `packages/services/__tests__/notifications/barrelIsolation.test.ts`, which walks the real module graph. Do NOT "fix" this class with an ambient `declare module 'expo-x'` in `src/types/` reached via `/// <reference path>`: an ambient declaration SHADOWS the real package for the whole consumer program, so an app that DID install the module silently loses its real types. (The existing `src/types/expo-*.d.ts` stubs are safe only because nothing `/// <reference>`s them into a consumer's program — they serve this package's own build.)
 - **@oxy.so/api** imports schemas directly from `@oxy.so/contracts`. Server auth helpers come from `@oxy.so/core/server` only; do NOT route contracts through `@oxy.so/core` re-exports.
 
-## ESM/CJS Compatibility (critical)
+## Peer ranges
+
+> Moved out of `AGENTS.md` unchanged.
+
+**Every peer range on a package that ships breaking majors needs an UPPER bound.** `"*"` and a bare `">=x"` let a consumer's install silently resolve a major the package cannot work with, with no warning from bun at all — the only thing that catches it is `tsc` reaching into `node_modules`, which it does only because the `react-native` condition points at published `src/`, so an app whose typecheck skips `node_modules` gets a green build and a white screen. Raise a floor only to a version MEASURED to be the first that works (bisect the published tarballs), and re-raise it in the same commit as the code that requires it.
+
+## ESM builds
 
 Both `@oxy.so/core` and `@oxy.so/contracts` ship dual CJS + ESM builds. The ESM build **must not contain `require()` calls** — Vite and other ESM-only bundlers will crash.
 
@@ -21,7 +27,7 @@ Both `@oxy.so/core` and `@oxy.so/contracts` ship dual CJS + ESM builds. The ESM 
 - Guard any unavoidable `require()` with `typeof require !== 'undefined'`
 - For platform-specific crypto: use `isReactNative()` → expo-crypto, `isNodeJS()` → node crypto, else → Web Crypto API
 
-## Ambient `declare module` shims (core — critical)
+## Ambient shims
 
 **Never hand-write a `declare module '<pkg>'` for a package that ships types or has an `@types/<pkg>`.** An ambient module declaration SHADOWS the resolved types for every program that includes the declaring file — and `packages/core/tsconfig.json` includes it (`include: ["src"]`) while no consumer's tsconfig does. The result is a package that typechecks against a private view of its dependencies: core's own `tsc` passes, and any consumer compiling core SOURCE gets a different, sometimes broken, program.
 
@@ -33,7 +39,7 @@ Same trap applies to Metro consumers: the `"react-native"` export condition poin
 - If a type from a dependency appears in a package's PUBLISHED `.d.ts`, its type package belongs in `dependencies`, not `devDependencies` — otherwise it resolves to nothing in the consumer and `skipLibCheck` silently degrades it to `any`. Prefer owned value-oriented interfaces that do not expose an implementation library at all.
 - Verify a shim is load-bearing by deleting it and running the package's own `tsc`: core's 70-line `elliptic` shim had exactly one line anything used, and its `color` shim was for a package core does not import at all.
 
-## Hermes Unicode Property Escapes (mobile — critical)
+## Hermes property escapes
 
 Mobile Hermes (RN 0.86, `hermes-v0.17.0`) is built with `HERMES_ENABLE_UNICODE_REGEXP_PROPERTY_ESCAPES` OFF, so it throws `SyntaxError: Invalid RegExp: Invalid property name` at runtime on EVERY `\p{…}`/`\P{…}` atom in a `u`-flag regex — `\p{L}`, `\p{M}`, `\p{Zs}`, `\p{scx=…}`, all of them, not just obscure subcategories. V8 (web) supports them fully, so this NEVER reproduces on web — only on a real native Hermes build. The `u` flag itself and lookbehind `(?<…)` are unaffected; only the `\p{…}` atoms are unsupported.
 
@@ -43,11 +49,11 @@ Why this is especially dangerous for `@oxy.so/core`: core builds with `tsc` (no 
 
 **Verification:** `hermesc` (the desktop compiler) has the FULL Unicode property table and happily accepts `\p{Zl}` at compile time — that proves nothing about the mobile VM, whose on-device `.so` has zero property-name strings compiled in. Confirm on a real foregrounded Hermes build/device, never the compiler alone.
 
-## React Compiler bundling of `@oxy.so/services` (Expo apps)
+## React Compiler
 
 `@oxy.so/services` SOURCE is React-Compiler-compiled when bundled inside the `commons` and `accounts` Expo apps, even though `@oxy.so/services` itself declares no compiler flag. Those apps set `experiments.reactCompiler: true`, and because `services` is a workspace symlink whose `package.json` exposes `"react-native": "src/index.ts"`, Metro resolves it to the realpath TS source (no `node_modules` path segment) — so Expo's `isNodeModule` compiler gate treats services source as APP source and compiles it. Consequence: `packages/services/src/` must be held to React-Compiler-safe standards (no render-phase side effects/mutations inside `useMemo` or other compiler-memoizable positions; no reading external mutable state out-of-band in render — see the global React Compiler rule in `~/AGENTS.md`). In Allo, `services` resolves as a real `node_modules` directory, so it is excluded from compilation there — but the monorepo's own apps (commons, accounts) are the binding case.
 
-## Publishing: which paths run `prepublishOnly`, and which run nothing
+## Publishing
 
 `prepublishOnly` is where `@oxy.so/services` keeps its pre-flight (`assert-bun-publish` → `typescript` → `test` → `build`). It exists, and for `@oxy.so/services@30.0.0` it did not run. Measured 2026-08-17 on npm 10.9.8 / bun 1.3.14 with a probe package whose every lifecycle script appends its own name to a log file:
 
@@ -98,7 +104,7 @@ When splitting imports: use `import type` for type-only imports, regular `import
 - Oxy API owns `name.displayName` for user/profile DTOs. `composeDisplayName` (`packages/api/src/utils/displayName.ts`) returns a real name (explicit displayName or composed first/last) or `undefined` — it does NOT fall back to username, publicKey, or `'Anonymous'`. `formatUserNameResponse` omits `displayName` when there is no real name.
 - `@oxy.so/contracts` owns both the formatted user response contract and `UserProfileUpdate`. `@oxy.so/core`, `@oxy.so/services`, and `@oxy.so/api` import those types directly from `@oxy.so/contracts`; do not re-export them through another package.
 - `@oxy.so/core` public `User.name.displayName` is **optional** (`string | undefined`). Consumers render `name.displayName` when present; **when absent, fall back to the handle** via `getNormalizedUserHandle` from `@oxy.so/core`. The pattern is `displayName ?? handle` — a single handle fallback. Do NOT rebuild multi-field chains (`displayName || first || username...`). The account-switcher helper `getAccountDisplayName` (local account surfaces only) keeps its own chain.
-- **Display name character policy** (`cleanDisplayName`): allows letters (`\p{L}`) + marks (`\p{M}`) + spaces + apostrophe only; strips emoji, symbols, `:shortcode:`, digits, hyphens, dots, AND orphaned combining marks (a mark not attached to a base letter). Native writes reject 400; federated names are stripped on ingest; existing records were backfilled by a one-shot script that has since run in prod and been removed. These `\p{…}` atoms never ship raw to Hermes — see "Hermes Unicode Property Escapes" below.
+- **Display name character policy** (`cleanDisplayName`): allows letters (`\p{L}`) + marks (`\p{M}`) + spaces + apostrophe only; strips emoji, symbols, `:shortcode:`, digits, hyphens, dots, AND orphaned combining marks (a mark not attached to a base letter). Native writes reject 400; federated names are stripped on ingest; existing records were backfilled by a one-shot script that has since run in prod and been removed. These `\p{…}` atoms never ship raw to Hermes — see "Hermes property escapes" below.
 - **Auth gate relaxation (originally 2026-06-29; the specific FedCM-era `OxyServices.sso.ts`/`sso.controller.ts` files this predated no longer exist post-wave-2):** every current sign-in/session-parsing path (`OxyServices.auth.ts`, the device-secret mint response, `formatUserResponse`) requires a structured `name` object but treats `displayName` within it as optional — never require a non-empty `displayName` string as a session-validity gate. Do NOT re-tighten this.
 - Profile handle normalization belongs in `@oxy.so/core` (`packages/core/src/utils/userHandle.ts`). Consumers must use `getNormalizedUserHandle` for local/federated routes instead of local route helpers or manual domain concatenation.
 
