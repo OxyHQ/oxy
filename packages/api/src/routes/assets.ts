@@ -33,6 +33,7 @@ import {
   CDN_REDIRECT_CACHE_CONTROL,
   IMMUTABLE_ASSET_CACHE_CONTROL,
 } from '../config/cdn';
+import { sendAssetRedirect } from '../utils/cdnRedirect';
 import { MEDIA_TOKEN_QUERY_PARAM, MEDIA_TOKEN_TTL_SECONDS, signMediaToken } from '../utils/mediaToken';
 import { FEDERATION_CACHE_MAX_BYTES, USER_MEDIA_MAX_BYTES, isAllowedCacheMime } from '../constants/federationCache';
 import { and, eq } from 'drizzle-orm';
@@ -1711,7 +1712,7 @@ router.get('/:id/stream', mediaHeadersMiddleware, validate({ params: assetIdPara
     // (every new upload, and any visibility-relocated object) — no S3 probe.
     if (isPublicKey(storageKey)) {
       res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
-      return res.redirect(buildCdnUrl(stripPublicPrefix(storageKey)));
+      return sendAssetRedirect(res, buildCdnUrl(stripPublicPrefix(storageKey)));
     }
 
     // Legacy public object whose DB key still points at a non-public key, but
@@ -1723,7 +1724,7 @@ router.get('/:id/stream', mediaHeadersMiddleware, validate({ params: assetIdPara
       const cdnUrl = await assetService.getPublicCdnUrl(file, variantType);
       if (cdnUrl) {
         res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
-        return res.redirect(cdnUrl);
+        return sendAssetRedirect(res, cdnUrl);
       }
     } catch (cdnProbeError) {
       logger.debug('CDN probe failed for public asset stream; streaming through origin', {
@@ -1850,7 +1851,7 @@ router.get('/:id/download', validate({ params: assetIdParams }), optionalAuthMid
     : signMediaToken(fileId, userId);
   const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variantType, mediaToken);
   res.setHeader('Cache-Control', 'private, max-age=60');
-  return res.redirect(url);
+  return sendAssetRedirect(res, url);
 }));
 
 /**

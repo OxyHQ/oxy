@@ -22,6 +22,7 @@ import { validate } from '../middleware/validate';
 import { assetIdParams } from '../schemas/assets.schemas';
 import { asyncHandler } from '../utils/asyncHandler';
 import { CDN_REDIRECT_CACHE_CONTROL } from '../config/cdn';
+import { sendAssetRedirect } from '../utils/cdnRedirect';
 import { logger } from '../utils/logger';
 import { singleQueryValue } from '../utils/queryString';
 
@@ -90,26 +91,9 @@ router.get(
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Resource not found' });
     }
 
-    // A redirect has nothing to range over, and this one is deliberately cached
-    // at the edge for an hour so the id→key lookup is memoised. CloudFront then
-    // answers a RANGED request out of that cached redirect BODY, and a range
-    // past its length is unsatisfiable:
-    //
-    //   GET cloud.oxy.so/<id>  Range: bytes=1000000-
-    //   → 416, content-range: bytes */130, x-cache: Error from cloudfront
-    //
-    // Which is what a video player gets the moment it re-opens a source at a
-    // non-zero offset — a seek, a resume, scrolling back to a half-watched reel.
-    // Measured on a Pixel 10 Pro: every "Video unavailable" in Mention's reel was
-    // this 416 arriving as ExoPlayer's `Source error`, on LOCAL Oxy videos, whose
-    // by-id URL is the canonical one every app uses.
-    //
-    // So the redirect says ranges do not apply to it and carries no body to
-    // slice. `res.redirect` would send a 130-byte HTML courtesy page — the very
-    // bytes the edge was slicing.
+    // Cacheable redirect: bodiless, and not rangeable. See `sendAssetRedirect`.
     res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
-    res.setHeader('Accept-Ranges', 'none');
-    return res.status(302).location(cdnUrl).end();
+    return sendAssetRedirect(res, cdnUrl);
   })
 );
 
