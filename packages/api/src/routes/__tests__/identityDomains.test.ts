@@ -64,7 +64,7 @@ jest.mock('dns', () => ({
   promises: { resolveTxt: (...args: unknown[]) => mockResolveTxt(...args) },
 }));
 
-jest.mock('@oxyhq/core/server', () => ({
+jest.mock('@oxy.so/core/server', () => ({
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
 }));
 

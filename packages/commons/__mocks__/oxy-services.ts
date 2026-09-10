@@ -1,5 +1,5 @@
 /**
- * Lightweight `@oxyhq/services` stub for unit tests in the Commons package.
+ * Lightweight `@oxy.so/services` stub for unit tests in the Commons package.
  *
  * `useOxy()` is implemented with `useSyncExternalStore` so that calls to
  * `__setOxyState({...})` outside of React are immediately reflected in any
@@ -9,7 +9,7 @@
  */
 
 import { createElement, useEffect, useSyncExternalStore, type ReactElement } from 'react';
-import type { PushTokenPlatform } from '@oxyhq/core';
+import type { PushTokenPlatform } from '@oxy.so/core';
 
 interface MockOxyServices {
   updateProfile?: jest.Mock;
@@ -248,7 +248,7 @@ export function __emitOxyEvent(event: string, payload: unknown): void {
 /* -------------------------------------------------------------------------- */
 
 /**
- * `@oxyhq/services` owns the ONE `expo-notifications` adapter in the ecosystem,
+ * `@oxy.so/services` owns the ONE `expo-notifications` adapter in the ecosystem,
  * and its behaviour — the native-only guard, the EXPO-token rule, the one-shot
  * foreground latch, the permission short-circuits — is tested in that package.
  *

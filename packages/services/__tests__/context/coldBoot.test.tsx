@@ -23,7 +23,7 @@
 import React from 'react';
 import { render, waitFor, act, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AUTH_STATE_STORAGE_KEY, type User } from '@oxyhq/core';
+import { AUTH_STATE_STORAGE_KEY, type User } from '@oxy.so/core';
 
 const redirectToAuthorize = jest.fn();
 jest.mock('../../src/ui/components/oauthNavigation', () => ({
@@ -74,7 +74,7 @@ const API_BASE_URL = 'https://api.oxy.so';
 const USER_ID = 'user_cb_1';
 
 /**
- * A `@oxyhq/core`-shaped stub. `mintFromDeviceSecret` is the zero-cookie mint the
+ * A `@oxy.so/core`-shaped stub. `mintFromDeviceSecret` is the zero-cookie mint the
  * web cold boot uses to restore a returning device; it is only called when a
  * `deviceId` + `deviceSecret` is persisted, so a signed-out boot (no seed) never
  * reaches it. `getCurrentUser` hydrates the committed session in the restore case.

@@ -43,9 +43,9 @@
  */
 
 import { eq, sql } from 'drizzle-orm';
-import { executeRows } from '@oxyhq/db';
+import { executeRows } from '@oxy.so/db';
 import { getDb } from '../config/postgres';
-import { LIVE_PRODUCT_PLAN_STATUSES } from '@oxyhq/contracts';
+import { LIVE_PRODUCT_PLAN_STATUSES } from '@oxy.so/contracts';
 import { inferenceProviderConnections } from '../db/schema/inferenceProviderConnections';
 import { users } from '../db/schema/users';
 import { accountClosureFences } from '../db/schema/accountClosureFences';

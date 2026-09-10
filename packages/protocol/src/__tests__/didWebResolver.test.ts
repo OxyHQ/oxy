@@ -5,7 +5,7 @@
  * input the chain engine consults on relay/ingest paths.
  */
 
-import type { DidDocument } from '@oxyhq/contracts';
+import type { DidDocument } from '@oxy.so/contracts';
 import { createDidWebResolver, didWebToUrl } from '../node/didWebResolver';
 import type { NodeFetch, NodeFetchResponse } from '../node/httpFetch';
 

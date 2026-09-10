@@ -35,7 +35,7 @@
  *    Its findings are the discrepancy rows, which ARE guarded.
  *
  * `SQLSTATE 23514` (check violation) rather than a bespoke code, so
- * `@oxyhq/db`'s `isCheckViolation` recognises it like any other constraint
+ * `@oxy.so/db`'s `isCheckViolation` recognises it like any other constraint
  * failure — a caller must never have to string-match a message.
  */
 

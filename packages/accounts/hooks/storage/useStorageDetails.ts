@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
-import { alert } from '@oxyhq/bloom';
-import type { AccountStorageUsageResponse } from '@oxyhq/core';
+import { alert } from '@oxy.so/bloom';
+import type { AccountStorageUsageResponse } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { useTranslation } from '@/lib/i18n';
@@ -126,7 +126,7 @@ export function useStorageDetails(usage: AccountStorageUsageResponse | null): St
       t('storage.detail.summary', { size: sizeText, count: countText, percent: percentage }),
       [{ text: t('common.ok') }]
     );
-    // `alert` is a stable module import from @oxyhq/bloom, not a reactive value.
+    // `alert` is a stable module import from @oxy.so/bloom, not a reactive value.
   }, [formatBytes, usage, t]);
 
   const storageDetails = useMemo<StorageDetailItem[]>(() => {

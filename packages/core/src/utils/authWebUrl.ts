@@ -4,7 +4,7 @@
  * The client SSO/FedCM resolvers (`resolveCentralAuthUrl`, `CENTRAL_AUTH_URL`)
  * were removed in the device-first / legacy-final cutovers. The lone survivor is
  * `CENTRAL_IDP_APEX`, kept because it has a LIVE consumer —
- * `@oxyhq/core/server`'s CORS helper (`server/cors.ts`'s `createOxyCors`)
+ * `@oxy.so/core/server`'s CORS helper (`server/cors.ts`'s `createOxyCors`)
  * auto-allows `*.oxy.so` from it. That CORS use is permanent, so this stays
  * past the SSO/FedCM teardown.
  */

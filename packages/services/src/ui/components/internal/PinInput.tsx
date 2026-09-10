@@ -1,6 +1,6 @@
 import React, { useRef, forwardRef, useImperativeHandle } from 'react';
 import { View, TextInput, StyleSheet, Platform, type NativeSyntheticEvent, type TextInputKeyPressEventData } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 interface PinInputColors {
     primary: string;

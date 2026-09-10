@@ -26,7 +26,7 @@ import {
   planMigrationRun,
   readJournal,
   readMigrationPhases,
-} from '@oxyhq/db/migrate';
+} from '@oxy.so/db/migrate';
 import { MIGRATIONS_FOLDER } from '../migrationsFolder';
 
 const throwawayFolders: string[] = [];

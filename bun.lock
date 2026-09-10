@@ -3,10 +3,10 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "@oxyhq/sdk",
+      "name": "@oxy.so/sdk",
       "dependencies": {
         "@expo/metro-runtime": "~57.0.8",
-        "@oxyhq/bloom": "catalog:",
+        "@oxy.so/bloom": "catalog:",
         "expo-contacts": "~57.0.3",
         "expo-image-picker": "~57.0.7",
         "expo-splash-screen": "~57.0.5",
@@ -28,11 +28,11 @@
       "dependencies": {
         "@expo/vector-icons": "^15.1.1",
         "@lottiefiles/dotlottie-react": "catalog:",
-        "@oxyhq/app-preset": "workspace:*",
-        "@oxyhq/bloom": "catalog:",
-        "@oxyhq/core": "*",
-        "@oxyhq/expo-splash": "workspace:*",
-        "@oxyhq/services": "*",
+        "@oxy.so/app-preset": "workspace:*",
+        "@oxy.so/bloom": "catalog:",
+        "@oxy.so/core": "*",
+        "@oxy.so/expo-splash": "workspace:*",
+        "@oxy.so/services": "*",
         "@react-native-async-storage/async-storage": "^2.2.0",
         "@shopify/react-native-skia": "catalog:",
         "@tanstack/query-async-storage-persister": "catalog:",
@@ -102,7 +102,7 @@
       },
     },
     "packages/api": {
-      "name": "@oxyhq/api",
+      "name": "@oxy.so/api",
       "version": "2.0.0",
       "dependencies": {
         "@aws-sdk/client-s3": "^3.1087.0",
@@ -115,12 +115,12 @@
         "@opentelemetry/sdk-metrics": "^2.11.0",
         "@opentelemetry/sdk-node": "^0.222.0",
         "@oxy.so/telemetry": "workspace:*",
-        "@oxyhq/contracts": "workspace:*",
-        "@oxyhq/core": "workspace:*",
-        "@oxyhq/db": "workspace:*",
-        "@oxyhq/federation": "workspace:*",
-        "@oxyhq/mcp": "workspace:*",
-        "@oxyhq/protocol": "workspace:*",
+        "@oxy.so/contracts": "workspace:*",
+        "@oxy.so/core": "workspace:*",
+        "@oxy.so/db": "workspace:*",
+        "@oxy.so/federation": "workspace:*",
+        "@oxy.so/mcp": "workspace:*",
+        "@oxy.so/protocol": "workspace:*",
         "@simplewebauthn/server": "13.3.2",
         "@socket.io/redis-adapter": "^8.3.0",
         "@types/cheerio": "^1.0.0",
@@ -195,11 +195,11 @@
       },
     },
     "packages/app-preset": {
-      "name": "@oxyhq/app-preset",
+      "name": "@oxy.so/app-preset",
       "version": "0.5.0",
       "peerDependencies": {
-        "@oxyhq/bloom": ">=0.59.0 <2.0.0",
-        "@oxyhq/services": "31.0.0",
+        "@oxy.so/bloom": ">=0.59.0 <2.0.0",
+        "@oxy.so/services": "31.0.0",
         "babel-plugin-module-resolver": "*",
         "babel-preset-expo": "*",
         "eslint": ">=9.0.0",
@@ -212,8 +212,8 @@
         "tailwindcss": ">=4.0.0",
       },
       "optionalPeers": [
-        "@oxyhq/bloom",
-        "@oxyhq/services",
+        "@oxy.so/bloom",
+        "@oxy.so/services",
         "babel-plugin-module-resolver",
         "babel-preset-expo",
         "eslint",
@@ -233,10 +233,10 @@
         "@expo/vector-icons": "^15.0.3",
         "@hugeicons/core-free-icons": "catalog:",
         "@hugeicons/react": "^1.1.9",
-        "@oxyhq/bloom": "catalog:",
-        "@oxyhq/contracts": "workspace:*",
-        "@oxyhq/core": "workspace:*",
-        "@oxyhq/services": "workspace:*",
+        "@oxy.so/bloom": "catalog:",
+        "@oxy.so/contracts": "workspace:*",
+        "@oxy.so/core": "workspace:*",
+        "@oxy.so/services": "workspace:*",
         "@radix-ui/react-alert-dialog": "1.1.23",
         "@radix-ui/react-avatar": "^1.2.6",
         "@radix-ui/react-dialog": "1.1.23",
@@ -289,12 +289,12 @@
       "version": "1.1.0",
       "dependencies": {
         "@expo/vector-icons": "^15.1.1",
-        "@oxyhq/app-preset": "workspace:*",
-        "@oxyhq/bloom": "catalog:",
-        "@oxyhq/contracts": "workspace:*",
-        "@oxyhq/core": "*",
-        "@oxyhq/expo-splash": "workspace:*",
-        "@oxyhq/services": "*",
+        "@oxy.so/app-preset": "workspace:*",
+        "@oxy.so/bloom": "catalog:",
+        "@oxy.so/contracts": "workspace:*",
+        "@oxy.so/core": "*",
+        "@oxy.so/expo-splash": "workspace:*",
+        "@oxy.so/services": "*",
         "@react-native-async-storage/async-storage": "^2.2.0",
         "@shopify/react-native-skia": "catalog:",
         "@tanstack/react-query": "catalog:",
@@ -368,10 +368,10 @@
         "@expo/vector-icons": "^15.0.3",
         "@hugeicons/core-free-icons": "catalog:",
         "@hugeicons/react": "^1.1.9",
-        "@oxyhq/bloom": "catalog:",
-        "@oxyhq/contracts": "*",
-        "@oxyhq/core": "*",
-        "@oxyhq/services": "*",
+        "@oxy.so/bloom": "catalog:",
+        "@oxy.so/contracts": "*",
+        "@oxy.so/core": "*",
+        "@oxy.so/services": "*",
         "@tailwindcss/vite": "^4.3.3",
         "@tanstack/query-sync-storage-persister": "catalog:",
         "@tanstack/react-query": "catalog:",
@@ -423,7 +423,7 @@
       },
     },
     "packages/contracts": {
-      "name": "@oxyhq/contracts",
+      "name": "@oxy.so/contracts",
       "version": "0.40.0",
       "dependencies": {
         "zod": "^3.25.64",
@@ -436,14 +436,14 @@
       },
     },
     "packages/core": {
-      "name": "@oxyhq/core",
+      "name": "@oxy.so/core",
       "version": "23.3.4",
       "dependencies": {
         "@noble/ciphers": "^1.3.0",
         "@noble/hashes": "^1.8.0",
         "@oxy.so/telemetry": "workspace:^",
-        "@oxyhq/contracts": "workspace:^",
-        "@oxyhq/protocol": "workspace:^",
+        "@oxy.so/contracts": "workspace:^",
+        "@oxy.so/protocol": "workspace:^",
         "@scure/bip39": "^1.6.0",
         "buffer": "^6.0.3",
         "express-rate-limit": "catalog:",
@@ -498,7 +498,7 @@
       },
     },
     "packages/db": {
-      "name": "@oxyhq/db",
+      "name": "@oxy.so/db",
       "version": "0.2.0",
       "devDependencies": {
         "@biomejs/biome": "catalog:",
@@ -524,7 +524,7 @@
       },
     },
     "packages/expo-splash": {
-      "name": "@oxyhq/expo-splash",
+      "name": "@oxy.so/expo-splash",
       "version": "0.2.0",
       "dependencies": {
         "@expo/image-utils": ">=0.7.0",
@@ -546,11 +546,11 @@
       },
     },
     "packages/federation": {
-      "name": "@oxyhq/federation",
+      "name": "@oxy.so/federation",
       "version": "0.17.3",
       "dependencies": {
-        "@oxyhq/contracts": ">=0.37.0 <0.41.0",
-        "@oxyhq/core": "^20.1.0 || ^21.0.0 || ^22.0.0 || ^23.0.0",
+        "@oxy.so/contracts": ">=0.37.0 <0.41.0",
+        "@oxy.so/core": "^20.1.0 || ^21.0.0 || ^22.0.0 || ^23.0.0",
       },
       "devDependencies": {
         "@biomejs/biome": "catalog:",
@@ -570,11 +570,11 @@
       ],
     },
     "packages/mcp": {
-      "name": "@oxyhq/mcp",
+      "name": "@oxy.so/mcp",
       "version": "0.6.0",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.30.0",
-        "@oxyhq/contracts": "workspace:^",
+        "@oxy.so/contracts": "workspace:^",
         "zod": "^4.5.4",
       },
       "devDependencies": {
@@ -585,12 +585,12 @@
       },
     },
     "packages/node": {
-      "name": "@oxyhq/node",
+      "name": "@oxy.so/node",
       "version": "0.2.0",
       "dependencies": {
-        "@oxyhq/contracts": "workspace:*",
-        "@oxyhq/core": "workspace:*",
-        "@oxyhq/protocol": "workspace:*",
+        "@oxy.so/contracts": "workspace:*",
+        "@oxy.so/core": "workspace:*",
+        "@oxy.so/protocol": "workspace:*",
         "better-sqlite3": "^12.11.1",
         "express": "catalog:",
         "pino": "catalog:",
@@ -608,11 +608,11 @@
       },
     },
     "packages/protocol": {
-      "name": "@oxyhq/protocol",
+      "name": "@oxy.so/protocol",
       "version": "0.3.0",
       "dependencies": {
         "@noble/curves": "catalog:",
-        "@oxyhq/contracts": "workspace:^",
+        "@oxy.so/contracts": "workspace:^",
         "zod": "^3.25.64",
       },
       "devDependencies": {
@@ -645,10 +645,10 @@
       ],
     },
     "packages/services": {
-      "name": "@oxyhq/services",
+      "name": "@oxy.so/services",
       "version": "31.0.3",
       "dependencies": {
-        "@oxyhq/contracts": "workspace:*",
+        "@oxy.so/contracts": "workspace:*",
         "@simplewebauthn/browser": "^13.3.0",
         "color": "^4.2.3",
       },
@@ -657,7 +657,7 @@
         "@commitlint/cli": "^21.2.1",
         "@commitlint/config-conventional": "^21.2.0",
         "@expo/vector-icons": "^15.0.3",
-        "@oxyhq/core": "workspace:*",
+        "@oxy.so/core": "workspace:*",
         "@react-native-async-storage/async-storage": "^2.0.0",
         "@react-native-community/netinfo": "^12.0.1",
         "@react-native/babel-preset": "^0.86.2",
@@ -698,8 +698,8 @@
       },
       "peerDependencies": {
         "@expo/vector-icons": "^15.0.3",
-        "@oxyhq/bloom": "^1.0.0",
-        "@oxyhq/core": "23.3.4",
+        "@oxy.so/bloom": "^1.0.0",
+        "@oxy.so/core": "23.3.4",
         "@react-native-async-storage/async-storage": "^2.0.0",
         "@react-native-community/netinfo": ">=11.4.1",
         "@tanstack/query-async-storage-persister": "catalog:",
@@ -752,14 +752,14 @@
       ],
     },
     "packages/ship": {
-      "name": "@oxyhq/ship",
+      "name": "@oxy.so/ship",
       "version": "0.2.0",
       "bin": {
         "oxy-ship": "dist/cli.js",
       },
       "dependencies": {
-        "@oxyhq/contracts": "workspace:*",
-        "@oxyhq/core": "workspace:*",
+        "@oxy.so/contracts": "workspace:*",
+        "@oxy.so/core": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^22.20.1",
@@ -787,9 +787,9 @@
         "@expo/vector-icons": "^15.1.1",
         "@gorhom/bottom-sheet": "^5.2.14",
         "@lottiefiles/dotlottie-react": "catalog:",
-        "@oxyhq/app-preset": "workspace:*",
-        "@oxyhq/bloom": "catalog:",
-        "@oxyhq/services": "*",
+        "@oxy.so/app-preset": "workspace:*",
+        "@oxy.so/bloom": "catalog:",
+        "@oxy.so/services": "*",
         "@react-native-async-storage/async-storage": "2.2.0",
         "@react-native/virtualized-lists": "0.86.2",
         "@tailwindcss/postcss": "4.3.3",
@@ -848,9 +848,9 @@
         "@fontsource-variable/inter": "^5.3.0",
         "@hugeicons/core-free-icons": "catalog:",
         "@hugeicons/react": "^1.1.4",
-        "@oxyhq/bloom": "catalog:",
-        "@oxyhq/core": "*",
-        "@oxyhq/services": "*",
+        "@oxy.so/bloom": "catalog:",
+        "@oxy.so/core": "*",
+        "@oxy.so/services": "*",
         "@tailwindcss/vite": "^4.3.3",
         "@tanstack/react-query": "catalog:",
         "class-variance-authority": "catalog:",
@@ -893,7 +893,7 @@
     "@shopify/react-native-skia",
   ],
   "overrides": {
-    "@oxyhq/bloom": "catalog:",
+    "@oxy.so/bloom": "catalog:",
     "@radix-ui/react-slot": "1.2.3",
     "@types/express": "^4.17.25",
     "browserslist": "4.28.8",
@@ -909,7 +909,7 @@
     "@hugeicons/core-free-icons": "^3.3.0",
     "@lottiefiles/dotlottie-react": "^0.19.9",
     "@noble/curves": "^1.9.7",
-    "@oxyhq/bloom": "^1.14.0",
+    "@oxy.so/bloom": "^1.14.0",
     "@shopify/react-native-skia": "2.6.2",
     "@tanstack/query-async-storage-persister": "^5.101",
     "@tanstack/query-sync-storage-persister": "^5.101",
@@ -1960,31 +1960,31 @@
 
     "@oxy.so/telemetry": ["@oxy.so/telemetry@workspace:packages/telemetry"],
 
-    "@oxyhq/api": ["@oxyhq/api@workspace:packages/api"],
+    "@oxy.so/api": ["@oxy.so/api@workspace:packages/api"],
 
-    "@oxyhq/app-preset": ["@oxyhq/app-preset@workspace:packages/app-preset"],
+    "@oxy.so/app-preset": ["@oxy.so/app-preset@workspace:packages/app-preset"],
 
-    "@oxyhq/bloom": ["@oxyhq/bloom@1.14.0", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "react-native-css": "3.0.7", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "@react-native-community/netinfo": ">=11.1.0", "expo": "*", "expo-blur": "*", "expo-font": "*", "expo-glass-effect": ">=0.1.9", "expo-haptics": "*", "expo-image": "*", "expo-router": ">=3.0.0", "expo-symbols": ">=0.4.5", "expo-video": "*", "nativewind": ">=5.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.16.1", "react-native-keyboard-controller": ">=1.11.4", "react-native-reanimated": ">=3.13.0", "react-native-safe-area-context": ">=5.0.0", "react-native-screens": ">=3.16.0", "react-native-svg": ">=13.0.0" }, "optionalPeers": ["@react-native-community/netinfo", "expo", "expo-font", "expo-haptics", "expo-router", "expo-video", "nativewind", "react-dom", "react-native-keyboard-controller"] }, "sha512-KD1dKiqT1xqNuFl/UL5kneKn6WELFfUwrSnXQQDQ/YQ03yMXPr4B0JlICd1pBMxw21T4jsIFCYUzMGJ4TZTTiQ=="],
+    "@oxy.so/bloom": ["@oxy.so/bloom@1.14.0", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "react-native-css": "3.0.7", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "@react-native-community/netinfo": ">=11.1.0", "expo": "*", "expo-blur": "*", "expo-font": "*", "expo-glass-effect": ">=0.1.9", "expo-haptics": "*", "expo-image": "*", "expo-router": ">=3.0.0", "expo-symbols": ">=0.4.5", "expo-video": "*", "nativewind": ">=5.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.16.1", "react-native-keyboard-controller": ">=1.11.4", "react-native-reanimated": ">=3.13.0", "react-native-safe-area-context": ">=5.0.0", "react-native-screens": ">=3.16.0", "react-native-svg": ">=13.0.0" }, "optionalPeers": ["@react-native-community/netinfo", "expo", "expo-font", "expo-haptics", "expo-router", "expo-video", "nativewind", "react-dom", "react-native-keyboard-controller"] }, "sha512-KD1dKiqT1xqNuFl/UL5kneKn6WELFfUwrSnXQQDQ/YQ03yMXPr4B0JlICd1pBMxw21T4jsIFCYUzMGJ4TZTTiQ=="],
 
-    "@oxyhq/contracts": ["@oxyhq/contracts@workspace:packages/contracts"],
+    "@oxy.so/contracts": ["@oxy.so/contracts@workspace:packages/contracts"],
 
-    "@oxyhq/core": ["@oxyhq/core@workspace:packages/core"],
+    "@oxy.so/core": ["@oxy.so/core@workspace:packages/core"],
 
-    "@oxyhq/db": ["@oxyhq/db@workspace:packages/db"],
+    "@oxy.so/db": ["@oxy.so/db@workspace:packages/db"],
 
-    "@oxyhq/expo-splash": ["@oxyhq/expo-splash@workspace:packages/expo-splash"],
+    "@oxy.so/expo-splash": ["@oxy.so/expo-splash@workspace:packages/expo-splash"],
 
-    "@oxyhq/federation": ["@oxyhq/federation@workspace:packages/federation"],
+    "@oxy.so/federation": ["@oxy.so/federation@workspace:packages/federation"],
 
-    "@oxyhq/mcp": ["@oxyhq/mcp@workspace:packages/mcp"],
+    "@oxy.so/mcp": ["@oxy.so/mcp@workspace:packages/mcp"],
 
-    "@oxyhq/node": ["@oxyhq/node@workspace:packages/node"],
+    "@oxy.so/node": ["@oxy.so/node@workspace:packages/node"],
 
-    "@oxyhq/protocol": ["@oxyhq/protocol@workspace:packages/protocol"],
+    "@oxy.so/protocol": ["@oxy.so/protocol@workspace:packages/protocol"],
 
-    "@oxyhq/services": ["@oxyhq/services@workspace:packages/services"],
+    "@oxy.so/services": ["@oxy.so/services@workspace:packages/services"],
 
-    "@oxyhq/ship": ["@oxyhq/ship@workspace:packages/ship"],
+    "@oxy.so/ship": ["@oxy.so/ship@workspace:packages/ship"],
 
     "@paralleldrive/cuid2": ["@paralleldrive/cuid2@2.3.1", "", { "dependencies": { "@noble/hashes": "^1.1.5" } }, "sha512-XO7cAxhnTZl0Yggq6jOgjiOHhbgcO4NqFqwSmQpjK3b6TEE6Uj/jfSk6wzYyemh3+I0sHirKSetjQwn5cZktFw=="],
 
@@ -5606,15 +5606,15 @@
 
     "@opentelemetry/configuration/yaml": ["yaml@2.9.0", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA=="],
 
-    "@oxyhq/contracts/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
+    "@oxy.so/contracts/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
 
-    "@oxyhq/core/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
+    "@oxy.so/core/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
 
-    "@oxyhq/mcp/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
+    "@oxy.so/mcp/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
 
-    "@oxyhq/mcp/zod": ["zod@4.5.4", "", {}, "sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA=="],
+    "@oxy.so/mcp/zod": ["zod@4.5.4", "", {}, "sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA=="],
 
-    "@oxyhq/services/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
+    "@oxy.so/services/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
 
     "@radix-ui/react-accessible-icon/@radix-ui/react-visually-hidden": ["@radix-ui/react-visually-hidden@1.2.7", "", { "dependencies": { "@radix-ui/react-primitive": "2.1.7" }, "peerDependencies": { "@types/react": "*", "@types/react-dom": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react", "@types/react-dom"] }, "sha512-1wNZBggTDK3GRuuQ6nP4k2yi7a6l7I5qbMPbZcRsrGsGVead/f/d5FhEzUvqFs0bcrDLx7n1zKQ3JvLR6whaaw=="],
 

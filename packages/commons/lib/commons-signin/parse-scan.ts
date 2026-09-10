@@ -13,12 +13,12 @@
  * site re-implementing the matching.
  *
  * It delegates to the pure, already-tested parsers — `parseApprovalLink` (here)
- * and `parseIdPayload` / `parseAttestPayload` (from `@oxyhq/core`) — and never
+ * and `parseIdPayload` / `parseAttestPayload` (from `@oxy.so/core`) — and never
  * trusts the QR for anything beyond the opaque fields it carries: all are
  * re-resolved / re-verified server-side.
  */
 
-import { parseIdPayload, parseAttestPayload } from '@oxyhq/core';
+import { parseIdPayload, parseAttestPayload } from '@oxy.so/core';
 import { parseApprovalLink } from './parse-approval-link';
 
 /** The branch a scanned string resolves to. */

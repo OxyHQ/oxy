@@ -846,7 +846,7 @@ Express.js authentication middleware.
 
 ```typescript
 import express from 'express';
-import { oxyClient } from '@oxyhq/core';
+import { oxyClient } from '@oxy.so/core';
 
 const app = express();
 
@@ -875,7 +875,7 @@ app.get('/api/protected/user', (req, res) => {
 All methods throw errors that you should handle:
 
 ```typescript
-import { OxyAuthenticationError } from '@oxyhq/core';
+import { OxyAuthenticationError } from '@oxy.so/core';
 
 try {
   await oxyServices.getCurrentUser();
@@ -895,5 +895,5 @@ try {
 All methods are fully typed. Import types for better TypeScript support:
 
 ```typescript
-import type { User, Notification, BlockedUser, RestrictedUser } from '@oxyhq/core';
+import type { User, Notification, BlockedUser, RestrictedUser } from '@oxy.so/core';
 ```

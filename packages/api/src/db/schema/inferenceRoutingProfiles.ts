@@ -28,7 +28,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, updatedAt } from '@oxy.so/db';
 import { SLUG_CHECK_PATTERN } from './inferenceSlug';
 
 /** What a profile optimises for when several candidates qualify. */

@@ -38,9 +38,9 @@
  * is a brand-new request, never a second claim of the old one.
  */
 
-import type { CommonsSignInHandle, CommonsSignInStatus } from "@oxyhq/core"
+import type { CommonsSignInHandle, CommonsSignInStatus } from "@oxy.so/core"
 import type { HubClient } from "@/lib/hub-client"
-import type { HubSession } from "@oxyhq/contracts"
+import type { HubSession } from "@oxy.so/contracts"
 
 /** Poll cadence, matching the OAuth lane — this page bundles no socket client. */
 export const HUB_ESTABLISH_POLL_INTERVAL_MS = 3000

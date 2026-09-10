@@ -1070,7 +1070,7 @@ router.post(
     // and the resulting service token's downstream authority is bounded by
     // its scopes — the Oxy Pay Gateway only honours `payments:*`. This lets
     // external Oxy Pay merchants (WooCommerce, Mercaria, etc.) self-serve the
-    // service credential the `@oxyhq/pay` SDK needs, without ever letting a
+    // service credential the `@oxy.so/pay` SDK needs, without ever letting a
     // self-service app mint a trusted service token for files/user/
     // federation/etc. Requesting ANY non-payments scope on a service
     // credential still requires platform trust — the check below is

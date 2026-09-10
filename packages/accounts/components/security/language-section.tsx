@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
-import { showBottomSheet, useOxy } from '@oxyhq/services';
-import { getNativeLanguageName } from '@oxyhq/core';
+import { showBottomSheet, useOxy } from '@oxy.so/services';
+import { getNativeLanguageName } from '@oxy.so/core';
 import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 import { ThemedText } from '@/components/themed-text';

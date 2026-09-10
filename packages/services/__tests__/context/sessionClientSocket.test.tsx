@@ -33,8 +33,8 @@
 import React from 'react';
 import { render, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AUTH_STATE_STORAGE_KEY, type SessionLoginResponse, type User } from '@oxyhq/core';
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import { AUTH_STATE_STORAGE_KEY, type SessionLoginResponse, type User } from '@oxy.so/core';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 
 jest.mock('../../src/ui/session', () => {
   const actual = jest.requireActual('../../src/ui/session');

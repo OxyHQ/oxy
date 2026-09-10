@@ -1,9 +1,9 @@
 /**
- * @oxyhq/services/ui — public subpath
+ * @oxy.so/services/ui — public subpath
  *
  * Tree-shakeable static re-exports of the most common UI surface. Backend
- * environments (SSR) should import `@oxyhq/services/ui/server` instead;
- * client-only callers can use `@oxyhq/services/ui/client` for a slightly
+ * environments (SSR) should import `@oxy.so/services/ui/server` instead;
+ * client-only callers can use `@oxy.so/services/ui/client` for a slightly
  * narrower bundle.
  *
  * Static `export ... from` only — no runtime `require()`, no platform
@@ -36,7 +36,7 @@ export { useFollow, useSeedFollowStatuses } from './hooks/useFollow';
 export { useStorage } from './hooks/useStorage';
 export type { UseStorageOptions, UseStorageResult } from './hooks/useStorage';
 
-// Route screens live at `@oxyhq/services/screens`; a static export here defeats
+// Route screens live at `@oxy.so/services/screens`; a static export here defeats
 // the lazy route registry and moves the screens back into the initial chunk.
 
 // Stores

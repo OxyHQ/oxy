@@ -23,8 +23,8 @@
  * entries in the run already minted.
  */
 
-import { isValidUsername } from '@oxyhq/contracts';
-import { isValidDisplayName } from '@oxyhq/core';
+import { isValidUsername } from '@oxy.so/contracts';
+import { isValidDisplayName } from '@oxy.so/core';
 import { MAX_ACCOUNT_DEPTH } from '../../db/schema/userAncestors';
 import {
   ABSENT,

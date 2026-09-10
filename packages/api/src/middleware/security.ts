@@ -285,7 +285,7 @@ const securityHeaders = helmet({
   } : false,
 
   // No Content-Security-Policy: oxy-api is JSON-only — a source-list CSP governs
-  // no browsing context here. HTML origins use @oxyhq/core/server
+  // no browsing context here. HTML origins use @oxy.so/core/server
   // buildOxyPagesHeaders / createOxySecurityHeaders instead.
   contentSecurityPolicy: false,
 

@@ -25,7 +25,7 @@
  */
 
 import { index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId } from '@oxyhq/db';
+import { createdAt, generatedId } from '@oxy.so/db';
 import { files } from './files';
 import { users } from './users';
 

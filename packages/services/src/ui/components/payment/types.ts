@@ -1,5 +1,5 @@
 import type Ionicons from "../../icons/Ionicons";
-import type { ThemeColors } from "@oxyhq/bloom/theme";
+import type { ThemeColors } from "@oxy.so/bloom/theme";
 import type React from "react";
 import type { Animated } from "react-native";
 

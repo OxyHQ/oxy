@@ -1,4 +1,4 @@
-import { type LinkPreview, linkPreviewSchema } from '@oxyhq/contracts';
+import { type LinkPreview, linkPreviewSchema } from '@oxy.so/contracts';
 import type { linkPreviews } from '../../db/schema';
 
 /**
@@ -29,7 +29,7 @@ export type SerializableLinkPreview = Pick<
 >;
 
 /**
- * Map a stored preview to the `@oxyhq/contracts` `LinkPreview` DTO.
+ * Map a stored preview to the `@oxy.so/contracts` `LinkPreview` DTO.
  *
  * Hard rules:
  *  - `image` / `favicon` come ONLY from the Oxy-hosted `imageUrl` / `favicon`

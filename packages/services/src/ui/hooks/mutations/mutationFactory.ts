@@ -10,9 +10,9 @@
  */
 
 import type { QueryClient, UseMutationOptions } from '@tanstack/react-query';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import { queryKeys, invalidateAccountQueries, invalidateUserQueries } from '../queries/queryKeys';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { useAuthStore } from '../../stores/authStore';
 
 /**

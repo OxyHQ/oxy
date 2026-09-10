@@ -1,6 +1,6 @@
 /**
  * `useDeviceSwitcher` — the thin binding over the shared `AccountDialogController`
- * in `@oxyhq/core`.
+ * in `@oxy.so/core`.
  *
  * The grouping itself (`projectDevicePrincipals`) is unit-tested in core; here we
  * assert the RN hook faithfully surfaces the controller's snapshot and forwards
@@ -11,9 +11,9 @@
  */
 
 import { renderHook, act } from '@testing-library/react';
-import type { DeviceDirectory } from '@oxyhq/contracts';
-import type { AccountDialogSnapshot } from '@oxyhq/core';
-import { resolveActiveContext } from '@oxyhq/core';
+import type { DeviceDirectory } from '@oxy.so/contracts';
+import type { AccountDialogSnapshot } from '@oxy.so/core';
+import { resolveActiveContext } from '@oxy.so/core';
 
 /** Nate and Alice, both able to act as `org`. */
 const sharedDirectory = (activeContextId: string | null): DeviceDirectory => ({

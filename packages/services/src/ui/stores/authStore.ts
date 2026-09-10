@@ -1,5 +1,5 @@
 import { useCallback, useRef, useSyncExternalStore } from 'react';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import type { OxyRuntime } from '../runtime';
 
 /**

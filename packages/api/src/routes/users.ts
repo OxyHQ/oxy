@@ -11,8 +11,8 @@
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
-import { safeFetch, SsrfRejection } from '@oxyhq/core/server';
-import { canonicalFederationHost, isSameFederationHost } from '@oxyhq/federation';
+import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
+import { canonicalFederationHost, isSameFederationHost } from '@oxy.so/federation';
 import { readBoundedBody } from '../services/linkPreview/boundedBody';
 import { getDb } from '../config/postgres';
 import { identityBackups } from '../db/schema/identityBackups';
@@ -65,7 +65,7 @@ import { cleanDisplayName } from '../utils/displayNameSanitize';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { buildExportBundle } from '../services/identityExport.service';
-import { exportBundleSchema } from '@oxyhq/contracts';
+import { exportBundleSchema } from '@oxy.so/contracts';
 import sessionService from '../services/session.service';
 import deviceSessionService from '../services/deviceSession.service';
 
@@ -1402,7 +1402,7 @@ router.get(
  *       Hard-delete the authenticated user's account. To prove identity at
  *       the time of deletion the client signs `delete:{publicKey}:{timestamp}`
  *       with the local secp256k1 private key (see `KeyManager.sign` in
- *       `@oxyhq/core`). The signature is rejected if it is older than 5
+ *       `@oxy.so/core`). The signature is rejected if it is older than 5
  *       minutes, if the confirmation text does not match the account's
  *       username, or if the account has no associated public key.
  *

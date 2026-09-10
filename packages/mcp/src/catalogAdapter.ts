@@ -1,4 +1,4 @@
-import type { AppCapabilityCatalog, CatalogTool } from '@oxyhq/contracts';
+import type { AppCapabilityCatalog, CatalogTool } from '@oxy.so/contracts';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type {

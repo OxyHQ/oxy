@@ -22,8 +22,8 @@
  *    redirect bodies (potentially unbounded) are destroyed, not drained.
  *
  * Node-only: this module imports `node:http`/`node:https`/`node:dns` and is
- * exported solely from `@oxyhq/core/server`. It MUST NOT be reachable from the
- * browser `@oxyhq/core` entry.
+ * exported solely from `@oxy.so/core/server`. It MUST NOT be reachable from the
+ * browser `@oxy.so/core` entry.
  */
 
 import http, { type IncomingMessage, type IncomingHttpHeaders } from 'node:http';

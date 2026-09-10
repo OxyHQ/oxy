@@ -33,10 +33,10 @@
  * id and no assertion depends on a table being empty.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { personhoodStatuses } from '../../db/schema/personhoodStatuses';
 import { personhoodVouches } from '../../db/schema/personhoodVouches';

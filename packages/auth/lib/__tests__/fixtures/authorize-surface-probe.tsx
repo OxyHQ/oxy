@@ -3,10 +3,10 @@
  *
  * This file exists to be built by the IdP's OWN production Vite config and then
  * evaluated, because the failure it guards against (issue #784) exists only in
- * the bundle: `@oxyhq/services` and the app agree perfectly in source and under
+ * the bundle: `@oxy.so/services` and the app agree perfectly in source and under
  * the dev server, and the binding still arrived `undefined` at render time in
  * the production build. A source-level test cannot see it — the auth suite
- * replaces the whole `@oxyhq/services` specifier with a double — so the only
+ * replaces the whole `@oxy.so/services` specifier with a double — so the only
  * honest check is to render the real surface out of a real production bundle.
  *
  * It therefore imports EXACTLY the way `components/commons-oauth-request.tsx`
@@ -32,8 +32,8 @@
 
 import { createElement, type ReactElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import { BloomThemeProvider } from "@oxyhq/bloom/theme"
-import { OxySignInRequestSurface } from "@oxyhq/services"
+import { BloomThemeProvider } from "@oxy.so/bloom/theme"
+import { OxySignInRequestSurface } from "@oxy.so/services"
 import {
     ALTERNATIVE_LABEL,
     PROBE_CASES,

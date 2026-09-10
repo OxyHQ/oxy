@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import type { ConnectedApp } from '@oxyhq/core';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import type { ConnectedApp } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { useRelativeTime } from '@/hooks/useRelativeTime';

@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { Switch } from '@oxyhq/bloom/switch';
-import { useTheme } from '@oxyhq/bloom/theme';
-import type { NotificationPreferences } from '@oxyhq/core';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { Switch } from '@oxy.so/bloom/switch';
+import { useTheme } from '@oxy.so/bloom/theme';
+import type { NotificationPreferences } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';

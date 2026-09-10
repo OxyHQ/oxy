@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOxy, useAuthStore, handleAuthError } from '@oxyhq/services';
+import { useOxy, useAuthStore, handleAuthError } from '@oxy.so/services';
 import {
   KeyManager,
   RecoveryPhraseService,
@@ -10,8 +10,8 @@ import {
   IdentityPersistError,
   IdentityUnavailableError,
   readIdentityMarker,
-} from '@oxyhq/core';
-import type { User } from '@oxyhq/core';
+} from '@oxy.so/core';
+import type { User } from '@oxy.so/core';
 import { useBiometricSignIn } from './useBiometricSignIn';
 import { useIdentityStore, persistIdentitySyncState, persistOnboardingComplete, persistOnboardingFlow } from './identity/identityStore';
 import { useNetworkReconnect } from './identity/useNetworkReconnect';

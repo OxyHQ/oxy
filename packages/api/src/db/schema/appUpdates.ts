@@ -58,7 +58,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { randomUUID } from 'node:crypto';
 import { applications } from './applications';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { SHA256_HEX_PATTERN, updateAssets } from './updateAssets';
 import { UPDATE_PLATFORMS, updateChannels } from './updateChannels';
 

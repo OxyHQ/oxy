@@ -21,7 +21,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { useApplications } from '@/hooks/use-applications';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import { resolveStoredImageUrl } from '@/lib/image-upload';
 
 export function NavApps() {

@@ -9,17 +9,17 @@ import {
   RefreshControl,
 } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { H6, Text } from '@oxyhq/bloom/typography';
-import { Button } from '@oxyhq/bloom/button';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { H6, Text } from '@oxy.so/bloom/typography';
+import { Button } from '@oxy.so/bloom/button';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import FollowButton from '../components/FollowButton';
 import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/OxyContext';
-import { logger, getNormalizedUserHandle, getAccountFallbackHandle } from '@oxyhq/core';
-import type { User, FollowGraphSort } from '@oxyhq/core';
+import { logger, getNormalizedUserHandle, getAccountFallbackHandle } from '@oxy.so/core';
+import type { User, FollowGraphSort } from '@oxy.so/core';
 
 type ListMode = 'followers' | 'following';
 

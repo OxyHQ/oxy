@@ -10,8 +10,8 @@
 import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReputationBalance } from '@oxyhq/contracts';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import type { ReputationBalance } from '@oxy.so/contracts';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 import { useCivicReputation, useReputationSources } from '@/hooks/useCivicReputation';
 
 const BALANCE: ReputationBalance = {

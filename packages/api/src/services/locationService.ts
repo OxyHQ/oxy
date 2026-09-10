@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { normalizeInlineText } from '@oxyhq/core';
+import { normalizeInlineText } from '@oxy.so/core';
 import { logger } from '../utils/logger';
 import locationCache from '../utils/locationCache';
 import { nominatimRateLimiter } from '../utils/apiRateLimiter';

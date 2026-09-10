@@ -4,7 +4,7 @@ import {
   OXY_OAUTH_RETURN_PATH_STORAGE_KEY,
   persistOAuthHandshake,
   persistOAuthReturnPath,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 
 describe('tryCompleteOAuthReturn', () => {
   beforeEach(() => {

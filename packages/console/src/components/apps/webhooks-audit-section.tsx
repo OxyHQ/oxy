@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import type { WebhookEndpointDraft } from '@/lib/app-webhooks';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';

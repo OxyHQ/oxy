@@ -11,8 +11,8 @@ import {
   resourceRefSchema,
   toolGrantOverrideSchema,
   type DelegationGrant as DelegationGrantContract,
-} from '@oxyhq/contracts';
-import { verifyCapabilityTicket } from '@oxyhq/core/server';
+} from '@oxy.so/contracts';
+import { verifyCapabilityTicket } from '@oxy.so/core/server';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import {

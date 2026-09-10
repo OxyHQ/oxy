@@ -1,6 +1,6 @@
 import type React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 import { __setMockSearchParams } from '@/__mocks__/expo-router';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
 
@@ -20,7 +20,7 @@ jest.mock('@/lib/biometricAuth', () => ({
  * screen must answer the request with nothing at all when the sheet is
  * dismissed, so there is no sheet behaviour left to stand in for an answer.
  */
-jest.mock('@oxyhq/bloom/dialog', () => {
+jest.mock('@oxy.so/bloom/dialog', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const R = require('react') as typeof import('react');
   interface MockControl {

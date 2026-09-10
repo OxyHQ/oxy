@@ -7,7 +7,7 @@
  * A service token proves an APPLICATION. `X-Oxy-User-Id` is a header, and a
  * header is an input — so on its own it proves nothing at all, and attaching
  * `req.userId` from it would let any service holding any service token
- * impersonate any user by typing their id. `@oxyhq/core`'s `oxy.auth()` refuses
+ * impersonate any user by typing their id. `@oxy.so/core`'s `oxy.auth()` refuses
  * that by construction: it calls `GET /internal/service-acting-as/verify` on
  * every request carrying the header and rejects with 403 unless this function
  * says yes. There is no fail-open path there and none here.
@@ -42,7 +42,7 @@
  *          ∩ credential  `application_credentials.scopes` → the token's `scopes`
  *   this function                                         → what the USER allows
  *
- * `requireScope` in `@oxyhq/core` intersects them for a delegated request.
+ * `requireScope` in `@oxy.so/core` intersects them for a delegated request.
  *
  * This function returns only the user's grant scopes. The resource server then
  * intersects them with the service token, so neither the platform nor the user
@@ -73,7 +73,7 @@ export const SERVICE_ACTING_AS_SCOPE = 'acting-as:offline';
 
 /**
  * The answer `GET /internal/service-acting-as/verify` returns, and the shape
- * `@oxyhq/core`'s `ServiceActingAsVerification` parses.
+ * `@oxy.so/core`'s `ServiceActingAsVerification` parses.
  *
  * `scopes` is `[]` whenever `authorized` is false, so a caller that ignores the
  * boolean and reads the array still gets an answer that authorises nothing.

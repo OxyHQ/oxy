@@ -37,10 +37,10 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, tsvector, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, tsvector, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
-/** Matches the Mongo text index's default language. A LITERAL — see `@oxyhq/db`'s `tsvector`. */
+/** Matches the Mongo text index's default language. A LITERAL — see `@oxy.so/db`'s `tsvector`. */
 const SEARCH_CONFIGURATION = 'english';
 
 /**

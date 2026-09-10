@@ -40,7 +40,7 @@ describe('VERSIONS drift guard', () => {
   });
 
   test('oxyBloom matches the workspace catalog', () => {
-    expect(VERSIONS.oxyBloom).toBe(readWorkspaceCatalogVersion('@oxyhq/bloom'));
+    expect(VERSIONS.oxyBloom).toBe(readWorkspaceCatalogVersion('@oxy.so/bloom'));
   });
 
   test('oxyAppPreset matches the current workspace release', () => {
@@ -54,8 +54,8 @@ describe('VERSIONS drift guard', () => {
     for (const pkg of ['contracts', 'core', 'services', 'app-preset']) {
       expect(workflow).toContain(`packages/${pkg}/**`);
       expect(workflow).toContain(`packages/$package`);
-      expect(workflow).toContain(`@oxyhq/${pkg}`);
-      expect(workflow).toContain(`oxyhq-${pkg}-`);
+      expect(workflow).toContain(`@oxy.so/${pkg}`);
+      expect(workflow).toContain(`oxy.so-${pkg}-`);
     }
   });
 });

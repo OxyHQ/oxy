@@ -46,7 +46,7 @@ class FakeSsrfRejection extends Error {
   }
 }
 
-jest.mock('@oxyhq/core/server', () => ({
+jest.mock('@oxy.so/core/server', () => ({
   __esModule: true,
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
   SsrfRejection: FakeSsrfRejection,
@@ -591,7 +591,7 @@ describe('PUT /users/resolve — persistence', () => {
   /**
    * The federated namespace is not governed by the local username policy, and in
    * particular not by the rule that a `bot` account's handle must end in `bot`
-   * (`botUsernameSchema`, `@oxyhq/contracts`).
+   * (`botUsernameSchema`, `@oxy.so/contracts`).
    *
    * A remote bot is a bot on ANOTHER server. Its handle is stored as
    * `handle@domain` — a shape the local policy rejects outright, label or no

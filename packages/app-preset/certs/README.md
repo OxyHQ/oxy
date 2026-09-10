@@ -8,7 +8,7 @@ oxy-updates-code-signing.pem
 
 It is the **public** half of the Oxy Updates code-signing keypair. It is safe to
 commit, and it lives here rather than in each app repo so that a key rotation is
-one `@oxyhq/app-preset` bump instead of one edit per app.
+one `@oxy.so/app-preset` bump instead of one edit per app.
 
 The file is absent until the ecosystem keypair is generated. While it is absent,
 `withOxyUpdates` fails closed by default so an OTA-enabled production binary cannot

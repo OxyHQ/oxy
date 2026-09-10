@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { authenticatedApiCall } from '@oxyhq/core';
+import { authenticatedApiCall } from '@oxy.so/core';
 import { queryKeys } from './queryKeys';
 import { useOxy } from '../../context/OxyContext';
 import type {
@@ -21,7 +21,7 @@ import type {
  *    `usePrivacySettings`),
  *  - keeps its `queryFn` pure — no store writes, no side effects.
  *
- * The wrapped SDK methods (`@oxyhq/core` payment mixin) return `any`; the
+ * The wrapped SDK methods (`@oxy.so/core` payment mixin) return `any`; the
  * generic on `authenticatedApiCall<T>` pins the resolved value to the
  * precise domain type so consumers get full typing.
  */

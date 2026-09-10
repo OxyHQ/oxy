@@ -4,27 +4,27 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "nativewind/theme";
-@import "@oxyhq/bloom/design-tokens/theme.css";
+@import "@oxy.so/bloom/design-tokens/theme.css";
 
 /*
  * Tailwind v4 auto-detects content in this project but does NOT scan workspace
- * dependencies under node_modules. The `@oxyhq/services` screens (file manager,
- * profile, etc.) and `@oxyhq/bloom` web forks render with NativeWind className
+ * dependencies under node_modules. The `@oxy.so/services` screens (file manager,
+ * profile, etc.) and `@oxy.so/bloom` web forks render with NativeWind className
  * strings (`flex-1`, `flex-row`, `items-center`, arbitrary values like
  * `w-[40px]`/`top-[12px]`, `group-hover:*`) that exist only in those packages'
  * compiled output — without these @source globs Tailwind never generates those
  * utilities and the SDK screens render unstyled. Scoped to the two Oxy packages'
  * symlinked build output at the repo-root node_modules, NOT all of node_modules.
  * Mirrors packages/auth/app/globals.css (Vite web apps). Expo apps use
- * @oxyhq/app-preset/base.css instead.
+ * @oxy.so/app-preset/base.css instead.
  */
-@source "../../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}";
-@source "../../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}";
+@source "../../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}";
+@source "../../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";
 
 @custom-variant dark (&:is(.dark *));
 
 /*
- * shadcn/radix theme tokens are driven by @oxyhq/bloom.
+ * shadcn/radix theme tokens are driven by @oxy.so/bloom.
  *
  * <BloomThemeProvider colorPreset="oxy"> (mounted in src/routes/__root.tsx)
  * writes the Oxy-purple preset to `document.documentElement` at runtime — both
@@ -35,7 +35,7 @@
  * Bloom's palette and fonts.
  *
  * The values in :root / .dark below are pre-JS fallbacks: they mirror Bloom's
- * `oxy` preset (from APP_COLOR_PRESETS['oxy'] in @oxyhq/bloom) so the first
+ * `oxy` preset (from APP_COLOR_PRESETS['oxy'] in @oxy.so/bloom) so the first
  * paint already shows the correct Oxy-purple brand before BloomThemeProvider
  * runs — no flash of an off-brand palette. Keep them in sync with the preset.
  * Extended tokens (card / chart-* / sidebar-*) are synthesized by Bloom from

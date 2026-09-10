@@ -31,7 +31,7 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { deviceDirectorySchema } from '@oxyhq/contracts';
+import { deviceDirectorySchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
 import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';

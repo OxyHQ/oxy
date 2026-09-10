@@ -1,10 +1,10 @@
-# Changelog: `@oxyhq/api`
+# Changelog: `@oxy.so/api`
 
 ## 2.0.0
 
 ### Licence: this package moves to the Breathe License 1.0
 
-**Breaking, and a genuine narrowing rather than paperwork.** `@oxyhq/api` is now
+**Breaking, and a genuine narrowing rather than paperwork.** `@oxy.so/api` is now
 licensed under the Breathe License 1.0, identifier `LicenseRef-Breathe-1.0`. The
 code, the API surface and the behaviour are unchanged in this release; it exists
 to carry the licence change.
@@ -24,19 +24,19 @@ This is **source available, not open source**. It fails clause 6 of the Open
 Source Definition because commercial use is conditional on payment. Automated
 licence scanners report it as unknown, and GitHub shows it as "Other".
 
-**Nothing here is retroactive, and it could not be.** `@oxyhq/api@1.0.3` was published
+**Nothing here is retroactive, and it could not be.** `@oxy.so/api@1.0.3` was published
 under MIT and stays MIT forever for anyone who has it. They may keep
 using it, commercially, at no charge, indefinitely, and may fork it. A licence
 change binds future versions only.
 
-### `@oxyhq/db` had to move too
+### `@oxy.so/db` had to move too
 
 The Breathe License is **not compatible with the GPL or the AGPL**, in either
-direction. `@oxyhq/api` imports `@oxyhq/db` in process, and `@oxyhq/db` was
+direction. `@oxy.so/api` imports `@oxy.so/db` in process, and `@oxy.so/db` was
 `AGPL-3.0-only`, so relicensing this package alone would have produced a
 combination distributable under neither licence. Oxy owns both, so this is a
 decision rather than a negotiation, but it IS a decision the migration plan
-never made: `@oxyhq/db` postdates that analysis and sits in no layer.
+never made: `@oxy.so/db` postdates that analysis and sits in no layer.
 
 ### `NOTICE` now carries real third party obligations
 

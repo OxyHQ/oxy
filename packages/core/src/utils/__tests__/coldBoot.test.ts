@@ -388,7 +388,7 @@ describe('runColdBoot', () => {
    */
   describe('long-chain overall-deadline semantics', () => {
     /**
-     * Mirror of the overall-deadline value a consumer arms (e.g. `@oxyhq/services`
+     * Mirror of the overall-deadline value a consumer arms (e.g. `@oxy.so/services`
      * cold boot — the only consumer that arms the deadline). Kept as a local
      * literal because core does not — and must not — import a consumer package;
      * if the consumer's value changes, update this to match.

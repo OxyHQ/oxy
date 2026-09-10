@@ -35,7 +35,7 @@ import { sql } from 'drizzle-orm';
 import { check, index, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { applications } from './applications';
 import { followNamespaces } from './followNamespaces';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 
 /**
  * What clients may do with a kind.

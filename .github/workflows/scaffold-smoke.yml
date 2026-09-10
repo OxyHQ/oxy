@@ -100,7 +100,7 @@ jobs:
 
       - name: Assert the scaffold ships a hoisted-linker bunfig.toml
         run: |
-          # Isolated linker (bun's default) does not hoist @oxyhq/app-preset to
+          # Isolated linker (bun's default) does not hoist @oxy.so/app-preset to
           # the root node_modules, so shared-types' tsconfig extends fail. The
           # generated app MUST carry bunfig.toml with the hoisted linker.
           grep -q 'linker = "hoisted"' "$RUNNER_TEMP/smoke-app/bunfig.toml"
@@ -136,10 +136,10 @@ jobs:
             const path = require("path");
             const dir = process.env.RUNNER_TEMP;
             const packed = [
-              ["@oxyhq/contracts", /^oxyhq-contracts-.*\.tgz$/],
-              ["@oxyhq/core", /^oxyhq-core-.*\.tgz$/],
-              ["@oxyhq/services", /^oxyhq-services-.*\.tgz$/],
-              ["@oxyhq/app-preset", /^oxyhq-app-preset-.*\.tgz$/],
+              ["@oxy.so/contracts", /^oxyhq-contracts-.*\.tgz$/],
+              ["@oxy.so/core", /^oxyhq-core-.*\.tgz$/],
+              ["@oxy.so/services", /^oxy-services-.*\.tgz$/],
+              ["@oxy.so/app-preset", /^oxyhq-app-preset-.*\.tgz$/],
             ];
             const files = fs.readdirSync(dir);
             const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
@@ -175,7 +175,7 @@ jobs:
                 throw new Error(label + " escaped the generated app: " + target);
               }
             };
-            assertInsideApp("@oxyhq/app-preset", require.resolve("@oxyhq/app-preset/metro"));
+            assertInsideApp("@oxy.so/app-preset", require.resolve("@oxy.so/app-preset/metro"));
             assertInsideApp("resolver.emptyModulePath", require("./metro.config.js").resolver.emptyModulePath);
           '
 

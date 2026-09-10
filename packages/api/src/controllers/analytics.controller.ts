@@ -40,7 +40,7 @@ import type { Request, Response } from "express";
 import { and, count, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import type { AuthRequest } from "../middleware/auth";
 import { getDb } from "../config/postgres";
-import { qualified } from "@oxyhq/db";
+import { qualified } from "@oxy.so/db";
 import { ANALYTICS_PERIODS, userAnalytics } from "../db/schema/userAnalytics";
 import { userFollows } from "../db/schema/userFollows";
 import { users } from "../db/schema/users";

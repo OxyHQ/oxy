@@ -1,6 +1,6 @@
 # Oxy Test App
 
-This Expo project is used to develop and validate `@oxyhq/services` in an isolated playground.
+This Expo project is used to develop and validate `@oxy.so/services` in an isolated playground.
 
 ## Get started
 
@@ -16,7 +16,7 @@ This Expo project is used to develop and validate `@oxyhq/services` in an isolat
    npx expo start
    ```
 
-The Metro config automatically watches the monorepo root and resolves `@oxyhq/services` from `packages/services/src`, so changes to the services package will hot reload in the test app.
+The Metro config automatically watches the monorepo root and resolves `@oxy.so/services` from `packages/services/src`, so changes to the services package will hot reload in the test app.
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
@@ -24,7 +24,7 @@ You can start developing by editing the files inside the **app** directory. This
 
 Metro expects web bundle requests to include a bundle path (for example `/index.bundle?platform=web`). Some tooling issues in Expo SDK 54 send `/?platform=web`, which causes Metro to throw an error about JSC-safe URLs. Our `metro.config.js` now rewrites those requests so you can run `npm run web` without tweaks.
 
-## Develop `@oxyhq/services` locally
+## Develop `@oxy.so/services` locally
 
 - Edit code in `packages/services/src/**`
 - Keep the bundler running with `npm run start` inside `packages/test-app` to see updates instantly

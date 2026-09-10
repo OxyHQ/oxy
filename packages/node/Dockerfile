@@ -1,19 +1,19 @@
 ##
-## Dockerfile for an Oxy data node (@oxyhq/node) — a reusable multi-app base.
+## Dockerfile for an Oxy data node (@oxy.so/node) — a reusable multi-app base.
 ##
 ## A small, self-hostable server that stores and serves a user's OWN signed
-## records (their personal repo). The runnable engine is @oxyhq/protocol/node
+## records (their personal repo). The runnable engine is @oxy.so/protocol/node
 ## (createNodeApp + the record verifier); this image is the thin deployment
 ## (SQLite store + env config + bootstrap), so a record signed on the node
-## verifies with the EXACT @oxyhq/protocol code Oxy uses.
+## verifies with the EXACT @oxy.so/protocol code Oxy uses.
 ##
 ## The SAME image serves many app-node deployments by ENV alone (the env-var
 ## prefix + app namespace are config): the default OXY_NODE_* / app.oxy build is
 ## the Oxy identity node; a future mention-node is the same base with
 ## MENTION_NODE_* / app.mention env (built in workstream B3) — no fork.
 ##
-## Build context is the MONOREPO ROOT (it copies @oxyhq/protocol + @oxyhq/core +
-## @oxyhq/contracts as workspace deps). Mirrors the api Dockerfile: node:24-alpine
+## Build context is the MONOREPO ROOT (it copies @oxy.so/protocol + @oxy.so/core +
+## @oxy.so/contracts as workspace deps). Mirrors the api Dockerfile: node:24-alpine
 ## + bun, a lean workspace subset (contracts + protocol + core + node only),
 ## build-from-source.
 ##
@@ -53,9 +53,9 @@ COPY packages/node/ packages/node/
 
 # Build contracts, then protocol (the signed-record crypto base node verifies
 # with), then core (node consumes their dist), then node.
-RUN bun run --filter @oxyhq/contracts build
-RUN bun run --filter @oxyhq/protocol build
-RUN bun run --filter @oxyhq/core build
+RUN bun run --filter @oxy.so/contracts build
+RUN bun run --filter @oxy.so/protocol build
+RUN bun run --filter @oxy.so/core build
 RUN cd packages/node && bunx tsc
 
 # ── Production image ──────────────────────────────────────────────

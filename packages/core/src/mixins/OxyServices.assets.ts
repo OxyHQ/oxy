@@ -1,6 +1,6 @@
 import type { AccountStorageUsageResponse, AssetUploadInput, AssetUrlResponse, AssetVariant, BatchFileAccessResponse, RNFileDescriptor, ServiceAssetMetadata, ServiceAssetMetadataBySha } from '../models/interfaces';
 import type { OxyServicesBase } from '../OxyServices.base';
-import { isReactNative } from '@oxyhq/protocol';
+import { isReactNative } from '@oxy.so/protocol';
 import { logger } from '../logger';
 import { AssetUrlResolutionError, ServiceAssetMetadataError } from '../OxyServices.errors';
 import { extractErrorStatus } from '../utils/errorUtils';

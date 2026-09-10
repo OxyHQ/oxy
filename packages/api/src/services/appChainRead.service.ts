@@ -29,7 +29,7 @@ import {
   type AuthorRecordCursor,
 } from './oxyRecordStore';
 import { publicCollectionsAmong } from '../config/chainCollectionPolicy';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 /** The scope a service credential must carry to read across subjects. */
 export const CHAINS_READ_SCOPE = 'chains:read';

@@ -203,7 +203,7 @@ const ACKNOWLEDGED_PACKAGES = [
     reason:
       'Expo uses it for local development certificates. The signature-forgery advisories matter '
       + 'to a verifier of untrusted certificates; nothing in Oxy verifies with node-forge — '
-      + '`@oxyhq/federation` and `@oxyhq/core` use Node crypto and elliptic directly.',
+      + '`@oxy.so/federation` and `@oxy.so/core` use Node crypto and elliptic directly.',
   },
   {
     package: 'image-size',
@@ -227,7 +227,7 @@ const ACKNOWLEDGED_PACKAGES = [
       'Runtime in the Expo apps, and the one entry here that is not dev-only tooling. The '
       + 'advisories are infinite loops when `size` is zero or negative; expo-router calls it '
       + 'with no argument, so the vulnerable input cannot occur. Nothing in Oxy generates '
-      + 'security-relevant identifiers with nanoid — ids come from `@oxyhq/db` uuid v7 and '
+      + 'security-relevant identifiers with nanoid — ids come from `@oxy.so/db` uuid v7 and '
       + 'secrets from CSPRNG bytes.',
   },
   {
@@ -241,7 +241,7 @@ const ACKNOWLEDGED_PACKAGES = [
   },
   {
     package: 'engine.io',
-    reachedBy: 'socket.io -> @oxyhq/api (runtime)',
+    reachedBy: 'socket.io -> @oxy.so/api (runtime)',
     reason:
       'RUNTIME on the deployed API. GHSA-r635-g3xr-vw7x is polling-transport connection '
       + 'exhaustion, a resource DoS behind the ALB, and the installed 6.6.5 is one patch below '
@@ -251,7 +251,7 @@ const ACKNOWLEDGED_PACKAGES = [
   },
   {
     package: 'socket.io-parser',
-    reachedBy: 'socket.io -> @oxyhq/api, and socket.io-client -> @oxyhq/services (runtime)',
+    reachedBy: 'socket.io -> @oxy.so/api, and socket.io-client -> @oxy.so/services (runtime)',
     reason:
       'RUNTIME, same lane as engine.io. Both advisories are memory exhaustion from binary '
       + 'attachments; the API emits no binary attachments and the client sends none, and the '
@@ -259,7 +259,7 @@ const ACKNOWLEDGED_PACKAGES = [
   },
   {
     package: 'express-rate-limit',
-    reachedBy: '@oxyhq/api and @oxyhq/core (runtime), plus older copies under other dependents',
+    reachedBy: '@oxy.so/api and @oxy.so/core (runtime), plus older copies under other dependents',
     reason:
       'The API resolves 8.6.0, which is ABOVE the `>=8.2.0 <8.2.2` range of '
       + 'GHSA-46wh-pxpv-q5gq; the vulnerable 8.2.1 copy in the tree is another dependent’s. '
@@ -278,7 +278,7 @@ const ACKNOWLEDGED_PACKAGES = [
   },
   {
     package: 'path-to-regexp',
-    reachedBy: 'express 4 -> @oxyhq/api (runtime)',
+    reachedBy: 'express 4 -> @oxy.so/api (runtime)',
     reason:
       'RUNTIME. The ReDoS is in compiling a ROUTE PATTERN, not in matching a request path, and '
       + 'every pattern on this API is a literal in `routes/`. Express 4 pins `~0.1.12`, so the '
@@ -286,7 +286,7 @@ const ACKNOWLEDGED_PACKAGES = [
   },
   {
     package: 'fast-uri',
-    reachedBy: 'ajv -> swagger-jsdoc -> @oxyhq/api (startup)',
+    reachedBy: 'ajv -> swagger-jsdoc -> @oxy.so/api (startup)',
     reason:
       'JSON-schema URI parsing inside the OpenAPI document builder, which runs at startup over '
       + 'annotations in our own source. Not on any request path.',

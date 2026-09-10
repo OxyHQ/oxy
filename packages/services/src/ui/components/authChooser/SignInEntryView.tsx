@@ -18,12 +18,12 @@
 
 import type React from 'react';
 import { View } from 'react-native';
-import { Button } from '@oxyhq/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import {
   showsPrincipalHeaders,
   type AccountDialogSnapshot,
   type SwitcherPrincipalRow,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import TroubleDisclosure from './TroubleDisclosure';
 import { AccountRow, Dividerish, SubtleLink } from './primitives';
 import { authChooserStyles as styles } from './styles';

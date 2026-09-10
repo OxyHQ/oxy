@@ -1,51 +1,103 @@
 {
-  "name": "@oxyhq/db",
-  "version": "0.2.0",
+  "name": "@oxy.so/db",
+  "version": "1.0.0",
   "description": "Oxy Postgres substrate — drizzle column and naming helpers, driver-error predicates, the migration ledger and deploy-phase planner, the TTL-replacement sweep, an ephemeral-database harness, and the schema-convention gates every Oxy backend is held to.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
   "source": "src/index.ts",
   "sideEffects": false,
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
-      "import": { "types": "./dist/types/index.d.ts", "default": "./dist/esm/index.js" },
-      "require": { "types": "./dist/types/index.d.ts", "default": "./dist/cjs/index.js" },
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      },
       "default": "./dist/esm/index.js"
     },
     "./migrate": {
-      "import": { "types": "./dist/types/migrate/index.d.ts", "default": "./dist/esm/migrate/index.js" },
-      "require": { "types": "./dist/types/migrate/index.d.ts", "default": "./dist/cjs/migrate/index.js" },
+      "import": {
+        "types": "./dist/types/migrate/index.d.ts",
+        "default": "./dist/esm/migrate/index.js"
+      },
+      "require": {
+        "types": "./dist/types/migrate/index.d.ts",
+        "default": "./dist/cjs/migrate/index.js"
+      },
       "default": "./dist/esm/migrate/index.js"
     },
     "./expiry": {
-      "import": { "types": "./dist/types/expiry.d.ts", "default": "./dist/esm/expiry.js" },
-      "require": { "types": "./dist/types/expiry.d.ts", "default": "./dist/cjs/expiry.js" },
+      "import": {
+        "types": "./dist/types/expiry.d.ts",
+        "default": "./dist/esm/expiry.js"
+      },
+      "require": {
+        "types": "./dist/types/expiry.d.ts",
+        "default": "./dist/cjs/expiry.js"
+      },
       "default": "./dist/esm/expiry.js"
     },
     "./testing": {
-      "import": { "types": "./dist/types/testing.d.ts", "default": "./dist/esm/testing.js" },
-      "require": { "types": "./dist/types/testing.d.ts", "default": "./dist/cjs/testing.js" },
+      "import": {
+        "types": "./dist/types/testing.d.ts",
+        "default": "./dist/esm/testing.js"
+      },
+      "require": {
+        "types": "./dist/types/testing.d.ts",
+        "default": "./dist/cjs/testing.js"
+      },
       "default": "./dist/esm/testing.js"
     },
     "./assert": {
-      "import": { "types": "./dist/types/assert/index.d.ts", "default": "./dist/esm/assert/index.js" },
-      "require": { "types": "./dist/types/assert/index.d.ts", "default": "./dist/cjs/assert/index.js" },
+      "import": {
+        "types": "./dist/types/assert/index.d.ts",
+        "default": "./dist/esm/assert/index.js"
+      },
+      "require": {
+        "types": "./dist/types/assert/index.d.ts",
+        "default": "./dist/cjs/assert/index.js"
+      },
       "default": "./dist/esm/assert/index.js"
     },
     "./package.json": "./package.json"
   },
   "typesVersions": {
     "*": {
-      "migrate": ["dist/types/migrate/index.d.ts"],
-      "expiry": ["dist/types/expiry.d.ts"],
-      "testing": ["dist/types/testing.d.ts"],
-      "assert": ["dist/types/assert/index.d.ts"]
+      "migrate": [
+        "dist/types/migrate/index.d.ts"
+      ],
+      "expiry": [
+        "dist/types/expiry.d.ts"
+      ],
+      "testing": [
+        "dist/types/testing.d.ts"
+      ],
+      "assert": [
+        "dist/types/assert/index.d.ts"
+      ]
     }
   },
-  "files": ["NOTICE", "dist", "src", "!src/__tests__", "!src/**/*.typetest.ts"],
-  "keywords": ["oxyhq", "postgres", "drizzle", "migrations", "schema"],
+  "files": [
+    "NOTICE",
+    "dist",
+    "src",
+    "!src/__tests__",
+    "!src/**/*.typetest.ts"
+  ],
+  "keywords": [
+    "oxyhq",
+    "postgres",
+    "drizzle",
+    "migrations",
+    "schema"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/OxyHQ/OxyHQServices",
@@ -54,7 +106,9 @@
   "author": "OxyHQ",
   "license": "SEE LICENSE IN LICENSE",
   "homepage": "https://oxy.so",
-  "engines": { "node": ">=18.0.0" },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "build": "bun run build:cjs && bun run build:esm && bun run build:types",
     "build:cjs": "tsc -p tsconfig.cjs.json",
@@ -69,12 +123,17 @@
   },
   "release-it": {
     "git": {
-      "tagName": "@oxyhq/db@${version}",
-      "tagAnnotation": "Release @oxyhq/db@${version}",
-      "commitMessage": "chore(db): release @oxyhq/db@${version}"
+      "tagName": "@oxy.so/db@${version}",
+      "tagAnnotation": "Release @oxy.so/db@${version}",
+      "commitMessage": "chore(db): release @oxy.so/db@${version}"
     },
-    "github": { "release": true, "releaseName": "@oxyhq/db@${version}" },
-    "npm": { "publish": true }
+    "github": {
+      "release": true,
+      "releaseName": "@oxy.so/db@${version}"
+    },
+    "npm": {
+      "publish": true
+    }
   },
   "peerDependencies": {
     "drizzle-orm": "^0.45.2",

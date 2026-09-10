@@ -5,7 +5,7 @@ Quick reference guide for common Oxy operations.
 ## Installation
 
 ```bash
-bun add @oxyhq/services
+bun add @oxy.so/services
 ```
 
 ## React Native Setup
@@ -15,7 +15,7 @@ bun add @oxyhq/services
 import 'react-native-url-polyfill/auto';
 
 // App.tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 export default function App() {
   return (
@@ -146,7 +146,7 @@ const isRestricted = await oxyServices.isUserRestricted('user123');
 ### Error Handling
 
 ```typescript
-import { OxyAuthenticationError } from '@oxyhq/services';
+import { OxyAuthenticationError } from '@oxy.so/services';
 
 try {
   await oxyServices.getCurrentUser();
@@ -162,7 +162,7 @@ try {
 ## Node.js / Express
 
 ```typescript
-import { oxyClient } from '@oxyhq/core';
+import { oxyClient } from '@oxy.so/core';
 import express from 'express';
 
 const app = express();
@@ -185,7 +185,7 @@ app.get('/api/protected/user', (req: any, res) => {
 ## TypeScript Types
 
 ```typescript
-import type { User, Notification, BlockedUser, RestrictedUser } from '@oxyhq/services';
+import type { User, Notification, BlockedUser, RestrictedUser } from '@oxy.so/services';
 ```
 
 ## Common Patterns

@@ -57,7 +57,7 @@ import type {
   ModerationDecisionEvent,
   ModerationEffectSkipReason,
   ModerationFinding,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 import type { ResolveBindingParams } from '../identityBinding.service';
 

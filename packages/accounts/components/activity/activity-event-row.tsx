@@ -3,7 +3,7 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ThemedText } from '@/components/themed-text';
 import { useColors } from '@/hooks/useColors';
-import type { SecurityActivity } from '@oxyhq/core';
+import type { SecurityActivity } from '@oxy.so/core';
 import type { TranslateFn } from '@/lib/i18n';
 import {
     getEventIcon,

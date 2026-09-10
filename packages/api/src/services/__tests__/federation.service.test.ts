@@ -78,7 +78,7 @@ jest.mock('../s3Service', () => ({
   createS3Service: jest.fn(() => ({})),
 }));
 
-// All outbound federation traffic now goes through @oxyhq/core/server's
+// All outbound federation traffic now goes through @oxy.so/core/server's
 // DNS-pinned safeFetch. Mock it so tests drive the response (and assert the
 // SSRF guard rejects private/non-https targets) without real network I/O.
 const mockSafeFetch = jest.fn();
@@ -88,7 +88,7 @@ class FakeSsrfRejection extends Error {
     this.name = 'SsrfRejection';
   }
 }
-jest.mock('@oxyhq/core/server', () => ({
+jest.mock('@oxy.so/core/server', () => ({
   __esModule: true,
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
   SsrfRejection: FakeSsrfRejection,

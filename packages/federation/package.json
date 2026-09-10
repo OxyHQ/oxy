@@ -1,6 +1,6 @@
 {
-  "name": "@oxyhq/federation",
-  "version": "0.17.3",
+  "name": "@oxy.so/federation",
+  "version": "1.0.0",
   "description": "Oxy Federation — the app-agnostic ActivityPub identity + follow engine substrate: the network-connector contract, normalized cross-network DTOs, HTTP signatures, actor resolution, the outbound delivery transport + follow lifecycle, the inbound dispatcher, and the webfinger/actor/inbox Express routers. Domain-parameterized so every Oxy app backend federates under its own domain.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -67,7 +67,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "bun run --filter @oxyhq/contracts build && bun run --filter @oxyhq/protocol build && bun run --filter @oxyhq/core build && bun run build:cjs && bun run build:esm && bun run build:types",
+    "build": "bun run --filter @oxy.so/contracts build && bun run --filter @oxy.so/protocol build && bun run --filter @oxy.so/core build && bun run build:cjs && bun run build:esm && bun run build:types",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs",
     "build:types": "tsc -p tsconfig.types.json",
@@ -80,21 +80,21 @@
   },
   "release-it": {
     "git": {
-      "tagName": "@oxyhq/federation@${version}",
-      "tagAnnotation": "Release @oxyhq/federation@${version}",
-      "commitMessage": "chore(federation): release @oxyhq/federation@${version}"
+      "tagName": "@oxy.so/federation@${version}",
+      "tagAnnotation": "Release @oxy.so/federation@${version}",
+      "commitMessage": "chore(federation): release @oxy.so/federation@${version}"
     },
     "github": {
       "release": true,
-      "releaseName": "@oxyhq/federation@${version}"
+      "releaseName": "@oxy.so/federation@${version}"
     },
     "npm": {
       "publish": true
     }
   },
   "dependencies": {
-    "@oxyhq/contracts": ">=0.37.0 <0.41.0",
-    "@oxyhq/core": "^20.1.0 || ^21.0.0 || ^22.0.0 || ^23.0.0"
+    "@oxy.so/contracts": "^1.0.0",
+    "@oxy.so/core": "^1.0.0"
   },
   "peerDependencies": {
     "express": "^4.18.0 || ^5.0.0"

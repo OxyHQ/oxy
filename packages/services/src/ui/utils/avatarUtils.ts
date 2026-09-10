@@ -1,6 +1,6 @@
-import { authenticatedApiCall } from '@oxyhq/core';
-import type { OxyServices, User } from '@oxyhq/core';
-import type { UserProfileUpdate } from '@oxyhq/contracts';
+import { authenticatedApiCall } from '@oxy.so/core';
+import type { OxyServices, User } from '@oxy.so/core';
+import type { UserProfileUpdate } from '@oxy.so/contracts';
 import { useAuthStore } from '../stores/authStore';
 import type { QueryClient } from '@tanstack/react-query';
 import { queryKeys, invalidateUserQueries, invalidateAccountQueries } from '../hooks/queries/queryKeys';

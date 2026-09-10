@@ -379,7 +379,7 @@ describe('POST /auth/service-token — the minted claims', () => {
     const claims = decodeServiceJwt((res.body.data as { token: string }).token);
     expect(claims.type).toBe('service');
     // The claim name `appId` is a WIRE CONTRACT — it is the Application id, and
-    // `@oxyhq/core`'s service-token verification reads it under this name.
+    // `@oxy.so/core`'s service-token verification reads it under this name.
     expect(claims.appId).toBe(client.applicationId);
     expect(claims.appName).toBe(client.appName);
     expect(claims.credentialId).toBe(client.credentialId);

@@ -6,7 +6,7 @@
 -- record at all. `post` would leave app records rejected for the whole window.
 --
 -- Why the set gains `app_record`, and why it is one value rather than a lane,
--- is argued in `@oxyhq/contracts`'s `oxyRecordTypes.ts`. The short of it: one
+-- is argued in `@oxy.so/contracts`'s `oxyRecordTypes.ts`. The short of it: one
 -- chain per PERSON, held by Oxy, needs room for the records an app appends to
 -- that chain, and an app is distinguished by the envelope's `collection`
 -- (denormalized to `nsid`) rather than by inventing a category. The set stays

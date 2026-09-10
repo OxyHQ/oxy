@@ -6,13 +6,13 @@ module.exports = {
   moduleNameMapper: {
     // Resolve workspace deps from TypeScript SOURCE so core tests do not depend
     // on packages being built first (mirrors packages/api/jest.config.js).
-    '^@oxyhq/contracts$': '<rootDir>/../contracts/src/index.ts',
-    // Resolve @oxyhq/protocol from its TypeScript SOURCE so core tests do not
+    '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
+    // Resolve @oxy.so/protocol from its TypeScript SOURCE so core tests do not
     // depend on the protocol package being built first, and so the
-    // `jest.mock('@oxyhq/protocol', () => ({ ...jest.requireActual(...) }))`
+    // `jest.mock('@oxy.so/protocol', () => ({ ...jest.requireActual(...) }))`
     // overrides in the KeyManager suites resolve deterministically.
-    '^@oxyhq/protocol$': '<rootDir>/../protocol/src/index.ts',
-    '^@oxyhq/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
+    '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxy.so/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
   },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {

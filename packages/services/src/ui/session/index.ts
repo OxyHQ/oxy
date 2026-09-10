@@ -1,10 +1,10 @@
 /**
  * Session-sync integration layer — intra-package use only.
  *
- * `@oxyhq/core` owns the platform-agnostic `SessionClient`, its host adapter,
+ * `@oxy.so/core` owns the platform-agnostic `SessionClient`, its host adapter,
  * and the pure `DeviceSessionState → services` projection helpers; those are
  * re-exported straight from core here so `OxyContext` has one import site.
- * `@oxyhq/services` supplies only the platform pieces: the thin
+ * `@oxy.so/services` supplies only the platform pieces: the thin
  * `createSessionClient` factory (injects socket.io-client `io` + the
  * device-first token transport), the `AuthStateStore` factory, and — for
  * `sessionMode: 'identity'` — the identity binding (platform pin store + the
@@ -22,4 +22,4 @@ export {
   activeSessionIdOf,
   activeUserOf,
   deviceStateToClientSessions,
-} from '@oxyhq/core';
+} from '@oxy.so/core';

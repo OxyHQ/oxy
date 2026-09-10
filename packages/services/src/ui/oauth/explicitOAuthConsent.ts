@@ -8,7 +8,7 @@
  * mount, retries silently, or grants anything locally.
  */
 
-import type { OxyServices, PublicApplication } from "@oxyhq/core";
+import type { OxyServices, PublicApplication } from "@oxy.so/core";
 import { openAuthorizeUrlNative } from "../components/oauthNavigation";
 import { startWebOAuthSignIn } from "./browserAuthTransport";
 import { completeOAuthCode } from "./completeOAuthCode";

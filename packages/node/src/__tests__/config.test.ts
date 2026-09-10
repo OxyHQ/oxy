@@ -2,9 +2,9 @@
  * loadConfig tests — env-driven configuration parsing/validation.
  */
 
-import { normalizeSecp256k1PublicKey } from '@oxyhq/protocol/secp256k1';
+import { normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import { ConfigError, loadConfig } from '../config';
-import { DEFAULT_MAX_BLOB_BYTES, DEFAULT_PORT, PROTOCOL_VERSION } from '@oxyhq/protocol/node';
+import { DEFAULT_MAX_BLOB_BYTES, DEFAULT_PORT, PROTOCOL_VERSION } from '@oxy.so/protocol/node';
 import { generateTestKeyPair } from './helpers/signEnvelope';
 
 describe('loadConfig', () => {

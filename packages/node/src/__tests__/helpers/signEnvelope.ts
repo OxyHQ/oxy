@@ -1,20 +1,20 @@
 /**
  * Test helper: forge REAL signed-record envelopes using the shared crypto —
- * `KeyManager.generateKeyPairSync` (`@oxyhq/core`) for a storage-free secp256k1
- * keypair and `@oxyhq/protocol`'s `signMessage` over `signedRecordSigningInput`.
+ * `KeyManager.generateKeyPairSync` (`@oxy.so/core`) for a storage-free secp256k1
+ * keypair and `@oxy.so/protocol`'s `signMessage` over `signedRecordSigningInput`.
  *
  * This is the crux of the cross-package verification proof: the tests SIGN with
- * the same `@oxyhq/protocol` primitives that the production Commons vault uses,
- * and the node VERIFIES with those same primitives (`@oxyhq/protocol/node`'s
+ * the same `@oxy.so/protocol` primitives that the production Commons vault uses,
+ * and the node VERIFIES with those same primitives (`@oxy.so/protocol/node`'s
  * `verifyNodeRecordEnvelope`). A record forged here must verify on the node with
  * no node-local crypto.
  *
  * Not a test file (no `.test.ts` suffix) — imported by the suites.
  */
 
-import { KeyManager } from '@oxyhq/core';
-import { signedRecordSigningInput, signMessage, computeRecordId } from '@oxyhq/protocol';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { KeyManager } from '@oxy.so/core';
+import { signedRecordSigningInput, signMessage, computeRecordId } from '@oxy.so/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 export interface TestKeyPair {
   privateKey: string;

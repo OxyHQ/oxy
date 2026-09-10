@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { KeyManager } from '@oxyhq/core';
+import { KeyManager } from '@oxy.so/core';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
 import * as identityStore from '@/hooks/identity/identityStore';
 import { __getMockRouter } from '@/__mocks__/expo-router';
@@ -14,7 +14,7 @@ interface AlertAction {
 const mockAlert = jest.fn();
 const mockToastError = jest.fn();
 
-jest.mock('@oxyhq/bloom', () => ({
+jest.mock('@oxy.so/bloom', () => ({
   alert: (...args: unknown[]) => mockAlert(...args),
   toast: { error: (...args: unknown[]) => mockToastError(...args) },
 }));

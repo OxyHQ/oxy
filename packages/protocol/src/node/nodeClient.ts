@@ -5,14 +5,14 @@
  * future Mention backend (B3) uses it to drive a node + push records/blobs.
  *
  * The client is transport-agnostic — it takes an injected {@link NodeFetch} so
- * the protocol package never depends on `@oxyhq/core`. Oxy supplies an adapter
- * over `@oxyhq/core/server`'s `safeFetch` (HTTPS-only, DNS-pinned, private-IP
+ * the protocol package never depends on `@oxy.so/core`. Oxy supplies an adapter
+ * over `@oxy.so/core/server`'s `safeFetch` (HTTPS-only, DNS-pinned, private-IP
  * denylist, bounded redirects); a test supplies an in-process stub. Every
  * response body is read with a hard byte ceiling, so a node cannot stream an
  * unbounded body into the caller.
  */
 
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import {
   type NodeFetch,
   type NodeFetchInit,

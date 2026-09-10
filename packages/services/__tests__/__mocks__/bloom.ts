@@ -1,5 +1,5 @@
 /**
- * Lightweight stub for `@oxyhq/bloom` and its subpath exports.
+ * Lightweight stub for `@oxy.so/bloom` and its subpath exports.
  *
  * Only the symbols actually touched by code under test in the services
  * package are stubbed. Tests that need to assert on toast invocations
@@ -11,7 +11,7 @@ import { createContext, createElement, Fragment, useContext, useState, type Reac
 type ToastFn = (message: string, options?: Record<string, unknown>) => void;
 
 /**
- * Minimal `@oxyhq/bloom/button` + `@oxyhq/bloom/loading` stubs. All bloom
+ * Minimal `@oxy.so/bloom/button` + `@oxy.so/bloom/loading` stubs. All bloom
  * subpaths map to this single file (see `jest.config.js` moduleNameMapper), so
  * components under test that render `<Button>` / `<Loading>` resolve here. The
  * Button forwards `children` (so queries by label work), `onPress` (mapped to
@@ -39,7 +39,7 @@ export const Button = ({
 export const Loading = () => createElement('span', null, 'loading');
 
 /**
- * `@oxyhq/bloom/accordion` stubs — Bloom's CONTROLLED disclosure, which replaced
+ * `@oxy.so/bloom/accordion` stubs — Bloom's CONTROLLED disclosure, which replaced
  * the deleted `Collapsible` in 1.0.0. Mirrors the behaviour the auth chooser's
  * "Having trouble?" affordance depends on: the trigger is always rendered, and
  * the CONTENT is mounted only while its item is open (so a test can assert an
@@ -105,7 +105,7 @@ export const AccordionContent = ({ children }: { children?: ReactNode } & Record
 };
 
 /**
- * `@oxyhq/bloom/dropdown-menu` stubs — the family that replaced the deleted
+ * `@oxy.so/bloom/dropdown-menu` stubs — the family that replaced the deleted
  * `./menu`. `asChild` renders the single child AS the trigger, so a test still
  * queries the caller's own Button; the content mounts only while open.
  */
@@ -142,7 +142,7 @@ export const DropdownMenuItem = ({
 
 /**
  * Minimal stubs for the Bloom primitives the account switchers render
- * (`@oxyhq/bloom/avatar`, `@oxyhq/bloom/typography`, `@oxyhq/bloom/divider`, and
+ * (`@oxy.so/bloom/avatar`, `@oxy.so/bloom/typography`, `@oxy.so/bloom/divider`, and
  * the root `Dialog` / `useDialogControl`). All bloom subpaths map to this file,
  * so a component under test resolves these names here. `Avatar` renders no text
  * so it never collides with `getByText(displayName)` queries.
@@ -150,7 +150,7 @@ export const DropdownMenuItem = ({
 export const Avatar = () => createElement('span', { 'aria-hidden': 'true' });
 
 /**
- * `@oxyhq/bloom/avatar-group` stub — the account-menu facepile. The real group
+ * `@oxy.so/bloom/avatar-group` stub — the account-menu facepile. The real group
  * renders overlapping avatars plus a `+N` overflow chip; here we only need a
  * queryable node per rendered member so a component under test can assert how
  * many it previews and what the overflow says.
@@ -186,7 +186,7 @@ export const Text = ({
 export const Divider = () => createElement('hr', null);
 
 /**
- * `@oxyhq/bloom/theme` per-account color-scope stubs used by `OxyAccountDialog`.
+ * `@oxy.so/bloom/theme` per-account color-scope stubs used by `OxyAccountDialog`.
  *
  * The real `BloomColorScope` merges scoped CSS vars, which jsdom cannot show —
  * so the stub surfaces the preset it was handed as `data-color-preset`, the one
@@ -228,7 +228,7 @@ export const APP_COLOR_PRESETS: Record<string, { hex: string }> = Object.fromEnt
 );
 
 /**
- * `@oxyhq/bloom/dialog` `<Dialog>` stub. The real component renders its own
+ * `@oxy.so/bloom/dialog` `<Dialog>` stub. The real component renders its own
  * portal/backdrop chrome; here we only need the controlled `open` gate and the
  * `children` so a component under test (e.g. `OxyAccountDialog`) can be queried
  * for its content. Extra props (`placement`, `onClose`, `dismissOnBackdrop`, …)
@@ -271,7 +271,7 @@ export const toast: {
 );
 
 /**
- * Stub for `@oxyhq/bloom/theme`'s `useTheme`. Components under test
+ * Stub for `@oxy.so/bloom/theme`'s `useTheme`. Components under test
  * (`FollowButton`, etc.) only read `colors.*`; return the canonical key set so
  * any themed component renders without dragging in the real theme provider.
  */
@@ -312,7 +312,7 @@ const passthrough =
 export const ToastOutlet = () => createElement('div', { 'data-testid': 'bloom-toast-outlet' });
 
 /**
- * `@oxyhq/bloom/surfaces` stubs. The real stack renders each presented surface as
+ * `@oxy.so/bloom/surfaces` stubs. The real stack renders each presented surface as
  * a stacked `<Dialog>`; here we only need the module surface so the SDK's
  * `navigation/surfaces.ts` + `OxyProvider` resolve. `present` returns a
  * never-settling promise (unit tests do not await surface dismissals) and
@@ -354,7 +354,7 @@ export const prompt = surfaces.prompt;
 export const PressableScale = passthrough('div');
 
 /**
- * `@oxyhq/bloom/settings-list` stubs. The real `SettingsListItem` renders a
+ * `@oxy.so/bloom/settings-list` stubs. The real `SettingsListItem` renders a
  * Pressable (→ button role) carrying `title`/`description`/`value` as text, an
  * `icon` + `rightElement`, and an `accessibilityLabel` — the account switcher
  * queries rows by their display name (`getByText` / `getByRole('button', …)`)
@@ -422,7 +422,7 @@ export const SettingsListItem = ({
 };
 
 /**
- * `@oxyhq/bloom/composition-bar` stub. The real bar renders one sized block per
+ * `@oxy.so/bloom/composition-bar` stub. The real bar renders one sized block per
  * category; here we only need a queryable node per category so a component under
  * test (the account menu's storage meter) can assert its segments.
  */
@@ -447,7 +447,7 @@ export const CompositionBar = ({
       ),
   );
 
-/** `@oxyhq/bloom/settings-list` hairline between rows. */
+/** `@oxy.so/bloom/settings-list` hairline between rows. */
 export const SettingsListDivider = () => createElement('hr', { 'aria-hidden': 'true' });
 
 export const Switch = ({
@@ -484,7 +484,7 @@ export const SegmentedControl = passthrough('div');
 export const SegmentedControlItem = passthrough('button');
 
 /**
- * `@oxyhq/bloom/admonition` stubs — the compound inline-notice primitives. The
+ * `@oxy.so/bloom/admonition` stubs — the compound inline-notice primitives. The
  * text must stay queryable (a denied-permission notice is asserted by its copy)
  * and `AdmonitionButton` must stay pressable, so both forward their props
  * instead of rendering opaque nodes.

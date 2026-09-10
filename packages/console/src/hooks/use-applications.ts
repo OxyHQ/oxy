@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import type {
   AccountMember,
   AccountRole,
@@ -16,11 +16,11 @@ import type {
   CreateApplicationCredentialInput,
   CreateApplicationInput,
   UpdateApplicationInput,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { useAccount } from '@/hooks/use-account';
 
 // ===========================================================================
-// Types — re-exported from @oxyhq/core so the Console shares the single
+// Types — re-exported from @oxy.so/core so the Console shares the single
 // source of truth (the `accounts` mixin, which owns app management) rather
 // than maintaining a parallel copy that can drift from the API contract.
 //

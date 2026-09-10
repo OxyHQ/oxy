@@ -31,7 +31,7 @@ Service credentials belong to an `Application` (collection `applications`) via a
 ### Get a Service Token
 
 ```typescript
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 oxy.configureServiceAuth('oxy_dk_...', 'secret...');
@@ -102,9 +102,9 @@ app.get('/data', (req, res) => {
 Every one of `appId`, `appName`, `credentialId`, `ownerAccountId` and `environment`
 is REQUIRED. A signature-valid token missing any of them is refused by both
 verifiers — the API's `verifyServiceToken` answers `not_service`, and
-`@oxyhq/core`'s middleware answers `401 INVALID_SERVICE_TOKEN`.
+`@oxy.so/core`'s middleware answers `401 INVALID_SERVICE_TOKEN`.
 
-- `appId` is the `Application._id` (the claim name is intentionally stable — `@oxyhq/core` reads it under this name).
+- `appId` is the `Application._id` (the claim name is intentionally stable — `@oxy.so/core` reads it under this name).
 - `credentialId` attributes the token to the specific `ApplicationCredential` that minted it (useful for post-rotation revocation).
 - `ownerAccountId` is `applications.owner_account_id`: the Oxy account that owns the application and is **financially responsible** for what it does (ADR 0007). It is resolved server-side from the presented credential at mint time and is never accepted from the request; it is read live, so an application transferred to another account mints the new owner from the next token onward.
 - `environment` mirrors the minting `ApplicationCredential.environment`, for test/live isolation.
@@ -118,14 +118,14 @@ grant, and is attribution only.
 
 The five claims above are the canonical attribution tuple of
 [ADR 0007](adr/0007-canonical-request-attribution.md) minus the delegated user.
-`@oxyhq/core/server` exposes them as two deliberately different shapes:
+`@oxy.so/core/server` exposes them as two deliberately different shapes:
 
 ```typescript
 import {
   getOxyBillingPrincipal,      // OxyBillingPrincipal | null  — who is charged
   getOxyDelegatedUserId,       // string | null               — on whose behalf
   getOxyRequestAttribution,    // both, as one object
-} from '@oxyhq/core/server';
+} from '@oxy.so/core/server';
 
 const principal = getOxyBillingPrincipal(req);
 // { accountId, applicationId, credentialId, environment, scopes }

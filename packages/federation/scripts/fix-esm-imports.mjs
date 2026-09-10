@@ -6,7 +6,7 @@
  * 3. Adds import attributes for JSON imports
  * 4. Rewrites CJS named imports to default-import + destructure
  *
- * `@oxyhq/federation` ships zero CJS runtime dependencies at the moment (the
+ * `@oxy.so/federation` ships zero CJS runtime dependencies at the moment (the
  * `.` entry is the pure connector contract + normalized DTOs), so
  * {@link CJS_PACKAGES} is empty. When a later phase adds a CJS-only runtime
  * dependency to the `./node` engine, add it here so ESM default-import interop

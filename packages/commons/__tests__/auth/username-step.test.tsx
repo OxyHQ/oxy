@@ -22,7 +22,7 @@ jest.mock('lottie-react-native', () => {
   };
 });
 
-jest.mock('@oxyhq/bloom/dialog', () => {
+jest.mock('@oxy.so/bloom/dialog', () => {
   const ReactModule = jest.requireActual<typeof import('react')>('react');
   return {
     useDialogControl: () => ({

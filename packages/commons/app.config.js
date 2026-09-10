@@ -1,11 +1,11 @@
-const { oxySplashScreenPlugin } = require('@oxyhq/expo-splash/config');
+const { oxySplashScreenPlugin } = require('@oxy.so/expo-splash/config');
 
 // App variant — lets a development build sit next to the production app on the
 // SAME device by giving it a distinct applicationId/bundleId + name.
 // Build the dev variant with `APP_VARIANT=development` (e.g.
 // `APP_VARIANT=development npx expo run:android`); production is the default.
 // The URL scheme is intentionally shared, so the deep-link plumbing (the
-// `oxycommons://` payloads minted in @oxyhq/core) keeps working unchanged —
+// `oxycommons://` payloads minted in @oxy.so/core) keeps working unchanged —
 // Android just shows an app chooser when both are installed.
 const IS_DEV_VARIANT = process.env.APP_VARIANT === 'development';
 const APP_ID = IS_DEV_VARIANT ? 'so.oxy.commons.dev' : 'so.oxy.commons';
@@ -56,7 +56,7 @@ module.exports = {
       // Shared Keychain Access Group so the identity keypair is readable by
       // every same-Team Oxy app (silent "Sign in with Oxy"). `$(AppIdentifierPrefix)`
       // expands to the Team ID prefix at build; the runtime group string in
-      // @oxyhq/core's KeyManager stays `group.so.oxy.shared` (suffix match).
+      // @oxy.so/core's KeyManager stays `group.so.oxy.shared` (suffix match).
       // Prerequisite: all Oxy iOS apps ship under the SAME Apple Developer Team.
       entitlements: {
         'keychain-access-groups': ['$(AppIdentifierPrefix)group.so.oxy.shared'],
@@ -71,22 +71,22 @@ module.exports = {
       // awaits its own action and only then calls `nextMod` (the previously
       // registered mod), so the mod chain executes in reverse registration
       // order. It has to run after every image generator — `oxySplashScreenPlugin`
-      // and `@oxyhq/expo-splash` both write splash bitmaps, and running before
+      // and `@oxy.so/expo-splash` both write splash bitmaps, and running before
       // them leaves a `.png` and a `.webp` claiming the same resource name.
-      '@oxyhq/app-preset/plugin/withOxyAndroidWebp',
+      '@oxy.so/app-preset/plugin/withOxyAndroidWebp',
       'expo-router',
       // Native OS splash (Oxy family "Instagram, from Meta" pattern): Commons'
       // own logo (the Oxy mark as a white silhouette on transparent) centered on
       // the dark brand background, with the shared Oxy symbol pinned to the
       // bottom. `oxySplashScreenPlugin` builds the expo-splash-screen tuple; the
-      // bare `@oxyhq/expo-splash` entry (bundled Oxy asset) MUST immediately
+      // bare `@oxy.so/expo-splash` entry (bundled Oxy asset) MUST immediately
       // follow it to add the bottom branding.
       oxySplashScreenPlugin({
         image: './assets/images/splash-logo.png',
         imageWidth: 176,
         backgroundColor: '#0B0B0F',
       }),
-      '@oxyhq/expo-splash',
+      '@oxy.so/expo-splash',
       [
         'expo-local-authentication',
         {
@@ -143,26 +143,26 @@ module.exports = {
       // (credentials come from Gradle properties, never the repo). Commons
       // shares the so.oxy.shared UID, so the artefact MUST carry the shared Oxy
       // ecosystem certificate — verify it, never assume it.
-      '@oxyhq/app-preset/plugin/withOxyAndroidRelease',
+      '@oxy.so/app-preset/plugin/withOxyAndroidRelease',
       // Hosts the signature-protected OxyIdentityProvider (the native module
-      // now ships inside @oxyhq/services) that lets same-key Oxy apps read the
+      // now ships inside @oxy.so/services) that lets same-key Oxy apps read the
       // shared identity keypair Commons writes. Commons is the ONLY app that
       // hosts it.
-      '@oxyhq/services/plugins/withSharedIdentityProvider',
+      '@oxy.so/services/plugins/withSharedIdentityProvider',
       // Also hosts the OxyDeviceSessionProvider — a SEPARATE provider, permission
       // and encrypted file for the shared DEVICE SESSION credential. Commons is
       // identity-bound and never publishes into that slot itself; it hosts the
       // provider because, as a member of the so.oxy.shared UID, it serves the
       // same file its UID siblings write, so a same-signature app outside the UID
       // can join the device session even when Accounts is not installed.
-      '@oxyhq/services/plugins/withSharedDeviceSessionProvider',
+      '@oxy.so/services/plugins/withSharedDeviceSessionProvider',
       // Oxy Updates (OTA). Points expo-updates at this app's manifest endpoint on
       // the self-hosted update server in oxy-api, sets the runtimeVersion policy
       // and wires the ecosystem code-signing certificate. `expo-updates` itself
       // needs no entry here: prebuild applies its config plugin automatically for
       // every installed versioned Expo SDK package.
       [
-        '@oxyhq/app-preset/plugin/withOxyUpdates',
+        '@oxy.so/app-preset/plugin/withOxyUpdates',
         {
           clientId: OXY_CLIENT_ID,
           channel: OXY_UPDATES_CHANNEL,

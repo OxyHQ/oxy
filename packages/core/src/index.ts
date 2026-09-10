@@ -1,5 +1,5 @@
 /**
- * @oxyhq/core — OxyHQ SDK Foundation
+ * @oxy.so/core — OxyHQ SDK Foundation
  *
  * Platform-agnostic core providing API client, authentication,
  * cryptographic identity, and shared utilities.
@@ -8,7 +8,7 @@
  *
  * @example
  * ```ts
- * import { OxyServices, oxyClient } from '@oxyhq/core';
+ * import { OxyServices, oxyClient } from '@oxy.so/core';
  *
  * const user = await oxyClient.getCurrentUser();
  * ```
@@ -26,7 +26,7 @@ import './crypto/polyfill';
 export { OxyServices, AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeoutError, ServiceAssetMetadataError } from './OxyServices';
 export { OXY_CLOUD_URL, oxyClient } from './OxyServices';
 export type { LinkedHttpClient } from './OxyServices.base';
-// Auth-refresh handler surface — consumed by `@oxyhq/services`'s OxyContext to
+// Auth-refresh handler surface — consumed by `@oxy.so/services`'s OxyContext to
 // install an in-session access-token refresh handler on the owner HttpService
 // (the linked-client refresh path delegates back to it).
 export type {
@@ -74,8 +74,8 @@ export type {
 // is a WIRE contract shared with the API (the request schema of
 // `POST /auth/session/deny/:authorizeCode` and the persisted
 // `AuthSession.deniedReason` enum read the same declaration). It lives in
-// `@oxyhq/contracts` and is NOT re-exported here: consumers import API contract
-// types directly from `@oxyhq/contracts`, per the package boundary rule.
+// `@oxy.so/contracts` and is NOT re-exported here: consumers import API contract
+// types directly from `@oxy.so/contracts`, per the package boundary rule.
 // Push-token registration (Expo push tokens — never raw APNs/FCM device tokens).
 export type {
     PushTokenPlatform,
@@ -204,7 +204,7 @@ export {
 // Reputation (Oxy Trust: ledger, balances, disputes, rules, influence).
 // The whole type family — the closed value sets, the two balance views and the
 // `isFullReputationBalance` narrowing guard, the ledger/dispute/rule/leaderboard
-// shapes, and the write-endpoint inputs — is owned by `@oxyhq/contracts`, which
+// shapes, and the write-endpoint inputs — is owned by `@oxy.so/contracts`, which
 // the API's serializers are validated against. Import them from there.
 // ---------------------------------------------------------------------------
 
@@ -212,7 +212,7 @@ export {
 // Self-sovereign identity (DID, signed records, auth-method ↔ VM mapping,
 // verified domains). Wire shapes (DidDocument, SignedRecordEnvelope,
 // AuthMethodsResponse, VerifiedDomain, DomainVerificationInstructions,
-// ExportBundle) live in `@oxyhq/contracts` — import them directly from there.
+// ExportBundle) live in `@oxy.so/contracts` — import them directly from there.
 // ---------------------------------------------------------------------------
 export { buildUserDid } from './mixins/OxyServices.identity';
 export type {
@@ -233,7 +233,7 @@ export type {
 // anti-gaming (real-life attestation QR + validator/jury). Wire shapes
 // (PublicCard, SignedPublicCard, RealLifeAttestationResult,
 // ValidationRequestSummary, ValidationVoteResult, ValidationVerdict, …) live in
-// `@oxyhq/contracts` — import them from there. The SDK adds the client verdict
+// `@oxy.so/contracts` — import them from there. The SDK adds the client verdict
 // wrapper, the QR payload parsers/builders, and the submit inputs/results.
 // ---------------------------------------------------------------------------
 export {
@@ -560,7 +560,7 @@ export {
 } from './utils/textNormalization';
 
 // ---------------------------------------------------------------------------
-// Logging — the ecosystem-wide chokepoint (also at subpath `@oxyhq/core/logger`)
+// Logging — the ecosystem-wide chokepoint (also at subpath `@oxy.so/core/logger`)
 // ---------------------------------------------------------------------------
 export {
     logger,
@@ -602,7 +602,7 @@ export type { QuickAccount, DisplayNameUserShape } from './utils/accountUtils';
 // ---------------------------------------------------------------------------
 // Registrable-domain + central-IdP-apex helpers.
 //
-// `registrableApex` (eTLD+1) is consumed via the `@oxyhq/core/server`
+// `registrableApex` (eTLD+1) is consumed via the `@oxy.so/core/server`
 // re-export by `packages/api/src/utils/sameSite.ts` for same-site origin
 // checks; `CENTRAL_IDP_APEX` by `server/cors.ts`'s `createOxyCors` (auto-allows
 // `*.oxy.so`).
@@ -667,7 +667,7 @@ export type { SocketIOFactory, MinimalSocket } from './session/socketLoader';
 
 // Shared SessionClient integration layer: the host adapter, the pure
 // DeviceSessionState projection helpers, and the client factory are defined
-// ONCE here so every `@oxyhq/services` platform variant reuses them instead of
+// ONCE here so every `@oxy.so/services` platform variant reuses them instead of
 // duplicating a local copy. Each consumer supplies its own `TokenTransport`
 // (native vs. web mint strategies differ) to `createSessionClient`.
 export { createSessionClientHost } from './session/sessionClientHost';
@@ -707,7 +707,7 @@ export type {
 } from './session/deviceDirectory';
 
 // The switcher's RENDER model over that projection — names, handles and avatar
-// URLs resolved once. Shared by `@oxyhq/services`' account dialog and the
+// URLs resolved once. Shared by `@oxy.so/services`' account dialog and the
 // auth.oxy.so chooser so the two cannot drift, the same reason the flat
 // projection lived here before it.
 export { buildSwitcherRows, showsPrincipalHeaders } from './session/deviceSwitcherRows';
@@ -865,8 +865,8 @@ export type {
 } from './boot/sessionColdBoot';
 
 // API response contracts (request/response Zod schemas + inferred types) live in
-// `@oxyhq/contracts` — the single source of truth shared by the backend and every
-// client SDK. Import them directly from `@oxyhq/contracts`; `@oxyhq/core` does NOT
+// `@oxy.so/contracts` — the single source of truth shared by the backend and every
+// client SDK. Import them directly from `@oxy.so/contracts`; `@oxy.so/core` does NOT
 // re-export them (no barrel re-exports — clean imports from the owning package).
 
 // ---------------------------------------------------------------------------

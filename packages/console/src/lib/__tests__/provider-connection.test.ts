@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { providerConnectionSchema, providerConnectionScopeSchema } from '@oxyhq/contracts';
-import type { ProviderConnection } from '@oxyhq/contracts';
+import { providerConnectionSchema, providerConnectionScopeSchema } from '@oxy.so/contracts';
+import type { ProviderConnection } from '@oxy.so/contracts';
 import {
   KAANA_CREDENTIAL_CONTROL_UNAVAILABLE,
   connectionAppliesToApplication,

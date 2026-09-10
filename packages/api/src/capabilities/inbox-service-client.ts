@@ -1,4 +1,4 @@
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 let client: OxyServices | null | undefined;
 

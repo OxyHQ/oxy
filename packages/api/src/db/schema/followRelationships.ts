@@ -40,7 +40,7 @@ import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { appGrants } from './appGrants';
 import { applications } from './applications';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { followTargets } from './followTargets';
 import { users } from './users';
 

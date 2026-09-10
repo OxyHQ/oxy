@@ -1,7 +1,7 @@
 /**
  * Asserts that this suite is running under the runner it is configured for.
  *
- * @oxyhq/protocol is a JEST package: `bun run test` -> `jest` -> `jest.config.cjs`.
+ * @oxy.so/protocol is a JEST package: `bun run test` -> `jest` -> `jest.config.cjs`.
  * Bun also ships its OWN test runner, one character away (`bun test`), which
  * ignores `jest.config.cjs` entirely. The two disagree, and the disagreement is
  * silent — bun's runner half-runs the suite and prints a plausible pass/fail
@@ -16,10 +16,10 @@
  *
  * Both halves of the config are checked, because both are load-bearing:
  *
- *  - `moduleNameMapper` resolves `@oxyhq/contracts` from TypeScript SOURCE, so
+ *  - `moduleNameMapper` resolves `@oxy.so/contracts` from TypeScript SOURCE, so
  *    the tests never depend on that package being built first. Deleting it (or
  *    skipping it, as bun's runner does) breaks six suites on a clean checkout
- *    with `Cannot find module '@oxyhq/contracts'`.
+ *    with `Cannot find module '@oxy.so/contracts'`.
  *  - The jest module registry (`resetModules` / `isolateModules` /
  *    `isolateModulesAsync` / `doMock`) is what `optionalNativePeers.test.ts`
  *    uses to simulate an optional peer that does not resolve AT ALL. bun 1.3.14
@@ -52,7 +52,7 @@ if (missingRegistryApis.length > 0) {
   console.error(
     [
       '',
-      '@oxyhq/protocol was started with a runner that is not jest.',
+      '@oxy.so/protocol was started with a runner that is not jest.',
       '',
       `  Missing jest APIs this suite calls: ${missingRegistryApis.map((name) => `jest.${name}`).join(', ')}`,
       '',
@@ -69,10 +69,10 @@ if (missingRegistryApis.length > 0) {
 }
 
 describe('test runner configuration', () => {
-  it('resolves @oxyhq/contracts from source via moduleNameMapper', () => {
+  it('resolves @oxy.so/contracts from source via moduleNameMapper', () => {
     // Not a style preference: without the mapper the suites require
     // packages/contracts/dist, which does not exist on a clean checkout.
-    expect(require.resolve('@oxyhq/contracts')).toBe(
+    expect(require.resolve('@oxy.so/contracts')).toBe(
       resolve(__dirname, '..', '..', '..', 'contracts', 'src', 'index.ts'),
     );
   });

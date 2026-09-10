@@ -10,7 +10,7 @@ import {
   type DeviceDirectory,
   type DeviceSessionState,
   type DeviceSessionSync,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { logger } from '../logger';
 import { computeIdentityTag } from '../utils/cacheKey';
 import { resolveActiveContext, type DeviceContext } from './deviceDirectory';
@@ -75,11 +75,11 @@ export interface SessionClientOptions {
   onUnauthenticated?: (origin: SessionStateOrigin) => void;
   /**
    * Statically-injected `socket.io-client` factory (its `io` export).
-   * `@oxyhq/services` lists `socket.io-client` as a real dependency and
+   * `@oxy.so/services` lists `socket.io-client` as a real dependency and
    * passes `io` in directly, so realtime session sync never
    * depends on a runtime dynamic `import('socket.io-client')` of a bare
    * specifier — which is bundler-fragile in Metro/Expo-web and Vite when
-   * `@oxyhq/core` is consumed as its published dist (the import resolves to
+   * `@oxy.so/core` is consumed as its published dist (the import resolves to
    * nothing → `connectSocket` warns and falls back to REST-only). When this is
    * provided, `connectSocket` uses it and never touches the lazy loader; when
    * absent it falls back to `getSocketIO()`.

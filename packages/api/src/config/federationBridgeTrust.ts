@@ -9,7 +9,7 @@
  * WebFinger cannot settle that — X publishes none, and no amount of asking the
  * bridge would make it authoritative for `x.com`.
  *
- * WHY THIS LIST IS *HERE* AND NOT IN `@oxyhq/federation`
+ * WHY THIS LIST IS *HERE* AND NOT IN `@oxy.so/federation`
  *
  *   Deciding that a given operator may be trusted to re-attribute somebody's
  *   account is a moderation judgement, not a platform fact. Putting it in the
@@ -62,7 +62,7 @@
  * review rather than being folded into this change.
  */
 
-import { canonicalFederationHost } from '@oxyhq/federation';
+import { canonicalFederationHost } from '@oxy.so/federation';
 
 /** One reviewed bridge host and the single network it is trusted to vouch for. */
 export interface FederationBridgeTrustEntry {

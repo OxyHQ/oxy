@@ -4,7 +4,7 @@ import type {
   UserNameResponse,
   UserRelationship,
   ThemePreference,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 export interface OxyConfig {
   baseURL: string;

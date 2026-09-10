@@ -20,7 +20,7 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),

@@ -45,7 +45,7 @@
 
 import { sql } from 'drizzle-orm';
 import { bigint, check, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /** Free credits a new account starts with, and the ceiling a refresh restores. */

@@ -119,7 +119,7 @@ Concretely, the target state:
 - `oxy-api` publishes the corresponding public keys at
   **`https://api.oxy.so/.well-known/jwks.json`** — unauthenticated, cacheable,
   and containing public keys only.
-- Verifiers (`@oxyhq/core`'s `oxy.auth()` / `oxy.serviceAuth()`, and the
+- Verifiers (`@oxy.so/core`'s `oxy.auth()` / `oxy.serviceAuth()`, and the
   inference data plane) fetch and cache the JWKS, select by `kid`, and pin
   `iss`, `aud` and `alg`. A token whose `kid` is unknown is refused; the verifier
   refetches at most on a bounded schedule, so an unknown `kid` can never become a
@@ -132,7 +132,7 @@ Concretely, the target state:
 
 **Implementation status (2026-09-03):** the source implementation now exists:
 Ed25519 minting with `kid`, the database-independent public JWKS endpoint, and
-bounded JWKS verification/cache support in `@oxyhq/core`. The API retains
+bounded JWKS verification/cache support in `@oxy.so/core`. The API retains
 HS256 verification/minting only as a transition when the asymmetric bindings
 are entirely absent; external consumers never receive `ACCESS_TOKEN_SECRET`.
 Provisioning the three SSM bindings and the cross-repository release ordering
@@ -242,7 +242,7 @@ because a decision without the option it beat is a decision nobody can revisit.
 2. **When the cutover runs, and how the window is bounded.** STILL OPEN. The mechanics are
    settled above; what is not settled is the schedule and who is told. Under
    option 2 the window is cheap but still needs every verifier on a JWKS-capable
-   `@oxyhq/core` before the old key retires, which is a release-ordering
+   `@oxy.so/core` before the old key retires, which is a release-ordering
    commitment across repositories.
 
 To decide (1) I would need: whether the owner treats an `oxy-api` container
@@ -283,7 +283,7 @@ key here to reuse; the OAuth token endpoint issues the same
   availability surface. It must be cacheable and must not depend on the
   database, or a database outage becomes an authentication outage for every
   verifier that has not warmed its cache.
-- `@oxyhq/core`'s service-token verification stops being a self-contained HMAC
+- `@oxy.so/core`'s service-token verification stops being a self-contained HMAC
   comparison and gains a network dependency with a cache. Its failure modes
   change: an unreachable JWKS must fail CLOSED (refuse) and must not fall back to
   a locally configured key, or the fallback becomes the attack.

@@ -1,4 +1,4 @@
-import { DATABASE_CASING } from '@oxyhq/db';
+import { DATABASE_CASING } from '@oxy.so/db';
 import { defineConfig } from 'drizzle-kit';
 
 /**
@@ -16,7 +16,7 @@ import { defineConfig } from 'drizzle-kit';
  *
  * `casing` decides what the DDL CREATES; the same constant passed to
  * `createDatabase()` in `src/db/postgres.ts` decides what queries REFERENCE.
- * Both read `DATABASE_CASING` from `@oxyhq/db`, so there is one setting rather
+ * Both read `DATABASE_CASING` from `@oxy.so/db`, so there is one setting rather
  * than two copies to keep in lockstep — disagreement means queries reference
  * columns the migrations never created.
  *

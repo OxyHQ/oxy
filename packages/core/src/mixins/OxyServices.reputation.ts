@@ -17,10 +17,10 @@
  * signal only. The two are distinct types so a caller cannot read a field the
  * server did not send them.
  *
- * EVERY type on this surface is owned by `@oxyhq/contracts`, which the API's
+ * EVERY type on this surface is owned by `@oxy.so/contracts`, which the API's
  * serializers are annotated and validated against. This mixin declares none of
  * them and re-exports none of them: consumers import the types straight from
- * `@oxyhq/contracts`, so the wire shape has exactly one definition and a
+ * `@oxy.so/contracts`, so the wire shape has exactly one definition and a
  * server-side change to a serializer cannot compile while the type still
  * promises the old shape.
  *
@@ -42,8 +42,8 @@ import type {
   ReverseReputationTransactionInput,
   ReverseReputationTransactionResult,
   UpsertReputationRuleInput,
-} from '@oxyhq/contracts';
-import { isFullReputationBalance } from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
+import { isFullReputationBalance } from '@oxy.so/contracts';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { OxyAuthenticationError } from '../OxyServices.errors';
 import { CACHE_TIMES } from './mixinHelpers';

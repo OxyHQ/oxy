@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
-import type { OxyServices, User } from '@oxyhq/core';
-import { KeyManager, logger } from '@oxyhq/core';
-import { useAuthStore, useUpdateProfile } from '@oxyhq/services';
-import { requestNotificationPermission } from '@oxyhq/services/notifications';
+import type { OxyServices, User } from '@oxy.so/core';
+import { KeyManager, logger } from '@oxy.so/core';
+import { useAuthStore, useUpdateProfile } from '@oxy.so/services';
+import { requestNotificationPermission } from '@oxy.so/services/notifications';
 import { checkIfOffline } from '@/utils/auth/networkUtils';
 import { isNetworkOrTimeoutError, extractAuthErrorMessage, handleAuthError } from '@/utils/auth/errorUtils';
 import { registerVaultPushToken } from '@/lib/notifications/push-registration';

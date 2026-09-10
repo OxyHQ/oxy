@@ -9,7 +9,7 @@
  * identical, which is what lets both lanes converge on one completion path.
  */
 
-import { buildOAuthAuthorizeUrl, generateOAuthState, generatePkcePair } from '@oxyhq/core';
+import { buildOAuthAuthorizeUrl, generateOAuthState, generatePkcePair } from '@oxy.so/core';
 import type { OAuthHandshake } from './types';
 
 /** Inputs for {@link prepareAuthorizeRequest}. */

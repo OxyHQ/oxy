@@ -15,7 +15,7 @@
  *
  * and `getUserSecurityActivity` / `getRecentSecurityActivity` carried the same
  * test. That regex rejects the **uuid v7 every account created after the
- * Postgres cutover carries** (`@oxyhq/db`'s `generatedId()`), so for such
+ * Postgres cutover carries** (`@oxy.so/db`'s `generatedId()`), so for such
  * an account the trail stopped being written at all: sign-in, sign-out, email
  * change, device added, profile update — every one of them threw before
  * touching a table. Most callers `await` the helper inside a `try` that swallows

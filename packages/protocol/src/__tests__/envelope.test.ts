@@ -2,7 +2,7 @@
  * Signed-record envelope tests — the protocol's canonical signing input,
  * content address, and explicit-key sign/verify.
  *
- * Includes the byte-stability regression guards moved from `@oxyhq/core`'s
+ * Includes the byte-stability regression guards moved from `@oxy.so/core`'s
  * signed-record suite (the v1 signing-input string and the deterministic
  * `computeRecordId`), plus a CANONICAL-BYTES FIXTURE: signing a fixed envelope
  * with a fixed key must produce the exact same signing input, recordId, derived
@@ -12,8 +12,8 @@
  */
 
 import { deriveSecp256k1PublicKey } from '../secp256k1';
-import { signedRecordEnvelopeSchema } from '@oxyhq/contracts';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { signedRecordEnvelopeSchema } from '@oxy.so/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import {
   canonicalize,
   signedRecordSigningInput,

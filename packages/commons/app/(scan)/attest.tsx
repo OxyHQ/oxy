@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { parseAttestPayload } from '@oxyhq/core';
-import { useOxy } from '@oxyhq/services';
+import { parseAttestPayload } from '@oxy.so/core';
+import { useOxy } from '@oxy.so/services';
 import { useColors } from '@/hooks/useColors';
 import { Screen, StackHeader, CenteredState, PrimaryButton, SessionGate } from '@/components/ui';
 import { useAttestFlow } from '@/hooks/civic/useAttestFlow';

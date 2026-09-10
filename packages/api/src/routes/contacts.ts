@@ -147,7 +147,7 @@ function toMatches(
  *     description: >
  *       Privacy-preserving contact-book matching. Clients SHA-256 hash each
  *       email and phone number locally (lowercased; phone numbers normalised
- *       to E.164 — see `utils/contactHash.ts` in `@oxyhq/core`) and upload
+ *       to E.164 — see `utils/contactHash.ts` in `@oxy.so/core`) and upload
  *       only the resulting 64-character hex digests. The server intersects
  *       them against the indexed `users.hashed_email` / `users.hashed_phone`
  *       columns and returns matched Oxy user IDs only when the matched user

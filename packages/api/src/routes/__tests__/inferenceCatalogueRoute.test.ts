@@ -55,7 +55,7 @@ import { MACHINE_CREDENTIAL_AUTH_VARIABLE } from '../../config/rolloutFlags';
 import { errorHandler } from '../../middleware/errorHandler';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import catalogueRouter from '../inferenceCatalogue';
-import type { ModelCatalogueEntry } from '@oxyhq/contracts';
+import type { ModelCatalogueEntry } from '@oxy.so/contracts';
 
 let server: http.Server;
 

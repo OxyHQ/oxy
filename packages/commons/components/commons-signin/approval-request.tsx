@@ -1,13 +1,13 @@
 import React from 'react';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { LogoIcon } from '@oxyhq/services';
+import { LogoIcon } from '@oxy.so/services';
 import {
   getNormalizedUserHandle,
   type CommonsApprovalInfo,
   type CommonsApprovalSubjectAccount,
   type PublicApplication,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 // Imported from their own modules rather than the `components/ui` barrel: the

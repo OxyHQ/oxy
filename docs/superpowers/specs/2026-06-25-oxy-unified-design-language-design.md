@@ -3,7 +3,7 @@
 Date: 2026-06-25
 Status: Draft for review
 Owner: Nate (with Claude)
-Scope: `@oxyhq/bloom`, `@oxyhq/services` (`packages/services`), `packages/auth` (auth.oxy.so IdP web app), and — by inheritance — every Oxy RP app.
+Scope: `@oxy.so/bloom`, `@oxy.so/services` (`packages/services`), `packages/auth` (auth.oxy.so IdP web app), and — by inheritance — every Oxy RP app.
 
 ## 1. Goal
 
@@ -88,7 +88,7 @@ Redesign to the "Connect account" reference using Bloom:
 - Title (`sectionTitle`) + subtitle (`bodySmall`, `text-tertiary`), centered.
 - Benefits card (`BenefitRow`/`FeatureList`) — 3 icon+caption rows in a `border-image` + `shadow-s` card.
 - Primary full-width `Button` ("Continue to …") + disclaimer caption.
-- Keep all existing IdP logic intact: `useDeviceAccounts`, `AccountChooser`, `sessionStatusSchema`/`safeParse`, the real `PublicApplication` identity, approval/redirect flow. This is a **visual** redesign over unchanged auth behavior. (Web app uses Bloom web + the new token classes; translate the current shadcn classes.) — *Historical note, twice revised: `useDeviceAccounts` was deleted in the zero-cookie cutover (2026-07-07) and replaced by `useSwitchableAccounts`, which was itself deleted in issue #937 (2026-08-10) when the switcher moved onto the server's device directory. The hook to target today is `useDeviceSwitcher` (`@oxyhq/services`). The visual-redesign intent of this spec still stands; the hook name in it has now been wrong twice, so read it as "whatever the chooser's data source is called", not as an identifier.*
+- Keep all existing IdP logic intact: `useDeviceAccounts`, `AccountChooser`, `sessionStatusSchema`/`safeParse`, the real `PublicApplication` identity, approval/redirect flow. This is a **visual** redesign over unchanged auth behavior. (Web app uses Bloom web + the new token classes; translate the current shadcn classes.) — *Historical note, twice revised: `useDeviceAccounts` was deleted in the zero-cookie cutover (2026-07-07) and replaced by `useSwitchableAccounts`, which was itself deleted in issue #937 (2026-08-10) when the switcher moved onto the server's device directory. The hook to target today is `useDeviceSwitcher` (`@oxy.so/services`). The visual-redesign intent of this spec still stands; the hook name in it has now been wrong twice, so read it as "whatever the chooser's data source is called", not as an identifier.*
 
 ### W2 — oxy-services Welcome (`WelcomeNewUserScreen.tsx`)
 - Apply the design language; swap the name-step inputs to the floating `TextField` variant once W0b ships.

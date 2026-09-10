@@ -1,11 +1,11 @@
-import type { ReputationCategory } from '@oxyhq/contracts';
+import type { ReputationCategory } from '@oxy.so/contracts';
 import enUS from './locales/en-US.json';
 import { translate } from './index';
 
 /**
  * Every reputation rule category's English name, keyed by its stable id.
  *
- * Totality is over `REPUTATION_CATEGORIES` from `@oxyhq/contracts` so a new
+ * Totality is over `REPUTATION_CATEGORIES` from `@oxy.so/contracts` so a new
  * category added server-side without an English label is a build error, not a
  * Trust Rules section title that paints `trust.rules.categories.<id>`.
  */

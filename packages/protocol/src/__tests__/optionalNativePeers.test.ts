@@ -6,8 +6,8 @@
  * contradicts that: Metro resolves every static import in the eager graph, so an
  * app that omits the optional peer does not degrade — its whole native bundle
  * fails with `Unable to resolve module <peer>`, pointing at a dependency the app
- * never mentions. Because `@oxyhq/core`'s `crypto/polyfill` imports
- * `@oxyhq/protocol`'s ROOT entry, `platform/crypto.native.ts` sits in the eager
+ * never mentions. Because `@oxy.so/core`'s `crypto/polyfill` imports
+ * `@oxy.so/protocol`'s ROOT entry, `platform/crypto.native.ts` sits in the eager
  * graph of every React Native app in the fleet, so the blast radius is total.
  *
  * Two tests, deliberately different in kind:

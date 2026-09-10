@@ -2,14 +2,14 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { View } from 'react-native';
 import type { BaseScreenProps } from '../../types/navigation';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
-import { Search } from '@oxyhq/bloom/search';
+import { Search } from '@oxy.so/bloom/search';
 import {
     Accordion,
     AccordionItem,
     AccordionTrigger,
     AccordionContent,
-} from '@oxyhq/bloom/accordion';
-import { Text } from '@oxyhq/bloom/typography';
+} from '@oxy.so/bloom/accordion';
+import { Text } from '@oxy.so/bloom/typography';
 import { useI18n } from '../../hooks/useI18n';
 
 const FAQ_KEYS = ['what', 'earn', 'lose', 'use', 'transfer', 'support'] as const;

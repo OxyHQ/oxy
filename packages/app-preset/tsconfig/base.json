@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "//": "@oxyhq/app-preset — shared, runtime-neutral TypeScript base. The strict/safety defaults every Oxy package inherits. This base is TYPE-CHECK ONLY (noEmit): the frontend (tsconfig/frontend.json) and emitting Node packages (tsconfig/backend.json) override module/target/emit for their runtime. Does NOT extend expo/tsconfig.base — that sets customConditions:[\"react-native\"], only valid with bundler/nodenext resolution, which would break the CJS/node packages. The frontend config layers the Expo base on top where bundler resolution is in effect.",
+  "//": "@oxy.so/app-preset — shared, runtime-neutral TypeScript base. The strict/safety defaults every Oxy package inherits. This base is TYPE-CHECK ONLY (noEmit): the frontend (tsconfig/frontend.json) and emitting Node packages (tsconfig/backend.json) override module/target/emit for their runtime. Does NOT extend expo/tsconfig.base — that sets customConditions:[\"react-native\"], only valid with bundler/nodenext resolution, which would break the CJS/node packages. The frontend config layers the Expo base on top where bundler resolution is in effect.",
   "compilerOptions": {
     "target": "ES2020",
     "lib": ["ES2020"],

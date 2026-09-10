@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Platform } from 'react-native';
-import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
+import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { useTranslation } from '@/lib/i18n';
 
 interface CameraPermissionSheetProps {

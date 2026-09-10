@@ -1,5 +1,5 @@
-import { appCapabilityCatalogSchema } from '@oxyhq/contracts';
-import { createCatalogMcpToolDefinitions, type CatalogToolHandlers } from '@oxyhq/mcp';
+import { appCapabilityCatalogSchema } from '@oxy.so/contracts';
+import { createCatalogMcpToolDefinitions, type CatalogToolHandlers } from '@oxy.so/mcp';
 import { INBOX_CAPABILITY_CATALOG } from '../inbox.catalog';
 
 describe('Inbox canonical capability catalog', () => {

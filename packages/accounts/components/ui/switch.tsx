@@ -1,2 +1,2 @@
-export { Switch } from '@oxyhq/bloom/switch';
-export type { SwitchProps } from '@oxyhq/bloom/switch';
+export { Switch } from '@oxy.so/bloom/switch';
+export type { SwitchProps } from '@oxy.so/bloom/switch';

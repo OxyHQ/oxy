@@ -36,11 +36,11 @@
  * authenticated/public requests with no signing.
  *
  * The wire shapes here are API-INTERNAL (the F5 user-node surface is not yet a
- * published `@oxyhq/contracts` schema), so {@link UserNodeStatus} mirrors the
+ * published `@oxy.so/contracts` schema), so {@link UserNodeStatus} mirrors the
  * server's `serializeNode` projection exactly. Dates cross the wire as ISO
  * strings.
  */
-import type { ChainHeadResponse } from '@oxyhq/contracts';
+import type { ChainHeadResponse } from '@oxy.so/contracts';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { SignatureService } from '../crypto/signatureService';
 import { buildUserDid } from './OxyServices.identity';

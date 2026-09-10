@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
-import type { AccountDialogView, FileMetadata } from '@oxyhq/core';
+import type { AccountDialogView, FileMetadata } from '@oxy.so/core';
 import type { RouteName } from './routes';
 import type { AvatarCropResult } from '../screens/AvatarCropScreen';
 import type { AvatarRemovalResult } from '../screens/ChangeAvatarScreen';
 
 /**
  * The SDK's typed surface registry — the contract layer the SDK stacks on top of
- * Bloom's content-agnostic surface stack (`@oxyhq/bloom/surfaces`). One entry per
+ * Bloom's content-agnostic surface stack (`@oxy.so/bloom/surfaces`). One entry per
  * route describing its `props` (what the presenter must pass) and its `result`
  * (what awaiting `present()` resolves with). Hand-maintained, contract-first:
  * adding a route here is the single edit that types it end to end.

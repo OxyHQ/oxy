@@ -7,7 +7,7 @@
  * **A provider secret never reaches this table.** Not encrypted, not hashed,
  * not "temporarily". What is stored is Kaana's opaque `credential_handle`, its
  * exact revision and lifecycle state.
- * `providerConnectionSchema` in `@oxyhq/contracts` is
+ * `providerConnectionSchema` in `@oxy.so/contracts` is
  * `.strict()` and carries no field a credential could occupy, and this table is
  * its storage shape column for column — so a producer that tries to attach one
  * fails the parse rather than being silently stripped.
@@ -85,7 +85,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
 import { applications } from './applications';
 import { inferenceProviders } from './inferenceProviders';
 import { users } from './users';

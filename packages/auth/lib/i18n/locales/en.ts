@@ -4,7 +4,7 @@ import type { LocaleDict } from '../types';
  * English (en-US) translation dictionary for the auth web app.
  *
  * Keys are namespaced by feature area. `signin.*`, `signup.*`, `recover.*`
- * etc. live in `@oxyhq/core` so they can be shared across web and native
+ * etc. live in `@oxy.so/core` so they can be shared across web and native
  * surfaces; this dict only carries auth-app-specific strings (settings,
  * sessions, linked accounts, language picker, etc.).
  */
@@ -151,7 +151,7 @@ const en: LocaleDict = {
     goToSignIn: 'Go to sign in',
     // The Commons lane: approving the authorization directly in Oxy, without
     // signing in on this site first. Progress and headline copy come from
-    // `@oxyhq/core`'s shared `accountSwitcher.*` dictionary, so only the
+    // `@oxy.so/core`'s shared `accountSwitcher.*` dictionary, so only the
     // lane-specific strings live here.
     commons: {
       description:

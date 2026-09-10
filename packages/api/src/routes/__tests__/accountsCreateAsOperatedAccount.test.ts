@@ -130,7 +130,7 @@ function uniqueUsername(prefix: string): string {
 
 /**
  * The same, carrying the label a `bot` account's handle must end in
- * (`botUsernameSchema`, `@oxyhq/contracts`). The question below is who the
+ * (`botUsernameSchema`, `@oxy.so/contracts`). The question below is who the
  * PARENT and the owner member are, which is asked of a bot throughout — so the
  * handles have to satisfy the bot policy or every 201 becomes a 400.
  */

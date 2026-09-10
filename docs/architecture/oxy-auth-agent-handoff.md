@@ -1,6 +1,6 @@
 # Oxy Auth Platform — Handoff (ARCHIVADO)
 
-> ✅ **Proyecto cerrado (2026-07-07).** Fases 0–7 + 2c completas, en `main` y en producción: sesión **device-first cero-cookie** (`deviceId` + `deviceSecret` → `POST /session/device/token`), un solo `OxyProvider` (`@oxyhq/services`), IdP `auth.oxy.so` device-first sin excepción. Prod en core 9 / services 19 / contracts 0.13.
+> ✅ **Proyecto cerrado (2026-07-07).** Fases 0–7 + 2c completas, en `main` y en producción: sesión **device-first cero-cookie** (`deviceId` + `deviceSecret` → `POST /session/device/token`), un solo `OxyProvider` (`@oxy.so/services`), IdP `auth.oxy.so` device-first sin excepción. Prod en core 9 / services 19 / contracts 0.13.
 
 Este handoff cumplió su función y está archivado. Referencias vigentes:
 

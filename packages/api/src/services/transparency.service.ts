@@ -3,7 +3,7 @@
  * third party audit Oxy WITHOUT trusting Oxy.
  *
  * The Merkle math, the leaf/checkpoint signing bytes, and the proof verifier all
- * live in `@oxyhq/protocol` (`src/transparency/`), app-agnostic and
+ * live in `@oxy.so/protocol` (`src/transparency/`), app-agnostic and
  * independently reimplementable. This service is the Oxy-specific glue: it reads
  * the heads from `repo_heads`, commits them, signs with the Oxy custodial key,
  * and serves proofs from the snapshot each checkpoint committed to.
@@ -34,7 +34,7 @@
  * **`period_end` and `anchored_at` are `timestamptz`, not epoch milliseconds.**
  * `period_end` is part of the SIGNED body, so the conversion is confined to this
  * file's boundary: `new Date(ms)` on the way in, `.getTime()` on the way out,
- * and the wire contract (`@oxyhq/contracts`, ms epoch) is unchanged. A
+ * and the wire contract (`@oxy.so/contracts`, ms epoch) is unchanged. A
  * whole-millisecond value round-trips through microsecond-resolution
  * `timestamptz` exactly — asserted by a sign-store-read-verify test, not argued.
  *
@@ -55,14 +55,14 @@ import {
   type TransparencyCheckpointSignature,
   type TransparencyHeadEntry,
   type TransparencyTree,
-} from '@oxyhq/protocol';
+} from '@oxy.so/protocol';
 import type {
   TransparencyCheckpoint as TransparencyCheckpointDto,
   TransparencyInclusionProof,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { asc, desc, eq, gte, inArray } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { repoHeads } from '../db/schema/repoHeads';
 import {
   transparencyCheckpointAnchors,

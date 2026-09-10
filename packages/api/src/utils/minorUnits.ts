@@ -44,7 +44,7 @@
  * charge a hundred times too small.
  */
 
-import { INFERENCE_MONEY_SCALE } from '@oxyhq/contracts';
+import { INFERENCE_MONEY_SCALE } from '@oxy.so/contracts';
 
 /** The scale every exact amount is carried at. */
 const SCALE = INFERENCE_MONEY_SCALE;

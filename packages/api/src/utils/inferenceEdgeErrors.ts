@@ -38,7 +38,7 @@ import {
   safeErrorTextSchema,
   type InferenceError,
   type InferenceErrorCode,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { logger } from './logger';
 
 /** The header every response carries, success or failure. */

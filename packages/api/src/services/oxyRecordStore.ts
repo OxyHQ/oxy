@@ -1,9 +1,9 @@
 /**
- * Oxy RecordStore — the @oxyhq/protocol {@link RecordStore} implementation over
+ * Oxy RecordStore — the @oxy.so/protocol {@link RecordStore} implementation over
  * Oxy's `signed_records` + `repo_heads` tables.
  *
  * This is the storage HALF of the chain adapter: the protocol engine
- * (`@oxyhq/protocol`'s `verifyAndAppend`) owns verification + continuity policy
+ * (`@oxy.so/protocol`'s `verifyAndAppend`) owns verification + continuity policy
  * and delegates every read/write here. Everything Oxy- and Postgres-specific
  * that does NOT belong in the app-agnostic engine lives in this file:
  *
@@ -39,10 +39,10 @@
  */
 
 import { and, asc, desc, eq, gt, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
-import { oxySignedRecordTypeSchema, type SignedRecordEnvelope } from '@oxyhq/contracts';
-import type { AppendOutcome, ChainHead, RecordStore } from '@oxyhq/protocol';
+import { oxySignedRecordTypeSchema, type SignedRecordEnvelope } from '@oxy.so/contracts';
+import type { AppendOutcome, ChainHead, RecordStore } from '@oxy.so/protocol';
 import { getDb } from '../config/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { repoHeads } from '../db/schema/repoHeads';
 import { signedRecords } from '../db/schema/signedRecords';
 import { buildUserDid, parseUserDid } from './did.service';

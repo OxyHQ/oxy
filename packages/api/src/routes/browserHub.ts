@@ -34,13 +34,13 @@ import type {
   BrowserHubHandleResponse,
   BrowserHubResolveResponse,
   BrowserHubRevokeResponse,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   browserHubHandleRequestSchema,
   browserHubHandleResponseSchema,
   browserHubResolveResponseSchema,
   browserHubRevokeResponseSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { requireSameSiteOrigin } from '../middleware/originGuard';

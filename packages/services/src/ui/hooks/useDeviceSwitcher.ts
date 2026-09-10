@@ -4,7 +4,7 @@ import {
     projectDevicePrincipals,
     type DeviceContext,
     type SwitcherPrincipalRow,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from './useI18n';
 import { EMPTY_ACCOUNT_DIALOG_SNAPSHOT } from './accountDialogSnapshot';
@@ -44,7 +44,7 @@ export interface UseDeviceSwitcherResult {
 /**
  * The device switcher, straight from `GET /session/device/directory` (ADR 0002).
  *
- * A thin binding over the shared `AccountDialogController` in `@oxyhq/core` —
+ * A thin binding over the shared `AccountDialogController` in `@oxy.so/core` —
  * the SAME headless source `OxyAccountDialogScreen` renders — so the SDK's own
  * dialog and the `auth.oxy.so` chooser show one list, built once, on the server.
  *

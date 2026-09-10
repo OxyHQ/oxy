@@ -4,7 +4,7 @@
  *
  * Stored because a signature Oxy discarded is a signature nobody can ever check.
  * What signs an Alia release, and what resolves the `keyId` that names the public
- * key, is an open owner decision (`@oxyhq/contracts`'
+ * key, is an open owner decision (`@oxy.so/contracts`'
  * `inference/aliaModelRelease.ts` argues it at length and takes neither answer).
  * A verifier therefore does not exist yet — and the difference between a design
  * that waits for one and a design that cannot use one when it arrives is exactly
@@ -31,7 +31,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
 import { inferenceModelReleases } from './inferenceModelReleases';
 
 /**

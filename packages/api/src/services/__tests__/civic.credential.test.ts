@@ -32,10 +32,10 @@
  * carries a per-test random id and no assertion depends on a table being empty.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { createHash, randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { signedRecords } from '../../db/schema/signedRecords';
 import { users } from '../../db/schema/users';

@@ -4,7 +4,7 @@ import {
   emailAgentContextSchema,
   type CapabilityTicketClaims,
   type EmailContextMessage,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { messages as messagesTable } from '../db/schema/messages';
 import type { EmailCapabilityRequest } from '../middleware/emailCapabilityAuth';

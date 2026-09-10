@@ -1,5 +1,5 @@
 /**
- * @oxyhq/protocol — the app-agnostic Oxy Protocol base.
+ * @oxy.so/protocol — the app-agnostic Oxy Protocol base.
  *
  * The reusable substrate any Oxy app can use to decentralize its own content:
  * the signed-record envelope grammar (canonical JSON, signing input, content
@@ -94,7 +94,7 @@ export {
 // ---------------------------------------------------------------------------
 // Platform types — structural interfaces for Expo modules.
 //
-// Exported so @oxyhq/core and other consumers can type their own wrappers
+// Exported so @oxy.so/core and other consumers can type their own wrappers
 // without importing `typeof import('expo-crypto')` / `typeof import('expo-secure-store')`
 // (which would trigger NodeNext type pollution in server packages).
 // ---------------------------------------------------------------------------

@@ -12,7 +12,7 @@
  * itself, and so a test can substitute a fake opener.
  */
 
-import type { PopupWindowHandle } from '@oxyhq/core';
+import type { PopupWindowHandle } from '@oxy.so/core';
 
 /**
  * Open a new, EMPTY popup window. Must be called SYNCHRONOUSLY from within a

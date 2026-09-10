@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { RecoveryPhraseService } from '@oxyhq/core';
+import { RecoveryPhraseService } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { Button, KeyboardAwareScrollViewWrapper, StackHeader } from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';

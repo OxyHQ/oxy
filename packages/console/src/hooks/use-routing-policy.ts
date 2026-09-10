@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
-import type { InferenceRouteSwitchReason, RoutingPolicy } from '@oxyhq/contracts';
+import { useAuth } from '@oxy.so/services';
+import type { InferenceRouteSwitchReason, RoutingPolicy } from '@oxy.so/contracts';
 import type { RoutingPolicyControls, StoredRoutingPolicy } from '@/lib/routing-policy';
 
 // ===========================================================================

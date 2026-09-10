@@ -5,7 +5,7 @@
  * DID document).
  *
  * It resolves a `did:web:<host>[:<path>]` subject to its `did.json`, fetched via
- * an INJECTED {@link NodeFetch} — Oxy passes an adapter over `@oxyhq/core/server`
+ * an INJECTED {@link NodeFetch} — Oxy passes an adapter over `@oxy.so/core/server`
  * `safeFetch` (so the SSRF/transport policy stays in core); a test passes a
  * stub. The subject's current verification keys are read from the DID document's
  * `verificationMethod[].publicKeyHex` (the active assertion methods), and the
@@ -21,7 +21,7 @@ import {
   didDocumentSchema,
   type DidDocument,
   type Secp256k1VerificationMethod,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import type {
   ResolvedVerificationMethods,
   VerificationMethodResolver,

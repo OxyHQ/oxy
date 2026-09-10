@@ -18,8 +18,8 @@
  * and a failed exchange.
  */
 
-import type { OxyServices } from '@oxyhq/core';
-import { logger } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
+import { logger } from '@oxy.so/core';
 import type { OAuthCompletionResult, OAuthHandshake, OAuthSessionCommitInput } from './types';
 
 /** Inputs for {@link completeOAuthCode}. */

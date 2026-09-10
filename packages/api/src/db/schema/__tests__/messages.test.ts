@@ -18,7 +18,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, getTableColumns, sql } from 'drizzle-orm';
-import { publicColumns } from '@oxyhq/db/assert';
+import { publicColumns } from '@oxy.so/db/assert';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { files } from '../files';
 import { mailboxes } from '../mailboxes';

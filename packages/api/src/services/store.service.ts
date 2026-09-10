@@ -30,7 +30,7 @@ import { appReviews, type AppReviewStatus } from '../db/schema/appReviews';
 import { applications } from '../db/schema/applications';
 import { files } from '../db/schema/files';
 import { users } from '../db/schema/users';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { accountService } from './account.service';
 import { appPermissionsForAccountAccess } from '../utils/accountRoles';
 import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';

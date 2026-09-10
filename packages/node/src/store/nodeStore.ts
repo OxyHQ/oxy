@@ -2,7 +2,7 @@
  * NodeStore — the node's durable, append-only signed-record log and blob store,
  * backed by `better-sqlite3` (synchronous, single-file, on-disk).
  *
- * It IMPLEMENTS the app-agnostic `@oxyhq/protocol` {@link RecordStore} +
+ * It IMPLEMENTS the app-agnostic `@oxy.so/protocol` {@link RecordStore} +
  * {@link BlobStore} interfaces, so the generic `createNodeApp` engine drives it
  * with no node-specific knowledge:
  *  - Append v2 signed-record envelopes, enforcing per-subject hash-chain
@@ -21,22 +21,22 @@
  * accepted but not used to partition storage — `seq` is globally monotonic.
  *
  * Signature verification and `recordId` computation happen OUTSIDE this class
- * (in `createNodeApp` via `@oxyhq/protocol`); the store is the integrity and
+ * (in `createNodeApp` via `@oxy.so/protocol`); the store is the integrity and
  * persistence layer and trusts the `recordId` passed to {@link append}. All SQL
  * goes through prepared statements with bound parameters.
  */
 
 import { createHash } from 'node:crypto';
 import Database from 'better-sqlite3';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import {
   type AppendOutcome,
   type ChainHead,
   type BlobStore,
   type RecordStore,
   checkContinuity,
-} from '@oxyhq/protocol';
-import { BlobHashMismatchError, SHA256_HEX } from '@oxyhq/protocol/node';
+} from '@oxy.so/protocol';
+import { BlobHashMismatchError, SHA256_HEX } from '@oxy.so/protocol/node';
 import { SCHEMA_SQL } from './schema.js';
 
 type DatabaseInstance = Database.Database;

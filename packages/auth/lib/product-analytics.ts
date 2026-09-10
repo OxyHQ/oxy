@@ -1,4 +1,4 @@
-import { createDeferredProductAnalytics, type ProductAnalytics } from "@oxyhq/services"
+import { createDeferredProductAnalytics, type ProductAnalytics } from "@oxy.so/services"
 
 const key = import.meta.env.VITE_POSTHOG_KEY?.trim()
 const enabled = import.meta.env.VITE_POSTHOG_ENABLED === "true" && Boolean(key)

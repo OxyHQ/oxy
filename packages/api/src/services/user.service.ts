@@ -20,7 +20,7 @@
  */
 
 import { and, eq, inArray, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
-import { publicColumns } from '@oxyhq/db/assert';
+import { publicColumns } from '@oxy.so/db/assert';
 import { getDb, type Database } from '../config/postgres';
 import { blocks } from '../db/schema/blocks';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
@@ -65,13 +65,13 @@ import {
 } from '../utils/publicUserProjection';
 import { assertColorNotReserved, normalizeUserColor } from '../utils/profileColor';
 import { userIdentityFields, deriveIsFederated, toThemePreference } from '../utils/userTransform';
-import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, normalizeLocale } from '@oxyhq/core';
+import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, normalizeLocale } from '@oxy.so/core';
 import { buildUserDid } from './did.service';
 import {
   isAccountKind,
   usernameSchemaForAccountKind,
   type UserRelationship,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import type { NameParts } from '../utils/displayName';
 
 // Constants
@@ -519,7 +519,7 @@ const PRIVACY_SETTING_PROPERTIES: Record<PrivacySettingKey, string> = {
  * embedded arrays are child tables, so this is where both are put back.
  *
  * `_id` is present ALONGSIDE `id`, which is the documented contract
- * (`@oxyhq/contracts` `resolveUserId` = `user.id ?? user._id`): these responses
+ * (`@oxy.so/contracts` `resolveUserId` = `user.id ?? user._id`): these responses
  * never went through the model's `toJSON`, so they carried both. `id` reproduces
  * the model's `id` virtual (`publicKey ?? _id`) and `did` its `did` virtual.
  */

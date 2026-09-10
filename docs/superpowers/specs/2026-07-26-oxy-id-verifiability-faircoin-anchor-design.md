@@ -80,7 +80,7 @@ A subject DID is a public identifier already served by `GET /u/:userId/did.json`
 
 ### Where the code lives
 
-The tree, leaf/node hashing, proof generation, proof *verification*, and the checkpoint signing bytes live in **`packages/protocol`** (`src/transparency/`), app-agnostic like the chain engine, reusing `sha256` and `canonicalize` from `src/envelope/`. oxy-api only supplies the leaf source (a `RepoHead` cursor) and the HTTP surface; Commons and `@oxyhq/node` import the verifier. Response shapes go in `@oxyhq/contracts` and, per the standing rule, **contracts publishes before any consumer**.
+The tree, leaf/node hashing, proof generation, proof *verification*, and the checkpoint signing bytes live in **`packages/protocol`** (`src/transparency/`), app-agnostic like the chain engine, reusing `sha256` and `canonicalize` from `src/envelope/`. oxy-api only supplies the leaf source (a `RepoHead` cursor) and the HTTP surface; Commons and `@oxy.so/node` import the verifier. Response shapes go in `@oxy.so/contracts` and, per the standing rule, **contracts publishes before any consumer**.
 
 **Implemented** (`packages/protocol/src/transparency/`, 30 tests in `src/__tests__/transparency.test.ts`): `transparencyLeafHash`, `buildTransparencyTree`, `buildTransparencyTreeFromHeads`, `inclusionProof`, `verifyInclusionProof`, `EMPTY_TRANSPARENCY_ROOT`, `checkpointSigningInput`, `checkpointHash`, `signCheckpoint`, `verifyCheckpointSignature`. The tree follows RFC 6962 (Certificate Transparency) so it is independently reimplementable; leaf and interior hashes use distinct domain prefixes; `buildTransparencyTreeFromHeads` owns the canonical ordering (ascending `subjectDid`, UTF-16 code-unit order — never `localeCompare`, which is locale-dependent and would make two verifiers disagree on the root) and throws on a duplicate subject rather than committing to one of two heads.
 
@@ -88,7 +88,7 @@ The tree, leaf/node hashing, proof generation, proof *verification*, and the che
 
 Proves: at checkpoint *N*, Oxy committed to a specific head for a specific subject, and it published exactly one root for that period (verifiable once anchored). A client or node holding its own inclusion proofs across checkpoints detects any rollback, fork, or suppression of *its* chain, because a later checkpoint must show a head that extends the earlier one.
 
-Does not prove, by itself: that no record was removed for a user who never checks. This is a state-snapshot tree, not a per-entry append-only log — the accepted trade-off for a tree with one leaf per user instead of one per record. Commons and `@oxyhq/node` therefore **persist their own latest proof** and re-verify on each new checkpoint; that turns the guarantee from "auditable in principle" into "audited continuously by every device". Upgrade path if ever needed: add a second, CT-style append-only log of `recordId`s with real consistency proofs.
+Does not prove, by itself: that no record was removed for a user who never checks. This is a state-snapshot tree, not a per-entry append-only log — the accepted trade-off for a tree with one leaf per user instead of one per record. Commons and `@oxy.so/node` therefore **persist their own latest proof** and re-verify on each new checkpoint; that turns the guarantee from "auditable in principle" into "audited continuously by every device". Upgrade path if ever needed: add a second, CT-style append-only log of `recordId`s with real consistency proofs.
 
 ### Witnesses (sub-phase, and the piece that makes equivocation undeniable)
 
@@ -175,12 +175,12 @@ Designed but not committed: export records as EAS-compatible off-chain attestati
 
 ## Rollout order
 
-1. ✅ **Done** — `@oxyhq/protocol` transparency tree, proof verifier, and co-signable checkpoint primitives (`src/transparency/`, 30 tests).
-2. ✅ **Done** — `@oxyhq/contracts` `src/transparency.ts` (checkpoint / signature / anchor / inclusion-proof schemas, 15 tests) and oxy-api: `TransparencyCheckpoint` model, `transparency.service.ts`, the four public read endpoints (`routes/transparency.ts`, 15 tests), and the 6-hourly publish job (`queue/transparencyCheckpoint.queue.ts`, BullMQ + unref'd interval fallback), mounted in `server.ts` outside the CSRF group. **Both packages are unpublished** — `@oxyhq/contracts` and `@oxyhq/protocol` need a version bump + publish (contracts FIRST) before an external consumer (Commons, `@oxyhq/node`) can import these from `dist/`; oxy-api builds them from the workspace.
-3. Client-side continuous verification: Commons and `@oxyhq/node` persist their own latest proof and re-verify against each new checkpoint. This is what turns "auditable in principle" into "audited by every device".
+1. ✅ **Done** — `@oxy.so/protocol` transparency tree, proof verifier, and co-signable checkpoint primitives (`src/transparency/`, 30 tests).
+2. ✅ **Done** — `@oxy.so/contracts` `src/transparency.ts` (checkpoint / signature / anchor / inclusion-proof schemas, 15 tests) and oxy-api: `TransparencyCheckpoint` model, `transparency.service.ts`, the four public read endpoints (`routes/transparency.ts`, 15 tests), and the 6-hourly publish job (`queue/transparencyCheckpoint.queue.ts`, BullMQ + unref'd interval fallback), mounted in `server.ts` outside the CSRF group. **Both packages are unpublished** — `@oxy.so/contracts` and `@oxy.so/protocol` need a version bump + publish (contracts FIRST) before an external consumer (Commons, `@oxy.so/node`) can import these from `dist/`; oxy-api builds them from the workspace.
+3. Client-side continuous verification: Commons and `@oxy.so/node` persist their own latest proof and re-verify against each new checkpoint. This is what turns "auditable in principle" into "audited by every device".
 4. FairCoin `data`-output support + testnet smoke test. Done when a 40-byte `OP_RETURN` is broadcast and read back by RPC on testnet, then mainnet.
 5. Anchoring job + `anchor` reconciliation + the "anchored on FairCoin" surface in Commons. Done when a user can see their own head anchored in a FairCoin transaction and the client detects a tampered proof.
-6. Witnesses — user-run `@oxyhq/node` deployments co-signing checkpoints.
+6. Witnesses — user-run `@oxy.so/node` deployments co-signing checkpoints.
 7. Payout records + payments (independent of 6, and gated on the anti-sybil review above).
 
 Steps 1–5 are additive and reversible: removing the checkpoint job and endpoints leaves the record chains untouched. Step 7 is not reversible in the sense that published payments are permanent — which is why the disclosure and opt-in are part of the design, not follow-ups.

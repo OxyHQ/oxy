@@ -19,7 +19,7 @@ import { retryAsync } from './utils/asyncUtils';
 import { handleHttpError, parseHttpErrorBody } from './utils/errorUtils';
 import { jwtDecode } from 'jwt-decode';
 import { isNative, getPlatformOS } from './utils/platform';
-import { isReactNative } from '@oxyhq/protocol';
+import { isReactNative } from '@oxy.so/protocol';
 import { computeIdentityTag, fnv1a32 } from './utils/cacheKey';
 import { redactUrlQuery } from './utils/redactUrl';
 import type { OxyConfig } from './models/interfaces';
@@ -1443,7 +1443,7 @@ export class HttpService {
    * the resulting token (or `null` when cleared). Returns an unsubscribe
    * function; call it on teardown to avoid leaks.
    *
-   * This is the single hook downstream code (e.g. @oxyhq/services' OxyProvider)
+   * This is the single hook downstream code (e.g. @oxy.so/services' OxyProvider)
    * uses to keep an external token sink — such as the shared `oxyClient`
    * singleton — in lockstep with the active session, regardless of which code
    * path mutated the token.

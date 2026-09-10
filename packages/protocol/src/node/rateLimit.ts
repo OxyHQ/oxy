@@ -100,7 +100,7 @@ const CLIENT_KEY_SALT = randomBytes(32);
  * not folded into a privacy fix.
  *
  * Exported for {@link createRateLimiter}'s own tests, not part of
- * `@oxyhq/protocol/node`'s public surface — it is not re-exported by the barrel.
+ * `@oxy.so/protocol/node`'s public surface — it is not re-exported by the barrel.
  */
 export function clientRateLimitKey(req: Request): string {
   const ip = req.ip;

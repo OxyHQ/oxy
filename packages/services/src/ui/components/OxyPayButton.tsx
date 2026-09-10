@@ -1,7 +1,7 @@
 import type React from 'react';
 import type { ViewStyle, TextStyle, StyleProp } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Button } from '@oxyhq/bloom/button';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Button } from '@oxy.so/bloom/button';
 import type { PaymentItem, PaymentGatewayResult } from '../screens/PaymentGatewayScreen';
 import { LogoIcon } from './logo/LogoIcon';
 

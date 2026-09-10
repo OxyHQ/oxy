@@ -35,7 +35,7 @@ export interface ExpoSplashScreenPluginConfig {
 /**
  * Build the `expo-splash-screen` plugin tuple with Oxy-standard splash defaults.
  * The app passes its own center logo; the Oxy bottom branding is added
- * separately by the `@oxyhq/expo-splash` config plugin.
+ * separately by the `@oxy.so/expo-splash` config plugin.
  */
 export function oxySplashScreenPlugin(
   options: OxySplashScreenPluginOptions,

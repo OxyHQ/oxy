@@ -11,8 +11,8 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { getTableName } from 'drizzle-orm';
-import { findUnsupportedExpiryColumns } from '@oxyhq/db/assert';
-import { sweepAllExpiredRows, sweepExpiredRows } from '@oxyhq/db/expiry';
+import { findUnsupportedExpiryColumns } from '@oxy.so/db/assert';
+import { sweepAllExpiredRows, sweepExpiredRows } from '@oxy.so/db/expiry';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { EXPIRY_SWEEP_TARGETS } from '../expiry';
 import { appAffinitySeenEvents } from '../schema/appAffinitySeenEvents';

@@ -4,7 +4,7 @@ const mockOxyServices = jest.fn().mockImplementation((options) => ({
   configureServiceAuth: mockConfigureServiceAuth,
 }));
 
-jest.mock('@oxyhq/core', () => ({ OxyServices: mockOxyServices }));
+jest.mock('@oxy.so/core', () => ({ OxyServices: mockOxyServices }));
 
 async function loadServiceClient(): Promise<typeof import('../inbox-service-client')> {
   let loaded: typeof import('../inbox-service-client') | undefined;

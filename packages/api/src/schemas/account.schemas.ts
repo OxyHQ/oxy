@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { accountCategoriesSchema, createAccountRequestSchema, usernameSchema } from '@oxyhq/contracts';
+import { accountCategoriesSchema, createAccountRequestSchema, usernameSchema } from '@oxy.so/contracts';
 import { ACCOUNT_PERMISSIONS, ACCOUNT_ROLES } from '../utils/accountRoles';
 
 /** Route params with :id (the account id). */
@@ -20,7 +20,7 @@ export const listAccountsQuerySchema = z.object({
 
 /**
  * Mirrors the create path's name shape (`accountNameSchema` in
- * `@oxyhq/contracts`), `displayName` included — an account that can be NAMED at
+ * `@oxy.so/contracts`), `displayName` included — an account that can be NAMED at
  * creation but only RE-named through `first`/`last` would force a title back
  * into a given-name field on every edit.
  */

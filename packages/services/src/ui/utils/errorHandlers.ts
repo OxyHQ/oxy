@@ -1,4 +1,4 @@
-import type { ApiError } from '@oxyhq/core';
+import type { ApiError } from '@oxy.so/core';
 
 type ErrorWithMessage = {
   message?: string;
@@ -39,7 +39,7 @@ const getResponseStatus = (error: unknown): number | undefined => {
   if (typeof response?.status === 'number') {
     return response.status;
   }
-  // `handleHttpError` (@oxyhq/core) rejects with a flat `ApiError` that carries
+  // `handleHttpError` (@oxy.so/core) rejects with a flat `ApiError` that carries
   // the HTTP status at the TOP level and no `response` — the shape every SDK
   // request failure actually has. Reading only `response.status` reported those
   // as 500, which is why `isInvalidSessionError` already checks both.

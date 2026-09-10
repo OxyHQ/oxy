@@ -2,7 +2,7 @@ import type React from 'react';
 import { useMemo } from 'react';
 import { View, Text, Animated } from 'react-native';
 import Ionicons from '../../icons/Ionicons';
-import { Button } from '@oxyhq/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { createPaymentStyles } from './paymentStyles';
 import type { PaymentColors, PaymentStepAnimations } from './types';
 import { useI18n } from '../../hooks/useI18n';

@@ -1,5 +1,5 @@
 /**
- * Jest config for @oxyhq/federation.
+ * Jest config for @oxy.so/federation.
  *
  * The `.` entry is pure types (the connector contract + normalized DTOs) with no
  * runtime dependencies on other workspace packages. Behavioural unit tests live
@@ -30,8 +30,8 @@ module.exports = {
   testMatch: ['<rootDir>/src/**/__tests__/**/*.test.ts'],
   testTimeout: 10000,
   moduleNameMapper: {
-    // Resolve @oxyhq/contracts from TypeScript source so federation tests do not
+    // Resolve @oxy.so/contracts from TypeScript source so federation tests do not
     // depend on contracts being built first (actorObject.ts imports AccountKind).
-    '^@oxyhq/contracts$': '<rootDir>/../contracts/src/index.ts',
+    '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
   },
 };

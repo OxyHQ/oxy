@@ -58,7 +58,7 @@ import {
   rotateKeyCompleteRequestSchema,
   rotateKeyCompleteResponseSchema,
   type RotateKeyCompleteRequest,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 const router = Router();
 

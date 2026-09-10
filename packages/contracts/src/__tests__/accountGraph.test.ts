@@ -20,7 +20,7 @@ import {
 import { BOT_USERNAME_INVALID_MESSAGE } from '../username';
 import { userResponseSchema } from '../userResponse';
 
-describe('@oxyhq/contracts account kinds', () => {
+describe('@oxy.so/contracts account kinds', () => {
   it('carries channel as a child kind, and personal as the only root', () => {
     expect([...ACCOUNT_KINDS]).toEqual([
       'personal',
@@ -208,7 +208,7 @@ describe('@oxyhq/contracts account kinds', () => {
   });
 });
 
-describe('@oxyhq/contracts account categories', () => {
+describe('@oxy.so/contracts account categories', () => {
   /**
    * The four ids the single-valued predecessor could hold. Live rows carry
    * them, so losing one is losing a stored choice — rule 1 and rule 3 both.

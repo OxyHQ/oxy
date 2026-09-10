@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useOxy } from '@oxyhq/services';
-import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxyhq/core';
+import { useOxy } from '@oxy.so/services';
+import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useOnboardingStatus } from '@/hooks/useOnboardingStatus';
 import { IdentityMayExistError } from '@/hooks/identity/identityErrors';

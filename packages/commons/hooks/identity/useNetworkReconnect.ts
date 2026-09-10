@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { isTimeoutOrNetworkError } from '@oxyhq/services';
-import type { OxyServices } from '@oxyhq/core';
+import { isTimeoutOrNetworkError } from '@oxy.so/services';
+import type { OxyServices } from '@oxy.so/core';
 import { isUsernameRequiredError } from '@/utils/auth/errorUtils';
 import {
   createCircuitBreakerState,

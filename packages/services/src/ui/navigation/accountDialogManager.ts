@@ -10,7 +10,7 @@
  * view) from a non-React call site.
  */
 
-import type { AccountDialogView } from '@oxyhq/core';
+import type { AccountDialogView } from '@oxy.so/core';
 
 /** An app-owned action rendered inside the shared account menu. */
 export interface AccountDialogMenuItem {

@@ -6,7 +6,7 @@ import { formatMoney } from '@/lib/money';
  *
  * ## The sign is a FIELD, and reading it from anywhere else is the bug
  *
- * `exactDecimalSchema` in `@oxyhq/contracts` is non-negative by regex, and the
+ * `exactDecimalSchema` in `@oxy.so/contracts` is non-negative by regex, and the
  * ledger it guards carries direction in the SHAPE of an entry rather than in a
  * sign — because a signed amount is how a reversal silently becomes a second
  * charge. So `GET /accounts/:id/billing/audit` sends a non-negative `amount`

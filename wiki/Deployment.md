@@ -121,7 +121,7 @@ openssl rand -hex 64
 
 ## Static frontends
 
-`.github/workflows/deploy-cloudflare.yml` builds each affected frontend with `bun x turbo run build --filter=<app>` and deploys with `bunx wrangler@4` — never `cloudflare/wrangler-action`, which selects its package manager from a lockfile in its working directory, finds none in a package here, falls back to npm, and dies on the root `overrides` pinning `@oxyhq/bloom` to the bun-only `catalog:` protocol.
+`.github/workflows/deploy-cloudflare.yml` builds each affected frontend with `bun x turbo run build --filter=<app>` and deploys with `bunx wrangler@4` — never `cloudflare/wrangler-action`, which selects its package manager from a lockfile in its working directory, finds none in a package here, falls back to npm, and dies on the root `overrides` pinning `@oxy.so/bloom` to the bun-only `catalog:` protocol.
 
 A Pages project always serves `<project>.pages.dev`, with no way to switch it off — a second copy of the app on a hostname that is in no CORS allowlist. `accounts` and `console` are therefore Workers, declining that hostname with `workers_dev = false`; `auth` cannot be, because its Pages Functions directory has no config-only Worker equivalent.
 

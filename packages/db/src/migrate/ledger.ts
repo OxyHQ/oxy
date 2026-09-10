@@ -267,7 +267,7 @@ export function planLedgerRun(
  * on the same query shape, and reusing the array version there means there is
  * only one place a future edit could get the NULL handling below wrong.
  *
- * Exported for direct unit testing, but NOT part of `@oxyhq/db/migrate`'s
+ * Exported for direct unit testing, but NOT part of `@oxy.so/db/migrate`'s
  * public surface — `migrate/index.ts` does not re-export it, and the package
  * has no wildcard `exports` entry a consumer could reach it through. Its two
  * callers are in this file.

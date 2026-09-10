@@ -28,7 +28,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, numeric, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 import { WALLET_AMOUNT } from './wallets';
 

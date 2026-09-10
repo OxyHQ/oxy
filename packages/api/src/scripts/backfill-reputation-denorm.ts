@@ -35,7 +35,7 @@ import { closePostgres, connectPostgres, getDb } from '../config/postgres';
 import { reputationBalances } from '../db/schema/reputationBalances';
 import { users } from '../db/schema/users';
 import { INFLUENCE_MIN } from '../utils/reputation.constants';
-import type { TrustTier } from '@oxyhq/contracts';
+import type { TrustTier } from '@oxy.so/contracts';
 import { logger } from '../utils/logger';
 
 interface BackfillStats {

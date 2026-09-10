@@ -17,9 +17,9 @@
  * assert which key produced each signature.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
-import type { DidDocument } from '@oxyhq/contracts';
-import * as protocol from '@oxyhq/protocol';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
+import type { DidDocument } from '@oxy.so/contracts';
+import * as protocol from '@oxy.so/protocol';
 import { OxyServices } from '../../OxyServices';
 import { KeyManager } from '../../crypto/keyManager';
 import { SignatureService } from '../../crypto/signatureService';

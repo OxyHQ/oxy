@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { KaanaCredentialValidationTask } from '@oxyhq/contracts';
+import type { KaanaCredentialValidationTask } from '@oxy.so/contracts';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {

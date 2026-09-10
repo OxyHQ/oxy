@@ -5,7 +5,7 @@
  * These are direct exports without runtime detection overhead.
  *
  * @example
- * import { OxyProvider, useOxy, LogoIcon } from '@oxyhq/services/ui/client';
+ * import { OxyProvider, useOxy, LogoIcon } from '@oxy.so/services/ui/client';
  */
 
 // Components
@@ -30,7 +30,7 @@ export { useFollow } from './hooks/useFollow';
 export { useStorage } from './hooks/useStorage';
 export type { UseStorageOptions, UseStorageResult } from './hooks/useStorage';
 
-// Route screens live at `@oxyhq/services/screens` so client imports preserve
+// Route screens live at `@oxy.so/services/screens` so client imports preserve
 // the route registry's lazy chunk boundaries.
 
 // Stores

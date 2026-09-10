@@ -9,7 +9,7 @@ import {
   inboxThreadSummaryResponseSchema,
   type InboxComposeRequest,
   type InboxDailyBriefRequest,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';

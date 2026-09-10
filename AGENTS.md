@@ -1,6 +1,6 @@
 # OxyHQServices
 
-The Oxy platform monorepo (`@oxyhq/sdk`): the contracts, the core SDK, the one UI
+The Oxy platform monorepo (`@oxy.so/sdk`): the contracts, the core SDK, the one UI
 SDK, the API, the IdP, and the apps built on them. Bun workspaces + Turbo.
 
 > **For anything about how this works, read `docs/README.md`** — `docs/adr/`
@@ -28,7 +28,7 @@ bun run test           # delegates through turbo, per package
 bun run validate:agents-md
 ```
 
-- **Always run each package's OWN `bun run test`.** `@oxyhq/{api,core,services,contracts}`
+- **Always run each package's OWN `bun run test`.** `@oxy.so/{api,core,services,contracts}`
   and `commons` are **Jest**; `packages/auth` is **Bun's native `bun test`**.
   NEVER blanket-invoke `bun test` across the monorepo — it runs Bun's runner over
   the Jest packages and produces dozens of false failures.
@@ -61,11 +61,11 @@ verified production state as three separate claims.
 
 ## Package boundaries (strict)
 
-- **`@oxyhq/contracts` and `@oxyhq/core` must never import `react`,
+- **`@oxy.so/contracts` and `@oxy.so/core` must never import `react`,
   `react-native` or `expo-*`.** Contracts allows only `zod`; core may use dynamic
   `await import(...)` for optional RN modules.
-- **`@oxyhq/services` does NOT re-export from `@oxyhq/core` or
-  `@oxyhq/contracts`.** Consumers import those types directly. No
+- **`@oxy.so/services` does NOT re-export from `@oxy.so/core` or
+  `@oxy.so/contracts`.** Consumers import those types directly. No
   back-compatibility re-exports anywhere.
 - **A module naming an OPTIONAL peer must never be reachable from the root
   barrel — give it its own export subpath.** `tsc` resolves an `import()`
@@ -74,10 +74,10 @@ verified production state as three separate claims.
   RESOLVER-ASYMMETRIC and therefore ships unnoticed: web/Vite consumers resolve
   `lib/**/*.d.ts` under `skipLibCheck` and never see it, while Metro/RN consumers
   resolve the published `src/` and fail. Worked example:
-  `@oxyhq/services/notifications`, kept out of the barrel by
+  `@oxy.so/services/notifications`, kept out of the barrel by
   `packages/services/__tests__/notifications/barrelIsolation.test.ts`.
-- **`@oxyhq/api` imports schemas directly from `@oxyhq/contracts`** and server
-  auth helpers from `@oxyhq/core/server` only.
+- **`@oxy.so/api` imports schemas directly from `@oxy.so/contracts`** and server
+  auth helpers from `@oxy.so/core/server` only.
 - **Never hand-write a `declare module '<pkg>'` for a package that ships types or
   has an `@types/`.** An ambient declaration SHADOWS the resolved types for every
   program including the declaring file — core's tsconfig includes it and no
@@ -111,7 +111,7 @@ verified production state as three separate claims.
   BOOT. Sanctioned fix: transpile to explicit ranges at build time with
   `regexpu-core` (`bun run generate:display-name-policy`). Shipped `dist/` must
   contain zero `\p{`, and `validationUtils.test.ts` guards it.
-- **`@oxyhq/services` SOURCE is React-Compiler-compiled inside the `commons` and
+- **`@oxy.so/services` SOURCE is React-Compiler-compiled inside the `commons` and
   `accounts` apps** — Metro resolves the workspace symlink to a realpath with no
   `node_modules` segment, so Expo's gate treats it as app source. `packages/services/src/`
   must therefore be held to React-Compiler-safe standards.
@@ -137,14 +137,14 @@ cold boot, `sessionMode`, the OAuth transports, service tokens, the IdP:
 - **The SDK NEVER navigates the top-level window on its own.** Every hop to the
   IdP starts from a real user gesture. The silent cold-boot restore and the
   post-sign-in hub sync are DELETED, not gated — do not reintroduce either.
-- **ONE `OxyProvider`, from `@oxyhq/services`, on web and native**, with a
+- **ONE `OxyProvider`, from `@oxy.so/services`, on web and native**, with a
   registered `clientId`. Never a second provider, never app-local session
   restore, never an app-local sign-in screen.
-- **App backends use `@oxyhq/core/server`** — `createOxyAuthMiddleware`,
+- **App backends use `@oxy.so/core/server`** — `createOxyAuthMiddleware`,
   `createOptionalOxyAuth`, `getRequiredOxyUserId`, `authSocket`, `safeFetch`,
   `createOxyCors`, `verifySecret`. Do not define local `AuthRequest`,
   `requireAuth`, bearer parsers or token-decoding middleware in an app; missing
-  behaviour belongs in `@oxyhq/core/server`. Derive socket rooms from
+  behaviour belongs in `@oxy.so/core/server`. Derive socket rooms from
   `socket.user.id`, never from a client-supplied id.
 - **Never `new Model(req.body)` or spread `req.body` into an update** — resolve
   owner ids server-side and whitelist fields explicitly (mass-assignment IDOR).

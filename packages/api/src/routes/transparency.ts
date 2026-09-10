@@ -24,7 +24,7 @@ import {
   transparencyCheckpointListSchema,
   transparencyCheckpointSchema,
   transparencyInclusionProofSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { Router, type Request, type Response } from 'express';
 import type { z } from 'zod';
 import { rateLimit } from '../middleware/rateLimiter';

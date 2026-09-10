@@ -180,7 +180,7 @@ export const hubActivateRequestSchema = z.object({
  * Request body of `POST /hub/authorize` — a later official origin joining.
  *
  * There is no `prompt` field, and that is not an omission. `'none'` is absent
- * from `buildOAuthAuthorizeUrl`'s union in `@oxyhq/core` precisely so a silent
+ * from `buildOAuthAuthorizeUrl`'s union in `@oxy.so/core` precisely so a silent
  * loop cannot be rebuilt in one line, and this endpoint would be the second
  * place to rebuild it. A caller that needs a login or consent prompt gets one
  * by not passing `approve`.

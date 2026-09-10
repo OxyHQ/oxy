@@ -46,7 +46,7 @@
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import type { z } from 'zod';
-import { USAGE_UNITS } from '@oxyhq/contracts';
+import { USAGE_UNITS } from '@oxy.so/contracts';
 import type {
   InferenceContentSource,
   InferenceError,
@@ -55,7 +55,7 @@ import type {
   InferenceStreamEvent,
   UsageQuantity,
   UsageUnit,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { admitToInferenceEdge, isKaanaExecutionEnabled } from '../config/rolloutFlags';
 import {
   machineApplicationLimiter,
@@ -335,7 +335,7 @@ function applyUsageHeaders(res: Response, completion: EdgeCompletion): void {
  * `prompt_tokens` includes its cached tokens and `completion_tokens` includes
  * its reasoning tokens in every OpenAI-compatible response, and a stock client
  * adds the two into `total_tokens` and shows it to somebody. Oxy's own units are
- * disjoint (`@oxyhq/contracts`' `USAGE_UNITS`), so the children are added back
+ * disjoint (`@oxy.so/contracts`' `USAGE_UNITS`), so the children are added back
  * HERE, at the compatibility boundary, rather than the internal reading being
  * bent to the dialect — bending it is what double-charges the ledger.
  *
@@ -752,7 +752,7 @@ export function createInferenceEdgeRouter(
    * A `stream: true` request answers `text/event-stream` instead, and that
    * variant is deliberately not described: no mainstream OpenAPI generator models
    * an SSE frame sequence usefully, so the alternative to omitting it is a
-   * fiction. `inferenceStreamEventSchema` in `@oxyhq/contracts` is the authority
+   * fiction. `inferenceStreamEventSchema` in `@oxy.so/contracts` is the authority
    * on the frames.
    *
    * @requestBody responsesRequestSchema

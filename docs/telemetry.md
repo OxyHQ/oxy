@@ -92,7 +92,7 @@ authentication remain responsibilities of the socket client.
 
 ## Namespace migration
 
-Telemetry is the first shared concern moving from the historical `@oxyhq/*`
+Telemetry is the first shared concern moving from the historical `@oxy.so/*`
 namespace to `@oxy.so/*`. Browser consumers will import
 `@oxy.so/telemetry/browser`; collectors will import
 `@oxy.so/telemetry/server`. There is no alias or re-export through Core. During

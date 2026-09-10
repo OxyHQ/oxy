@@ -25,7 +25,7 @@ import {
   linkPreviewBatchRequestSchema,
   linkPreviewBatchResponseSchema,
   linkPreviewResponseSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   optionalUserOrServiceAuth,
   type OptionalUserOrServiceRequest,

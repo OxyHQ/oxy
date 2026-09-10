@@ -1,6 +1,6 @@
 import type { FC } from 'react';
 import type { ViewStyle } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 
 interface LoadingSpinnerProps {
   iconSize?: number;

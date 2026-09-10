@@ -24,14 +24,14 @@ FROM bun-node AS builder
 WORKDIR /app
 
 # Copy workspace root and override workspaces to only include api + core +
-# telemetry + protocol + contracts + federation + db. `@oxyhq/api` depends on
-# `@oxyhq/contracts` + `@oxyhq/protocol` + `@oxyhq/federation` + `@oxyhq/db`
+# telemetry + protocol + contracts + federation + db. `@oxy.so/api` depends on
+# `@oxy.so/contracts` + `@oxy.so/protocol` + `@oxy.so/federation` + `@oxy.so/db`
 # (workspace:*); core is retained for the admin scripts that import
 # packages/core/src/* at runtime (and core depends on protocol).
 #
 # A workspace:* dependency missing from this list is not a degraded build, it
 # is no build at all: `bun install` below exits 1 with
-# `@oxyhq/db@workspace:* failed to resolve`. Every entry in packages/api's
+# `@oxy.so/db@workspace:* failed to resolve`. Every entry in packages/api's
 # `dependencies` that reads `workspace:*` must appear here.
 #
 # Remove bun.lock since the workspace change invalidates it — bun will
@@ -95,21 +95,21 @@ RUN mkdir -p packages/api/drizzle-runtime/meta \
 # Build contracts first (api depends on it at runtime via dist/cjs), then
 # protocol (the signed-record crypto base core + api consume), then federation
 # (HTTP signatures for outbound ActivityPub fetches), then core (api imports
-# @oxyhq/core/server — safeFetch etc.), then db (every entry point in
-# @oxyhq/db resolves into dist/, which is gitignored and produced by no install
+# @oxy.so/core/server — safeFetch etc.), then db (every entry point in
+# @oxy.so/db resolves into dist/, which is gitignored and produced by no install
 # hook), then api.
-RUN bun run --filter @oxyhq/contracts build
-RUN bun run --filter @oxyhq/protocol build
+RUN bun run --filter @oxy.so/contracts build
+RUN bun run --filter @oxy.so/protocol build
 RUN bun run --filter @oxy.so/telemetry build
-RUN bun run --filter @oxyhq/core build
-RUN bun run --filter @oxyhq/mcp build
+RUN bun run --filter @oxy.so/core build
+RUN bun run --filter @oxy.so/mcp build
 # Federation's public build script rebuilds contracts, protocol and core before
 # compiling itself. Those exact artifacts were produced above, so invoke only
 # Federation's three package-local compilation phases here.
 RUN bun run --cwd packages/federation build:cjs \
     && bun run --cwd packages/federation build:esm \
     && bun run --cwd packages/federation build:types
-RUN bun run --filter @oxyhq/db build
+RUN bun run --filter @oxy.so/db build
 RUN bun run --cwd packages/api tsc -p tsconfig.json
 
 # ── Production dependency tree ────────────────────────────────────
@@ -154,7 +154,7 @@ COPY --from=production-deps /app/package.json ./
 COPY --from=production-deps /app/packages packages/
 COPY --from=production-deps /app/node_modules node_modules/
 
-# Copy built artifacts. @oxyhq/db's dist is needed HERE and not only in the
+# Copy built artifacts. @oxy.so/db's dist is needed HERE and not only in the
 # builder: `bun install --production` above resolves the same `workspace:*`, and
 # both `dist/server.js` and the `packages/api/src` copied below for the one-shot
 # admin scripts import the package at runtime.

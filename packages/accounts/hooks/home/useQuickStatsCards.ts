@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { ClientSession } from '@oxyhq/core';
+import type { ClientSession } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import type { AccountInfoCard } from '@/components/account-info-grid';

@@ -17,7 +17,7 @@
  * and the cutover gate proves complete selectable coverage.
  */
 
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 import { sql } from 'drizzle-orm';
 import { check, integer, pgTable, text } from 'drizzle-orm/pg-core';
 import { priceVersions } from './priceVersions';

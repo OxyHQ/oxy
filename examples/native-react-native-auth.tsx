@@ -25,8 +25,8 @@ import {
   KeyManager,
   SignatureService,
   RecoveryPhraseService,
-} from '@oxyhq/core';
-import type { User } from '@oxyhq/core';
+} from '@oxy.so/core';
+import type { User } from '@oxy.so/core';
 
 // ==================== 1. Setup ====================
 

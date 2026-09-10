@@ -52,7 +52,7 @@ const PURCHASE_SCHEMA = z.object({
  * This function is the ONE place that conversion is allowed, and it is the
  * SERIALIZATION boundary — the wire has always carried these as JSON numbers
  * (`Wallet.balance: number`, `WalletTransaction.amount: number` in
- * `@oxyhq/services`), so emitting a string would be the wire change. Nothing
+ * `@oxy.so/services`), so emitting a string would be the wire change. Nothing
  * computes with the result; every sum, difference and comparison below happens
  * in SQL, on the exact decimal value.
  */
@@ -136,7 +136,7 @@ async function debitWallet(
  * A ledger party as the transaction endpoints emit it.
  *
  * Mongoose `populate('userId', 'username')` replaced the id with
- * `{ _id, username }`, and `WalletTransaction` in `@oxyhq/services` models both
+ * `{ _id, username }`, and `WalletTransaction` in `@oxy.so/services` models both
  * that object and a bare id string. The populated object is reproduced here with
  * a join rather than narrowed to the id: no consumer in this repo reads
  * `.username`, but this is a published API and the contract for endpoints this

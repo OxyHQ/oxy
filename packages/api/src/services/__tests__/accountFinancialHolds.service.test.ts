@@ -22,7 +22,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';

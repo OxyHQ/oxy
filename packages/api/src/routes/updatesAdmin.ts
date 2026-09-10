@@ -23,7 +23,7 @@ import {
   rollbackToEmbeddedRequestSchema,
   promoteRequestSchema,
   updateRolloutPatchSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
 import { rateLimit } from '../middleware/rateLimiter';

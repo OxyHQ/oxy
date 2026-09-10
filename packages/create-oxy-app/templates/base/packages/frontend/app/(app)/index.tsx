@@ -1,7 +1,7 @@
 import { View, Text, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useOxy } from '@oxyhq/services';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { useOxy } from '@oxy.so/services';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useTranslation } from '@/lib/i18n';
 
 export default function HomeScreen() {

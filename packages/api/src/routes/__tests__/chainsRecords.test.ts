@@ -32,7 +32,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { randomUUID } from 'node:crypto';
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
 import { appGrants } from '../../db/schema/appGrants';

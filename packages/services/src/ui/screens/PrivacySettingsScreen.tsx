@@ -1,20 +1,20 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { toast } from '@oxyhq/bloom/toast';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { Switch } from '@oxyhq/bloom/switch';
-import { Button } from '@oxyhq/bloom/button';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { Loading } from '@oxyhq/bloom/loading';
-import { Text } from '@oxyhq/bloom/typography';
+import { toast } from '@oxy.so/bloom/toast';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { Switch } from '@oxy.so/bloom/switch';
+import { Button } from '@oxy.so/bloom/button';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Text } from '@oxy.so/bloom/typography';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useSettingToggles } from '../hooks/useSettingToggle';
-import type { BlockedUser, RestrictedUser } from '@oxyhq/core';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import type { BlockedUser, RestrictedUser } from '@oxy.so/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useOxy } from '../context/OxyContext';
 
 interface PrivacySettings {

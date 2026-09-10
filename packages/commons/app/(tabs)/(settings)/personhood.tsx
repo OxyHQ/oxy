@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import {
   Screen,
   StackHeader,

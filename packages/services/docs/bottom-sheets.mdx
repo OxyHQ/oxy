@@ -1,12 +1,12 @@
 ---
 title: Bottom Sheets
-description: The bottom-sheet navigation system used across @oxyhq/services, plus the full route registry.
+description: The bottom-sheet navigation system used across @oxy.so/services, plus the full route registry.
 order: 2
 ---
 
 # Bottom Sheets
 
-The bottom-sheet router is the navigation backbone of `@oxyhq/services`. Every screen the SDK ships (account center, profile editor, security settings, file picker, payment gateway, …) renders as a draggable sheet over your app, with shared backdrop dim, gesture support, and lazy-loaded screen modules.
+The bottom-sheet router is the navigation backbone of `@oxy.so/services`. Every screen the SDK ships (account center, profile editor, security settings, file picker, payment gateway, …) renders as a draggable sheet over your app, with shared backdrop dim, gesture support, and lazy-loaded screen modules.
 
 ## Why a bottom sheet, not a stack
 
@@ -17,7 +17,7 @@ The bottom-sheet router is the navigation backbone of `@oxyhq/services`. Every s
 ## Open a sheet
 
 ```tsx
-import { showBottomSheet, closeBottomSheet } from '@oxyhq/services';
+import { showBottomSheet, closeBottomSheet } from '@oxy.so/services';
 
 showBottomSheet('ManageAccount');
 
@@ -85,8 +85,8 @@ Every `open()` bumps `closeGenerationRef`; close callbacks capture the generatio
 ## Composing your own screen
 
 ```tsx
-import type { BaseScreenProps } from '@oxyhq/services';
-import { showBottomSheet } from '@oxyhq/services';
+import type { BaseScreenProps } from '@oxy.so/services';
+import { showBottomSheet } from '@oxy.so/services';
 
 function MyScreen({ close }: BaseScreenProps) {
   return (

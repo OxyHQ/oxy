@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { StyleSheet, RefreshControl, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler, runOnJS, useAnimatedReaction } from 'react-native-reanimated';
-import { setMinimized, useMinimizeState } from '@oxyhq/bloom/tab-bar';
+import { setMinimized, useMinimizeState } from '@oxy.so/bloom/tab-bar';
 import { useScrollContext } from '@/contexts/scroll-context';
 import { useColors } from '@/hooks/useColors';
 

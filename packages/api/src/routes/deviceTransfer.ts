@@ -29,7 +29,7 @@ import {
   deviceTransferApproveRequestSchema,
   type DeviceTransferInitRequest,
   type DeviceTransferApproveRequest,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   initDeviceTransfer,
   getDeviceTransferInfo,

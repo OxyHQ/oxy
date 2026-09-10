@@ -7,7 +7,7 @@
  * server verifies), the verified-domain badge, the auth-method ↔ DID
  * verification-method mapping, and the signed data-export ("credible exit")
  * bundle. The API validates its OUTPUT against these schemas; every consumer
- * (the Commons vault app, `@oxyhq/core`'s identity mixin) validates its INPUT
+ * (the Commons vault app, `@oxy.so/core`'s identity mixin) validates its INPUT
  * against the same definitions, so producer and consumers cannot drift.
  *
  * Design anchors (from the identity-layer plan):

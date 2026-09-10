@@ -9,10 +9,10 @@
 
 import React, { memo, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { useFollow } from '@oxyhq/services';
-import type { User } from '@oxyhq/core';
-import { getAccountDisplayName, getAccountFallbackHandle, getNormalizedUserHandle } from '@oxyhq/core';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { useFollow } from '@oxy.so/services';
+import type { User } from '@oxy.so/core';
+import { getAccountDisplayName, getAccountFallbackHandle, getNormalizedUserHandle } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { useAvatarUrl } from '@/hooks/useAvatarUrl';

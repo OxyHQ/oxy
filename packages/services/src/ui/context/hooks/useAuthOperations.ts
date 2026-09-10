@@ -1,13 +1,13 @@
 import { useCallback } from 'react';
-import type { ApiError, AuthStateStore, IdentityBinding, SessionClient, User } from '@oxyhq/core';
-import type { ClientSession, SessionLoginResponse } from '@oxyhq/core';
+import type { ApiError, AuthStateStore, IdentityBinding, SessionClient, User } from '@oxy.so/core';
+import type { ClientSession, SessionLoginResponse } from '@oxy.so/core';
 import type { OxyRuntime } from '../../runtime';
-import { DeviceManager } from '@oxyhq/core';
+import { DeviceManager } from '@oxy.so/core';
 import { fetchSessionsWithFallback } from '../../utils/sessionHelpers';
 import { handleAuthError, isInvalidSessionError } from '../../utils/errorHandlers';
 import type { StorageInterface } from '../../utils/storageHelpers';
-import type { OxyServices } from '@oxyhq/core';
-import { SignatureService } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
+import { SignatureService } from '@oxy.so/core';
 
 export interface UseAuthOperationsOptions {
   oxyServices: OxyServices;

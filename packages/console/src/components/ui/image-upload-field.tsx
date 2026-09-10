@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Image01Icon, Upload01Icon } from '@hugeicons/core-free-icons';
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';

@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 import { __resetAsyncStorage, __seedAsyncStorage } from '@/__mocks__/async-storage';
 
 // Spy on the biometric gate primitives so we can assert whether the gate ran.
@@ -13,8 +13,8 @@ jest.mock('@/lib/biometricAuth', () => ({
 
 // The silent core resolves the public key from KeyManager when none is passed.
 const getPublicKeyMock = jest.fn(async () => 'resolved-pubkey');
-jest.mock('@oxyhq/core', () => {
-  const actual = jest.requireActual('@oxyhq/core');
+jest.mock('@oxy.so/core', () => {
+  const actual = jest.requireActual('@oxy.so/core');
   return {
     ...actual,
     KeyManager: { ...actual.KeyManager, getPublicKey: () => getPublicKeyMock() },

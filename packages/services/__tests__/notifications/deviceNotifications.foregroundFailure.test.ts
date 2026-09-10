@@ -12,8 +12,8 @@
  * module registry, so this one gets a fresh latch to burn.
  */
 
-import { configureLogger, resetLoggerConfig } from '@oxyhq/core';
-import type { LogEntry } from '@oxyhq/core';
+import { configureLogger, resetLoggerConfig } from '@oxy.so/core';
+import type { LogEntry } from '@oxy.so/core';
 import { Platform } from 'react-native';
 import { installForegroundNotificationHandler } from '../../src/notifications/deviceNotifications';
 

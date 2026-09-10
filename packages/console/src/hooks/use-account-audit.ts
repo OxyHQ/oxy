@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import { isPermissionRefused } from '@/lib/api-error';
 
 // ===========================================================================
@@ -10,7 +10,7 @@ import { isPermissionRefused } from '@/lib/api-error';
 //   GET /accounts/:id/billing/audit  — what changed about the money.
 //
 // Both are computed server-side and cursor-paginated, and neither shape is
-// published in `@oxyhq/contracts`: they are projections owned by
+// published in `@oxy.so/contracts`: they are projections owned by
 // `services/accountAuditTrail.service.ts` and
 // `services/accountBillingAudit.service.ts`. So the wire types are restated
 // here — the same thing `CredentialAuditEvent` does in `use-applications.ts` —

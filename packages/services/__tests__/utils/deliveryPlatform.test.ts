@@ -1,5 +1,5 @@
 /**
- * `resolveDeliveryPlatform` — the consumer-side classification `@oxyhq/core`
+ * `resolveDeliveryPlatform` — the consumer-side classification `@oxy.so/core`
  * refuses to do itself.
  *
  * The verdict decides one thing: whether automatic delivery may take the

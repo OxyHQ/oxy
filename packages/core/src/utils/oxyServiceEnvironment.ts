@@ -2,7 +2,7 @@
  * Environment segregation for Oxy service-token JWTs (test/live isolation).
  * Mirrors `ApplicationCredentialEnvironment` on the API's `ApplicationCredential`
  * model (`packages/api/src/models/ApplicationCredential.ts`) as an INDEPENDENT
- * literal union — `@oxyhq/core` has zero dependency on `@oxyhq/api`, so this is
+ * literal union — `@oxy.so/core` has zero dependency on `@oxy.so/api`, so this is
  * kept in sync by hand, not by import.
  *
  * Defined here (not in `server/auth.ts` or `mixins/OxyServices.utility.ts`

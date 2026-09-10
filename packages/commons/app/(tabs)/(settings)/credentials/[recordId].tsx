@@ -2,8 +2,8 @@ import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useOxy } from '@oxyhq/services';
-import type { VerifiableCredentialResponse } from '@oxyhq/contracts';
+import { useOxy } from '@oxy.so/services';
+import type { VerifiableCredentialResponse } from '@oxy.so/contracts';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import {

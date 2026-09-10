@@ -39,7 +39,7 @@ band, then bind them only into the `oxy-api` task:
 The endpoint composes the active public key with that additional public-only
 set. It refuses duplicate `kid`s, private `d` material, malformed Ed25519 keys
 and partial signing configuration. No downstream task receives any of these
-bindings: it fetches the public endpoint through `@oxyhq/core`.
+bindings: it fetches the public endpoint through `@oxy.so/core`.
 
 ## What a rotation actually costs
 
@@ -47,7 +47,7 @@ bindings: it fetches the public endpoint through `@oxyhq/core`.
 instant the running task starts using a new value:
 
 - **Every outstanding user access token is refused.** Up to 15 minutes' worth.
-- **Every outstanding service token is refused.** Up to 1 hour's worth. `@oxyhq/core`'s
+- **Every outstanding service token is refused.** Up to 1 hour's worth. `@oxy.so/core`'s
   `getServiceToken()` refreshes only within 60 seconds of expiry, so a
   service-to-service caller can hold a token for ~59 more minutes and every call
   it makes fails 401 until it refreshes.

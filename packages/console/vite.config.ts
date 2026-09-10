@@ -30,7 +30,7 @@ const appNamePlugin: Plugin = {
 }
 
 // The console runs on rolldown-vite (`"vite": "npm:rolldown-vite@^7"`) so the
-// `@oxyhq/services` React Native graph bundles through the maintained
+// `@oxy.so/services` React Native graph bundles through the maintained
 // `vite-plugin-react-native-web` plugin instead of hand-rolled interop: it
 // aliases react-native→react-native-web, applies `.web.*` platform extension
 // priority in dev AND build, treats RN packages' JSX-in-.js via rolldown

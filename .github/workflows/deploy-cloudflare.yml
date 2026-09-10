@@ -104,7 +104,7 @@ jobs:
       # Deploy the static `dist`. Invoke `bunx wrangler` DIRECTLY rather than
       # cloudflare/wrangler-action: that action's `npx --no-install wrangler`
       # path runs npm's Arborist from packages/auth, which rejects the repo-root
-      # `overrides["@oxyhq/bloom"]` against this package's newer direct bloom dep
+      # `overrides["@oxy.so/bloom"]` against this package's newer direct bloom dep
       # (`npm error code EOVERRIDE`). The whole monorepo installs with bun, and
       # bun's resolver does not perform that npm-only override validation.
       - name: Deploy to Cloudflare Pages
@@ -170,7 +170,7 @@ jobs:
       # installs its own wrangler and picks the package manager by looking for a
       # lockfile beside `workingDirectory`; `packages/accounts` has none — the
       # lock is at the repository root — so it falls back to npm, and npm cannot
-      # even parse this tree, because the root `overrides` pin `@oxyhq/bloom` to
+      # even parse this tree, because the root `overrides` pin `@oxy.so/bloom` to
       # `catalog:`, a bun-only protocol. That is the same `npm error code
       # EOVERRIDE` already recorded on the auth job above.
       #

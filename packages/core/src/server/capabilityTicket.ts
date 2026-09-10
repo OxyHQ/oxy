@@ -9,7 +9,7 @@ import {
   type CapabilityTicketClaims,
   type GrantLimit,
   type PolicyDecision,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
 const ALGORITHM = 'EdDSA';

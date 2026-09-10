@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import type { Subscription } from '@oxyhq/services';
+import type { Subscription } from '@oxy.so/services';
 import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 import { AccountCard } from '@/components/ui';

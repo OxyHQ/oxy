@@ -41,7 +41,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, date, index, integer, pgTable, text, unique, boolean } from 'drizzle-orm/pg-core';
-import { createdAt, inList, textArrayLiteral, timestamptz, updatedAt, generatedId } from '@oxyhq/db';
+import { createdAt, inList, textArrayLiteral, timestamptz, updatedAt, generatedId } from '@oxy.so/db';
 import { inferencePublishers } from './inferencePublishers';
 import { MODEL_REFERENCE_CHECK_PATTERN, SLUG_CHECK_PATTERN } from './inferenceSlug';
 
@@ -77,7 +77,7 @@ export type ModelDeprecationStatus = (typeof MODEL_DEPRECATION_STATUSES)[number]
 
 /**
  * The publisher namespace reserved for models Alia actually owns or derived.
- * Mirrors `RESERVED_ALIA_PUBLISHER` in `@oxyhq/contracts`.
+ * Mirrors `RESERVED_ALIA_PUBLISHER` in `@oxy.so/contracts`.
  */
 export const RESERVED_FIRST_PARTY_PUBLISHER = 'alia';
 
@@ -168,7 +168,7 @@ export const inferenceModels = pgTable(
      * constrain what a fine-tune may be CALLED.
      *
      * Not part of the customer-safe projection: it is a fact the catalogue and
-     * legal review read, and `@oxyhq/contracts`' `modelLicenseSchema` is
+     * legal review read, and `@oxy.so/contracts`' `modelLicenseSchema` is
      * `.strict()`, so it cannot be added to the wire without a contracts change.
      */
     baseModelAttributionRequired: boolean().notNull().default(false),

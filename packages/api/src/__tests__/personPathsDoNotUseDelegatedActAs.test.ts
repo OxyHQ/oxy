@@ -33,7 +33,7 @@ import {
   ACCOUNT_KINDS,
   isDelegatedActAsEligibleKind,
   isOperatorSwitchTargetKind,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 /** Repo root: `packages/api/src/__tests__` → three levels up. */
 const REPO_ROOT = join(__dirname, '..', '..', '..', '..');

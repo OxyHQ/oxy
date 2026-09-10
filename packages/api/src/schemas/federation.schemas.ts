@@ -72,7 +72,7 @@ export const signRequestSchema = z.object({
  *
  * This used to be `/^[a-f0-9]{24}$/i` — a MongoDB ObjectId, and nothing else.
  * Per `db/MIGRATION-CONTRACT.md` the pre-cutover ids are preserved verbatim but
- * every account created SINCE is given a **uuid v7** (`@oxyhq/db`'s
+ * every account created SINCE is given a **uuid v7** (`@oxy.so/db`'s
  * `generatedId()`), so that regex rejected the id of every new account. It ran
  * inside `validate({ body })`, i.e. BEFORE the handler, so `POST /federation/follow`,
  * `/actor-gone` and `/actor-delete` all answered 400 for a post-cutover account

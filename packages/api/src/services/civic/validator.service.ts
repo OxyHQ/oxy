@@ -39,11 +39,11 @@
 
 import crypto from 'crypto';
 import { and, asc, desc, eq, gt, inArray, lte, notInArray, sql } from 'drizzle-orm';
-import { canonicalize, verifyEnvelopeSignature } from '@oxyhq/protocol';
-import { validationVerdictRecordSchema, type ValidationVerdict } from '@oxyhq/contracts';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { canonicalize, verifyEnvelopeSignature } from '@oxy.so/protocol';
+import { validationVerdictRecordSchema, type ValidationVerdict } from '@oxy.so/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { getDb } from '../../config/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { reputationBalances } from '../../db/schema/reputationBalances';
 import {
   validationRequestValidators,

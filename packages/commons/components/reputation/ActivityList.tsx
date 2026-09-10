@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { CenteredState } from '@/components/ui/centered-state';
 import { ActivityRow } from '@/components/reputation/ActivityRow';
-import type { ReputationTransaction } from '@oxyhq/contracts';
+import type { ReputationTransaction } from '@oxy.so/contracts';
 import { useTranslation } from '@/lib/i18n';
 
 interface ActivityListProps {

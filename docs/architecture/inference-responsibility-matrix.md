@@ -295,10 +295,10 @@ appears beside `application_credentials`.
 | `POST /v1/responses` (preferred endpoint) | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts` | exists — asserted served by the edge in `routes/__tests__/inferenceEdgeMount.test.ts` |
 | `GET /v1/models`, `GET /v1/models/:id` | Oxy | OxyHQServices `packages/api/src/routes/inferenceCatalogue.ts`, mounted `server.ts:694` | exists |
 | `GET /v1/generations/:id` (receipt lookup) | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts` | exists — asserted served by the edge in `routes/__tests__/inferenceEdgeMount.test.ts` |
-| `POST /v1/embeddings` | Oxy | OxyHQServices `packages/api/src/schemas/inferenceEdge.schemas.ts:418-421` (the ceiling) — no route | blocked — TWO independent blockers, and fixing either alone ships nothing. (1) The response shape `number[][]` has no arm in the contract. Both need an additive OUTPUT arm in `@oxyhq/contracts`, then a Kaana pin bump and a descriptor regeneration or its `contract drift` job goes red — a release decision, not an endpoint. (2) #1055's audit measured ZERO `modality` hits in Kaana's `adapter.go` and `executor.go`, so an `embedding` envelope would validate and then be handed to a chat adapter — evidence gathered outside this repository, per rule 1. The CEILING is built and asserted (`embeddings` is exact, the caller says how many inputs they sent), so whoever adds the output shape inherits a reviewed bound |
+| `POST /v1/embeddings` | Oxy | OxyHQServices `packages/api/src/schemas/inferenceEdge.schemas.ts:418-421` (the ceiling) — no route | blocked — TWO independent blockers, and fixing either alone ships nothing. (1) The response shape `number[][]` has no arm in the contract. Both need an additive OUTPUT arm in `@oxy.so/contracts`, then a Kaana pin bump and a descriptor regeneration or its `contract drift` job goes red — a release decision, not an endpoint. (2) #1055's audit measured ZERO `modality` hits in Kaana's `adapter.go` and `executor.go`, so an `embedding` envelope would validate and then be handed to a chat adapter — evidence gathered outside this repository, per rule 1. The CEILING is built and asserted (`embeddings` is exact, the caller says how many inputs they sent), so whoever adds the output shape inherits a reviewed bound |
 | `POST /v1/images/generations` | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts:1137` | exists — shipped by #1055. `images` = `n ?? 1`, exact and declared, so the hold is not an estimate. This row read `planned` for several hours after that PR merged, because the PR did not edit it — the maintenance rule at the foot of this file exists for exactly that |
 | `POST /v1/audio/transcriptions`, `POST /v1/audio/speech` | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts:1042` (speech) — transcriptions has no route, and the reason is recorded at `:1242-1268` | partial — **speech shipped, transcriptions did not**, and the halves are different kinds of not-built. Speech: `characters` = `input.length`, exact, and it deliberately carries NO duration, so a duration-priced route fails to quote and is refused rather than guessed at. Transcriptions is REFUSED on a measurement: providers bill by duration, duration is a property of the uploaded bytes, and `bytes ÷ bitrate` spans about 7x across the formats such an endpoint accepts — so no byte-derived ceiling is both safe and useful, and an under-sized hold is how a balance goes negative |
-| `POST /v1/rerank` | Oxy | OxyHQServices `packages/api/src/schemas/inferenceEdge.schemas.ts:425-428` (the ceiling), `services/inferenceCatalogue.service.ts:1303-1317` (the modality gap) — no route | blocked — the response shape `{index, relevanceScore}[]` has no arm in the contract, and `INFERENCE_MODALITIES` (text, image, audio, video, embedding) cannot express a RANKING either, so rerank constrains its input and leaves its output unconstrained rather than claiming a modality that would be false. Both need an additive OUTPUT arm in `@oxyhq/contracts`, then a Kaana pin bump and a descriptor regeneration or its `contract drift` job goes red — a release decision, not an endpoint. The ceiling is built and asserted (`chars(query)` plus the sum over the documents, and no output-token arm) |
+| `POST /v1/rerank` | Oxy | OxyHQServices `packages/api/src/schemas/inferenceEdge.schemas.ts:425-428` (the ceiling), `services/inferenceCatalogue.service.ts:1303-1317` (the modality gap) — no route | blocked — the response shape `{index, relevanceScore}[]` has no arm in the contract, and `INFERENCE_MODALITIES` (text, image, audio, video, embedding) cannot express a RANKING either, so rerank constrains its input and leaves its output unconstrained rather than claiming a modality that would be false. Both need an additive OUTPUT arm in `@oxy.so/contracts`, then a Kaana pin bump and a descriptor regeneration or its `contract drift` job goes red — a release decision, not an endpoint. The ceiling is built and asserted (`chars(query)` plus the sum over the documents, and no output-token arm) |
 | `POST /v1/batches` | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts:1272-1288` (the reason, beside the routes that do exist) — no route | blocked — and the disqualifying half is the LEDGER, not the ceiling. `reserve` → `settle` assumes one hold per HTTP request settled inside `RESERVATION_TTL_SECONDS`, while a batch's completion window is twenty-four hours: `expireReservations` would release the hold mid-batch and the work would settle against a reservation that no longer stands. Raising the TTL is not the fix — a day-long hold on a shared balance is a different financial product. What batches need is an amendment to ADR 0009 (a hold per sub-request at dispatch, or a long-lived reservation class with partial settlement) |
 | `GET /models/stats` (static catalogue; retired by ADR 0008) | Oxy | `routes/models-stats.ts` was DELETED with the catalogue landing (#982); `/models` is now served by `routes/inferenceCatalogue.ts` (`server.ts:715`) | removed |
 | Edge attribution resolution before forwarding | Oxy | OxyHQServices `packages/api/src/services/inferenceEdge.service.ts:310` (`resolveCredentialAttributionById`) | exists |
@@ -356,7 +356,7 @@ repository under `~/Oxy` found **no caller of either route anywhere**:
 - Alia's own `alia-chat` hooks and `integrations` client target
   `EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl'` and Alia's own API port —
   Alia has its OWN `/v1/voice/*` routes, which is what those call.
-- No `@oxyhq/services` / `@oxyhq/core` surface exposes a voice method, and no
+- No `@oxy.so/services` / `@oxy.so/core` surface exposes a voice method, and no
   installed copy of either across fourteen consumer repositories references the
   paths.
 - Mention's LiveKit usage is its own rooms feature against `livekit.oxy.so`, minted
@@ -379,7 +379,7 @@ is now backed by the negative mount tests instead of an exception for
 
 ## 4. Oxy↔Kaana contracts (epic §0 "Contract package")
 
-The package `@oxyhq/contracts` exists (`packages/contracts`, zod-only, epic's
+The package `@oxy.so/contracts` exists (`packages/contracts`, zod-only, epic's
 "dependency-light" requirement already met).
 
 **Almost every schema below now exists**, in `packages/contracts/src/inference/`
@@ -391,7 +391,7 @@ suite, which needs agreement from the other side rather than more code here.
 
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
-| `@oxyhq/contracts` package | Oxy | OxyHQServices `packages/contracts` | exists |
+| `@oxy.so/contracts` package | Oxy | OxyHQServices `packages/contracts` | exists |
 | Authenticated principal and attribution schema | Oxy | `packages/contracts/src/inference/attribution.ts` (`authenticatedPrincipalSchema`, `billingPrincipalSchema`, `inferenceAttributionSchema`) | exists |
 | Normalized inference request schema (internal envelope, ADR 0010) | Oxy | `packages/contracts/src/inference/request.ts` | exists |
 | Normalized stream event schemas | Kaana (shape agreed with Oxy) | `packages/contracts/src/inference/streamEvents.ts` (`inferenceStreamStartEventSchema`, `…DeltaEvent…`, `…ToolCallEvent…`, `…UsageEvent…`) | exists — Oxy has defined the shape. Whether Kaana produces it is unaudited from here, and "agreed" is a cross-repo fact this document cannot settle either way |
@@ -781,8 +781,8 @@ workstreams 0–12 may block on it.
 
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
-| `@oxyhq/core` client SDK | Oxy | OxyHQServices `packages/core` | exists |
-| Typed inference methods on `@oxyhq/core` | Oxy | OxyHQServices `packages/core/src/inference/OxyInferenceClient.ts` | catalogue reads, `respond()`, `getGeneration()` and typed `stream()` are merged; #1145 published the streaming client in `@oxyhq/core@23.1.0`. Package publication is not evidence that the live Kaana route is enabled |
+| `@oxy.so/core` client SDK | Oxy | OxyHQServices `packages/core` | exists |
+| Typed inference methods on `@oxy.so/core` | Oxy | OxyHQServices `packages/core/src/inference/OxyInferenceClient.ts` | catalogue reads, `respond()`, `getGeneration()` and typed `stream()` are merged; #1145 published the streaming client in `@oxy.so/core@23.1.0`. Package publication is not evidence that the live Kaana route is enabled |
 | Machine-credential lifetime and rotation-grace options on the SDK | Oxy | OxyHQServices `packages/core/src/mixins/OxyServices.accounts.ts` | exists — `createAppCredential({expiresInSeconds})` and `rotateAppCredential(…, {graceSeconds})`; the API accepted both since epic §2.3, the SDK could not send either |
 | TypeScript SDK surface accepting both Oxy auth and OpenAI-style keys | Oxy | OxyHQServices `packages/core/src/inference/OxyInferenceClient.ts`, `packages/core/src/mixins/OxyServices.inference.ts` | exists — one client, one `credential` that is a static `oxy_sk_*` string or a function returning an Oxy bearer. `oxyServices.inference()` binds the session lane; the mixin declares no request of its own, so there is one spelling of each call. `packages/api/src/schemas/__tests__/sdkRequestCompatibility.test.ts` fails the build if the request type and the edge schema drift |
 | Official Python SDK or generated client | Oxy | new repo | deliberately not started; the HTTP surface is usable with a stock OpenAI client when its live Kaana rollout gate is enabled. Reasoning in `docs/inference/sdk.md` |
@@ -859,7 +859,7 @@ workstreams 0–12 may block on it.
   `contract only` is satisfied by the repository existing, so it confirms nothing
   and can never be refuted — which is how ten §5 rows survived two reviews. Cite
   `file.ts:line`; a directory is right only where the row's SUBJECT is a directory
-  or a package (`@oxyhq/contracts`, `docs/runbooks/`, a route folder), and a bare
+  or a package (`@oxy.so/contracts`, `docs/runbooks/`, a route folder), and a bare
   ancestor is acceptable only on a `planned` or `unverified` row, where it names
   the intended home of something absent. No judged row cites an ancestor as of
   2026-08-18; the eight citing a directory each have one as their subject.

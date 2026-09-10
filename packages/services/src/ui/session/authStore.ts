@@ -1,9 +1,9 @@
 /**
- * Platform `AuthStateStore` for `@oxyhq/services`.
+ * Platform `AuthStateStore` for `@oxy.so/services`.
  *
  * The device model persists the durable device credential (`deviceId` +
  * `deviceSecret`) per origin (web) / per device (native), and the SDK re-mints
- * the access token from that credential on cold boot. `@oxyhq/core` owns the
+ * the access token from that credential on cold boot. `@oxy.so/core` owns the
  * store shape + logic (`createWebAuthStateStore` / `createNativeAuthStateStore` /
  * `createMemoryAuthStateStore`); this module only selects the seam:
  *
@@ -27,7 +27,7 @@ import {
   createSharedMirroringAuthStateStore,
   type AuthStateStore,
   type SessionMode,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { isReactNative } from '../utils/storageHelpers';
 import { createNativeSecureKeyValueStorage } from './nativeSecureStorage';
 import { createPlatformSharedDeviceCredentialStore } from './sharedDeviceCredentialStore';

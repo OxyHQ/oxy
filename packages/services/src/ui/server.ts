@@ -5,7 +5,7 @@
  * shouldn't be rendered on the server.
  *
  * @example
- * import { OxyProvider, useOxy } from '@oxyhq/services/ui/server';
+ * import { OxyProvider, useOxy } from '@oxy.so/services/ui/server';
  */
 
 // Noop utilities

@@ -38,7 +38,7 @@ import { devicePairingSessions } from '../db/schema/devicePairingSessions';
 import { users } from '../db/schema/users';
 import { SignatureService } from './signature.service';
 import { logger } from '../utils/logger';
-import type { DeviceTransferInfoResponse, DevicePairingStatus } from '@oxyhq/contracts';
+import type { DeviceTransferInfoResponse, DevicePairingStatus } from '@oxy.so/contracts';
 
 /** Pairing lifetime — deliberately short (single interactive handoff). */
 export const DEVICE_TRANSFER_TTL_MS = 3 * 60 * 1000;

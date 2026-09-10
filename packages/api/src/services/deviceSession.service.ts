@@ -10,13 +10,13 @@ import type {
   DevicePrincipal,
   DeviceSessionState,
   SessionAccount,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   BROWSER_HUB_HANDLE_TTL_MS,
   deviceDirectorySchema,
   isOperatorSwitchTargetKind,
-} from '@oxyhq/contracts';
-import { isUniqueViolation } from '@oxyhq/db';
+} from '@oxy.so/contracts';
+import { isUniqueViolation } from '@oxy.so/db';
 import { getDb, type Database } from '../config/postgres';
 import { deviceAccountContexts } from '../db/schema/deviceAccountContexts';
 import { devicePrincipals } from '../db/schema/devicePrincipals';

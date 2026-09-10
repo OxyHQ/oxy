@@ -1,6 +1,6 @@
 # Authentication quickstart
 
-Add Oxy sign-in to an app. One SDK owns all auth UI and session state: **`@oxyhq/services`** (`OxyProvider`) — the same package on Expo/React Native and on web via React Native Web. The previous web-only auth SDK package was removed from the monorepo.
+Add Oxy sign-in to an app. One SDK owns all auth UI and session state: **`@oxy.so/services`** (`OxyProvider`) — the same package on Expo/React Native and on web via React Native Web. The previous web-only auth SDK package was removed from the monorepo.
 
 Deeper references:
 
@@ -10,14 +10,14 @@ Deeper references:
 
 ## How sessions work today
 
-- **Server authority:** the `DeviceSession` document (collection `devicesessions`) holds `deviceId`, `accounts[]` (`accountId`, `sessionId`, `authuser`, optional `operatedByUserId` for managed accounts), `activeAccountId`, and a `revision` counter. It is mutated only through `/session/device/{state,add,switch,signout}` and mirrored to every app on the same device through the Socket.IO room `device:<deviceId>` (`session_state` event; the payload never contains tokens). The client side is `SessionClient` in `@oxyhq/core` (`packages/core/src/session/`).
+- **Server authority:** the `DeviceSession` document (collection `devicesessions`) holds `deviceId`, `accounts[]` (`accountId`, `sessionId`, `authuser`, optional `operatedByUserId` for managed accounts), `activeAccountId`, and a `revision` counter. It is mutated only through `/session/device/{state,add,switch,signout}` and mirrored to every app on the same device through the Socket.IO room `device:<deviceId>` (`session_state` event; the payload never contains tokens). The client side is `SessionClient` in `@oxy.so/core` (`packages/core/src/session/`).
 - **Transport (zero-cookie):** every successful sign-in returns `deviceId` + a 256-bit `deviceSecret`, which the client persists first-party (localStorage per web origin; SecureStore on native). To restore or refresh, the client POSTs `{ deviceId, deviceSecret }` to `POST /session/device/token` (no bearer, no cookies — possession of the secret is the proof) and gets a short access token plus a rotated secret. There is no cookie, no refresh-token family, and no `#oxy_boot` bootstrap hop — all deleted in the zero-cookie cutover.
 - **Cold boot never redirects.** `OxyProvider` restores the session silently when one exists. When none exists the app simply stays logged out until the user explicitly opens sign-in (`useAuth().signIn()` or `OxySignInButton`) — there is no automatic navigation to a login page.
 
 ## Install
 
 ```bash
-bun add @oxyhq/services @oxyhq/core
+bun add @oxy.so/services @oxy.so/core
 ```
 
 Get a `clientId` (an `oxy_dk_…` credential public key) by registering an Application in [Oxy Console](https://console.oxy.so).
@@ -29,7 +29,7 @@ Mount `OxyProvider` once at the root:
 ```tsx
 // app/_layout.tsx (expo-router)
 import { Stack } from 'expo-router';
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 export default function RootLayout() {
   return (
@@ -69,7 +69,7 @@ export default defineConfig({
 
 ```tsx
 // src/main.tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 root.render(
   <OxyProvider baseURL="https://api.oxy.so" clientId={import.meta.env.VITE_OXY_CLIENT_ID}>
@@ -82,8 +82,8 @@ root.render(
 
 ```tsx
 import { Text } from 'react-native';
-import { useAuth, OxySignInButton } from '@oxyhq/services';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { useAuth, OxySignInButton } from '@oxy.so/services';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 
 function Header() {
   const { user, isAuthenticated, isAuthResolved, signOut } = useAuth();
@@ -136,7 +136,7 @@ The pre-styled button resolves your registered Application via `GET /auth/oauth/
 <OxySignInButton oauthRedirectUri="https://merchant.example/oauth/callback" />
 ```
 
-For third-party web, the SDK generates the CSRF `state` and PKCE pair with `generateOAuthState()` / `generatePkcePair()` and builds the redirect with `buildOAuthAuthorizeUrl()` (all exported from `@oxyhq/core`), persisting the handshake in `sessionStorage` across the redirect. Your callback validates `state` and exchanges the code:
+For third-party web, the SDK generates the CSRF `state` and PKCE pair with `generateOAuthState()` / `generatePkcePair()` and builds the redirect with `buildOAuthAuthorizeUrl()` (all exported from `@oxy.so/core`), persisting the handshake in `sessionStorage` across the redirect. Your callback validates `state` and exchanges the code:
 
 ```http
 POST https://api.oxy.so/auth/oauth/token
@@ -150,16 +150,16 @@ it. The response is a flat §5.1 document (`access_token`, `token_type`,
 `expires_in`, plus Oxy's `session_id` / `deviceId` / `deviceSecret` / `user`);
 errors are §5.2 `{ error, error_description }`.
 
-Native third-party RPs pass `onOAuthResult` to receive `{ redirectUrl, state, codeVerifier }` from the in-app auth session and finish the same exchange. Consent renders on `auth.oxy.so` via `OxyConsentScreen` (exported from `@oxyhq/services`), showing the Application's name, logo, scopes, and its `privacyPolicyUrl` / `termsUrl`. Full walkthrough: [integration guide](./auth/integration-guide.md).
+Native third-party RPs pass `onOAuthResult` to receive `{ redirectUrl, state, codeVerifier }` from the in-app auth session and finish the same exchange. Consent renders on `auth.oxy.so` via `OxyConsentScreen` (exported from `@oxy.so/services`), showing the Application's name, logo, scopes, and its `privacyPolicyUrl` / `termsUrl`. Full walkthrough: [integration guide](./auth/integration-guide.md).
 
 ## Backend — verifying requests
 
-App backends verify Oxy bearer tokens with `@oxyhq/core/server`. Never hand-roll bearer parsing or auth middleware:
+App backends verify Oxy bearer tokens with `@oxy.so/core/server`. Never hand-roll bearer parsing or auth middleware:
 
 ```ts
 import express from 'express';
-import { OxyServices } from '@oxyhq/core';
-import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxyhq/core/server';
+import { OxyServices } from '@oxy.so/core';
+import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 const app = express();

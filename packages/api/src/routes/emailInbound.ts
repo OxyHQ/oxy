@@ -16,7 +16,7 @@
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { timingSafeEqual } from 'node:crypto';
-import { normalizeInlineText } from '@oxyhq/core';
+import { normalizeInlineText } from '@oxy.so/core';
 import { and, eq, not, sql } from 'drizzle-orm';
 import { simpleParser } from 'mailparser';
 import type { ParsedMail } from 'mailparser';

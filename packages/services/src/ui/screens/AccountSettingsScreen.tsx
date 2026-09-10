@@ -5,14 +5,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from '@oxyhq/bloom/toast';
-import { surfaces } from '@oxyhq/bloom/surfaces';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Text } from '@oxyhq/bloom/typography';
-import { Button } from '@oxyhq/bloom/button';
-import { TextField, TextFieldInput } from '@oxyhq/bloom/text-field';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { DISPLAY_NAME_INVALID_MESSAGE, getNormalizedUserHandle, isValidDisplayName, MAX_DISPLAY_NAME_LENGTH, type UpdateAccountInput } from '@oxyhq/core';
+import { toast } from '@oxy.so/bloom/toast';
+import { surfaces } from '@oxy.so/bloom/surfaces';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import { Button } from '@oxy.so/bloom/button';
+import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { DISPLAY_NAME_INVALID_MESSAGE, getNormalizedUserHandle, isValidDisplayName, MAX_DISPLAY_NAME_LENGTH, type UpdateAccountInput } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useOxy } from '../context/OxyContext';

@@ -51,7 +51,7 @@ import { IDENTITY_APPROVAL_CAPABILITY } from '../utils/applicationCapabilities';
 // contract because the vault must create a channel with this exact id before a
 // push can land — Android 8+ drops a notification whose channel it does not
 // know, silently and with no error on either side.
-import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxyhq/contracts';
+import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxy.so/contracts';
 import { logger } from '../utils/logger';
 
 /** Runtime type discriminator of the push payload, mirrored by the vault. */

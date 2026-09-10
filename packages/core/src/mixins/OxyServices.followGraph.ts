@@ -32,7 +32,7 @@ import type {
   FollowOptions,
   FollowStatus,
   UnfollowMutation,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { buildUrl } from '../utils/apiUtils';
 
@@ -246,7 +246,7 @@ export function OxyServicesFollowGraphMixin<T extends typeof OxyServicesBase>(Ba
       kind: string;
       label?: string;
       capabilities?: {
-        // Matches `FollowVerb` in @oxyhq/services, which is what renders it. A
+        // Matches `FollowVerb` in @oxy.so/services, which is what renders it. A
         // kind that can display a verb it cannot record is a kind whose button
         // and registration disagree.
         verb?: 'follow' | 'subscribe' | 'join' | 'watch';

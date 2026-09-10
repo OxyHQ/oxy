@@ -7,7 +7,7 @@
  * `accountId` finds whichever person is enumerated first, and on this device
  * that is the wrong human.
  */
-import type { DeviceDirectory, DeviceDirectoryProfile } from '@oxyhq/contracts';
+import type { DeviceDirectory, DeviceDirectoryProfile } from '@oxy.so/contracts';
 import {
   canActivateContext,
   directoryDisplayName,

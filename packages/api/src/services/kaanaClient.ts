@@ -23,7 +23,7 @@
  * ## What crosses the boundary
  *
  * Out: exactly one shape, {@link InferenceRequest} — the versioned internal
- * envelope from `@oxyhq/contracts`. Both public dialects normalize into it, which
+ * envelope from `@oxy.so/contracts`. Both public dialects normalize into it, which
  * is what keeps the OpenAI-compatible surface from becoming a second data path.
  *
  * Back: units and events, never money.
@@ -68,7 +68,7 @@ import type {
   NormalizedUsageReport,
   UsageQuantity,
   UsageSource,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 /** What the data plane returns for a completed, non-streaming request. */
 export interface KaanaCompletion {

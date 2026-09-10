@@ -17,7 +17,7 @@ Complete integration guide for different platforms and frameworks.
 ### Installation
 
 ```bash
-bun add @oxyhq/services react-native-reanimated react-native-gesture-handler
+bun add @oxy.so/services react-native-reanimated react-native-gesture-handler
 ```
 
 ### Setup
@@ -40,7 +40,7 @@ module.exports = {
 
 ```typescript
 // App.tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 export default function App() {
   return (
@@ -55,7 +55,7 @@ export default function App() {
 
 ```typescript
 // components/ProfileScreen.tsx
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { View, Text, Button } from 'react-native';
 
 export function ProfileScreen() {
@@ -93,7 +93,7 @@ export function ProfileScreen() {
 ### Installation
 
 ```bash
-bunx expo install @oxyhq/services expo expo-font expo-image expo-linear-gradient
+bunx expo install @oxy.so/services expo expo-font expo-image expo-linear-gradient
 ```
 
 ### Setup
@@ -108,7 +108,7 @@ import 'react-native-url-polyfill/auto';
 
 ```typescript
 // App.tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 export default function App() {
   return (
@@ -123,7 +123,7 @@ export default function App() {
 
 ```typescript
 import * as ImagePicker from 'expo-image-picker';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 function AvatarUpload() {
   const { oxyServices, user } = useOxy();
@@ -154,7 +154,7 @@ function AvatarUpload() {
 ### Installation
 
 ```bash
-bun add @oxyhq/services
+bun add @oxy.so/services
 ```
 
 ### Setup
@@ -165,7 +165,7 @@ bun add @oxyhq/services
 // app/providers.tsx
 'use client';
 
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -199,7 +199,7 @@ export default function RootLayout({ children }) {
 // app/profile/page.tsx
 'use client';
 
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 export default function ProfilePage() {
   const { user, isAuthenticated } = useOxy();
@@ -218,7 +218,7 @@ For server components, use the core API directly:
 
 ```typescript
 // app/api/users/route.ts
-import { oxyClient } from '@oxyhq/core';
+import { oxyClient } from '@oxy.so/core';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -243,14 +243,14 @@ export async function GET(request: Request) {
 ### Installation
 
 ```bash
-bun add @oxyhq/services
+bun add @oxy.so/services
 ```
 
 ### Setup
 
 ```typescript
 // App.tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 function App() {
   return (
@@ -266,7 +266,7 @@ export default App;
 ### File Upload Example
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 function FileUpload() {
   const { oxyServices } = useOxy();
@@ -296,7 +296,7 @@ function FileUpload() {
 ### Installation
 
 ```bash
-bun add @oxyhq/services express
+bun add @oxy.so/services express
 ```
 
 ### Basic Setup
@@ -304,7 +304,7 @@ bun add @oxyhq/services express
 ```typescript
 // server.ts
 import express from 'express';
-import { oxyClient } from '@oxyhq/core';
+import { oxyClient } from '@oxy.so/core';
 
 const app = express();
 app.use(express.json());
@@ -335,7 +335,7 @@ app.listen(3000, () => {
 ### Custom Instance
 
 ```typescript
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 const oxy = new OxyServices({
   baseURL: process.env.OXY_API_URL || 'https://api.oxy.so'
@@ -372,7 +372,7 @@ Since OxyProvider is React-based, use the core API directly in Vue:
 ### Installation
 
 ```bash
-bun add @oxyhq/services
+bun add @oxy.so/services
 ```
 
 ### Setup with Composition API
@@ -380,7 +380,7 @@ bun add @oxyhq/services
 ```typescript
 // composables/useOxy.ts
 import { ref, onMounted } from 'vue';
-import { oxyClient } from '@oxyhq/core';
+import { oxyClient } from '@oxy.so/core';
 
 export function useOxy() {
   const user = ref(null);
@@ -473,7 +473,7 @@ Follow the [React Native](#react-native) setup above.
 Works out of the box! Just install and use:
 
 ```bash
-bunx expo install @oxyhq/services
+bunx expo install @oxy.so/services
 ```
 
 ### Native Modules
@@ -514,7 +514,7 @@ Add to your `tsconfig.json`:
 ```json
 {
   "compilerOptions": {
-    "types": ["@oxyhq/services"]
+    "types": ["@oxy.so/services"]
   }
 }
 ```
@@ -561,7 +561,7 @@ useEffect(() => {
 ### Error Handling
 
 ```typescript
-import { OxyAuthenticationError } from '@oxyhq/services';
+import { OxyAuthenticationError } from '@oxy.so/services';
 
 try {
   await oxyServices.getCurrentUser();

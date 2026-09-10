@@ -3,13 +3,13 @@
  * Returns clean, explicit user object with id (MongoDB ObjectId) and publicKey as separate fields.
  */
 
-import { getUserLanguages } from '@oxyhq/core';
+import { getUserLanguages } from '@oxy.so/core';
 import {
   ACCOUNT_CATEGORY_IDS,
   isAccountKind,
   type AccountCategoryId,
   type ThemePreference,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { formatUserNameResponse, type NameParts, type NameResponse } from './displayName';
 
 type StringableId = string | { toString(): string };
@@ -234,7 +234,7 @@ export function userIdentityFields(source: UserIdentitySource): UserIdentityFiel
  * whether or not the source document was loaded with Mongoose virtuals, and
  * `name.displayName` is present ONLY when the user has a real name (omitted for
  * username-only / publicKey-only accounts — consumers fall back to the handle).
- * This is the canonical producer of the `@oxyhq/core` `userResponseSchema`
+ * This is the canonical producer of the `@oxy.so/core` `userResponseSchema`
  * contract — the api `userTransform.contract.test.ts` locks the output to that
  * schema so the producer cannot silently drift from it again.
  */

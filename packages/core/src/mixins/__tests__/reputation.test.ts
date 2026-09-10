@@ -11,7 +11,7 @@
 
 import { OxyServices } from '../../OxyServices';
 import { OxyAuthenticationError } from '../../OxyServices.errors';
-import { isFullReputationBalance } from '@oxyhq/contracts';
+import { isFullReputationBalance } from '@oxy.so/contracts';
 import type {
   ReputationBalance,
   ReputationBalanceSummary,
@@ -21,7 +21,7 @@ import type {
   ReputationRule,
   ReputationLeaderboardEntry,
   ReputationInfluenceResult,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 const setAccessTokenForTest = (oxy: OxyServices): void => {
   oxy.httpService.setTokens('test-token');
@@ -58,7 +58,7 @@ const FULL_BALANCE_FIELD_NAMES = [
  * not here: `ts-jest` runs with `diagnostics: false` and `tsconfig.json`
  * excludes `**\/__tests__`, so a type-level assertion written in this file could
  * never fail. See `_PrivateFieldsAreUnreachableOnTheView` in
- * `@oxyhq/contracts`' `src/reputation.ts`, which that package's
+ * `@oxy.so/contracts`' `src/reputation.ts`, which that package's
  * `bun run typescript` and `build:types` both check.
  */
 

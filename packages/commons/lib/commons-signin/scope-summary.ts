@@ -3,7 +3,7 @@
  * into the short "<app> will receive" lines the Commons approval screen shows.
  *
  * The scope COPY is not defined here: every known scope maps to a `consent.*`
- * key that already exists in `@oxyhq/core`'s dictionaries (all 11 locales), the
+ * key that already exists in `@oxy.so/core`'s dictionaries (all 11 locales), the
  * same sentences the OAuth consent screen shows. Commons' `t()` falls through to
  * core, so reusing those keys keeps one wording per permission across the
  * ecosystem instead of a second, drifting Commons-only copy.
@@ -15,7 +15,7 @@
  * Pure + dependency-free, so it unit-tests directly.
  */
 
-/** Known scope -> shared `@oxyhq/core` consent sentence. */
+/** Known scope -> shared `@oxy.so/core` consent sentence. */
 const SCOPE_LABEL_KEYS: Readonly<Record<string, string>> = {
   openid: 'consent.scopes.openid',
   profile: 'consent.scopes.profile',

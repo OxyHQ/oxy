@@ -13,7 +13,7 @@ import {
   type KaanaCredentialMutation,
   type KaanaCredentialOutcome,
   type KaanaCredentialOutcomeRequest,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   resolveKaanaCredentialControl,
   type KaanaCredentialControlConfig,

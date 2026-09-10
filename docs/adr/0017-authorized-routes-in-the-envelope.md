@@ -189,7 +189,7 @@ means.
 
 ## Consequences
 
-- **`@oxyhq/contracts` goes to 0.30.0 and must be published before the data plane
+- **`@oxy.so/contracts` goes to 0.30.0 and must be published before the data plane
   can adopt this.** The data plane pins the published version and its contract
   drift gate goes red until it takes 0.30.0. Publishing is the control-plane
   side's move and comes first.

@@ -58,7 +58,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { and, eq } from 'drizzle-orm';
-import type { InferenceRequest, UsageQuantity } from '@oxyhq/contracts';
+import type { InferenceRequest, UsageQuantity } from '@oxy.so/contracts';
 import {
   KAANA_BASE_URL_VARIABLE,
   KAANA_SIGNING_KEY_ID_VARIABLE,

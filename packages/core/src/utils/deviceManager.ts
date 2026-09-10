@@ -1,4 +1,4 @@
-import { loadAsyncStorage } from '@oxyhq/protocol';
+import { loadAsyncStorage } from '@oxy.so/protocol';
 import { createLogger } from '../logger';
 
 const log = createLogger('DeviceManager');

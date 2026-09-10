@@ -18,7 +18,7 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, eq, sql } from 'drizzle-orm';
-import type { CreateUpdateRequest } from '@oxyhq/contracts';
+import type { CreateUpdateRequest } from '@oxy.so/contracts';
 
 const mockPresign = jest.fn();
 const mockHeadObject = jest.fn();

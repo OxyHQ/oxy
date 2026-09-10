@@ -27,7 +27,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { inferenceModelRevisions } from './inferenceModelRevisions';
 import { inferenceModels } from './inferenceModels';
 import { inferenceRoutingProfiles } from './inferenceRoutingProfiles';

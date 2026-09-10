@@ -46,8 +46,8 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, inList, updatedAt } from '@oxyhq/db';
-import { COST_CENTER_STATUSES } from '@oxyhq/contracts';
+import { createdAt, inList, updatedAt } from '@oxy.so/db';
+import { COST_CENTER_STATUSES } from '@oxy.so/contracts';
 import { users } from './users';
 
 /** Taken from the wire contract so column and schema cannot drift. */

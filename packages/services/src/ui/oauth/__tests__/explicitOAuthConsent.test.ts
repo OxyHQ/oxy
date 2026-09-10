@@ -3,8 +3,8 @@ jest.mock("../../components/oauthNavigation", () => ({
 	redirectToAuthorize: jest.fn(),
 }));
 
-import type { OxyServices } from "@oxyhq/core";
-import { computeCodeChallenge } from "@oxyhq/core";
+import type { OxyServices } from "@oxy.so/core";
+import { computeCodeChallenge } from "@oxy.so/core";
 import { openAuthorizeUrlNative } from "../../components/oauthNavigation";
 import {
 	requestOAuthConsent,

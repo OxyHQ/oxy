@@ -33,7 +33,7 @@
  * registers the switched session into the operator's device-set directly).
  */
 import type { User } from '../models/interfaces';
-import type { AccountCategoryId, AccountKind, ChildAccountKind } from '@oxyhq/contracts';
+import type { AccountCategoryId, AccountKind, ChildAccountKind } from '@oxy.so/contracts';
 import type { SessionLoginResponse } from '../models/session';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { normalizeUserIdentity } from '../utils/userIdentity';
@@ -53,9 +53,9 @@ import { CACHE_TIMES } from './mixinHelpers';
  * be acted AS by an application (`isDelegatedActAsEligibleKind`), and only the
  * first two may be SWITCHED INTO by a person (`isOperatorSwitchTargetKind`).
  *
- * Single source of truth is `@oxyhq/contracts`.
+ * Single source of truth is `@oxy.so/contracts`.
  */
-export type { AccountCategoryId, AccountKind } from '@oxyhq/contracts';
+export type { AccountCategoryId, AccountKind } from '@oxy.so/contracts';
 export {
   ACCOUNT_CATEGORY_IDS,
   ACCOUNT_KINDS,
@@ -65,7 +65,7 @@ export {
   isOperatorSwitchTargetKind,
   isSelectableAccountCategoryId,
   kindAcceptsAccountCategories,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 /**
  * The calling user's relationship to an account node, as resolved by the API:

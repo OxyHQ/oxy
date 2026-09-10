@@ -41,7 +41,7 @@
  */
 
 import { join, resolve } from 'node:path';
-import { normalizeSecp256k1PublicKey } from '@oxyhq/protocol/secp256k1';
+import { normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import {
   DEFAULT_APP_NAMESPACE,
   DEFAULT_MAX_BLOB_BYTES,
@@ -51,7 +51,7 @@ import {
   NODE_MODES,
   PROTOCOL_VERSION,
   type NodeMode,
-} from '@oxyhq/protocol/node';
+} from '@oxy.so/protocol/node';
 
 /** Default env-var prefix (the Oxy identity-node deployment). */
 export const DEFAULT_ENV_PREFIX = 'OXY_NODE_';

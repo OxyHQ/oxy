@@ -1,4 +1,4 @@
-/* @oxyhq/app-preset — Tailwind v4 + NativeWind base stylesheet.
+/* @oxy.so/app-preset — Tailwind v4 + NativeWind base stylesheet.
  *
  * The shared CSS header every Oxy Expo app used to copy-paste: the Tailwind v4
  * layer imports, NativeWind's theme, and Bloom's canonical design tokens
@@ -9,7 +9,7 @@
  * Import it at the TOP of the app's global.css, then add the app-specific
  * `@source` globs and `@theme` overrides below it (later rules win on overlap):
  *
- *   @import "@oxyhq/app-preset/base.css";
+ *   @import "@oxy.so/app-preset/base.css";
  *
  *   @source "./app/**\/*.{js,jsx,ts,tsx}";
  *   @source "./components/**\/*.{js,jsx,ts,tsx}";
@@ -32,19 +32,19 @@
  * they win the cascade over that same-specificity base reset.
  *
  * The SDK `@source` globs below are RELATIVE TO THIS FILE's location. Published,
- * this file lives at `node_modules/@oxyhq/app-preset/css/base.css`, so
- * `../../services/lib` resolves to `node_modules/@oxyhq/services/lib` and
- * `../../bloom/lib` to `node_modules/@oxyhq/bloom/lib` — @oxyhq/app-preset,
- * @oxyhq/services and @oxyhq/bloom are siblings under `@oxyhq/`. In the source
+ * this file lives at `node_modules/@oxy.so/app-preset/css/base.css`, so
+ * `../../services/lib` resolves to `node_modules/@oxy.so/services/lib` and
+ * `../../bloom/lib` to `node_modules/@oxy.so/bloom/lib` — @oxy.so/app-preset,
+ * @oxy.so/services and @oxy.so/bloom are siblings under `@oxy.so/`. In the source
  * monorepo `../../services/lib` still lands on `packages/services/lib`, but
- * `@oxyhq/bloom` is npm-only (no `packages/bloom`), so the extra
- * `../../../node_modules/@oxyhq/bloom/lib` fallback covers that layout. */
+ * `@oxy.so/bloom` is npm-only (no `packages/bloom`), so the extra
+ * `../../../node_modules/@oxy.so/bloom/lib` fallback covers that layout. */
 
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css";
 @import "nativewind/theme";
-@import "@oxyhq/bloom/design-tokens/theme.css";
+@import "@oxy.so/bloom/design-tokens/theme.css";
 
 /* NativeWind's `theme.css` ships an UNLAYERED `:root { @media ios { --font-sans: System } }`.
    Anything an app declares in `@theme` compiles into `@layer theme`, and unlayered
@@ -74,4 +74,4 @@
 
 @source "../../services/lib/**/*.{js,jsx}";
 @source "../../bloom/lib/**/*.{js,jsx}";
-@source "../../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}";
+@source "../../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";

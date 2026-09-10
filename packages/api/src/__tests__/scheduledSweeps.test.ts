@@ -149,7 +149,7 @@ describe('the reservation expiry sweep is registered', () => {
 
 describe('the retention sweep is registered', () => {
   it('sweeps every declared retention on its own interval', () => {
-    expect(SERVER_CODE).toContain("import { sweepAllExpiredRows } from '@oxyhq/db/expiry'");
+    expect(SERVER_CODE).toContain("import { sweepAllExpiredRows } from '@oxy.so/db/expiry'");
     // The registry, not a hand-listed subset — a sweep over some other list
     // would leave the rest of `db/expiry.ts` declaring retentions nobody
     // enforces, which is the state this issue found.

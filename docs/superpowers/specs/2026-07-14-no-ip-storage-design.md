@@ -38,7 +38,7 @@
 - Anonymous rate limiting stays keyed per client, but the Redis key stores `hmac-sha256(salt, normalizedIp)` truncated — never the raw IP. TTL unchanged (windowMs). Hashing is acceptable HERE because keys live minutes, not history.
 - One shared helper in `packages/api` (e.g. `utils/ipKey.ts` `hashedIpKey(req)`), reusing the existing required `DEVICE_ID_SALT`; IPv6-normalize via express-rate-limit's `ipKeyGenerator` before hashing.
 - Apply to: default keyGenerators in `middleware/security.ts` (rl:general, rl:auth, rl:idp:service, rl:federation:service, rl:user anonymous fallback) and every route-level `…:ip:<ip>` keyGenerator (civic, links, contacts, userData, users, assets, accounts, nodes, identity routes).
-- Follow-up (separate change): same treatment in `@oxyhq/core/server` `rateLimit.ts` for the other Oxy backends.
+- Follow-up (separate change): same treatment in `@oxy.so/core/server` `rateLimit.ts` for the other Oxy backends.
 
 ### 7. Logs — no IP fields
 - Remove `ip: req.ip` from `middleware/csrf.ts` warn calls, `routes/auth.ts` service-token issue log, and `middleware/performance.ts` metric metadata.

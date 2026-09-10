@@ -21,7 +21,7 @@
  *                 drizzle-kit migrates against).
  */
 
-import { ensureExtensions } from '@oxyhq/db/migrate';
+import { ensureExtensions } from '@oxy.so/db/migrate';
 import { REQUIRED_EXTENSIONS } from '../src/db/extensions';
 import { ConfigurationError } from '../src/config/env';
 

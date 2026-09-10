@@ -5,7 +5,7 @@
  */
 
 import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto';
-import type { AppCapabilityCatalog } from '@oxyhq/contracts';
+import type { AppCapabilityCatalog } from '@oxy.so/contracts';
 import { eq } from 'drizzle-orm';
 import express from 'express';
 import request from 'supertest';

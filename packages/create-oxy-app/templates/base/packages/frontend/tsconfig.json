@@ -1,5 +1,5 @@
 {
-  "extends": "@oxyhq/app-preset/tsconfig/frontend.json",
+  "extends": "@oxy.so/app-preset/tsconfig/frontend.json",
   "compilerOptions": {
     "paths": {
       "@/*": ["./*"]

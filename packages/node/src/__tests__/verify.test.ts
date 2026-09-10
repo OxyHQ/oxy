@@ -1,16 +1,16 @@
 /**
  * Node record-verification tests — the cross-package verification proof.
  *
- * Envelopes are SIGNED with the shared crypto (`KeyManager` from `@oxyhq/core`
- * + `@oxyhq/protocol`'s `signMessage`, the same primitives the Commons vault
- * uses) and VERIFIED with `@oxyhq/protocol/node`'s `verifyNodeRecordEnvelope`
+ * Envelopes are SIGNED with the shared crypto (`KeyManager` from `@oxy.so/core`
+ * + `@oxy.so/protocol`'s `signMessage`, the same primitives the Commons vault
+ * uses) and VERIFIED with `@oxy.so/protocol/node`'s `verifyNodeRecordEnvelope`
  * (which reuses `verifyEnvelopeSignature` / `computeRecordId` from
- * `@oxyhq/protocol`). A record signed elsewhere therefore verifies on the node
+ * `@oxy.so/protocol`). A record signed elsewhere therefore verifies on the node
  * with no node-local crypto — this is the verifier the node app drives.
  */
 
-import { computeRecordId, signedRecordSigningInput } from '@oxyhq/protocol';
-import { verifyNodeRecordEnvelope } from '@oxyhq/protocol/node';
+import { computeRecordId, signedRecordSigningInput } from '@oxy.so/protocol';
+import { verifyNodeRecordEnvelope } from '@oxy.so/protocol/node';
 import { buildSignedEnvelope, generateTestKeyPair } from './helpers/signEnvelope';
 
 describe('verifyNodeRecordEnvelope', () => {

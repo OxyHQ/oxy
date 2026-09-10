@@ -67,7 +67,7 @@ const MEDIA_TOKEN_KEY_LABEL = 'oxy:media-token:v1';
  * revocation list, this TTL is the upper bound on how long a revoked viewer can
  * keep reading a leaked URL.
  *
- * MUST stay STRICTLY GREATER than the `@oxyhq/core` SDK's `assetGetUrl` response
+ * MUST stay STRICTLY GREATER than the `@oxy.so/core` SDK's `assetGetUrl` response
  * cache TTL (currently 10 minutes). The SDK caches the whole `GET /assets/:id/url`
  * response — including the URL with this token embedded — so a URL can be served
  * from cache up to that TTL after it was minted. A 15-minute token over a

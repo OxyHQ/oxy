@@ -4,24 +4,24 @@ Guide for using the OxyHQ SDK across different platforms and runtimes.
 
 The SDK is split into packages with clear responsibilities:
 
-- **@oxyhq/contracts** — Contract-first API schemas (Zod). No React, no React Native.
-- **@oxyhq/core** — Platform-agnostic foundation: `OxyServices`, `SessionClient`, OAuth + PKCE helpers, crypto utilities, types, and the `@oxyhq/core/server` middleware for backends.
-- **@oxyhq/services** — The **single UI SDK**: `OxyProvider`, hooks, screens, and components for Expo, React Native, **and web** (React Native Web).
+- **@oxy.so/contracts** — Contract-first API schemas (Zod). No React, no React Native.
+- **@oxy.so/core** — Platform-agnostic foundation: `OxyServices`, `SessionClient`, OAuth + PKCE helpers, crypto utilities, types, and the `@oxy.so/core/server` middleware for backends.
+- **@oxy.so/services** — The **single UI SDK**: `OxyProvider`, hooks, screens, and components for Expo, React Native, **and web** (React Native Web).
 
-There is exactly one auth provider: `OxyProvider` from `@oxyhq/services`. It runs on iOS, Android, Expo web, and plain React web apps bundled through `react-native-web`. There is no separate web-only auth package.
+There is exactly one auth provider: `OxyProvider` from `@oxy.so/services`. It runs on iOS, Android, Expo web, and plain React web apps bundled through `react-native-web`. There is no separate web-only auth package.
 
 ## Quick Reference
 
 | Platform | Packages | Provider | Notes |
 |----------|----------|----------|-------|
-| **Expo / React Native** | `@oxyhq/services` + `@oxyhq/core` | `OxyProvider` | Full UI, components, screens |
-| **Web (Vite + React Native Web)** | `@oxyhq/services` + `@oxyhq/core` | `OxyProvider` | Same provider; `packages/console` is the reference setup |
-| **IdP shell (auth.oxy.so)** | `@oxyhq/services` + `@oxyhq/core` | `OxyProvider` | Same device-first cold boot as every Oxy app; emits OAuth codes after auth |
-| **Node.js / Backend** | `@oxyhq/core` | N/A | API client + `@oxyhq/core/server` middleware, no React |
+| **Expo / React Native** | `@oxy.so/services` + `@oxy.so/core` | `OxyProvider` | Full UI, components, screens |
+| **Web (Vite + React Native Web)** | `@oxy.so/services` + `@oxy.so/core` | `OxyProvider` | Same provider; `packages/console` is the reference setup |
+| **IdP shell (auth.oxy.so)** | `@oxy.so/services` + `@oxy.so/core` | `OxyProvider` | Same device-first cold boot as every Oxy app; emits OAuth codes after auth |
+| **Node.js / Backend** | `@oxy.so/core` | N/A | API client + `@oxy.so/core/server` middleware, no React |
 
 ## Package Details
 
-### @oxyhq/core
+### @oxy.so/core
 
 Platform-agnostic package. Use everywhere.
 
@@ -32,17 +32,17 @@ Platform-agnostic package. Use everywhere.
 - OAuth helpers for third-party sign-in: `generatePkcePair`, `generateOAuthState`, `buildOAuthAuthorizeUrl`
 - All TypeScript types and interfaces
 - `KeyManager`, `SignatureService`, `RecoveryPhraseService` (crypto)
-- `@oxyhq/core/server` — Express middleware (`createOxyAuthMiddleware`, `getRequiredOxyUserId`, `createOxyCors`, `safeFetch`, …)
+- `@oxy.so/core/server` — Express middleware (`createOxyAuthMiddleware`, `getRequiredOxyUserId`, `createOxyCors`, `safeFetch`, …)
 
 **Install:**
 ```bash
-bun add @oxyhq/core
+bun add @oxy.so/core
 ```
 
 **Example:**
 ```typescript
-import { OxyServices, oxyClient } from '@oxyhq/core';
-import type { User } from '@oxyhq/core';
+import { OxyServices, oxyClient } from '@oxy.so/core';
+import type { User } from '@oxy.so/core';
 
 // Use the pre-configured client
 const user = await oxyClient.getUserById('123');
@@ -53,7 +53,7 @@ const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 
 ---
 
-### @oxyhq/services
+### @oxy.so/services
 
 The UI SDK for every React surface — Expo, React Native, and web via React Native Web.
 
@@ -68,7 +68,7 @@ The UI SDK for every React surface — Expo, React Native, and web via React Nat
 
 **Install:**
 ```bash
-bun add @oxyhq/services @oxyhq/core
+bun add @oxy.so/services @oxy.so/core
 ```
 
 **Peer dependencies (Expo):**
@@ -81,8 +81,8 @@ bun add react-native-reanimated react-native-gesture-handler \
 
 **Example:**
 ```tsx
-import { OxyProvider, useAuth, OxySignInButton } from '@oxyhq/services';
-import type { User } from '@oxyhq/core';
+import { OxyProvider, useAuth, OxySignInButton } from '@oxy.so/services';
+import type { User } from '@oxy.so/core';
 
 export default function App() {
   return (
@@ -103,7 +103,7 @@ export default function App() {
 
 **Install:**
 ```bash
-bun add @oxyhq/services @oxyhq/core
+bun add @oxy.so/services @oxy.so/core
 bun add react-native-reanimated react-native-gesture-handler \
   react-native-safe-area-context react-native-svg
 ```
@@ -116,7 +116,7 @@ import 'react-native-url-polyfill/auto';
 
 **App setup:**
 ```tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 export default function App() {
   return (
@@ -133,11 +133,11 @@ Works on iOS, Android, and Expo web. On cold boot the provider silently restores
 
 ### Web (Vite + React Native Web)
 
-Web apps use the **same** `@oxyhq/services` provider, bundled through `react-native-web`. The reference setup is `packages/console` (rolldown-vite):
+Web apps use the **same** `@oxy.so/services` provider, bundled through `react-native-web`. The reference setup is `packages/console` (rolldown-vite):
 
 **Install:**
 ```bash
-bun add @oxyhq/services @oxyhq/core react-native-web
+bun add @oxy.so/services @oxy.so/core react-native-web
 bun add -d vite-plugin-react-native-web
 ```
 
@@ -156,7 +156,7 @@ The plugin aliases `react-native` → `react-native-web`, applies `.web.*` exten
 
 **Usage:**
 ```tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 function App() {
   return (
@@ -181,14 +181,14 @@ The identity provider mounts the same `OxyProvider` with the same device-first c
 
 **Install:**
 ```bash
-bun add @oxyhq/core
+bun add @oxy.so/core
 ```
 
-Backends validate incoming Oxy bearer tokens with `@oxyhq/core/server` — never hand-roll token parsing or session-validation middleware:
+Backends validate incoming Oxy bearer tokens with `@oxy.so/core/server` — never hand-roll token parsing or session-validation middleware:
 
 ```typescript
-import { OxyServices } from '@oxyhq/core';
-import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxyhq/core/server';
+import { OxyServices } from '@oxy.so/core';
+import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
 import express from 'express';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
@@ -211,27 +211,27 @@ Frontends that call your backend should use `oxyServices.createLinkedClient({ ba
 
 ## Import Patterns
 
-Each package has a single entry point (plus `@oxyhq/core/server` for backends).
+Each package has a single entry point (plus `@oxy.so/core/server` for backends).
 
 ```typescript
 // Expo / React Native / Web (React Native Web)
-import { OxyProvider, useOxy, useAuth, Avatar } from '@oxyhq/services';
-import { OxyServices, oxyClient } from '@oxyhq/core';
-import type { User } from '@oxyhq/core';
+import { OxyProvider, useOxy, useAuth, Avatar } from '@oxy.so/services';
+import { OxyServices, oxyClient } from '@oxy.so/core';
+import type { User } from '@oxy.so/core';
 
 // Node.js backend
-import { OxyServices, oxyClient, KeyManager } from '@oxyhq/core';
-import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxyhq/core/server';
-import type { User } from '@oxyhq/core';
+import { OxyServices, oxyClient, KeyManager } from '@oxy.so/core';
+import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
+import type { User } from '@oxy.so/core';
 ```
 
 ---
 
 ## Best Practices
 
-1. **Use @oxyhq/core for types everywhere.** All shared types, interfaces, and the `OxyServices` class live in `@oxyhq/core`. API contract types come from `@oxyhq/contracts`.
-2. **Use @oxyhq/services on every React surface.** One provider for native and web — do not build a parallel web auth layer.
-3. **Use @oxyhq/core alone for backends.** No React or UI dependencies are pulled in; auth middleware comes from `@oxyhq/core/server`.
+1. **Use @oxy.so/core for types everywhere.** All shared types, interfaces, and the `OxyServices` class live in `@oxy.so/core`. API contract types come from `@oxy.so/contracts`.
+2. **Use @oxy.so/services on every React surface.** One provider for native and web — do not build a parallel web auth layer.
+3. **Use @oxy.so/core alone for backends.** No React or UI dependencies are pulled in; auth middleware comes from `@oxy.so/core/server`.
 4. **Pass a registered `clientId`.** Register your app in the [Oxy Console](https://console.oxy.so) and pass the credential to `OxyProvider`.
 5. **Gate private API calls on SDK readiness.** Use `useAuth().canUsePrivateApi` / `isPrivateApiPending` instead of firing requests during cold boot.
 
@@ -241,7 +241,7 @@ import type { User } from '@oxyhq/core';
 
 ### Web bundle fails on React Native imports
 
-**Problem:** Vite/webpack cannot resolve `react-native` modules from `@oxyhq/services`.
+**Problem:** Vite/webpack cannot resolve `react-native` modules from `@oxy.so/services`.
 
 **Solution:** Add `react-native-web` and `vite-plugin-react-native-web` (see the web setup above). `packages/console` is the working reference.
 
@@ -249,13 +249,13 @@ import type { User } from '@oxyhq/core';
 
 **Problem:** Cannot find type definitions.
 
-**Solution:** Install `@oxyhq/core`. All shared types are exported from this package.
+**Solution:** Install `@oxy.so/core`. All shared types are exported from this package.
 
 ### OxyProvider not found
 
 **Problem:** Cannot import `OxyProvider`.
 
-**Solution:** `OxyProvider` is exported from `@oxyhq/services` on all platforms, including web.
+**Solution:** `OxyProvider` is exported from `@oxy.so/services` on all platforms, including web.
 
 ### Session does not restore on web
 
@@ -269,8 +269,8 @@ import type { User } from '@oxyhq/core';
 
 | Package | Use Case | Key Exports |
 |---------|----------|-------------|
-| `@oxyhq/core` | All platforms | `OxyServices`, `oxyClient`, `SessionClient`, OAuth/PKCE helpers, types, crypto |
-| `@oxyhq/core/server` | Backends | `createOxyAuthMiddleware`, `getRequiredOxyUserId`, `createOxyCors`, `safeFetch` |
-| `@oxyhq/services` | Expo / React Native / Web | `OxyProvider`, `useOxy`, `useAuth`, `OxySignInButton`, screens |
+| `@oxy.so/core` | All platforms | `OxyServices`, `oxyClient`, `SessionClient`, OAuth/PKCE helpers, types, crypto |
+| `@oxy.so/core/server` | Backends | `createOxyAuthMiddleware`, `getRequiredOxyUserId`, `createOxyCors`, `safeFetch` |
+| `@oxy.so/services` | Expo / React Native / Web | `OxyProvider`, `useOxy`, `useAuth`, `OxySignInButton`, screens |
 
 For the full authentication model see [AUTHENTICATION.md](../../docs/AUTHENTICATION.md); third-party integration lives in [the integration guide](../../docs/auth/integration-guide.md).

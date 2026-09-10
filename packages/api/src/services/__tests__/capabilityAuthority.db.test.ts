@@ -1,7 +1,7 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { isCheckViolation } from '@oxyhq/db';
-import type { AppCapabilityCatalog, AutonomyLevel } from '@oxyhq/contracts';
+import { isCheckViolation } from '@oxy.so/db';
+import type { AppCapabilityCatalog, AutonomyLevel } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';

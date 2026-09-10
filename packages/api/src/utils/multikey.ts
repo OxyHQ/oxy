@@ -16,7 +16,7 @@
  * alphabet) to avoid pulling a multiformats dependency for ~20 lines.
  */
 
-import { normalizeSecp256k1PublicKey } from '@oxyhq/protocol/secp256k1';
+import { normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 
 /** The Bitcoin/IPFS base58btc alphabet. */
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';

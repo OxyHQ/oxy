@@ -85,7 +85,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { executeRows } from '@oxyhq/db';
+import { executeRows } from '@oxy.so/db';
 import { getDb } from '../config/postgres';
 import { resolveKaanaDataPlane } from '../config/kaanaDataPlane';
 import { resolveKaanaExecution } from '../config/rolloutFlags';

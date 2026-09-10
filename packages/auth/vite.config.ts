@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 const reactNativeCssBabel = require("react-native-css/babel");
 
 // The IdP runs on rolldown-vite (`"vite": "npm:rolldown-vite@^7"`) so the
-// `@oxyhq/services` React Native graph bundles through the maintained
+// `@oxy.so/services` React Native graph bundles through the maintained
 // `vite-plugin-react-native-web` plugin instead of hand-rolled empty-module
 // stubs: it aliases react-native→react-native-web, applies `.web.*` platform
 // extension priority in dev AND build, treats RN packages' JSX-in-.js via

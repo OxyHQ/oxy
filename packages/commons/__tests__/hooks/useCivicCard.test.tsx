@@ -1,8 +1,8 @@
 import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { CivicCardResult } from '@oxyhq/core';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import type { CivicCardResult } from '@oxy.so/core';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 import { useCivicCard } from '@/hooks/useCivicCard';
 
 /** A signed public card with the client-side verdict flipped per test. */

@@ -1,5 +1,5 @@
 /**
- * `@oxyhq/services` ships an ESM build, and ESM has no `require`.
+ * `@oxy.so/services` ships an ESM build, and ESM has no `require`.
  *
  * This is not a style rule: a surviving `require()` puts web bundlers into
  * CommonJS interop, which hands consumers `undefined` bindings with no build

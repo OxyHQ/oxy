@@ -8,7 +8,7 @@
  */
 
 import { Linking } from 'react-native';
-import { logger } from '@oxyhq/core';
+import { logger } from '@oxy.so/core';
 
 const mockOpenAuthSessionAsync = jest.fn();
 jest.mock(

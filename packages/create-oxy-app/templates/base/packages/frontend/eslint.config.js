@@ -1,4 +1,4 @@
-// Shared Oxy ESLint flat config — see @oxyhq/app-preset/eslint.
-const oxyConfig = require('@oxyhq/app-preset/eslint');
+// Shared Oxy ESLint flat config — see @oxy.so/app-preset/eslint.
+const oxyConfig = require('@oxy.so/app-preset/eslint');
 
 module.exports = [...oxyConfig];

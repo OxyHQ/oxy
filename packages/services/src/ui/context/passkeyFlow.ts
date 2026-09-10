@@ -12,7 +12,7 @@
  * off the web) so an unsupported surface fails loudly before touching a ceremony.
  */
 
-import type { LoginResult, LoginSessionResult } from '@oxyhq/contracts';
+import type { LoginResult, LoginSessionResult } from '@oxy.so/contracts';
 import type { CommitInput } from './oxyContextTypes';
 
 /**

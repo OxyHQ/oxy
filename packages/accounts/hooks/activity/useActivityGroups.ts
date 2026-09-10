@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { useInfiniteSecurityActivity } from '@oxyhq/services';
-import type { SecurityActivity } from '@oxyhq/core';
+import { useInfiniteSecurityActivity } from '@oxy.so/services';
+import type { SecurityActivity } from '@oxy.so/core';
 import { useTranslation } from '@/lib/i18n';
 import {
     getGroupKey,

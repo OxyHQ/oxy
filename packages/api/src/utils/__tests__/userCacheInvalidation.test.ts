@@ -26,7 +26,7 @@ jest.mock('../../config/redis', () => ({
   getRedisClient: () => redisHandle,
 }));
 
-import { OXY_USER_INVALIDATION_CHANNEL } from '@oxyhq/contracts';
+import { OXY_USER_INVALIDATION_CHANNEL } from '@oxy.so/contracts';
 
 import userCache from '../userCache';
 

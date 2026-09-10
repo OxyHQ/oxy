@@ -8,7 +8,7 @@ import type { S3Service } from '../s3Service';
 
 const mockSafeFetch = jest.fn();
 
-jest.mock('@oxyhq/core/server', () => {
+jest.mock('@oxy.so/core/server', () => {
   class MockSsrfRejection extends Error {
     constructor(message: string) {
       super(message);
@@ -21,7 +21,7 @@ jest.mock('@oxyhq/core/server', () => {
   };
 });
 
-import { SsrfRejection } from '@oxyhq/core/server';
+import { SsrfRejection } from '@oxy.so/core/server';
 
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },

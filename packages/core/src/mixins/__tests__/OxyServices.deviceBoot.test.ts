@@ -7,7 +7,7 @@
 import type {
   DeviceBackgroundCredentialResponse,
   DeviceTokenMintResponse,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { OxyServices } from '../../OxyServices';
 
 describe('OxyServices.deviceBoot', () => {

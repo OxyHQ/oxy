@@ -6,7 +6,7 @@
  *
  * Metro auto-selects this file in any non-web build (`preferNativePlatform`
  * is `true` for iOS / Android, so `*.native.js` shadows `*.js` during
- * source-extension resolution inside `node_modules/@oxyhq/protocol/dist/`). On
+ * source-extension resolution inside `node_modules/@oxy.so/protocol/dist/`). On
  * iOS / Android `<base>.ios.js` / `<base>.android.js` would shadow this file
  * if they existed, but they don't — `.native.js` is the shared RN variant.
  *
@@ -24,9 +24,9 @@
  * Those three RN modules are declared OPTIONAL peer dependencies in
  * `package.json`. A static `import` contradicts that: an optional peer that is
  * omitted does not degrade, it fails to RESOLVE, and Metro aborts the whole
- * bundle. Because `@oxyhq/core`'s `crypto/polyfill` imports `@oxyhq/protocol`
+ * bundle. Because `@oxy.so/core`'s `crypto/polyfill` imports `@oxy.so/protocol`
  * from its root entry, this file is in the eager graph of EVERY React Native
- * app on `@oxyhq/core` — so a single undeclared optional peer broke the native
+ * app on `@oxy.so/core` — so a single undeclared optional peer broke the native
  * bundle of every app that did not happen to install it, with a resolution
  * error pointing at a dependency the app never mentions.
  *
@@ -45,7 +45,7 @@
  *     is unresolvable for Metro (that is the bug the shared-identity bridge
  *     below documents) and silently yields nothing in a consuming repo.
  *   - The load MUST stay synchronous. `getRandomBytesRN` backs
- *     `globalThis.crypto.getRandomValues` in `@oxyhq/core`'s polyfill, which
+ *     `globalThis.crypto.getRandomValues` in `@oxy.so/core`'s polyfill, which
  *     cannot await anything.
  *
  * `expo-modules-core` is a NON-optional peer (every RN app has it via `expo`),
@@ -115,7 +115,7 @@ try {
 function missingOptionalPeerError(packageName: string, capability: string, cause: unknown): Error {
   const sentences = [
     `[oxy.protocol.crypto] '${packageName}' is not installed, so ${capability} is unavailable in this app.`,
-    'It is an optional peer dependency of @oxyhq/protocol that the React Native runtime needs —',
+    'It is an optional peer dependency of @oxy.so/protocol that the React Native runtime needs —',
     `install it with \`npx expo install ${packageName}\`.`,
   ];
   if (cause instanceof Error) {
@@ -191,7 +191,7 @@ export async function loadAsyncStorage(): Promise<{ default: AsyncStorageLike }>
 /**
  * Synchronous random-bytes via `expo-crypto.getRandomBytes`.
  *
- * Synchronous by contract: `@oxyhq/core`'s crypto polyfill uses this to back
+ * Synchronous by contract: `@oxy.so/core`'s crypto polyfill uses this to back
  * `globalThis.crypto.getRandomValues`, which cannot await. That is why
  * `expo-crypto` is resolved with a synchronous `require` at module scope rather
  * than a dynamic `import()`.
@@ -208,9 +208,9 @@ export function getRandomBytesRN(byteCount: number): Uint8Array {
 }
 
 // ---------------------------------------------------------------------------
-// Shared identity bridge — `@oxyhq/expo-oxy-identity` (native-only, OPTIONAL).
+// Shared identity bridge — `@oxy.so/expo-oxy-identity` (native-only, OPTIONAL).
 //
-// `@oxyhq/expo-oxy-identity` is the in-repo Expo module autolinked into the
+// `@oxy.so/expo-oxy-identity` is the in-repo Expo module autolinked into the
 // identity apps (Commons + the reader RPs). We resolve its NATIVE module
 // directly via expo-modules-core's `requireOptionalNativeModule('OxyIdentity')`
 // — a static import Metro always resolves — instead of dynamically importing the
@@ -220,7 +220,7 @@ export function getRandomBytesRN(byteCount: number): Uint8Array {
 // the native module is what actually holds the shared identity, going through the
 // native registry is both correct and Metro-safe. `requireOptionalNativeModule`
 // returns `null` (never throws) when the module is not autolinked (web, or apps
-// that don't ship it), so `@oxyhq/core`'s `KeyManager` cleanly falls back to its
+// that don't ship it), so `@oxy.so/core`'s `KeyManager` cleanly falls back to its
 // package-private store.
 // ---------------------------------------------------------------------------
 

@@ -12,7 +12,7 @@
  * decided once for every table and every repo rather than per model. The
  * mechanism that reads it (`publicColumns`, the implicit-whole-row-read
  * scanner) is shared plumbing with no opinion on which columns to protect, so
- * it lives in `@oxyhq/db/assert` instead of here.
+ * it lives in `@oxy.so/db/assert` instead of here.
  *
  * ## The mechanism
  *
@@ -22,7 +22,7 @@
  *    comment is a rule nothing checks.
  *
  * 2. **`publicColumns(table, PROTECTED_COLUMNS_BY_TABLE)` is the sanctioned
- *    read**, imported from `@oxyhq/db/assert`.
+ *    read**, imported from `@oxy.so/db/assert`.
  *    `db.select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE)).from(users)`
  *    omits every protected column AT THE TYPE LEVEL — the resulting row type
  *    has no `phone` property at all, so a serializer that tries to read one
@@ -38,7 +38,7 @@
  * 4. **`__tests__/protectedColumns.test.ts` is the gate.** It holds the `users`
  *    entry against the exact set Mongoose marked `select: false`, refuses a
  *    stale entry, checks the runtime filter, and calls
- *    `@oxyhq/db/assert`'s `findImplicitWholeRowReads` to scan `src/` for the
+ *    `@oxy.so/db/assert`'s `findImplicitWholeRowReads` to scan `src/` for the
  *    two shapes that return every column implicitly — a bare `select()` and
  *    the relational `db.query.<table>` API — against any table in this
  *    registry.
@@ -274,7 +274,7 @@ export const INFERENCE_GPAI_DOCUMENTATION_PROTECTED_COLUMNS =
 
 /**
  * The registry, keyed by SQL table name. Declared `as const` and passed
- * straight through to `@oxyhq/db/assert`'s `publicColumns` at every call
+ * straight through to `@oxy.so/db/assert`'s `publicColumns` at every call
  * site — that is what keeps the type-level guarantee (see that function's
  * own doc comment for exactly what widening it would cost).
  */

@@ -7,7 +7,7 @@ import { CircleIconBadge } from '@/components/ui/circle-icon-badge';
 import { withAlpha } from '@/utils/color';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { describeReputationAction, formatPointsDelta } from '@/lib/civic/reputation-activity';
-import type { ReputationTransaction } from '@oxyhq/contracts';
+import type { ReputationTransaction } from '@oxy.so/contracts';
 import { useTranslation } from '@/lib/i18n';
 
 interface ActivityRowProps {

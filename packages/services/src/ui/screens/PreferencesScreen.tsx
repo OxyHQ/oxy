@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Platform, View } from 'react-native';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { Switch } from '@oxyhq/bloom/switch';
-import { useTheme } from '@oxyhq/bloom/theme';
-import type { UserPreferences } from '@oxyhq/core';
-import { getNativeLanguageName } from '@oxyhq/core';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { Switch } from '@oxy.so/bloom/switch';
+import { useTheme } from '@oxy.so/bloom/theme';
+import type { UserPreferences } from '@oxy.so/core';
+import { getNativeLanguageName } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';

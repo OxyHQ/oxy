@@ -1,4 +1,4 @@
-# @oxyhq/ship — `oxy-ship`
+# @oxy.so/ship — `oxy-ship`
 
 Publish Expo OTA updates to the self-hosted **Oxy Updates** service (the
 expo-updates protocol server inside `oxy-api`). Runs under Bun and Node.

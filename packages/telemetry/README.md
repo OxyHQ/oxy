@@ -81,10 +81,10 @@ an IP, user/account/session IDs, request bodies, query strings and raw paths.
 The opaque activity ID exists only to estimate short-window cardinality and must
 not be persisted as an event log or joined to product identity.
 
-## Migration from `@oxyhq/*`
+## Migration from `@oxy.so/*`
 
 The first consumers will replace browser helpers currently owned privately by
-`@oxyhq/core` with imports from `@oxy.so/telemetry/browser`. API collectors will
+`@oxy.so/core` with imports from `@oxy.so/telemetry/browser`. API collectors will
 replace their local validation and bucketing logic with
 `@oxy.so/telemetry/server`. This package deliberately provides no compatibility
 re-export: consumers move imports directly to the new owner, then the old

@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import 'react-native-reanimated';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
+import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 
 // Reanimated 4 ships with a strict logger that surfaces `.value` reads during
 // render as runtime warnings. Several deeply nested third-party components in
@@ -21,11 +21,11 @@ configureReanimatedLogger({
 
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useQueryClient } from '@tanstack/react-query';
-import { OxyProvider, useOxy } from '@oxyhq/services';
+import { OxyProvider, useOxy } from '@oxy.so/services';
 import { productAnalytics } from '@/lib/product-analytics';
-import { KeyManager, logger } from '@oxyhq/core';
-import { useNavigationTheme } from '@oxyhq/bloom/theme';
-import { BloomProvider } from '@oxyhq/bloom/provider';
+import { KeyManager, logger } from '@oxy.so/core';
+import { useNavigationTheme } from '@oxy.so/bloom/theme';
+import { BloomProvider } from '@oxy.so/bloom/provider';
 
 import { ScrollProvider } from '@/contexts/scroll-context';
 import { ThemeModeProvider, useThemeMode } from '@/contexts/theme-mode-context';
@@ -46,11 +46,11 @@ import { useForegroundNotificationHandler } from '@/hooks/notifications/useForeg
 import {
   preventNativeSplashAutoHide,
   useHideNativeSplashWhenReady,
-} from '@oxyhq/expo-splash';
+} from '@oxy.so/expo-splash';
 
 // NATIVE ONLY: hold the OS splash so the Oxy mark (white silhouette centered on
 // the dark brand background, Oxy symbol pinned to the bottom — configured by
-// `@oxyhq/expo-splash` in app.config.js) stays visible until the app can paint
+// `@oxy.so/expo-splash` in app.config.js) stays visible until the app can paint
 // its FIRST real screen. Commons is NATIVE-ONLY (no web build), so the branded
 // native OS splash is the single splash. We hold it here and hide it from
 // `AppStackContent` (below) once the app is genuinely ready — see the note there
@@ -277,7 +277,7 @@ function AppStackContent() {
 
   // NOTE: connecting the vault's session from its OWN primary identity key is
   // the SDK's job, not this app's. `sessionMode="identity"` (see the provider
-  // above) makes `identity-key-signin` a cold-boot step in `@oxyhq/core`, and
+  // above) makes `identity-key-signin` a cold-boot step in `@oxy.so/core`, and
   // the SDK also owns the in-session re-mint, the 401 recovery arm and the
   // offline→online reconnect heal. The app-local auto-connect driver that used
   // to live here was deleted — do not reintroduce one.

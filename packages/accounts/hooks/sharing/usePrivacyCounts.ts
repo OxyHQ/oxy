@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { toast } from '@oxyhq/bloom';
-import { useOxy, useFollow, usePrivacySettings, useUpdatePrivacySettings } from '@oxyhq/services';
+import { toast } from '@oxy.so/bloom';
+import { useOxy, useFollow, usePrivacySettings, useUpdatePrivacySettings } from '@oxy.so/services';
 import { useTranslation } from '@/lib/i18n';
 
 export interface UsePrivacyCountsArgs {

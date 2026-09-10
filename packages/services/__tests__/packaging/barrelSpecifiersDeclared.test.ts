@@ -30,7 +30,7 @@ const declared = new Set([
 ]);
 
 /** Node builtins and self-references are never declared and never should be. */
-const IGNORED_PREFIXES = ['node:', '@oxyhq/services'];
+const IGNORED_PREFIXES = ['node:', '@oxy.so/services'];
 
 /**
  * Specifiers reached only through a RUNTIME-COMPUTED string

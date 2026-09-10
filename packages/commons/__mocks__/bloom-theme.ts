@@ -1,5 +1,5 @@
 /**
- * Lightweight `@oxyhq/bloom/theme` stub.
+ * Lightweight `@oxy.so/bloom/theme` stub.
  *
  * Provides a `useTheme()` hook whose return value can be flipped between
  * `'light'` and `'dark'` modes via `__setBloomThemeMode()`. Colours are a
@@ -7,7 +7,7 @@
  * without depending on Bloom's real palette evolving.
  */
 
-import type { Theme, ThemeColors, ThemeMode } from '@oxyhq/bloom/theme';
+import type { Theme, ThemeColors, ThemeMode } from '@oxy.so/bloom/theme';
 
 const lightColors: ThemeColors = {
   background: '#FFFFFF',

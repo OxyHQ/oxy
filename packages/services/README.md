@@ -1,10 +1,10 @@
-# @oxyhq/services
+# @oxy.so/services
 
 A comprehensive TypeScript UI library for the Oxy API providing authentication, user management, and UI components for React Native, Expo, and web (React Native Web) applications.
 
 > **For web apps (Vite + React Native Web):** Use this same package — `OxyProvider` is universal. See the [Platform Guide](./PLATFORM_GUIDE.md).
 >
-> **For backend / Node.js:** Use [`@oxyhq/core`](../core) only (`@oxyhq/core/server` for auth middleware).
+> **For backend / Node.js:** Use [`@oxy.so/core`](../core) only (`@oxy.so/core/server` for auth middleware).
 >
 > **For the full platform guide:** See [PLATFORM_GUIDE.md](./PLATFORM_GUIDE.md).
 
@@ -42,11 +42,11 @@ The OxyHQ SDK is split into three packages:
 
 | Package | Use Case | Dependencies |
 |---------|----------|--------------|
-| `@oxyhq/services` | Expo / React Native / Web (React Native Web) | Full (RN, Expo) |
-| `@oxyhq/core` | All platforms (types, API client, crypto, server middleware) | None |
-| `@oxyhq/contracts` | Shared API schemas (Zod) | zod only |
+| `@oxy.so/services` | Expo / React Native / Web (React Native Web) | Full (RN, Expo) |
+| `@oxy.so/core` | All platforms (types, API client, crypto, server middleware) | None |
+| `@oxy.so/contracts` | Shared API schemas (Zod) | zod only |
 
-This package (`@oxyhq/services`) is the **single UI SDK** for every React surface. It provides `OxyProvider`, the unified account dialog, UI components, screens, bottom sheet routing, fonts, and hooks.
+This package (`@oxy.so/services`) is the **single UI SDK** for every React surface. It provides `OxyProvider`, the unified account dialog, UI components, screens, bottom sheet routing, fonts, and hooks.
 
 See [PLATFORM_GUIDE.md](./PLATFORM_GUIDE.md) for the complete architecture guide.
 
@@ -57,7 +57,7 @@ top-level side effects, one of them the entry itself:
 
 | Module | Effect |
 |---|---|
-| `lib/module/index.js` | `setPlatformOS(Platform.OS)` — configures `@oxyhq/core` |
+| `lib/module/index.js` | `setPlatformOS(Platform.OS)` — configures `@oxy.so/core` |
 | `lib/module/ui/navigation/surfaceBackBridge.js` | `installEscapeHandler()` — installs a global key handler |
 | `lib/module/ui/components/SettingsIcon.js` | assigns `displayName` |
 
@@ -116,7 +116,7 @@ in CI with React's own message instead of on auth.oxy.so.
 ## Installation
 
 ```bash
-bun add @oxyhq/services @oxyhq/core
+bun add @oxy.so/services @oxy.so/core
 ```
 
 ### Peer Dependencies
@@ -152,7 +152,7 @@ import 'react-native-url-polyfill/auto';
 ### Expo Apps (Native + Web)
 
 ```typescript
-import { OxyProvider, useAuth } from '@oxyhq/services';
+import { OxyProvider, useAuth } from '@oxy.so/services';
 
 function App() {
   return (
@@ -185,7 +185,7 @@ function UserProfile() {
 
 ## Typography
 
-Typography is owned entirely by `@oxyhq/bloom`. `BloomThemeProvider` ships the
+Typography is owned entirely by `@oxy.so/bloom`. `BloomThemeProvider` ships the
 Inter, BlomusModernus and Geist Mono families — variable `.ttf` files loaded via
 `expo-font` on native, `@font-face` rules injected as data URLs on web — and
 applies the default family to every `<Text>`. This package bundles and loads no
@@ -196,8 +196,8 @@ The subsets keep the original glyph outlines and use private family names, so
 they do not collide with a consumer app's own icon fonts.
 
 ```typescript
-import { BloomThemeProvider } from '@oxyhq/bloom/theme';
-import { OxyProvider } from '@oxyhq/services';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { OxyProvider } from '@oxy.so/services';
 
 function App() {
   return (
@@ -220,7 +220,7 @@ rather than raw `fontFamily` strings.
 `OxyProvider` works on all platforms (iOS, Android, Web). Use `useAuth` for authentication.
 
 ```typescript
-import { OxyProvider, useAuth, OxySignInButton } from '@oxyhq/services';
+import { OxyProvider, useAuth, OxySignInButton } from '@oxy.so/services';
 
 // App.tsx - Setup the provider
 function App() {
@@ -267,7 +267,7 @@ function UserProfile() {
 For utility functions, services, or non-React Native files:
 
 ```typescript
-import { oxyClient } from '@oxyhq/core';
+import { oxyClient } from '@oxy.so/core';
 
 // utils/api.ts
 export const userUtils = {
@@ -291,7 +291,7 @@ You can use both hooks and the direct client in the same Expo app:
 
 ```typescript
 // App.tsx - React Native setup
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 function App() {
   return (
@@ -302,7 +302,7 @@ function App() {
 }
 
 // utils/api.ts - Direct import
-import { oxyClient } from '@oxyhq/core';
+import { oxyClient } from '@oxy.so/core';
 
 export const apiUtils = {
   async fetchData() {
@@ -311,7 +311,7 @@ export const apiUtils = {
 };
 
 // Component.tsx - React Native hook
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 function Component() {
   const { oxyServices } = useOxy();
@@ -321,7 +321,7 @@ function Component() {
 
 ## API Reference
 
-### Core Exports (from @oxyhq/core)
+### Core Exports (from @oxy.so/core)
 
 ```typescript
 import {
@@ -333,10 +333,10 @@ import {
   KeyManager,
   SignatureService,
   RecoveryPhraseService
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 ```
 
-### React Native Exports (from @oxyhq/services)
+### React Native Exports (from @oxy.so/services)
 
 ```typescript
 import {
@@ -346,7 +346,7 @@ import {
   OxySignInButton,     // UI components
   Avatar,
   FollowButton
-} from '@oxyhq/services';
+} from '@oxy.so/services';
 ```
 
 ### OxyServices Methods
@@ -482,7 +482,7 @@ EXPO_PUBLIC_OXY_CLIENT_ID=oxy_dk_...
 ### Custom Configuration
 
 ```typescript
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 const oxy = new OxyServices({
   baseURL: process.env.OXY_API_URL || 'https://api.oxy.so'
@@ -500,7 +500,7 @@ Oxy supports **public/private key cryptography** (ECDSA secp256k1) as the primar
 - **Cross-app sync.** Adding, switching, or signing out an account bumps the device-session revision and is pushed over the `session_state` socket event to every Oxy app on the device.
 
 ```tsx
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 
 function SignInCTA() {
   const { isAuthenticated, signIn } = useAuth();
@@ -514,7 +514,7 @@ function SignInCTA() {
 `OxySignInButton` resolves your registered Application (`GET /auth/oauth/client/:clientId`) and picks the right flow:
 
 ```tsx
-import { OxySignInButton } from '@oxyhq/services';
+import { OxySignInButton } from '@oxy.so/services';
 
 function LoginScreen() {
   return <OxySignInButton variant="contained" />;
@@ -522,7 +522,7 @@ function LoginScreen() {
 ```
 
 - **Official Oxy apps** (`isOfficial` / first-party types): opens the in-app account dialog.
-- **Third-party apps** (`type: 'third_party'`): starts the standard OAuth 2.0 Authorization Code + PKCE flow against `auth.oxy.so` (the SDK generates `state` + PKCE via `@oxyhq/core`). On web the transport is `OxyProvider` prop `webAuthMode: 'popup' | 'redirect'` (default `'popup'`; issue #691 Phases 2/7b) — `'popup'` opens a small window and relays the result via `postMessage` without navigating your app's tab, falling back to a redirect if the browser blocks it. Pass `oauthRedirectUri`; on native handle `onOAuthResult` to complete the token exchange.
+- **Third-party apps** (`type: 'third_party'`): starts the standard OAuth 2.0 Authorization Code + PKCE flow against `auth.oxy.so` (the SDK generates `state` + PKCE via `@oxy.so/core`). On web the transport is `OxyProvider` prop `webAuthMode: 'popup' | 'redirect'` (default `'popup'`; issue #691 Phases 2/7b) — `'popup'` opens a small window and relays the result via `postMessage` without navigating your app's tab, falling back to a redirect if the browser blocks it. Pass `oauthRedirectUri`; on native handle `onOAuthResult` to complete the token exchange.
 
 See the [integration guide](../../docs/auth/integration-guide.md) for Console registration, OAuth endpoints, and backend verification, and [AUTHENTICATION.md](../../docs/AUTHENTICATION.md) for the full model.
 
@@ -540,7 +540,7 @@ import {
   Avatar,
   FollowButton,
   OxyLogo
-} from '@oxyhq/services';
+} from '@oxy.so/services';
 
 function MyComponent() {
   return (
@@ -566,7 +566,7 @@ const styles = StyleSheet.create({
 Sign-in and account switching do **not** use the bottom sheet — they live in the unified account dialog:
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 function MyComponent() {
   const { openAccountDialog } = useOxy();
@@ -589,7 +589,7 @@ The bottom sheet routing system provides a clean, professional way to display ac
 **Quick Example:**
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 function MyComponent() {
   const { showBottomSheet } = useOxy();
@@ -624,7 +624,7 @@ OxyHQ Services includes built-in language selection and storage. The selected la
 ### Getting Current Language
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 function MyComponent() {
   const {
@@ -647,7 +647,7 @@ See the language utilities and `useOxy()` hook sections above for integration wi
 ### Using OxyServices (Non-React)
 
 ```typescript
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 
@@ -668,7 +668,7 @@ import {
   SUPPORTED_LANGUAGES,
   getLanguageName,
   getLanguageMetadata
-} from '@oxyhq/services';
+} from '@oxy.so/services';
 
 // Get all supported languages
 const languages = SUPPORTED_LANGUAGES;
@@ -690,7 +690,7 @@ const metadata = getLanguageMetadata('es-ES');
 **Solution**: Wrap your app with `OxyProvider`
 
 ```typescript
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 function App() {
   return (
@@ -728,7 +728,7 @@ import 'react-native-url-polyfill/auto';
 ### Error Handling
 
 ```typescript
-import { OxyAuthenticationError } from '@oxyhq/core';
+import { OxyAuthenticationError } from '@oxy.so/core';
 
 try {
   await oxyClient.getCurrentUser();
@@ -754,14 +754,14 @@ import {
   useUserWallet,
   useUserWalletTransactions,
   useAccountStorageUsage,
-} from '@oxyhq/services';
+} from '@oxy.so/services';
 ```
 
 Typed returns are defined in `ui/hooks/queries/paymentTypes.ts` (`Subscription`, `Payment`, `Wallet`, `WalletTransaction`). The `payments` query namespace is whitelisted for offline persistence alongside `accounts`, `users`, `sessions`, `devices`, and `privacy`.
 
 ## Sign-In Token Planting
 
-`@oxyhq/core` `OxyServices.verifyChallenge()` plants `setTokens(accessToken)` internally before returning. `useAuthOperations.performSignIn` no longer needs to hand-plant the token or call a session-token fallback — just await `verifyChallenge` and proceed.
+`@oxy.so/core` `OxyServices.verifyChallenge()` plants `setTokens(accessToken)` internally before returning. `useAuthOperations.performSignIn` no longer needs to hand-plant the token or call a session-token fallback — just await `verifyChallenge` and proceed.
 
 ## Requirements
 
@@ -785,7 +785,7 @@ bun add jwt-decode invariant
 
 ```typescript
 // App.tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 function App() {
   return (
@@ -796,7 +796,7 @@ function App() {
 }
 
 // UserDashboard.tsx
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { View, Text, StyleSheet } from 'react-native';
 
 function UserDashboard() {

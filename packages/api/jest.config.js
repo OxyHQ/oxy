@@ -18,28 +18,28 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   moduleNameMapper: {
-    // Resolve @oxyhq/contracts from its TypeScript SOURCE so api tests do not
+    // Resolve @oxy.so/contracts from its TypeScript SOURCE so api tests do not
     // depend on the contracts package being built first (its dist is absent in
     // the CI `api-test` job). ts-jest transforms the source via the transform
     // regex below; the contracts source only imports `zod`, which resolves
     // normally from node_modules.
-    '^@oxyhq/contracts$': '<rootDir>/../contracts/src/index.ts',
+    '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
     // The protocol node subpath (NodeClient, used by nodeSync.service) — resolve
     // from source like the protocol root so the api-test job needs no prior build.
-    '^@oxyhq/protocol/node$': '<rootDir>/../protocol/src/node/index.ts',
-    // Same rationale for @oxyhq/protocol (canonicalize / signedRecordSigningInput /
+    '^@oxy.so/protocol/node$': '<rootDir>/../protocol/src/node/index.ts',
+    // Same rationale for @oxy.so/protocol (canonicalize / signedRecordSigningInput /
     // computeRecordId, imported by the signed-record + civic + node-sync services):
     // resolve from source so the api-test job needs no prior protocol build.
-    '^@oxyhq/protocol$': '<rootDir>/../protocol/src/index.ts',
-    '^@oxyhq/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
-    // Same rationale for @oxyhq/core (getNormalizedUserHandle in did.service.ts,
-    // User model, etc.) and @oxyhq/core/server (safeFetch/SsrfRejection): resolve
+    '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxy.so/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
+    // Same rationale for @oxy.so/core (getNormalizedUserHandle in did.service.ts,
+    // User model, etc.) and @oxy.so/core/server (safeFetch/SsrfRejection): resolve
     // from source so api tests do not depend on a prior core build.
-    '^@oxyhq/core/server$': '<rootDir>/../core/src/server/index.ts',
-    '^@oxyhq/core$': '<rootDir>/../core/src/index.ts',
-    '^@oxyhq/federation$': '<rootDir>/../federation/src/index.ts',
-    '^@oxyhq/federation/node$': '<rootDir>/../federation/src/node/index.ts',
-    // @oxyhq/db is mapped to source for the same consistency reason — the
+    '^@oxy.so/core/server$': '<rootDir>/../core/src/server/index.ts',
+    '^@oxy.so/core$': '<rootDir>/../core/src/index.ts',
+    '^@oxy.so/federation$': '<rootDir>/../federation/src/index.ts',
+    '^@oxy.so/federation/node$': '<rootDir>/../federation/src/node/index.ts',
+    // @oxy.so/db is mapped to source for the same consistency reason — the
     // schema gates and every schema module reach it, and a failure should
     // point at the source under review rather than a build artefact.
     //
@@ -47,14 +47,14 @@ module.exports = {
     // entries do not make the suite runnable without a build. `jest.globalSetup.ts`
     // provisions each worker's database by SPAWNING `bun run db:migrate`, a
     // separate process no `moduleNameMapper` reaches, and `src/db/migrate.ts`
-    // imports `@oxyhq/db/migrate` — which resolves into `dist/`. So `ci.yml`'s
+    // imports `@oxy.so/db/migrate` — which resolves into `dist/`. So `ci.yml`'s
     // api-test job builds the package explicitly; see the comment on that step.
     // Do not delete the build believing this covers it.
-    '^@oxyhq/db$': '<rootDir>/../db/src/index.ts',
-    '^@oxyhq/db/migrate$': '<rootDir>/../db/src/migrate/index.ts',
-    '^@oxyhq/db/expiry$': '<rootDir>/../db/src/expiry.ts',
-    '^@oxyhq/db/testing$': '<rootDir>/../db/src/testing.ts',
-    '^@oxyhq/db/assert$': '<rootDir>/../db/src/assert/index.ts',
+    '^@oxy.so/db$': '<rootDir>/../db/src/index.ts',
+    '^@oxy.so/db/migrate$': '<rootDir>/../db/src/migrate/index.ts',
+    '^@oxy.so/db/expiry$': '<rootDir>/../db/src/expiry.ts',
+    '^@oxy.so/db/testing$': '<rootDir>/../db/src/testing.ts',
+    '^@oxy.so/db/assert$': '<rootDir>/../db/src/assert/index.ts',
     // NodeNext source uses `.js` extensions on relative imports of TS files
     // (e.g. `import { Topic } from '../models/Topic.js'`). ts-jest resolves
     // these inside source, but jest's own resolver (used by `jest.mock(...)`
@@ -72,7 +72,7 @@ module.exports = {
       // therefore enabled type-checking across a suite that has never had it,
       // and 165 of 295 suites stopped running — TS2550 `Property 'cause' does
       // not exist on type 'Error'` (a `lib` question), TS2307 for
-      // `@oxyhq/federation` (whose `dist` this job does not build), TS2339,
+      // `@oxy.so/federation` (whose `dist` this job does not build), TS2339,
       // TS7006. None of them is a test failure; the suites never execute.
       //
       // `tsc --noEmit` is where this package's types are gated. Turning the

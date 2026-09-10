@@ -3,8 +3,8 @@ import { Alert, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-import { getNormalizedUserHandle } from '@oxyhq/core';
-import { OxySignInButton, useOxy, type RouteName } from '@oxyhq/services';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import { OxySignInButton, useOxy, type RouteName } from '@oxy.so/services';
 import Section from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 

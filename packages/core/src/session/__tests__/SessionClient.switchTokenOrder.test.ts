@@ -1,4 +1,4 @@
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 import { SessionClient, type SessionClientHost, type TokenTransport } from '../SessionClient';
 import { computeIdentityTag } from '../../utils/cacheKey';
 

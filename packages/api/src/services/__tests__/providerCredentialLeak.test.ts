@@ -1,4 +1,4 @@
-import { providerConnectionSchema } from '@oxyhq/contracts';
+import { providerConnectionSchema } from '@oxy.so/contracts';
 import { getTableColumns } from 'drizzle-orm';
 import { inferenceProviderConnections } from '../../db/schema/inferenceProviderConnections';
 import { ProviderCredentialValue } from '../kaanaCredentialControl';

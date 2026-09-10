@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { authenticatedApiCall } from '@oxyhq/core';
-import type { AccountStorageUsageResponse, ClientSession } from '@oxyhq/core';
+import { authenticatedApiCall } from '@oxy.so/core';
+import type { AccountStorageUsageResponse, ClientSession } from '@oxy.so/core';
 import { queryKeys } from './queryKeys';
 import { useOxy } from '../../context/OxyContext';
 import { fetchSessionsWithFallback, mapSessionsToClient } from '../../utils/sessionHelpers';

@@ -1,4 +1,4 @@
-import { parseIdPayload } from '@oxyhq/core';
+import { parseIdPayload } from '@oxy.so/core';
 
 /**
  * Cold-start deep-link normalizer — expo-router's sanctioned `+native-intent`

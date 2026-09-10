@@ -1,9 +1,9 @@
 /**
- * Signed Record Service — the thin Oxy ADAPTER over the @oxyhq/protocol chain
+ * Signed Record Service — the thin Oxy ADAPTER over the @oxy.so/protocol chain
  * engine (self-sovereign identity layer — B5; F0.2 hash chain).
  *
  * The verification + continuity + append state machine now lives, app-agnostic,
- * in `@oxyhq/protocol` (`verifyAndAppend`). This module is only the Oxy-specific
+ * in `@oxy.so/protocol` (`verifyAndAppend`). This module is only the Oxy-specific
  * glue around it:
  *
  *  - the {@link oxyRecordStore} (the protocol `RecordStore` over the
@@ -22,9 +22,9 @@
  * are unchanged.
  */
 
-import { signedRecordSigningInput } from '@oxyhq/protocol';
-import { verifyAndAppend, verifyEnvelope as protocolVerifyEnvelope, type RejectionReason, type VerifyOutcome } from '@oxyhq/protocol';
-import { oxySignedRecordTypeSchema, type OxySignedRecordType, type SignedRecordEnvelope } from '@oxyhq/contracts';
+import { signedRecordSigningInput } from '@oxy.so/protocol';
+import { verifyAndAppend, verifyEnvelope as protocolVerifyEnvelope, type RejectionReason, type VerifyOutcome } from '@oxy.so/protocol';
+import { oxySignedRecordTypeSchema, type OxySignedRecordType, type SignedRecordEnvelope } from '@oxy.so/contracts';
 import SignatureService from './signature.service';
 import { parseUserDid } from './did.service';
 import { oxyRecordStore } from './oxyRecordStore';
@@ -65,7 +65,7 @@ export function signRecordEnvelope(
  * The record categories a v1 (UNCHAINED) envelope may still carry.
  *
  * v1 predates the hash chain and only ever carried these two, both already in
- * production — see `@oxyhq/contracts`'s `oxyRecordTypes.ts`, which states it as
+ * production — see `@oxy.so/contracts`'s `oxyRecordTypes.ts`, which states it as
  * history rather than as a rule anything enforced. It is a rule now; see
  * {@link oxyStorePolicy}'s third policy for why.
  */
@@ -81,7 +81,7 @@ const V1_LEGACY_RECORD_TYPES: ReadonlySet<OxySignedRecordType> = new Set(['ident
  *     closed `oxySignedRecordTypeSchema` set; a `type` outside it is rejected as
  *     `invalid_envelope`. That set now includes `app_record`, the one category
  *     every Oxy app's records carry (the lexicon is the envelope's `collection`,
- *     not the type) — see `@oxyhq/contracts`'s `oxyRecordTypes.ts` for why the
+ *     not the type) — see `@oxy.so/contracts`'s `oxyRecordTypes.ts` for why the
  *     boundary moved.
  *  3. the CHAIN gate — every Oxy type except the two v1 legacy singletons MUST
  *     arrive as a v2 (chained) envelope. `app_record` is not a legacy singleton,

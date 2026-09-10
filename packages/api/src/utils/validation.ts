@@ -12,7 +12,7 @@ import { logger } from './logger';
 /**
  * The two shapes an account id can have.
  *
- * `@oxyhq/db`'s `generatedId()` explains why there are two: every row that
+ * `@oxy.so/db`'s `generatedId()` explains why there are two: every row that
  * existed before the cutover keeps its 24-char ObjectId hex verbatim (which is
  * how every foreign key survived the backfill), and every row created since is
  * a uuid v7. The column type is uniform `text`; only the VALUE format is mixed.

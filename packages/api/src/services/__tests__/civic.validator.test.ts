@@ -29,11 +29,11 @@
  * containing only this test's accounts.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { createHash, randomUUID } from 'node:crypto';
 import { and, eq, inArray } from 'drizzle-orm';
-import { canonicalize } from '@oxyhq/protocol';
-import type { SignedRecordEnvelope, ValidationVerdict } from '@oxyhq/contracts';
+import { canonicalize } from '@oxy.so/protocol';
+import type { SignedRecordEnvelope, ValidationVerdict } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { personhoodVouches } from '../../db/schema/personhoodVouches';
 import { reputationBalances } from '../../db/schema/reputationBalances';

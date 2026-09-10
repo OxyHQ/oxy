@@ -61,7 +61,7 @@
 import { sql } from 'drizzle-orm';
 import { check, doublePrecision, index, integer, pgTable, text } from 'drizzle-orm/pg-core';
 import { applications } from './applications';
-import { createdAt, generatedId } from '@oxyhq/db';
+import { createdAt, generatedId } from '@oxy.so/db';
 import { users } from './users';
 
 /** How a request authenticated. Decides which attribution columns are populated. */

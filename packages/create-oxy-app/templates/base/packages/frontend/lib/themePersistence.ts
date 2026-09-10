@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { BloomThemeStorage } from '@oxyhq/bloom/theme';
+import type { BloomThemeStorage } from '@oxy.so/bloom/theme';
 
 /** Storage key under which Bloom persists the theme mode + color preset. */
 export const THEME_PERSIST_KEY = '{{APP_SLUG}}.theme';

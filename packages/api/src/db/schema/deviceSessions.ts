@@ -32,7 +32,7 @@
  */
 
 import { type AnyPgColumn, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { deviceAccountContexts } from './deviceAccountContexts';
 import { users } from './users';
 
@@ -164,7 +164,7 @@ export const deviceSessions = pgTable(
      * When the current hub handle stops resolving, server-side.
      *
      * The cookie's `Max-Age` is derived from the SAME constant
-     * (`BROWSER_HUB_HANDLE_TTL_MS` in `@oxyhq/contracts`), so the credential and
+     * (`BROWSER_HUB_HANDLE_TTL_MS` in `@oxy.so/contracts`), so the credential and
      * the thing addressing it expire together. NULL means no hub handle has been
      * issued for this device, which is every native device and every browser
      * that has not authenticated at the IdP.

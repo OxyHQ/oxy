@@ -4,7 +4,7 @@
  * Postgres has no TTL index. Fourteen models relied on one, so every table
  * that needs it adds an entry here rather than growing its own cleanup path.
  * The mechanism that reads this registry (`sweepExpiredRows`,
- * `sweepAllExpiredRows`) lives in `@oxyhq/db/expiry` — shared plumbing with no
+ * `sweepAllExpiredRows`) lives in `@oxy.so/db/expiry` — shared plumbing with no
  * opinion on which tables to sweep. This registry is this schema's own data.
  *
  * ## The shape
@@ -49,7 +49,7 @@
  *
  * ## Scheduling
  *
- * `sweepExpiredRows` / `sweepAllExpiredRows` (`@oxyhq/db/expiry`) are the
+ * `sweepExpiredRows` / `sweepAllExpiredRows` (`@oxy.so/db/expiry`) are the
  * mechanism; `server.ts` is what runs them, on
  * {@link EXPIRY_SWEEP_INTERVAL_MS}, alongside the other unref'd sweeps in
  * `bootstrap()`. A registry with no caller is the failure this module is most
@@ -59,7 +59,7 @@
  * registration against the real entrypoint for exactly that reason.
  */
 
-import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
+import type { ExpirySweepTarget } from '@oxy.so/db/expiry';
 import { AFFINITY_EVENT_SEEN_TTL_SECONDS } from '../utils/recommendationWeights';
 import { appAffinitySeenEvents } from './schema/appAffinitySeenEvents';
 import {
@@ -116,7 +116,7 @@ import {
  * than an unknown one. Shortening this interval is therefore not a free
  * "sweep more promptly"; it spends that grace.
  *
- * The batch ceiling (`@oxyhq/db/expiry`) bounds one run, not the backlog: a
+ * The batch ceiling (`@oxy.so/db/expiry`) bounds one run, not the backlog: a
  * table with more expired rows than the ceiling reports `truncated` and is
  * picked up next hour, which the caller logs rather than swallows.
  */

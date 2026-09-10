@@ -6,7 +6,7 @@
  *
  * Usage:
  * ```tsx
- * import { useAuth } from '@oxyhq/services';
+ * import { useAuth } from '@oxy.so/services';
  *
  * function MyComponent() {
  *   const { user, isAuthenticated, isLoading, signIn, signOut } = useAuth();
@@ -28,7 +28,7 @@
 
 import { useCallback } from 'react';
 import { useOxyAuthActions } from '../context/OxyContext';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { useOxyRuntime, useRuntimeSelector, type OxyRuntimeSnapshot } from '../runtime';
 

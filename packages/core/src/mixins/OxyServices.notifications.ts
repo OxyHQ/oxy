@@ -6,7 +6,7 @@
  * approval request to a known Commons installation (issue #691, Phase 4)
  * instead of forcing the user onto a QR.
  *
- * This lives in `@oxyhq/core` because push registration is cross-cutting: every
+ * This lives in `@oxy.so/core` because push registration is cross-cutting: every
  * Oxy app that wants to receive platform notifications performs the exact same
  * bearer-authenticated register/unregister pair. App-local copies drift (see the
  * token-kind hazard below), so there is ONE implementation here.
@@ -27,7 +27,7 @@
  * registration nobody notices.
  *
  * Acquiring the token (permission prompt, `expo-notifications`) is the app's
- * job — `@oxyhq/core` never imports an `expo-*` module.
+ * job — `@oxy.so/core` never imports an `expo-*` module.
  */
 import type { OxyServicesBase } from '../OxyServices.base';
 
@@ -40,7 +40,7 @@ export type PushTokenPlatform = 'ios' | 'android' | 'web';
 /**
  * Shape of an Expo push token: `ExponentPushToken[…]` (what
  * `getExpoPushTokenAsync()` returns today) or the equivalent `ExpoPushToken[…]`
- * spelling. Deliberately plain ASCII — `@oxyhq/core` ships to Hermes, where
+ * spelling. Deliberately plain ASCII — `@oxy.so/core` ships to Hermes, where
  * Unicode property escapes throw at runtime.
  */
 const EXPO_PUSH_TOKEN_PATTERN = /^Expo(nent)?PushToken\[[^[\]\s]+\]$/;

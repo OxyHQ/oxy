@@ -1,7 +1,7 @@
 /**
  * Express application for the Oxy personal data node.
  *
- * This is a THIN adapter over `@oxyhq/protocol`'s generic `createNodeApp`: it
+ * This is a THIN adapter over `@oxy.so/protocol`'s generic `createNodeApp`: it
  * wires the node's SQLite {@link NodeStore} (which implements the protocol
  * `RecordStore`/`BlobStore`), the env-resolved {@link NodeConfig}, the
  * owner-key authority ({@link createOwnerAuth}), and the logger. All endpoint
@@ -13,7 +13,7 @@
  * by tests with an in-memory store and no network.
  */
 
-import { createNodeApp, type NodeApp } from '@oxyhq/protocol/node';
+import { createNodeApp, type NodeApp } from '@oxy.so/protocol/node';
 import type { Logger } from './logger.js';
 import type { NodeConfig } from './config.js';
 import { createOwnerAuth } from './auth.js';

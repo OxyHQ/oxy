@@ -6,10 +6,10 @@
  */
 import { jwtDecode } from 'jwt-decode';
 import type { JsonWebKey } from 'node:crypto';
-import type { LinkPreview } from '@oxyhq/contracts';
+import type { LinkPreview } from '@oxy.so/contracts';
 import type { ApiError, User } from '../models/interfaces';
 import type { OxyServicesBase } from '../OxyServices.base';
-import { loadNodeCrypto } from '@oxyhq/protocol';
+import { loadNodeCrypto } from '@oxy.so/protocol';
 import { buildUrl } from '../utils/apiUtils';
 import { logger } from '../logger';
 import { CACHE_TIMES } from './mixinHelpers';
@@ -351,7 +351,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      *
      * @example
      * ```typescript
-     * import { OxyServices } from '@oxyhq/core';
+     * import { OxyServices } from '@oxy.so/core';
      *
      * const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
      *
@@ -626,7 +626,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               // ATTRIBUTION ONLY. `req.userId` answers "on whose behalf", never
               // "who pays": the billing principal stays `req.serviceApp
               // .ownerAccountId`, which this branch does not touch. Read it
-              // through `getOxyBillingPrincipal` (`@oxyhq/core/server`), whose
+              // through `getOxyBillingPrincipal` (`@oxy.so/core/server`), whose
               // return type a user id cannot satisfy (ADR 0007).
               req.userId = oxyUserId;
               req.user = { id: oxyUserId } as User;
@@ -863,7 +863,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      *
      * @example
      * ```typescript
-     * import { OxyServices } from '@oxyhq/core';
+     * import { OxyServices } from '@oxy.so/core';
      * import { Server } from 'socket.io';
      *
      * const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });

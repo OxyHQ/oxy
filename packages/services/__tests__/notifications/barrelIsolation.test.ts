@@ -8,7 +8,7 @@
  * fail to type-check with TS2307 — regardless of whether that consumer has any
  * interest in push. That is exactly the regression this file exists to catch:
  * it shipped once (22.13.x) and broke consumers that use no notifications at
- * all. The adapter now lives behind the `@oxyhq/services/notifications` entry
+ * all. The adapter now lives behind the `@oxy.so/services/notifications` entry
  * point, and this test is what keeps it there.
  *
  * The check walks the REAL module graph rather than grepping `src/index.ts`,

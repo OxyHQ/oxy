@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Add01Icon, Delete02Icon, Image01Icon } from '@hugeicons/core-free-icons';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import type {Application, CallerAccess} from '@/hooks/use-applications';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

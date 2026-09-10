@@ -1,6 +1,6 @@
 {
-  "package": "@oxyhq/services",
-  "displayName": "@oxyhq/services",
+  "package": "@oxy.so/services",
+  "displayName": "@oxy.so/services",
   "shortName": "services",
   "repo": "https://github.com/OxyHQ/OxyHQServices",
   "category": "sdk",
@@ -16,5 +16,5 @@
     "entry": "src/index.ts"
   },
   "description": "Expo / React Native SDK: components, screens, bottom-sheet navigation.",
-  "versionsNote": "Current docs are generated from the main branch for @oxyhq/services 10.2.0; only the active services docs are published."
+  "versionsNote": "Current docs are generated from the main branch for @oxy.so/services 10.2.0; only the active services docs are published."
 }

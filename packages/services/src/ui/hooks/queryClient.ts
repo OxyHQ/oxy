@@ -30,7 +30,7 @@ import {
   type PersistedClient,
 } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
-import { isDev } from '@oxyhq/core';
+import { isDev } from '@oxy.so/core';
 import type { StorageInterface } from '../utils/storageHelpers';
 
 const QUERY_CACHE_KEY = 'oxy_query_cache_v3';

@@ -1,5 +1,5 @@
 import type Ionicons from "../icons/Ionicons";
-import type { AssetUploadInput, RNFileDescriptor } from "@oxyhq/core";
+import type { AssetUploadInput, RNFileDescriptor } from "@oxy.so/core";
 import type { ComponentProps } from "react";
 import { Platform } from "react-native";
 

@@ -33,10 +33,10 @@ import {
   type BackupUploadRequest,
   type BackupStatusResponse,
   type EncryptedBackupEnvelope,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { identityBackups } from '../db/schema/identityBackups';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 
 const router = Router();
 

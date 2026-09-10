@@ -93,7 +93,7 @@ import {
   TOKEN_ANOMALY_SWEEP_INTERVAL_MS,
 } from './services/tokenAnomaly.service';
 import { RECONCILIATION_SWEEP_INTERVAL_MS } from './db/schema/billingReconciliation';
-import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
+import { sweepAllExpiredRows } from '@oxy.so/db/expiry';
 import { EXPIRY_SWEEP_INTERVAL_MS, EXPIRY_SWEEP_TARGETS } from './db/expiry';
 import { AUTO_RECHARGE_SWEEP_INTERVAL_MS } from './db/schema/billingAutoRechargeAttempts';
 import { RESERVATION_EXPIRY_SWEEP_INTERVAL_MS } from './db/schema/usageReservations';

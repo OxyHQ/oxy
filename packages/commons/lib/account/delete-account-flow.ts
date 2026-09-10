@@ -38,7 +38,7 @@
  *     session.
  */
 
-import { logger } from '@oxyhq/core';
+import { logger } from '@oxy.so/core';
 
 /**
  * Side-effecting collaborators for {@link runAccountDeletion}. Injected so the

@@ -1,7 +1,7 @@
 import type { IncomingHttpHeaders } from 'http';
 import { URL } from 'url';
-import { normalizeInlineText } from '@oxyhq/core';
-import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxyhq/core/server';
+import { normalizeInlineText } from '@oxy.so/core';
+import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { decodeHtmlEntities } from '../../utils/sanitize';
 import { linkMetadataProviders } from './linkMetadataProviders';

@@ -22,7 +22,7 @@ const router = express.Router();
  *       Look up the user record for a given session ID. Requires a valid
  *       access token whose user owns the referenced session — callers cannot
  *       look up sessions belonging to other users. Used by SDK clients
- *       (e.g. `@oxyhq/core`) to hydrate user state from a stored session
+ *       (e.g. `@oxy.so/core`) to hydrate user state from a stored session
  *       reference. Expired, revoked, or non-owned sessions return 404.
  *     parameters:
  *       - name: sessionId

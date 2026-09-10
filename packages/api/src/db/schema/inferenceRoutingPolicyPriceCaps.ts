@@ -38,8 +38,8 @@
 
 import { sql } from 'drizzle-orm';
 import { bigint, check, foreignKey, pgTable, primaryKey, text } from 'drizzle-orm/pg-core';
-import { createdAt, inList } from '@oxyhq/db';
-import { USAGE_UNITS } from '@oxyhq/contracts';
+import { createdAt, inList } from '@oxy.so/db';
+import { USAGE_UNITS } from '@oxy.so/contracts';
 import { currencyCodeCheck, exactAmount } from './ledgerColumns';
 import { inferenceRoutingPolicyVersions } from './inferenceRoutingPolicyVersions';
 

@@ -43,9 +43,9 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { COMMONS_DENY_REASONS } from '@oxyhq/contracts';
+import { COMMONS_DENY_REASONS } from '@oxy.so/contracts';
 import { applications } from './applications';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /** The authoritative state machine. Delivery progress is never one of these. */

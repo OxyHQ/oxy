@@ -2,7 +2,7 @@ import type React from 'react';
 import type { ReactElement } from 'react';
 import Svg, { G, Path } from 'react-native-svg';
 import type { ViewStyle } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 interface LogoTextProps {
   /**

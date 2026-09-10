@@ -7,7 +7,7 @@
  * signed-out "self-acquire on sibling sign-in" wake is gone (sockets are now
  * bearer-only), so every case here runs with a bearer present.
  */
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 
 type Handler = (...args: unknown[]) => void;
 class FakeSocket {

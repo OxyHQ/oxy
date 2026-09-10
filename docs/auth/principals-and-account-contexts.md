@@ -2,7 +2,7 @@
 
 The vocabulary the device model, the API contracts, the SDK and the account
 switcher all use. If a term here disagrees with a term in code, the code is
-wrong — these names are the ones `@oxyhq/contracts` ships.
+wrong — these names are the ones `@oxy.so/contracts` ships.
 
 Design rationale: [ADR 0001](../adr/0001-multi-principal-device-model.md) and
 [ADR 0002](../adr/0002-global-account-context.md).

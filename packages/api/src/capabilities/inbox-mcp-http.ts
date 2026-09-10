@@ -1,4 +1,4 @@
-import { createCatalogMcpHttpService } from '@oxyhq/mcp';
+import { createCatalogMcpHttpService } from '@oxy.so/mcp';
 
 import {
   introspectMcpAccessToken,

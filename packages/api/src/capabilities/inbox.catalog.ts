@@ -1,4 +1,4 @@
-import type { AppCapabilityCatalog, CatalogTool } from '@oxyhq/contracts';
+import type { AppCapabilityCatalog, CatalogTool } from '@oxy.so/contracts';
 
 const objectOutput = { type: 'object', additionalProperties: true } as const;
 const idempotencyKey = {

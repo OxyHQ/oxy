@@ -30,10 +30,10 @@
 import {
   deriveSecp256k1PublicKey,
   generateSecp256k1KeyPair,
-} from '@oxyhq/protocol/secp256k1';
+} from '@oxy.so/protocol/secp256k1';
 import { and, eq } from 'drizzle-orm';
-import { computeRecordId } from '@oxyhq/protocol';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { computeRecordId } from '@oxy.so/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { personhoodVouches } from '../../db/schema/personhoodVouches';
 import { repoHeads } from '../../db/schema/repoHeads';

@@ -1,4 +1,4 @@
-# Changelog: `@oxyhq/contracts`
+# Changelog: `@oxy.so/contracts`
 
 ## 0.40.0
 
@@ -85,7 +85,7 @@ defect a layer up.
 ### Licence: AGPL-3.0-only becomes Apache-2.0
 
 **Breaking for anyone who tracks the licence, and for nobody else.**
-`@oxyhq/contracts` is now Apache-2.0. The code, the API surface and the behaviour are
+`@oxy.so/contracts` is now Apache-2.0. The code, the API surface and the behaviour are
 unchanged in this release. It exists to carry the licence change.
 
 This is a widening. Every right the AGPL granted you, Apache-2.0 grants too,
@@ -97,7 +97,7 @@ Versions published before this one keep the licence they were published under,
 permanently. `0.24.0` stays AGPL-3.0-only for anyone who already has it. A licence
 change binds future versions only.
 
-`@oxyhq/contracts` is below 1.0.0, where semver puts the breaking position in the minor
+`@oxy.so/contracts` is below 1.0.0, where semver puts the breaking position in the minor
 and `^0.24.0` does not accept `0.25.0`. Bumping the minor is therefore the
 same signal a major bump gives a 1.x package: no consumer picks this up
 without editing their manifest, which is the whole point.

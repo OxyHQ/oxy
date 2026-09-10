@@ -39,8 +39,8 @@
  */
 
 import { sql, type SQL } from 'drizzle-orm';
-import type { AccountCategoryId, AccountKind } from '@oxyhq/contracts';
-import { qualified } from '@oxyhq/db';
+import type { AccountCategoryId, AccountKind } from '@oxy.so/contracts';
+import { qualified } from '@oxy.so/db';
 import { userFollows } from '../db/schema/userFollows';
 import { userLinkMetadata } from '../db/schema/userLinkMetadata';
 import { users } from '../db/schema/users';

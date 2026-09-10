@@ -1,6 +1,6 @@
 # Cut over the exact-ID Kaana request v2
 
-`@oxyhq/contracts` 0.40.0 changes two canonical wire shapes:
+`@oxy.so/contracts` 0.40.0 changes two canonical wire shapes:
 
 - `inferenceRequestSchema`: `schemaVersion` 1 → 2;
 - `routingPolicySchema`: `schemaVersion` 1 → 2.
@@ -13,7 +13,7 @@ slug cannot enter a policy snapshot, cache, signed envelope or Kaana.
 
 This is a two-producer rolling cutover, not one deploy. Follow this order:
 
-1. Merge and publish `@oxyhq/contracts` 0.40.0. The Oxy auto-deploy is safe only
+1. Merge and publish `@oxy.so/contracts` 0.40.0. The Oxy auto-deploy is safe only
    while `.github/workflows/deploy-aws.yml` explicitly writes
    `INFERENCE_KAANA_EXECUTION=disabled`. Confirm the new Oxy task definition has
    that exact value and `GET /inference/admin/rollout` reports Kaana execution

@@ -57,7 +57,7 @@
  * both, and no amount of parsing in this module changes that.
  */
 
-import { isLiveEntityId } from '@oxyhq/db';
+import { isLiveEntityId } from '@oxy.so/db';
 import { classifyApplicationTier, type ApplicationTier } from '../utils/applicationTier';
 import { logger } from '../utils/logger';
 

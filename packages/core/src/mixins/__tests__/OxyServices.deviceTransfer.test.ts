@@ -23,7 +23,7 @@ jest.mock('../../session/socketLoader', () => ({
 import {
   deriveSecp256k1PublicKey,
   generateSecp256k1KeyPair,
-} from '@oxyhq/protocol/secp256k1';
+} from '@oxy.so/protocol/secp256k1';
 import { OxyServices } from '../../OxyServices';
 import { KeyManager } from '../../crypto/keyManager';
 import { SignatureService } from '../../crypto/signatureService';
@@ -31,7 +31,7 @@ import { deriveSharedSecret } from '../../crypto/ecdh';
 import { hkdfSha256 } from '../../crypto/kdf';
 import { encryptAead, decryptAead } from '../../crypto/aead';
 import { bytesToHex, hexToBytes, utf8ToBytes, bytesToUtf8 } from '@noble/hashes/utils';
-import type { DeviceTransferInfoResponse } from '@oxyhq/contracts';
+import type { DeviceTransferInfoResponse } from '@oxy.so/contracts';
 
 /** A shared in-memory relay: a single pairing row, mirroring the API's shape. */
 interface RelayState {

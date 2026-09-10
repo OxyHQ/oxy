@@ -86,7 +86,7 @@ const deliverOAuthResult = mock((input: DeliverInput) =>
 // ---------------------------------------------------------------------------
 
 /**
- * The in-flight request is drawn by `@oxyhq/services`' `OxySignInRequestSurface`
+ * The in-flight request is drawn by `@oxy.so/services`' `OxySignInRequestSurface`
  * — one implementation shared with the in-app account dialog, and a React Native
  * component this environment cannot load (the whole specifier is mocked; see
  * `lib/__tests__/setup-services-mock.ts`).
@@ -261,7 +261,7 @@ function installMocks(): void {
     ...realExports,
     deliverOAuthResult,
   }))
-  mock.module("@oxyhq/services", () => ({
+  mock.module("@oxy.so/services", () => ({
     useOxy: () => ({
       user: null,
       oxyServices,

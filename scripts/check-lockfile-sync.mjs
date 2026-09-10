@@ -45,7 +45,7 @@
  *
  *   - In THIS repo it DOES rewrite it. Bumping packages/core, contracts, api or
  *     ship moves `bun.lock`, so layer 2 sees it — and would have caught both the
- *     `@oxyhq/core@14.0.0` and `@oxyhq/services@23.0.0` bumps that burned those
+ *     `@oxy.so/core@14.0.0` and `@oxy.so/services@23.0.0` bumps that burned those
  *     versions. Layer 1 is defence-in-depth here, not a plugged hole.
  *   - In the CrowdSource monorepo it does NOT. The same bump leaves `bun.lock`
  *     byte-identical (bun reports `1 package installed` and rewrites nothing), so

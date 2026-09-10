@@ -462,7 +462,7 @@ export function isPrivilegedScope(scope: string): scope is ApplicationScope {
  * route (`applications.ts`) as the boundary of a narrow trust carve-out: a
  * non-trusted (`third_party`) application may create a `type:'service'`
  * credential ONLY when every requested scope is in this set, so external Oxy
- * Pay merchants can self-serve the service credential the `@oxyhq/pay` SDK
+ * Pay merchants can self-serve the service credential the `@oxy.so/pay` SDK
  * needs without gaining the ability to mint a trusted service token for any
  * other, still staff-gated capability. Safe because both scopes are already
  * non-privileged/self-grantable (see the doc comment on `APPLICATION_SCOPES`

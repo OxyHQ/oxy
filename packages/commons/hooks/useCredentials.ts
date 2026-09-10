@@ -13,8 +13,8 @@
  */
 
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
-import type { CredentialListResult, CredentialStatus } from '@oxyhq/contracts';
+import { useOxy } from '@oxy.so/services';
+import type { CredentialListResult, CredentialStatus } from '@oxy.so/contracts';
 
 /** Build the shared per-holder credentials query key (also used by the mutations). */
 export function credentialsQueryKey(

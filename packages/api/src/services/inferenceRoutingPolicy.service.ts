@@ -16,7 +16,7 @@
  *
  * ## Validation is the contract's, not a paraphrase of it
  *
- * `routingPolicySchema` in `@oxyhq/contracts` already carries the refinement
+ * `routingPolicySchema` in `@oxy.so/contracts` already carries the refinement
  * that rejects contradictory policies. {@link validateRoutingPolicy} ASSEMBLES a
  * complete policy — the caller's controls plus the identity fields the server
  * owns — and runs that schema over it. Nothing here restates a rule the contract
@@ -44,7 +44,7 @@
 
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import {
   routingPolicyScopeSchema,
   routingPolicySchema,
@@ -52,7 +52,7 @@ import {
   type RoutingPolicyScope,
   type RoutingTarget,
   type UnitPrice,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import { inferenceModelRevisions } from '../db/schema/inferenceModelRevisions';

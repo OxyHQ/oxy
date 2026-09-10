@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, Image, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import type { FileMetadata } from '@oxyhq/core';
+import type { FileMetadata } from '@oxy.so/core';
 
 type PhotoSize = { width: number; height: number };
 

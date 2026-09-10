@@ -1,19 +1,19 @@
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import type { ReputationTransaction, TrustTier } from '@oxyhq/contracts';
+import type { ReputationTransaction, TrustTier } from '@oxy.so/contracts';
 import Ionicons from '../../icons/Ionicons';
-import { Chip } from '@oxyhq/bloom/chip';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { H1, Text } from '@oxyhq/bloom/typography';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { Chip } from '@oxy.so/bloom/chip';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { H1, Text } from '@oxy.so/bloom/typography';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import type { BaseScreenProps } from '../../types/navigation';
 import { SettingsIcon } from '../../components/SettingsIcon';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
 import { useOxy } from '../../context/OxyContext';
-import { trustTierLabel } from '@oxyhq/core';
+import { trustTierLabel } from '@oxy.so/core';
 
 const TrustCenterScreen: React.FC<BaseScreenProps> = ({
     navigate,

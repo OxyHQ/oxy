@@ -14,8 +14,8 @@
  */
 
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
-import type { PersonhoodStatusResult } from '@oxyhq/contracts';
+import { useOxy } from '@oxy.so/services';
+import type { PersonhoodStatusResult } from '@oxy.so/contracts';
 
 /** Build the shared per-subject personhood query key (also used by `useVouch`). */
 export function personhoodQueryKey(userId: string | null): (string | null)[] {

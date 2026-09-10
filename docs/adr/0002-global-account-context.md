@@ -40,7 +40,7 @@ deterministic and revision-bound. A managed account the principal cannot
 currently act as is omitted or explicitly marked unavailable; it is never
 silently rendered as available.
 
-The account dialog in `@oxyhq/services` and the `auth.oxy.so` chooser consume
+The account dialog in `@oxy.so/services` and the `auth.oxy.so` chooser consume
 this one contract. The client does not reconstruct any principal's graph. The
 old flat projection remains only as a compatibility adapter.
 
@@ -105,7 +105,7 @@ question; it belongs on the server.
 
 ## Consequences
 
-- `@oxyhq/contracts` gains a typed `DeviceDirectory` and the activation
+- `@oxy.so/contracts` gains a typed `DeviceDirectory` and the activation
   request/response. Server validates output, clients validate input.
 - `SessionClient` moves from `activeAccountId` to `activeContextId` and carries
   actor/subject separately. Revision handling, last-writer-wins, and

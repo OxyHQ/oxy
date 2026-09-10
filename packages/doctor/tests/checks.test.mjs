@@ -4,7 +4,7 @@ import { compareVersions, isFirstPartyPackage, lockfileVersions, rangeIncludesVe
 describe('Oxy Doctor checks', () => {
   test('recognizes ecosystem package scopes', () => {
     expect(isFirstPartyPackage('@oxy.so/core')).toBe(true);
-    expect(isFirstPartyPackage('@oxyhq/core')).toBe(false);
+    expect(isFirstPartyPackage('@oxy.so/core')).toBe(false);
     expect(isFirstPartyPackage('@clarity.surf/sdk')).toBe(false);
     expect(isFirstPartyPackage('@alia.onl/sdk')).toBe(false);
     expect(isFirstPartyPackage('react')).toBe(false);
@@ -21,7 +21,7 @@ describe('Oxy Doctor checks', () => {
     expect(rangeIncludesVersion('31.0.0', '31.0.3')).toBe(false);
   });
   test('finds top-level and nested Bun lockfile resolutions', () => {
-    const lock = `"@oxyhq/services": ["@oxyhq/services@31.0.3", ""],\n"consumer/@oxyhq/services": ["@oxyhq/services@30.2.0", ""]`;
-    expect(lockfileVersions(lock, '@oxyhq/services')).toEqual(['31.0.3', '30.2.0']);
+    const lock = `"@oxy.so/services": ["@oxy.so/services@31.0.3", ""],\n"consumer/@oxy.so/services": ["@oxy.so/services@30.2.0", ""]`;
+    expect(lockfileVersions(lock, '@oxy.so/services')).toEqual(['31.0.3', '30.2.0']);
   });
 });

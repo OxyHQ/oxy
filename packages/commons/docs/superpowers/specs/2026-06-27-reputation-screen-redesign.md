@@ -59,7 +59,7 @@ top → bottom:
   point thresholds (`TRUST_TIER_TRUSTED_MIN = 100`,
   `TRUST_TIER_HIGH_TRUST_MIN = 500`) **mirrored** from the server source of truth
   `packages/api/src/utils/reputation.constants.ts` (commons cannot import
-  `@oxyhq/api`; same mirror pattern as `card-presentation.ts` /
+  `@oxy.so/api`; same mirror pattern as `card-presentation.ts` /
   `reputation-sources.ts`). `verified` = personhood (max, no bar); `restricted` =
   punitive. Plus `formatInfluenceMultiplier` / `formatReliabilityPercent`.
 - `lib/civic/reputation-activity.ts` — `describeReputationAction(txn)` maps known

@@ -24,8 +24,8 @@
  */
 
 import { and, eq, gte, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
-import { federatedUsernameFromUpstreamUrl } from '@oxyhq/federation';
-import { qualified } from '@oxyhq/db';
+import { federatedUsernameFromUpstreamUrl } from '@oxy.so/federation';
+import { qualified } from '@oxy.so/db';
 import { users } from '../db/schema/users';
 import { userLocations } from '../db/schema/userLocations';
 
@@ -134,7 +134,7 @@ export function peopleSearchMatch(
   // make the precise answer harder to see. When the URL parses and we hold
   // nobody, no rows is the correct and honest answer.
   //
-  // The username is resolved through `@oxyhq/federation`, the same declaration
+  // The username is resolved through `@oxy.so/federation`, the same declaration
   // the ingest path reads forwards — not a second parsing rule here, which would
   // work for X (plain lowercasing) and fail silently for Bluesky (a default
   // handle drops its `.bsky.social` suffix), returning nothing for accounts we

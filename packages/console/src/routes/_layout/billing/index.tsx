@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
-import { toast } from '@oxyhq/bloom/toast';
-import { exactDecimalSchema } from '@oxyhq/contracts';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { toast } from '@oxy.so/bloom/toast';
+import { exactDecimalSchema } from '@oxy.so/contracts';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

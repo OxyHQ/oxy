@@ -58,14 +58,14 @@
  */
 
 import { eq } from 'drizzle-orm';
-import { canonicalize } from '@oxyhq/protocol';
+import { canonicalize } from '@oxy.so/protocol';
 import type {
   ExportBundle,
   ExportAttestation,
   ExportFinancialSection,
   VerifiedDomain,
   SignedRecordEnvelope,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { billingLedgerEntries } from '../db/schema/billingLedgerEntries';
 import { usageReceipts } from '../db/schema/usageReceipts';

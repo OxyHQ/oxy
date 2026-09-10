@@ -29,7 +29,7 @@
  * writes is not the mechanism coming back.
  */
 
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 import type { OxyServices } from '../../OxyServices';
 import { SessionClient, type SessionClientHost } from '../SessionClient';
 import { createAccountDialogController } from '../accountDialogController';

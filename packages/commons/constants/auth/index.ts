@@ -15,7 +15,7 @@ export const CREATING_FINAL_DELAY_MS = 500;
  * (`^[a-z0-9]+$/i`, minimum 4) that agreed with neither the server nor the SDK.
  * Its minimum would have refused `oxy`, which is the platform owner's own
  * organization. The rule, its length bounds and its message now come from
- * `@oxyhq/contracts` (`usernameSchema`, `USERNAME_MIN_LENGTH`,
+ * `@oxy.so/contracts` (`usernameSchema`, `USERNAME_MIN_LENGTH`,
  * `USERNAME_INVALID_MESSAGE`), which is what the API enforces.
  */
 

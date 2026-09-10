@@ -27,7 +27,7 @@ import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVers
 import { userAncestors } from '../../db/schema/userAncestors';
 import { userCredits } from '../../db/schema/userCredits';
 import { users } from '../../db/schema/users';
-import { productEntitlementSchema } from '@oxyhq/contracts';
+import { productEntitlementSchema } from '@oxy.so/contracts';
 import { updateBillingProfile } from '../accountBilling.service';
 import {
   ALLOWANCE_KEYS,

@@ -14,7 +14,7 @@
 import {
   generateSecp256k1KeyPair,
   normalizeSecp256k1PublicKey,
-} from '@oxyhq/protocol/secp256k1';
+} from '@oxy.so/protocol/secp256k1';
 import { hkdfSha256 } from '../kdf';
 import { encryptAead, decryptAead, AEAD_KEY_LENGTH, AEAD_NONCE_LENGTH } from '../aead';
 import { deriveSharedSecret } from '../ecdh';

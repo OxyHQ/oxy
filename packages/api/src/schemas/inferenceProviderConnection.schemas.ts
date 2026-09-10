@@ -18,7 +18,7 @@
  * accepted from later becoming a local transport failure in Kaana.
  *
  * Nothing here echoes the secret back. The response schema is
- * `providerConnectionSchema` from `@oxyhq/contracts`, which is `.strict()` and
+ * `providerConnectionSchema` from `@oxy.so/contracts`, which is `.strict()` and
  * declares no field a credential could occupy.
  */
 
@@ -29,7 +29,7 @@ import {
   kaanaCredentialOperationActionSchema,
   oxyApplicationIdSchema,
   providerConnectionSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { z } from 'zod';
 
 /** An id in a path segment. Bounded so a pathological path is refused early. */

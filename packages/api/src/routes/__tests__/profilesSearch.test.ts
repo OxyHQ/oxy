@@ -30,7 +30,7 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
-import { userResponseSchema, safeParseContract } from '@oxyhq/contracts';
+import { userResponseSchema, safeParseContract } from '@oxy.so/contracts';
 
 
 const mockResolveAndUpsert = jest.fn();
@@ -200,7 +200,7 @@ describe('GET /profiles/search — account kind', () => {
    * `utils/__tests__/profileQuery.test.ts`; this pins that THIS ROUTE still runs
    * it, so a per-surface divergence fails too.
    *
-   * This is the surface `@oxyhq/core`'s `searchProfiles` calls, so it is the one
+   * This is the surface `@oxy.so/core`'s `searchProfiles` calls, so it is the one
    * every consuming app's people search resolves through.
    *
    * The private bot is the control: without it, "the bot came back" is also what

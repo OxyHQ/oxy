@@ -2,7 +2,7 @@
  * Config plugin: withSharedIdentityProvider (Commons only).
  *
  * Commons is the identity vault — the ONE app that HOSTS the cross-app shared
- * identity. This plugin wires the Android side of `@oxyhq/services`:
+ * identity. This plugin wires the Android side of `@oxy.so/services`:
  *
  *  - Defines a `signature`-level permission `so.oxy.shared.permission.READ_IDENTITY`.
  *    `signature` means only apps signed with the SAME certificate (the shared

@@ -42,7 +42,7 @@
 --                                    which are guarded.
 --
 -- `SQLSTATE 23514` (check violation) rather than a bespoke code, so
--- `@oxyhq/db`'s `isCheckViolation` recognises it like any other constraint
+-- `@oxy.so/db`'s `isCheckViolation` recognises it like any other constraint
 -- failure — a caller must never have to string-match this message.
 
 CREATE OR REPLACE FUNCTION account_billing_row_immutable() RETURNS trigger

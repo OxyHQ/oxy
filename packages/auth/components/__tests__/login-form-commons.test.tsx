@@ -17,7 +17,7 @@ import { defaultDeviceSwitcher } from "@/lib/__tests__/setup-services-mock"
 // accounts → the form opens on the identifier step (not the chooser / loading
 // spinner), where the third option lives.
 const openAccountDialog = mock(() => undefined)
-mock.module("@oxyhq/services", () => ({
+mock.module("@oxy.so/services", () => ({
     useOxy: () => ({
         openAccountDialog,
         oxyServices: { lookupUsername: async () => ({ username: "", name: {}, avatar: null, color: null }) },

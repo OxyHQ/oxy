@@ -39,7 +39,7 @@
  * positive `absent`/`present`.
  *
  * Platform-agnostic: the actual keychain / keystore access is injected as a
- * {@link SharedDeviceCredentialStore} by `@oxyhq/services`. ESM-safe, no
+ * {@link SharedDeviceCredentialStore} by `@oxy.so/services`. ESM-safe, no
  * `require()`, no react/react-native/expo imports.
  */
 
@@ -77,7 +77,7 @@ export type SharedDeviceCredentialRead =
   | { state: 'unsupported' };
 
 /**
- * The platform seam. `@oxyhq/services` implements this over the iOS Keychain
+ * The platform seam. `@oxy.so/services` implements this over the iOS Keychain
  * Access Group (a dedicated `keychainService`) or the Android signature-protected
  * `OxyDeviceSession` broker.
  */

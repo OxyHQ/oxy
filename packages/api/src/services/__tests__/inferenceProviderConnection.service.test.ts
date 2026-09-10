@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type {
   KaanaCredentialOutcome,
   KaanaCredentialOutcomeRequest,
-} from "@oxyhq/contracts";
+} from "@oxy.so/contracts";
 import { and, eq, sql } from "drizzle-orm";
 import { closePostgres, connectPostgres, getDb } from "../../config/postgres";
 import { applications } from "../../db/schema/applications";

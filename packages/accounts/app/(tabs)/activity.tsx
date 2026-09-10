@@ -10,11 +10,11 @@ import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
 import { ScreenHeader, AccountCard } from '@/components/ui';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { useTranslation } from '@/lib/i18n';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useActivityGroups } from '@/hooks/activity/useActivityGroups';
 import { ActivityGroup } from '@/components/activity/activity-group';
 

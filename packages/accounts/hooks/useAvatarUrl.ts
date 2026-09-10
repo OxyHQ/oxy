@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 /** Minimal shape needed to resolve an avatar download URL. */
 interface AvatarUserShape {

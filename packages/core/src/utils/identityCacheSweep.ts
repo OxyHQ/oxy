@@ -47,7 +47,7 @@
  * refetch; under-eviction serves wrong data.
  *
  * Platform-neutral by construction (no imports, no `OxyServices` reference) so
- * the client mixins and the Node-only `@oxyhq/core/server` invalidation
+ * the client mixins and the Node-only `@oxy.so/core/server` invalidation
  * subscriber can share it without either pulling in the other.
  */
 

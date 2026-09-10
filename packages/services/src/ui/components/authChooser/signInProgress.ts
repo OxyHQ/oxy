@@ -16,7 +16,7 @@
  *     Identity confirmed
  */
 
-import type { CommonsDeliveryRoute, SignInProgress } from '@oxyhq/core';
+import type { CommonsDeliveryRoute, SignInProgress } from '@oxy.so/core';
 import type { Translate } from './types';
 
 /**

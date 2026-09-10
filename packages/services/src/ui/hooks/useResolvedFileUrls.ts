@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { FileMetadata } from '@oxyhq/core';
+import type { FileMetadata } from '@oxy.so/core';
 
 /**
- * The variant-aware batch resolver contract (`@oxyhq/core`).
+ * The variant-aware batch resolver contract (`@oxy.so/core`).
  *
  * `getFileDownloadUrls` takes a per-file `{ fileId, variant }` list and returns
  * a map keyed by `fileId`; ids that are denied or missing are OMITTED (never an
@@ -56,7 +56,7 @@ export const ASSET_DOWNLOAD_URLS_QUERY_KEY = 'assetDownloadUrls' as const;
  * True when a file is an optimistic placeholder that has not been persisted by
  * the server yet — either its id is still the client-minted `temp-…` id, or it
  * carries the `uploading` flag. Mirrors the `temp-` id guard precedent in
- * `@oxyhq/core`'s `avatarUtils.updateAvatarVisibility`.
+ * `@oxy.so/core`'s `avatarUtils.updateAvatarVisibility`.
  */
 export function isOptimisticFile(file: Pick<FileMetadata, 'id' | 'metadata'>): boolean {
   if (typeof file.id === 'string' && file.id.startsWith('temp-')) return true;

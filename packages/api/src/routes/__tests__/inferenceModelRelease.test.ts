@@ -50,7 +50,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { and, eq } from 'drizzle-orm';
-import { modelSafetyMetadataSchema } from '@oxyhq/contracts';
+import { modelSafetyMetadataSchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   inferenceDeployments,

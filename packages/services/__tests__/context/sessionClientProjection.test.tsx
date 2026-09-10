@@ -32,8 +32,8 @@
 import React from 'react';
 import { render, waitFor, act, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { User } from '@oxyhq/core';
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { User } from '@oxy.so/core';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 
 // Neutralize the mount-time network effects so the provider settles
 // deterministically without a backend — mirrors `oxyClientTokenSync.test.tsx`.

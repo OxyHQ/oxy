@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ApiError, User, SupportedLanguage } from '@oxyhq/core';
+import type { ApiError, User, SupportedLanguage } from '@oxy.so/core';
 import {
   FALLBACK_LOCALE,
   SUPPORTED_LANGUAGES,
@@ -10,7 +10,7 @@ import {
   getPrimaryLanguage,
   getUserLanguages,
   normalizeLocale,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import type { StorageInterface } from '../utils/storageHelpers';
 import { extractErrorMessage } from '../utils/errorHandlers';
 

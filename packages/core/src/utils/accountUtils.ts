@@ -1,6 +1,6 @@
 /**
  * Shared account types and pure helper functions.
- * Used by the @oxyhq/services account stores (Expo/RN and RN-Web).
+ * Used by the @oxy.so/services account stores (Expo/RN and RN-Web).
  */
 
 import { translate } from '../i18n';

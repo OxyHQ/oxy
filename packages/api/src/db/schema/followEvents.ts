@@ -30,7 +30,7 @@ import { sql } from 'drizzle-orm';
 import { check, index, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { appGrants } from './appGrants';
 import { applications } from './applications';
-import { createdAt, generatedId, timestamptz } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { users } from './users';
 
 /**

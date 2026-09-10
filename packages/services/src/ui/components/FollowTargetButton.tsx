@@ -32,18 +32,18 @@
  */
 
 import { memo, useCallback, useMemo } from 'react';
-import type { FollowApplicationMode, FollowStatus } from '@oxyhq/contracts';
+import type { FollowApplicationMode, FollowStatus } from '@oxy.so/contracts';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
-import { Button } from '@oxyhq/bloom/button';
-import { ChevronBottom_Stroke2_Corner0_Rounded as ChevronDown } from '@oxyhq/bloom/icons';
+import { Button } from '@oxy.so/bloom/button';
+import { ChevronBottom_Stroke2_Corner0_Rounded as ChevronDown } from '@oxy.so/bloom/icons';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@oxyhq/bloom/dropdown-menu';
-import { toast } from '@oxyhq/bloom/toast';
+} from '@oxy.so/bloom/dropdown-menu';
+import { toast } from '@oxy.so/bloom/toast';
 import { useFollowTarget } from '../hooks/useFollowTarget';
 import { useFollowTargetStore } from '../stores/followTargetStore';
 

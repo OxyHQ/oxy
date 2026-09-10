@@ -5,12 +5,12 @@
  * each row's `user` carried Mongo's `_id` and the user's RAW stored name
  * subdocument. The SDK type promised `user.id` and the canonical composed
  * `name`, which meant `entry.user.id` was `undefined` for every row — the
- * `@oxyhq/services` leaderboard screen's `keyExtractor` silently fell through to
+ * `@oxy.so/services` leaderboard screen's `keyExtractor` silently fell through to
  * its index fallback, and `name.displayName` did not mean what it means on every
  * other user DTO.
  *
  * The row now goes through `serializeLeaderboardEntry`, annotated against
- * `ReputationLeaderboardEntry` from `@oxyhq/contracts`. These tests lock what a
+ * `ReputationLeaderboardEntry` from `@oxy.so/contracts`. These tests lock what a
  * consumer actually receives, over real `reputation_balances` rows joined to
  * real `users` rows — the previous version fed a mocked service a hand-built
  * projection, so it could not have noticed the join changing shape.
@@ -28,7 +28,7 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
-import { reputationLeaderboardEntrySchema, safeParseContract } from '@oxyhq/contracts';
+import { reputationLeaderboardEntrySchema, safeParseContract } from '@oxy.so/contracts';
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),

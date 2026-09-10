@@ -31,7 +31,7 @@ const MODEL_REFERENCE_PATTERN =
 const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/;
 
 // This script runs in the secret-minimized deploy-script job before workspace
-// dependencies are installed, so it cannot import @oxyhq/contracts. The gate
+// dependencies are installed, so it cannot import @oxy.so/contracts. The gate
 // holds this local closed set exactly equal to inference/errors.ts.
 const CANARY_INFERENCE_ERROR_CODES = [
   'invalid_request',

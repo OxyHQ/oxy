@@ -42,10 +42,10 @@ import type {
   ReputationInfluenceContext,
   ReputationTargetEntityType,
   TrustTier,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 import { getDb, type Database } from '../config/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import type * as schema from '../db/schema';
 import { conductStrikes } from '../db/schema/conductStrikes';
 import { personhoodStatuses } from '../db/schema/personhoodStatuses';

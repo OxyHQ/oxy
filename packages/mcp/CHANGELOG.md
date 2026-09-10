@@ -1,4 +1,4 @@
-# Changelog: `@oxyhq/mcp`
+# Changelog: `@oxy.so/mcp`
 
 ## 0.6.0
 

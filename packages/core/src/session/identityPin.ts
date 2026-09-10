@@ -249,7 +249,7 @@ export function createWebIdentityPinStore(): IdentityPinStore {
 
 /**
  * A native {@link IdentityPinStore} over an injected async key/value store —
- * the same seam `createNativeAuthStateStore` uses, so `@oxyhq/core` never
+ * the same seam `createNativeAuthStateStore` uses, so `@oxy.so/core` never
  * imports `expo-secure-store`.
  */
 export function createNativeIdentityPinStore(storage: NativeKeyValueStorage): IdentityPinStore {

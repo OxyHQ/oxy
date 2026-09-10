@@ -17,7 +17,7 @@
  * ## Why this file exists
  *
  * Seven rules governed this one namespace: four validators (this package's
- * predecessor in `@oxyhq/api`, `@oxyhq/core`, `@oxyhq/commons`, and one written
+ * predecessor in `@oxy.so/api`, `@oxy.so/core`, `@oxy.so/commons`, and one written
  * inline in `AccountService.resolveUniqueUsername`) and three that COERCED —
  * silently deleting the characters they disliked, which hands somebody an
  * account under a name they never chose. They lived in five packages and no test

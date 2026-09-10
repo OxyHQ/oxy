@@ -20,7 +20,7 @@
 import { readdirSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { getTableColumns, getTableName } from 'drizzle-orm';
-import { findImplicitWholeRowReads, publicColumns } from '@oxyhq/db/assert';
+import { findImplicitWholeRowReads, publicColumns } from '@oxy.so/db/assert';
 import { blocks } from '../blocks';
 import {
   inferenceDeploymentRoutingScoreEvents,

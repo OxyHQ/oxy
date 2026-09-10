@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { translate as coreTranslate } from '@oxyhq/core';
+import { translate as coreTranslate } from '@oxy.so/core';
 import { useLocale } from './locale-context';
 import enConsole from './locales/en';
 import esConsole from './locales/es';

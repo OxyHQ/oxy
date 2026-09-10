@@ -1,5 +1,5 @@
-import type { User } from '@oxyhq/core';
-import { logger } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
+import { logger } from '@oxy.so/core';
 import type { WebAuthMode } from '../../oauth/types';
 import {
   commitDeviceSetAndResolve,

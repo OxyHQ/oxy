@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
-import type { ValidationVerdict } from '@oxyhq/contracts';
+import { useOxy } from '@oxy.so/services';
+import type { ValidationVerdict } from '@oxy.so/contracts';
 import { voteErrorCode, type VoteErrorCode } from '@/lib/civic/civic-errors';
 import { authenticate } from '@/lib/biometricAuth';
 import { VALIDATOR_INBOX_KEY } from './useValidatorInbox';

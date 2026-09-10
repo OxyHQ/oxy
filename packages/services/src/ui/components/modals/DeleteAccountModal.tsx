@@ -2,9 +2,9 @@ import type React from 'react';
 import { useState, useCallback } from 'react';
 import { View, Text, TextInput } from 'react-native';
 import Ionicons from '../../icons/Ionicons';
-import { Button } from '@oxyhq/bloom/button';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { surfaces, type SurfaceControls } from '@oxyhq/bloom/surfaces';
+import { Button } from '@oxy.so/bloom/button';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { surfaces, type SurfaceControls } from '@oxy.so/bloom/surfaces';
 
 interface DeleteAccountModalProps {
     /** The presenting surface's controls (from `surfaces.present`). */

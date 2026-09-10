@@ -1,4 +1,4 @@
-import type { AppCapabilityCatalog } from '@oxyhq/contracts';
+import type { AppCapabilityCatalog } from '@oxy.so/contracts';
 import {
   createServer,
   request as createHttpRequest,

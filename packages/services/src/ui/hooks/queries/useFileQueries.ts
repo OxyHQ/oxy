@@ -14,7 +14,7 @@ import {
     type InfiniteData,
     type QueryClient,
 } from '@tanstack/react-query';
-import type { FileMetadata } from '@oxyhq/core';
+import type { FileMetadata } from '@oxy.so/core';
 import { useOxy } from '../../context/OxyContext';
 import { queryKeys } from './queryKeys';
 

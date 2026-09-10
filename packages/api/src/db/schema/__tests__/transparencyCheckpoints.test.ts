@@ -27,7 +27,7 @@ import {
   verifyCheckpointSignature,
   verifyInclusionProof,
   type TransparencyCheckpointFields,
-} from '@oxyhq/protocol';
+} from '@oxy.so/protocol';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import {
   TRANSPARENCY_IMMUTABILITY_TRIGGERS,

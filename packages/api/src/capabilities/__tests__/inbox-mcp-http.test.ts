@@ -3,7 +3,7 @@ const mockIntrospectMcpAccessToken = jest.fn();
 const mockResolveMcpResource = jest.fn();
 const mockLoggerError = jest.fn();
 
-jest.mock('@oxyhq/mcp', () => ({
+jest.mock('@oxy.so/mcp', () => ({
   createCatalogMcpHttpService: (...args: unknown[]) => mockCreateCatalogMcpHttpService(...args),
 }));
 jest.mock('../../services/mcpOAuth.service', () => ({

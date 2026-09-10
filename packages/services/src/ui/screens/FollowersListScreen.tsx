@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { FollowGraphSort } from '@oxyhq/core';
+import type { FollowGraphSort } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import UserListScreen from './UserListScreen';
 

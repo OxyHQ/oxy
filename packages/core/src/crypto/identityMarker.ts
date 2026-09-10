@@ -24,10 +24,10 @@
  * secure-store reads, never a gate that can itself lock the user out.
  *
  * ESM-safe (no `require()`); zero React/RN static imports — the RN AsyncStorage
- * module is reached only through `@oxyhq/protocol`'s per-platform dynamic loader.
+ * module is reached only through `@oxy.so/protocol`'s per-platform dynamic loader.
  */
 
-import { loadAsyncStorage } from '@oxyhq/protocol';
+import { loadAsyncStorage } from '@oxy.so/protocol';
 import { createLogger } from '../logger';
 
 const log = createLogger('IdentityMarker');

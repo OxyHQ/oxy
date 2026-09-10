@@ -64,7 +64,7 @@
  * survives.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 

@@ -5,9 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { Button, KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { useUsernameValidation } from '@/hooks/auth/useUsernameValidation';
-import { stripDisallowedUsernameCharacters } from '@oxyhq/contracts';
-import type { OxyServices } from '@oxyhq/core';
-import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
+import { stripDisallowedUsernameCharacters } from '@oxy.so/contracts';
+import type { OxyServices } from '@oxy.so/core';
+import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { useTranslation } from '@/lib/i18n';
 import telescopeAnimation from '@/assets/lottie/telescope.json';
 
@@ -15,7 +15,7 @@ import telescopeAnimation from '@/assets/lottie/telescope.json';
  * Sections of the "Learn more about usernames" explainer, in presentation
  * order. The copy itself lives in the shared dictionary under
  * `learnMoreUsernames.sections.<id>.{title,content}` (resolved by `t()` through
- * the accounts dictionary and then `@oxyhq/core`), so it stays the SAME copy
+ * the accounts dictionary and then `@oxy.so/core`), so it stays the SAME copy
  * the surface showed before, in every locale.
  */
 const LEARN_MORE_SECTION_IDS = ['what', 'rules', 'unique', 'change', 'tips'] as const;

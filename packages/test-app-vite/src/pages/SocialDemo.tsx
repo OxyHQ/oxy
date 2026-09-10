@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useAuth, useFollow, useFollowerCounts, useUserByUsername } from "@oxyhq/services"
+import { useAuth, useFollow, useFollowerCounts, useUserByUsername } from "@oxy.so/services"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -136,7 +136,7 @@ export function SocialDemo() {
         </CardHeader>
         <CardContent>
           <pre className="overflow-auto rounded-md bg-muted p-4 text-xs">
-{`import { useFollow, useFollowerCounts, useUserByUsername } from '@oxyhq/services';
+{`import { useFollow, useFollowerCounts, useUserByUsername } from '@oxy.so/services';
 
 function Social() {
   const { data: user } = useUserByUsername('john');

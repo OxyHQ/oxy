@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { eq, sql } from "drizzle-orm";
-import { uuidv7 } from "@oxyhq/db";
+import { uuidv7 } from "@oxy.so/db";
 import {
   closePostgres,
   connectPostgres,

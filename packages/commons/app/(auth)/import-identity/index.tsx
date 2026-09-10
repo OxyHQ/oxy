@@ -4,7 +4,7 @@ import {
   RecoveryPhraseService,
   IdentityAlreadyExistsError,
   IdentityUnavailableError,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { ImportPhraseStep } from '@/components/auth/ImportPhraseStep';
 import { extractAuthErrorMessage } from '@/utils/auth/errorUtils';

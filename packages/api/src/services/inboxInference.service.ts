@@ -3,7 +3,7 @@ import {
   type InferenceError,
   type InferenceMessage,
   type ResponseFormat,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { isKaanaExecutionEnabled } from '../config/rolloutFlags';
 import { INBOX_APPLICATION_ID } from '../config/inboxInference';

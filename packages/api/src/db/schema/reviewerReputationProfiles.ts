@@ -37,7 +37,7 @@ import {
   text,
   unique,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /** `active` reviewers can be drawn; `suspended` cannot. */

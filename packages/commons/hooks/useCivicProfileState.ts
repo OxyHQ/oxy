@@ -18,7 +18,7 @@
  * is unit-testable without React.
  */
 
-import { useOnlineStatus } from '@oxyhq/services';
+import { useOnlineStatus } from '@oxy.so/services';
 
 /** The offline-first state of a civic profile surface. */
 export type CivicProfileState = 'pending' | 'cache-first' | 'live';

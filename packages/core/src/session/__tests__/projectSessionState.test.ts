@@ -6,7 +6,7 @@
  * switch made by another app on the same device changes `state` but never the
  * user an identity-bound client renders.
  */
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 import type { User } from '../../models/interfaces';
 import {
   accountIdsOf,

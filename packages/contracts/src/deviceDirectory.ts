@@ -21,7 +21,7 @@ import { userNameSchema } from './userResponse';
 /**
  * How a principal reaches an account.
  *
- * Mirrors `AccountRelationship` in `@oxyhq/core`'s account graph rather than
+ * Mirrors `AccountRelationship` in `@oxy.so/core`'s account graph rather than
  * inventing a second vocabulary for the same fact:
  *  - `self`   — the principal's own personal account (`principal.userId === accountId`)
  *  - `owner`  — the principal owns this account

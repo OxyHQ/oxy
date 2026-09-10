@@ -36,8 +36,8 @@ Oxy uses **device-based cryptographic identity** as the primary authentication m
 |  - Device = Password            - Multiple auth methods          |
 |  - BIP39 recovery phrase        - In-app sign-in dialog          |
 |                                                                  |
-|  [Commons app]  ------------>   [@oxyhq/core]     (foundation)   |
-|   (native only)                 [@oxyhq/services] (all UI:       |
+|  [Commons app]  ------------>   [@oxy.so/core]     (foundation)   |
+|   (native only)                 [@oxy.so/services] (all UI:       |
 |                                   Expo, RN, and RN Web)          |
 |                                                                  |
 +-----------------------------------------------------------------+
@@ -50,7 +50,7 @@ Oxy uses **device-based cryptographic identity** as the primary authentication m
 3. **Multi-Method Auth**: Same user can authenticate via identity, password, or social
 4. **User Linking**: Different auth methods can be linked to same account
 5. **Platform Agnostic**: Auth works on native, web, and backend
-6. **One SDK UI**: `@oxyhq/services` (`OxyProvider`) is the single UI SDK for every platform — web included, via React Native Web. There is no separate web-only auth SDK.
+6. **One SDK UI**: `@oxy.so/services` (`OxyProvider`) is the single UI SDK for every platform — web included, via React Native Web. There is no separate web-only auth SDK.
 7. **Server is the session authority**: which accounts are signed in on a device lives in the server-side `DeviceSession` model, never in per-app client state.
 
 ---
@@ -61,10 +61,10 @@ Oxy uses **device-based cryptographic identity** as the primary authentication m
 
 | Package | Purpose | Platform |
 |---------|---------|----------|
-| **@oxyhq/contracts** | Zod API contracts (request/response schemas, inferred types) | All (only `zod`) |
-| **@oxyhq/protocol** | App-agnostic base substrate: signed-record envelope, canonical JSON, signature/verification, platform crypto | All |
-| **@oxyhq/core** | Foundation: API client (`OxyServices`), `SessionClient`, device-first cold boot, OAuth + PKCE helpers, `/server` middleware | All (Node.js, web, native) |
-| **@oxyhq/services** | The single UI SDK: `OxyProvider`, `useAuth`/`useOxy`, `OxyAccountDialog`, `OxySignInButton`, `OxyConsentScreen`, screens | Expo / React Native / RN Web |
+| **@oxy.so/contracts** | Zod API contracts (request/response schemas, inferred types) | All (only `zod`) |
+| **@oxy.so/protocol** | App-agnostic base substrate: signed-record envelope, canonical JSON, signature/verification, platform crypto | All |
+| **@oxy.so/core** | Foundation: API client (`OxyServices`), `SessionClient`, device-first cold boot, OAuth + PKCE helpers, `/server` middleware | All (Node.js, web, native) |
+| **@oxy.so/services** | The single UI SDK: `OxyProvider`, `useAuth`/`useOxy`, `OxyAccountDialog`, `OxySignInButton`, `OxyConsentScreen`, screens | Expo / React Native / RN Web |
 
 ### Package Structure
 
@@ -74,15 +74,15 @@ OxyHQServices/
 │   ├── commons/           # Native-only identity vault app ("Commons by Oxy")
 │   │   └── (private keys, recovery, QR approve, attestation)
 │   │
-│   ├── contracts/         # @oxyhq/contracts — Zod API contracts
-│   ├── protocol/          # @oxyhq/protocol — signed records + crypto substrate
+│   ├── contracts/         # @oxy.so/contracts — Zod API contracts
+│   ├── protocol/          # @oxy.so/protocol — signed records + crypto substrate
 │   │
-│   ├── core/              # @oxyhq/core — foundation
+│   ├── core/              # @oxy.so/core — foundation
 │   │   ├── /session       # SessionClient, cold boot, session-state projection
 │   │   ├── /crypto        # Signing utilities (NOT key storage)
-│   │   └── /server        # Express middleware (@oxyhq/core/server)
+│   │   └── /server        # Express middleware (@oxy.so/core/server)
 │   │
-│   ├── services/          # @oxyhq/services — the single UI SDK (Expo/RN/RN Web)
+│   ├── services/          # @oxy.so/services — the single UI SDK (Expo/RN/RN Web)
 │   │
 │   ├── api/               # Backend API server (api.oxy.so)
 │   │   └── (users, sessions, DeviceSession, OAuth, device bootstrap)
@@ -107,9 +107,9 @@ See [architecture/overview.md](./architecture/overview.md) for the full monorepo
 |   |  Commons by Oxy   |              |  Oxy SDK          |       |
 |   |  (Native App)     |              |  (npm packages)   |       |
 |   |                   |              |                    |       |
-|   |  - KeyManager     |   signs ->   |  @oxyhq/core      |       |
-|   |  - Recovery       |   challenges |  @oxyhq/services  |       |
-|   |  - QR approve     |              |  @oxyhq/contracts |       |
+|   |  - KeyManager     |   signs ->   |  @oxy.so/core      |       |
+|   |  - Recovery       |   challenges |  @oxy.so/services  |       |
+|   |  - QR approve     |              |  @oxy.so/contracts |       |
 |   +---------+---------+              +---------+----------+       |
 |             |                                  |                  |
 |             |  Public Key                      |  API calls       |
@@ -145,7 +145,7 @@ See [architecture/overview.md](./architecture/overview.md) for the full monorepo
 | Component | Identity Storage | Signing | Verification |
 |-----------|-----------------|---------|--------------|
 | Commons app | KeyManager (expo-secure-store) | Yes | Yes |
-| @oxyhq/core | None | No | Yes (SignatureService.verify) |
+| @oxy.so/core | None | No | Yes (SignatureService.verify) |
 | api.oxy.so | None | No | Yes (server-side) |
 
 ### Cryptographic Primitives
@@ -185,11 +185,11 @@ See [architecture/overview.md](./architecture/overview.md) for the full monorepo
 
 ### Using the Crypto Module
 
-Crypto utilities are exported from `@oxyhq/core`. They handle **signature verification** and **utilities**, NOT key storage:
+Crypto utilities are exported from `@oxy.so/core`. They handle **signature verification** and **utilities**, NOT key storage:
 
 ```typescript
 // In Commons by Oxy app (has full KeyManager)
-import { KeyManager, SignatureService, RecoveryPhraseService } from '@oxyhq/core';
+import { KeyManager, SignatureService, RecoveryPhraseService } from '@oxy.so/core';
 
 // Generate identity (only in Commons)
 const publicKey = await KeyManager.createIdentity();
@@ -201,7 +201,7 @@ const signature = await SignatureService.sign(challenge);
 // -----------------------------------------------------------------
 
 // In other apps (verification only)
-import { SignatureService } from '@oxyhq/core';
+import { SignatureService } from '@oxy.so/core';
 
 // Verify signatures (works anywhere)
 const isValid = await SignatureService.verify(message, signature, publicKey);
@@ -246,7 +246,7 @@ are signed in on that device. The full reference lives in
 - Sync: Socket.IO room `device:<deviceId>` (derived from the JWT claim, never
   from the client) emits **`session_state`** with a token-free payload — every
   app on the same device converges instantly on add/switch/sign-out.
-- Client: **`SessionClient`** in `@oxyhq/core` (`packages/core/src/session/`)
+- Client: **`SessionClient`** in `@oxy.so/core` (`packages/core/src/session/`)
   consumes the state, projects it for UI, and drives the cold boot
   (`runSessionColdBoot`).
 
@@ -266,7 +266,7 @@ The full guide is [AUTHENTICATION.md](./AUTHENTICATION.md).
 Primary method using the cryptographic keypair. The phone IS the password.
 
 ```tsx
-import { OxySignInButton } from '@oxyhq/services';
+import { OxySignInButton } from '@oxy.so/services';
 
 function LoginScreen() {
   return <OxySignInButton />;
@@ -282,7 +282,7 @@ function LoginScreen() {
   Commons QR / deep-link sign-in, and a collapsed password form.
 - **Third-party apps** (`type: third_party`) → standard **OAuth redirect to
   `auth.oxy.so/authorize` with PKCE** (`generatePkcePair`,
-  `generateOAuthState`, `buildOAuthAuthorizeUrl` from `@oxyhq/core`). See
+  `generateOAuthState`, `buildOAuthAuthorizeUrl` from `@oxy.so/core`). See
   [auth/integration-guide.md](./auth/integration-guide.md).
 
 **Identity flow** (QR / cross-device):
@@ -298,7 +298,7 @@ For users who prefer traditional login — surfaced inside the same sign-in
 dialog under "Sign in without the app":
 
 ```typescript
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 const session = await oxy.signIn('user@example.com', 'secret123');
@@ -312,7 +312,7 @@ const session = await oxy.signIn('user@example.com', 'secret123');
 
 Apps outside the Oxy ecosystem integrate via standard OAuth 2.0 Authorization
 Code + PKCE against `auth.oxy.so`, with a consent screen (`OxyConsentScreen`
-from `@oxyhq/services`) and per-app grants revocable from Accounts →
+from `@oxy.so/services`) and per-app grants revocable from Accounts →
 Connected apps. `Application` records carry `privacyPolicyUrl` / `termsUrl`
 for the consent surface. Full walkthrough:
 [auth/integration-guide.md](./auth/integration-guide.md).
@@ -320,7 +320,7 @@ for the consent surface. Full walkthrough:
 ### The IdP is not an RP
 
 `auth.oxy.so` (packages/auth) is the OAuth authorize/consent IdP. It mounts
-`OxyProvider` from `@oxyhq/services` device-first like every Oxy app (normal
+`OxyProvider` from `@oxy.so/services` device-first like every Oxy app (normal
 cold boot from its own `{deviceId, deviceSecret}`, `useDeviceSwitcher`
 chooser, `signInWithPassword`/`completeTwoFactorSignIn`/`handleWebSession`
 funnels). It stays a SHELL that emits the OAuth code after authenticating —
@@ -576,7 +576,7 @@ DELETE /auth/link/:type           # Unlink auth method
 One provider for every platform — Expo, React Native, and web (RN Web):
 
 ```tsx
-import { OxyProvider, useAuth } from '@oxyhq/services';
+import { OxyProvider, useAuth } from '@oxy.so/services';
 
 function App() {
   return (
@@ -602,14 +602,14 @@ function LoginScreen() {
 ### For Node.js / Backend
 
 ```typescript
-import { OxyServices } from '@oxyhq/core';
-import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxyhq/core/server';
+import { OxyServices } from '@oxy.so/core';
+import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 app.use('/api', createOxyAuthMiddleware(oxy)); // validates Authorization: Bearer
 ```
 
-Never hand-roll bearer parsers or auth interceptors — `@oxyhq/core/server`
+Never hand-roll bearer parsers or auth interceptors — `@oxy.so/core/server`
 owns request identity; RP frontends calling their own backend use
 `oxyServices.createLinkedClient({ baseURL })`.
 

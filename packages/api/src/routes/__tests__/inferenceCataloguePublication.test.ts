@@ -38,7 +38,7 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import type { ModelCatalogueEntry } from '@oxyhq/contracts';
+import type { ModelCatalogueEntry } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { CATALOGUE_AUDIENCE_VARIABLE } from '../../config/rolloutFlags';
 import { applications } from '../../db/schema/applications';

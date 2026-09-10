@@ -2,8 +2,8 @@ import type React from 'react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import Ionicons from '../icons/Ionicons';
-import type { AccountCategoryId, AccountKind, CreateAccountInput } from '@oxyhq/core';
-import { accountCategoryLabel, DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, MAX_ACCOUNT_CATEGORIES, MAX_DISPLAY_NAME_LENGTH, SELECTABLE_ACCOUNT_CATEGORY_IDS } from '@oxyhq/core';
+import type { AccountCategoryId, AccountKind, CreateAccountInput } from '@oxy.so/core';
+import { accountCategoryLabel, DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, MAX_ACCOUNT_CATEGORIES, MAX_DISPLAY_NAME_LENGTH, SELECTABLE_ACCOUNT_CATEGORY_IDS } from '@oxy.so/core';
 import {
   applyBotUsernameSuffix,
   stripDisallowedUsernameCharacters,
@@ -12,17 +12,17 @@ import {
   USERNAME_INVALID_MESSAGE,
   USERNAME_MAX_LENGTH,
   USERNAME_MIN_LENGTH,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import type { BaseScreenProps } from '../types/navigation';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Text } from '@oxyhq/bloom/typography';
-import { Button } from '@oxyhq/bloom/button';
-import { TextField, TextFieldInput } from '@oxyhq/bloom/text-field';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import { Button } from '@oxy.so/bloom/button';
+import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useOxy } from '../context/OxyContext';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 
@@ -168,7 +168,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
       return;
     }
 
-    // The ONE policy, from `@oxyhq/contracts`, for the kind being created. This
+    // The ONE policy, from `@oxy.so/contracts`, for the kind being created. This
     // screen used to carry a private copy of the rule, and the server it talks to
     // enforced a LOOSER one — so a name this field refused was a name
     // `POST /accounts` would happily have stored.

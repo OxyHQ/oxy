@@ -1,5 +1,5 @@
 /**
- * Lightweight `@oxyhq/services` stub for the accounts i18n unit tests.
+ * Lightweight `@oxy.so/services` stub for the accounts i18n unit tests.
  *
  * Mirrors the parts of the real SDK the `LocaleProvider` consumes: `useOxy()`
  * exposes the derived `currentLanguage` / `currentLanguages` and the guest

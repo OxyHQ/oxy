@@ -8,8 +8,8 @@
  * a real secp256k1 keypair so signing/verification is genuine.
  */
 
-import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
-import { verifySignature } from '@oxyhq/protocol';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
+import { verifySignature } from '@oxy.so/protocol';
 import { KeyManager } from '../keyManager';
 import { SignatureService } from '../signatureService';
 

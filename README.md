@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@oxyhq/services"><img alt="@oxyhq/services" src="https://img.shields.io/npm/v/@oxyhq/services?style=flat-square&label=%40oxyhq%2Fservices&labelColor=440151&color=D26AE7"></a>
-  <a href="https://www.npmjs.com/package/@oxyhq/core"><img alt="@oxyhq/core" src="https://img.shields.io/npm/v/@oxyhq/core?style=flat-square&label=%40oxyhq%2Fcore&labelColor=440151&color=D26AE7"></a>
+  <a href="https://www.npmjs.com/package/@oxy.so/services"><img alt="@oxy.so/services" src="https://img.shields.io/npm/v/@oxy.so/services?style=flat-square&label=%40oxy.so%2Fservices&labelColor=440151&color=D26AE7"></a>
+  <a href="https://www.npmjs.com/package/@oxy.so/core"><img alt="@oxy.so/core" src="https://img.shields.io/npm/v/@oxy.so/core?style=flat-square&label=%40oxy.so%2Fcore&labelColor=440151&color=D26AE7"></a>
   <a href="LICENSE"><img alt="Apache-2.0 SDK, Breathe server" src="https://img.shields.io/badge/license-Apache--2.0%20SDK%20%C2%B7%20Breathe%20server-440151?style=flat-square"></a>
   <img alt="Bun" src="https://img.shields.io/badge/bun-1.3+-440151?style=flat-square&logo=bun&logoColor=white">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-440151?style=flat-square&logo=typescript&logoColor=white">
@@ -51,11 +51,11 @@ DIDs resolve at `did:web:oxy.so:u:<id>`, reversible in both directions.
 
 ```mermaid
 graph TD
-    P["@oxyhq/protocol<br/><i>signed records, canonical JSON</i>"] --> C["@oxyhq/core<br/><i>API client, session engine, crypto</i>"]
-    K["@oxyhq/contracts<br/><i>Zod schemas, one source of truth</i>"] --> C
-    K --> A["@oxyhq/api<br/><i>api.oxy.so</i>"]
-    F["@oxyhq/federation<br/><i>ActivityPub identity</i>"] --> A
-    C --> S["@oxyhq/services<br/><i>the single UI SDK</i>"]
+    P["@oxy.so/protocol<br/><i>signed records, canonical JSON</i>"] --> C["@oxy.so/core<br/><i>API client, session engine, crypto</i>"]
+    K["@oxy.so/contracts<br/><i>Zod schemas, one source of truth</i>"] --> C
+    K --> A["@oxy.so/api<br/><i>api.oxy.so</i>"]
+    F["@oxy.so/federation<br/><i>ActivityPub identity</i>"] --> A
+    C --> S["@oxy.so/services<br/><i>the single UI SDK</i>"]
     C --> A
     S --> Commons["Commons<br/><i>identity vault</i>"]
     S --> Accounts["Accounts<br/><i>account management</i>"]
@@ -109,19 +109,19 @@ chosen by name. See the
 
 | Package | What it is |
 |---|---|
-| [`@oxyhq/protocol`](packages/protocol/) | Signed record envelope, canonical JSON, signing and verification |
-| [`@oxyhq/contracts`](packages/contracts/) | Contract first API schemas in Zod. Zero React or Expo, so server and clients share one source of truth |
-| [`@oxyhq/federation`](packages/federation/) | App agnostic ActivityPub identity and follow layer |
-| [`@oxyhq/core`](packages/core/) | API client, session engine, crypto, types. Node, browsers and React Native |
+| [`@oxy.so/protocol`](packages/protocol/) | Signed record envelope, canonical JSON, signing and verification |
+| [`@oxy.so/contracts`](packages/contracts/) | Contract first API schemas in Zod. Zero React or Expo, so server and clients share one source of truth |
+| [`@oxy.so/federation`](packages/federation/) | App agnostic ActivityPub identity and follow layer |
+| [`@oxy.so/core`](packages/core/) | API client, session engine, crypto, types. Node, browsers and React Native |
 | [`@oxy.so/telemetry`](packages/telemetry/) | Framework-agnostic anonymous activity metadata, validation and aggregation primitives |
 
 ### 🚀 Server and SDK
 
 | Package | What it is |
 |---|---|
-| [`@oxyhq/api`](packages/api/) | The Express backend behind `api.oxy.so` |
-| [`@oxyhq/services`](packages/services/) | **The single UI SDK.** Expo, React Native and web through React Native Web |
-| [`@oxyhq/node`](packages/node/) | Self hostable personal data node for a user's own signed records |
+| [`@oxy.so/api`](packages/api/) | The Express backend behind `api.oxy.so` |
+| [`@oxy.so/services`](packages/services/) | **The single UI SDK.** Expo, React Native and web through React Native Web |
+| [`@oxy.so/node`](packages/node/) | Self hostable personal data node for a user's own signed records |
 
 </td>
 <td valign="top" width="50%">
@@ -140,15 +140,15 @@ chosen by name. See the
 | Package | What it is |
 |---|---|
 | [`create-oxy-app`](packages/create-oxy-app/) | `bun create oxy-app`, scaffolds a new app in the canonical shape |
-| [`@oxyhq/app-preset`](packages/app-preset/) | The Oxy distro of Expo: config plugin and Metro, Babel, CSS, ESLint bases |
-| [`@oxyhq/expo-splash`](packages/expo-splash/) | Shared native splash toolkit |
-| [`@oxyhq/ship`](packages/ship/) | `oxy-ship`, publishes Expo OTA updates |
+| [`@oxy.so/app-preset`](packages/app-preset/) | The Oxy distro of Expo: config plugin and Metro, Babel, CSS, ESLint bases |
+| [`@oxy.so/expo-splash`](packages/expo-splash/) | Shared native splash toolkit |
+| [`@oxy.so/ship`](packages/ship/) | `oxy-ship`, publishes Expo OTA updates |
 
 </td>
 </tr>
 </table>
 
-> There is no separate web only auth SDK. Web apps use `@oxyhq/services` through React Native Web, so every platform shares one provider and one auth UI.
+> There is no separate web only auth SDK. Web apps use `@oxy.so/services` through React Native Web, so every platform shares one provider and one auth UI.
 
 ## Quick start
 
@@ -164,7 +164,7 @@ Requires Node 18+ and Bun 1.3+. Build order comes from the dependency graph: `co
 <br>
 
 ```tsx
-import { OxyProvider, useAuth } from "@oxyhq/services";
+import { OxyProvider, useAuth } from "@oxy.so/services";
 
 function App() {
   return (
@@ -191,7 +191,7 @@ function MyComponent() {
 <br>
 
 ```ts
-import { OxyServices, oxyClient } from "@oxyhq/core";
+import { OxyServices, oxyClient } from "@oxy.so/core";
 
 const user = await oxyClient.getUserById("user-id");
 
@@ -199,7 +199,7 @@ const oxy = new OxyServices({ baseURL: "https://api.oxy.so" });
 const profile = await oxy.getProfileByUsername("johndoe");
 ```
 
-Protect routes with `@oxyhq/core/server`: `createOxyAuthMiddleware`, `requireOxyAuth`, `getRequiredOxyUserId`, plus `safeFetch` for SSRF safe outbound requests and `createOxyCors` for a deny by default CORS policy.
+Protect routes with `@oxy.so/core/server`: `createOxyAuthMiddleware`, `requireOxyAuth`, `getRequiredOxyUserId`, plus `safeFetch` for SSRF safe outbound requests and `createOxyCors` for a deny by default CORS policy.
 
 </details>
 
@@ -215,7 +215,7 @@ bun run dev         # dev mode across workspaces
 bun run test        # tests, turbo dispatches each package's own runner
 ```
 
-Packages never re-export from one another. Apps import `@oxyhq/services` for the provider and UI, `@oxyhq/core` for types and services, and `@oxyhq/contracts` for schemas.
+Packages never re-export from one another. Apps import `@oxy.so/services` for the provider and UI, `@oxy.so/core` for types and services, and `@oxy.so/contracts` for schemas.
 
 </details>
 

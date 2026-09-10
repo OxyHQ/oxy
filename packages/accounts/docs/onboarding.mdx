@@ -55,7 +55,7 @@ The MyAccount app surfaces a few KeyManager invariants directly:
 - `verifyIdentityIntegrity()` runs after the create / recover write — a sign/verify probe ensures the persisted key is functional. If it fails, the app rolls back to the previous identity (if any) and surfaces an error.
 - `restoreIdentityFromBackup()` is never auto-invoked; the user explicitly triggers it from Security > Advanced.
 
-See `KeyManager` in [`@oxyhq/core`](/developers/docs/core) for the full safety contract.
+See `KeyManager` in [`@oxy.so/core`](/developers/docs/core) for the full safety contract.
 
 ## Patterns the flow enforces
 

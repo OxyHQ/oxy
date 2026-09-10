@@ -1,6 +1,6 @@
 {
-  "name": "@oxyhq/app-preset",
-  "version": "0.5.0",
+  "name": "@oxy.so/app-preset",
+  "version": "1.0.0",
   "description": "The Oxy distro of Expo — centralized Expo config plugin, Metro/Babel/ESLint factories, Tailwind base CSS and TypeScript bases shared by every Oxy app (Mention, Homiio, Allo, accounts, …). A zero-build package: apps replace copy-pasted config with a single dependency bump.",
   "main": "./app.plugin.js",
   "publishConfig": {
@@ -63,10 +63,10 @@
     "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs",
     "test": "node --test __tests__/*.test.js"
   },
-  "//peerDependencies": "THE TWO @oxyhq PEERS ARE DELIBERATE. This package couples to them by FILE PATH, not by API: `css/base.css` imports `@oxyhq/bloom/design-tokens/theme.css`, and `plugin/withOxyAppPreset.js` optionally requires `@oxyhq/services/plugins/withSharedIdentityReader`. Services is exact-pinned so every preset release names the one SDK generation whose plugin path was verified; 31.0.0 was checked before this 0.5.0 release. Bloom retains a measured floor and a breaking-major cap. Never replace either constraint with `*` or an uncapped range.",
+  "//peerDependencies": "THE TWO @oxy.so PEERS ARE DELIBERATE. This package couples to them by FILE PATH, not by API: `css/base.css` imports `@oxy.so/bloom/design-tokens/theme.css`, and `plugin/withOxyAppPreset.js` optionally requires `@oxy.so/services/plugins/withSharedIdentityReader`. Services is exact-pinned so every preset release names the one SDK generation whose plugin path was verified. Bloom retains a measured floor and a breaking-major cap. Never replace either constraint with `*` or an uncapped range.",
   "peerDependencies": {
-    "@oxyhq/bloom": ">=0.59.0 <2.0.0",
-    "@oxyhq/services": "31.0.0",
+    "@oxy.so/bloom": "^1.0.0",
+    "@oxy.so/services": "1.0.0",
     "babel-plugin-module-resolver": "*",
     "babel-preset-expo": "*",
     "eslint": ">=9.0.0",
@@ -79,10 +79,10 @@
     "tailwindcss": ">=4.0.0"
   },
   "peerDependenciesMeta": {
-    "@oxyhq/bloom": {
+    "@oxy.so/bloom": {
       "optional": true
     },
-    "@oxyhq/services": {
+    "@oxy.so/services": {
       "optional": true
     },
     "babel-plugin-module-resolver": {

@@ -1,12 +1,12 @@
 {
-  "name": "@oxyhq/api",
-  "version": "2.0.0",
+  "name": "@oxy.so/api",
+  "version": "1.0.0",
   "description": "OxyHQ API server with authentication, user management, and real-time features",
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/server.js",
     "dev": "bun --watch src/server.ts",
-    "build": "bun run --filter @oxy.so/telemetry build && bun run --filter @oxyhq/contracts build && bun run --filter @oxyhq/protocol build && bun run --filter @oxyhq/core build && bun run --filter @oxyhq/federation build && bun run --filter @oxyhq/db build && bun run --filter @oxyhq/mcp build && tsc",
+    "build": "bun run --filter @oxy.so/telemetry build && bun run --filter @oxy.so/contracts build && bun run --filter @oxy.so/protocol build && bun run --filter @oxy.so/core build && bun run --filter @oxy.so/federation build && bun run --filter @oxy.so/db build && bun run --filter @oxy.so/mcp build && tsc",
     "clean": "rm -rf dist",
     "migrate:locations": "bun run src/utils/migrateLocations.ts",
     "register:commons-clients": "bun run scripts/register-commons-clients.ts",
@@ -35,13 +35,13 @@
   },
   "release-it": {
     "git": {
-      "tagName": "@oxyhq/api@${version}",
-      "tagAnnotation": "Release @oxyhq/api@${version}",
-      "commitMessage": "chore(api): release @oxyhq/api@${version}"
+      "tagName": "@oxy.so/api@${version}",
+      "tagAnnotation": "Release @oxy.so/api@${version}",
+      "commitMessage": "chore(api): release @oxy.so/api@${version}"
     },
     "github": {
       "release": true,
-      "releaseName": "@oxyhq/api@${version}"
+      "releaseName": "@oxy.so/api@${version}"
     },
     "npm": {
       "publish": true
@@ -70,12 +70,12 @@
     "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
     "@opentelemetry/sdk-metrics": "^2.11.0",
     "@opentelemetry/sdk-node": "^0.222.0",
-    "@oxyhq/contracts": "workspace:*",
-    "@oxyhq/core": "workspace:*",
-    "@oxyhq/db": "workspace:*",
-    "@oxyhq/federation": "workspace:*",
-    "@oxyhq/mcp": "workspace:*",
-    "@oxyhq/protocol": "workspace:*",
+    "@oxy.so/contracts": "workspace:*",
+    "@oxy.so/core": "workspace:*",
+    "@oxy.so/db": "workspace:*",
+    "@oxy.so/federation": "workspace:*",
+    "@oxy.so/mcp": "workspace:*",
+    "@oxy.so/protocol": "workspace:*",
     "@simplewebauthn/server": "13.3.2",
     "@socket.io/redis-adapter": "^8.3.0",
     "@types/cheerio": "^1.0.0",

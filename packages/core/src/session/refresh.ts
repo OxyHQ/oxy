@@ -20,7 +20,7 @@
  *
  * Framework-free; no module-level mutable state.
  */
-import type { DeviceSessionState, DeviceTokenMintResponse } from '@oxyhq/contracts';
+import type { DeviceSessionState, DeviceTokenMintResponse } from '@oxy.so/contracts';
 import type { OxyServices } from '../OxyServices';
 import type { AuthRefreshHandler, AuthRefreshReason } from '../HttpService';
 import type { AuthStateStore, PersistedAuthState } from './authStateStore';

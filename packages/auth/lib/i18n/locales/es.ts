@@ -151,7 +151,7 @@ const es: LocaleDict = {
     goToSignIn: 'Ir a iniciar sesión',
     // La vía de Commons: aprobar la autorización directamente en Oxy, sin
     // iniciar sesión antes en este sitio. El titular y los mensajes de progreso
-    // vienen del diccionario compartido `accountSwitcher.*` de `@oxyhq/core`,
+    // vienen del diccionario compartido `accountSwitcher.*` de `@oxy.so/core`,
     // así que aquí solo viven las cadenas propias de esta vía.
     commons: {
       description:

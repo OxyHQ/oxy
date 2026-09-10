@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { Loading } from '@oxyhq/bloom/loading';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { Switch } from '@oxyhq/bloom/switch';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { Loading } from '@oxy.so/bloom/loading';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { Switch } from '@oxy.so/bloom/switch';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useSettingToggles } from '../hooks/useSettingToggle';
 import { useOxy } from '../context/OxyContext';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 
 interface SearchSettings {
     safeSearch: boolean;

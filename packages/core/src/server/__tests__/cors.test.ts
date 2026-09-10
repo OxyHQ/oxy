@@ -33,7 +33,7 @@ function makeNext(): NextFunction & jest.Mock {
   return jest.fn() as unknown as NextFunction & jest.Mock;
 }
 
-describe('@oxyhq/core/server createOxyCors', () => {
+describe('@oxy.so/core/server createOxyCors', () => {
   it('allows the HTTPS Oxy apex family (apex + one-level subdomains) and echoes the exact origin', () => {
     const mw = createOxyCors();
     for (const origin of [

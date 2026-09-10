@@ -63,8 +63,8 @@ import {
   commercialPermissionSchema,
   INFERENCE_MONEY_SCALE,
   USAGE_UNITS,
-} from '@oxyhq/contracts';
-import { createdAt, generatedId, inList, textArrayLiteral, timestamptz, updatedAt } from '@oxyhq/db';
+} from '@oxy.so/contracts';
+import { createdAt, generatedId, inList, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
 import { inferenceModelRevisions } from './inferenceModelRevisions';
 import { inferenceProviders } from './inferenceProviders';
 import { priceVersions } from './priceVersions';

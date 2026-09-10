@@ -39,7 +39,7 @@ import { desc, eq } from 'drizzle-orm';
 import {
   modelGpaiDocumentationSchema,
   modelReleaseIngestionRequestSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { describeRolloutFlags } from '../config/rolloutFlags';
 import {

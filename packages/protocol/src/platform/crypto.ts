@@ -126,7 +126,7 @@ export async function loadExpoCrypto(): Promise<ExpoCryptoLike> {
     // helpful diagnostic rather than fall back to a broken dynamic import.
     throw new Error(
       '[oxy.protocol.crypto] React Native runtime resolved the default ' +
-        '(non-RN) variant of @oxyhq/protocol/platform/crypto. Check the ' +
+        '(non-RN) variant of @oxy.so/protocol/platform/crypto. Check the ' +
         "consumer's bundler resolution — Metro should pick the sibling " +
         '.native.js file via package exports.',
     );
@@ -159,10 +159,10 @@ export function getRandomBytesRN(_byteCount: number): Uint8Array {
 }
 
 // ---------------------------------------------------------------------------
-// Shared identity bridge — `@oxyhq/expo-oxy-identity` (native-only).
+// Shared identity bridge — `@oxy.so/expo-oxy-identity` (native-only).
 //
 // The default (web / Node) variant has no cross-app identity channel, so this
-// always resolves to `null`. `@oxyhq/core`'s `KeyManager` treats `null` as "no
+// always resolves to `null`. `@oxy.so/core`'s `KeyManager` treats `null` as "no
 // bridge" and falls back to its package-private store — which is correct on web
 // (there is no shared identity there).
 // ---------------------------------------------------------------------------

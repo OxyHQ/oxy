@@ -589,7 +589,7 @@ Still in `packages/commons/app.config.js`, replace:
 
 ```js
 // The URL scheme is intentionally shared, so the NFC/deep-link plumbing
-// (`plugins/with-hce.js`, the `oxycommons://` payloads in @oxyhq/core) keeps
+// (`plugins/with-hce.js`, the `oxycommons://` payloads in @oxy.so/core) keeps
 // working unchanged — Android just shows an app chooser when both are installed.
 ```
 
@@ -597,7 +597,7 @@ with:
 
 ```js
 // The URL scheme is intentionally shared, so the deep-link plumbing (the
-// `oxycommons://` payloads minted in @oxyhq/core) keeps working unchanged —
+// `oxycommons://` payloads minted in @oxy.so/core) keeps working unchanged —
 // Android just shows an app chooser when both are installed.
 ```
 

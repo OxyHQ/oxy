@@ -1,5 +1,5 @@
 {
-  "//": "Solution file: `tsc -b` builds the referenced packages in dependency order. Each package extends an @oxyhq/app-preset tsconfig base.",
+  "//": "Solution file: `tsc -b` builds the referenced packages in dependency order. Each package extends an @oxy.so/app-preset tsconfig base.",
   "files": [],
   "references": [
     { "path": "./packages/shared-types" },

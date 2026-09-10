@@ -6,7 +6,7 @@
  */
 
 import { isWeb, isIOS, isAndroid } from '../utils/platform';
-import { type ExpoCryptoLike, type ExpoSecureStoreLike, isReactNative, isNodeJS, loadAsyncStorage, loadExpoCrypto, loadNodeCrypto, loadSecureStore, loadSharedIdentityBridge } from '@oxyhq/protocol';
+import { type ExpoCryptoLike, type ExpoSecureStoreLike, isReactNative, isNodeJS, loadAsyncStorage, loadExpoCrypto, loadNodeCrypto, loadSecureStore, loadSharedIdentityBridge } from '@oxy.so/protocol';
 import {
   deriveSecp256k1PublicKey,
   generateSecp256k1KeyPair,
@@ -16,7 +16,7 @@ import {
   normalizeSecp256k1PublicKey,
   signSecp256k1Digest,
   verifySecp256k1Digest,
-} from '@oxyhq/protocol/secp256k1';
+} from '@oxy.so/protocol/secp256k1';
 import { isDev, logger } from '../logger';
 import { hkdfSha256 } from './kdf';
 import {
@@ -31,7 +31,7 @@ import {
  * Options for expo-secure-store calls made by KeyManager.
  *
  * Defined as a standalone interface (not extending expo-secure-store's
- * `SecureStoreOptions`) so that server / Node.js consumers of @oxyhq/core
+ * `SecureStoreOptions`) so that server / Node.js consumers of @oxy.so/core
  * do not transitively pull in expo-modules-core's type declarations under
  * NodeNext module resolution (which would cause NodeJS.Timeout / number
  * pollution across all timer APIs). The fields mirror SecureStoreOptions
@@ -294,7 +294,7 @@ const ANDROID_ACCOUNT_TYPE = 'com.oxy.account';
 /**
  * Initialize React Native specific modules
  *
- * Delegates to `@oxyhq/protocol`'s `platform/crypto`, a per-platform module
+ * Delegates to `@oxy.so/protocol`'s `platform/crypto`, a per-platform module
  * (`crypto.ts` vs `crypto.native.ts`) selected by the
  * consumer's bundler. On RN it returns a statically-imported handle to
  * `expo-secure-store`; off RN it throws (and is never called because every
@@ -878,7 +878,7 @@ export class KeyManager {
         );
       }
     } else if (isAndroid()) {
-      // Android: write through the cross-app bridge (`@oxyhq/expo-oxy-identity`)
+      // Android: write through the cross-app bridge (`@oxy.so/expo-oxy-identity`)
       // when present — it persists into Commons's hardware-backed
       // EncryptedSharedPreferences behind a signature-protected ContentProvider,
       // so same-key Oxy apps can read it. When the bridge is not linked, fall

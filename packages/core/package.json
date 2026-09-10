@@ -1,6 +1,6 @@
 {
-  "name": "@oxyhq/core",
-  "version": "23.3.4",
+  "name": "@oxy.so/core",
+  "version": "1.0.0",
   "description": "OxyHQ SDK Foundation — API client, authentication, cryptographic identity, and shared utilities",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -101,13 +101,13 @@
   },
   "release-it": {
     "git": {
-      "tagName": "@oxyhq/core@${version}",
-      "tagAnnotation": "Release @oxyhq/core@${version}",
-      "commitMessage": "chore(core): release @oxyhq/core@${version}"
+      "tagName": "@oxy.so/core@${version}",
+      "tagAnnotation": "Release @oxy.so/core@${version}",
+      "commitMessage": "chore(core): release @oxy.so/core@${version}"
     },
     "github": {
       "release": true,
-      "releaseName": "@oxyhq/core@${version}"
+      "releaseName": "@oxy.so/core@${version}"
     },
     "npm": {
       "publish": true
@@ -117,8 +117,8 @@
     "@oxy.so/telemetry": "workspace:^",
     "@noble/ciphers": "^1.3.0",
     "@noble/hashes": "^1.8.0",
-    "@oxyhq/contracts": "workspace:^",
-    "@oxyhq/protocol": "workspace:^",
+    "@oxy.so/contracts": "workspace:^",
+    "@oxy.so/protocol": "workspace:^",
     "@scure/bip39": "^1.6.0",
     "buffer": "^6.0.3",
     "express-rate-limit": "catalog:",

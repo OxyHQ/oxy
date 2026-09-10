@@ -1,14 +1,14 @@
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text } from 'react-native';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { Chip } from '@oxyhq/bloom/chip';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { reputationCategoryLabel } from '@oxyhq/core';
-import type { ReputationRule, ReputationCategory } from '@oxyhq/contracts';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { Chip } from '@oxy.so/bloom/chip';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { reputationCategoryLabel } from '@oxy.so/core';
+import type { ReputationRule, ReputationCategory } from '@oxy.so/contracts';
 import type { BaseScreenProps } from '../../types/navigation';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useI18n } from '../../hooks/useI18n';
 import { useOxy } from '../../context/OxyContext';
 

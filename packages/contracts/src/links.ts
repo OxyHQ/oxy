@@ -5,7 +5,7 @@
  * resolution surface: the single `GET` lookup and the `POST` batch lookup that
  * every app calls through the SDK so apps stop duplicating their own
  * link-metadata fetching. The API validates its OUTPUT against these schemas;
- * every consumer (`@oxyhq/core`'s link mixin and the apps that call it)
+ * every consumer (`@oxy.so/core`'s link mixin and the apps that call it)
  * validates its INPUT against the same definitions, so producer and consumers
  * cannot drift.
  *
