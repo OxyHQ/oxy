@@ -164,6 +164,8 @@ export {
     signedRecordEnvelopeSchema,
     verifiedDomainSchema,
     domainVerificationRequestSchema,
+    resourceDomainOwnershipRequestSchema,
+    resourceDomainOwnershipResponseSchema,
     domainVerificationInstructionsSchema,
     authMethodEntrySchema,
     authMethodsResponseSchema,
@@ -184,6 +186,8 @@ export type {
     SignedRecordEnvelope,
     VerifiedDomain,
     DomainVerificationRequest,
+    ResourceDomainOwnershipRequest,
+    ResourceDomainOwnershipResponse,
     DomainVerificationInstructions,
     AuthMethodEntry,
     AuthMethodsResponse,
@@ -416,21 +420,6 @@ export type {
     ReputationContextualInfluence,
     ApplicationModerationTrust,
 } from './moderationReputation';
-
-export {
-    // Schemas
-    linkPreviewSchema,
-    linkPreviewBatchRequestSchema,
-    linkPreviewBatchResponseSchema,
-    linkPreviewResponseSchema,
-} from './links';
-
-export type {
-    LinkPreviewStatus,
-    LinkPreview,
-    LinkPreviewBatchRequest,
-    LinkPreviewBatchResponse,
-} from './links';
 
 export type {
     FollowTargetKind,

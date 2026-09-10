@@ -66,7 +66,7 @@ export const MAX_LINK_DESCRIPTION_LENGTH = 500;
 /** Max stored length of a location's `name` / `label` and its address parts. */
 export const MAX_LOCATION_TEXT_LENGTH = 200;
 
-/** Max stored length of a profile link URL (matches the link-preview URL bound). */
+/** Max stored length of a profile link URL. */
 export const MAX_LINK_URL_LENGTH = 2048;
 
 /**

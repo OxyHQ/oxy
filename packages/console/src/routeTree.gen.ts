@@ -9,56 +9,48 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LayoutRouteImport } from './routes/_layout'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as LayoutUsageRouteImport } from './routes/_layout/usage'
-import { Route as LayoutPlaygroundRouteImport } from './routes/_layout/playground'
-import { Route as LayoutModelsRouteImport } from './routes/_layout/models'
-import { Route as LayoutExamplesRouteImport } from './routes/_layout/examples'
+import { Route as LayoutRouteImport } from './routes/_layout'
 import { Route as LayoutDashboardRouteImport } from './routes/_layout/dashboard'
-import { Route as LayoutDocumentationIndexRouteImport } from './routes/_layout/documentation/index'
-import { Route as LayoutBillingIndexRouteImport } from './routes/_layout/billing/index'
+import { Route as LayoutExamplesRouteImport } from './routes/_layout/examples'
+import { Route as LayoutModelsRouteImport } from './routes/_layout/models'
+import { Route as LayoutPlaygroundRouteImport } from './routes/_layout/playground'
+import { Route as LayoutUsageRouteImport } from './routes/_layout/usage'
 import { Route as LayoutAppsIndexRouteImport } from './routes/_layout/apps/index'
-import { Route as LayoutSettingsAuditRouteImport } from './routes/_layout/settings/audit'
-import { Route as LayoutSettingsAccountRouteImport } from './routes/_layout/settings/account'
-import { Route as LayoutDocumentationSdksRouteImport } from './routes/_layout/documentation/sdks'
-import { Route as LayoutDocumentationQuickstartRouteImport } from './routes/_layout/documentation/quickstart'
-import { Route as LayoutDocumentationModelsRouteImport } from './routes/_layout/documentation/models'
-import { Route as LayoutDocumentationChatCompletionsRouteImport } from './routes/_layout/documentation/chat-completions'
-import { Route as LayoutDocumentationAuthenticationRouteImport } from './routes/_layout/documentation/authentication'
-import { Route as LayoutBillingSpendRouteImport } from './routes/_layout/billing/spend'
-import { Route as LayoutBillingPlansRouteImport } from './routes/_layout/billing/plans'
-import { Route as LayoutBillingChargesRouteImport } from './routes/_layout/billing/charges'
-import { Route as LayoutBillingBudgetsRouteImport } from './routes/_layout/billing/budgets'
+import { Route as LayoutBillingIndexRouteImport } from './routes/_layout/billing/index'
 import { Route as LayoutBillingAuditRouteImport } from './routes/_layout/billing/audit'
+import { Route as LayoutBillingBudgetsRouteImport } from './routes/_layout/billing/budgets'
+import { Route as LayoutBillingChargesRouteImport } from './routes/_layout/billing/charges'
+import { Route as LayoutBillingPlansRouteImport } from './routes/_layout/billing/plans'
+import { Route as LayoutBillingSpendRouteImport } from './routes/_layout/billing/spend'
+import { Route as LayoutClarityIndexRouteImport } from './routes/_layout/clarity/index'
+import { Route as LayoutClaritySectionRouteImport } from './routes/_layout/clarity/$section'
+import { Route as LayoutDocumentationIndexRouteImport } from './routes/_layout/documentation/index'
+import { Route as LayoutDocumentationAuthenticationRouteImport } from './routes/_layout/documentation/authentication'
+import { Route as LayoutDocumentationChatCompletionsRouteImport } from './routes/_layout/documentation/chat-completions'
+import { Route as LayoutDocumentationModelsRouteImport } from './routes/_layout/documentation/models'
+import { Route as LayoutDocumentationQuickstartRouteImport } from './routes/_layout/documentation/quickstart'
+import { Route as LayoutDocumentationSdksRouteImport } from './routes/_layout/documentation/sdks'
+import { Route as LayoutSettingsAccountRouteImport } from './routes/_layout/settings/account'
+import { Route as LayoutSettingsAuditRouteImport } from './routes/_layout/settings/audit'
 import { Route as LayoutAppsAppIdIndexRouteImport } from './routes/_layout/apps/$appId/index'
-import { Route as LayoutAppsAppIdUpdatesRouteImport } from './routes/_layout/apps/$appId/updates'
-import { Route as LayoutAppsAppIdStoreRouteImport } from './routes/_layout/apps/$appId/store'
-import { Route as LayoutAppsAppIdSettingsRouteImport } from './routes/_layout/apps/$appId/settings'
 import { Route as LayoutAppsAppIdInferenceRouteImport } from './routes/_layout/apps/$appId/inference'
+import { Route as LayoutAppsAppIdSettingsRouteImport } from './routes/_layout/apps/$appId/settings'
+import { Route as LayoutAppsAppIdStoreRouteImport } from './routes/_layout/apps/$appId/store'
+import { Route as LayoutAppsAppIdUpdatesRouteImport } from './routes/_layout/apps/$appId/updates'
 
-const LayoutRoute = LayoutRouteImport.update({
-  id: '/_layout',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LayoutUsageRoute = LayoutUsageRouteImport.update({
-  id: '/usage',
-  path: '/usage',
-  getParentRoute: () => LayoutRoute,
+const LayoutRoute = LayoutRouteImport.update({
+  id: '/_layout',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const LayoutPlaygroundRoute = LayoutPlaygroundRouteImport.update({
-  id: '/playground',
-  path: '/playground',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutModelsRoute = LayoutModelsRouteImport.update({
-  id: '/models',
-  path: '/models',
+const LayoutDashboardRoute = LayoutDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutExamplesRoute = LayoutExamplesRouteImport.update({
@@ -66,9 +58,64 @@ const LayoutExamplesRoute = LayoutExamplesRouteImport.update({
   path: '/examples',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutDashboardRoute = LayoutDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const LayoutModelsRoute = LayoutModelsRouteImport.update({
+  id: '/models',
+  path: '/models',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutPlaygroundRoute = LayoutPlaygroundRouteImport.update({
+  id: '/playground',
+  path: '/playground',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutUsageRoute = LayoutUsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutAppsIndexRoute = LayoutAppsIndexRouteImport.update({
+  id: '/apps/',
+  path: '/apps/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutBillingIndexRoute = LayoutBillingIndexRouteImport.update({
+  id: '/billing/',
+  path: '/billing/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutBillingAuditRoute = LayoutBillingAuditRouteImport.update({
+  id: '/billing/audit',
+  path: '/billing/audit',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutBillingBudgetsRoute = LayoutBillingBudgetsRouteImport.update({
+  id: '/billing/budgets',
+  path: '/billing/budgets',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutBillingChargesRoute = LayoutBillingChargesRouteImport.update({
+  id: '/billing/charges',
+  path: '/billing/charges',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutBillingPlansRoute = LayoutBillingPlansRouteImport.update({
+  id: '/billing/plans',
+  path: '/billing/plans',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutBillingSpendRoute = LayoutBillingSpendRouteImport.update({
+  id: '/billing/spend',
+  path: '/billing/spend',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutClarityIndexRoute = LayoutClarityIndexRouteImport.update({
+  id: '/clarity/',
+  path: '/clarity/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutClaritySectionRoute = LayoutClaritySectionRouteImport.update({
+  id: '/clarity/$section',
+  path: '/clarity/$section',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutDocumentationIndexRoute =
@@ -77,41 +124,10 @@ const LayoutDocumentationIndexRoute =
     path: '/documentation/',
     getParentRoute: () => LayoutRoute,
   } as any)
-const LayoutBillingIndexRoute = LayoutBillingIndexRouteImport.update({
-  id: '/billing/',
-  path: '/billing/',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutAppsIndexRoute = LayoutAppsIndexRouteImport.update({
-  id: '/apps/',
-  path: '/apps/',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutSettingsAuditRoute = LayoutSettingsAuditRouteImport.update({
-  id: '/settings/audit',
-  path: '/settings/audit',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutSettingsAccountRoute = LayoutSettingsAccountRouteImport.update({
-  id: '/settings/account',
-  path: '/settings/account',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutDocumentationSdksRoute = LayoutDocumentationSdksRouteImport.update({
-  id: '/documentation/sdks',
-  path: '/documentation/sdks',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutDocumentationQuickstartRoute =
-  LayoutDocumentationQuickstartRouteImport.update({
-    id: '/documentation/quickstart',
-    path: '/documentation/quickstart',
-    getParentRoute: () => LayoutRoute,
-  } as any)
-const LayoutDocumentationModelsRoute =
-  LayoutDocumentationModelsRouteImport.update({
-    id: '/documentation/models',
-    path: '/documentation/models',
+const LayoutDocumentationAuthenticationRoute =
+  LayoutDocumentationAuthenticationRouteImport.update({
+    id: '/documentation/authentication',
+    path: '/documentation/authentication',
     getParentRoute: () => LayoutRoute,
   } as any)
 const LayoutDocumentationChatCompletionsRoute =
@@ -120,55 +136,36 @@ const LayoutDocumentationChatCompletionsRoute =
     path: '/documentation/chat-completions',
     getParentRoute: () => LayoutRoute,
   } as any)
-const LayoutDocumentationAuthenticationRoute =
-  LayoutDocumentationAuthenticationRouteImport.update({
-    id: '/documentation/authentication',
-    path: '/documentation/authentication',
+const LayoutDocumentationModelsRoute =
+  LayoutDocumentationModelsRouteImport.update({
+    id: '/documentation/models',
+    path: '/documentation/models',
     getParentRoute: () => LayoutRoute,
   } as any)
-const LayoutBillingSpendRoute = LayoutBillingSpendRouteImport.update({
-  id: '/billing/spend',
-  path: '/billing/spend',
+const LayoutDocumentationQuickstartRoute =
+  LayoutDocumentationQuickstartRouteImport.update({
+    id: '/documentation/quickstart',
+    path: '/documentation/quickstart',
+    getParentRoute: () => LayoutRoute,
+  } as any)
+const LayoutDocumentationSdksRoute = LayoutDocumentationSdksRouteImport.update({
+  id: '/documentation/sdks',
+  path: '/documentation/sdks',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutBillingPlansRoute = LayoutBillingPlansRouteImport.update({
-  id: '/billing/plans',
-  path: '/billing/plans',
+const LayoutSettingsAccountRoute = LayoutSettingsAccountRouteImport.update({
+  id: '/settings/account',
+  path: '/settings/account',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutBillingChargesRoute = LayoutBillingChargesRouteImport.update({
-  id: '/billing/charges',
-  path: '/billing/charges',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutBillingBudgetsRoute = LayoutBillingBudgetsRouteImport.update({
-  id: '/billing/budgets',
-  path: '/billing/budgets',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutBillingAuditRoute = LayoutBillingAuditRouteImport.update({
-  id: '/billing/audit',
-  path: '/billing/audit',
+const LayoutSettingsAuditRoute = LayoutSettingsAuditRouteImport.update({
+  id: '/settings/audit',
+  path: '/settings/audit',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutAppsAppIdIndexRoute = LayoutAppsAppIdIndexRouteImport.update({
   id: '/apps/$appId/',
   path: '/apps/$appId/',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutAppsAppIdUpdatesRoute = LayoutAppsAppIdUpdatesRouteImport.update({
-  id: '/apps/$appId/updates',
-  path: '/apps/$appId/updates',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutAppsAppIdStoreRoute = LayoutAppsAppIdStoreRouteImport.update({
-  id: '/apps/$appId/store',
-  path: '/apps/$appId/store',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutAppsAppIdSettingsRoute = LayoutAppsAppIdSettingsRouteImport.update({
-  id: '/apps/$appId/settings',
-  path: '/apps/$appId/settings',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutAppsAppIdInferenceRoute =
@@ -177,6 +174,21 @@ const LayoutAppsAppIdInferenceRoute =
     path: '/apps/$appId/inference',
     getParentRoute: () => LayoutRoute,
   } as any)
+const LayoutAppsAppIdSettingsRoute = LayoutAppsAppIdSettingsRouteImport.update({
+  id: '/apps/$appId/settings',
+  path: '/apps/$appId/settings',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutAppsAppIdStoreRoute = LayoutAppsAppIdStoreRouteImport.update({
+  id: '/apps/$appId/store',
+  path: '/apps/$appId/store',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutAppsAppIdUpdatesRoute = LayoutAppsAppIdUpdatesRouteImport.update({
+  id: '/apps/$appId/updates',
+  path: '/apps/$appId/updates',
+  getParentRoute: () => LayoutRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -190,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/billing/charges': typeof LayoutBillingChargesRoute
   '/billing/plans': typeof LayoutBillingPlansRoute
   '/billing/spend': typeof LayoutBillingSpendRoute
+  '/clarity/$section': typeof LayoutClaritySectionRoute
   '/documentation/authentication': typeof LayoutDocumentationAuthenticationRoute
   '/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
   '/documentation/models': typeof LayoutDocumentationModelsRoute
@@ -199,6 +212,7 @@ export interface FileRoutesByFullPath {
   '/settings/audit': typeof LayoutSettingsAuditRoute
   '/apps/': typeof LayoutAppsIndexRoute
   '/billing/': typeof LayoutBillingIndexRoute
+  '/clarity/': typeof LayoutClarityIndexRoute
   '/documentation/': typeof LayoutDocumentationIndexRoute
   '/apps/$appId/inference': typeof LayoutAppsAppIdInferenceRoute
   '/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
@@ -218,6 +232,7 @@ export interface FileRoutesByTo {
   '/billing/charges': typeof LayoutBillingChargesRoute
   '/billing/plans': typeof LayoutBillingPlansRoute
   '/billing/spend': typeof LayoutBillingSpendRoute
+  '/clarity/$section': typeof LayoutClaritySectionRoute
   '/documentation/authentication': typeof LayoutDocumentationAuthenticationRoute
   '/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
   '/documentation/models': typeof LayoutDocumentationModelsRoute
@@ -227,6 +242,7 @@ export interface FileRoutesByTo {
   '/settings/audit': typeof LayoutSettingsAuditRoute
   '/apps': typeof LayoutAppsIndexRoute
   '/billing': typeof LayoutBillingIndexRoute
+  '/clarity': typeof LayoutClarityIndexRoute
   '/documentation': typeof LayoutDocumentationIndexRoute
   '/apps/$appId/inference': typeof LayoutAppsAppIdInferenceRoute
   '/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
@@ -248,6 +264,7 @@ export interface FileRoutesById {
   '/_layout/billing/charges': typeof LayoutBillingChargesRoute
   '/_layout/billing/plans': typeof LayoutBillingPlansRoute
   '/_layout/billing/spend': typeof LayoutBillingSpendRoute
+  '/_layout/clarity/$section': typeof LayoutClaritySectionRoute
   '/_layout/documentation/authentication': typeof LayoutDocumentationAuthenticationRoute
   '/_layout/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
   '/_layout/documentation/models': typeof LayoutDocumentationModelsRoute
@@ -257,6 +274,7 @@ export interface FileRoutesById {
   '/_layout/settings/audit': typeof LayoutSettingsAuditRoute
   '/_layout/apps/': typeof LayoutAppsIndexRoute
   '/_layout/billing/': typeof LayoutBillingIndexRoute
+  '/_layout/clarity/': typeof LayoutClarityIndexRoute
   '/_layout/documentation/': typeof LayoutDocumentationIndexRoute
   '/_layout/apps/$appId/inference': typeof LayoutAppsAppIdInferenceRoute
   '/_layout/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
@@ -278,6 +296,7 @@ export interface FileRouteTypes {
     | '/billing/charges'
     | '/billing/plans'
     | '/billing/spend'
+    | '/clarity/$section'
     | '/documentation/authentication'
     | '/documentation/chat-completions'
     | '/documentation/models'
@@ -287,6 +306,7 @@ export interface FileRouteTypes {
     | '/settings/audit'
     | '/apps/'
     | '/billing/'
+    | '/clarity/'
     | '/documentation/'
     | '/apps/$appId/inference'
     | '/apps/$appId/settings'
@@ -306,6 +326,7 @@ export interface FileRouteTypes {
     | '/billing/charges'
     | '/billing/plans'
     | '/billing/spend'
+    | '/clarity/$section'
     | '/documentation/authentication'
     | '/documentation/chat-completions'
     | '/documentation/models'
@@ -315,6 +336,7 @@ export interface FileRouteTypes {
     | '/settings/audit'
     | '/apps'
     | '/billing'
+    | '/clarity'
     | '/documentation'
     | '/apps/$appId/inference'
     | '/apps/$appId/settings'
@@ -335,6 +357,7 @@ export interface FileRouteTypes {
     | '/_layout/billing/charges'
     | '/_layout/billing/plans'
     | '/_layout/billing/spend'
+    | '/_layout/clarity/$section'
     | '/_layout/documentation/authentication'
     | '/_layout/documentation/chat-completions'
     | '/_layout/documentation/models'
@@ -344,6 +367,7 @@ export interface FileRouteTypes {
     | '/_layout/settings/audit'
     | '/_layout/apps/'
     | '/_layout/billing/'
+    | '/_layout/clarity/'
     | '/_layout/documentation/'
     | '/_layout/apps/$appId/inference'
     | '/_layout/apps/$appId/settings'
@@ -359,13 +383,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/_layout': {
-      id: '/_layout'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof LayoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -373,25 +390,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_layout/usage': {
-      id: '/_layout/usage'
-      path: '/usage'
-      fullPath: '/usage'
-      preLoaderRoute: typeof LayoutUsageRouteImport
-      parentRoute: typeof LayoutRoute
+    '/_layout': {
+      id: '/_layout'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof LayoutRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_layout/playground': {
-      id: '/_layout/playground'
-      path: '/playground'
-      fullPath: '/playground'
-      preLoaderRoute: typeof LayoutPlaygroundRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/models': {
-      id: '/_layout/models'
-      path: '/models'
-      fullPath: '/models'
-      preLoaderRoute: typeof LayoutModelsRouteImport
+    '/_layout/dashboard': {
+      id: '/_layout/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof LayoutDashboardRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/examples': {
@@ -401,25 +411,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutExamplesRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/dashboard': {
-      id: '/_layout/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof LayoutDashboardRouteImport
+    '/_layout/models': {
+      id: '/_layout/models'
+      path: '/models'
+      fullPath: '/models'
+      preLoaderRoute: typeof LayoutModelsRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/documentation/': {
-      id: '/_layout/documentation/'
-      path: '/documentation'
-      fullPath: '/documentation/'
-      preLoaderRoute: typeof LayoutDocumentationIndexRouteImport
+    '/_layout/playground': {
+      id: '/_layout/playground'
+      path: '/playground'
+      fullPath: '/playground'
+      preLoaderRoute: typeof LayoutPlaygroundRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/billing/': {
-      id: '/_layout/billing/'
-      path: '/billing'
-      fullPath: '/billing/'
-      preLoaderRoute: typeof LayoutBillingIndexRouteImport
+    '/_layout/usage': {
+      id: '/_layout/usage'
+      path: '/usage'
+      fullPath: '/usage'
+      preLoaderRoute: typeof LayoutUsageRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/apps/': {
@@ -429,81 +439,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAppsIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/settings/audit': {
-      id: '/_layout/settings/audit'
-      path: '/settings/audit'
-      fullPath: '/settings/audit'
-      preLoaderRoute: typeof LayoutSettingsAuditRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/settings/account': {
-      id: '/_layout/settings/account'
-      path: '/settings/account'
-      fullPath: '/settings/account'
-      preLoaderRoute: typeof LayoutSettingsAccountRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/documentation/sdks': {
-      id: '/_layout/documentation/sdks'
-      path: '/documentation/sdks'
-      fullPath: '/documentation/sdks'
-      preLoaderRoute: typeof LayoutDocumentationSdksRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/documentation/quickstart': {
-      id: '/_layout/documentation/quickstart'
-      path: '/documentation/quickstart'
-      fullPath: '/documentation/quickstart'
-      preLoaderRoute: typeof LayoutDocumentationQuickstartRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/documentation/models': {
-      id: '/_layout/documentation/models'
-      path: '/documentation/models'
-      fullPath: '/documentation/models'
-      preLoaderRoute: typeof LayoutDocumentationModelsRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/documentation/chat-completions': {
-      id: '/_layout/documentation/chat-completions'
-      path: '/documentation/chat-completions'
-      fullPath: '/documentation/chat-completions'
-      preLoaderRoute: typeof LayoutDocumentationChatCompletionsRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/documentation/authentication': {
-      id: '/_layout/documentation/authentication'
-      path: '/documentation/authentication'
-      fullPath: '/documentation/authentication'
-      preLoaderRoute: typeof LayoutDocumentationAuthenticationRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/billing/spend': {
-      id: '/_layout/billing/spend'
-      path: '/billing/spend'
-      fullPath: '/billing/spend'
-      preLoaderRoute: typeof LayoutBillingSpendRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/billing/plans': {
-      id: '/_layout/billing/plans'
-      path: '/billing/plans'
-      fullPath: '/billing/plans'
-      preLoaderRoute: typeof LayoutBillingPlansRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/billing/charges': {
-      id: '/_layout/billing/charges'
-      path: '/billing/charges'
-      fullPath: '/billing/charges'
-      preLoaderRoute: typeof LayoutBillingChargesRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/billing/budgets': {
-      id: '/_layout/billing/budgets'
-      path: '/billing/budgets'
-      fullPath: '/billing/budgets'
-      preLoaderRoute: typeof LayoutBillingBudgetsRouteImport
+    '/_layout/billing/': {
+      id: '/_layout/billing/'
+      path: '/billing'
+      fullPath: '/billing/'
+      preLoaderRoute: typeof LayoutBillingIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/billing/audit': {
@@ -513,6 +453,104 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutBillingAuditRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/billing/budgets': {
+      id: '/_layout/billing/budgets'
+      path: '/billing/budgets'
+      fullPath: '/billing/budgets'
+      preLoaderRoute: typeof LayoutBillingBudgetsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/billing/charges': {
+      id: '/_layout/billing/charges'
+      path: '/billing/charges'
+      fullPath: '/billing/charges'
+      preLoaderRoute: typeof LayoutBillingChargesRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/billing/plans': {
+      id: '/_layout/billing/plans'
+      path: '/billing/plans'
+      fullPath: '/billing/plans'
+      preLoaderRoute: typeof LayoutBillingPlansRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/billing/spend': {
+      id: '/_layout/billing/spend'
+      path: '/billing/spend'
+      fullPath: '/billing/spend'
+      preLoaderRoute: typeof LayoutBillingSpendRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/clarity/': {
+      id: '/_layout/clarity/'
+      path: '/clarity'
+      fullPath: '/clarity/'
+      preLoaderRoute: typeof LayoutClarityIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/clarity/$section': {
+      id: '/_layout/clarity/$section'
+      path: '/clarity/$section'
+      fullPath: '/clarity/$section'
+      preLoaderRoute: typeof LayoutClaritySectionRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/documentation/': {
+      id: '/_layout/documentation/'
+      path: '/documentation'
+      fullPath: '/documentation/'
+      preLoaderRoute: typeof LayoutDocumentationIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/documentation/authentication': {
+      id: '/_layout/documentation/authentication'
+      path: '/documentation/authentication'
+      fullPath: '/documentation/authentication'
+      preLoaderRoute: typeof LayoutDocumentationAuthenticationRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/documentation/chat-completions': {
+      id: '/_layout/documentation/chat-completions'
+      path: '/documentation/chat-completions'
+      fullPath: '/documentation/chat-completions'
+      preLoaderRoute: typeof LayoutDocumentationChatCompletionsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/documentation/models': {
+      id: '/_layout/documentation/models'
+      path: '/documentation/models'
+      fullPath: '/documentation/models'
+      preLoaderRoute: typeof LayoutDocumentationModelsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/documentation/quickstart': {
+      id: '/_layout/documentation/quickstart'
+      path: '/documentation/quickstart'
+      fullPath: '/documentation/quickstart'
+      preLoaderRoute: typeof LayoutDocumentationQuickstartRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/documentation/sdks': {
+      id: '/_layout/documentation/sdks'
+      path: '/documentation/sdks'
+      fullPath: '/documentation/sdks'
+      preLoaderRoute: typeof LayoutDocumentationSdksRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/settings/account': {
+      id: '/_layout/settings/account'
+      path: '/settings/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof LayoutSettingsAccountRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/settings/audit': {
+      id: '/_layout/settings/audit'
+      path: '/settings/audit'
+      fullPath: '/settings/audit'
+      preLoaderRoute: typeof LayoutSettingsAuditRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/apps/$appId/': {
       id: '/_layout/apps/$appId/'
       path: '/apps/$appId'
@@ -520,18 +558,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAppsAppIdIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/apps/$appId/updates': {
-      id: '/_layout/apps/$appId/updates'
-      path: '/apps/$appId/updates'
-      fullPath: '/apps/$appId/updates'
-      preLoaderRoute: typeof LayoutAppsAppIdUpdatesRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/apps/$appId/store': {
-      id: '/_layout/apps/$appId/store'
-      path: '/apps/$appId/store'
-      fullPath: '/apps/$appId/store'
-      preLoaderRoute: typeof LayoutAppsAppIdStoreRouteImport
+    '/_layout/apps/$appId/inference': {
+      id: '/_layout/apps/$appId/inference'
+      path: '/apps/$appId/inference'
+      fullPath: '/apps/$appId/inference'
+      preLoaderRoute: typeof LayoutAppsAppIdInferenceRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/apps/$appId/settings': {
@@ -541,11 +572,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAppsAppIdSettingsRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/apps/$appId/inference': {
-      id: '/_layout/apps/$appId/inference'
-      path: '/apps/$appId/inference'
-      fullPath: '/apps/$appId/inference'
-      preLoaderRoute: typeof LayoutAppsAppIdInferenceRouteImport
+    '/_layout/apps/$appId/store': {
+      id: '/_layout/apps/$appId/store'
+      path: '/apps/$appId/store'
+      fullPath: '/apps/$appId/store'
+      preLoaderRoute: typeof LayoutAppsAppIdStoreRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/apps/$appId/updates': {
+      id: '/_layout/apps/$appId/updates'
+      path: '/apps/$appId/updates'
+      fullPath: '/apps/$appId/updates'
+      preLoaderRoute: typeof LayoutAppsAppIdUpdatesRouteImport
       parentRoute: typeof LayoutRoute
     }
   }
@@ -562,6 +600,7 @@ interface LayoutRouteChildren {
   LayoutBillingChargesRoute: typeof LayoutBillingChargesRoute
   LayoutBillingPlansRoute: typeof LayoutBillingPlansRoute
   LayoutBillingSpendRoute: typeof LayoutBillingSpendRoute
+  LayoutClaritySectionRoute: typeof LayoutClaritySectionRoute
   LayoutDocumentationAuthenticationRoute: typeof LayoutDocumentationAuthenticationRoute
   LayoutDocumentationChatCompletionsRoute: typeof LayoutDocumentationChatCompletionsRoute
   LayoutDocumentationModelsRoute: typeof LayoutDocumentationModelsRoute
@@ -571,6 +610,7 @@ interface LayoutRouteChildren {
   LayoutSettingsAuditRoute: typeof LayoutSettingsAuditRoute
   LayoutAppsIndexRoute: typeof LayoutAppsIndexRoute
   LayoutBillingIndexRoute: typeof LayoutBillingIndexRoute
+  LayoutClarityIndexRoute: typeof LayoutClarityIndexRoute
   LayoutDocumentationIndexRoute: typeof LayoutDocumentationIndexRoute
   LayoutAppsAppIdInferenceRoute: typeof LayoutAppsAppIdInferenceRoute
   LayoutAppsAppIdSettingsRoute: typeof LayoutAppsAppIdSettingsRoute
@@ -590,6 +630,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutBillingChargesRoute: LayoutBillingChargesRoute,
   LayoutBillingPlansRoute: LayoutBillingPlansRoute,
   LayoutBillingSpendRoute: LayoutBillingSpendRoute,
+  LayoutClaritySectionRoute: LayoutClaritySectionRoute,
   LayoutDocumentationAuthenticationRoute:
     LayoutDocumentationAuthenticationRoute,
   LayoutDocumentationChatCompletionsRoute:
@@ -601,6 +642,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutSettingsAuditRoute: LayoutSettingsAuditRoute,
   LayoutAppsIndexRoute: LayoutAppsIndexRoute,
   LayoutBillingIndexRoute: LayoutBillingIndexRoute,
+  LayoutClarityIndexRoute: LayoutClarityIndexRoute,
   LayoutDocumentationIndexRoute: LayoutDocumentationIndexRoute,
   LayoutAppsAppIdInferenceRoute: LayoutAppsAppIdInferenceRoute,
   LayoutAppsAppIdSettingsRoute: LayoutAppsAppIdSettingsRoute,

@@ -45,11 +45,11 @@ const REGISTER = ['follow-targets:register'] as const;
 assertFollowScopes(REGISTER);
 
 async function requireRegistrar(req: AuthRequest): Promise<FollowCapability> {
-  const userId = req.user?.id;
+  const operatorId = req.user?.id;
   const sessionId = req.sessionId;
-  if (!userId || !sessionId) throw new UnauthorizedError('Authentication required');
+  if (!operatorId || !sessionId) throw new UnauthorizedError('Authentication required');
 
-  const result = await resolveFollowCapability(userId, sessionId);
+  const result = await resolveFollowCapability(operatorId, sessionId);
   if (!result.ok) {
     throw new ForbiddenError(
       result.reason === 'no_application'
@@ -74,7 +74,7 @@ async function requireRegistrar(req: AuthRequest): Promise<FollowCapability> {
     .where(eq(applications.id, result.capability.applicationId))
     .limit(1);
   const access = application
-    ? await accountService.resolveEffectiveAccess(userId, application.ownerAccountId)
+    ? await accountService.resolveEffectiveAccess(operatorId, application.ownerAccountId)
     : null;
   if (!access || (access.role !== 'owner' && access.role !== 'admin')) {
     throw new ForbiddenError('Application owner or administrator access is required');

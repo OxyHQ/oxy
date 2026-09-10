@@ -3003,6 +3003,10 @@
                         "inference:providers:read",
                         "inference:providers:write",
                         "inference:byok:validate",
+                        "clarity:search",
+                        "clarity:index",
+                        "clarity:sites:manage",
+                        "clarity:usage:read",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -3269,6 +3273,10 @@
                         "inference:providers:read",
                         "inference:providers:write",
                         "inference:byok:validate",
+                        "clarity:search",
+                        "clarity:index",
+                        "clarity:sites:manage",
+                        "clarity:usage:read",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -3626,6 +3634,10 @@
                         "inference:providers:read",
                         "inference:providers:write",
                         "inference:byok:validate",
+                        "clarity:search",
+                        "clarity:index",
+                        "clarity:sites:manage",
+                        "clarity:usage:read",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -16228,8 +16240,8 @@
         "tags": [
           "Federation"
         ],
-        "summary": "Removes what the Oxy PLATFORM holds for a fediverse instance the calling app",
-        "description": "has blocked: the app's mirrored media, the avatars Oxy fetched, and the\n`type:'federated'` user rows themselves with their social-graph edges.\n\nOxy holds NO blocklist and never will — the calling app owns that policy and\nnames one domain per call. The rationale, the ownership rules and the exact\nhost-matching semantics live in\n`services/federation/blockedDomainPurge.service.ts`; this route is only the\nauthenticated door to them.\n\nWHOSE DATA: files are deleted only when their recorded `serviceAppId` is the\ncaller's own application id, taken from the SERVICE CREDENTIAL\n(`req.serviceApp.appId`) and never from the request body — an app cannot ask\nOxy to delete another app's data. A user row shared with another application\nis archived and kept, and the response names the apps that kept it.\n\nSAFE BY DEFAULT: `dryRun` defaults to true, so a caller that omits it gets a\nplan. A real deletion needs `dryRun:false` AND\n`FEDERATION_DOMAIN_PURGE_ENABLED=true` on the deployment; otherwise 409.\n\nBOUNDED AND RESUMABLE: at most `limit` actors (default 200) per call. The\nresponse carries `done`, `nextCursor`, and `remaining` (informational only).\nLoop until `done`, echoing `nextCursor` as `afterId` on each subsequent call.\nRepeating a completed purge is a no-op, so a retry after a partial failure\nconverges.",
+        "summary": "Removes caller-owned mirrored media for a fediverse instance the calling app",
+        "description": "has blocked. Shared actor rows, platform avatars, and graph edges are retained\nbecause file ownership cannot prove that another app does not use an actor.\n\nOxy holds NO blocklist and never will — the calling app owns that policy and\nnames one domain per call. The rationale, the ownership rules and the exact\nhost-matching semantics live in\n`services/federation/blockedDomainPurge.service.ts`; this route is only the\nauthenticated door to them.\n\nWHOSE DATA: files are deleted only when their recorded `serviceAppId` is the\ncaller's own application id, taken from the SERVICE CREDENTIAL\n(`req.serviceApp.appId`) and never from the request body — an app cannot ask\nOxy to delete another app's data. Every globally shared actor row is archived\nand kept; tagged files can identify known app references, but their absence\nis not proof that no untagged application reference exists.\n\nSAFE BY DEFAULT: `dryRun` defaults to true, so a caller that omits it gets a\nplan. A real deletion needs `dryRun:false` AND\n`FEDERATION_DOMAIN_PURGE_ENABLED=true` on the deployment; otherwise 409.\n\nBOUNDED AND RESUMABLE: at most `limit` actors (default 200) per call. The\nresponse carries `done`, `nextCursor`, and `remaining` (informational only).\nLoop until `done`, echoing `nextCursor` as `afterId` on each subsequent call.\nRepeating a completed purge is a no-op, so a retry after a partial failure\nconverges.",
         "parameters": [],
         "responses": {
           "200": {
@@ -25058,193 +25070,6 @@
           }
         ],
         "operationId": "getInferenceRoutingPoliciesPolicyIdVersionsPolicyVersion"
-      }
-    },
-    "/link-metadata/fetch-metadata": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "POST /link-metadata/fetch-metadata",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkMetadata.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkMetadata.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "operationId": "postLinkMetadataFetchMetadata"
-      }
-    },
-    "/links/preview": {
-      "get": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "Returns a bare `LinkPreview` (per `linkPreviewResponseSchema`).",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/links.ts` to fill in summary, description, request/response examples.",
-        "parameters": [
-          {
-            "name": "url",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 2048
-            }
-          },
-          {
-            "name": "wait",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "0",
-                "1"
-              ],
-              "default": "0"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/links.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {}
-        ],
-        "operationId": "getLinksPreview"
-      }
-    },
-    "/links/previews": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "Returns `{ data: Record<requestedUrl, LinkPreview> }` (per",
-        "description": "`linkPreviewBatchResponseSchema`).",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/links.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {}
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "urls": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "maxLength": 2048
-                    },
-                    "minItems": 1,
-                    "maxItems": 50
-                  }
-                },
-                "required": [
-                  "urls"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postLinksPreviews"
       }
     },
     "/location-search/cache": {

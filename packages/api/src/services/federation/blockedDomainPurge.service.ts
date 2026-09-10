@@ -30,24 +30,13 @@
  * remote actor they get the SAME row — and deleting it because one app blocked
  * the instance would destroy data the other app legitimately holds.
  *
- * Today exactly one app federates, and federated rows were measured to carry no
- * sessions, reputation, wallets, grants or app data — so deleting the row is in
- * fact safe right now. That is a fact about the current DEPLOYMENT, not about
- * the data model, and it stops being true silently the day a second app
- * federates. So the rule is evaluated per actor from what is actually there:
- *
  *   - Files are deleted only when their `metadata.serviceAppId` is the
  *     AUTHENTICATED caller's application id (resolved from the service
- *     credential — never a value the caller supplies), plus the actor's own
- *     Oxy-fetched avatars, which belong to the row rather than to any app.
- *   - The row itself is deleted only when nothing ANOTHER app owns still
- *     references it. If something does, the row is archived and RETAINED, and
- *     the result names the app that caused the retention.
- *
- * The retention branch is unreachable in the current deployment. It is here
- * deliberately, because it is the thing that stops this from quietly becoming
- * "one app deletes another app's data" later, and it costs one query the plan
- * already needs.
+ *     credential — never a value the caller supplies).
+ *   - Federated actor rows are retained. Oxy does not currently keep a complete
+ *     per-application reference ledger for these globally shared rows, so the
+ *     absence of another app's file is not proof that no other app references
+ *     the actor. Hard deletion would cross the caller's authorization boundary.
  *
  * MATCHING
  * --------
@@ -83,7 +72,6 @@ import { logger } from '../../utils/logger';
 import userCache from '../../utils/userCache';
 import { assetService } from '../assetServiceSingleton';
 import { isOwnFederationDomain } from '../federation.service';
-import { userService } from '../user.service';
 
 const COMPONENT = 'blockedDomainPurge';
 
@@ -133,6 +121,8 @@ export interface RetainedActor {
   username: string;
   /** Application ids, other than the caller, still holding files for this row. */
   referencedByAppIds: string[];
+  /** Why the shared actor row could not safely be hard-deleted. */
+  retentionReason: 'other_application_files' | 'application_references_unknown';
 }
 
 export interface BlockedDomainPurgeResult {
@@ -393,16 +383,12 @@ export async function purgeBlockedDomain(
     const username = candidate.username ?? '';
     result.actorsProcessed += 1;
 
-    const { callerOwned, unattributed, otherAppIds } = await classifyActorFiles(
+    const { callerOwned, otherAppIds } = await classifyActorFiles(
       oxyUserId,
       callerAppId,
     );
 
     result.localFollowersAffected += await countLocalFollowers(oxyUserId);
-
-    // The row is shared with another application: delete only what the caller
-    // owns, archive the row, and report who kept it alive.
-    const retainRow = otherAppIds.length > 0;
 
     for (const file of callerOwned) {
       if (dryRun || (await deleteFileBestEffort(file.id, { oxyUserId, canonicalDomain }))) {
@@ -411,57 +397,32 @@ export async function purgeBlockedDomain(
       }
     }
 
-    if (retainRow) {
-      if (!dryRun) {
-        // Same semantics as `POST /federation/actor-gone`: single whitelisted
-        // column, with `type = 'federated'` re-asserted in the predicate so a
-        // concurrent type change can never let this touch a real account.
-        await getDb()
-          .update(users)
-          .set({ accountStatus: 'archived' })
-          .where(and(eq(users.id, oxyUserId), eq(users.type, 'federated')));
-        userCache.invalidate(oxyUserId);
-      }
-      result.actorsRetained.push({ oxyUserId, username, referencedByAppIds: otherAppIds });
-      logger.info('blockedDomainPurge: actor retained, referenced by another application', {
-        component: COMPONENT,
-        oxyUserId,
-        canonicalDomain,
-        referencedByAppIds: otherAppIds,
-        dryRun,
-      });
-      continue;
+    // File attribution is not an actor-reference ledger. Another application
+    // can resolve and use this globally keyed actor without uploading a file,
+    // so an empty `otherAppIds` cannot authorize deleting the actor or graph.
+    if (!dryRun) {
+      await getDb()
+        .update(users)
+        .set({ accountStatus: 'archived' })
+        .where(and(eq(users.id, oxyUserId), eq(users.type, 'federated')));
+      userCache.invalidate(oxyUserId);
     }
-
-    // Nothing else holds this row: the platform-level avatars go too, then the
-    // row and its whole social graph.
-    for (const file of unattributed) {
-      if (dryRun || (await deleteFileBestEffort(file.id, { oxyUserId, canonicalDomain }))) {
-        result.avatarsDeleted += 1;
-        result.bytesDeleted += file.size;
-      }
-    }
-
-    if (dryRun) {
-      result.actorsDeleted += 1;
-      continue;
-    }
-
-    // Reuses the shared teardown so edge deletion, counterparty `_count` repair
-    // and block/restrict/graph cache invalidation stay in ONE place. Its caller
-    // contract requires `type:'federated'`, which the query filter and the
-    // re-verification above both established, and which its own terminal
-    // `deleteOne` filter re-asserts atomically.
-    const { followEdgesRemoved } = await userService.deleteFederatedActor(oxyUserId);
-    result.followEdgesRemoved += followEdgesRemoved;
-    result.actorsDeleted += 1;
-
-    logger.info('blockedDomainPurge: federated actor purged', {
-      component: COMPONENT,
+    const retentionReason = otherAppIds.length > 0
+      ? 'other_application_files'
+      : 'application_references_unknown';
+    result.actorsRetained.push({
       oxyUserId,
       username,
+      referencedByAppIds: otherAppIds,
+      retentionReason,
+    });
+    logger.info('blockedDomainPurge: shared actor retained', {
+      component: COMPONENT,
+      oxyUserId,
       canonicalDomain,
-      followEdgesRemoved,
+      referencedByAppIds: otherAppIds,
+      retentionReason,
+      dryRun,
     });
   }
 

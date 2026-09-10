@@ -579,16 +579,24 @@ class ModerationReputationService {
    * someone whose appeal SUCCEEDED still carrying active risk, which is the
    * failure this operation exists to prevent. Every step is idempotent, so a
    * retry completes the rest.
+   *
+   * The credential is part of the lookup key: decision ids are chosen by the
+   * emitter and are neither globally unique nor authority-bearing.
    */
   async reverseModerationDecision(
     decisionId: string,
     decisionRevision: number,
-    reason: string
+    reason: string,
+    emitterCredentialId: string
   ): Promise<ReverseResult> {
     // Coerced before it reaches the filter: reversing on an operator object
     // would compensate an unrelated decision's consequence, which is the worst
     // failure available on this path.
-    const effects = await this.findEffectsByDecision(decisionId, decisionRevision);
+    const effects = await this.findEffectsByDecisionForCredential(
+      decisionId,
+      decisionRevision,
+      emitterCredentialId
+    );
     if (effects.length === 0) {
       throw new NotFoundError('No moderation effect exists for that decision revision');
     }
@@ -667,7 +675,8 @@ class ModerationReputationService {
         await this.reverseModerationDecision(
           effect.decisionId,
           effect.decisionRevision,
-          `Superseded by revision ${latestRevision}`
+          `Superseded by revision ${latestRevision}`,
+          effect.credentialId ?? ''
         );
         supersededReversed += 1;
         touched.add(effect.principalId);
@@ -1196,6 +1205,24 @@ class ModerationReputationService {
         and(
           eq(moderationEffects.decisionId, String(decisionId)),
           eq(moderationEffects.decisionRevision, toDecisionRevision(decisionRevision))
+        )
+      );
+  }
+
+  /** Effects owned by the service credential requesting a reversal. */
+  private async findEffectsByDecisionForCredential(
+    decisionId: string,
+    decisionRevision: number,
+    emitterCredentialId: string
+  ): Promise<ModerationEffectRow[]> {
+    return getDb()
+      .select()
+      .from(moderationEffects)
+      .where(
+        and(
+          eq(moderationEffects.decisionId, String(decisionId)),
+          eq(moderationEffects.decisionRevision, toDecisionRevision(decisionRevision)),
+          eq(moderationEffects.credentialId, String(emitterCredentialId))
         )
       );
   }

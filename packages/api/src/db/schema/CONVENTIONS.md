@@ -68,9 +68,8 @@ application also means the id is known before the insert round-trip. Rows
 inserted by raw SQL get no id — intended: the backfill supplies `_id` verbatim,
 which is how every existing foreign key survives.
 
-**One exception:** `link_previews.id` is the SHA-256 of the normalized URL and is
-always supplied by the caller, so it is a plain `text().primaryKey()` with no
-default. A table whose id is content-addressed says so by having no generator.
+A table whose id is content-addressed says so by using a plain
+`text().primaryKey()` with no generator.
 
 ## Closed value sets
 
@@ -247,11 +246,9 @@ CHECK would reject existing production rows during backfill and convert a silent
 normalization into a 500.
 
 `select: false` likewise does not survive. Drizzle enumerates columns explicitly,
-so `db.select().from(t)` returns EVERYTHING — including
-`link_previews.origin_image_url`, which is server-only and would leak the
-viewer's IP to the origin if serialized. Reads that feed a client DTO must select
-columns explicitly. The GLOBAL mechanism for the columns where that leak is a
-security failure rather than a privacy smell is the next section.
+so `db.select().from(t)` returns EVERYTHING. Reads that feed a client DTO must
+select columns explicitly. The GLOBAL mechanism for the columns where that leak
+is a security failure rather than a privacy smell is the next section.
 
 Two Mongoose behaviours DID find a schema counterpart on `users`, and both are
 better there than they were as application code — see "Generated columns" and

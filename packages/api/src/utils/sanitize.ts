@@ -43,7 +43,7 @@ export function sanitizeHtml(input: string): string {
  * `&lt;`, `&gt;`, `&quot;`, `&apos;`. This is the inverse of {@link sanitizeHtml}
  * for the subset of entities Oxy ever produces, and is used to un-escape data
  * that was previously stored HTML-escaped (e.g. federated display names /
- * link-preview metadata) before re-processing it.
+ * remote metadata) before re-processing it.
  */
 export function decodeHtmlEntities(text: string): string {
   if (!text) return text;

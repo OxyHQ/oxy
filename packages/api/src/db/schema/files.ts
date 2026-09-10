@@ -83,12 +83,12 @@ export const FILE_VISIBILITIES = ['private', 'public', 'unlisted'] as const;
 export type FileVisibility = (typeof FILE_VISIBILITIES)[number];
 
 /** Classification of what the asset is FOR. */
-export const FILE_PURPOSES = ['user', 'federation-media-cache', 'link-preview'] as const;
+export const FILE_PURPOSES = ['user', 'federation-media-cache'] as const;
 
 /**
  * System namespaces that own an asset instead of a user.
  *
- * Mongo stored these three sentinel STRINGS in `ownerUserId`, a column that
+ * Mongo stored these sentinel STRINGS in `ownerUserId`, a column that
  * otherwise holds user ids — so the column could never carry a foreign key and
  * `mediaPrivacyService.ts:96` had to special-case "synthetic user IDs" by
  * eyeballing the string. Splitting them out is what lets `owner_user_id` become
@@ -97,8 +97,7 @@ export const FILE_PURPOSES = ['user', 'federation-media-cache', 'link-preview'] 
  *
  * The values are the exact strings in use today —
  * `FEDERATION_AVATAR_OWNER_ID` (`services/assetService.ts:60`),
- * `FEDERATION_CACHE_OWNER_ID` (`constants/federationCache.ts:23`) and
- * `LINK_PREVIEW_OWNER_ID` (`services/linkPreview/constants.ts:140`) — so the
+ * `FEDERATION_CACHE_OWNER_ID` (`constants/federationCache.ts:23`) — so the
  * backfill is a straight move, not a mapping:
  *
  * ```sql
@@ -113,7 +112,6 @@ export const FILE_PURPOSES = ['user', 'federation-media-cache', 'link-preview'] 
 export const FILE_SYSTEM_OWNERS = [
   '__federation__',
   '__federation_media_cache__',
-  '__link_preview_cache__',
 ] as const;
 
 export const files = pgTable(
