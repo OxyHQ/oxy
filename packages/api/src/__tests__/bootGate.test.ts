@@ -50,7 +50,6 @@ import { closePostgres } from '../config/postgres';
 import { createTestDatabase, dropTestDatabase } from '../db/testDatabase';
 import { stopBackgroundJobs } from '../queue/backgroundJobs';
 import { stopConductRiskExpiryJobs } from '../queue/conductRiskExpiry.queue';
-import { stopLinkPreviewWarmJobs } from '../queue/linkPreviewWarm.queue';
 import { stopNodeIngestJobs } from '../queue/nodeIngest.queue';
 import { stopSubscriptionExpiryJobs } from '../queue/subscriptionExpiry.queue';
 import { stopTransparencyCheckpointJobs } from '../queue/transparencyCheckpoint.queue';
@@ -120,7 +119,6 @@ afterAll(async () => {
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
   await stopTransparencyCheckpointJobs();
-  await stopLinkPreviewWarmJobs();
   await stopConductRiskExpiryJobs();
   await stopSubscriptionExpiryJobs();
   await closePostgres();

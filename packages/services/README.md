@@ -419,7 +419,6 @@ await oxyClient.logoutAllDeviceSessions('session123');           // Logout devic
 await oxyClient.updateDeviceName('session123', 'iPhone 15');     // Update device name
 
 // Utilities
-const metadata = await oxyClient.fetchLinkMetadata('https://example.com'); // Fetch link metadata
 ```
 
 ### useOxy Hook

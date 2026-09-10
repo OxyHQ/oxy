@@ -824,22 +824,6 @@ await oxyServices.revokeAppGrant('68f1c2…'); // the Application id from getApp
 
 ## Utilities
 
-### `fetchLinkMetadata(url)`
-
-Fetch metadata for a URL (Open Graph, Twitter Cards, etc.).
-
-```typescript
-const metadata = await oxyServices.fetchLinkMetadata('https://example.com');
-// Returns: { url: string, title: string, description: string, image?: string }
-```
-
-**Parameters:**
-- `url` (string): URL to fetch metadata for
-
-**Returns:** `Promise<{ url: string, title: string, description: string, image?: string }>`
-
----
-
 ### `auth(options?)` (Express Middleware)
 
 Express.js authentication middleware.

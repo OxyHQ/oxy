@@ -95,7 +95,7 @@ async function resolveAttachmentInputs(
     // merely-readable file would leak it into a Message subdocument the sender
     // does not own.
     // `owner_user_id` is nullable: a system-owned file (federation cache,
-    // link-preview cache) has no owner, and `null !== userId` correctly
+    // federation cache) has no owner, and `null !== userId` correctly
     // refuses it rather than letting a sender attach platform-internal media.
     if (file.ownerUserId !== userId) {
       throw new ForbiddenError(`Not authorized to attach file ${file.id}`);

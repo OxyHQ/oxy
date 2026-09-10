@@ -3003,6 +3003,10 @@
                         "inference:providers:read",
                         "inference:providers:write",
                         "inference:byok:validate",
+                        "clarity:search",
+                        "clarity:index",
+                        "clarity:sites:manage",
+                        "clarity:usage:read",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -3269,6 +3273,10 @@
                         "inference:providers:read",
                         "inference:providers:write",
                         "inference:byok:validate",
+                        "clarity:search",
+                        "clarity:index",
+                        "clarity:sites:manage",
+                        "clarity:usage:read",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -3626,6 +3634,10 @@
                         "inference:providers:read",
                         "inference:providers:write",
                         "inference:byok:validate",
+                        "clarity:search",
+                        "clarity:index",
+                        "clarity:sites:manage",
+                        "clarity:usage:read",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -25058,193 +25070,6 @@
           }
         ],
         "operationId": "getInferenceRoutingPoliciesPolicyIdVersionsPolicyVersion"
-      }
-    },
-    "/link-metadata/fetch-metadata": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "POST /link-metadata/fetch-metadata",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkMetadata.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkMetadata.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "operationId": "postLinkMetadataFetchMetadata"
-      }
-    },
-    "/links/preview": {
-      "get": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "Returns a bare `LinkPreview` (per `linkPreviewResponseSchema`).",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/links.ts` to fill in summary, description, request/response examples.",
-        "parameters": [
-          {
-            "name": "url",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 2048
-            }
-          },
-          {
-            "name": "wait",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "0",
-                "1"
-              ],
-              "default": "0"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/links.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {}
-        ],
-        "operationId": "getLinksPreview"
-      }
-    },
-    "/links/previews": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "Returns `{ data: Record<requestedUrl, LinkPreview> }` (per",
-        "description": "`linkPreviewBatchResponseSchema`).",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/links.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {}
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "urls": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "maxLength": 2048
-                    },
-                    "minItems": 1,
-                    "maxItems": 50
-                  }
-                },
-                "required": [
-                  "urls"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postLinksPreviews"
       }
     },
     "/location-search/cache": {

@@ -1,12 +1,10 @@
 /**
  * Utility Methods Mixin
  *
- * Provides utility methods including link metadata fetching
- * and Express.js authentication middleware
+ * Provides utility methods including Express.js authentication middleware.
  */
 import { jwtDecode } from 'jwt-decode';
 import type { JsonWebKey } from 'node:crypto';
-import type { LinkPreview } from '@oxy.so/contracts';
 import type { ApiError, User } from '../models/interfaces';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { loadNodeCrypto } from '@oxy.so/protocol';
@@ -275,29 +273,6 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
           expiresAt: now + 1 * 60 * 1000,
         });
         return null;
-      }
-    }
-
-    /**
-     * Fetch link metadata
-     */
-    async fetchLinkMetadata(url: string): Promise<{
-      url: string;
-      title: string;
-      description: string;
-      image?: string;
-    }> {
-      try {
-        const path = buildUrl('/links/preview', { url, wait: 1 });
-        const preview = await this.makeRequest<LinkPreview>('GET', path, undefined, { cache: false });
-        return {
-          url: preview.url,
-          title: preview.title?.trim() || preview.url.replace(/^https?:\/\//, '').replace(/\/$/, ''),
-          description: preview.description?.trim() || 'Link',
-          image: preview.image,
-        };
-      } catch (error) {
-        throw this.handleError(error);
       }
     }
 
