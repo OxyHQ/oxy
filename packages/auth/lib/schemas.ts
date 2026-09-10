@@ -108,6 +108,47 @@ export function mcpConsentRequiredFromBody(body: unknown): boolean {
     return mcpConsentFromBody(body)?.consentRequired ?? true
 }
 
+const mcpLinkIntentSchema = z.object({
+    client_name: z.string().min(1),
+    client_uri: z.string().nullable().optional(),
+    logo_uri: z.string().nullable().optional(),
+    app_slug: z.string().min(1),
+    resource: z.string().min(1),
+    scopes: z.array(z.string().min(1)),
+    already_linked: z.boolean(),
+    expires_at: z.string().min(1),
+})
+
+export type McpLinkIntent = {
+    clientName: string
+    clientUri: string | null
+    logoUri: string | null
+    appSlug: string
+    resource: string
+    scopes: string[]
+    alreadyLinked: boolean
+    expiresAt: string
+}
+
+export function mcpLinkIntentFromBody(body: unknown): McpLinkIntent | null {
+    const inner =
+        body && typeof body === "object" && "data" in body
+            ? (body as { data: unknown }).data
+            : body
+    const parsed = mcpLinkIntentSchema.safeParse(inner)
+    if (!parsed.success) return null
+    return {
+        clientName: parsed.data.client_name,
+        clientUri: parsed.data.client_uri ?? null,
+        logoUri: parsed.data.logo_uri ?? null,
+        appSlug: parsed.data.app_slug,
+        resource: parsed.data.resource,
+        scopes: parsed.data.scopes,
+        alreadyLinked: parsed.data.already_linked,
+        expiresAt: parsed.data.expires_at,
+    }
+}
+
 /**
  * Safely parse a JSON response with a Zod schema. Returns the parsed data or
  * `null` if validation fails. Delegates to the contracts package's
