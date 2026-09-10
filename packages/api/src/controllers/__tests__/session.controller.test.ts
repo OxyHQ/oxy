@@ -25,6 +25,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { Request, Response } from 'express';
 
 const mockCreateSession = jest.fn();
+const mockGetAccessToken = jest.fn();
 const mockValidateSessionById = jest.fn();
 const mockGetUserActiveSessions = jest.fn();
 const mockDeactivateAllUserSessions = jest.fn();
@@ -39,6 +40,7 @@ jest.mock('../../services/session.service', () => ({
   __esModule: true,
   default: {
     createSession: (...a: unknown[]) => mockCreateSession(...a),
+    getAccessToken: (...a: unknown[]) => mockGetAccessToken(...a),
     validateSessionById: (...a: unknown[]) => mockValidateSessionById(...a),
     getUserActiveSessions: (...a: unknown[]) => mockGetUserActiveSessions(...a),
     deactivateSession: jest.fn(),
@@ -273,6 +275,10 @@ beforeEach(() => {
   mockVerifyChallengeResponse.mockReturnValue(true);
   mockGenerateChallenge.mockImplementation(() => `ch-${randomUUID()}`);
   mockFinalizeDeviceLogin.mockResolvedValue({});
+  mockGetAccessToken.mockResolvedValue({
+    accessToken: 'bound-access-token',
+    expiresAt: new Date('2030-01-01T00:00:00.000Z'),
+  });
 });
 
 describe('register', () => {
@@ -522,7 +528,7 @@ describe('verifyChallenge', () => {
     expect(res.body).toMatchObject({
       sessionId: 'sess-1',
       deviceId: 'dev-1',
-      accessToken: 'at-1',
+      accessToken: 'bound-access-token',
       deviceSecret: 'ds-1',
       user: { id: userId },
     });

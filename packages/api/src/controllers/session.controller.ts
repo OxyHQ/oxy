@@ -494,6 +494,12 @@ export class SessionController {
       if (verifyDeviceExtras.deviceSecret) {
         response.deviceSecret = verifyDeviceExtras.deviceSecret;
       }
+      const boundToken = await sessionService.getAccessToken(session.sessionId);
+      if (!boundToken) {
+        return res.status(500).json({ message: 'Failed to mint the bound access token' });
+      }
+      response.accessToken = boundToken.accessToken;
+      response.expiresAt = boundToken.expiresAt.toISOString();
 
       res.json(response);
     } catch (error) {

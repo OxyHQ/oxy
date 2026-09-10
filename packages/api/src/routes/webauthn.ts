@@ -433,6 +433,12 @@ async function mintWebauthnSession(
   if (deviceExtras.deviceSecret) {
     response.deviceSecret = deviceExtras.deviceSecret;
   }
+  const boundToken = await sessionService.getAccessToken(session.sessionId);
+  if (!boundToken) {
+    throw new InternalServerError('Failed to mint the bound access token');
+  }
+  response.accessToken = boundToken.accessToken;
+  response.expiresAt = boundToken.expiresAt.toISOString();
 
   try {
     await securityActivityService.logSignIn(account.id, req, session.deviceId, {

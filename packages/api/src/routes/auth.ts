@@ -1456,15 +1456,6 @@ router.post(
       throw new UnauthorizedError('invalid_grant');
     }
 
-    const tokenResult = await sessionService.getAccessToken(authSession.authorizedSessionId);
-    if (!tokenResult) {
-      logger.error('[AuthSession] Could not resolve access token for claimed session', new Error('no access token'), {
-        sessionToken: sessionToken.substring(0, 8) + '...',
-        sessionId: authSession.authorizedSessionId,
-      });
-      throw new UnauthorizedError('invalid_grant');
-    }
-
     // `publicColumns` is the sanctioned whole-row read: it drops `phone`, the
     // contact-discovery hashes and `refresh_token` AT THE TYPE LEVEL, so the
     // serializer below cannot carry any of them into the response.
@@ -1505,6 +1496,18 @@ router.post(
       session: { sessionId: authSession.authorizedSessionId, deviceId: session.deviceId },
       userId: authSession.authorizedUserId,
     });
+
+    // Finalization binds the session row to its device context. Mint only
+    // afterwards so the credential returned to the claimant carries that
+    // binding; a token read before finalization is rejected on first use.
+    const tokenResult = await sessionService.getAccessToken(authSession.authorizedSessionId);
+    if (!tokenResult) {
+      logger.error('[AuthSession] Could not resolve access token for claimed session', new Error('no access token'), {
+        sessionToken: sessionToken.substring(0, 8) + '...',
+        sessionId: authSession.authorizedSessionId,
+      });
+      throw new UnauthorizedError('invalid_grant');
+    }
 
     logger.info('[AuthSession] Claim succeeded', {
       sessionToken: sessionToken.substring(0, 8) + '...',
@@ -3302,6 +3305,10 @@ router.post(
       throw OAuthError.serverError('Failed to finalize the device session.');
     }
     const deviceSecret = deviceExtras.deviceSecret;
+    const boundToken = await sessionService.getAccessToken(session.sessionId);
+    if (!boundToken) {
+      throw OAuthError.serverError('Failed to mint the bound access token.');
+    }
 
     await getDb()
       .update(applications)
@@ -3313,7 +3320,7 @@ router.post(
     // FLAT body, no `sendSuccess` wrapper — see `utils/oauthResponse.ts` for why
     // the OAuth surface is the one place that may not use the house envelope.
     sendOAuthSuccess(res, {
-      access_token: session.accessToken,
+      access_token: boundToken.accessToken,
       token_type: 'Bearer',
       expires_in: ACCESS_TOKEN_TTL_SECONDS,
       // RFC 6749 §5.1: REQUIRED when the granted scope differs from the
