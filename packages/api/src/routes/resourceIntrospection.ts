@@ -94,8 +94,9 @@ router.post(
       const session = await sessionService.validateSession(token).catch(() => null);
       const identity = session?.token;
       if (!identity?.applicationId) return response.json(inactive());
+      const operatorId = identity.principalUserId;
       const access = await accountService.resolveEffectiveAccess(
-        identity.principalUserId,
+        operatorId,
         identity.subjectAccountId
       );
       return response.json({
