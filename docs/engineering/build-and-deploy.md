@@ -26,7 +26,7 @@ Inbound mail for `*@oxy.so` is delivered as follows:
 5. Inbox UI at `inbox.oxy.so` reads `GET /email/mailboxes` + `GET /email/messages`.
 
 **Critical config invariants** — if any drifts, inbound mail silently disappears:
-- Worker var `API_URL` MUST equal `https://api.oxy.so` (NOT `mail.oxy.so` — that hostname still resolves to the retired DigitalOcean droplet `159.223.227.58` and returns 502).
+- Worker var `API_URL` MUST equal `https://api.oxy.so` (`mail.oxy.so` is a retired hostname, not an API route).
 - Worker secret `EMAIL_INBOUND_WEBHOOK_SECRET` MUST equal SSM `/oxy/oxy-api/EMAIL_INBOUND_WEBHOOK_SECRET` (mismatch → API returns 401 → Cloudflare bounces).
 - The raw body parser at `server.ts:95` MUST be registered BEFORE the global `express.json()` middleware (otherwise the JSON parser eats the RFC822 stream and `simpleParser` gets an empty Buffer).
 - `app.use('/email/inbound', emailInboundRoutes)` MUST be registered BEFORE `app.use('/email', ...)` in `server.ts` (otherwise the protected `/email` mount catches the unauthenticated webhook first).
@@ -56,9 +56,9 @@ aws --profile oxy --region us-west-2 logs tail /oxy/ecs --log-stream-name-prefix
   | grep -iE 'inbound|envelope|delivered'
 ```
 
-**Migration cleanup (2026-06-12):** ✅ DigitalOcean fully removed from the inbox path.
+**Current mail state:**
 - SPF for `oxy.so` now reads `v=spf1 include:amazonses.com include:_spf.mx.cloudflare.net ~all`.
-- DNS A record `mail.oxy.so` (→ `159.223.227.58`) deleted.
+- The legacy `mail.oxy.so` A record is absent.
 - Worker `email-inbound` redeployed with `API_URL=https://api.oxy.so` (ECS).
 - Outbound: SES via `SMTP_RELAY_HOST` only. nodemailer v8 removed the legacy `{ direct: true }` MX path — `smtp.outbound.ts` now fails fast if `SMTP_RELAY_HOST` is unset.
 
