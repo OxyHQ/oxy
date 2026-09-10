@@ -41,6 +41,11 @@ is four things in one Bun-workspaces monorepo:
    always-available read copy and re-verifies everything it ingests. Reads never
    touch a node.
 
+**Ecosystem roles (fixed 2026-09-10):** Kaana is the inference API; Oxy is the
+platform and the Oxy Console, where every API key — Alia, Kaana, Mention — is
+issued; Alia is the assistant, with its own permanent product API. Request
+routing between them: [inference/request-routing.md](inference/request-routing.md).
+
 The unifying thesis: **ownership comes from cryptography, not from Oxy granting
 it.** A record signed in Commons verifies identically on Oxy, on a personal node,
 and in any third-party verifier — using the exact same `@oxy.so/core` code.
@@ -105,14 +110,18 @@ topics and remain authoritative for their areas:
 
 ## Engineering notes (moved out of `AGENTS.md`)
 
-`AGENTS.md` carries only rules — the things that break silently if you get them
-wrong — and is bounded at 12 KB by `scripts/check-agents-md-size.mjs`. The
-mechanisms it used to restate live here:
+`AGENTS.md` is one short page: what the repo is, the commands CI runs, each
+non-negotiable rule as a single imperative line ending in a pointer into this
+tree, and a "before touching X read Y" map. It is loaded into every agent
+session and bounded by `scripts/check-agents-md-size.mjs` (`bun run
+validate:agents-md`), so rationale, incidents, measurements and worked examples
+live here, never there — a rule is added to `AGENTS.md` only with its evidence
+already written up below. The mechanisms and evidence it used to restate:
 
-- [engineering/package-rules.md](engineering/package-rules.md) — the evidence behind every package boundary, build and runtime rule: the ambient-shim incident, the Hermes verification, the optional-peer resolver asymmetry
-- [engineering/build-and-deploy.md](engineering/build-and-deploy.md) — AWS, the inbound email path, containers and the Dockerfile gotcha, the workspace and dependency graph, contract-first schemas, key entry points, published version notes
+- [engineering/package-rules.md](engineering/package-rules.md) — the evidence behind every package boundary, build and runtime rule: the ambient-shim incident, the Hermes verification, the optional-peer resolver asymmetry, the peer-range upper bound, the pack/publish lifecycle table, the identity contract and coding standards
+- [engineering/build-and-deploy.md](engineering/build-and-deploy.md) — AWS, the inbound email path, containers and the Dockerfile gotcha, the workspace and dependency graph, contract-first schemas, key entry points, published version notes; `#commands` holds the catalog, `bun pm pack`, `minimumReleaseAge` and the Jest / `bun test` split, `#architecture` the native-module version alignment
 - [engineering/auth-and-identity.md](engineering/auth-and-identity.md) — the session contract, the application model, service tokens, the SSI layer, Sign in with Oxy, the Auth app
-- [engineering/platform-features.md](engineering/platform-features.md) — workspaces, Oxy Trust, rate limiting, federation, OTA updates, contact discovery, the accounts and commons apps, civic identity, the no-IP invariant
+- [engineering/platform-features.md](engineering/platform-features.md) — workspaces, Oxy Trust, rate limiting, federation, OTA updates, contact discovery, the accounts and commons apps, civic identity, the no-IP invariant (`#no-ip-invariant`)
 - [engineering/sdk-patterns.md](engineering/sdk-patterns.md) — `HttpService`, the offline queue, persistence, `useSessionSocket`, the bottom-sheet and media patterns, `KeyManager` safety
 - [engineering/local-dev-cursor-cloud.md](engineering/local-dev-cursor-cloud.md) — local infra, building shared libs, the end-to-end auth smoke test
 - [engineering/measurement-traps.md](engineering/measurement-traps.md) — checks that run clean while measuring the wrong thing: what `origin/main..HEAD` actually compares, why `--theirs` is inverted during a rebase, and why a transforming query schema must parse its own output

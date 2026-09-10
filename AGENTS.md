@@ -1,195 +1,65 @@
 # OxyHQServices
 
-The Oxy platform monorepo (`@oxy.so/sdk`): the contracts, the core SDK, the one UI
-SDK, the API, the IdP, and the apps built on them. Bun workspaces + Turbo.
+Oxy platform monorepo (`@oxy.so/sdk`), Bun workspaces + Turbo. Kaana is the
+inference API; Oxy is the platform plus the Oxy Console, where every API key
+(Alia, Kaana, Mention) is issued; Alia is the assistant with its own permanent
+product API.
 
-> **For anything about how this works, read `docs/README.md`** — `docs/adr/`
-> holds the binding decisions, `docs/engineering/` the mechanisms this file used
-> to restate, and `docs/auth/index.md` is the answerable entry point for
-> sessions.
->
-> **This file carries only RULES — things that break silently if you get them
-> wrong.** Mechanisms, per-issue write-ups and subsystem walkthroughs go in
-> `docs/`, never here. Org-wide standards are in `~/AGENTS.md` and
-> `~/Oxy/AGENTS.md`; do not repeat them. Versions live in `package.json`.
->
-> **Budget: under 12 KB**, enforced by `scripts/check-agents-md-size.mjs`. An
-> addition that pushes it over is paid for in the SAME edit.
+Read `docs/README.md` first; `docs/adr/` binds; org rules: `~/AGENTS.md`,
+`~/Oxy/AGENTS.md`. Budgeted: one line per rule, evidence at its pointer.
 
-## Commands
+## Commands (CI)
 
 ```bash
-bun install
-bun run build:all      # contracts -> core -> services -> rest
-bun run core:build
-bun run services:build
-bun run dev
-bun run test           # delegates through turbo, per package
+bun install --frozen-lockfile --minimum-release-age=0
+bun run build:all                   # turbo, dependency order
+cd packages/<pkg> && bun run test   # per package; never a bare `bun test`
 bun run validate:agents-md
+bun run build && bun pm pack        # release, in the package; never npm pack
 ```
 
-- **Always run each package's OWN `bun run test`.** `@oxy.so/{api,core,services,contracts}`
-  and `commons` are **Jest**; `packages/auth` is **Bun's native `bun test`**.
-  NEVER blanket-invoke `bun test` across the monorepo — it runs Bun's runner over
-  the Jest packages and produces dozens of false failures.
-- **Shared dependency versions live in `workspaces.catalog`**, referenced as
-  `"catalog:"` — root `overrides` included. A range that legitimately differs per
-  workspace stays literal, because a catalog entry would assert an agreement that
-  does not exist.
-- **Pack with `bun pm pack`, never `npm pack`** — `npm` ships the literal string
-  `catalog:`, which no consumer can resolve. `scripts/assert-bun-publish.mjs` is
-  what makes the catalog safe for published packages.
-- **`npm publish <tgz>` and `bun publish <tgz>` run ZERO lifecycle scripts** —
-  measured, so `prepublishOnly` (typecheck, test, build, packer assertion) never
-  fires and `services@30.0.0` shipped with no `lib/` at all. Never publish a
-  tarball you did not build in the SAME command; `postbuild` is what runs
-  `packages/services/scripts/verify-package.mjs`, and only a build runs it. Table
-  of every pack/publish path: `docs/engineering/package-rules.md`.
-- **`bun install` refuses to RESOLVE a dependency published in the last week**
-  (`minimumReleaseAge`). Anything that re-resolves must opt out — that is why
-  `scripts/check-lockfile-sync.mjs` passes `--minimum-release-age=0`.
+## Rules
 
-Local dev caveats (Postgres, the unset Redis, building shared libs before running
-an app, the end-to-end auth smoke test):
-`docs/engineering/local-dev-cursor-cloud.md`.
+Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md`.
 
-Inference and agent work starts at `docs/inference/request-routing.md`: one-shot
-AI goes through Oxy to Kaana, while agents/chat go through Alia, Oxy and Kaana.
-All provider credentials, including BYOK, belong only in Kaana PostgreSQL/KMS;
-`https://kaana.ai` is the sole signed origin. Keep source, draft rollout and
-verified production state as three separate claims.
+**Build** — build-and-deploy.md#commands
+- Run each package's own `bun run test`; only `packages/auth` is `bun test`.
+- Shared versions live in `workspaces.catalog` as `"catalog:"`.
+- Pack with `bun pm pack`, never `npm pack`.
+- Anything that re-resolves passes `--minimum-release-age=0`.
+- Never publish a tarball you did not build in the same command — #publishing
+- TS strict; Biome `--error-on-warnings`; commit `bun.lock` with its `package.json`; path-scope `git add`, never `git add -A` — #coding-standards
 
-## Package boundaries (strict)
+**Package boundaries** — #package-boundaries
+- `@oxy.so/contracts` and `@oxy.so/core` never import `react`, `react-native` or `expo-*`.
+- `@oxy.so/services` never re-exports core or contracts; `@oxy.so/api` takes auth from `@oxy.so/core/server` only.
+- A module naming an OPTIONAL peer never reaches the root barrel: own export subpath.
+- Never hand-write `declare module '<pkg>'` for a package with types or `@types/` — #ambient-shims
+- ESM builds of core and contracts contain no `require()` — #esm-builds
+- Every peer range on a package that ships breaking majors has an UPPER bound — #peer-ranges
 
-- **`@oxy.so/contracts` and `@oxy.so/core` must never import `react`,
-  `react-native` or `expo-*`.** Contracts allows only `zod`; core may use dynamic
-  `await import(...)` for optional RN modules.
-- **`@oxy.so/services` does NOT re-export from `@oxy.so/core` or
-  `@oxy.so/contracts`.** Consumers import those types directly. No
-  back-compatibility re-exports anywhere.
-- **A module naming an OPTIONAL peer must never be reachable from the root
-  barrel — give it its own export subpath.** `tsc` resolves an `import()`
-  specifier even when the call is lazy and wrapped in `try`/`catch`, so a barrel
-  re-export turns an optional peer into a hard install requirement. It is
-  RESOLVER-ASYMMETRIC and therefore ships unnoticed: web/Vite consumers resolve
-  `lib/**/*.d.ts` under `skipLibCheck` and never see it, while Metro/RN consumers
-  resolve the published `src/` and fail. Worked example:
-  `@oxy.so/services/notifications`, kept out of the barrel by
-  `packages/services/__tests__/notifications/barrelIsolation.test.ts`.
-- **`@oxy.so/api` imports schemas directly from `@oxy.so/contracts`** and server
-  auth helpers from `@oxy.so/core/server` only.
-- **Never hand-write a `declare module '<pkg>'` for a package that ships types or
-  has an `@types/`.** An ambient declaration SHADOWS the resolved types for every
-  program including the declaring file — core's tsconfig includes it and no
-  consumer's does, so core typechecks against a private view of its dependencies
-  and a consumer compiling core SOURCE gets a different program. This took main's
-  whole `packages/api` jest run down once, with a symptom that reads as version
-  skew. Legitimate ONLY where the dependency has no types AND no `@types/`;
-  verify by deleting it and running the package's own `tsc`. Never "fix" the
-  optional-peer class this way.
-- **The ESM builds of core and contracts must contain no `require()`** — Vite and
-  other ESM-only bundlers crash. Use `await import()` for optional/platform
-  modules; guard any unavoidable `require()` with `typeof require !== 'undefined'`.
-- **Every peer range on a package that ships breaking majors needs an UPPER
-  bound.** `"*"` and a bare `">=x"` let a consumer's install silently resolve a
-  major the package cannot work with, with no warning from bun at all — the only
-  thing that catches it is `tsc` reaching into `node_modules`, which it does only
-  because the `react-native` condition points at published `src/`, so an app whose
-  typecheck skips `node_modules` gets a green build and a white screen. Raise a
-  floor only to a version MEASURED to be the first that works (bisect the
-  published tarballs), and re-raise it in the same commit as the code that
-  requires it.
+**Runtime traps**
+- Never ship a `\p{…}` regex atom in anything that runs on Hermes; transpile with `regexpu-core` — #hermes-property-escapes
+- Keep `packages/services/src/` React-Compiler-safe — #react-compiler
+- Align native-module versions UP and add them to `expo.install.exclude` — build-and-deploy.md#architecture
 
-## Runtime traps
-
-- **Never ship a `\p{…}`/`\P{…}` atom in any package that runs on Hermes**
-  (core, services, bloom, every app). Mobile Hermes is built with property
-  escapes OFF and throws at RUNTIME on every one of them; V8 supports them fully,
-  so this never reproduces on web, and `hermesc` accepts them at compile time, so
-  the desktop compiler proves nothing. Core builds with `tsc` and no Babel, so a
-  property escape in a module-load-time regex crashes every consuming RN app at
-  BOOT. Sanctioned fix: transpile to explicit ranges at build time with
-  `regexpu-core` (`bun run generate:display-name-policy`). Shipped `dist/` must
-  contain zero `\p{`, and `validationUtils.test.ts` guards it.
-- **`@oxy.so/services` SOURCE is React-Compiler-compiled inside the `commons` and
-  `accounts` apps** — Metro resolves the workspace symlink to a realpath with no
-  `node_modules` segment, so Expo's gate treats it as app source. `packages/services/src/`
-  must therefore be held to React-Compiler-safe standards.
-- **Align native-module versions UP across the whole monorepo** and add the
-  package to `expo.install.exclude`, or `expo install --fix` downgrades it back.
-  Never let two versions of one native module coexist.
-
-## Identity, auth and privacy
-
-Mechanisms — the device-first session transport, the cookie rule, `DeviceSession`,
-cold boot, `sessionMode`, the OAuth transports, service tokens, the IdP:
-**`docs/engineering/auth-and-identity.md`** and `docs/auth/index.md`.
-
-- **`name.displayName` is OPTIONAL and the fallback is the HANDLE**, once:
-  `displayName ?? handle` via `getNormalizedUserHandle`. Never rebuild a
-  multi-field chain, and never require a non-empty `displayName` as a
-  session-validity gate.
-- **Relying-party origins are ZERO-COOKIE.** `auth.oxy.so` alone holds
-  `__Host-oxy-device`, and its value is an opaque random handle and nothing else.
-  Still forbidden: third-party cookies, hidden iframes, cross-origin
-  `localStorage`, FedCM, gesture-less popups, silent `prompt=none` loops,
-  automatic redirect chains between Oxy origins.
-- **The SDK NEVER navigates the top-level window on its own.** Every hop to the
-  IdP starts from a real user gesture. The silent cold-boot restore and the
-  post-sign-in hub sync are DELETED, not gated — do not reintroduce either.
-- **ONE `OxyProvider`, from `@oxy.so/services`, on web and native**, with a
-  registered `clientId`. Never a second provider, never app-local session
-  restore, never an app-local sign-in screen.
-- **App backends use `@oxy.so/core/server`** — `createOxyAuthMiddleware`,
-  `createOptionalOxyAuth`, `getRequiredOxyUserId`, `authSocket`, `safeFetch`,
-  `createOxyCors`, `verifySecret`. Do not define local `AuthRequest`,
-  `requireAuth`, bearer parsers or token-decoding middleware in an app; missing
-  behaviour belongs in `@oxy.so/core/server`. Derive socket rooms from
-  `socket.user.id`, never from a client-supplied id.
-- **Never `new Model(req.body)` or spread `req.body` into an update** — resolve
-  owner ids server-side and whitelist fields explicitly (mass-assignment IDOR).
-- **App backend clients use `oxyServices.createLinkedClient({ baseURL })`.** No
-  app-local token providers, auth interceptors, manual `Authorization` headers or
-  refresh retries.
-- **Loopback dev origins are trusted on the credentialed CORS lane in ALL
-  environments, production included** (owner-approved). One predicate,
-  `isLoopbackOrigin`. Do NOT gate it on `NODE_ENV`, hardcode a port, or extend it
-  to `https://localhost`.
-- **NEVER persist a user IP** — raw, hashed or geo-derived, in the database,
-  logs, metrics or a DTO. Hashing the IPv4 space is brute-forceable, so it is not
-  an acceptable at-rest form. Anonymous rate-limit keys are the one transient
-  exception and MUST go through `hashedIpKey`; inbound-email `Received:` headers
-  are the one sanctioned stored exception. Do NOT re-add IP capture "for
-  security" — it was a deliberate trade-off, not an oversight.
-
-## Coding standards
-
-- TypeScript strict everywhere; Biome with `--error-on-warnings`.
-- `core`/`contracts` build with `tsc` (CJS + ESM + types → `dist/`); `services`
-  builds with `react-native-builder-bob` (→ `lib/`).
-- **PATH-SCOPE every `git add` in a shared package.** Never `git add -A` while
-  another session may hold uncommitted work — a concurrent session's federation
-  work was nearly swept into an unrelated commit.
-- **Regenerate and commit `bun.lock` in the SAME commit as the `package.json`
-  change**, per repo.
+**Identity, auth, privacy** — auth-and-identity.md#auth--session-contract
+- `displayName` is optional; the one fallback is the handle via `getNormalizedUserHandle` — #user-identity-contract
+- RP origins are zero-cookie; only `auth.oxy.so` holds `__Host-oxy-device`; no third-party cookies, iframes, FedCM, `prompt=none` or silent redirects.
+- The SDK never navigates the top-level window on its own; silent restore and hub sync are deleted, not gated.
+- ONE `OxyProvider` from `@oxy.so/services` with a registered `clientId`; no app-local restore or sign-in screen.
+- App backends use `@oxy.so/core/server`; no local auth middleware; socket rooms from `socket.user.id`.
+- App backend clients use `oxyServices.createLinkedClient({ baseURL })`; no local token plumbing.
+- Never `new Model(req.body)` or spread `req.body` into an update; whitelist fields.
+- Loopback origins stay trusted in ALL environments via `isLoopbackOrigin`; never gate on `NODE_ENV`.
+- NEVER persist a user IP, raw, hashed or geo-derived; rate-limit keys go through `hashedIpKey` — platform-features.md#no-ip-invariant
 
 ## Terminology
 
-`OxyServices` (API client, core) · `OxyProvider` (the ONE React provider,
-services) · `useOxy` / `useAuth` · `OxyAccountDialog` (account switcher and
-sign-in) · bottom sheet (native modal navigation in services; auth flows use the
-dialog, not sheets) · `LogoIcon` / `LogoText`.
+`OxyServices` · `OxyProvider` (the ONE provider) · `useOxy`/`useAuth` · `OxyAccountDialog` (switcher + sign-in) · bottom sheet (auth uses the dialog) · `LogoIcon`/`LogoText`.
 
-## Where the rest lives
+## Read before touching
 
-`docs/engineering/package-rules.md` (the evidence behind every boundary, build
-and runtime rule above — the ambient-shim incident, the Hermes verification, the
-optional-peer resolver asymmetry) · `docs/engineering/build-and-deploy.md` (AWS,
-the inbound email path, containers
-and the Dockerfile gotcha, the workspace/dependency graph, contract-first
-schemas, key entry points, published version notes) ·
-`docs/engineering/auth-and-identity.md` · `docs/engineering/platform-features.md`
-(the application model, workspaces, Oxy Trust, rate limiting, federation, OTA
-updates, contact discovery, the accounts/commons apps, civic identity, the IP
-invariant's full removal list) · `docs/engineering/sdk-patterns.md` ·
-`docs/engineering/local-dev-cursor-cloud.md`.
+- Auth, sessions, IdP: `docs/auth/index.md`, then `auth-and-identity.md`
+- Inference/agents: `docs/inference/request-routing.md` — one-shot AI: Oxy → Kaana; agents/chat: Alia → Oxy → Kaana; provider credentials only in Kaana; sole signed origin `https://kaana.ai`
+- In `docs/engineering/`: packaging/Docker/AWS `package-rules.md`, `build-and-deploy.md` · SDK internals `sdk-patterns.md` · local dev `local-dev-cursor-cloud.md` · git diffs/rebases `measurement-traps.md`
