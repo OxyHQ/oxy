@@ -157,14 +157,48 @@ jobs:
                  (if $batch != "" then [{name:"BATCH_SIZE", value:$batch}] else [] end))
              }]}')
 
-          TASK_ARN=$(aws ecs run-task \
-            --cluster "$CLUSTER" \
-            --task-definition "$REPAIR_TASK_DEF" \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
-            --overrides "$OVERRIDES" \
-            --started-by "gh-hls-repair" \
-            --query 'tasks[0].taskArn' --output text)
+          # The cluster runs at the edge of its Fargate on-demand vCPU quota, so a
+          # one-shot competing with a rollout is refused outright (`RESOURCE:CPU`).
+          # That is a queue, not a failure — `deploy-ecs-image.sh` waits it out for
+          # its own one-shots, and an ops task nobody is watching needs it more.
+          # Bounded: after START_MAX_WAIT_SECS the run fails loudly rather than
+          # hanging on a quota that is not coming back.
+          START_MAX_WAIT_SECS=600
+          POLL_INTERVAL=20
+          start_waited=0
+          while :; do
+            RUN_JSON=$(aws ecs run-task \
+              --cluster "$CLUSTER" \
+              --task-definition "$REPAIR_TASK_DEF" \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
+              --overrides "$OVERRIDES" \
+              --started-by "gh-hls-repair")
+            if [ "$(jq '.failures | length' <<<"$RUN_JSON")" = "0" ]; then
+              break
+            fi
+            if ! jq -e '
+              all(
+                .failures[];
+                (.reason // "") == "RESOURCE:CPU"
+                or ((.reason // "") | ascii_downcase | contains("limit on the number of vcpus you can run concurrently"))
+              )
+            ' <<<"$RUN_JSON" >/dev/null; then
+              echo "::error::ECS refused to start the repair task."
+              jq '.failures' <<<"$RUN_JSON"
+              exit 1
+            fi
+            if [ "$start_waited" -ge "$START_MAX_WAIT_SECS" ]; then
+              echo "::error::Fargate vCPU capacity never freed up within ${START_MAX_WAIT_SECS}s."
+              jq '.failures' <<<"$RUN_JSON"
+              exit 1
+            fi
+            echo "::warning::Fargate vCPU capacity refused the repair task; retrying in ${POLL_INTERVAL}s."
+            sleep "$POLL_INTERVAL"
+            start_waited=$((start_waited + POLL_INTERVAL))
+          done
+
+          TASK_ARN=$(jq -r '.tasks[0].taskArn' <<<"$RUN_JSON")
 
           echo "task: $TASK_ARN"
           echo "Waiting for the task to stop…"
