@@ -57,15 +57,20 @@ interface RawResponse {
   status: number;
   location?: string;
   cacheControl?: string;
+  acceptRanges?: string;
   body: string;
 }
 
 /** Issue a request WITHOUT following redirects so we can assert the 302 itself. */
-async function requestNoFollow(server: http.Server, path: string): Promise<RawResponse> {
+async function requestNoFollow(
+  server: http.Server,
+  path: string,
+  headers: http.OutgoingHttpHeaders = {}
+): Promise<RawResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { method: 'GET', host: '127.0.0.1', port: address.port, path },
+      { method: 'GET', host: '127.0.0.1', port: address.port, path, headers },
       (res) => {
         let raw = '';
         res.on('data', (chunk) => { raw += chunk; });
@@ -74,6 +79,7 @@ async function requestNoFollow(server: http.Server, path: string): Promise<RawRe
             status: res.statusCode ?? 0,
             location: res.headers.location,
             cacheControl: res.headers['cache-control'],
+            acceptRanges: res.headers['accept-ranges'],
             body: raw,
           });
         });
@@ -102,6 +108,53 @@ beforeEach(() => {
 });
 
 describe('GET /cdn/:id — public CDN origin resolver', () => {
+  it('carries no body and declares that ranges do not apply', async () => {
+    // The redirect is cached at the edge for an hour, and CloudFront answered
+    // RANGED requests out of that cached redirect BODY:
+    //
+    //   GET cloud.oxy.so/<id>  Range: bytes=1000000-
+    //   → 416, content-range: bytes */130, x-cache: Error from cloudfront
+    //
+    // A video player re-opens its source at a non-zero offset on every seek and
+    // resume, so that 416 reached Mention's reel as ExoPlayer's `Source error`
+    // and painted "Video unavailable" over a local Oxy video that was fine.
+    // Nothing to slice, and a header that says so.
+    mockGetFile.mockResolvedValue({
+      _id: PUBLIC_FILE_ID,
+      status: 'active',
+      visibility: 'public',
+      storageKey: 'public/content/2026/03/bb/bb7a29b85077cd58d945959b017bc954.png',
+    });
+    mockGetPublicCdnUrl.mockResolvedValue(ORIGINAL_CDN_URL);
+
+    const res = await requestNoFollow(server, `/cdn/${PUBLIC_FILE_ID}`);
+
+    expect(res.status).toBe(302);
+    expect(res.location).toBe(ORIGINAL_CDN_URL);
+    expect(res.acceptRanges).toBe('none');
+    expect(res.body).toBe('');
+  });
+
+  it('answers a RANGED request with the redirect, never a 416', async () => {
+    // The origin must not develop its own opinion about ranges either: a range
+    // header on a redirect is meaningless, not an error.
+    mockGetFile.mockResolvedValue({
+      _id: PUBLIC_FILE_ID,
+      status: 'active',
+      visibility: 'public',
+      storageKey: 'public/content/2026/03/bb/bb7a29b85077cd58d945959b017bc954.png',
+    });
+    mockGetPublicCdnUrl.mockResolvedValue(ORIGINAL_CDN_URL);
+
+    const res = await requestNoFollow(server, `/cdn/${PUBLIC_FILE_ID}`, {
+      Range: 'bytes=1000000-',
+    });
+
+    expect(res.status).toBe(302);
+    expect(res.location).toBe(ORIGINAL_CDN_URL);
+    expect(res.acceptRanges).toBe('none');
+  });
+
   it('302s a public CDN-backed file to its cloud.oxy.so URL with Cache-Control', async () => {
     mockGetFile.mockResolvedValue({
       _id: PUBLIC_FILE_ID,
