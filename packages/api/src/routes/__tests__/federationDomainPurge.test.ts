@@ -123,7 +123,7 @@ jest.mock('@oxy.so/federation', () => {
   return { __esModule: true, ...actual, isSameFederationHost: jest.fn(actual.isSameFederationHost) };
 });
 
-import { asc, eq, inArray, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, or } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { blocks } from '../../db/schema/blocks';
 import { fileLinks } from '../../db/schema/fileLinks';
