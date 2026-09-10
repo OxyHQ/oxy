@@ -48,17 +48,6 @@ dkim-private.pem
 **/*.log
 **/.eslintcache
 
-# Other apps in the monorepo that the API image does not build.
-# The Dockerfile only copies packages/core and packages/api, but
-# excluding the rest keeps the build context lean.
-packages/accounts
-packages/auth
-packages/auth-sdk
-packages/console
-packages/services
-packages/test-app-expo
-packages/test-app-vite
-
 # Local Docker artifacts
 Dockerfile
 .dockerignore
