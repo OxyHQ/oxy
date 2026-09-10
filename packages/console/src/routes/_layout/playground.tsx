@@ -2,7 +2,7 @@ import { Link, createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Alert02Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
-import type { InferenceMessage } from '@oxyhq/contracts';
+import type { InferenceMessage } from '@oxy.so/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

@@ -32,9 +32,9 @@ jest.mock(
   { virtual: true },
 );
 
-jest.mock('@oxyhq/protocol', () => ({
+jest.mock('@oxy.so/protocol', () => ({
   __esModule: true,
-  ...jest.requireActual('@oxyhq/protocol'),
+  ...jest.requireActual('@oxy.so/protocol'),
   loadExpoCrypto: async () => require('expo-crypto'),
   loadSecureStore: async () => require('expo-secure-store'),
   loadNodeCrypto: async () => require('crypto'),

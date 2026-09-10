@@ -14,16 +14,16 @@
  *      `randomFillSync`). This is what a Node runtime WITHOUT a global WebCrypto
  *      (Node 18 script entrypoints, some embedded hosts) falls back to.
  *   3. React Native — `expo-crypto.getRandomBytes` (statically imported via the
- *      per-platform `platform/crypto` module in `@oxyhq/protocol`).
+ *      per-platform `platform/crypto` module in `@oxy.so/protocol`).
  *
- * Historically step (2) delegated to `@oxyhq/protocol`'s RN-only
+ * Historically step (2) delegated to `@oxy.so/protocol`'s RN-only
  * `getRandomBytesRN`, which THROWS on Node — so any Node host lacking a global
  * WebCrypto crashed here instead of getting randomness. It is now a proper
  * Node-backed implementation.
  */
 
 import { Buffer } from 'buffer';
-import { getRandomBytesRN, isNodeJS } from '@oxyhq/protocol';
+import { getRandomBytesRN, isNodeJS } from '@oxy.so/protocol';
 
 const getGlobalObject = (): typeof globalThis => {
   if (typeof globalThis !== 'undefined') return globalThis;
@@ -62,7 +62,7 @@ let cachedNodeCrypto: NodeCryptoLike | null | undefined;
  * Synchronously load `node:crypto` on a Node runtime, or `null` elsewhere.
  *
  * Uses a guarded, Node-only `require`. Every runtime that actually reaches this
- * branch has a working CommonJS `require`: `@oxyhq/core` publishes no
+ * branch has a working CommonJS `require`: `@oxy.so/core` publishes no
  * `"type": "module"`, so Node loads it as CommonJS and the `require` free
  * variable is present. Browsers never reach here (they own `globalThis.crypto`,
  * so this polyfill is never installed) and React Native takes the
@@ -125,7 +125,7 @@ const cryptoPolyfill: CryptoLike = {
       return array;
     }
     // React Native (and any non-Node host without WebCrypto): synchronous
-    // expo-crypto via @oxyhq/protocol's RN `platform/crypto` variant.
+    // expo-crypto via @oxy.so/protocol's RN `platform/crypto` variant.
     const bytes = getRandomBytesRN(array.byteLength);
     const uint8View = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
     uint8View.set(bytes);

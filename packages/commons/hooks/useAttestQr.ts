@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useOxy } from '@oxyhq/services';
-import type { AttestQrPayload } from '@oxyhq/core';
+import { useOxy } from '@oxy.so/services';
+import type { AttestQrPayload } from '@oxy.so/core';
 
 /** Lifecycle of building the real-life-attestation QR the current user (A) shows. */
 export type AttestQrState = 'loading' | 'ready' | 'error';

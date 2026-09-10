@@ -22,7 +22,7 @@
  * `404 {error:'NOT_FOUND', message:'DID not found'}` on a miss.
  *
  * That predicate is `/^[0-9a-f]{24}$/i`, which rejects the **uuid v7 every
- * account created after the Postgres cutover carries** (`@oxyhq/db`'s
+ * account created after the Postgres cutover carries** (`@oxy.so/db`'s
  * `generatedId()`). Every such account's DID therefore 404'd BEFORE ANY QUERY
  * RAN — the account was not resolvable by any DID resolver, remote fediverse
  * instance, or Oxy's own credential verifier, and the response was

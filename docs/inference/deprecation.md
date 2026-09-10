@@ -10,21 +10,15 @@ Status of the whole platform: [README.md](./README.md).
 
 ---
 
-## Why there is no date yet
+## Why this policy does not invent a date
 
-Two facts, both checkable:
-
-1. **Nothing an external developer can reach has been deprecated.** The things
-   retired so far were retired because they never did anything — see
-   [what has been retired](#what-has-been-retired-and-why-none-of-it-needed-a-date).
-   A name nothing checked has no users to give notice to.
-2. **A sunset date is meaningless before a launch date.** The public inference
-   edge exists and refuses every invoke for want of a data plane, so no external
-   developer depends on it. The first real deprecation notice is owed when the
-   first thing anybody depends on ships, and it is owed by whoever ships it.
-
-A date written now would be a date chosen without knowing the launch it is
-relative to, published to an audience of nobody, and stale before it applied.
+A dated sunset belongs to a named compatibility surface and a measured audience,
+not to the platform in the abstract. Before removing one, read live usage,
+identify its callers and publish the notice required below. The identifiers
+retired so far never authorized or selected anything; see
+[what has been retired](#what-has-been-retired-and-why-none-of-it-needed-a-date).
+A current launch or reachability claim must come from live rollout evidence, not
+from this policy document.
 
 ---
 
@@ -98,28 +92,17 @@ Detail on each: [migration.md](./migration.md).
 
 ---
 
-## What will need a dated notice
+## The Alia proxy retirement is complete
 
-Nothing here has a date. Each line names who owes it and what event starts the
-clock.
+The caller census found that the Oxy proxy was an internal compatibility path,
+not a public API with independent consumers. Its point-inference callers were
+moved to authenticated Oxy endpoints backed by Kaana; legitimate Alia agent,
+chat and voice product callers remain direct Alia integrations.
 
-### The Alia proxy, now at `/alia/*`
-
-`POST /v1/chat/completions` is the Oxy inference edge as of workstream 4. The
-pre-existing proxy that forwarded a body to Alia on one shared `ALIA_API_KEY` is
-**unchanged and still reachable at `POST /alia/chat/completions`**, so every
-platform-trusted caller it served kept a working path, one base URL apart.
-
-`POST /v1/voice/token` and `POST /v1/voice/transcribe` still fall through to that
-proxy: ADR 0010 records that those are Alia *product* endpoints which happen to
-live under `/v1`, that they are not part of the inference edge, and that where
-they end up is workstream 14's decision.
-
-**Who is owed a notice:** the proxy's consumer set is knowable and small — only
-callers acting for a platform-trusted first-party or internal application can
-reach it at all — so this is the 90-day, addressed-by-name row rather than a
-public announcement. **Owed by:** workstream 14, when `Alia → data plane` is
-live. **Clock starts:** when Alia no longer needs the proxy.
+Oxy no longer mounts `/alia/*` or the legacy `/v1/voice/*` fallthrough and no
+runtime configuration requires `ALIA_API_KEY`. Negative route tests keep these
+paths closed so the shared-key proxy cannot reappear accidentally. The earlier
+notice plan is retained in Git history; there is no active notice clock.
 
 ### The `developer_api_keys` table — REMOVED
 

@@ -21,12 +21,12 @@ Welcome to the Oxy developer documentation! This guide will help you integrate O
 
 1. **Install the package:**
 ```bash
-bun add @oxyhq/services
+bun add @oxy.so/services
 ```
 
 2. **Wrap your app:**
 ```typescript
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 export default function App() {
   return (
@@ -39,7 +39,7 @@ export default function App() {
 
 3. **Use in components:**
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 function MyComponent() {
   const { user, isAuthenticated, login } = useOxy();

@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import {
     SegmentedControl,
     SegmentedControlItem,
     SegmentedControlItemText,
-} from '@oxyhq/bloom/segmented-control';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { Loading } from '@oxyhq/bloom/loading';
-import { Text } from '@oxyhq/bloom/typography';
+} from '@oxy.so/bloom/segmented-control';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Text } from '@oxy.so/bloom/typography';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';

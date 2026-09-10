@@ -14,13 +14,13 @@ The app that powers `auth.oxy.so`. It is the **OAuth 2.0 authorize/consent Ident
 
 A small, focused app whose only job is third-party authorization. Third-party apps registered in the [Oxy Console](https://console.oxy.so) redirect users here with an OAuth authorize request and get back a short-lived, single-use authorization code.
 
-It is **not** a relying party and **not** the session authority for first-party apps — official Oxy apps sign in in-app through `@oxyhq/services` and the device-first session model (see [device sessions](../../../docs/auth/device-session.md)); they never redirect here. Legacy browser-mediated identity flows (FedCM and related silent-restore machinery) were removed from the ecosystem.
+It is **not** a relying party and **not** the session authority for first-party apps — official Oxy apps sign in in-app through `@oxy.so/services` and the device-first session model (see [device sessions](../../../docs/auth/device-session.md)); they never redirect here. Legacy browser-mediated identity flows (FedCM and related silent-restore machinery) were removed from the ecosystem.
 
 Unlike the SDKs, this is a deployed app — you don't `bun add` it. You integrate by sending users to `/authorize` (see the [integration guide](../../../docs/auth/integration-guide.md)).
 
 ## Built on the shared SDK
 
-The IdP renders `@oxyhq/services` components via React Native Web, so its sign-in and consent surfaces are pixel-identical to the in-app SDK ones:
+The IdP renders `@oxy.so/services` components via React Native Web, so its sign-in and consent surfaces are pixel-identical to the in-app SDK ones:
 
 ```tsx
 <OxyProvider baseURL={getApiBaseUrl()} clientId={OXY_CLIENT_ID}>
@@ -30,7 +30,7 @@ The IdP renders `@oxyhq/services` components via React Native Web, so its sign-i
 
 - No special props — the IdP is a device-first origin exactly like every other Oxy app: it runs the normal cold boot (restores this origin's own session from its persisted `{deviceId, deviceSecret}`) and reads the device directory via `useDeviceSwitcher`, selecting a `principal acting as account` pair with `activateContext(contextId)`. It stays a SHELL that emits the OAuth code after authenticating — it does not bounce elsewhere for its own session. (The former `coldBoot={false}` exception existed for the SSO bounce the zero-cookie cutover deleted.)
 - The sign-in surface is the shared SDK device-first funnels (`signInWithPassword`, `completeTwoFactorSignIn`) via the multi-step login form (identifier → password → 2FA). OAuth visitors with no local session use the Commons QR lane (`CommonsOAuthLane`).
-- Consent renders `OxyConsentScreen` from `@oxyhq/services`, fed by the registered `Application` (name, logo, scopes, `privacyPolicyUrl`, `termsUrl`).
+- Consent renders `OxyConsentScreen` from `@oxy.so/services`, fed by the registered `Application` (name, logo, scopes, `privacyPolicyUrl`, `termsUrl`).
 
 ## Routes
 
@@ -71,6 +71,6 @@ Multi-step:
 
 No JS API — this is a deployed app. Programmatic integration happens via:
 
-- [`@oxyhq/core`](/developers/docs/core) — `generatePkcePair`, `generateOAuthState`, `buildOAuthAuthorizeUrl`
-- [`@oxyhq/services`](/developers/docs/services) — `OxySignInButton` (starts the OAuth redirect automatically for `third_party` applications)
+- [`@oxy.so/core`](/developers/docs/core) — `generatePkcePair`, `generateOAuthState`, `buildOAuthAuthorizeUrl`
+- [`@oxy.so/services`](/developers/docs/services) — `OxySignInButton` (starts the OAuth redirect automatically for `third_party` applications)
 - The REST API's `/auth/oauth/*` endpoints — see the [API reference](/developers/docs/api)

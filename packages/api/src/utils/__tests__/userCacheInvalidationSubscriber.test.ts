@@ -12,7 +12,7 @@ jest.mock('../userCache', () => ({
 
 import { EventEmitter } from 'node:events';
 
-import { OXY_USER_INVALIDATION_CHANNEL } from '@oxyhq/contracts';
+import { OXY_USER_INVALIDATION_CHANNEL } from '@oxy.so/contracts';
 
 import { startUserCacheInvalidationSubscriber } from '../userCacheInvalidationSubscriber';
 

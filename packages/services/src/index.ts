@@ -1,15 +1,15 @@
 /**
- * @oxyhq/services — OxyHQ Expo/React Native SDK
+ * @oxy.so/services — OxyHQ Expo/React Native SDK
  *
  * Full UI components, screens, and native features for Expo apps.
- * Depends on @oxyhq/core for foundation services. Does NOT re-export from
- * @oxyhq/core — consumers import core types/values directly from `@oxyhq/core`.
+ * Depends on @oxy.so/core for foundation services. Does NOT re-export from
+ * @oxy.so/core — consumers import core types/values directly from `@oxy.so/core`.
  *
  * Every export below is NOMINAL — no `export *`, no compat shims.
  *
  * @example
  * ```tsx
- * import { OxyProvider, useAuth, OxySignInButton } from '@oxyhq/services';
+ * import { OxyProvider, useAuth, OxySignInButton } from '@oxy.so/services';
  *
  * function App() {
  *   return (
@@ -24,7 +24,7 @@
 /// <reference path="./types/react-native-classname.d.ts" />
 /// <reference path="./types/react-native-web-style.d.ts" />
 
-import { setPlatformOS, type PlatformOS } from '@oxyhq/core';
+import { setPlatformOS, type PlatformOS } from '@oxy.so/core';
 import { Platform } from 'react-native';
 setPlatformOS(Platform.OS as PlatformOS);
 
@@ -58,7 +58,9 @@ export type {
 } from './ui/runtime';
 export type { OxyContextState } from './ui/context/OxyContext';
 export { useAuth } from './ui/hooks/useAuth';
-export type { AuthState, AuthActions, UseAuthReturn } from './ui/hooks/useAuth';
+export type { AuthState, AuthActions, SignInOutcome, UseAuthReturn } from './ui/hooks/useAuth';
+export { createDeferredProductAnalytics } from './ui/analytics/productAnalytics';
+export type { OxyProductEvent, ProductAnalytics } from './ui/analytics/productAnalytics';
 // Thrown by `switchToAccount` / `switchSession` while `OxyProvider` runs with
 // `sessionMode="identity"` — an identity-bound app authenticates as the owner of
 // the local identity key and cannot switch accounts.
@@ -239,7 +241,7 @@ export type { ViewMode, SortBy, SortOrder } from './ui/hooks/useFileFiltering';
 // ---------------------------------------------------------------------------
 // The `expo-notifications` adapter lives behind its own entry point:
 //
-//     import { getExpoPushToken } from '@oxyhq/services/notifications';
+//     import { getExpoPushToken } from '@oxy.so/services/notifications';
 //
 // It is the one module in this package whose dependencies (`expo-notifications`
 // and `expo-constants`) are optional peers that an app which does not use push
@@ -261,7 +263,7 @@ export type { ViewMode, SortBy, SortOrder } from './ui/hooks/useFileFiltering';
 export {
   OXY_OAUTH_STATE_STORAGE_KEY,
   OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 export { default as OxySignInButton } from './ui/components/OxySignInButton';
 export type { OxySignInButtonProps, OxyOAuthResult } from './ui/components/OxySignInButton';
 
@@ -279,6 +281,12 @@ export type {
   WebOAuthUnsupportedReason,
   OAuthPopupHandle,
 } from './ui/oauth/types';
+export type {
+  OAuthConsentFailureReason,
+  OAuthConsentResult,
+  OAuthConsentUnsupportedReason,
+  RequestOAuthConsentOptions,
+} from './ui/oauth/explicitOAuthConsent';
 export { OxyAuthPrompt } from './ui/components/OxyAuthPrompt';
 export type { OxyAuthPromptProps } from './ui/components/OxyAuthPrompt';
 export { OxyOAuthCallback } from './ui/components/OxyOAuthCallback';
@@ -334,7 +342,12 @@ export {
   followRecordToStatus,
   followRecordsToStatusMap,
 } from './ui/stores/followTargetStore';
+export { default as PeableButton } from './ui/components/PeableButton';
+export type { PeableButtonProps } from './ui/components/PeableButton';
+/** @deprecated Use `PeableButton` instead. */
 export { default as OxyPayButton } from './ui/components/OxyPayButton';
+/** @deprecated Use `PeableButtonProps` instead. */
+export type { OxyPayButtonProps } from './ui/components/OxyPayButton';
 export { LogoIcon } from './ui/components/logo/LogoIcon';
 export { LogoText } from './ui/components/logo/LogoText';
 
@@ -368,23 +381,16 @@ export type { OxySignInSurfaceAction } from './ui/components/authChooser/types';
 // The device switcher — the server's own directory (ADR 0002) of who is signed
 // in here and what each of them may act as, grouped by PERSON, with the two
 // removals an account id cannot name. Backed by the shared
-// `AccountDialogController` in `@oxyhq/core`; selecting a row activates a
-// `contextId`. `DevicePrincipalGroup` and `DeviceContext` live in `@oxyhq/core`
+// `AccountDialogController` in `@oxy.so/core`; selecting a row activates a
+// `contextId`. `DevicePrincipalGroup` and `DeviceContext` live in `@oxy.so/core`
 // — import them from there.
 export { useDeviceSwitcher } from './ui/hooks/useDeviceSwitcher';
 export type { UseDeviceSwitcherResult } from './ui/hooks/useDeviceSwitcher';
 
-// Unified "Manage your Oxy Account" screen (the caller's own personal account)
-export { default as ProfileScreen } from './ui/screens/ProfileScreen';
-export { default as ManageAccountScreen } from './ui/screens/ManageAccountScreen';
-export { default as NotificationsScreen } from './ui/screens/NotificationsScreen';
-export { default as PreferencesScreen } from './ui/screens/PreferencesScreen';
-export { default as ConnectedAppsScreen } from './ui/screens/ConnectedAppsScreen';
-
-// Account-graph screens (organization / project / bot accounts)
-export { default as CreateAccountScreen } from './ui/screens/CreateAccountScreen';
-export { default as AccountMembersScreen } from './ui/screens/AccountMembersScreen';
-export { default as AccountSettingsScreen } from './ui/screens/AccountSettingsScreen';
+// Route screens deliberately live at `@oxy.so/services/screens`. Keeping them
+// out of the root graph is load-bearing: the surface registry already imports
+// them with React.lazy(), while a static barrel export turns those lazy chunks
+// back into startup code in Vite and Metro.
 
 // ---------------------------------------------------------------------------
 // Bottom-sheet navigation

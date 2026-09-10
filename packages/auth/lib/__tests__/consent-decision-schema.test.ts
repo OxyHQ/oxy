@@ -10,7 +10,7 @@
  * MUST fail safe to `consentRequired: true` so the consent screen is shown — we
  * never silently auto-approve on a parse error.
  *
- * The schema moved to `@oxyhq/contracts` when the browser hub's edge layer
+ * The schema moved to `@oxy.so/contracts` when the browser hub's edge layer
  * became a second consumer of the same response (issue #937 Phase 5), and it is
  * a discriminated union there rather than the flat object this file used to
  * hold. The cases below are unchanged and still pass; the union additionally
@@ -18,8 +18,12 @@
  * pins.
  */
 import { describe, expect, test } from "bun:test"
-import { oauthConsentDecisionSchema } from "@oxyhq/contracts"
-import { consentRequiredFromBody, safeParse } from "@/lib/schemas"
+import { oauthConsentDecisionSchema } from "@oxy.so/contracts"
+import {
+    consentRequiredFromBody,
+    mcpConsentRequiredFromBody,
+    safeParse,
+} from "@/lib/schemas"
 
 describe("oauthConsentDecisionSchema", () => {
     test("parses every valid reason", () => {
@@ -162,5 +166,18 @@ describe("consentRequiredFromBody", () => {
     test("fails safe to true for a non-object body", () => {
         expect(consentRequiredFromBody("not json")).toBe(true)
         expect(consentRequiredFromBody(42)).toBe(true)
+    })
+})
+
+describe("mcpConsentRequiredFromBody", () => {
+    test("accepts only an explicit MCP consent decision", () => {
+        expect(mcpConsentRequiredFromBody({ consentRequired: false })).toBe(false)
+        expect(mcpConsentRequiredFromBody({ data: { consentRequired: true } })).toBe(true)
+    })
+
+    test("fails safe for malformed or widened responses", () => {
+        expect(mcpConsentRequiredFromBody(null)).toBe(true)
+        expect(mcpConsentRequiredFromBody({ consentRequired: "false" })).toBe(true)
+        expect(mcpConsentRequiredFromBody({ consentRequired: false, extra: true })).toBe(true)
     })
 })

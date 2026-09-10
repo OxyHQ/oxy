@@ -1,4 +1,4 @@
-import type { AccountRelationship } from '@oxyhq/core';
+import type { AccountRelationship } from '@oxy.so/core';
 import type { AccountPermission } from '@/hooks/use-account';
 import type { AccountAuditActor, AccountAuditEntry, AccountAuditSource } from '@/hooks/use-account-audit';
 import { hasImplicitOwnership } from '@/lib/account-access';

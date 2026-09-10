@@ -24,7 +24,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 // Real copy from the shipped dictionaries — a renamed/missing key surfaces here
 // as its raw dotted path instead of silently passing.
 jest.mock('../../src/ui/hooks/useI18n', () => {
-  const { translate } = jest.requireActual('@oxyhq/core');
+  const { translate } = jest.requireActual('@oxy.so/core');
   return {
     __esModule: true,
     useI18n: () => ({

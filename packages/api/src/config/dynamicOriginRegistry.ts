@@ -11,8 +11,8 @@
  *
  * Two snapshots are maintained in memory and swapped atomically on refresh:
  *  - `trustedOrigins`     — first-party / internal / system / official apps
- *    (plus the {@link BOOTSTRAP_CORE_ORIGINS} fail-safe seed and validated
- *    `OXY_EXTRA_ALLOWED_ORIGINS`). These get the CREDENTIALED CORS lane
+ *    (plus validated `OXY_EXTRA_ALLOWED_ORIGINS`). These get the CREDENTIALED
+ *    CORS lane
  *    (`Access-Control-Allow-Credentials: true`) and pass the CSRF Origin guard.
  *  - `thirdPartyOrigins`  — ordinary active third-party apps. These get a
  *    NON-credentialed CORS lane only (bearer/PKCE public clients): an
@@ -27,15 +27,13 @@
  *
  * Why a snapshot: `isAllowedOrigin` (CORS middleware, CSRF Origin guard,
  * Socket.IO config) is SYNCHRONOUS, but the trust set lives in the database.
- * The snapshot is refreshed in the background (boot + 60s interval + on-demand
- * from Application create/update/delete) and read synchronously. Fail-soft: a
- * database error keeps the previous snapshot.
+ * The snapshot is loaded strictly before the server listens, then refreshed in
+ * the background (60s interval + on-demand from Application mutations). A
+ * background database error keeps the previous complete snapshot.
  *
- * This module OWNS {@link BOOTSTRAP_CORE_ORIGINS} and the
- * `OXY_EXTRA_ALLOWED_ORIGINS` parser (rather than importing them from
+ * This module owns the `OXY_EXTRA_ALLOWED_ORIGINS` parser (rather than importing it from
  * `allowedOrigins.ts`) so the dependency is strictly one-directional
- * (`allowedOrigins.ts` → this module) — no import cycle, and the boot seed can
- * read its data synchronously at module load with no partial-export hazard.
+ * (`allowedOrigins.ts` → this module), avoiding an import cycle.
  */
 
 import { eq } from 'drizzle-orm';
@@ -46,59 +44,6 @@ import { isTrustedApplication } from '../utils/trustedApplication';
 import { normaliseOrigin, isLoopbackOrigin } from '../utils/origin';
 import { isValidHostname } from './env';
 import { logger } from '../utils/logger';
-
-/**
- * Fail-safe core origins. Every first-party Oxy frontend + apex + CDN that must
- * keep working even if the database is unreachable at boot or the Application registry
- * has not been populated yet. The dynamic refresh UNIONS the trusted-app
- * origins on top of this set — it never removes a core origin — so the
- * migration to a fully registry-driven allowlist can never drop an origin that
- * already works in production. (A future trim is possible once the registry is
- * verified to cover all of these.)
- */
-export const BOOTSTRAP_CORE_ORIGINS: ReadonlySet<string> = new Set([
-  // ── oxy.so first-party frontends (Cloudflare Pages) + apex + CDN ──
-  'https://oxy.so',
-  'https://api.oxy.so',
-  'https://accounts.oxy.so',
-  'https://allo.oxy.so',
-  'https://auth.oxy.so',
-  'https://cloud.oxy.so',
-  'https://console.oxy.so',
-  'https://inbox.oxy.so',
-  'https://noted.oxy.so',
-  'https://os.oxy.so',
-  'https://pay.oxy.so',
-  'https://syra.oxy.so',
-  // ── Oxy Website FairCoin redirect ──
-  'https://fairco.in',
-  // ── Mention ──
-  'https://mention.earth',
-  'https://api.mention.earth',
-  'https://auth.mention.earth',
-  // ── Homiio ──
-  'https://homiio.com',
-  'https://app.homiio.com',
-  'https://auth.homiio.com',
-  // ── Alia ──
-  'https://alia.onl',
-  'https://api.alia.onl',
-  'https://auth.alia.onl',
-  // ── Syra ──
-  'https://syra.fm',
-  // ── Allo ──
-  'https://allo.you',
-  // ── TNP ──
-  'https://tnp.network',
-  // ── Moovo (storefront + first-party admin surfaces) ──
-  'https://moovo.now',
-  'https://go.moovo.now',
-  'https://hub.moovo.now',
-  // ── Mercaria (storefront + dashboard + point-of-sale) ──
-  'https://mercaria.co',
-  'https://dashboard.mercaria.co',
-  'https://pos.mercaria.co',
-]);
 
 const HTTPS_PREFIX = 'https://';
 
@@ -179,24 +124,23 @@ const ORIGIN_COLUMNS = {
 class DynamicOriginRegistry {
   private trustedOrigins: Set<string>;
   private thirdPartyOrigins: Set<string>;
-  private timer: NodeJS.Timeout;
+  private timer: NodeJS.Timeout | undefined;
 
   constructor() {
-    // Boot seed: trusted = bootstrap-core ∪ validated extra origins. This makes
-    // the very first synchronous read safe before the first async refresh
-    // resolves (or if the database is unreachable at boot).
+    // Requests are not accepted until the strict startup refresh completes.
+    // Extras are an explicit operational override, never an application catalog.
     this.trustedOrigins = this.seedTrusted();
     this.thirdPartyOrigins = new Set<string>();
+  }
 
-    this.timer = setInterval(() => {
-      void this.refresh();
-    }, REFRESH_INTERVAL_MS);
-    // Never keep the event loop alive for this background refresh.
+  startBackgroundRefresh(): void {
+    if (this.timer) return;
+    this.timer = setInterval(() => void this.refresh(), REFRESH_INTERVAL_MS);
     this.timer.unref();
   }
 
   private seedTrusted(): Set<string> {
-    const seed = new Set<string>(BOOTSTRAP_CORE_ORIGINS);
+    const seed = new Set<string>();
     for (const origin of getExtraAllowedOrigins()) {
       seed.add(origin);
     }
@@ -212,18 +156,17 @@ class DynamicOriginRegistry {
    * FAIL SAFE, and the direction matters: every failure path here LEAVES THE
    * PREVIOUS SNAPSHOT IN PLACE — it never publishes a partial or empty one. An
    * empty trusted set would deny the credentialed CORS lane to every
-   * first-party frontend at once, so "the database is unreachable" must never
-   * be able to narrow the allowlist. The boot seed
-   * ({@link BOOTSTRAP_CORE_ORIGINS} ∪ validated extras) is the floor a
-   * never-successful refresh leaves standing.
+   * first-party frontend at once, so a background database failure must never
+   * replace the last complete snapshot.
    */
-  async refresh(): Promise<void> {
+  async refresh(required = false): Promise<void> {
     // Skip work before the pool is open (module import happens long before
     // startup connects, and unit tests import this transitively via the CORS /
     // CSRF Origin primitives). `getDb()` THROWS when called early, and throwing
     // through the interval callback below would be an unhandled rejection, so
     // the synchronous check is the guard rather than the catch.
     if (!isDatabaseConnected()) {
+      if (required) throw new Error('Origin registry requires a database connection');
       return;
     }
     try {
@@ -258,6 +201,7 @@ class DynamicOriginRegistry {
       this.trustedOrigins = nextTrusted;
       this.thirdPartyOrigins = nextThirdParty;
     } catch (error) {
+      if (required) throw error;
       logger.error('dynamicOriginRegistry: refresh failed, keeping previous snapshot', error);
     }
   }
@@ -281,7 +225,8 @@ class DynamicOriginRegistry {
   }
 
   stop(): void {
-    clearInterval(this.timer);
+    if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
   }
 
   /** Test-only: deterministically set both snapshots. */
@@ -290,7 +235,7 @@ class DynamicOriginRegistry {
     this.thirdPartyOrigins = new Set(thirdParty);
   }
 
-  /** Test-only: restore the boot seed (bootstrap-core ∪ extra). */
+  /** Test-only: restore the explicit operational overrides. */
   resetForTests(): void {
     this.trustedOrigins = this.seedTrusted();
     this.thirdPartyOrigins = new Set<string>();
@@ -310,11 +255,9 @@ export function getCorsDecision(origin: string): CorsDecision {
 }
 
 /** Rebuild the snapshots from the Application registry (background-safe). */
-export function refreshOriginRegistry(): Promise<void> {
-  return registry.refresh().then(async () => {
-    const { reconcileOfficialRedirectUris } = await import('./reconcileOfficialRedirectUris.js');
-    await reconcileOfficialRedirectUris();
-  });
+export async function refreshOriginRegistry(options: { required?: boolean } = {}): Promise<void> {
+  await registry.refresh(options.required ?? false);
+  if (options.required) registry.startBackgroundRefresh();
 }
 
 /** Stop the background refresh interval (tests / graceful shutdown). */
@@ -330,7 +273,7 @@ export function setOriginSnapshotForTests(
   registry.setSnapshotForTests(trusted, thirdParty);
 }
 
-/** Test-only: restore the boot seed snapshot. */
+/** Test-only: restore the initial override-only snapshot. */
 export function resetOriginRegistryForTests(): void {
   registry.resetForTests();
 }

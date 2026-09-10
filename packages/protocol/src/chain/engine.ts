@@ -12,7 +12,7 @@
  * Mongo/SQLite, Oxy DIDs, or any app's lexicon — exactly what makes it reusable.
  */
 
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { computeRecordId } from '../envelope/recordId';
 import type { VerificationMethodResolver } from '../identity/resolver';
 import { verifyEnvelope, type VerifyOptions } from './verify';

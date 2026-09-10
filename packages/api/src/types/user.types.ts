@@ -2,11 +2,11 @@
  * User Types
  * 
  * Centralized type definitions for user-related operations.
- * The wire-facing shapes come from `@oxyhq/contracts`, so this module states
+ * The wire-facing shapes come from `@oxy.so/contracts`, so this module states
  * only what is local to the API's own user endpoints.
  */
 
-import type { UserProfileUpdate, UserResponse } from '@oxyhq/contracts';
+import type { UserProfileUpdate, UserResponse } from '@oxy.so/contracts';
 
 // The raw user document a public list query reads is `PublicUserDocument` in
 // `utils/publicUserProjection.ts` — it lives next to the projection that

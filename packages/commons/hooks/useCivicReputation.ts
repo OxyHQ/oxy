@@ -18,8 +18,8 @@
 
 import { useMemo } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
-import type { ReputationBalance } from '@oxyhq/contracts';
+import { useOxy } from '@oxy.so/services';
+import type { ReputationBalance } from '@oxy.so/contracts';
 import {
   deriveReputationSources,
   type ReputationSource,

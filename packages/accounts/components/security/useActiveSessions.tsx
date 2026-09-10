@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
-import { alert, toast } from '@oxyhq/bloom';
-import type { ClientSession } from '@oxyhq/core';
+import { alert, toast } from '@oxy.so/bloom';
+import type { ClientSession } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import type { GroupedItem } from '@/components/sections/types';

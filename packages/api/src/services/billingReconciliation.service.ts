@@ -42,7 +42,7 @@
 
 import { createHash } from 'node:crypto';
 import { and, eq, gte, isNull, lt, sql } from 'drizzle-orm';
-import { executeRows } from '@oxyhq/db';
+import { executeRows } from '@oxy.so/db';
 import {
   reconciliationDiscrepancySchema,
   reconciliationReportSchema,
@@ -53,7 +53,7 @@ import {
   type ReconciliationDiscrepancyKind,
   type ReconciliationReport,
   type ReconciliationRun,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { billingExternalPayments } from '../db/schema/billingExternalPayments';
 import {

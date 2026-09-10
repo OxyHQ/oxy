@@ -40,7 +40,7 @@ module.exports = {
       ],
       // Shared Oxy native config: android:sharedUserId, iOS keychain group,
       // expo-build-properties defaults, and the shared-identity reader.
-      ['@oxyhq/app-preset', {}],
+      ['@oxy.so/app-preset', {}],
     ],
     extra: {
       router: {},

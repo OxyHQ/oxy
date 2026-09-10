@@ -1,4 +1,29 @@
-# Changelog: `@oxyhq/contracts`
+# Changelog: `@oxy.so/contracts`
+
+## 0.40.0
+
+### Added
+
+- `routingProfileIdSchema` is the shared opaque-ID bound used by catalogue
+  projections and Oxy's exact product-routing selector. It applies only length
+  bounds and never trims, case-folds, parses, or otherwise substitutes an ID.
+- Signed inference requests and canonical routing-policy snapshots now carry
+  only `{ kind: "routing_profile_id", routingProfileId }`. The former slug arm
+  is removed from the cross-service boundary. Consequently
+  `inferenceRequestSchema` and `routingPolicySchema` advance to wire
+  `schemaVersion: 2`; the contract-set version is `2.0.0`. Oxy may still accept
+  the deprecated public `routingProfile` request field, but must resolve it to
+  one exact profile PK before constructing either canonical shape.
+
+## 0.36.0
+
+### Added
+
+- Canonical contracts for actors, resources, delegation grants,
+  automations, capability tickets, app capability catalogs and correlated
+  audit events.
+- A typed email-agent context that carries the effective mailbox and account
+  instead of relying on prompt conventions.
 
 ## 0.29.0
 
@@ -11,7 +36,7 @@ nothing about the value beside them. An upstream echoing a request header sends
 the SPAN it matched emitted `{x-[redacted] <the key>}`, which no longer matched
 and was therefore **accepted**. The unredacted string was refused and the
 redacted one was not, and both carried the key. Measured by the second outside
-implementation of this contract (OxyHQ/Relay#3), not theorised.
+implementation of this contract (OxyHQ/Kaana#3), not theorised.
 
 The refinement now checks four independent signals, so removing one does not
 clear a string: a credential-bearing name (the whole `x-…`/`…-api-key` family,
@@ -60,7 +85,7 @@ defect a layer up.
 ### Licence: AGPL-3.0-only becomes Apache-2.0
 
 **Breaking for anyone who tracks the licence, and for nobody else.**
-`@oxyhq/contracts` is now Apache-2.0. The code, the API surface and the behaviour are
+`@oxy.so/contracts` is now Apache-2.0. The code, the API surface and the behaviour are
 unchanged in this release. It exists to carry the licence change.
 
 This is a widening. Every right the AGPL granted you, Apache-2.0 grants too,
@@ -72,7 +97,7 @@ Versions published before this one keep the licence they were published under,
 permanently. `0.24.0` stays AGPL-3.0-only for anyone who already has it. A licence
 change binds future versions only.
 
-`@oxyhq/contracts` is below 1.0.0, where semver puts the breaking position in the minor
+`@oxy.so/contracts` is below 1.0.0, where semver puts the breaking position in the minor
 and `^0.24.0` does not accept `0.25.0`. Bumping the minor is therefore the
 same signal a major bump gives a 1.x package: no consumer picks this up
 without editing their manifest, which is the whole point.

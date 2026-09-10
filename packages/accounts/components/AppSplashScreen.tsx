@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Animated, StyleSheet } from 'react-native';
-import { LogoIcon } from '@oxyhq/services';
+import { LogoIcon } from '@oxy.so/services';
 import { LoadingSpinner } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 

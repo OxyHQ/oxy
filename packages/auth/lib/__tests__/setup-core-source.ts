@@ -1,17 +1,17 @@
 /**
- * Resolve the auth app's `@oxyhq/core` imports for `bun test` without a prior
+ * Resolve the auth app's `@oxy.so/core` imports for `bun test` without a prior
  * workspace build.
  *
- * Auth component tests import `@oxyhq/core` at runtime (`login-form.tsx` →
+ * Auth component tests import `@oxy.so/core` at runtime (`login-form.tsx` →
  * `isOxyRpOrigin`, `hub-passkey.tsx` → `getNormalizedUserHandle`, i18n helpers,
  * etc.). The package `exports` point at `dist/`, so an unbuilt workspace fails
- * with `Cannot find module '@oxyhq/core'`.
+ * with `Cannot find module '@oxy.so/core'`.
  *
- * Importing the full `@oxyhq/core` entry from source is not viable here — it
+ * Importing the full `@oxy.so/core` entry from source is not viable here — it
  * transitively pulls optional RN modules. Instead, re-export only the small
  * pure helpers auth actually uses, via relative paths into `packages/core/src`.
  *
- * THIS IS AN ALLOWLIST, and an allowlist silently rots: adding a `@oxyhq/core`
+ * THIS IS AN ALLOWLIST, and an allowlist silently rots: adding a `@oxy.so/core`
  * value import to app source without adding it here makes `bun test` abort the
  * WHOLE importing test file with `SyntaxError: Export named '…' not found`, so
  * its cases vanish from the run rather than failing loudly — that is how
@@ -30,7 +30,7 @@ import { selectCommonsDelivery } from "../../../core/src/utils/commonsDelivery"
 import { buildSwitcherRows, showsPrincipalHeaders } from "../../../core/src/session/deviceSwitcherRows"
 import { projectDevicePrincipals } from "../../../core/src/session/deviceDirectory"
 
-mock.module("@oxyhq/core", () => ({
+mock.module("@oxy.so/core", () => ({
     isOxyRpOrigin,
     getNormalizedUserHandle,
     getCommonsApprovalBlockingReason,

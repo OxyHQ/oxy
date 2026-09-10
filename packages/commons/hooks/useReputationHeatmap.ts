@@ -14,8 +14,8 @@
  */
 
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
-import { bucketByDay, type ActivityHeatmapDay } from '@oxyhq/bloom/activity-heatmap';
+import { useOxy } from '@oxy.so/services';
+import { bucketByDay, type ActivityHeatmapDay } from '@oxy.so/bloom/activity-heatmap';
 
 /** How many recent ledger entries the heatmap draws from — roughly a year. */
 export const HEATMAP_ACTIVITY_LIMIT = 365;

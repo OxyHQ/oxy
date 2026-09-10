@@ -7,7 +7,7 @@
 
 import { render, screen } from '@testing-library/react';
 import { ActionSheetSurface } from '../../src/ui/components/surfaces/ActionSheetSurface';
-import type { SurfaceControls } from '@oxyhq/bloom/surfaces';
+import type { SurfaceControls } from '@oxy.so/bloom/surfaces';
 
 const makeSurface = (): SurfaceControls => ({
   dismiss: jest.fn(),

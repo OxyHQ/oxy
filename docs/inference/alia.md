@@ -5,9 +5,11 @@ half**. The Alia-side counterpart is
 [OxyHQ/Alia#139](https://github.com/OxyHQ/Alia/issues/139) and is not described
 here.
 
-Status of the whole picture: [README.md](./README.md). **Nothing on this page has
-been run against production.** It is the code and the runbook; the runs are
-operational steps a person takes, in the order below.
+Status of the whole picture: [README.md](./README.md). This page records source
+and the operating contract, not a successful production rollout. A dry-run that
+reports drift is diagnostic evidence only: it provisions nothing and must not be
+reported as completion. The workflow result, exact live task/image and
+post-apply readback are the authority for what production has accepted.
 
 ---
 
@@ -61,6 +63,41 @@ sentence decides the whole list.
 Nothing outside the `inference:*` family and `user:read` is granted. Alia is not
 a federation peer, does not move reputation, writes no signals, sends no
 notifications and touches no follow graph.
+
+### Native product-agent identities
+
+Sindi and Clarity are product agents hosted by Alia, not free-standing inference
+clients and not public agents. Oxy's internal bootstrap reconciles these opaque
+primary keys byte for byte; runtimes must not trim, normalize, discover by
+display name, take the first list result or substitute a fallback.
+
+| Product agent | Project account | Bot account | Alia agent | Bound service app | Service credential |
+|---|---|---|---|---|---|
+| Sindi / Homiio | `6a50444ce8026582b949089d` | `01a0646a-078f-7974-9645-a5e8be237f47` | `01a0646a-078f-7514-9800-9f43ceed7df8` | `6a2f851751b784a86fd0e922` | `01a0648e-ad3f-7608-aa8b-c07bfef6cf73` |
+| Clarity | `01a0646a-078f-7f53-848d-a0f82d9f7fa6` | `01a0646a-078f-7120-a993-a03c180c81b0` | `01a0646a-078f-7642-95ef-439952f4f3f9` | `01a0648b-8d73-70ad-8e67-1c07ddc5eb6e` | `01a0648b-8d74-7240-adba-80707fdfdf9c` |
+
+Each agent's `oxyAccountId` is its exact bot-account primary key, and each
+service application is owned by the corresponding project account so billing
+lands on that product. Sindi's capability grant is exactly `web`; Clarity's is
+exactly `web`, `artifacts`, and `memory`. A client cannot create or rebind these
+relationships through the public agent API.
+
+Homiio's project row predates this bootstrap and is adopted by its exact
+primary key. Bootstrap verifies its username, account kind, hierarchy, status
+and privacy fields byte for byte; it never renames or replaces the existing
+project to resolve an identity collision.
+
+Clarity's public sign-in application remains separate:
+`01a0646a-2382-74a3-a795-788924d55722`, with only `user:read`. Its agent is bound
+to the backend service application above, whose exact scopes are `user:read`
+and `inference:invoke`. Sindi's bound service credential has exactly
+`inference:invoke` and `acting-as:offline`. The products authenticate with those
+Oxy service credentials and delegate the verified human through
+`X-Oxy-User-Id`; a human bearer is never forwarded to Alia.
+
+These Oxy application credentials identify product services. They are not
+provider keys. Provider keys exist only encrypted in Kaana's PostgreSQL/KMS
+custody, and Kaana's only canonical signed origin is `https://kaana.ai`.
 
 ---
 
@@ -188,9 +225,9 @@ Verify: `GET /billing/cost-centers` (staff bearer) returns five active centres.
 Workflow **Seed Oxy applications** (`.github/workflows/seed-oxy-applications.yml`).
 
 ```
-ref:        main
-only_apps:  Alia
-dry_run:    true      ← then false
+ref:           main
+only_app_ids:  6a2f851751b784a86fd0e934
+dry_run:       true      ← then false
 ```
 
 The plan should show `type: first_party → internal`, `isInternal: false → true`,
@@ -242,22 +279,16 @@ never register a GitHub secret with a placeholder value.
 
 ---
 
-## Not done, and what blocks each
+## Remaining work
 
-- **Removing the static Oxy→Alia infrastructure proxy.** `packages/api/src/routes/alia.ts`
-  still forwards to `api.alia.onl` on one static `ALIA_API_KEY`, over three
-  routes: `POST /alia/chat/completions` (the edge now owns `/v1/chat/completions`),
-  `POST /v1/voice/token` and `POST /v1/voice/transcribe`. #972 conditions the
-  removal on "Oxy→Relay and Alia→Relay being live"; the `OxyHQ/Relay` repository
-  exists (public since 2026-08-16) but nothing Oxy can reach is live — no
-  deployment, no endpoint, no routing execution Oxy invokes — so the condition
-  cannot be met and the proxy is the only thing serving those paths. It
-  is already closed to every credential an external developer can obtain
-  (`requireFirstPartyInferenceCaller`).
-- **Where the two voice routes end up.** `server.ts` records this as workstream
-  14's decision, and ADR [0010](../adr/0010-public-api-compatibility.md) calls
-  them Alia PRODUCT endpoints that happen to live under `/v1` rather than part of
-  the inference edge. It is left OPEN here rather than decided quietly: moving a
+- **Production point-inference routing.** The static Oxy-to-Alia infrastructure
+  proxy and its voice mounts are removed. Inbox's five point-inference features
+  and its two background classifiers now use Oxy-to-Kaana. Production remains
+  fail-closed until the catalogue bootstrap creates a routing profile and its
+  exact primary key is configured; see
+  [inbox-point-inference.md](./inbox-point-inference.md).
+- **Alia voice remains an Alia product capability.** Published Alia SDK clients
+  address Alia directly rather than traversing an Oxy infrastructure proxy. Moving a
   route somebody's client calls is a compatibility change that needs a
   deprecation notice addressed to named callers, and the `alia-voice` cost centre
   above is about the spend of a voice workload, not about where its HTTP surface
@@ -271,7 +302,9 @@ never register a GitHub secret with a placeholder value.
   by them are Alia-side surfaces whose registration belongs with whoever ships
   them. Registering four more applications now would mint four sets of
   credentials nobody has asked for.
-- **Alia actually invoking Oxy inference.** There is no public inference edge and
-  the model catalogue is empty (see [README.md](./README.md)). The registration,
-  the scopes, the credentials, the cost centres and the entitlement interface are
-  all in place ahead of a data plane to call.
+- **Alia actually invoking Oxy inference.** The edge, Kaana runtime and reviewed
+  bootstrap exist in merged source, but bootstrap application, live
+  audience/execution gates and a real signed canary still require production
+  evidence (see [README.md](./README.md)). The
+  registration, scopes, credentials, cost centres and entitlement interface do
+  not prove that Alia has made that production call.

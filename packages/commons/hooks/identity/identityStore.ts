@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
-import { readIdentityMarker, updateIdentityMarker } from '@oxyhq/core';
+import { readIdentityMarker, updateIdentityMarker } from '@oxy.so/core';
 
 /**
  * Minimal async key/value storage surface used by the identity store.

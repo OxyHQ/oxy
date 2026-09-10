@@ -1,10 +1,10 @@
 /**
- * Every `@oxyhq/bloom/…` specifier this package imports must exist in the
+ * Every `@oxy.so/bloom/…` specifier this package imports must exist in the
  * INSTALLED Bloom's `exports` map.
  *
  * This class of break is invisible to every other gate we run:
  *
- *  - **jest cannot see it.** `jest.config.js` maps `^@oxyhq/bloom/(.*)$` to one
+ *  - **jest cannot see it.** `jest.config.js` maps `^@oxy.so/bloom/(.*)$` to one
  *    stub file, so a subpath that no longer exists resolves to the stub just as
  *    happily as one that does. Every suite stays green.
  *  - **the package's own `tsc` could not be trusted to see it either.** This
@@ -15,8 +15,8 @@
  *
  * What it actually costs: an import of a removed subpath is a hard RESOLUTION
  * failure, not a type error. Metro cannot resolve it, so a consuming app fails
- * at import time — a white screen, not a red squiggle. `@oxyhq/bloom/menu` and
- * `@oxyhq/bloom/collapsible` were both deleted in Bloom 1.0.0 and both were
+ * at import time — a white screen, not a red squiggle. `@oxy.so/bloom/menu` and
+ * `@oxy.so/bloom/collapsible` were both deleted in Bloom 1.0.0 and both were
  * still imported here; neither `bun run typescript` nor `bun run test` noticed.
  *
  * Reads the export map rather than calling `require.resolve`, because the
@@ -29,9 +29,9 @@ import path from 'node:path';
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 const SRC_ROOT = path.join(PACKAGE_ROOT, 'src');
 
-/** `@oxyhq/bloom`'s manifest, from wherever this package actually resolves it. */
+/** `@oxy.so/bloom`'s manifest, from wherever this package actually resolves it. */
 function readBloomExports(): Set<string> {
-  const manifestPath = require.resolve('@oxyhq/bloom/package.json', { paths: [PACKAGE_ROOT] });
+  const manifestPath = require.resolve('@oxy.so/bloom/package.json', { paths: [PACKAGE_ROOT] });
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
     exports?: Record<string, unknown>;
   };
@@ -48,7 +48,7 @@ function sourceFiles(dir: string): string[] {
   return out;
 }
 
-const SPECIFIER = /['"](@oxyhq\/bloom(?:\/[^'"]*)?)['"]/g;
+const SPECIFIER = /['"](@oxy.so\/bloom(?:\/[^'"]*)?)['"]/g;
 
 /** Every distinct Bloom subpath `src/` names, mapped to the files naming it. */
 function collectSubpaths(): Map<string, string[]> {
@@ -60,7 +60,7 @@ function collectSubpaths(): Map<string, string[]> {
     while ((match = SPECIFIER.exec(text))) {
       const specifier = match[1];
       const subpath =
-        specifier === '@oxyhq/bloom' ? '.' : `.${specifier.slice('@oxyhq/bloom'.length)}`;
+        specifier === '@oxy.so/bloom' ? '.' : `.${specifier.slice('@oxy.so/bloom'.length)}`;
       const where = found.get(subpath) ?? [];
       where.push(path.relative(PACKAGE_ROOT, file));
       found.set(subpath, where);
@@ -69,7 +69,7 @@ function collectSubpaths(): Map<string, string[]> {
   return found;
 }
 
-describe('every @oxyhq/bloom subpath this package imports exists', () => {
+describe('every @oxy.so/bloom subpath this package imports exists', () => {
   const exported = readBloomExports();
   const imported = collectSubpaths();
 

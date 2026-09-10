@@ -44,7 +44,7 @@ The endpoint is `POST /auth/service-token`. Body: `{ apiKey, apiSecret }` — `a
 The `publicKey` half is a **public identifier**, not a key: it is designed to be shipped in clients and is served unauthenticated by `GET /auth/oauth/client/:clientId`. It never authenticates on its own — only the pair, exchanged here, produces a bearer.
 
 ```ts
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 oxy.configureServiceAuth(process.env.OXY_CLIENT_ID!, process.env.OXY_CLIENT_SECRET!);
@@ -75,7 +75,7 @@ Internal services that expose their own HTTP surface should validate inbound ser
 
 ```ts
 import express from 'express';
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 const app = express();
@@ -92,11 +92,17 @@ app.post('/internal/replay-webhook', (req, res) => {
 
 The `auth()` middleware recognises service tokens too (along with user JWTs), so general endpoints accept both transparently.
 
+Both middleware methods verify service tokens against the Oxy public JWKS at
+`https://api.oxy.so/.well-known/jwks.json` by default. A private Oxy deployment
+may pass `serviceTokenJwksUrl`; public Oxy consumers should not override it and
+must never receive `ACCESS_TOKEN_SECRET`.
+
 ## Security notes
 
 - Service tokens are stateless — they're not stored in the session table, and they can't be remotely revoked mid-flight. If a secret leaks, rotate it.
 - Rotate `apiSecret` from the [developer console](/developers/docs/console). Rotation keeps the previous value valid for 24 hours so deploys don't go down.
-- Service JWTs are signed with the same key as user JWTs; verification is identical.
+- Service JWTs are signed with Ed25519 under a `kid`; verifiers cache the public
+  JWKS, pin issuer/audience/type/expiry and fail closed on an unknown key.
 - Never put `apiSecret` in client-side code or environment files committed to git. Use a secrets manager.
 - Scopes are enforced on every call — request only what you need.
 

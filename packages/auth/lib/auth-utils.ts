@@ -6,12 +6,21 @@ type PostLoginRedirectParams = {
     codeChallenge?: string
     codeChallengeMethod?: string
     scope?: string
+    resource?: string
+    responseType?: string
     /**
      * `response_mode=web_message` (popup sign-in). Carried across the sign-in
      * hop so a popup that had to authenticate still delivers its result to the
      * opener instead of navigating itself to the relying party.
      */
     responseMode?: string
+    /**
+     * `?mcp_link_intent=` — an in-flight invitation to add THIS account to an
+     * existing MCP connection. It has no relying party and no redirect: the hop
+     * lands back on `/mcp/link`, where the person approves for whichever account
+     * they just signed in as.
+     */
+    mcpLinkIntent?: string
 }
 
 /**
@@ -35,8 +44,16 @@ export function buildPostLoginRedirect({
     codeChallenge,
     codeChallengeMethod,
     scope,
+    resource,
+    responseType,
     responseMode,
+    mcpLinkIntent,
 }: PostLoginRedirectParams): string {
+    if (mcpLinkIntent) {
+        const linkUrl = new URL("/mcp/link", window.location.origin)
+        linkUrl.searchParams.set("intent", mcpLinkIntent)
+        return `${linkUrl.pathname}${linkUrl.search}`
+    }
     const nextUrl = new URL("/authorize", window.location.origin)
     if (sessionToken) nextUrl.searchParams.set("token", sessionToken)
     if (redirectUri) nextUrl.searchParams.set("redirect_uri", redirectUri)
@@ -45,6 +62,8 @@ export function buildPostLoginRedirect({
     if (codeChallenge) nextUrl.searchParams.set("code_challenge", codeChallenge)
     if (codeChallengeMethod) nextUrl.searchParams.set("code_challenge_method", codeChallengeMethod)
     if (scope) nextUrl.searchParams.set("scope", scope)
+    if (resource) nextUrl.searchParams.set("resource", resource)
+    if (responseType) nextUrl.searchParams.set("response_type", responseType)
     if (responseMode) nextUrl.searchParams.set("response_mode", responseMode)
     if (!sessionToken && !redirectUri && !clientId) {
         nextUrl.searchParams.set(

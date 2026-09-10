@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet, Text, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import type { RouteName } from '@oxyhq/services';
+import type { RouteName } from '@oxy.so/services';
 import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 import { AccountCard } from '@/components/ui';

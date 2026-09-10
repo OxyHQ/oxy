@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
-import type { ConnectedApp } from '@oxyhq/core';
+import { useOxy } from '@oxy.so/services';
+import type { ConnectedApp } from '@oxy.so/core';
 
 /**
  * React Query key for the current user's connected (OAuth-authorized) apps.

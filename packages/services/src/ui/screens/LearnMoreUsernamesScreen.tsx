@@ -1,17 +1,17 @@
 import type React from 'react';
 import { useCallback, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Text } from '@oxyhq/bloom/typography';
-import { IconCircle } from '@oxyhq/bloom/icon-circle';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import {
     Accordion,
     AccordionItem,
     AccordionTrigger,
     AccordionContent,
-} from '@oxyhq/bloom/accordion';
-import * as Icons from '@oxyhq/bloom/icons';
-import type { Props as IconProps } from '@oxyhq/bloom/icons';
+} from '@oxy.so/bloom/accordion';
+import * as Icons from '@oxy.so/bloom/icons';
+import type { Props as IconProps } from '@oxy.so/bloom/icons';
 import type { BaseScreenProps } from '../types/navigation';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
@@ -113,7 +113,7 @@ const LearnMoreUsernamesScreen: React.FC<BaseScreenProps> = ({
                                 {t(titleKey)}
                             </AccordionTrigger>
                             <AccordionContent>
-                                <Text className="font-sans text-bodyMedium text-text-secondary">
+                                <Text className="font-sans text-body text-text-secondary">
                                     {t(contentKey)}
                                 </Text>
                             </AccordionContent>

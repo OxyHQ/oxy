@@ -43,7 +43,7 @@ days.
 ### `iss` and `aud` are `oxy-auth` / `oxy-api`, not URLs
 
 Issue #937 sketches `https://auth.oxy.so`. The service-token mint has used
-`oxy-auth` / `oxy-api` since it existed, and `@oxyhq/core`'s SDK verifies
+`oxy-auth` / `oxy-api` since it existed, and `@oxy.so/core`'s SDK verifies
 service tokens against exactly those by default — so the access token joins the
 vocabulary that is already there rather than introducing a second spelling of
 one issuer with nothing able to tell them apart.

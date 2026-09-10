@@ -1,9 +1,9 @@
 import type React from 'react';
 import { useMemo } from 'react';
 import { View, Text, Animated, ActivityIndicator } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { Button } from '@oxyhq/bloom/button';
+import Ionicons from '../../icons/Ionicons';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { Button } from '@oxy.so/bloom/button';
 import { createPaymentStyles } from './paymentStyles';
 import { PAYMENT_METHODS, getCurrencySymbol } from './constants';
 import type { CardDetails, PaymentColors, PaymentStepAnimations } from './types';
@@ -87,7 +87,7 @@ const PaymentReviewStep: React.FC<PaymentReviewStepProps> = ({
                     {paymentMethod === 'oxy' ? (
                         <SettingsListItem
                             icon={<Ionicons name="wallet-outline" size={20} color={colors.primary} />}
-                            title={t('payment.review.oxyPayAccount')}
+                            title={t('payment.review.peableAccount')}
                             description={t('payment.details.balance', { balance: '⊜ 123.45' })}
                             showChevron={false}
                         />

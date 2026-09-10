@@ -17,7 +17,7 @@
  * and never that the numbers a caller does receive are the right ones. The
  * service is fully ported, so it runs for real here: rows are seeded, the real
  * balance recomputation runs, and the response is checked against the
- * `@oxyhq/contracts` schemas.
+ * `@oxy.so/contracts` schemas.
  *
  * The auth middleware is the one mock: it attaches the caller a test selects,
  * which is exactly its production contract.
@@ -32,7 +32,7 @@ import {
   reputationBalanceSummarySchema,
   reputationTransactionSchema,
   safeParseContract,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 /** The caller the mocked auth middleware attaches, or `undefined` for anonymous. */
 let currentCaller: { _id: string; isStaff?: boolean } | undefined;

@@ -44,7 +44,7 @@ import {
   moderationEffectSchema,
   reputationConductSchema,
   reverseModerationEffectResultSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 import {
   authMiddleware,
@@ -130,7 +130,7 @@ function requireServiceScope(req: ServiceAuthRequest, scope: string): void {
 /*
  * SERIALIZERS
  *
- * Each returns a type owned by `@oxyhq/contracts` and hands the DTO to that
+ * Each returns a type owned by `@oxy.so/contracts` and hands the DTO to that
  * type's schema before it leaves the process — the `const dto: <ContractType>`
  * annotation is the compile-time guard (a missing field, an undeclared one, or a
  * `Date` where the wire promises an ISO string all fail `tsc` and name the

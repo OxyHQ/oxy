@@ -7,12 +7,12 @@ import {
     type ViewStyle,
 } from 'react-native';
 import { View, Pressable } from 'react-native-css/components';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
-import { Text } from '@oxyhq/bloom/typography';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { getAccountDisplayName, getAccountFallbackHandle, getNormalizedUserHandle } from '@oxyhq/core';
+import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { Text } from '@oxy.so/bloom/typography';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { getAccountDisplayName, getAccountFallbackHandle, getNormalizedUserHandle } from '@oxy.so/core';
 import { useAuth } from '../hooks/useAuth';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';

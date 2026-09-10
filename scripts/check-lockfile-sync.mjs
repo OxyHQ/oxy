@@ -10,7 +10,7 @@
  *
  * WHY THIS DOES NOT USE `--frozen-lockfile`
  *
- * That is the obvious gate and it does not work here. Measured on bun 1.3.14
+ * That is the obvious gate and it does not work here. Measured on bun 1.4.2
  * against this repo, `bun install --frozen-lockfile` exits 0 on BOTH shapes of
  * desync we actually shipped:
  *
@@ -41,11 +41,11 @@
  *
  * Why bother, when layer 2 regenerates the whole file: whether a plain
  * `bun install` rewrites a workspace's recorded `version` is REPO-DEPENDENT, and
- * the boundary is not understood. Measured on bun 1.3.14, twice per case:
+ * the boundary is not understood. Measured on bun 1.4.2, twice per case:
  *
  *   - In THIS repo it DOES rewrite it. Bumping packages/core, contracts, api or
  *     ship moves `bun.lock`, so layer 2 sees it — and would have caught both the
- *     `@oxyhq/core@14.0.0` and `@oxyhq/services@23.0.0` bumps that burned those
+ *     `@oxy.so/core@14.0.0` and `@oxy.so/services@23.0.0` bumps that burned those
  *     versions. Layer 1 is defence-in-depth here, not a plugged hole.
  *   - In the CrowdSource monorepo it does NOT. The same bump leaves `bun.lock`
  *     byte-identical (bun reports `1 package installed` and rewrites nothing), so

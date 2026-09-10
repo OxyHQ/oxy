@@ -6,8 +6,8 @@ import {
   useUserPayments,
   useUserWallet,
   useUserWalletTransactions,
-} from '@oxyhq/services';
-import type { Subscription, Payment, Wallet, WalletTransaction } from '@oxyhq/services';
+} from '@oxy.so/services';
+import type { Subscription, Payment, Wallet, WalletTransaction } from '@oxy.so/services';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
@@ -34,7 +34,7 @@ const FALLBACK_SUBSCRIPTION: Subscription = { plan: 'basic', status: 'active' };
 
 /**
  * Payments screen. A thin composition over the payment subcomponents; all data
- * is loaded through the typed React Query hooks in `@oxyhq/services`
+ * is loaded through the typed React Query hooks in `@oxy.so/services`
  * (`useUserSubscription` / `useUserPayments` / `useUserWallet` /
  * `useUserWalletTransactions`), so there is no imperative fetch effect here.
  *

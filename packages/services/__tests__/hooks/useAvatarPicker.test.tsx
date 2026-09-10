@@ -25,12 +25,12 @@ jest.mock('../../src/ui/utils/avatarUtils', () => ({
 
 // Minimal core surface used by the hook (types are erased at runtime).
 const updateAvatarVisibility = jest.fn().mockResolvedValue(undefined);
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   translate: (_lang: string | undefined, key: string) => key,
   updateAvatarVisibility: (...args: unknown[]) => updateAvatarVisibility(...args),
 }));
 
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxy.so/bloom';
 import { useAvatarPicker } from '../../src/ui/hooks/useAvatarPicker';
 
 const croppedResult = {

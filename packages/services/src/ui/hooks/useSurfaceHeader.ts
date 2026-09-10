@@ -1,5 +1,5 @@
 import { createContext, useContext, useLayoutEffect, useRef } from 'react';
-import type { DialogHeaderConfig } from '@oxyhq/bloom/dialog';
+import type { DialogHeaderConfig } from '@oxy.so/bloom/dialog';
 
 /**
  * The header content a mounted surface screen contributes at runtime: its
@@ -109,7 +109,7 @@ function progressEqual(a: HeaderProgress | undefined, b: HeaderProgress | undefi
 /**
  * Value-equality for a surface's header contribution.
  *
- * This MIRRORS Bloom's own `configsEqual` (`@oxyhq/bloom/dialog`), which guards
+ * This MIRRORS Bloom's own `configsEqual` (`@oxy.so/bloom/dialog`), which guards
  * the header store one layer down — deliberately field for field. The two must
  * not diverge: this comparator is the gate that decides whether the host's
  * `setContent` fires, so a comparator STRICTER than Bloom's re-introduces the

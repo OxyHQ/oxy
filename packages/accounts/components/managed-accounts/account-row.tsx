@@ -1,14 +1,14 @@
 import React, { useCallback } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import type { AccountNode, AccountRole, OxyServices } from '@oxyhq/core';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import type { AccountNode, AccountRole, OxyServices } from '@oxy.so/core';
 import {
   getAccountFallbackHandle,
   getAccountDisplayName,
   getNormalizedUserHandle,
   canSwitchIntoAccount,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { useColors, type AppColors } from '@/hooks/useColors';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { useTranslation } from '@/lib/i18n';

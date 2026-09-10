@@ -18,10 +18,10 @@
  * navigation the boot could ever have performed.
  */
 
-import type { AuthStateStore, PersistedAuthState, SessionClient } from '@oxyhq/core';
+import type { AuthStateStore, PersistedAuthState, SessionClient } from '@oxy.so/core';
 
-jest.mock('@oxyhq/core', () => {
-  const actual = jest.requireActual('@oxyhq/core');
+jest.mock('@oxy.so/core', () => {
+  const actual = jest.requireActual('@oxy.so/core');
   return {
     __esModule: true,
     ...actual,
@@ -43,7 +43,7 @@ jest.mock('../../utils/oauthReturn', () => {
   };
 });
 
-import { runSessionColdBoot } from '@oxyhq/core';
+import { runSessionColdBoot } from '@oxy.so/core';
 import { redirectToAuthorize } from '../../components/oauthNavigation';
 import { tryCompleteOAuthReturn } from '../../utils/oauthReturn';
 import { runProviderColdBoot, type RunProviderColdBootOptions } from '../runProviderColdBoot';

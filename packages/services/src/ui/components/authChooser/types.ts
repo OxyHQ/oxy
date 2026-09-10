@@ -7,7 +7,7 @@
  * dragging any other view in.
  */
 
-import { APP_COLOR_NAMES, APP_COLOR_PRESETS, type AppColorName, type useTheme } from '@oxyhq/bloom/theme';
+import { APP_COLOR_NAMES, APP_COLOR_PRESETS, type AppColorName, type useTheme } from '@oxy.so/bloom/theme';
 import type { useI18n } from '../../hooks/useI18n';
 
 export type Theme = ReturnType<typeof useTheme>;

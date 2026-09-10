@@ -46,6 +46,33 @@ describe('OxyServices.assets — getServiceAssetMetadataByIds', () => {
     expect(makeServiceRequestSpy).not.toHaveBeenCalled();
   });
 
+  // The route emits `hlsReadyAt` only for a video whose adaptive ladder finished
+  // transcoding, and this mixin does no field mapping — it returns the parsed
+  // entries as they arrive. That passthrough is the contract Mention's readiness
+  // reconciler reads, so assert it rather than assuming it: a future rewrite that
+  // reshapes entries into a picked subset would drop the field silently, and the
+  // only visible symptom would be adaptive playback never turning on.
+  it('passes an entry\'s hlsReadyAt through untouched', async () => {
+    const readyAt = '2026-09-08T10:11:12.000Z';
+    makeServiceRequestSpy.mockResolvedValueOnce([
+      { ...sampleEntry, mime: 'video/mp4', hlsReadyAt: readyAt },
+    ]);
+
+    const [entry] = await oxy.getServiceAssetMetadataByIds(['asset-1']);
+
+    expect(entry.hlsReadyAt).toBe(readyAt);
+  });
+
+  // An asset with no ladder carries no such field, and "absent" is the signal —
+  // a consumer must be able to tell it apart from a present-but-null value.
+  it('leaves hlsReadyAt absent when the response omits it', async () => {
+    makeServiceRequestSpy.mockResolvedValueOnce([{ ...sampleEntry, mime: 'video/mp4' }]);
+
+    const [entry] = await oxy.getServiceAssetMetadataByIds(['asset-1']);
+
+    expect(entry).not.toHaveProperty('hlsReadyAt');
+  });
+
   it('de-duplicates and sends a single chunk for <= 100 unique ids', async () => {
     // makeServiceRequest unwraps the API's `{ data }` envelope, so the resolved
     // value is the bare array (NOT `{ data: [...] }`) — mirror that real shape.

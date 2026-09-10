@@ -42,7 +42,7 @@
 
 import { sql } from 'drizzle-orm';
 import { bigint, check, date, index, pgTable, primaryKey, text } from 'drizzle-orm/pg-core';
-import { createdAt, inList, updatedAt } from '@oxyhq/db';
+import { createdAt, inList, updatedAt } from '@oxy.so/db';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
 import { usageUnitColumns, usageUnitsNonNegativeCheck } from './ledgerColumns';

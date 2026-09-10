@@ -30,7 +30,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, doublePrecision, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /** A newcomer's neutral prior, so one accurate report does not certify them. */

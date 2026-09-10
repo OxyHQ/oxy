@@ -1,6 +1,6 @@
 # ADR 0012 — Service tokens move to asymmetric signing with a published JWKS; the shared HMAC secret is retired
 
-- Status: accepted (the direction is decided; two sub-decisions named below need the owner before the migration is written)
+- Status: accepted. Sub-decision (1), key custody, is DECIDED — an Ed25519 private key in SSM; see "Sub-decision (1): decided" below. Sub-decision (2), the cutover schedule and the cross-repository release ordering, is still open and blocks only the RETIREMENT of the old key, not the new one's arrival.
 - Date: 2026-08-16
 - Issue: #972 (workstream 2.2), #987 (the documentation/key divergence this decides the fix for)
 
@@ -119,7 +119,7 @@ Concretely, the target state:
 - `oxy-api` publishes the corresponding public keys at
   **`https://api.oxy.so/.well-known/jwks.json`** — unauthenticated, cacheable,
   and containing public keys only.
-- Verifiers (`@oxyhq/core`'s `oxy.auth()` / `oxy.serviceAuth()`, and the
+- Verifiers (`@oxy.so/core`'s `oxy.auth()` / `oxy.serviceAuth()`, and the
   inference data plane) fetch and cache the JWKS, select by `kid`, and pin
   `iss`, `aud` and `alg`. A token whose `kid` is unknown is refused; the verifier
   refetches at most on a bounded schedule, so an unknown `kid` can never become a
@@ -130,10 +130,13 @@ Concretely, the target state:
   become `SERVICE_TOKEN_SECRET`; there is no symmetric service-token key in the
   target state.
 
-**None of this is implemented in the PR that adds this ADR.** That PR extends
-the claim set, hardens verification within the existing scheme, and corrects the
-documentation. Changing key material is a separate change, for the reasons in
-the rollout section.
+**Implementation status (2026-09-03):** the source implementation now exists:
+Ed25519 minting with `kid`, the database-independent public JWKS endpoint, and
+bounded JWKS verification/cache support in `@oxy.so/core`. The API retains
+HS256 verification/minting only as a transition when the asymmetric bindings
+are entirely absent; external consumers never receive `ACCESS_TOKEN_SECRET`.
+Provisioning the three SSM bindings and the cross-repository release ordering
+remain separate rollout work. Until those happen, production has not cut over.
 
 ## Rollout
 
@@ -166,13 +169,56 @@ Either way the window must be bounded by the maximum token lifetime, not by a
 calendar guess, and the retirement of the old key is a separate, verified step —
 not a line deleted in the same commit that adds the new one.
 
+## Sub-decision (1): decided — an Ed25519 private key in SSM
+
+**The owner chose the SSM option over KMS.** Recorded here rather than left to
+the implementation, because it is the choice that sets the blast radius of an
+`oxy-api` container compromise.
+
+The reasoning, in the owner's terms: **operational consistency.** Every other
+secret this deployment holds arrives the same way — a GitHub repository secret
+synced to SSM, injected into the task definition — and a signing key that
+travels a different path is a second mechanism to get right, to rotate, and to
+remember exists. KMS would have bought exfiltration resistance, and it was
+weighed against that; the answer was that a bespoke custody path for one key is
+not worth the operational surface it adds at this size.
+
+**What is accepted along with it:** a container compromise yields the
+service-token MINT key, and an attacker holding it can mint a service token
+naming any application. That is a real cost and it is not waved away — it is
+accepted because the comparison is not against perfection but against today,
+where the same compromise yields `ACCESS_TOKEN_SECRET` and therefore the ability
+to mint any USER's access token as well. Moving from "forge any user session" to
+"forge a service principal" is the large improvement, and KMS would have been a
+smaller further step on top of it.
+
+Concretely:
+
+- Parameter `/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY`, a `SecureString`, holding
+  a PKCS#8 PEM Ed25519 private key.
+- `alg` is `EdDSA` (Ed25519), as the decision section specifies. This is the
+  reason KMS was a real alternative rather than a drop-in: KMS offers no Ed25519
+  signing, so taking it would ALSO have meant switching to ES256. Choosing SSM
+  keeps the algorithm the decision section named.
+- The public half is published at `/.well-known/jwks.json` and is not a secret.
+- Rotation stays additive per the rollout section: publish the new public key,
+  then sign with the new `kid`, then retire the old no sooner than one maximum
+  token lifetime after the last token signed with it.
+
+Sub-decision (2) is untouched by this. The mechanism is built so the cutover is
+a separate, verifiable step, and the old scheme is not retired in the same
+change that adds the new one.
+
 ## What this ADR does not decide, and why it cannot
 
-Two sub-decisions are the owner's, not an agent's, because both are about
-production key custody and a production rollout window:
+Two sub-decisions were the owner's, not an agent's, because both are about
+production key custody and a production rollout window. **(1) has since been
+answered — see "Sub-decision (1): decided" above; the alternatives are kept here
+because a decision without the option it beat is a decision nobody can revisit.
+(2) is still open.**
 
-1. **Where the private key lives.** Two viable shapes, and they are not equally
-   costly:
+1. ~~**Where the private key lives.**~~ **DECIDED: SSM.** Two viable shapes, and
+   they were not equally costly:
    - *An Ed25519 private key in SSM* (`/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY`),
      injected like every other secret. Cheapest; consistent with how every other
      secret in this deployment is handled; the key exists in the task's
@@ -187,14 +233,16 @@ production key custody and a production rollout window:
      minutes per caller), a `kid`-to-KMS-key-id map, and a switch from Ed25519 to
      ES256.
 
-   This is a real trade — operational simplicity against key-exfiltration
-   resistance — and the answer depends on how the owner weighs a container
+   This was a real trade — operational simplicity against key-exfiltration
+   resistance — and the answer depended on how the owner weighs a container
    compromise, which is a judgement about the deployment, not about the code.
+   **The owner chose SSM, for operational consistency, accepting that a
+   container compromise yields the service-token mint key.**
 
-2. **When the cutover runs, and how the window is bounded.** The mechanics are
+2. **When the cutover runs, and how the window is bounded.** STILL OPEN. The mechanics are
    settled above; what is not settled is the schedule and who is told. Under
    option 2 the window is cheap but still needs every verifier on a JWKS-capable
-   `@oxyhq/core` before the old key retires, which is a release-ordering
+   `@oxy.so/core` before the old key retires, which is a release-ordering
    commitment across repositories.
 
 To decide (1) I would need: whether the owner treats an `oxy-api` container
@@ -235,7 +283,7 @@ key here to reuse; the OAuth token endpoint issues the same
   availability surface. It must be cacheable and must not depend on the
   database, or a database outage becomes an authentication outage for every
   verifier that has not warmed its cache.
-- `@oxyhq/core`'s service-token verification stops being a self-contained HMAC
+- `@oxy.so/core`'s service-token verification stops being a self-contained HMAC
   comparison and gains a network dependency with a cache. Its failure modes
   change: an unreachable JWKS must fail CLOSED (refuse) and must not fall back to
   a locally configured key, or the fallback becomes the attack.

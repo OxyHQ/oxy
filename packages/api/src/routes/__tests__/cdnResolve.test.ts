@@ -57,15 +57,20 @@ interface RawResponse {
   status: number;
   location?: string;
   cacheControl?: string;
+  acceptRanges?: string;
   body: string;
 }
 
 /** Issue a request WITHOUT following redirects so we can assert the 302 itself. */
-async function requestNoFollow(server: http.Server, path: string): Promise<RawResponse> {
+async function requestNoFollow(
+  server: http.Server,
+  path: string,
+  headers: http.OutgoingHttpHeaders = {}
+): Promise<RawResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { method: 'GET', host: '127.0.0.1', port: address.port, path },
+      { method: 'GET', host: '127.0.0.1', port: address.port, path, headers },
       (res) => {
         let raw = '';
         res.on('data', (chunk) => { raw += chunk; });
@@ -74,6 +79,7 @@ async function requestNoFollow(server: http.Server, path: string): Promise<RawRe
             status: res.statusCode ?? 0,
             location: res.headers.location,
             cacheControl: res.headers['cache-control'],
+            acceptRanges: res.headers['accept-ranges'],
             body: raw,
           });
         });
@@ -102,6 +108,53 @@ beforeEach(() => {
 });
 
 describe('GET /cdn/:id — public CDN origin resolver', () => {
+  it('carries no body and declares that ranges do not apply', async () => {
+    // The redirect is cached at the edge for an hour, and CloudFront answered
+    // RANGED requests out of that cached redirect BODY:
+    //
+    //   GET cloud.oxy.so/<id>  Range: bytes=1000000-
+    //   → 416, content-range: bytes */130, x-cache: Error from cloudfront
+    //
+    // A video player re-opens its source at a non-zero offset on every seek and
+    // resume, so that 416 reached Mention's reel as ExoPlayer's `Source error`
+    // and painted "Video unavailable" over a local Oxy video that was fine.
+    // Nothing to slice, and a header that says so.
+    mockGetFile.mockResolvedValue({
+      _id: PUBLIC_FILE_ID,
+      status: 'active',
+      visibility: 'public',
+      storageKey: 'public/content/2026/03/bb/bb7a29b85077cd58d945959b017bc954.png',
+    });
+    mockGetPublicCdnUrl.mockResolvedValue(ORIGINAL_CDN_URL);
+
+    const res = await requestNoFollow(server, `/cdn/${PUBLIC_FILE_ID}`);
+
+    expect(res.status).toBe(302);
+    expect(res.location).toBe(ORIGINAL_CDN_URL);
+    expect(res.acceptRanges).toBe('none');
+    expect(res.body).toBe('');
+  });
+
+  it('answers a RANGED request with the redirect, never a 416', async () => {
+    // The origin must not develop its own opinion about ranges either: a range
+    // header on a redirect is meaningless, not an error.
+    mockGetFile.mockResolvedValue({
+      _id: PUBLIC_FILE_ID,
+      status: 'active',
+      visibility: 'public',
+      storageKey: 'public/content/2026/03/bb/bb7a29b85077cd58d945959b017bc954.png',
+    });
+    mockGetPublicCdnUrl.mockResolvedValue(ORIGINAL_CDN_URL);
+
+    const res = await requestNoFollow(server, `/cdn/${PUBLIC_FILE_ID}`, {
+      Range: 'bytes=1000000-',
+    });
+
+    expect(res.status).toBe(302);
+    expect(res.location).toBe(ORIGINAL_CDN_URL);
+    expect(res.acceptRanges).toBe('none');
+  });
+
   it('302s a public CDN-backed file to its cloud.oxy.so URL with Cache-Control', async () => {
     mockGetFile.mockResolvedValue({
       _id: PUBLIC_FILE_ID,
@@ -120,6 +173,33 @@ describe('GET /cdn/:id — public CDN origin resolver', () => {
     expect(mockGetPublicCdnUrl).toHaveBeenCalledWith(expect.any(Object), undefined);
   });
 
+  it('keeps the 302 hard-fresh for an hour but lets a client paint from a stale one', async () => {
+    // Two properties in one header, and they pull opposite ways.
+    //
+    // `max-age` is SHORT on purpose: this 302 is the only place the status and
+    // visibility check runs — the 404 cases in this suite — so its freshness
+    // window is exactly how long a just-deleted or just-privatised asset keeps
+    // resolving for a client that already holds the redirect. Raising it trades
+    // that away, which is why the fix for the round trip is the second
+    // directive and not a bigger number here.
+    //
+    // `stale-while-revalidate` removes the once-an-hour BLOCKING round trip per
+    // asset without touching the freshness bound: the client paints from the
+    // stale redirect and refreshes it in the background, so a revoked asset is
+    // corrected after one more render rather than after another whole `max-age`.
+    mockGetFile.mockResolvedValue({
+      _id: PUBLIC_FILE_ID,
+      status: 'active',
+      visibility: 'public',
+      storageKey: 'public/content/2026/03/bb/bb7a29b85077cd58d945959b017bc954.png',
+    });
+    mockGetPublicCdnUrl.mockResolvedValue(ORIGINAL_CDN_URL);
+
+    const res = await requestNoFollow(server, `/cdn/${PUBLIC_FILE_ID}`);
+
+    expect(res.cacheControl).toBe('public, max-age=3600, stale-while-revalidate=86400');
+  });
+
   it('is variant-aware: ?variant=thumb resolves the thumb CDN URL', async () => {
     mockGetFile.mockResolvedValue({
       _id: PUBLIC_FILE_ID,
@@ -133,6 +213,49 @@ describe('GET /cdn/:id — public CDN origin resolver', () => {
 
     expect(res.status).toBe(302);
     expect(res.location).toBe(THUMB_CDN_URL);
+    expect(mockGetPublicCdnUrl).toHaveBeenCalledWith(expect.any(Object), 'thumb');
+  });
+
+  /**
+   * A repeated `?variant=` arrives from `qs` as an ARRAY, and the
+   * `typeof … === 'string'` test that stood here read that as ABSENT — which
+   * does not 404, it resolves the ORIGINAL. Measured against production:
+   * `?variant=w96&variant=w96` redirected to `/content/…` (the full-resolution
+   * file) where a single `?variant=w96` redirects to `/variants/…`, and the CDN
+   * then caches the original as the answer for that URL. The assertion is on the
+   * ARGUMENT the service receives, because both outcomes are a 302.
+   */
+  it('honours a repeated ?variant= instead of silently resolving the original', async () => {
+    mockGetFile.mockResolvedValue({
+      _id: PUBLIC_FILE_ID,
+      status: 'active',
+      visibility: 'public',
+      storageKey: 'public/content/2026/03/bb/bb7a29b85077cd58d945959b017bc954.png',
+    });
+    mockGetPublicCdnUrl.mockResolvedValue(THUMB_CDN_URL);
+
+    const res = await requestNoFollow(
+      server,
+      `/cdn/${PUBLIC_FILE_ID}?variant=thumb&variant=thumb`,
+    );
+
+    expect(res.status).toBe(302);
+    expect(mockGetPublicCdnUrl).toHaveBeenCalledWith(expect.any(Object), 'thumb');
+  });
+
+  // Two DIFFERENT values are a malformed request either way; last-wins is the
+  // conventional reading and, unlike "absent", it cannot widen what is served.
+  it('takes the last value when a repeated ?variant= disagrees with itself', async () => {
+    mockGetFile.mockResolvedValue({
+      _id: PUBLIC_FILE_ID,
+      status: 'active',
+      visibility: 'public',
+      storageKey: 'public/content/2026/03/bb/bb7a29b85077cd58d945959b017bc954.png',
+    });
+    mockGetPublicCdnUrl.mockResolvedValue(THUMB_CDN_URL);
+
+    await requestNoFollow(server, `/cdn/${PUBLIC_FILE_ID}?variant=w2048&variant=thumb`);
+
     expect(mockGetPublicCdnUrl).toHaveBeenCalledWith(expect.any(Object), 'thumb');
   });
 

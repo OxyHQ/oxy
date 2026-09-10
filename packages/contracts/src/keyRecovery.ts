@@ -19,8 +19,8 @@
  * lookup id) nor decrypt one (it lacks the seed to compute the backup key) — a
  * DB dump yields only opaque ciphertext keyed by an un-invertible hash.
  *
- * The producer (`@oxyhq/api`) validates its request/response against these
- * schemas; the consumer (`@oxyhq/core` identity-backup mixin) validates its
+ * The producer (`@oxy.so/api`) validates its request/response against these
+ * schemas; the consumer (`@oxy.so/core` identity-backup mixin) validates its
  * input against the same definitions, so the wire shape cannot drift.
  *
  * All shapes here are FLAT (no nested objects), so `z.infer<>` is safe under a

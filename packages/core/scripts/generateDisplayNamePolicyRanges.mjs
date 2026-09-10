@@ -261,7 +261,7 @@ const REGEXPU_OPTS = {
  * Applying the difference HERE, at generation time, rather than as a second
  * runtime probe, is what makes the denylist unforgeable downstream: the denied
  * code points are absent from the one emitted allowlist, so every consumer of
- * the policy — the core reject gate AND the `@oxyhq/api` strip path, which both
+ * the policy — the core reject gate AND the `@oxy.so/api` strip path, which both
  * build from `DISPLAY_NAME_DISALLOWED_SOURCE` — enforces it without knowing it
  * exists. There is no second pattern for a caller to forget.
  *

@@ -35,8 +35,8 @@
  */
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { Platform } from 'react-native';
-import type { OxyServices } from '@oxyhq/core';
-import { logger } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
+import { logger } from '@oxy.so/core';
 
 /**
  * The native module's surface. Deliberately write-mostly: there is no `get`,
@@ -114,7 +114,7 @@ let nativeModule: OxyBackgroundSessionNativeModule | null | undefined;
  * than a dynamic `import(moduleName)`: the latter compiles to `require(variable)`
  * in the CJS build, which Metro cannot resolve inside a consuming app — it
  * silently returned `null` there, which is exactly how the cross-app SSO bridge
- * broke once. Same reasoning as `loadSharedIdentityBridge` in `@oxyhq/protocol`.
+ * broke once. Same reasoning as `loadSharedIdentityBridge` in `@oxy.so/protocol`.
  */
 function loadNativeModule(): OxyBackgroundSessionNativeModule | null {
   if (nativeModule === undefined) {
@@ -182,7 +182,7 @@ export interface BackgroundSessionSyncInput {
 }
 
 /**
- * Fail LOUDLY when the installed `@oxyhq/core` predates
+ * Fail LOUDLY when the installed `@oxy.so/core` predates
  * `provisionBackgroundCredential`.
  *
  * This is the one failure here that is a build/dependency mistake rather than a
@@ -193,7 +193,7 @@ export interface BackgroundSessionSyncInput {
  * throws, and logs at ERROR first so it is still visible in a release build whose
  * rejection handler is silent.
  *
- * Reachable only through a runtime skew: the declared `@oxyhq/core` range covers
+ * Reachable only through a runtime skew: the declared `@oxy.so/core` range covers
  * the method, so a correctly-resolved install cannot get here, and TypeScript
  * rules it out at compile time.
  */
@@ -202,9 +202,9 @@ function assertProvisioningAvailable(oxyServices: OxyServices): void {
     return;
   }
   const message =
-    '[backgroundSession] the installed @oxyhq/core has no provisionBackgroundCredential, ' +
+    '[backgroundSession] the installed @oxy.so/core has no provisionBackgroundCredential, ' +
     'so no background credential can be provisioned and native background refreshes will ' +
-    'never authenticate. Install a @oxyhq/core that satisfies this package\'s declared range.';
+    'never authenticate. Install a @oxy.so/core that satisfies this package\'s declared range.';
   logger.error(message, undefined, { component: 'backgroundSession' });
   throw new Error(message);
 }
@@ -220,7 +220,7 @@ function assertProvisioningAvailable(oxyServices: OxyServices): void {
  * account), so this is the fast local half of a belt-and-braces pair, not the only
  * guard.
  *
- * Throws for exactly one thing — a `@oxyhq/core` too old to provision (see
+ * Throws for exactly one thing — a `@oxy.so/core` too old to provision (see
  * {@link assertProvisioningAvailable}). Every other failure is caught and logged:
  * a background credential is an enhancement, and failing to provision one must
  * not disturb the session that is working.

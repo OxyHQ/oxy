@@ -58,7 +58,7 @@ const signatureHex = hexString.min(2).max(256);
 
 /**
  * The 24-byte XChaCha20-Poly1305 nonce, hex (exactly 48 chars). Matches
- * `@oxyhq/core` `AEAD_NONCE_LENGTH` (24 bytes).
+ * `@oxy.so/core` `AEAD_NONCE_LENGTH` (24 bytes).
  */
 const nonceHex = hexString.length(48);
 

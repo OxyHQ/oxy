@@ -10,7 +10,7 @@
  * colour via `useColors()`.
  */
 
-import type { CardTrustTier, PersonhoodStatus } from '@oxyhq/contracts';
+import type { CardTrustTier, PersonhoodStatus } from '@oxy.so/contracts';
 
 /**
  * Semantic tone a civic value renders with. The component maps this to a real

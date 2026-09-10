@@ -44,7 +44,7 @@ describe('backend package.json', () => {
   };
 
   test('depends on the Postgres stack and not on mongoose', () => {
-    expect(Object.keys(manifest.dependencies)).toContain('@oxyhq/db');
+    expect(Object.keys(manifest.dependencies)).toContain('@oxy.so/db');
     expect(Object.keys(manifest.dependencies)).toContain('drizzle-orm');
     expect(Object.keys(manifest.dependencies)).toContain('postgres');
     expect(Object.keys(manifest.dependencies)).not.toContain('mongoose');
@@ -59,7 +59,7 @@ describe('backend package.json', () => {
     expect(Object.keys(manifest.dependencies)).not.toContain('drizzle-kit');
   });
 
-  test('drizzle-orm and postgres are pinned exactly, matching @oxyhq/db peers', () => {
+  test('drizzle-orm and postgres are pinned exactly, matching @oxy.so/db peers', () => {
     expect(manifest.dependencies['drizzle-orm']).toMatch(/^\d+\.\d+\.\d+$/);
     expect(manifest.dependencies.postgres).toMatch(/^\d+\.\d+\.\d+$/);
   });
@@ -128,7 +128,7 @@ describe('shipped migration 0000', () => {
   test('every migration declares exactly one deploy phase', () => {
     // `db:migrate` refuses an unmarked migration before running any DDL, so a
     // scaffold shipping one would be dead on arrival. The authority is
-    // @oxyhq/db's `readMigrationPhases`, which this package does not depend on;
+    // @oxy.so/db's `readMigrationPhases`, which this package does not depend on;
     // the spelling below is that module's, and CI proves the real reader agrees
     // by applying this migration to a real server.
     const marker = /^-- oxy:deploy-phase=(pre|post)$/gm;

@@ -1,9 +1,9 @@
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 
 /**
  * Extended User type for the accounts app.
  *
- * The base `@oxyhq/core` `User` already declares `phone`, `address`, and
+ * The base `@oxy.so/core` `User` already declares `phone`, `address`, and
  * `birthday` (all `string | undefined`), so they are inherited as-is — an
  * interface cannot re-widen an inherited optional field with `null`. This type
  * only ADDS `dateOfBirth`, which the base type does not declare.

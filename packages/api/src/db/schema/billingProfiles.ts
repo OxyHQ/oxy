@@ -67,7 +67,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, inList, updatedAt } from '@oxyhq/db';
+import { createdAt, inList, updatedAt } from '@oxy.so/db';
 import { currencyCode, currencyCodeCheck, exactAmount } from './ledgerColumns';
 import { users } from './users';
 

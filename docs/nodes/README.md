@@ -1,8 +1,8 @@
 # Decentralization — User Data Nodes (F5)
 
 > A user can run their **own** data node that owns their signed records; Oxy keeps
-> a fast, always-available read copy. The node (`@oxyhq/node`) reuses
-> `@oxyhq/core` crypto verbatim — a record signed in the Commons vault verifies on
+> a fast, always-available read copy. The node (`@oxy.so/node`) reuses
+> `@oxy.so/core` crypto verbatim — a record signed in the Commons vault verifies on
 > the node and on Oxy with the **same code**. This is Fase 5 of the Oxy ID
 > initiative.
 >
@@ -39,7 +39,7 @@ feeds, indexes, search, reputation scores, notifications.
 
 ---
 
-## 3. The node server (`packages/node` → `@oxyhq/node`)
+## 3. The node server (`packages/node` → `@oxy.so/node`)
 
 A small Express server (`better-sqlite3` log + on-disk blobs, pino logging,
 Docker + Caddy) that stores a user's per-subject hash chain and serves it for
@@ -66,7 +66,7 @@ without a well-formed one).
 
 - For `POST /records` / `/sync/push`: the envelope's `publicKey` must equal the
   owner key (constant-time `isOwnerKey`), and the signature verifies via
-  `@oxyhq/core` (`verifyRecordEnvelope`) — **no new crypto**.
+  `@oxy.so/core` (`verifyRecordEnvelope`) — **no new crypto**.
 - For `PUT /blobs/:hash`: a fresh **owner-signed header** scheme (no shared bearer
   secret). Headers `X-Oxy-Node-Public-Key`, `X-Oxy-Node-Signature` (secp256k1 DER
   hex), `X-Oxy-Node-Timestamp`; the signed message is
@@ -247,8 +247,8 @@ Public log/head used by ingest: `GET /identity/log/:userId` (`rl:nodes:log:`
 ## 8. Status & deferred items
 
 Shipped to `main` (see [Changelog](../CHANGELOG.md)): F5a API foundation
-(`89ce0422`), the `@oxyhq/node` server (`d9c74692`), F5b ingest (`c6fb8a86`), F5c
-managed vault registration (`964b265e`), and the `@oxyhq/core` nodes SDK mixin.
+(`89ce0422`), the `@oxy.so/node` server (`d9c74692`), F5b ingest (`c6fb8a86`), F5c
+managed vault registration (`964b265e`), and the `@oxy.so/core` nodes SDK mixin.
 
 Deferred:
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { currencyCodeSchema, exactDecimalSchema } from '@oxyhq/contracts';
+import { currencyCodeSchema, exactDecimalSchema } from '@oxy.so/contracts';
 import type {
   BudgetEnforcement,
   BudgetPeriod,

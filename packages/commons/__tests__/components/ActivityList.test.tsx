@@ -1,10 +1,10 @@
 import React from 'react';
 import { render } from '@testing-library/react';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 import { __resetAsyncStorage } from '@/__mocks__/async-storage';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
 import { ActivityList } from '@/components/reputation/ActivityList';
-import type { ReputationTransaction } from '@oxyhq/contracts';
+import type { ReputationTransaction } from '@oxy.so/contracts';
 
 const TRANSACTIONS: ReputationTransaction[] = [
   {

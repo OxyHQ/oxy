@@ -13,7 +13,7 @@ import {
   deriveInfluence,
   baseTrustWeight,
 } from '../reputationDerive';
-import type { ConductStanding } from '@oxyhq/contracts';
+import type { ConductStanding } from '@oxy.so/contracts';
 import {
   INFLUENCE_MIN,
   INFLUENCE_MAX,
@@ -25,7 +25,7 @@ import {
   CONTEXTUAL_WEIGHT_MAX,
   CONTEXTUAL_WEIGHT_MIN,
 } from '../moderation.constants';
-import type { ReputationReliability } from '@oxyhq/contracts';
+import type { ReputationReliability } from '@oxy.so/contracts';
 
 const NEUTRAL: ReputationReliability = {
   accurateReports: 0,

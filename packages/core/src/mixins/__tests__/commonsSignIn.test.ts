@@ -12,8 +12,8 @@
  * degrade-to-QR behaviour every ambiguous input must produce.
  */
 
-import type { CommonsDenyReason } from '@oxyhq/contracts';
-import { COMMONS_DENY_REASONS } from '@oxyhq/contracts';
+import type { CommonsDenyReason } from '@oxy.so/contracts';
+import { COMMONS_DENY_REASONS } from '@oxy.so/contracts';
 import type { SessionLoginResponse } from '../../models/session';
 import type { ChallengeResponse } from '../OxyServices.auth';
 import type { CommonsDeliveryPlatform } from '../../utils/commonsDelivery';

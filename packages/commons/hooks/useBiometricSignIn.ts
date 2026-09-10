@@ -15,7 +15,7 @@
 import { useCallback } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import { authenticate, canUseBiometrics, getErrorMessage } from '@/lib/biometricAuth';
 import { useSilentKeySignIn } from './useSilentKeySignIn';
 

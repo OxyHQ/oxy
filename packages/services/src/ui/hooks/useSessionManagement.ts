@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useRef } from 'react';
-import { isDev, type ApiError, type User } from '@oxyhq/core';
-import type { ClientSession } from '@oxyhq/core';
+import { isDev, type ApiError, type User } from '@oxy.so/core';
+import type { ClientSession } from '@oxy.so/core';
 import { fetchSessionsWithFallback } from '../utils/sessionHelpers';
 import { getStorageKeys, type StorageInterface } from '../utils/storageHelpers';
 import { handleAuthError, isInvalidSessionError } from '../utils/errorHandlers';
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 import type { QueryClient } from '@tanstack/react-query';
 import { clearQueryCache } from './queryClient';
 import { isWebBrowser } from '../utils/isWebBrowser';

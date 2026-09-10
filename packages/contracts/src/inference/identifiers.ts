@@ -214,6 +214,14 @@ export const routingProfileSlugSchema = z
   .max(64)
   .regex(new RegExp(`^${SLUG_PATTERN}$`), 'routing profile must be a lowercase URL-safe slug');
 
+/**
+ * The opaque PostgreSQL identity of one routing profile.
+ *
+ * No trim, case-folding or format heuristic: callers selecting by id must name
+ * the exact stored bytes. The database lookup is the authority for existence.
+ */
+export const routingProfileIdSchema = z.string().min(1).max(128);
+
 /** An inference provider slug, e.g. `openai`, `bedrock`, `oxy-hosted`. */
 export const inferenceProviderSlugSchema = z
   .string()

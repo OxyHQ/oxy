@@ -8,10 +8,10 @@
 
 ## Package(s) affected
 
-- [ ] `@oxyhq/contracts`
-- [ ] `@oxyhq/core`
-- [ ] `@oxyhq/services`
-- [ ] `@oxyhq/api`
+- [ ] `@oxy.so/contracts`
+- [ ] `@oxy.so/core`
+- [ ] `@oxy.so/services`
+- [ ] `@oxy.so/api`
 - [ ] accounts app
 - [ ] auth app
 - [ ] infra / CI

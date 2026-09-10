@@ -35,9 +35,15 @@
  * so a sibling suite seeding the shared database cannot move an aggregate here.
  */
 
-import { randomUUID } from 'node:crypto';
+import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import {
+  KAANA_BASE_URL_VARIABLE,
+  KAANA_SIGNING_KEY_ID_VARIABLE,
+  KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
+} from '../../config/kaanaDataPlane';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { KAANA_EXECUTION_VARIABLE } from '../../config/rolloutFlags';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import {
@@ -283,9 +289,13 @@ describe('time to first token', () => {
     });
     expect(metrics.timeToFirstTokenMs).not.toHaveProperty('p50Ms');
     // The field that makes that pending READABLE: with no data plane configured,
-    // nothing can have streamed, so this pending needs no investigation. The same
-    // pending with `configured` would be a data-plane bug.
+    // nothing can have streamed, so this pending needs no investigation. That
+    // conclusion rests on `dataPlane` alone and is unaffected by the execution
+    // gate, which since #1216 defaults to ON when
+    // `INFERENCE_KAANA_EXECUTION` is unset. Asserted rather than left out, so
+    // that a future change back to fail-closed shows up here.
     expect(metrics.dataPlane).toBe('absent');
+    expect(metrics.dataPlaneExecution.enabled).toBe(true);
   });
 
   it('distinguishes an empty window from a window whose rows carry no value', async () => {
@@ -651,12 +661,55 @@ describe('the payload', () => {
 
     expect(metrics.schemaVersion).toBe(1);
     expect(metrics.window).toEqual(window);
-    // Derived from `resolveRelayDataPlane()`, not asserted: it is what tells a
+    // Derived from `resolveKaanaDataPlane()`, not asserted: it is what tells a
     // reader whether a pending metric is expected or a fault.
     expect(metrics.dataPlane).toBe('absent');
+    // Unset `INFERENCE_KAANA_EXECUTION` means enabled since #1216 ("default
+    // execution on after cutover"): only an explicit `disabled`, or a value the
+    // resolver cannot read, closes the gate. `disabledReason` is therefore null
+    // here rather than 'not_configured' — a reason `resolveKaanaExecution` no
+    // longer has any way to return.
+    expect(metrics.dataPlaneExecution).toEqual({
+      enabled: true,
+      disabledReason: null,
+    });
     // A required literal rather than prose: telemetry is written outside the
     // ledger transaction, and every surface built on it has to say so.
     expect(metrics.consistency).toBe('eventually-consistent');
+  });
+
+  it('reports configuration separately from the disabled execution gate', async () => {
+    const f = await makeFixture();
+    const variables = [
+      KAANA_BASE_URL_VARIABLE,
+      KAANA_SIGNING_KEY_ID_VARIABLE,
+      KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
+      KAANA_EXECUTION_VARIABLE,
+    ] as const;
+    const original = Object.fromEntries(variables.map((name) => [name, process.env[name]]));
+    const key = generateKeyPairSync('ed25519').privateKey
+      .export({ format: 'pem', type: 'pkcs8' })
+      .toString();
+
+    try {
+      process.env[KAANA_BASE_URL_VARIABLE] = 'https://kaana.ai';
+      process.env[KAANA_SIGNING_KEY_ID_VARIABLE] = 'metrics-edge';
+      process.env[KAANA_SIGNING_PRIVATE_KEY_VARIABLE] = key;
+      process.env[KAANA_EXECUTION_VARIABLE] = 'disabled';
+
+      const metrics = await readInferenceOperationalMetrics(scopeOf(f));
+      expect(metrics.dataPlane).toBe('configured');
+      expect(metrics.dataPlaneExecution).toEqual({
+        enabled: false,
+        disabledReason: 'disabled',
+      });
+    } finally {
+      for (const name of variables) {
+        const value = original[name];
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
   });
 
   it('carries no money except the reconciliation totals, and no cost at all', async () => {

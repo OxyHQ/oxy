@@ -1,4 +1,4 @@
-import type { AuthStateStore } from '@oxyhq/core';
+import type { AuthStateStore } from '@oxy.so/core';
 
 /** True when the persisted store holds a device credential. */
 export async function hasPersistedDeviceCredential(store: AuthStateStore): Promise<boolean> {

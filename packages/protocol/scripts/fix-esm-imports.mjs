@@ -6,10 +6,8 @@
  * 3. Adds import attributes for JSON imports
  * 4. Rewrites CJS named imports to default-import + destructure
  *
- * `@oxyhq/protocol`'s only CJS runtime dependency is `elliptic` (used by the
- * secp256k1 DER wrapper); `zod` ships spec-compliant ESM and `@oxyhq/contracts`
- * is type-only here, so `elliptic` is the sole package needing default-import
- * interop.
+ * Protocol's runtime dependencies ship spec-compliant ESM, so no package needs
+ * CJS default-import interop today.
  */
 
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
@@ -18,7 +16,7 @@ import { dirname, join, resolve } from 'node:path';
 const ESM_DIR = new URL('../dist/esm', import.meta.url).pathname;
 
 // CJS packages that need default-import interop
-const CJS_PACKAGES = new Set(['elliptic']);
+const CJS_PACKAGES = new Set();
 
 async function fixSpecifier(specifier, fromFile) {
   const dir = dirname(fromFile);
@@ -67,7 +65,7 @@ async function walk(dir) {
       );
 
       // Fix 3: Rewrite CJS named imports to default + destructure
-      // e.g. `import { ec as EC } from 'elliptic'` → `import _elliptic from 'elliptic'; const { ec: EC } = _elliptic;`
+      // e.g. a named import becomes a default import plus destructuring.
       for (const pkg of CJS_PACKAGES) {
         const namedRe = new RegExp(
           `import\\s*\\{([^}]+)\\}\\s*from\\s*['"]${pkg}['"];?`,

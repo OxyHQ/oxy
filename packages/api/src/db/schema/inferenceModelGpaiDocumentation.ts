@@ -11,7 +11,7 @@
  * whether it carries the systemic-risk classification.
  *
  * Field-by-field, each column names the obligation it serves.
- * `@oxyhq/contracts`' `inference/modelDocumentation.ts` carries the same mapping
+ * `@oxy.so/contracts`' `inference/modelDocumentation.ts` carries the same mapping
  * for the wire shape; this file is the storage half.
  *
  * ## It hangs off the REVISION, and it is 1:1 with it
@@ -71,7 +71,7 @@ import {
   text,
   unique,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, textArrayLiteral, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
 import { inferenceModelRevisions } from './inferenceModelRevisions';
 import { users } from './users';
 

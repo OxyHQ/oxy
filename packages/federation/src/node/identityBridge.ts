@@ -17,7 +17,7 @@
  * an already-successful user resolution.
  */
 
-import { getErrorMessage, getErrorStatus } from '@oxyhq/core';
+import { getErrorMessage, getErrorStatus } from '@oxy.so/core';
 import type { NormalizedExternalActor } from '../index';
 
 /** The HTTP methods the service-scoped oxy-api transport is invoked with. */

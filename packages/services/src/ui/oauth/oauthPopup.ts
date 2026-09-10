@@ -19,7 +19,7 @@
  *   opaque. The authorization result arrives ONLY as a `postMessage`.
  */
 
-import { canonicalizeOAuthRedirectUri, logger } from '@oxyhq/core';
+import { canonicalizeOAuthRedirectUri, logger } from '@oxy.so/core';
 import { readOAuthPopupMessage } from './oauthPopupMessages';
 import type { OAuthPopupHandle, OAuthPopupOutcome } from './types';
 

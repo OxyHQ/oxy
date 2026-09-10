@@ -1,6 +1,6 @@
 import { ScrollView, View, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 /**
  * Example authenticated screen (routed at `/demo`). It reads the signed-in Oxy

@@ -49,12 +49,12 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, integer, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
 import {
   EXTERNAL_PAYMENT_PROVIDERS,
   RECONCILIATION_DISCREPANCY_KINDS,
   RECONCILIATION_RUN_STATUSES,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { billingLedgerEntries } from './billingLedgerEntries';
 import { currencyCode, currencyCodeCheck, exactAmount } from './ledgerColumns';
 import { users } from './users';

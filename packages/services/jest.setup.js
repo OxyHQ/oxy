@@ -5,6 +5,18 @@
 //  - react-native is aliased to a lightweight stub under moduleNameMapper.
 //  - bloom toast/etc. are aliased to a stub since we don't need real UI behavior.
 
+const { TextDecoder, TextEncoder } = require('node:util');
+
+// JSDOM deliberately replaces Node's globals but does not install the Encoding
+// API. React Native/Hermes and browsers provide it; mirror that platform
+// contract in tests before any cryptography module is evaluated.
+if (typeof globalThis.TextEncoder === 'undefined') {
+  globalThis.TextEncoder = TextEncoder;
+}
+if (typeof globalThis.TextDecoder === 'undefined') {
+  globalThis.TextDecoder = TextDecoder;
+}
+
 globalThis.__DEV__ = false;
 
 // Mock socket.io-client globally so useSessionSocket tests can intercept emitted events.

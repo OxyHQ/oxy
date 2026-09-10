@@ -3,7 +3,7 @@
  * react-native-svg-transformer. Rendered as stroked, tilt-iridescent Skia lines
  * by `HolographicLogo` in the ID card header.
  *
- * Mirror the @oxyhq/services `LogoIcon` exactly (viewBox "80.58 263.58 1009.84
+ * Mirror the @oxy.so/services `LogoIcon` exactly (viewBox "80.58 263.58 1009.84
  * 1002.84"). OXY_OUTER is drawn in viewBox space; OXY_INNER and OXY_LETTERS are
  * drawn under a translate(465, 188) group in LogoIcon, so apply that same offset
  * before compositing them with the outer shape.

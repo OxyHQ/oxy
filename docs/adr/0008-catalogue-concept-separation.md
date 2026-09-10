@@ -66,7 +66,7 @@ RoutingProfile       a customer-selectable policy object         auto, fast, qua
 - An **InferenceProvider** is who runs it. The same revision served by two
   providers is two deployments, one model, one revision.
 - A **Deployment** carries the operational facts — region, capacity, health,
-  retention policy, zero-data-retention availability, upstream cost. Relay owns
+  retention policy, zero-data-retention availability, upstream cost. Kaana owns
   its health and availability (ADR 0006); Oxy owns the customer-safe projection.
 - A **RoutingProfile** is a *policy*, an object that selects among deployments
   under constraints. It is not a model and can never be a model.
@@ -128,10 +128,9 @@ whichever of the six concepts it actually meant:
 - `packages/console/src/routes/_layout/playground.tsx:103` — the default becomes
   a real catalogue entry resolved from the active account's configuration, not a
   hardcoded string.
-- `packages/api/src/config/email.config.ts:100` (`AI_LABELING_MODEL`) — an
-  internal first-party consumer; it names a real model or a first-party routing
-  profile, and the change is a deployment-configuration change, not only a code
-  change.
+- `packages/api/src/config/email.config.ts:100` (`AI_LABELING_MODEL`) — removed.
+  Automatic labelling now uses Inbox's exact application id and exact configured
+  routing-profile id through the authenticated Oxy-to-Kaana point-inference lane.
 
 Workstream 15's migration guides own the customer-facing notice and the sunset
 dates.
@@ -156,7 +155,7 @@ cannot answer a residency question.
 ## Consequences
 
 - The Console models page, the playground and the documentation cannot ship real
-  data until the catalogue exists; they are blocked on workstream 5, not on Relay.
+  data until the catalogue exists; they are blocked on workstream 5, not on Kaana.
 - Pricing attaches to a `(ModelRevision, unit, price version)` triple, not to a
   tier multiplier. `creditMultiplier` has no home in the new model and does not
   survive as a field.

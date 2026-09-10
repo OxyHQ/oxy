@@ -61,6 +61,7 @@ const FIXTURE_ROUTES = {
   'inferenceRoutingPolicies.ts': [['get', '/accounts/{accountId}']],
   'inferenceProviderConnections.ts': [['get', '/accounts/{accountId}']],
   'inferenceReporting.ts': [['get', '/accounts/{accountId}/balance']],
+  'email.ts': [['get', '/messages'], ['post', '/inbound'], ['get', '/proxy']],
 };
 
 const FIXTURE_MAP = {
@@ -70,6 +71,7 @@ const FIXTURE_MAP = {
   'inferenceRoutingPolicies.ts': ['/inference/routing-policies'],
   'inferenceProviderConnections.ts': ['/inference/provider-connections'],
   'inferenceReporting.ts': ['/inference/reporting'],
+  'email.ts': ['/email'],
 };
 
 function runCommand(command, args, cwd, extraEnvironment = {}) {
@@ -140,9 +142,11 @@ for (const [file, prefixes] of Object.entries(MOUNT_MAP)) {
       const key = full + ' ' + verb;
       const isCatalogue = full === '/models' || full === '/v1/models' ||
         full.startsWith('/models/') || full.startsWith('/v1/models/');
+      const isPublicEmail = (full === '/email/inbound' && verb === 'post') ||
+        (full === '/email/proxy' && verb === 'get');
       const security = Object.hasOwn(SECURITY_OVERRIDES, key)
         ? SECURITY_OVERRIDES[key]
-        : isCatalogue ? ANONYMOUS : CREDENTIALLED;
+        : isCatalogue || isPublicEmail ? ANONYMOUS : CREDENTIALLED;
       if (security === null) {
         paths[full] = { ...(paths[full] ?? {}), [verb]: {} };
         continue;
@@ -278,6 +282,20 @@ expectVerdict(
   createFixture({ securityOverrides: { '/v1/responses post': null } }),
   1,
   'POST /v1/responses publishes no `security` at all',
+);
+
+expectVerdict(
+  'email-published-as-public',
+  createFixture({ securityOverrides: { '/email/messages get': [{}] } }),
+  1,
+  'GET /email/messages offers an EMPTY security requirement',
+);
+
+expectVerdict(
+  'email-published-with-no-security',
+  createFixture({ securityOverrides: { '/email/messages get': null } }),
+  1,
+  'GET /email/messages publishes no `security` at all',
 );
 
 // POSITIVE CONTROLS FOR THE PAYLOAD LAYER. Each of these is the exact state every

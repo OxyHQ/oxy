@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { type LinkPreview, linkPreviewSchema } from '@oxyhq/contracts';
+import { type LinkPreview, linkPreviewSchema } from '@oxy.so/contracts';
 import { getRedisClient } from '../../config/redis';
 import { logger } from '../../utils/logger';
 import { hostnameOf } from './url';

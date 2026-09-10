@@ -6,7 +6,7 @@
  *
  * Usage:
  * ```tsx
- * import { useAuth } from '@oxyhq/services';
+ * import { useAuth } from '@oxy.so/services';
  *
  * function MyComponent() {
  *   const { user, isAuthenticated, isLoading, signIn, signOut } = useAuth();
@@ -27,9 +27,10 @@
  */
 
 import { useCallback } from 'react';
-import { useOxy } from '../context/OxyContext';
-import type { User } from '@oxyhq/core';
+import { useOxyAuthActions } from '../context/OxyContext';
+import type { User } from '@oxy.so/core';
 import { isWebBrowser } from '../utils/isWebBrowser';
+import { useOxyRuntime, useRuntimeSelector, type OxyRuntimeSnapshot } from '../runtime';
 
 export interface AuthState {
   /** Current authenticated user, null if not authenticated */
@@ -84,7 +85,7 @@ export interface AuthActions {
    *
    * @param publicKey - Native: identity public key. Ignored on web.
    */
-  signIn: (publicKey?: string) => Promise<User>;
+  signIn: (publicKey?: string) => Promise<SignInOutcome>;
 
   /**
    * Sign out current session
@@ -104,14 +105,45 @@ export interface AuthActions {
 
 export interface UseAuthReturn extends AuthState, AuthActions {
   /** Access to full OxyServices instance for advanced usage */
-  oxyServices: ReturnType<typeof useOxy>['oxyServices'];
+  oxyServices: ReturnType<typeof useOxyAuthActions>['oxyServices'];
   /** Switch the device session to another account on this device */
-  switchToAccount: ReturnType<typeof useOxy>['switchToAccount'];
+  switchToAccount: ReturnType<typeof useOxyAuthActions>['switchToAccount'];
   /** Open a bottom sheet screen (e.g. 'ManageAccount', 'FileManagement') */
-  showBottomSheet: ReturnType<typeof useOxy>['showBottomSheet'];
+  showBottomSheet: ReturnType<typeof useOxyAuthActions>['showBottomSheet'];
   /** Open the avatar picker bottom sheet */
-  openAvatarPicker: ReturnType<typeof useOxy>['openAvatarPicker'];
+  openAvatarPicker: ReturnType<typeof useOxyAuthActions>['openAvatarPicker'];
 }
+
+export type SignInOutcome =
+  | { status: 'authenticated'; user: User }
+  | { status: 'dialog-opened' };
+
+const selectAuthState = (snapshot: OxyRuntimeSnapshot): AuthState => ({
+  user: snapshot.account,
+  isAuthenticated: snapshot.account !== null,
+  isLoading: snapshot.isLoading,
+  isReady: snapshot.tokenReady,
+  hasAccessToken: snapshot.hasAccessToken,
+  canUsePrivateApi: snapshot.authResolved
+    && snapshot.account !== null
+    && snapshot.tokenReady
+    && snapshot.hasAccessToken,
+  isPrivateApiPending: !snapshot.authResolved
+    || (snapshot.account !== null && (!snapshot.tokenReady || !snapshot.hasAccessToken)),
+  isAuthResolved: snapshot.authResolved,
+  error: snapshot.error?.message ?? null,
+});
+
+const authStatesEqual = (left: AuthState, right: AuthState): boolean =>
+  left.user === right.user
+  && left.isAuthenticated === right.isAuthenticated
+  && left.isLoading === right.isLoading
+  && left.isReady === right.isReady
+  && left.hasAccessToken === right.hasAccessToken
+  && left.canUsePrivateApi === right.canUsePrivateApi
+  && left.isPrivateApiPending === right.isPrivateApiPending
+  && left.isAuthResolved === right.isAuthResolved
+  && left.error === right.error;
 
 /**
  * Unified auth hook for all Oxy apps
@@ -124,16 +156,19 @@ export interface UseAuthReturn extends AuthState, AuthActions {
  * - Type-safe: Full TypeScript support
  */
 export function useAuth(): UseAuthReturn {
+  const runtime = useOxyRuntime();
   const {
     user,
     isAuthenticated,
     isLoading,
-    isTokenReady,
+    isReady,
     hasAccessToken,
     canUsePrivateApi,
     isPrivateApiPending,
     isAuthResolved,
     error,
+  } = useRuntimeSelector(runtime, selectAuthState, authStatesEqual);
+  const {
     signIn: oxySignIn,
     logout,
     logoutAll,
@@ -145,20 +180,20 @@ export function useAuth(): UseAuthReturn {
     showBottomSheet,
     openAvatarPicker,
     openAccountDialog,
-  } = useOxy();
+  } = useOxyAuthActions();
 
-  const signIn = useCallback(async (publicKey?: string): Promise<User> => {
+  const signIn = useCallback(async (publicKey?: string): Promise<SignInOutcome> => {
     // Native: sign in directly with the cryptographic identity when a public key
     // is provided, or an existing keychain identity is found.
     if (publicKey) {
-      return oxySignIn(publicKey);
+      return { status: 'authenticated', user: await oxySignIn(publicKey) };
     }
     if (!isWebBrowser()) {
       const hasExisting = await hasIdentity();
       if (hasExisting) {
         const existingKey = await getPublicKey();
         if (existingKey) {
-          return oxySignIn(existingKey);
+          return { status: 'authenticated', user: await oxySignIn(existingKey) };
         }
       }
     }
@@ -166,10 +201,10 @@ export function useAuth(): UseAuthReturn {
     // Web, or native without a keychain identity: open the unified account dialog
     // on its sign-in view (device flow / QR / password hand-off). There is NO
     // automatic navigation to a login page — the device-first cold boot already
-    // restored a session if one existed. The caller reacts to `isAuthenticated`,
-    // so this promise intentionally never resolves.
+    // restored a session if one existed. The caller reacts to `isAuthenticated`;
+    // report the initiated UI action instead of leaking a promise that never settles.
     openAccountDialog('signin');
-    return new Promise<User>(() => undefined);
+    return { status: 'dialog-opened' };
   }, [oxySignIn, hasIdentity, getPublicKey, openAccountDialog]);
 
   const signOut = useCallback(async (): Promise<void> => {
@@ -189,7 +224,7 @@ export function useAuth(): UseAuthReturn {
     user,
     isAuthenticated,
     isLoading: isLoading || !isAuthResolved,
-    isReady: isTokenReady,
+    isReady,
     hasAccessToken,
     canUsePrivateApi,
     isPrivateApiPending,

@@ -13,7 +13,7 @@
  */
 
 import { describe, expect, test } from "bun:test"
-import { BROWSER_HUB_HANDLE_TTL_MS } from "@oxyhq/contracts"
+import { BROWSER_HUB_HANDLE_TTL_MS } from "@oxy.so/contracts"
 import { clearedHubCookieHeader, hubCookieHeader, readHubHandle } from "../cookie"
 
 const HANDLE = "Zm9vYmFyLWhhbmRsZS12YWx1ZS0zMi1ieXRlcy1sb25n_x"

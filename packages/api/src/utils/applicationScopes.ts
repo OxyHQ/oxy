@@ -24,7 +24,7 @@
  *   notifications for arbitrary recipients. PRIVILEGED — only Oxy platform staff
  *   may grant it.
  * - `payments:read` / `payments:write` permit a service credential to read and
- *   manage the Oxy Pay Gateway resources (merchants, payment intents, webhook
+ *   manage the Peable Gateway resources (merchants, payment intents, webhook
  *   deliveries) belonging to ITS OWN Application. Non-privileged — same
  *   pattern as `files:write`/`updates:publish`: authority is scoped to the
  *   app's own tenant, never cross-tenant.
@@ -37,6 +37,10 @@
  *   end-user identity is never the billing principal, so an application can only
  *   ever spend the balance of the account that owns it. The two WRITES are
  *   privileged — see {@link PRIVILEGED_APPLICATION_SCOPES}.
+ *   `inference:byok:validate` is narrower still: it only lets the trusted Kaana
+ *   reporter submit a closed credential verdict. The route also requires the
+ *   staff-controlled `kaana:provider-credential-validation` application
+ *   capability, so the scope alone is never a generic service write lane.
  *
  *   This family REPLACED `chat:completions` and `models:read` outright. Those two
  *   authorised nothing: no middleware, route or service in this repository ever
@@ -73,6 +77,52 @@
  *   platform thinks of the application. Their real constraint lives in
  *   {@link USER_CONSENT_REQUIRED_SCOPES} — they can never be auto-approved, for
  *   any application classification.
+ * - `acting-as:offline` is the scope that makes SERVICE-TOKEN delegation
+ *   possible at all: it is what `GET /internal/service-acting-as/verify` looks
+ *   for before answering `authorized: true`, and without it in the user's grant
+ *   an application holding a service token can act only as ITSELF. PRIVILEGED —
+ *   see {@link PRIVILEGED_APPLICATION_SCOPES} — AND consent-required, which is
+ *   the pair of gates it needs and neither alone would give.
+ *
+ *   It is NOT `account:act_as` (`utils/accountRoles.ts`), which is membership on
+ *   the ACCOUNT graph and mints a session. Nothing here mints anything: it
+ *   authorises one already-authenticated service principal to name a user in
+ *   `X-Oxy-User-Id`, and that user is attribution only, never the billing
+ *   principal (ADR 0007).
+ * - `accounts:act-as-session` permits a service credential to MINT A SESSION
+ *   whose subject is a managed account (`organization` / `project` / `bot`), on
+ *   the authority of a human who holds `account:act_as` over it —
+ *   `POST /internal/accounts/:id/service-switch`. It is what lets an Oxy app run
+ *   an autonomous agent AS a real `bot` account rather than as itself wearing a
+ *   label. PRIVILEGED — see {@link PRIVILEGED_APPLICATION_SCOPES}.
+ *
+ *   IT IS A SEPARATE SCOPE FROM `acting-as:offline`, NOT A VARIANT OF IT, and
+ *   the distance between them is the whole reason it exists. `acting-as:offline`
+ *   buys per-request ATTRIBUTION: the service stays the principal and merely
+ *   names a user. This buys a DURABLE SESSION whose subject is somebody else's
+ *   account — a bearer that outlives the request, refreshes itself, and speaks
+ *   with that account's voice everywhere in the ecosystem. Spelling one as a
+ *   flavour of the other would have silently handed that authority to every
+ *   application already holding the smaller one, which is why the name sits in
+ *   the `accounts:` family beside `accounts:provision` rather than in the
+ *   `acting-as:` one.
+ *
+ *   It authorises the CALL, never the delegation. The per-human decision is
+ *   `account:act_as` on the account graph, re-read from `account_members` on
+ *   every mint and re-checked on every validate and refresh, so a member losing
+ *   it kills the live session rather than merely refusing the next one.
+ * - `podcasts:write` permits a delegated service request to create and update
+ *   podcast episodes belonging to the SUBJECT USER in the app that owns them.
+ *   Not privileged: it is the user's own content in the user's own account, the
+ *   same shape as `files:write`, and the authority comes from the user's grant
+ *   rather than from what the platform thinks of the application.
+ *
+ *   It names a resource this API does not itself serve, which is the one thing
+ *   about it worth flagging. Oxy is the authorization server for the ecosystem,
+ *   and `intersectScopes` DROPS any scope not in this vocabulary — so a scope a
+ *   consuming app's resource server needs has to exist here or it can never
+ *   reach a token. A per-application scope namespace would be the better
+ *   long-run answer; until one exists, a resource scope lands here.
  */
 export const APPLICATION_SCOPES = [
   'files:read',
@@ -87,6 +137,7 @@ export const APPLICATION_SCOPES = [
   'inference:routing:write',
   'inference:providers:read',
   'inference:providers:write',
+  'inference:byok:validate',
   'updates:publish',
   'federation:write',
   'signals:write',
@@ -94,6 +145,11 @@ export const APPLICATION_SCOPES = [
   'reputation:moderation:apply',
   'reputation:binding:register',
   'notifications:write',
+  'capabilities:read',
+  'catalogs:write',
+  'capability-tickets:issue',
+  'capability-audit:write',
+  'capability-events:publish',
   'payments:read',
   'payments:write',
   'accounts:provision',
@@ -105,6 +161,9 @@ export const APPLICATION_SCOPES = [
   'follow-targets:register',
   'chains:write',
   'chains:read',
+  'acting-as:offline',
+  'accounts:act-as-session',
+  'podcasts:write',
 ] as const;
 
 export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
@@ -175,11 +234,43 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   profiles and provider connections turn out to be per-account rows rather
  *   than a shared catalogue; that, and only that, would make these two
  *   own-tenant operations.
+ * - `inference:byok:validate` reports a provider-credential verdict across
+ *   customer tenants. It is reserved for the trusted Kaana application and is
+ *   independently gated by its staff-controlled validator capability.
+ *
+ * - `acting-as:offline` is the scope a service token must carry before it may
+ *   name a user in `X-Oxy-User-Id` at all. Privileged AND consent-required, and
+ *   the two answer different questions: consent stops the PLATFORM deciding for
+ *   the user, and privilege stops an arbitrary self-service application ever
+ *   putting the question to them. Neither substitutes for the other — a
+ *   consent-only scope would let any third-party app open a dialog asking to act
+ *   as the user forever, which is a phishing surface even when every individual
+ *   answer is the user's own.
+ *
+ *   Today the service-token MINT already refuses untrusted applications, so an
+ *   untrusted app holding this scope authorises nothing. That is a second gate,
+ *   not a reason to leave this one out: the mint's trust check exists to protect
+ *   the service lane as a whole, and if the narrow Peable carve-out there ever
+ *   widens, this classification is what still stands between a self-service app
+ *   and an offline delegation grant.
+
+ * - `accounts:act-as-session` mints a real, refreshable session whose subject is
+ *   a managed account the calling application does not own. It is the largest
+ *   authority `/internal` grants, and it reaches accounts in every tenant, so it
+ *   is staff-only for the same reason `accounts:provision` is — an application
+ *   owner may not decide for themselves that their app may become other people's
+ *   organizations and bots.
+ *
+ *   It is deliberately ABSENT from {@link USER_CONSENT_REQUIRED_SCOPES}, which
+ *   is a decision and not an omission — the reasoning is recorded on that
+ *   constant, because the question it asks is answered on a different lane.
  *
  * All non-privileged scopes in {@link APPLICATION_SCOPES} authorise an app only
- * over its OWN resources (files, models, webhooks, public user reads) and remain
- * freely self-grantable. Keep this set CONSERVATIVE — add a scope here only when
- * it grants authority beyond the app's own tenant.
+ * over its OWN resources (files, models, webhooks, public user reads) or over
+ * the subject user's own content under that user's explicit grant
+ * (`podcasts:write`), and remain freely self-grantable. Keep this set
+ * CONSERVATIVE — add a scope here only when it grants authority beyond the app's
+ * own tenant.
  */
 export const PRIVILEGED_APPLICATION_SCOPES = [
   'federation:write',
@@ -192,7 +283,49 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'chains:write',
   'inference:routing:write',
   'inference:providers:write',
+  'inference:byok:validate',
+  'acting-as:offline',
+  'accounts:act-as-session',
+  'capabilities:read',
+  'catalogs:write',
+  'capability-tickets:issue',
+  'capability-audit:write',
+  'capability-events:publish',
 ] as const satisfies readonly ApplicationScope[];
+
+/**
+ * The follow family: authority over the USER's own follow graph.
+ *
+ * Named as its own set because two different rules need to say "is this a follow
+ * scope", and only one of them is "must the user consent". `assertFollowScopes`
+ * (`services/followCapability.service.ts`) is the other: it guards the follow
+ * authorization path against a scope from another domain reaching it by
+ * accident, and it once asked {@link isUserConsentRequiredScope} because the two
+ * sets happened to be identical.
+ *
+ * They are not identical any more, and that coincidence was load-bearing in the
+ * worst way: the moment a NON-follow scope became consent-required, the guard
+ * started admitting it, silently, while still reading as if it checked
+ * something. A guard defined by a set it does not own is a guard that changes
+ * meaning when someone edits that set for an unrelated reason.
+ */
+export const FOLLOW_APPLICATION_SCOPES = [
+  'follows:read',
+  'follows:write',
+  'follows:context:write',
+  'follows:manage',
+  'follows:events',
+  'follow-targets:register',
+] as const satisfies readonly ApplicationScope[];
+
+const FOLLOW_APPLICATION_SCOPE_SET: ReadonlySet<string> = new Set<string>(
+  FOLLOW_APPLICATION_SCOPES
+);
+
+/** True when `scope` is authority over the user's follow graph. */
+export function isFollowScope(scope: string): boolean {
+  return FOLLOW_APPLICATION_SCOPE_SET.has(scope);
+}
 
 /**
  * Scopes the SUBJECT USER must consent to explicitly, for every application,
@@ -216,6 +349,46 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
  * Adding a scope here makes it un-bypassable. Keep it to authority over data
  * that is the USER's rather than the application's.
  *
+ * `acting-as:offline` is here for a reason the follow family does not share, and
+ * it is the reason the whole service-acting-as mechanism WORKS. A trusted
+ * application is auto-approved and — by design — records NO grant row
+ * (`recordAppGrant` is skipped, see `routes/auth.ts`). Every application that can
+ * mint a service token is trusted. So without this entry the verify endpoint
+ * would find no row for exactly the applications that can reach it, and offline
+ * delegation would be unreachable rather than merely unauthorized. Membership
+ * here is what makes the consent screen appear, what writes the row, and what
+ * puts the app in "Connected apps" where the user can take it back.
+ *
+ * `podcasts:write` is here on the ordinary criterion: podcast episodes written
+ * into a user's account are the user's content, and being first-party is not a
+ * reason to be handed them without being asked.
+
+ * `accounts:act-as-session` is deliberately NOT here, and it is the one absence
+ * worth arguing rather than assuming, because it is the most powerful scope in
+ * the vocabulary. Membership here would buy nothing and cost a lie.
+ *
+ * It buys nothing because this set only has teeth on the OAuth authorize lane:
+ * it forces a consent screen and makes `recordAppGrant` write an `app_grants`
+ * row. `POST /internal/accounts/:id/service-switch` never reads an `app_grants`
+ * row for its own scope — it reads the scope off the SERVICE TOKEN, which is
+ * minted from a credential, with no user in the request to consent to anything.
+ * A grant row naming it would sit there authorizing nothing, which is exactly
+ * the "vocabulary entry an application could hold and never a permission
+ * anything checked" this module retired `chat:completions` for.
+ *
+ * It costs a lie because the screen would name the wrong person. The user an
+ * OAuth consent screen is shown to is whoever is signing in; the human whose
+ * decision actually gates this mint is a member of the TARGET account holding
+ * `account:act_as` over it, and those are routinely different people. Asking
+ * the first to approve on behalf of the second would present a real decision to
+ * someone who does not hold it.
+ *
+ * The per-human decision is not missing — it is `account:act_as` on the account
+ * graph, granted per member through the account's own members surface, read on
+ * every mint and re-read on every validate and refresh. Revocation is reachable
+ * two ways, both of which the endpoint consults: withdraw that membership, or
+ * revoke the application outright (`service_acting_as_revocations`).
+ *
  * NO `inference:*` scope belongs here, and the reason is the attribution rule
  * rather than a judgement about how sensitive inference is. The financially
  * responsible principal on every inference request is the application's OWNER
@@ -230,12 +403,10 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
  * resource, then the scope that reaches it belongs in this set.
  */
 export const USER_CONSENT_REQUIRED_SCOPES = [
-  'follows:read',
-  'follows:write',
-  'follows:context:write',
-  'follows:manage',
-  'follows:events',
-  'follow-targets:register',
+  ...FOLLOW_APPLICATION_SCOPES,
+  'acting-as:offline',
+  'podcasts:write',
+  'chains:write',
 ] as const satisfies readonly ApplicationScope[];
 
 const USER_CONSENT_REQUIRED_SCOPE_SET: ReadonlySet<string> = new Set<string>(
@@ -258,6 +429,17 @@ export function userConsentRequiredScopes(requested: readonly string[]): string[
   return requested.filter(isUserConsentRequiredScope);
 }
 
+/**
+ * The one scope `POST /internal/accounts/:id/service-switch` requires.
+ *
+ * Named here rather than spelled as a literal in the route because the
+ * annotation is the gate: typed `ApplicationScope`, renaming or removing the
+ * vocabulary entry makes THIS line a compile error instead of leaving a route
+ * checking for a string no token can ever carry — a gate that fails open and
+ * reads as if it still measures something.
+ */
+export const SERVICE_ACCOUNT_SWITCH_SCOPE: ApplicationScope = 'accounts:act-as-session';
+
 const PRIVILEGED_APPLICATION_SCOPE_SET: ReadonlySet<ApplicationScope> = new Set<ApplicationScope>(
   PRIVILEGED_APPLICATION_SCOPES
 );
@@ -275,12 +457,12 @@ export function isPrivilegedScope(scope: string): scope is ApplicationScope {
 }
 
 /**
- * Oxy Pay Gateway scopes — the only scopes {@link APPLICATION_SCOPES} grants
+ * Peable Gateway scopes — the only scopes {@link APPLICATION_SCOPES} grants
  * that authorise payments resources. Used by the `POST /applications/:appId/credentials`
  * route (`applications.ts`) as the boundary of a narrow trust carve-out: a
  * non-trusted (`third_party`) application may create a `type:'service'`
  * credential ONLY when every requested scope is in this set, so external Oxy
- * Pay merchants can self-serve the service credential the `@oxyhq/pay` SDK
+ * Pay merchants can self-serve the service credential the `@oxy.so/pay` SDK
  * needs without gaining the ability to mint a trusted service token for any
  * other, still staff-gated capability. Safe because both scopes are already
  * non-privileged/self-grantable (see the doc comment on `APPLICATION_SCOPES`
@@ -295,7 +477,7 @@ const PAYMENTS_APPLICATION_SCOPE_SET: ReadonlySet<ApplicationScope> = new Set<Ap
   PAYMENTS_APPLICATION_SCOPES
 );
 
-/** True when `scope` is one of the Oxy Pay Gateway scopes. */
+/** True when `scope` is one of the Peable Gateway scopes. */
 export function isPaymentsScope(scope: string): scope is ApplicationScope {
   return PAYMENTS_APPLICATION_SCOPE_SET.has(scope as ApplicationScope);
 }

@@ -14,7 +14,7 @@ const REFRESH_TOKEN_EXPIRES_IN = '7d'; // Longer refresh tokens
 /**
  * The single issuer identity Oxy signs JWTs under, and the single resource
  * server they address. The service-token mint (`POST /auth/service-token`)
- * already used exactly these two strings, and `@oxyhq/core`'s SDK already
+ * already used exactly these two strings, and `@oxy.so/core`'s SDK already
  * verifies service tokens against them by default — so an access token joining
  * the same vocabulary is one issuer/audience pair for the platform rather than
  * a second one invented alongside it. Issue #937 writes `https://auth.oxy.so`
@@ -109,7 +109,7 @@ export const generateSessionTokens = (binding: AccessTokenBinding) => {
       ...(binding.deviceContextId ? { device_context_id: binding.deviceContextId } : {}),
       jti: crypto.randomUUID(),
       // The v1 claims, kept verbatim for the migration window AND because
-      // `@oxyhq/core/server`'s middleware is decode-only and reads exactly
+      // `@oxy.so/core/server`'s middleware is decode-only and reads exactly
       // these two: a third-party app backend does not hold the signing secret,
       // so it looks up `sessionId` and compares `userId` against the session it
       // validates over HTTP. Removing either would sign every consuming backend

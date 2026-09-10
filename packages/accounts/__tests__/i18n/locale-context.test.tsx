@@ -4,7 +4,7 @@ import {
   __resetOxyState,
   __setOxyState,
   __getLanguageMocks,
-} from '@/__mocks__/oxyhq-services';
+} from '@/__mocks__/oxy-services';
 import { LocaleProvider, useLocale } from '@/lib/i18n/locale-context';
 import { DEFAULT_LOCALE } from '@/lib/i18n/types';
 

@@ -1,13 +1,13 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState, type ErrorInfo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useStore } from 'zustand';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import {
   useDialogFrame,
   useDialogHeader,
   type DialogHeaderConfig,
-} from '@oxyhq/bloom/dialog';
-import type { SurfaceControls } from '@oxyhq/bloom/surfaces';
+} from '@oxy.so/bloom/dialog';
+import type { SurfaceControls } from '@oxy.so/bloom/surfaces';
 import type { RouteName } from '../navigation/routes';
 import { getScreenComponent } from '../navigation/routes';
 import { pushSurfaceBackHandler } from '../navigation/surfaceBackBridge';
@@ -82,7 +82,7 @@ const errorStyles = StyleSheet.create({
  * presentation of a surface can land here for a frame; the surface chrome is
  * already on screen by then, so this fills only the body.
  *
- * Deliberately RN's `ActivityIndicator` rather than `@oxyhq/bloom/loading`,
+ * Deliberately RN's `ActivityIndicator` rather than `@oxy.so/bloom/loading`,
  * matching `authChooser/requestSurfaces`: Bloom still declares
  * `sideEffects: false`, so its `Loading` can still tree-shake to `undefined` in
  * a rolldown-vite production bundle. Removing that risk from the first frame of

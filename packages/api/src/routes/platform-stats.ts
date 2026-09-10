@@ -1,5 +1,8 @@
 /**
- * Platform statistics — eight staff-only counters, served over REST and SSE.
+ * Platform statistics — eight public aggregate counters, served over REST and SSE.
+ *
+ * These totals back the public platform dashboard at oxy.so/dashboard. They do
+ * not contain user records, identifiers, locations or any other row-level data.
  *
  * ## Every counter must reach the client as a JSON NUMBER
  *
@@ -44,8 +47,6 @@
 
 import { Router, type Request, type Response } from 'express';
 import { and, count, eq, gt } from 'drizzle-orm';
-import { authMiddleware } from '../middleware/auth';
-import { requireStaff } from '../middleware/requireStaff';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import { files } from '../db/schema/files';
@@ -166,8 +167,6 @@ async function refreshStats(now: number): Promise<PlatformStats> {
   cacheTime = now;
   return stats;
 }
-
-router.use(authMiddleware, requireStaff);
 
 // REST endpoint (fallback)
 router.get('/', async (_req: Request, res: Response) => {

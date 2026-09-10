@@ -7,7 +7,7 @@ import { useAuthFlowContext } from '@/contexts/auth-flow-context';
 
 import { useTranslation } from '@/lib/i18n';
 import { useIdentityStore } from '@/hooks/identity/identityStore';
-import { alert } from '@oxyhq/bloom';
+import { alert } from '@oxy.so/bloom';
 
 /**
  * Recovery Phrase Reveal Screen.
@@ -82,7 +82,7 @@ export default function RecoveryPhraseScreen() {
     // Persist the acknowledgement to disk so the next launch doesn't
     // re-nag the user.
     setRecoveryPhraseAcknowledgedPersisted(true);
-    router.replace('/(auth)/create-identity/username');
+    router.replace('/(auth)/create-identity/interests');
   }, [acknowledged, acknowledgeRecoveryPhrase, router, setRecoveryPhraseAcknowledgedPersisted]);
 
   const handleMissingPhrase = useCallback(() => {

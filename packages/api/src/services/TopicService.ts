@@ -37,7 +37,7 @@
 
 import { and, asc, countDistinct, eq, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import type { SelectedRow } from '@oxyhq/db';
+import type { SelectedRow } from '@oxy.so/db';
 import { topics, TOPIC_SOURCES, TOPIC_TYPES } from '../db/schema/topics';
 
 /** The `topics.type` closed value set, derived from the column itself. */

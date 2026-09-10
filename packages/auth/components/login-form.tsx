@@ -1,15 +1,15 @@
 import { useState, useRef, useEffect } from "react"
 import { useNavigate, Link } from "react-router-dom"
-import { toast } from "@oxyhq/bloom/toast"
+import { toast } from "@oxy.so/bloom/toast"
 import { ArrowLeft, KeyRound, QrCode, Usb } from "lucide-react"
-import { isOxyRpOrigin, type SwitcherContextRow } from "@oxyhq/core"
-import { useDeviceSwitcher, useOxy } from "@oxyhq/services"
+import { isOxyRpOrigin, type SwitcherContextRow } from "@oxy.so/core"
+import { useDeviceSwitcher, useOxy } from "@oxy.so/services"
 import { buildPostLoginRedirect } from "@/lib/auth-utils"
 import { describePasskeyError } from "@/lib/passkey-error"
 import { setBasePreset } from "@/lib/bloom-css"
 import { useLayoutContext } from "@/lib/layout-context"
 import { getOrCreateDeviceFingerprint } from "@/lib/device-fingerprint"
-import { Button } from "@oxyhq/bloom/button"
+import { Button } from "@oxy.so/bloom/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { AccountChooser } from "@/components/account-chooser"
@@ -25,6 +25,8 @@ type LoginFormProps = React.ComponentProps<"div"> & {
     codeChallenge?: string
     codeChallengeMethod?: string
     scope?: string
+    resource?: string
+    responseType?: string
     /**
      * `response_mode=web_message` (popup sign-in), carried through to
      * `/authorize` so the result is posted to the opener rather than navigating
@@ -38,6 +40,12 @@ type LoginFormProps = React.ComponentProps<"div"> & {
      * complete a username-first passkey assertion.
      */
     loginHint?: string
+    /**
+     * `?mcp_link_intent=` — the person is here to add the account they sign in
+     * as to an existing MCP connection, so the post-login hop returns to
+     * `/mcp/link` instead of an OAuth request that does not exist.
+     */
+    mcpLinkIntent?: string
 }
 
 type LoginStep = "identifier" | "security-key"
@@ -61,8 +69,11 @@ export function LoginForm({
     codeChallenge,
     codeChallengeMethod,
     scope,
+    resource,
+    responseType,
     responseMode,
     loginHint,
+    mcpLinkIntent,
     ...props
 }: LoginFormProps) {
     const navigate = useNavigate()
@@ -75,7 +86,10 @@ export function LoginForm({
         if (codeChallenge) params.set("code_challenge", codeChallenge)
         if (codeChallengeMethod) params.set("code_challenge_method", codeChallengeMethod)
         if (scope) params.set("scope", scope)
+        if (resource) params.set("resource", resource)
+        if (responseType) params.set("response_type", responseType)
         if (responseMode) params.set("response_mode", responseMode)
+        if (mcpLinkIntent) params.set("mcp_link_intent", mcpLinkIntent)
         const qs = params.toString()
         return qs ? `/signup?${qs}` : "/signup"
     })()
@@ -194,7 +208,10 @@ export function LoginForm({
             codeChallenge,
             codeChallengeMethod,
             scope,
+            resource,
+            responseType,
             responseMode,
+            mcpLinkIntent,
         }))
     }
 

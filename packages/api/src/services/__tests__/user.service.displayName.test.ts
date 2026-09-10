@@ -19,7 +19,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
 import { BadRequestError } from '../../utils/error';
 import { userService } from '../user.service';
-import { DISPLAY_NAME_INVALID_MESSAGE } from '@oxyhq/core';
+import { DISPLAY_NAME_INVALID_MESSAGE } from '@oxy.so/core';
 
 const uniqueId = () => randomUUID().replace(/-/g, '');
 

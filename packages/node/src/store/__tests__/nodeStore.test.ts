@@ -1,5 +1,5 @@
 /**
- * NodeStore unit tests — the SQLite store as a `@oxyhq/protocol`
+ * NodeStore unit tests — the SQLite store as a `@oxy.so/protocol`
  * `RecordStore`/`BlobStore`: append/continuity (via the shared `checkContinuity`),
  * log cursor + cap, head, record materialization, the freshness frontier, and
  * content-addressed blob storage. Same behaviour as before the protocol reshape;
@@ -8,10 +8,10 @@
  */
 
 import { createHash } from 'node:crypto';
-import { BlobHashMismatchError } from '@oxyhq/protocol/node';
+import { BlobHashMismatchError } from '@oxy.so/protocol/node';
 import { NodeStore } from '../nodeStore';
 import { buildSignedEnvelope, generateTestKeyPair, recordIdOf, type TestKeyPair } from '../../__tests__/helpers/signEnvelope';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 // A node holds one subject's repo; the store keys a single global chain and
 // ignores the subject argument, so any value works here.

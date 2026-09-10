@@ -36,20 +36,20 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
-import { Button } from '@oxyhq/bloom/button';
-import { PressableScale } from '@oxyhq/bloom/pressable-scale';
-import { CompositionBar, type CompositionCategory } from '@oxyhq/bloom/composition-bar';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { Text } from '@oxyhq/bloom/typography';
+import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import { Button } from '@oxy.so/bloom/button';
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
+import { CompositionBar, type CompositionCategory } from '@oxy.so/bloom/composition-bar';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { Text } from '@oxy.so/bloom/typography';
 import {
   showsPrincipalHeaders,
   type AccountDialogSnapshot,
   type SwitcherContextRow,
   type SwitcherPrincipalRow,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import AvatarCameraBadge from '../AvatarCameraBadge';
 import { HoverPressable } from './primitives';
 import { authChooserStyles as styles } from './styles';

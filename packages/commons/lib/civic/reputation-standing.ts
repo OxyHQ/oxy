@@ -8,7 +8,7 @@
  *      and how far the NEXT tier is. The point thresholds mirror the server's
  *      single source of truth, `packages/api/src/utils/reputation.constants.ts`
  *      (`TRUST_TIER_TRUSTED_MIN` / `TRUST_TIER_HIGH_TRUST_MIN`). Commons cannot
- *      import `@oxyhq/api`, so the values are mirrored here with a reference
+ *      import `@oxy.so/api`, so the values are mirrored here with a reference
  *      comment — the same pattern `card-presentation.ts` (mirrors the wire enums)
  *      and `reputation-sources.ts` (mirrors the breakdown) already use.
  *   2. The human-facing influence multiplier and reliability percent, formatted
@@ -20,7 +20,7 @@
  * (`total < 0` or a high abuse score) and likewise has no forward progress.
  */
 
-import type { TrustTier, ReputationInfluence, ReputationReliability } from '@oxyhq/contracts';
+import type { TrustTier, ReputationInfluence, ReputationReliability } from '@oxy.so/contracts';
 
 /** Minimum lifetime total for the `trusted` tier (mirror reputation.constants.ts). */
 export const TRUST_TIER_TRUSTED_MIN = 100;

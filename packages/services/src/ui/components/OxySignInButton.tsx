@@ -7,12 +7,12 @@ import {
     generateOAuthState,
     buildOAuthAuthorizeUrl,
     type PublicApplication,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { useAuthStore } from '../stores/authStore';
 import { useShallow } from 'zustand/react/shallow';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Button, type ButtonVariant } from '@oxyhq/bloom/button';
-import { toast } from '@oxyhq/bloom/toast';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Button, type ButtonVariant } from '@oxy.so/bloom/button';
+import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { LogoIcon } from './logo/LogoIcon';

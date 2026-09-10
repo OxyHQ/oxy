@@ -454,7 +454,7 @@ describe('verifyDelegatedSubject', () => {
    * The second act-as door. Blocking `POST /accounts/:id/switch` alone would
    * leave this one open: an OAuth delegated subject is the other way an
    * application comes to act as an account, and it is gated by its own copy of
-   * the predicate. Both now read `isActAsEligibleKind`.
+   * the predicate. Both now read `isDelegatedActAsEligibleKind`.
    */
   it('refuses a CHANNEL account as a subject — nobody acts as a channel', async () => {
     const subject = await account({ kind: 'channel' });

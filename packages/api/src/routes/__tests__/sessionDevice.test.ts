@@ -84,7 +84,7 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { deviceTokenMintResponseSchema } from '@oxyhq/contracts';
+import { deviceTokenMintResponseSchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';
 import { devicePrincipals } from '../../db/schema/devicePrincipals';

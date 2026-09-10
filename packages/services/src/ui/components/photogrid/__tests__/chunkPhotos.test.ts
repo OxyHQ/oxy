@@ -1,4 +1,4 @@
-import type { FileMetadata } from '@oxyhq/core';
+import type { FileMetadata } from '@oxy.so/core';
 import { chunkPhotos, PHOTOS_PER_ROW } from '../JustifiedPhotoGrid';
 
 // `chunkPhotos` is the row-building logic the justified photo grid owns (moved

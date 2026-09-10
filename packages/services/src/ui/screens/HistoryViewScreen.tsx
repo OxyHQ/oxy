@@ -1,16 +1,16 @@
 import React, { useState, useCallback } from 'react';
 import { View } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { toast } from '@oxyhq/bloom/toast';
-import { Loading } from '@oxyhq/bloom/loading';
-import { Text } from '@oxyhq/bloom/typography';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { toast } from '@oxy.so/bloom/toast';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Text } from '@oxy.so/bloom/typography';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useOxy } from '../context/OxyContext';
-import { surfaces } from '@oxyhq/bloom/surfaces';
+import { surfaces } from '@oxy.so/bloom/surfaces';
 import { createPlatformStorage } from '../utils/storageHelpers';
 
 interface HistoryItem { id: string; query: string; type: 'search' | 'browse'; timestamp: Date; }

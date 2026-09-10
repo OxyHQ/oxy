@@ -7,7 +7,7 @@
  * `ReputationRule`, the leaderboard entry) and the request bodies the write
  * endpoints accept. The API validates its OUTPUT against these schemas and its
  * INPUT with the same request schemas the SDK's input types are derived from;
- * `@oxyhq/core`'s reputation mixin imports every type from here rather than
+ * `@oxy.so/core`'s reputation mixin imports every type from here rather than
  * declaring its own.
  *
  * Why this module exists: the balance endpoint was view-split server-side

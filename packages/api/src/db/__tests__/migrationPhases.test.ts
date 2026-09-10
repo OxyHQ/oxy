@@ -26,7 +26,7 @@ import {
   planMigrationRun,
   readJournal,
   readMigrationPhases,
-} from '@oxyhq/db/migrate';
+} from '@oxy.so/db/migrate';
 import { MIGRATIONS_FOLDER } from '../migrationsFolder';
 
 const throwawayFolders: string[] = [];
@@ -56,6 +56,33 @@ describe('readMigrationPhases', () => {
     for (const tag of tags) {
       expect(DEPLOY_PHASES).toContain(phases.get(tag));
     }
+  });
+
+  it('keeps every Kaana cut additive migration ahead of its legacy-column cleanup', () => {
+    const entries = readJournal(MIGRATIONS_FOLDER);
+    const expectedOrder = [
+      '0067_awesome_rawhide_kid',
+      '0069_dazzling_switch',
+      '0070_sanitize_legacy_application_icon_urls',
+      '0071_spicy_kabuki',
+      '0072_powerful_zaran',
+      '0073_young_lake',
+      '0068_natural_slapstick',
+    ];
+    const pending = expectedOrder.map((tag) => {
+      const entry = entries.find((candidate) => candidate.tag === tag);
+      expect(entry).toBeDefined();
+      return entry!;
+    });
+    expect(pending.map((entry) => entry.idx)).toEqual([67, 68, 69, 70, 71, 72, 73]);
+
+    const { phases, problems } = readMigrationPhases(expectedOrder, MIGRATIONS_FOLDER);
+    expect(problems).toEqual([]);
+    const plan = planMigrationRun(pending, phases, 'pre');
+
+    expect(plan.blocked).toBeNull();
+    expect(plan.apply.map((entry) => entry.tag)).toEqual(expectedOrder.slice(0, -1));
+    expect(plan.deferred.map((entry) => entry.tag)).toEqual(['0068_natural_slapstick']);
   });
 
   it('accepts a marker anywhere in the file, not only the first line', () => {

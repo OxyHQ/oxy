@@ -2,7 +2,12 @@ import express from 'express';
 import crypto from 'crypto';
 import { and, count, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { apiKeyUsageEvents, applicationCredentials, applications } from '../db/schema';
+import {
+  apiKeyUsageEvents,
+  applicationCredentials,
+  applications,
+  inferenceProviderConnections,
+} from '../db/schema';
 import {
   type APPLICATION_SCOPES,
   type ApplicationScope,
@@ -16,6 +21,7 @@ import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import {
   BadRequestError,
+  ConflictError,
   ForbiddenError,
   NotFoundError,
   UnauthorizedError,
@@ -46,6 +52,7 @@ import {
   rotateCredentialSchema,
 } from '../schemas/application.schemas';
 import { generateMachineCredentialToken } from '../utils/machineCredentialToken';
+import { resolveOperatorId, resolveSubjectId } from '../middleware/operator';
 import {
   listCredentialAuditTrail,
   recordCredentialLifecycleEvent,
@@ -428,7 +435,7 @@ function serializeApplication(
     websiteUrl: app.websiteUrl ?? undefined,
     privacyPolicyUrl: app.privacyPolicyUrl ?? undefined,
     termsUrl: app.termsUrl ?? undefined,
-    icon: app.icon ?? undefined,
+    icon: app.icon === null ? undefined : stripSensitiveUrlQueryParams(app.icon),
     type: app.type,
     status: app.status,
     isOfficial: app.isOfficial,
@@ -580,7 +587,11 @@ function callerMembershipFromAccess(access: AppAccess | undefined): SerializedCa
  * when the caller has no account access to its owner.
  */
 async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess> {
-  const userId = requireUserId(req);
+  // The OPERATOR's access over the owning account, never the subject's. An
+  // operated session authenticates as the managed account, and that account is
+  // not a member of itself — asking it refuses the very people who own the
+  // organization the application belongs to.
+  const operatorId = await resolveOperatorId(req);
   const db = getDb();
 
   const [application] = await db
@@ -593,7 +604,7 @@ async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess
   }
 
   const accountAccess = await accountService.resolveEffectiveAccess(
-    userId,
+    operatorId,
     application.ownerAccountId
   );
   if (!accountAccess) {
@@ -640,7 +651,7 @@ router.get(
   '/',
   validate({ query: listApplicationsQuerySchema }),
   asyncHandler(async (req: AuthRequest, res) => {
-    const userId = requireUserId(req);
+    const operatorId = await resolveOperatorId(req);
     const ownerAccountIdFilter = req.query.ownerAccountId as string | undefined;
 
     // The caller's EFFECTIVE account access per accessible account id — role
@@ -652,13 +663,13 @@ router.get(
     >();
 
     if (ownerAccountIdFilter !== undefined) {
-      const access = await accountService.resolveEffectiveAccess(userId, ownerAccountIdFilter);
+      const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountIdFilter);
       if (!access) {
         throw new ForbiddenError('You do not have access to this account');
       }
       accessByAccountId.set(ownerAccountIdFilter, access);
     } else {
-      const nodes = await accountService.listAccessibleAccounts(userId);
+      const nodes = await accountService.listAccessibleAccounts(operatorId);
       for (const node of nodes) {
         // `self` carries no membership row: a user is the implicit owner of
         // their own account, exactly as `resolveEffectiveAccess` treats it.
@@ -721,7 +732,10 @@ router.post(
   '/',
   validate({ body: createApplicationSchema }),
   asyncHandler(async (req: AuthRequest, res) => {
-    const userId = requireUserId(req);
+    // The same three-way split `POST /accounts` needed: where it hangs is the
+    // SUBJECT's question, whether it may be created is the OPERATOR's.
+    const operatorId = await resolveOperatorId(req);
+    const subjectId = resolveSubjectId(req);
     const body = req.body as {
       ownerAccountId?: string;
       name: string;
@@ -734,9 +748,11 @@ router.post(
       scopes?: typeof APPLICATION_SCOPES[number][];
     };
 
-    const ownerAccountId = body.ownerAccountId ?? userId;
+    // Acting as an organization and naming no owner means "this organization",
+    // which is what switching into it is for.
+    const ownerAccountId = body.ownerAccountId ?? subjectId;
 
-    const access = await accountService.resolveEffectiveAccess(userId, ownerAccountId);
+    const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountId);
     if (!access) {
       throw new ForbiddenError('You do not have access to the owning account');
     }
@@ -759,7 +775,7 @@ router.post(
         redirectUris: resolveRedirectUris(body) ?? [],
         scopes,
         ownerAccountId,
-        createdByUserId: userId,
+        createdByUserId: operatorId,
       })
       .returning();
 
@@ -770,7 +786,7 @@ router.post(
     }
 
     logger.info('Application created', {
-      userId,
+      userId: operatorId,
       applicationId: application.id,
       ownerAccountId: ownerAccountId,
       name: application.name,
@@ -927,14 +943,46 @@ router.delete(
       throw new NotFoundError('Application not found');
     }
 
-    const [deleted] = await getDb()
-      .update(applications)
-      .set({ status: 'deleted' })
-      .where(eq(applications.id, application.id))
-      .returning({ id: applications.id });
-    if (!deleted) {
-      throw new NotFoundError('Application not found');
-    }
+    await getDb().transaction(async (tx) => {
+      // This is the serialization point shared with application-scoped BYOK
+      // creation. It closes both race directions: a connection committed first
+      // makes deletion refuse, while a deletion committed first makes creation
+      // re-read the deleted status and refuse before sending a secret to Kaana.
+      const [locked] = await tx
+        .select({ id: applications.id, status: applications.status })
+        .from(applications)
+        .where(eq(applications.id, application.id))
+        .limit(1)
+        .for('update');
+      if (!locked || locked.status === 'deleted') {
+        throw new NotFoundError('Application not found');
+      }
+
+      const [outstandingCustody] = await tx
+        .select({ id: inferenceProviderConnections.id })
+        .from(inferenceProviderConnections)
+        .where(
+          and(
+            eq(inferenceProviderConnections.applicationId, locked.id),
+            ne(inferenceProviderConnections.custodyState, 'revoked')
+          )
+        )
+        .limit(1);
+      if (outstandingCustody) {
+        throw new ConflictError(
+          'Revoke every application-scoped provider connection and wait for Kaana custody acknowledgement before deleting this application'
+        );
+      }
+
+      const [deleted] = await tx
+        .update(applications)
+        .set({ status: 'deleted' })
+        .where(eq(applications.id, locked.id))
+        .returning({ id: applications.id });
+      if (!deleted) {
+        throw new NotFoundError('Application not found');
+      }
+    });
 
     // A deleted app must immediately stop authorising federation signing.
     credentialDomainCache.invalidate(application.id);
@@ -1014,15 +1062,15 @@ router.post(
 
     // Service credentials mint bearer service tokens for Oxy-to-Oxy / internal
     // routes. Only platform-trusted applications may hold them — EXCEPT a
-    // narrow Oxy Pay carve-out: a non-trusted (`third_party`) application MAY
+    // narrow Peable carve-out: a non-trusted (`third_party`) application MAY
     // create a service credential when every requested scope is a payments
     // scope ({@link isPaymentsScope}, i.e. `payments:read`/`payments:write`).
     // Those two scopes are already non-privileged/self-grantable and bounded
-    // to the app's own Oxy Pay Gateway tenant (see `applicationScopes.ts`),
+    // to the app's own Peable Gateway tenant (see `applicationScopes.ts`),
     // and the resulting service token's downstream authority is bounded by
-    // its scopes — the Oxy Pay Gateway only honours `payments:*`. This lets
-    // external Oxy Pay merchants (WooCommerce, Mercaria, etc.) self-serve the
-    // service credential the `@oxyhq/pay` SDK needs, without ever letting a
+    // its scopes — the Peable Gateway only honours `payments:*`. This lets
+    // external Peable merchants (WooCommerce, Mercaria, etc.) self-serve the
+    // service credential the `@oxy.so/pay` SDK needs, without ever letting a
     // self-service app mint a trusted service token for files/user/
     // federation/etc. Requesting ANY non-payments scope on a service
     // credential still requires platform trust — the check below is
@@ -1038,17 +1086,19 @@ router.post(
     }
 
     const isMachineCredential = body.type === 'machine';
+    const requiresExplicitScopes = isMachineCredential || body.type === 'service';
 
-    // A machine credential must NAME its authority. The service-token mint has a
-    // documented "no scopes means the application's full grant" fallback for
-    // credentials provisioned before scopes existed; there is no such legacy
+    // Machine and service credentials must NAME their authority. The
+    // service-token mint has a documented "no scopes means the application's
+    // full grant" fallback for credentials provisioned before scopes existed;
+    // there is no such legacy
     // shape here, and defaulting an external, long-lived bearer key to
     // everything its application can do is the wrong default to inherit. The
-    // machine lane therefore performs no fallback, and this is what stops a
-    // scopeless key resolving to no authority at all — which would fail later,
-    // opaquely, at the first scope check.
-    if (isMachineCredential && requestedScopes.length === 0) {
-      throw new BadRequestError('A machine credential must request at least one scope');
+    // machine and service lanes therefore require explicit authority. This also
+    // prevents a newly created service credential from entering the legacy
+    // full-grant fallback at mint time.
+    if (requiresExplicitScopes && requestedScopes.length === 0) {
+      throw new BadRequestError(`${body.type} credentials must request at least one scope`);
     }
 
     // `expiresInSeconds` sets `expires_at` on an ACTIVE row. On every other type

@@ -21,11 +21,11 @@
     "build": "bun run build:shared-types && bun run build:backend"{{/backend}}
   },
   "overrides": {
-    "@oxyhq/core": "{{v.oxyCore}}",
-    "@oxyhq/bloom": "{{v.oxyBloom}}"
+    "@oxy.so/core": "{{v.oxyCore}}",
+    "@oxy.so/bloom": "{{v.oxyBloom}}"
   },
   "resolutions": {
-    "@oxyhq/core": "{{v.oxyCore}}",
-    "@oxyhq/bloom": "{{v.oxyBloom}}"
+    "@oxy.so/core": "{{v.oxyCore}}",
+    "@oxy.so/bloom": "{{v.oxyBloom}}"
   }
 }

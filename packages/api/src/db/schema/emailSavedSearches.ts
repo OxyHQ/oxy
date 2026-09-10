@@ -2,7 +2,7 @@
  * normalized structured form used to replay it without reparsing the UI. */
 
 import { index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 export interface SavedEmailSearchFilters {

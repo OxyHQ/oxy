@@ -8,9 +8,7 @@
  * the wrong Console documentation told developers to put a client id into:
  *
  *   1. `authMiddleware` — the user session lane. It accepts a session-bound
- *      access token and nothing else, and it is what guards
- *      `POST /v1/chat/completions` today (`server.ts` mounts `routes/alia.ts`
- *      behind it), the very request the documentation demonstrated.
+ *      access token and nothing else.
  *   2. `serviceAuthMiddleware` — the service-token lane. It accepts only a
  *      signed `type: 'service'` JWT minted by `POST /auth/service-token`.
  *
@@ -196,7 +194,7 @@ function serviceToken(): string {
       scopes: ['user:read'],
     },
     process.env.ACCESS_TOKEN_SECRET as string,
-    { expiresIn: '1h', issuer: 'oxy-api', audience: 'oxy-services' },
+    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' },
   );
 }
 

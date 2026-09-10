@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import type { ReportRangeDays } from '@/lib/reporting';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

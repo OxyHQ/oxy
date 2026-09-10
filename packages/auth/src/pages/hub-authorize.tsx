@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { useSearchParams } from "react-router-dom"
-import { buildSwitcherRows, projectDevicePrincipals } from "@oxyhq/core"
-import type { PublicApplication, SwitcherContextRow } from "@oxyhq/core"
-import type { DeviceDirectory } from "@oxyhq/contracts"
-import { OxyConsentScreen, OxySignInRequestSurface, useOxy } from "@oxyhq/services"
+import { buildSwitcherRows, projectDevicePrincipals } from "@oxy.so/core"
+import type { PublicApplication, SwitcherContextRow } from "@oxy.so/core"
+import type { DeviceDirectory } from "@oxy.so/contracts"
+import { OxyConsentScreen, OxySignInRequestSurface, useOxy } from "@oxy.so/services"
 
 import {
     AuthFormLayout,

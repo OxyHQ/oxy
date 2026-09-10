@@ -1,13 +1,13 @@
 import { useCallback } from 'react';
-import type { ApiError, AuthStateStore, IdentityBinding, SessionClient, User } from '@oxyhq/core';
-import type { ClientSession, SessionLoginResponse } from '@oxyhq/core';
+import type { ApiError, AuthStateStore, IdentityBinding, SessionClient, User } from '@oxy.so/core';
+import type { ClientSession, SessionLoginResponse } from '@oxy.so/core';
 import type { OxyRuntime } from '../../runtime';
-import { DeviceManager } from '@oxyhq/core';
+import { DeviceManager } from '@oxy.so/core';
 import { fetchSessionsWithFallback } from '../../utils/sessionHelpers';
 import { handleAuthError, isInvalidSessionError } from '../../utils/errorHandlers';
 import type { StorageInterface } from '../../utils/storageHelpers';
-import type { OxyServices } from '@oxyhq/core';
-import { SignatureService } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
+import { SignatureService } from '@oxy.so/core';
 
 export interface UseAuthOperationsOptions {
   oxyServices: OxyServices;
@@ -31,10 +31,10 @@ export interface UseAuthOperationsOptions {
   /** Used only by `performSignIn`'s same-user duplicate-session dedup (legacy session-validate path; unrelated to the SessionClient device-account set). */
   switchSession: (sessionId: string) => Promise<User>;
   /**
-   * The Fase 3-A/3-B `SessionClient` (server-authoritative device account
-   * set). `logout` / `logoutAll` route SERVER-side revocation through
-   * `sessionClient.signOut(...)` instead of the bearer/cookie logout
-   * endpoints.
+   * The Phase 3-A/3-B `SessionClient` (server-authoritative device account
+   * set). Device-scoped sign-out routes through `sessionClient.signOut(...)`.
+   * `logoutAll` additionally uses the global bearer endpoint so sessions on
+   * other devices and their refresh-token families are revoked.
    */
   sessionClient: SessionClient;
   /** Reprojects `sessionClient.getState()` onto sessions/activeSessionId/user (Task 1's callback). Awaited after a partial `signOut` so the exposed state reflects the server truth before the call resolves. */
@@ -296,9 +296,9 @@ export const useAuthOperations = ({
       const activeSessionId = runtime.getSnapshot().activeSessionId;
       if (!activeSessionId) return;
 
-      try {
-        const sessionToLogout = targetSessionId || activeSessionId;
+      const sessionToLogout = targetSessionId || activeSessionId;
 
+      try {
         // Resolve the device account backing this session from the
         // server-authoritative `SessionClient` state — SERVER revocation now
         // goes through `sessionClient.signOut(...)` instead of the
@@ -329,7 +329,11 @@ export const useAuthOperations = ({
       } catch (error) {
         const isInvalid = isInvalidSessionError(error);
 
-        if (isInvalid && targetSessionId === activeSessionId) {
+        // Compare the RESOLVED target, not the raw optional parameter: every
+        // in-app sign-out affordance calls `logout()` with no argument, which
+        // would otherwise never match `activeSessionId` and would leave the UI
+        // "signed in" against a bearer the 401 lane has already cleared.
+        if (isInvalid && sessionToLogout === activeSessionId) {
           // The active session is invalid → full sign-out; clear persisted state.
           clearPersistedAuthSafe(store, logger);
           await clearSessionState();
@@ -361,7 +365,8 @@ export const useAuthOperations = ({
    * Logout from all sessions
    */
   const logoutAll = useCallback(async (): Promise<void> => {
-    if (!runtime.getSnapshot().activeSessionId) {
+    const activeSessionId = runtime.getSnapshot().activeSessionId;
+    if (!activeSessionId) {
       const error = new Error('No active session found');
       runtime.setError(error.message);
       onError?.({ message: error.message, code: LOGOUT_ALL_ERROR_CODE, status: 404 });
@@ -369,10 +374,12 @@ export const useAuthOperations = ({
     }
 
     try {
-      // Server-side revocation of every account on this device now flows
-      // through the SessionClient (`POST /session/device/signout` with
-      // `{ all: true }`) — replaces the bearer `logoutAllSessions` +
-      // web-cookie `logoutAllSessionsViaCookie` pair.
+      // Revoke the user's sessions on every other device and every refresh-
+      // token family first. SessionClient's `{ all: true }` operation is only
+      // device-scoped and therefore cannot implement "sign out everywhere" by
+      // itself. The global endpoint deliberately preserves the current
+      // session long enough for the device-scoped cleanup below to authenticate.
+      await oxyServices.logoutAllSessions(activeSessionId);
       await sessionClient.signOut({ all: true });
       // logoutAll is ALWAYS a full sign-out: clear the persisted device
       // credential so the next cold boot finds no session to restore, then tear
@@ -380,16 +387,35 @@ export const useAuthOperations = ({
       clearPersistedAuthSafe(store, logger);
       await clearSessionState();
     } catch (error) {
-      handleAuthError(error, {
+      if (isInvalidSessionError(error)) {
+        // An already-invalid bearer means the sessions this call would have
+        // revoked are ALREADY gone — the sign-out happened, it just happened
+        // before we asked. This is the normal tail of an account deletion
+        // (`DELETE /users/me` revokes every session and detaches the account
+        // from every device before returning) and of any remote revocation.
+        // `HttpService` has cleared the tokens and emitted
+        // `onTokensChanged(null)` by now, so rejecting here would contradict
+        // the SDK's own authoritative 401 lane and hand the caller a failure
+        // for work that is complete. Finish the local teardown and resolve.
+        clearPersistedAuthSafe(store, logger);
+        await clearSessionState();
+        return;
+      }
+
+      const message = handleAuthError(error, {
         defaultMessage: 'Logout all failed',
         code: LOGOUT_ALL_ERROR_CODE,
         onError,
         setAuthError: (msg: string) => runtime.setError(msg),
         logger,
       });
-      throw error instanceof Error ? error : new Error('Logout all failed');
+      // `HttpService` rejects with the plain `ApiError` object `handleHttpError`
+      // builds, never an `Error` instance — so rethrow the message
+      // `handleAuthError` already resolved instead of a generic placeholder that
+      // would erase the server's reason from every caller's toast.
+      throw error instanceof Error ? error : new Error(message);
     }
-  }, [clearSessionState, store, logger, onError, runtime, sessionClient]);
+  }, [clearSessionState, store, logger, onError, oxyServices, runtime, sessionClient]);
 
   return {
     signIn,

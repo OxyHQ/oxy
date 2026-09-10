@@ -169,7 +169,7 @@ export type LogLevel = 'none' | 'error' | 'warn' | 'info' | 'debug';
  * Simple logger with level support
  *
  * Lightweight logger for HTTP clients and utilities.
- * For structured, namespaced, level-gated logging, use `@oxyhq/core/logger`.
+ * For structured, namespaced, level-gated logging, use `@oxy.so/core/logger`.
  *
  * @example
  * ```typescript

@@ -14,8 +14,8 @@
  * remains the native lane and is untouched by this module.
  */
 
-import { logger, persistOAuthHandshake } from '@oxyhq/core';
-import type { OxyServices } from '@oxyhq/core';
+import { logger, persistOAuthHandshake } from '@oxy.so/core';
+import type { OxyServices } from '@oxy.so/core';
 import { redirectToAuthorize } from '../components/oauthNavigation';
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { completeOAuthCode } from './completeOAuthCode';

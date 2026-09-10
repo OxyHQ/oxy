@@ -1,0 +1,253 @@
+import type { AppCapabilityCatalog, CatalogTool } from '@oxy.so/contracts';
+
+const objectOutput = { type: 'object', additionalProperties: true } as const;
+const idempotencyKey = {
+  type: 'string',
+  minLength: 1,
+  maxLength: 255,
+  description: 'Stable caller-generated key for retry-safe execution.',
+} as const;
+const recipient = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    address: { type: 'string', format: 'email' },
+  },
+  required: ['address'],
+  additionalProperties: false,
+} as const;
+const attachment = {
+  type: 'object',
+  properties: {
+    fileId: { type: 'string', minLength: 1 },
+    contentId: { type: 'string' },
+    isInline: { type: 'boolean' },
+  },
+  required: ['fileId'],
+  additionalProperties: false,
+} as const;
+
+type ReadToolInput = Omit<
+  CatalogTool,
+  'version' | 'capabilityPackage' | 'requiredCapabilities' | 'effect' | 'idempotency' | 'rollback' | 'exposure' | 'limitKeys'
+> & { limitKeys?: CatalogTool['limitKeys'] };
+
+function readTool(input: ReadToolInput): CatalogTool {
+  return {
+    ...input,
+    version: '1.0.0',
+    capabilityPackage: 'read',
+    requiredCapabilities: ['email.read'],
+    effect: 'read',
+    idempotency: 'none',
+    rollback: 'none',
+    exposure: ['internal', 'mcp'],
+    limitKeys: input.limitKeys ?? [],
+  };
+}
+
+export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
+  schemaVersion: '1',
+  appId: 'inbox',
+  version: '1.2.0',
+  audience: 'oxy-inbox-api',
+  internalBaseUrl: 'https://api.oxy.so',
+  externalMcp: { resource: 'https://mcp.inbox.oxy.so' },
+  accountResourceType: 'email_account',
+  tools: [
+    readTool({
+      name: 'searchEmails',
+      description: 'Search messages in one delegated mailbox.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          q: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' },
+          subject: { type: 'string' }, hasAttachment: { type: 'boolean' },
+          dateAfter: { type: 'string' }, dateBefore: { type: 'string' },
+          label: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 },
+          offset: { type: 'integer', minimum: 0 },
+        },
+        additionalProperties: false,
+      },
+      outputSchema: objectOutput,
+      limitKeys: [{ key: 'limit', kind: 'maximum_number' }],
+      resourceTypes: ['mailbox', 'email_account'],
+      invocation: { method: 'GET', path: '/email/search' },
+    }),
+    readTool({
+      name: 'getUnreadEmails',
+      description: 'List unread messages in one delegated mailbox.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          limit: { type: 'integer', minimum: 1, maximum: 100 },
+          offset: { type: 'integer', minimum: 0 },
+        },
+        additionalProperties: false,
+      },
+      outputSchema: objectOutput,
+      limitKeys: [{ key: 'limit', kind: 'maximum_number' }],
+      resourceTypes: ['mailbox', 'email_account'],
+      invocation: { method: 'GET', path: '/email/messages' },
+    }),
+    readTool({
+      name: 'readEmail',
+      description: 'Read one message from a delegated mailbox.',
+      inputSchema: {
+        type: 'object', properties: { messageId: { type: 'string' } },
+        required: ['messageId'], additionalProperties: false,
+      },
+      outputSchema: objectOutput,
+      resourceTypes: ['mailbox', 'email_account'],
+      invocation: { method: 'GET', path: '/email/messages/{messageId}' },
+    }),
+    readTool({
+      name: 'getEmailThread',
+      description: 'Read the messages in a thread that are visible in one delegated mailbox.',
+      inputSchema: {
+        type: 'object', properties: { messageId: { type: 'string' } },
+        required: ['messageId'], additionalProperties: false,
+      },
+      outputSchema: objectOutput,
+      resourceTypes: ['mailbox', 'email_account'],
+      invocation: { method: 'GET', path: '/email/messages/{messageId}/thread' },
+    }),
+    {
+      name: 'sendEmail',
+      version: '1.0.0',
+      description: 'Send or schedule an email from a delegated Oxy email account.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          idempotencyKey,
+          to: { type: 'array', items: recipient, minItems: 1, maxItems: 100 },
+          cc: { type: 'array', items: recipient, maxItems: 100 },
+          bcc: { type: 'array', items: recipient, maxItems: 100 }, subject: { type: 'string', maxLength: 998 },
+          text: { type: 'string' }, html: { type: 'string' }, inReplyTo: { type: 'string' },
+          references: { type: 'array', items: { type: 'string' } }, scheduledAt: { type: 'string' },
+          attachments: { type: 'array', items: attachment, maxItems: 20 },
+          requestReadReceipt: { type: 'boolean' },
+        },
+        required: ['idempotencyKey', 'to'], additionalProperties: false,
+      },
+      outputSchema: objectOutput,
+      capabilityPackage: 'communicate',
+      requiredCapabilities: ['email.send'],
+      resourceTypes: ['email_account'],
+      effect: 'external',
+      idempotency: 'required',
+      rollback: 'none',
+      exposure: ['internal', 'mcp'],
+      limitKeys: [],
+      invocation: { method: 'POST', path: '/email/messages' },
+    },
+    readTool({
+      name: 'listMailboxes',
+      description: 'List mailboxes belonging to a delegated Oxy email account.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      outputSchema: objectOutput,
+      resourceTypes: ['email_account'],
+      invocation: { method: 'GET', path: '/email/mailboxes' },
+    }),
+    readTool({
+      name: 'listLabels',
+      description: 'List labels belonging to a delegated Oxy email account.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      outputSchema: objectOutput,
+      resourceTypes: ['email_account'],
+      invocation: { method: 'GET', path: '/email/labels' },
+    }),
+    {
+      name: 'moveEmail',
+      version: '1.0.0',
+      description: 'Move one message out of a delegated mailbox into another mailbox in the same account.',
+      inputSchema: {
+        type: 'object',
+        properties: { idempotencyKey, messageId: { type: 'string' }, mailboxId: { type: 'string' } },
+        required: ['idempotencyKey', 'messageId', 'mailboxId'], additionalProperties: false,
+      },
+      outputSchema: objectOutput,
+      capabilityPackage: 'administer',
+      requiredCapabilities: ['email.organize'],
+      resourceTypes: ['mailbox', 'email_account'],
+      effect: 'write',
+      idempotency: 'required',
+      rollback: 'manual',
+      exposure: ['internal', 'mcp'],
+      limitKeys: [],
+      invocation: { method: 'POST', path: '/email/messages/{messageId}/move' },
+    },
+    {
+      name: 'updateEmailFlags',
+      version: '1.0.0',
+      description: 'Update flags on one message in a delegated mailbox.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          idempotencyKey,
+          messageId: { type: 'string' },
+          flags: {
+            type: 'object',
+            properties: { seen: { type: 'boolean' }, starred: { type: 'boolean' }, pinned: { type: 'boolean' } },
+            additionalProperties: false,
+          },
+        },
+        required: ['idempotencyKey', 'messageId', 'flags'], additionalProperties: false,
+      },
+      outputSchema: objectOutput,
+      capabilityPackage: 'administer',
+      requiredCapabilities: ['email.organize'],
+      resourceTypes: ['mailbox', 'email_account'],
+      effect: 'write',
+      idempotency: 'required',
+      rollback: 'manual',
+      exposure: ['internal', 'mcp'],
+      limitKeys: [
+        { key: 'flags.seen', kind: 'exact_boolean' },
+        { key: 'flags.starred', kind: 'exact_boolean' },
+        { key: 'flags.pinned', kind: 'exact_boolean' },
+      ],
+      invocation: { method: 'PUT', path: '/email/messages/{messageId}/flags' },
+    },
+    readTool({
+      name: 'getEmailQuota',
+      description: 'Read storage quota for a delegated Oxy email account.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      outputSchema: objectOutput,
+      resourceTypes: ['email_account'],
+      invocation: { method: 'GET', path: '/email/quota' },
+    }),
+    {
+      ...readTool({
+        name: 'getEmailContext',
+        description: 'Build typed minimal context for email coordination and event handling.',
+        inputSchema: { type: 'object', properties: { limit: { type: 'integer' } }, additionalProperties: false },
+        outputSchema: objectOutput,
+        limitKeys: [{ key: 'limit', kind: 'maximum_number' }],
+        resourceTypes: ['mailbox', 'email_account'],
+        invocation: { method: 'GET', path: '/email/ai-context' },
+      }),
+      exposure: ['internal'],
+    },
+  ],
+  events: [
+    {
+      type: 'new_email', version: '1.0.0', description: 'A message arrived in a mailbox.',
+      dataSchema: {
+        type: 'object',
+        properties: { messageId: { type: 'string' }, mailboxId: { type: 'string' }, from: { type: 'string' }, subject: { type: 'string' } },
+        required: ['messageId', 'mailboxId'], additionalProperties: false,
+      },
+      resourceTypes: ['mailbox'],
+    },
+    {
+      type: 'email_needs_response', version: '1.0.0', description: 'A message is likely to need a response.',
+      dataSchema: {
+        type: 'object',
+        properties: { messageId: { type: 'string' }, mailboxId: { type: 'string' }, reason: { type: 'string' } },
+        required: ['messageId', 'mailboxId', 'reason'], additionalProperties: false,
+      },
+      resourceTypes: ['mailbox'],
+    },
+  ],
+};

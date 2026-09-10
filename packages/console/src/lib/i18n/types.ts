@@ -1,6 +1,6 @@
 /**
  * Supported locales in the console web app, in BCP-47 form.
- * Mirrors the locales available in `@oxyhq/core` `translate()`.
+ * Mirrors the locales available in `@oxy.so/core` `translate()`.
  */
 export type Locale =
   | 'en-US'

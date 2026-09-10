@@ -6,13 +6,13 @@ import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
 import { ScreenHeader, AccountCard, EmptyStateCard } from '@/components/ui';
 import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
-import { useOxy } from '@oxyhq/services';
-import { alert, toast } from '@oxyhq/bloom';
+import { useOxy } from '@oxy.so/services';
+import { alert, toast } from '@oxy.so/bloom';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { useTranslation } from '@/lib/i18n';
-import type { AccountNode } from '@oxyhq/core';
-import { getAccountDisplayName, getNormalizedUserHandle, canSwitchIntoAccount } from '@oxyhq/core';
+import type { AccountNode } from '@oxy.so/core';
+import { getAccountDisplayName, getNormalizedUserHandle, canSwitchIntoAccount } from '@oxy.so/core';
 import { useAccountRowBuilder } from '@/components/managed-accounts/account-row';
 import { useManagedAccountGroups } from '@/hooks/managed-accounts/useManagedAccountGroups';
 

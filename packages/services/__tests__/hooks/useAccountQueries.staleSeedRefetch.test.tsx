@@ -18,7 +18,7 @@
 import type { ReactNode } from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import { queryKeys } from '../../src/ui/hooks/queries/queryKeys';
 import { useUserByUsername } from '../../src/ui/hooks/queries/useAccountQueries';
 

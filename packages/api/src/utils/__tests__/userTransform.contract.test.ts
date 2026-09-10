@@ -2,9 +2,9 @@
  * Producer drift-guard for `formatUserResponse`.
  *
  * Phase 2 of the name-centralization refactor: the API is the FAITHFUL PRODUCER
- * of the canonical `@oxyhq/contracts` user-response contract. These tests build
+ * of the canonical `@oxy.so/contracts` user-response contract. These tests build
  * representative user documents through `formatUserResponse` and assert the
- * output PARSES against `@oxyhq/contracts`'s `userResponseSchema`. If the
+ * output PARSES against `@oxy.so/contracts`'s `userResponseSchema`. If the
  * producer ever drifts from the contract (e.g. drops `name.full`, or emits a
  * shape a consumer can't parse), these tests fail — exactly the class of bug
  * that motivated the contract.
@@ -22,7 +22,7 @@ import {
   userResponseSchema,
   safeParseContract,
   resolveUserId,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 /**
  * Minimal lean-document shape used by these tests. Mirrors a `.lean()` read with
@@ -48,7 +48,7 @@ function leanDoc(id: string, overrides: Partial<Omit<LeanUserDoc, '_id'>> = {}):
   };
 }
 
-describe('formatUserResponse → @oxyhq/contracts userResponseSchema (producer contract)', () => {
+describe('formatUserResponse → @oxy.so/contracts userResponseSchema (producer contract)', () => {
   it('composes name.full from first + last and parses against the contract', () => {
     const formatted = formatUserResponse(
       leanDoc('507f1f77bcf86cd799439011', {

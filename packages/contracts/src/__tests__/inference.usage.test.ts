@@ -44,7 +44,7 @@ const reservation = {
 };
 
 const report = {
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   requestId: 'req_1',
   attribution,
   outcome: 'completed' as const,
@@ -52,6 +52,7 @@ const report = {
   usageSource: 'provider_reported' as const,
   resolvedModelReference: 'openai/gpt-5@2026-06-01',
   servingProvider: 'openai',
+  deploymentId: 'dep_openai_gpt5_usw2',
   routeSwitches: 0,
   startedAt: '2026-08-15T09:41:00.000Z',
   completedAt: '2026-08-15T09:41:02.000Z',
@@ -195,6 +196,11 @@ describe('usageReservationSchema', () => {
 });
 
 describe('normalizedUsageReportSchema', () => {
+  it('requires the exact deployment identity even with no measured units', () => {
+    const { deploymentId: _omitted, ...withoutDeployment } = report;
+    expect(normalizedUsageReportSchema.safeParse(withoutDeployment).success).toBe(false);
+  });
+
   it('reports units and route, never money', () => {
     const keys = Object.keys(normalizedUsageReportSchema.innerType().shape);
     expect(keys).toContain('units');
@@ -251,7 +257,7 @@ describe('normalizedUsageReportSchema', () => {
   });
 
   it('accepts a failed report with no units, because that is how failure is reported', () => {
-    // `outcomeFor` in the reference data plane's `internal/relay/executor.go`
+    // `outcomeFor` in Kaana's `internal/kaana/executor.go`
     // DERIVES `failed` from having no units and `partial` from having some, so an
     // unconditional minimum would refuse every failure — and a refused report is
     // a request that ran, cost money upstream, and can never be settled.

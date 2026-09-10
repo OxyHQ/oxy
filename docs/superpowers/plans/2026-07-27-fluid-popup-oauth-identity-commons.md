@@ -19,7 +19,7 @@ Grounded in the current code (2026-07-27). Seven phases, one PR per phase, merge
 
 ### Contract (frozen, so api/core/services can be built in parallel)
 
-`@oxyhq/contracts` `deviceTokenMintRequestSchema` gains one optional field:
+`@oxy.so/contracts` `deviceTokenMintRequestSchema` gains one optional field:
 
 ```ts
 { deviceId: string; deviceSecret: string; accountId?: string }
@@ -34,7 +34,7 @@ Grounded in the current code (2026-07-27). Seven phases, one PR per phase, merge
 
 New response error string: `account_not_on_device`. No other endpoint changes.
 
-### Core (`@oxyhq/core`)
+### Core (`@oxy.so/core`)
 
 - `packages/core/src/session/identityPin.ts` — persisted `{ publicKey, accountId }` in the same storage as `authStateStore`. Written at identity sign-in, read on boot, cleared when the local key no longer matches.
 - `mintFromDeviceSecret(deviceId, secret, opts?: { accountId?: string })`.
@@ -44,7 +44,7 @@ New response error string: `account_not_on_device`. No other endpoint changes.
   - `account` mode: unchanged.
 - `SessionClient` accepts a pinned account: no `activeToken` planting on state whose `activeAccountId` ≠ pin; `session_state` pushes never re-plant a switched token.
 
-### Services (`@oxyhq/services`)
+### Services (`@oxy.so/services`)
 
 - `OxyProvider` prop `sessionMode?: 'account' | 'identity'` (default `'account'`), threaded through `types/navigation.ts` **and** `oxyContextTypes.ts` (the provider currently drops props declared in only one of the two).
 - `syncFromClient`: in identity mode the active user is the pinned account, not `activeUserOf(state)`. A pin absent from the device account list re-establishes the identity session instead of accepting the switch.

@@ -51,10 +51,10 @@ import type {
   ModerationEffectType,
   ModerationFinding,
   ModerationSeverity,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 import { getDb } from '../config/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { applicationModerationTrust } from '../db/schema/applicationModerationTrust';
 import { conductStrikes } from '../db/schema/conductStrikes';
 import { moderationEffects } from '../db/schema/moderationEffects';

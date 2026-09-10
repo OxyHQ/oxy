@@ -1,17 +1,17 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { useTheme } from '@oxyhq/bloom/theme';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { toast } from '@oxyhq/bloom/toast';
-import { Text } from '@oxyhq/bloom/typography';
-import { Search } from '@oxyhq/bloom/search';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { useTheme } from '@oxy.so/bloom/theme';
+import Ionicons from '../icons/Ionicons';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { Search } from '@oxy.so/bloom/search';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import {
     SUPPORTED_LANGUAGES,
     getNativeLanguageName,
     type SupportedLanguage,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/OxyContext';

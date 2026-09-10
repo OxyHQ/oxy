@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { OxyServices, BulkFollowResult, BulkUnfollowResult, FollowMutationResult } from '@oxyhq/core';
+import type { OxyServices, BulkFollowResult, BulkUnfollowResult, FollowMutationResult } from '@oxy.so/core';
 
 interface FollowState {
   // Tri-state follow map: a MISSING key means UNKNOWN (status not yet resolved),

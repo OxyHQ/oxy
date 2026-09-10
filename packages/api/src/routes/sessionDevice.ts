@@ -1,11 +1,11 @@
 import { Router, type Request, type Response } from 'express';
-import type { DeviceActivateResponse, DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceActivateResponse, DeviceSessionState } from '@oxy.so/contracts';
 import {
   deviceActivateRequestSchema,
   deviceActivateResponseSchema,
   deviceBackgroundTokenRequestSchema,
   deviceTokenMintRequestSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { requireSameSiteOrigin } from '../middleware/originGuard';

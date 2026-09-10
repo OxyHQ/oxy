@@ -149,6 +149,44 @@ edit(duplicated, WORKFLOW, 'name-in-both-lists', (text) =>
   text.replace('SHARED_SECRETS="AWS_ACCESS_KEY_ID', 'SHARED_SECRETS="DATABASE_URL AWS_ACCESS_KEY_ID'));
 expectVerdict('name-in-both-lists', duplicated, 1, 'DATABASE_URL appears in both');
 
+// The credential-control private key is provisioned directly in SSM. A
+// well-formed SYNC_* entry plus matching allow-list would satisfy the generic
+// parity checks, so this regression proves the SSM-only boundary independently.
+const ssmOnlyCopiedFromGitHub = createFixture();
+edit(ssmOnlyCopiedFromGitHub, WORKFLOW, 'ssm-only-copied-from-github', (text) =>
+  text
+    .replace(
+      '          SYNC_KAANA_EDGE_SIGNING_PRIVATE_KEY: ${{ secrets.KAANA_EDGE_SIGNING_PRIVATE_KEY }}',
+      '          SYNC_KAANA_EDGE_SIGNING_PRIVATE_KEY: ${{ secrets.KAANA_EDGE_SIGNING_PRIVATE_KEY }}\n' +
+        '          SYNC_KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY: ${{ secrets.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY }}',
+    )
+    .replace(
+      ' KAANA_EDGE_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_PRIVATE_KEY',
+      ' KAANA_EDGE_SIGNING_PRIVATE_KEY KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_PRIVATE_KEY',
+    ),
+);
+expectVerdict(
+  'ssm-only-copied-from-github',
+  ssmOnlyCopiedFromGitHub,
+  1,
+  'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY is SSM-owned and must never be read or copied from GitHub Actions secrets',
+);
+
+// Removing the GitHub channel must not silently remove the ECS secret binding.
+const ssmOnlyBindingMissing = createFixture();
+edit(ssmOnlyBindingMissing, WORKFLOW, 'ssm-only-binding-missing', (text) =>
+  text.replace(
+    ',"KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY"',
+    '',
+  ),
+);
+expectVerdict(
+  'ssm-only-binding-missing',
+  ssmOnlyBindingMissing,
+  1,
+  'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY is missing its exact TASK_SECRET_OVERRIDES_JSON binding',
+);
+
 // A list the gate can no longer read must be reported as such, not treated as
 // an empty allowlist.
 const brokenParse = createFixture();
@@ -185,8 +223,8 @@ edit(wrongContractArray, ENV_MODULE, 'wrong-boot-contract-array', (text) =>
   text.replace(
     /const required: \(keyof RequiredEnvVars\)\[\] = \[[\s\S]*?\];/,
     "const required: (keyof RequiredEnvVars)[] = [\n" +
-    "    'STRIPE_SECRET_KEY',\n    'STRIPE_WEBHOOK_SECRET',\n    'ALIA_API_KEY',\n" +
-    "    'DKIM_PRIVATE_KEY',\n    'DEVICE_ID_SALT',\n    'OXY_PUBLIC_KEY',\n  ];",
+    "    'STRIPE_SECRET_KEY',\n    'STRIPE_WEBHOOK_SECRET',\n    'DKIM_PRIVATE_KEY',\n" +
+    "    'DEVICE_ID_SALT',\n    'OXY_PUBLIC_KEY',\n    'OXY_PRIVATE_KEY',\n  ];",
   ));
 expectVerdict('wrong-boot-contract-array', wrongContractArray, 1, 'DATABASE_URL was not among the parsed required env vars');
 

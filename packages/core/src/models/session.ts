@@ -1,4 +1,4 @@
-import type { UserNameResponse } from '@oxyhq/contracts';
+import type { UserNameResponse } from '@oxy.so/contracts';
 
 export interface ClientSession {
   sessionId: string;
@@ -9,7 +9,7 @@ export interface ClientSession {
   isCurrent?: boolean;
   /**
    * The account's ordinal slot (0..N) within the device's account set
-   * (`SessionAccount.authuser` in `@oxyhq/contracts`), projected from the
+   * (`SessionAccount.authuser` in `@oxy.so/contracts`), projected from the
    * device-first `DeviceSessionState` — used purely for stable Google-style
    * account-chooser ordering, not for any token-refresh mechanism.
    */

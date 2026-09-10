@@ -1,11 +1,11 @@
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 import type { ClientSession } from '../models/session';
 import type { User } from '../models/interfaces';
 
 /**
  * Pure projection helpers: `DeviceSessionState` (the device-scoped
  * multi-account session-sync state produced by `SessionClient`) -> the
- * shapes `@oxyhq/services` consumers render today
+ * shapes `@oxy.so/services` consumers render today
  * (`ClientSession[]`, an active session id, an active `User`).
  *
  * No I/O. The caller fetches profiles via

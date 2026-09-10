@@ -28,10 +28,10 @@
  * the thing under test cannot disagree with it. This is the only layer that sees
  * a map entry disappear together with its artifact.
  *
- * Layer 2 — no inference operation is published as needing no credential. This
- * is a RULE over path shape rather than a copied table: the edge and its control
- * plane are never anonymous, and the catalogue reads (`/models*`) are the one
- * deliberate exception, named here with its reason. It exists because the
+ * Layer 2 — no protected inference or email operation is published as needing
+ * no credential. This is a RULE over path shape rather than a copied operation
+ * table: the inference catalogue reads (`/models*`) and the two email operations
+ * registered before the router-level gate are the named public exceptions. It exists because the
  * generator infers security from middleware NAMES it recognises, so a renamed or
  * unrecognised gate makes it publish `security: [{}]` — "no credential" — which
  * is the most dangerous direction for a published contract to be wrong in.
@@ -66,8 +66,8 @@
  * without the document being regenerated.
  *
  * Layers 1 to 4 read the COMMITTED bytes and need no build. Layer 5 runs the
- * generator, which refuses to write unless `@oxyhq/contracts`, `@oxyhq/core` and
- * `@oxyhq/db` are built — it names them itself when they are not.
+ * generator, which refuses to write unless `@oxy.so/contracts`, `@oxy.so/core` and
+ * `@oxy.so/db` are built — it names them itself when they are not.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -126,6 +126,14 @@ const EXPECTED_PREFIXES = [
 const PUBLIC_BY_DESIGN = ['/models', '/v1/models'];
 
 /**
+ * These two operations are registered before `router.use(emailCapabilityAuth)`.
+ * The inbound webhook authenticates with its own shared-secret header inside the
+ * handler, while the proxy is intentionally public. Every other `/email`
+ * operation is behind the router-level credential gate.
+ */
+const PUBLIC_EMAIL_OPERATIONS = new Set(['POST /email/inbound', 'GET /email/proxy']);
+
+/**
  * The `/v1` operations whose PAYLOADS a published contract must describe, and
  * whether each takes a request body.
  *
@@ -135,11 +143,8 @@ const PUBLIC_BY_DESIGN = ['/models', '/v1/models'];
  * have a body" and "this POST's body went missing" are opposite failures and a
  * rule over the verb alone would report neither.
  *
- * `POST /v1/voice/token` and `POST /v1/voice/transcribe` are deliberately ABSENT.
- * They are opaque pass-throughs to `https://api.alia.onl` (`routes/alia.ts`), so
- * their request and response shapes belong to another vendor; writing a schema for
- * either would publish a promise Oxy does not make. That is a scope decision, and
- * it is recorded here rather than left as an unexplained gap in the list.
+ * Removed legacy product-proxy routes are deliberately absent. Alia agent and
+ * voice clients address the Alia product directly; generic inference uses Oxy.
  */
 const EXPECTED_PAYLOAD_OPERATIONS = [
   { method: 'post', path: '/v1/responses', requestBody: true },
@@ -309,13 +314,43 @@ function anonymousInferenceOperations(paths) {
   return findings;
 }
 
+/** Layer 2b: every email operation after the two named public entries is credentialled. */
+function anonymousEmailOperations(paths) {
+  const examined = Object.keys(paths).filter((path) => path === '/email' || path.startsWith('/email/'));
+  if (examined.length === 0) {
+    return ['the email credential rule examined no paths, so its verdict carries no information.'];
+  }
+
+  const findings = [];
+  for (const path of examined) {
+    for (const [verb, operation] of Object.entries(paths[path] ?? {})) {
+      if (PUBLIC_EMAIL_OPERATIONS.has(`${verb.toUpperCase()} ${path}`)) continue;
+      const security = operation?.security;
+      if (!Array.isArray(security) || security.length === 0) {
+        findings.push(
+          `${verb.toUpperCase()} ${path} publishes no \`security\` at all, which a consumer reads ` +
+            'as needing no credential.',
+        );
+        continue;
+      }
+      if (security.some((requirement) => Object.keys(requirement ?? {}).length === 0)) {
+        findings.push(
+          `${verb.toUpperCase()} ${path} offers an EMPTY security requirement, which publishes it ` +
+            'as callable with no credential.',
+        );
+      }
+    }
+  }
+  return findings;
+}
+
 /**
  * Whether a schema object actually constrains anything.
  *
  * `{}` is VALID OpenAPI and it means "any value is acceptable", so it is
  * indistinguishable from a considered decision to accept anything. Before the
  * generator grew a `ZodDiscriminatedUnion` case, every discriminated union in
- * `@oxyhq/contracts` converted to exactly this — including
+ * `@oxy.so/contracts` converted to exactly this — including
  * `inferenceContentPartSchema`, so the contract said a chat message's content array
  * accepts anything at all.
  */
@@ -582,6 +617,19 @@ if (anonymous.length > 0) {
   );
 }
 
+const anonymousEmail = anonymousEmailOperations(committed.paths);
+if (anonymousEmail.length > 0) {
+  reportAndExit(
+    `${DOCUMENT} publishes an email operation as needing no credential.`,
+    anonymousEmail,
+    'Every email operation except POST /email/inbound and GET /email/proxy is protected by ' +
+      '`emailCapabilityAuth` at router level.\n' +
+      'Fix: keep that gate in `MIDDLEWARE_TOKEN_RE` in\n' +
+      'packages/api/scripts/generate-openapi.ts and classify it as authenticated in\n' +
+      '`buildOperation`, then regenerate.',
+  );
+}
+
 const undescribed = undescribedPayloads(committed.paths);
 if (undescribed.length > 0) {
   reportAndExit(
@@ -599,7 +647,7 @@ if (undescribed.length > 0) {
       '    annotate the object the handler passes to `res.json` with the schema\'s own\n' +
       '    `z.infer<typeof …>` so `tsc` holds the two together.\n' +
       'Both identifiers must be IMPORTED by the route file, from ../schemas/* or\n' +
-      '@oxyhq/contracts. Then regenerate with `bun run openapi:generate`.',
+      '@oxy.so/contracts. Then regenerate with `bun run openapi:generate`.',
   );
 }
 

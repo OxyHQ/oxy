@@ -1,6 +1,6 @@
 import type React from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, Platform, type ViewStyle } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../../icons/Ionicons';
 
 export interface UploadBarProps {
     /** Aggregate upload progress, or null when indeterminate. */

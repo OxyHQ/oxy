@@ -1,13 +1,13 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Cancel01Icon, CheckmarkCircle01Icon } from '@hugeicons/core-free-icons';
 import type {
   InferenceModality,
   ModelCatalogueEntry,
   RoutingProfile,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

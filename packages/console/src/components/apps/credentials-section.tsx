@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   Add01Icon,
@@ -10,7 +10,7 @@ import {
   Key01Icon,
   RefreshIcon,
 } from '@hugeicons/core-free-icons';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import type {Application, ApplicationCredential, ApplicationCredentialType, ApplicationEnvironment, CallerAccess} from '@/hooks/use-applications';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

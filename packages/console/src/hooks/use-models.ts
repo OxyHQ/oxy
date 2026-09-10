@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
-import type { ModelCatalogueEntry, RoutingProfile } from '@oxyhq/contracts';
+import { useAuth } from '@oxy.so/services';
+import type { ModelCatalogueEntry, RoutingProfile } from '@oxy.so/contracts';
 
 // ===========================================================================
 // The model catalogue — read from the real catalogue API (issue #972,
 // workstream 5), not from the retired `/models/stats` envelope.
 //
-// Wire types come from `@oxyhq/contracts`, which is the schema the API parses
+// Wire types come from `@oxy.so/contracts`, which is the schema the API parses
 // its own output with (`modelCatalogueEntrySchema.parse(entry)` in
 // `inferenceCatalogue.service.ts`). Producer and consumer therefore cannot
 // drift: a field the server stops serving stops existing here too.
@@ -14,7 +14,7 @@ import type { ModelCatalogueEntry, RoutingProfile } from '@oxyhq/contracts';
 // This replaces the hand-written `ModelStats`, which typed five fields the API
 // no longer serves at all — `tier`, `creditMultiplier`, `uptime`, `successRate`
 // and `isHealthy`. Those were literals in the retired static array, and three of
-// them describe deployment health, which Relay owns and the control plane cannot
+// them describe deployment health, which Kaana owns and the control plane cannot
 // answer (ADR 0006). A type that promises them is a type that will read
 // `undefined` as a real value the moment a model lands.
 //

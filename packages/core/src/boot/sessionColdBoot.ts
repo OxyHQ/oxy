@@ -55,6 +55,7 @@ import {
 } from '../session/sharedDeviceCredential';
 import type { OxyServices } from '../OxyServices';
 import type { AuthStateStore, PersistedAuthState } from '../session/authStateStore';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 
 /**
  * Who owns the session this boot resolves.
@@ -70,6 +71,8 @@ export interface DeviceBootSession {
   sessionId: string;
   userId: string;
   accessToken: string;
+  /** Server state already returned by the mint; absent on warm-token restore. */
+  state?: DeviceSessionState;
 }
 
 /** Why a cold boot ended without a session. */
@@ -78,7 +81,7 @@ export type SignedOutReason = 'no_session' | 'error';
 export interface RunSessionColdBootOptions {
   oxy: OxyServices;
   store: AuthStateStore;
-  /** Platform hints; default derived from `@oxyhq/core`'s platform detection. */
+  /** Platform hints; default derived from `@oxy.so/core`'s platform detection. */
   platform?: { isWeb?: boolean; isNative?: boolean };
   /** Invoked with the winning session (token already planted). */
   onSession?: (session: DeviceBootSession & { via: string }) => void | Promise<void>;
@@ -130,7 +133,7 @@ export interface RunSessionColdBootOptions {
   /**
    * The cross-app native slot holding this device's shared DeviceSession
    * credential, enabling the `shared-device-adopt` lane. Supplied by
-   * `@oxyhq/services` on native; absent on web, where each origin is its own
+   * `@oxy.so/services` on native; absent on web, where each origin is its own
    * device by design.
    *
    * IGNORED in `sessionMode: 'identity'`. The shared slot belongs to whichever
@@ -278,6 +281,7 @@ export async function runSessionColdBoot(
               sessionId: result.sessionId,
               userId: result.userId,
               accessToken: result.token,
+              state: result.state,
             },
           };
         case 'invalid-secret': {

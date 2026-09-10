@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { useTheme } from '@oxyhq/bloom/theme';
-import type { SecurityActivity } from '@oxyhq/core';
+import { useTheme } from '@oxy.so/bloom/theme';
+import type { SecurityActivity } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { useRelativeTime } from '@/hooks/useRelativeTime';

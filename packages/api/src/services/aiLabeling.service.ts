@@ -1,7 +1,7 @@
 /**
  * AI Email Labeling Service
  *
- * Classifies incoming emails using the Alia AI API and applies matching labels.
+ * Classifies incoming emails through Oxy's metered Kaana inference path.
  * Runs through a bounded background queue after message storage — never blocks email delivery.
  *
  * ## Two Postgres details this file cannot get wrong
@@ -19,7 +19,6 @@
  * classifier returned them.
  */
 
-import axios from 'axios';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { labels as labelsTable } from '../db/schema/labels';
@@ -27,9 +26,7 @@ import { messages } from '../db/schema/messages';
 import { SYSTEM_LABELS, isSystemLabel } from '../constants/systemLabels';
 import { AI_LABELING_CONFIG } from '../config/email.config';
 import { logger } from '../utils/logger';
-
-const ALIA_BASE_URL = 'https://api.alia.onl/v1';
-const ALIA_API_KEY = process.env.ALIA_API_KEY;
+import { executeInboxPointInference, inboxCompletionText } from './inboxInference.service';
 
 class AiLabelingService {
   private activeJobs = 0;
@@ -41,7 +38,7 @@ class AiLabelingService {
    * Returns false when labeling is disabled or the queue is full.
    */
   enqueueClassification(userId: string, messageId: string): boolean {
-    if (!AI_LABELING_CONFIG.enabled || !ALIA_API_KEY) {
+    if (!AI_LABELING_CONFIG.enabled) {
       return false;
     }
 
@@ -101,7 +98,7 @@ class AiLabelingService {
    */
   async classifyAndLabel(userId: string, messageId: string): Promise<void> {
     try {
-      if (!AI_LABELING_CONFIG.enabled || !ALIA_API_KEY) {
+      if (!AI_LABELING_CONFIG.enabled) {
         return;
       }
 
@@ -146,28 +143,19 @@ class AiLabelingService {
         body: textPreview,
       });
 
-      const response = await axios.post(
-        `${ALIA_BASE_URL}/chat/completions`,
-        {
-          model: AI_LABELING_CONFIG.model,
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
-          ],
-          max_tokens: 100,
-          temperature: 0.1,
-          stream: false,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${ALIA_API_KEY}`,
-          },
-          timeout: AI_LABELING_CONFIG.timeout,
-        },
-      );
+      const completion = await executeInboxPointInference({
+        userId,
+        feature: 'automatic_labeling',
+        messages: [
+          { role: 'system', content: [{ type: 'text', text: system }] },
+          { role: 'user', content: [{ type: 'text', text: user }] },
+        ],
+        maxOutputTokens: 100,
+        temperature: 0.1,
+        signal: AbortSignal.timeout(AI_LABELING_CONFIG.timeout),
+      });
 
-      const content = response.data?.choices?.[0]?.message?.content || '';
+      const content = inboxCompletionText(completion);
       const assignedLabels = this.parseLabels(content, labelNames);
 
       if (assignedLabels.length > 0) {

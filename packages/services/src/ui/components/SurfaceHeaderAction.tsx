@@ -1,8 +1,8 @@
 import type React from 'react';
 import { ActivityIndicator, StyleSheet } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { PressableScale } from '@oxyhq/bloom/pressable-scale';
-import { Text } from '@oxyhq/bloom/typography';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
+import { Text } from '@oxy.so/bloom/typography';
 
 export interface SurfaceHeaderActionProps {
   /** Button label (e.g. a translated "Save"). */

@@ -56,7 +56,7 @@
  * deleted row is absent, and visibly so against the retention window. An edited
  * row is a lie that reads as a fact.
  *
- * `SQLSTATE 23514` (check violation) rather than a bespoke code, so `@oxyhq/db`'s
+ * `SQLSTATE 23514` (check violation) rather than a bespoke code, so `@oxy.so/db`'s
  * `isCheckViolation` recognises it like any other constraint failure — a caller
  * must never have to string-match this message.
  */

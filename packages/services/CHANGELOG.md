@@ -1,13 +1,31 @@
 # Changelog
 
-## [Unreleased]
+## [30.2.5] - 2026-09-03
+
+### Added
+
+- Added explicit cross-platform OAuth reconsent through
+  `requestOAuthConsent`, with exact scope validation, PKCE and state binding,
+  byte-exact redirect verification, and no grant without user interaction.
+
+## [30.2.1] - 2026-09-02
+
+### Changed
+
+- Replaced the full Ionicons and Material Community Icons assets reachable from
+  Services UI with exact-shape generated subsets. The consumer payload falls
+  from 1,697,384 bytes to 75,172 bytes for those two families. A build gate now
+  rejects stale subsets, changed source versions, unrecorded glyph names, or
+  reintroduced full-family imports.
+- Centralized session commit handling so account activation, token state and
+  legacy OAuth redirect lanes converge through one tested flow.
 
 ## [28.0.0] - 2026-08-06
 
 ### Licence: AGPL-3.0-only becomes Apache-2.0
 
 **Breaking for anyone who tracks the licence, and for nobody else.**
-`@oxyhq/services` is now Apache-2.0. The code, the API surface and the
+`@oxy.so/services` is now Apache-2.0. The code, the API surface and the
 behaviour are unchanged in this release. It exists to carry the licence change.
 
 This is a widening. Every right the AGPL granted you, Apache-2.0 grants too,
@@ -23,10 +41,10 @@ The major is bumped rather than the change being slipped into a patch, so that
 nobody on `^27.0.0` is moved to a new licence by a routine install. That is
 exactly what happened at `22.5.0`, and it is not happening again.
 
-### Also breaking: the `@oxyhq/core` peer range moves to `^20.0.0`
+### Also breaking: the `@oxy.so/core` peer range moves to `^20.0.0`
 
 Core's own relicensing bumped it to `20.0.0`, so the declared peer range has to
-follow. Bump `@oxyhq/core` alongside this package. Nothing in the services API
+follow. Bump `@oxy.so/core` alongside this package. Nothing in the services API
 surface changed.
 
 ### Added
@@ -37,7 +55,7 @@ surface changed.
 ## [25.0.0] - 2026-07-30
 
 ### Changed
-- **BREAKING**: Raised the `@oxyhq/core` peer dependency to `^16.0.0`. Consumers
+- **BREAKING**: Raised the `@oxy.so/core` peer dependency to `^16.0.0`. Consumers
   must bump core to 16.x when upgrading services — the services API surface is
   unchanged, but the declared peer range was stale after core 16 shipped.
 
@@ -47,10 +65,10 @@ surface changed.
     inside every consumer APK/AAB. No component in this package ever referenced the
     `Inter-*` families they registered.
   - Removed the `FontLoader` component and `setupFonts()` function from all entry
-    points (`@oxyhq/services`, `/ui`, `/ui/client`, `/ui/server`), and the implicit
+    points (`@oxy.so/services`, `/ui`, `/ui/client`, `/ui/server`), and the implicit
     `setupFonts()` call in `OxyProvider`.
   - Dropped the now-unused `expo-font` peer dependency.
-  - Typography is owned by `@oxyhq/bloom`: `BloomThemeProvider` already ships a
+  - Typography is owned by `@oxy.so/bloom`: `BloomThemeProvider` already ships a
     variable Inter (plus BlomusModernus and Geist Mono) and loads it on both native
     and web. Apps that mount `BloomThemeProvider` need no changes.
 
@@ -89,12 +107,12 @@ surface changed.
 - Bundlers (Vite, Webpack) no longer need react-native stubs for `/web` or `/core` entry points
 
 ### Why This Matters
-Before this fix, even when using `@oxyhq/services/web` or `@oxyhq/services/core`, bundlers would encounter `import { Platform } from 'react-native'` in core modules, causing build failures in pure web/Node.js environments. This is now fixed.
+Before this fix, even when using `@oxy.so/services/web` or `@oxy.so/services/core`, bundlers would encounter `import { Platform } from 'react-native'` in core modules, causing build failures in pure web/Node.js environments. This is now fixed.
 
 ## [5.22.0] - 2026-01-27
 
 ### Added
-- **New `/web` entry point** (`@oxyhq/services/web`) for pure React/Next.js/Vite apps
+- **New `/web` entry point** (`@oxy.so/services/web`) for pure React/Next.js/Vite apps
   - Optimized for web-only applications without Expo or React Native
   - Excludes all React Native dependencies for smaller bundle size
   - No bundler configuration needed (no react-native-web required)
@@ -120,10 +138,10 @@ For pure web apps (Vite, Next.js, CRA), switch to the new `/web` entry point:
 
 ```typescript
 // Before (requires bundler config)
-import { WebOxyProvider } from '@oxyhq/services';
+import { WebOxyProvider } from '@oxy.so/services';
 
 // After (cleaner, no config needed)
-import { WebOxyProvider } from '@oxyhq/services/web';
+import { WebOxyProvider } from '@oxy.so/services/web';
 ```
 
 No changes needed for Expo apps or Node.js backends - they continue to work as before.

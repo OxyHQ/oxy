@@ -1,0 +1,129 @@
+name: Setup Inbox MCP DNS
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'check is read-only; apply creates missing records'
+        type: choice
+        options: [check, apply]
+        default: check
+        required: true
+      validation_name:
+        description: 'Exact ACM validation CNAME name'
+        type: string
+        required: true
+      validation_value:
+        description: 'Exact ACM validation CNAME value'
+        type: string
+        required: true
+      publish_endpoint:
+        description: 'Also create mcp.inbox.oxy.so after the backend is ready'
+        type: boolean
+        default: false
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  dns:
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reconcile exact DNS records
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACTION: ${{ inputs.action }}
+          VALIDATION_NAME: ${{ inputs.validation_name }}
+          VALIDATION_VALUE: ${{ inputs.validation_value }}
+          PUBLISH_ENDPOINT: ${{ inputs.publish_endpoint }}
+          ALB_DNS: oxy-alb-648111691.us-west-2.elb.amazonaws.com
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          token = os.environ['CF_TOKEN'].strip()
+          if not token:
+              sys.exit('CLOUDFLARE_API_TOKEN is empty')
+
+          apply = os.environ['ACTION'] == 'apply'
+          zone_name = 'oxy.so'
+          validation_name = os.environ['VALIDATION_NAME'].rstrip('.')
+          validation_value = os.environ['VALIDATION_VALUE'].rstrip('.')
+          if not validation_name.endswith('.mcp.inbox.oxy.so'):
+              sys.exit('validation_name is outside mcp.inbox.oxy.so')
+          if not validation_value.endswith('.acm-validations.aws'):
+              sys.exit('validation_value is not an ACM validation target')
+
+          def call(method, path, body=None):
+              request = urllib.request.Request(
+                  f'https://api.cloudflare.com/client/v4{path}',
+                  method=method,
+                  data=json.dumps(body).encode() if body else None,
+                  headers={
+                      'Authorization': f'Bearer {token}',
+                      'Content-Type': 'application/json',
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request) as response:
+                      return json.load(response)
+              except urllib.error.HTTPError as error:
+                  return json.load(error)
+
+          zones = call('GET', f'/zones?name={urllib.parse.quote(zone_name)}')
+          if not zones.get('success') or len(zones.get('result', [])) != 1:
+              sys.exit(f'cannot resolve exact zone {zone_name}: {zones.get("errors")}')
+          zone_id = zones['result'][0]['id']
+
+          wanted = [(validation_name, validation_value)]
+          if os.environ['PUBLISH_ENDPOINT'] == 'true':
+              wanted.append(('mcp.inbox.oxy.so', os.environ['ALB_DNS']))
+
+          failed = False
+          for name, content in wanted:
+              query = urllib.parse.urlencode({'type': 'CNAME', 'name': name})
+              existing = call('GET', f'/zones/{zone_id}/dns_records?{query}').get('result', [])
+              if existing:
+                  current = existing[0]['content'].rstrip('.')
+                  if current == content:
+                      print(f'OK {name} -> {content}')
+                  else:
+                      print(f'CONFLICT {name} is {current}; expected {content}; left unchanged')
+                      failed = True
+                  continue
+
+              if not apply:
+                  print(f'MISSING {name} -> {content} (check only)')
+                  continue
+
+              result = call('POST', f'/zones/{zone_id}/dns_records', {
+                  'type': 'CNAME',
+                  'name': name,
+                  'content': content,
+                  'ttl': 300,
+                  'proxied': False,
+              })
+              if result.get('success'):
+                  print(f'CREATED {name} -> {content}')
+              else:
+                  print(f'FAILED {name}: {result.get("errors")}')
+                  failed = True
+
+          for name, content in wanted:
+              query = urllib.parse.urlencode({'type': 'CNAME', 'name': name})
+              records = call('GET', f'/zones/{zone_id}/dns_records?{query}').get('result', [])
+              values = [record['content'].rstrip('.') for record in records]
+              print(f'READBACK {name}: {values or "ABSENT"}')
+              if apply and content not in values:
+                  failed = True
+
+          sys.exit(1 if failed else 0)
+          PY

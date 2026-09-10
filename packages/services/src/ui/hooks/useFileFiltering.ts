@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
-import type { FileMetadata } from '@oxyhq/core';
+import type { FileMetadata } from '@oxy.so/core';
 
 export type ViewMode = 'all' | 'photos' | 'videos' | 'documents' | 'audio';
 export type SortBy = 'date' | 'size' | 'name' | 'type';

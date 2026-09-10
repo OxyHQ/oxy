@@ -13,7 +13,7 @@ interface WalletSectionProps {
 }
 
 /**
- * "Wallets" section: lists the user's Oxy Pay balance and the FAIRWallet entry.
+ * "Wallets" section: lists the user's Peable balance and the FAIRWallet entry.
  */
 export function WalletSection({ balance }: WalletSectionProps) {
   const colors = useColors();
@@ -21,11 +21,11 @@ export function WalletSection({ balance }: WalletSectionProps) {
 
   const items = useMemo<GroupedItem[]>(() => [
     {
-      id: 'oxy-pay',
+      id: 'peable',
       icon: 'wallet-outline',
       iconColor: colors.sidebarIconPayments,
-      title: t('payments.wallet.oxyPay'),
-      subtitle: t('payments.wallet.oxyPaySubtitle', { balance: formatFairCoinBalance(balance) }),
+      title: t('payments.wallet.peable'),
+      subtitle: t('payments.wallet.peableSubtitle', { balance: formatFairCoinBalance(balance) }),
     },
     {
       id: 'faircoin',

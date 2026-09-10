@@ -21,8 +21,8 @@ import {
   text,
   unique,
 } from 'drizzle-orm/pg-core';
-import { MODERATION_SEVERITIES } from '@oxyhq/contracts';
-import { generatedId } from '@oxyhq/db';
+import { MODERATION_SEVERITIES } from '@oxy.so/contracts';
+import { generatedId } from '@oxy.so/db';
 import { moderationPolicies } from './moderationPolicies';
 
 export const moderationPolicySeverityRules = pgTable(

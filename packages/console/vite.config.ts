@@ -30,7 +30,7 @@ const appNamePlugin: Plugin = {
 }
 
 // The console runs on rolldown-vite (`"vite": "npm:rolldown-vite@^7"`) so the
-// `@oxyhq/services` React Native graph bundles through the maintained
+// `@oxy.so/services` React Native graph bundles through the maintained
 // `vite-plugin-react-native-web` plugin instead of hand-rolled interop: it
 // aliases react-native→react-native-web, applies `.web.*` platform extension
 // priority in dev AND build, treats RN packages' JSX-in-.js via rolldown
@@ -40,7 +40,11 @@ const appNamePlugin: Plugin = {
 const config = defineConfig(({ mode }) => ({
   plugins: [
     appNamePlugin,
-    reactNativeWeb(),
+    // The RN-web plugin deliberately pins React's production build. That is
+    // correct for application bundling but removes React.act, which jsdom hook
+    // tests require. The tested hook mocks the services/RN boundary, so it does
+    // not need the application-only transform.
+    ...(mode === 'test' ? [] : [reactNativeWeb()]),
     TanStackRouterVite(),
     tailwindcss(),
     viteReact({

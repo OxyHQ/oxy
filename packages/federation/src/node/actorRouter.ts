@@ -20,8 +20,8 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import type { AccountKind } from '@oxyhq/contracts';
-import type { User } from '@oxyhq/core';
+import type { AccountKind } from '@oxy.so/contracts';
+import type { User } from '@oxy.so/core';
 import { AP_CONTEXT } from '../apContext';
 import { verifyHttpSignature } from '../httpSignature';
 import type { UrlBuilders } from '../urls';

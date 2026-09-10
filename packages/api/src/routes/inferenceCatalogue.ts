@@ -17,7 +17,7 @@
  * `uptime`, `successRate`, `isHealthy`) are simply gone; nothing invents them.
  * Console's own migration to `GET /models` is a later PR.
  *
- * The health-shaped fields are not coming back under another name here. Relay
+ * The health-shaped fields are not coming back under another name here. Kaana
  * owns technical deployment health and route availability (ADR 0006); Oxy
  * exposes the customer-safe catalogue. A "stats" endpoint served by the control
  * plane can only report what the control plane knows, and inventing the rest is

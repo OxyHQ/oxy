@@ -10,7 +10,7 @@
 
 import { OXY_CLIENT_ID } from '@/constants/oxy';
 
-const UPDATES_PLUGIN = '@oxyhq/app-preset/plugin/withOxyUpdates';
+const UPDATES_PLUGIN = '@oxy.so/app-preset/plugin/withOxyUpdates';
 
 interface UpdatesPluginOptions {
   clientId?: unknown;

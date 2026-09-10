@@ -273,6 +273,29 @@ describe('POST /accounts/:id/switch', () => {
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
+  /**
+   * The other half of the same rule, and the one that was open until now.
+   *
+   * A bot is not something a person becomes; it is something that operates on
+   * their behalf. The switcher gated on the DELEGATION predicate, which admits
+   * `bot` because an application acting as one is the bot's entire purpose — so
+   * this route minted a bearer whose subject was a bot, on a human's own device.
+   * It happened: `community-maestro` held a live session alongside its owner's
+   * personal and organization sessions.
+   *
+   * `account:act_as` is granted here on purpose: the refusal must be STRUCTURAL,
+   * not a permission the owner of a bot obviously holds.
+   */
+  it('refuses to switch INTO a bot account (403) even with act_as', async () => {
+    mockVerifyActingAs.mockResolvedValue('owner');
+    await seedTargetAccount({ username: 'community-maestro', kind: 'bot' });
+
+    const res = await post(server, `/accounts/${ORG_ID}/switch`);
+
+    expect(res.status).toBe(403);
+    expect(mockCreateSession).not.toHaveBeenCalled();
+  });
+
   it('mints a real session AS the managed account for an authorized member', async () => {
     mockVerifyActingAs.mockResolvedValue('admin');
     await seedTargetAccount({ username: 'acme-org', kind: 'organization' });

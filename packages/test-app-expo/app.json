@@ -43,7 +43,7 @@
       "expo-status-bar",
       "expo-web-browser",
       [
-        "@oxyhq/app-preset",
+        "@oxy.so/app-preset",
         {}
       ]
     ],

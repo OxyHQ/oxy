@@ -130,10 +130,12 @@ export const inferenceStreamToolCallEventSchema = z.object({
  */
 export const inferenceStreamUsageEventSchema = z.object({
   /** See `version.ts`: each stream event is a whole message on the wire. */
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   type: z.literal('usage'),
   requestId: requestIdSchema,
   sequence: z.number().int().nonnegative().safe(),
+  /** Exact deployment whose metering produced these partial units. */
+  deploymentId: deploymentIdSchema,
   units: z.array(usageQuantitySchema).min(1),
   usageSource: usageSourceSchema,
 });

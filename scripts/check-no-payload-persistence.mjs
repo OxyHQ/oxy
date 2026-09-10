@@ -67,14 +67,14 @@
  *   - REQUIRED_TABLES: the census must have REACHED the tables this policy is
  *     about — the two an inference request writes, the BYOK audit trail, and the
  *     email table that proves the traversal sees free-shaped content at all.
- *   - The allow-list's exactness: 31 declared columns must each still exist, so a
- *     traversal that stopped seeing columns fails on all 31 at once.
+ *   - The allow-list's exactness: 36 declared columns must each still exist, so a
+ *     traversal that stopped seeing columns fails on all 36 at once.
  *
  * `scripts/test-check-no-payload-persistence.mjs` plants a payload column in a
  * fixture schema and requires this to flag it — the positive control that a
  * clean run is a real absence.
  *
- * Needs `@oxyhq/db` and `@oxyhq/contracts` BUILT, because the schema modules
+ * Needs `@oxy.so/db` and `@oxy.so/contracts` BUILT, because the schema modules
  * import them. That is why this runs in the `api-test` job after the workspace
  * builds rather than in a job of its own.
  *
@@ -174,6 +174,27 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
   },
   { table: 'security_activities', column: 'metadata', holds: 'per-event security detail; carries no IP in any form, per the platform invariant' },
   { table: 'reputation_transactions', column: 'metadata', holds: 'the reason and source of a reputation award or correction' },
+  // ---- delegated agency -------------------------------------------------------
+  {
+    table: 'app_capability_catalog_registrations',
+    column: 'catalog',
+    holds: 'a schema-validated app capability catalog: tool metadata and JSON Schemas, never an invocation or its data',
+  },
+  {
+    table: 'capability_audit_events',
+    column: 'event',
+    holds: 'a schema-validated authority decision and bounded result status with hashed idempotency correlation; no tool input or output field',
+  },
+  {
+    table: 'capability_execution_authorizations',
+    column: 'limits',
+    holds: 'catalog-declared numeric maxima and exact booleans for one authorized tool; no strings, arrays or tool arguments',
+  },
+  {
+    table: 'delegation_limits',
+    column: 'value',
+    holds: 'one catalog-declared finite numeric maximum or exact boolean, never a string, list or tool argument',
+  },
 
   // ---- email: the customer's own mailbox --------------------------------------
   { table: 'email_outbox', column: 'payload', holds: "a queued outbound email the USER composed — their mail, not an inference payload" },
@@ -263,8 +284,8 @@ try {
   console.error(
     `The schema module ${schemaModulePath} could not be imported, so no column was inspected:\n`
     + `${error.message}\n\n`
-    + 'It imports @oxyhq/db and @oxyhq/contracts, which resolve into their built `dist/`. Run\n'
-    + '`bun run --filter @oxyhq/contracts build` and `bun run --filter @oxyhq/db build` first.',
+    + 'It imports @oxy.so/db and @oxy.so/contracts, which resolve into their built `dist/`. Run\n'
+    + '`bun run --filter @oxy.so/contracts build` and `bun run --filter @oxy.so/db build` first.',
   );
   process.exit(1);
 }

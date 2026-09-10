@@ -133,9 +133,9 @@ re-renders on the animation path). Two new shared values:
 
 **Dependencies (commons only):** `react-native-hce`, `react-native-nfc-manager`.
 Both require a new EAS build (dev client included). Neither is pinned by
-`@oxyhq/services`, so no `expo.install.exclude` entry is needed.
+`@oxy.so/services`, so no `expo.install.exclude` entry is needed.
 
-**Unchanged:** `@oxyhq/contracts`, `@oxyhq/core` mixins (payload builder
+**Unchanged:** `@oxy.so/contracts`, `@oxy.so/core` mixins (payload builder
 already exists), `attest-me.tsx` (QR screen stays as-is).
 
 ## Error handling

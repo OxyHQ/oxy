@@ -34,7 +34,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, pgTable, primaryKey, text } from 'drizzle-orm/pg-core';
-import { timestamptz } from '@oxyhq/db';
+import { timestamptz } from '@oxy.so/db';
 import { UPDATE_PLATFORMS, updateChannels } from './updateChannels';
 
 /** Renders a `const` tuple as a SQL `in (…)` list. */

@@ -8,7 +8,7 @@
  */
 
 import { Linking } from 'react-native';
-import { logger } from '@oxyhq/core';
+import { logger } from '@oxy.so/core';
 
 const mockOpenAuthSessionAsync = jest.fn();
 jest.mock(
@@ -63,6 +63,22 @@ describe('openAuthorizeUrlNative', () => {
     expect(openURLSpy).toHaveBeenCalledWith(AUTHORIZE_URL);
     expect(result).toEqual({ redirectUrl: null });
     expect(warnSpy).toHaveBeenCalled();
+
+    openURLSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it('does not launch an unobservable fallback for explicit consent', async () => {
+    mockOpenAuthSessionAsync.mockRejectedValue(new Error('no browser'));
+    const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const openURLSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+
+    const result = await openAuthorizeUrlNative(AUTHORIZE_URL, REDIRECT_URI, {
+      allowExternalFallback: false,
+    });
+
+    expect(result).toEqual({ redirectUrl: null });
+    expect(openURLSpy).not.toHaveBeenCalled();
 
     openURLSpy.mockRestore();
     warnSpy.mockRestore();

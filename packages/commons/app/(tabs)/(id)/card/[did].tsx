@@ -19,7 +19,7 @@ import { useCivicCard } from '@/hooks/useCivicCard';
 import { usePersonhood } from '@/hooks/usePersonhood';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { userIdFromDid } from '@/lib/civic/did';
-import { trustTierLabel } from '@oxyhq/core';
+import { trustTierLabel } from '@oxy.so/core';
 import {
   getVerificationMeta,
   getTrustTierMeta,

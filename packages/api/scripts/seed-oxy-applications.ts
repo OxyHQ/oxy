@@ -4,7 +4,8 @@
  * every official Oxy app in the ecosystem, owned by the platform user `oxy`.
  *
  * For each app this UPSERTS (never duplicates on re-run):
- *   - Application      keyed by (name + createdByUserId = oxyId), owned by the
+ *   - Application      keyed by exact `spec.id` when declared, otherwise by
+ *                      (name + createdByUserId = oxyId), owned by the
  *                      root `oxy` account itself (ownerAccountId = oxyId) — app
  *                      access derives from it, with no per-app member row and no
  *                      intermediate organization account. An app declaring
@@ -29,6 +30,7 @@
  *
  * Register/reconcile ONE application, leaving every other record untouched:
  *   ONLY_APPS='CrowdSource' bun run packages/api/scripts/seed-oxy-applications.ts
+ *   ONLY_APP_IDS='68b7c4e19f2a6d0e3c8b5174' bun run packages/api/scripts/seed-oxy-applications.ts
  *
  * Env:
  *   DATABASE_URL  required (injected by ECS from SSM)
@@ -37,7 +39,12 @@
  *   ONLY_APPS     comma-separated application names this run may touch. Unset
  *                 seeds the whole list. Set-but-empty, or naming an application
  *                 that is not in SEED_APPS, ABORTS before any write — see
- *                 `src/scripts/seedEntrySelection.ts`.
+ *                 `src/scripts/seedEntrySelection.ts`. A spec with a declared
+ *                 id cannot be selected here; use ONLY_APP_IDS for that spec.
+ *   ONLY_APP_IDS  comma-separated exact immutable ids declared on SEED_APPS.
+ *                 Mutually exclusive with ONLY_APPS. Empty, duplicate or
+ *                 unknown ids ABORT before the database connection. Entries
+ *                 without a declared id cannot be selected through this path.
  *
  * The canonical list itself is `src/scripts/seedOxyApplicationsSpecs.ts`, so the
  * scope and type decisions in it can be held by a test.
@@ -49,13 +56,21 @@ import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
 import { applicationCredentials } from '../src/db/schema/applicationCredentials';
 import { applications } from '../src/db/schema/applications';
 import { users } from '../src/db/schema/users';
-import { selectSeedEntries } from '../src/scripts/seedEntrySelection';
+import {
+  selectSeedEntriesByExactIds,
+  selectSeedEntriesByLegacyNames,
+} from '../src/scripts/seedEntrySelection';
 import {
   applySeedApplicationPlan,
   computeSeedApplicationPlan,
   readSeedApplicationState,
 } from '../src/scripts/seedOxyApplicationsPlan';
-import { SEED_APPS, type SeedAppSpec, type SeedAppType } from '../src/scripts/seedOxyApplicationsSpecs';
+import {
+  SEED_APPS,
+  seedApplicationLookupIdentity,
+  type SeedAppSpec,
+  type SeedAppType,
+} from '../src/scripts/seedOxyApplicationsSpecs';
 import type { ApplicationScope } from '../src/utils/applicationScopes';
 import { logger } from '../src/utils/logger';
 
@@ -229,6 +244,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
   for (const spec of seedApps) {
     let createdApplication = false;
     let createdCredential = false;
+    const lookupIdentity = seedApplicationLookupIdentity(spec, oxyId);
 
     let application =
       (
@@ -236,10 +252,40 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
           .select()
           .from(applications)
           .where(
-            and(eq(applications.name, spec.name), eq(applications.createdByUserId, oxyId)),
+            lookupIdentity.kind === 'id'
+              ? eq(applications.id, lookupIdentity.id)
+              : and(
+                  eq(applications.name, lookupIdentity.name),
+                  eq(applications.createdByUserId, lookupIdentity.createdByUserId),
+                ),
           )
           .limit(1)
       )[0] ?? null;
+
+    if (application && spec.id !== undefined && application.createdByUserId !== oxyId) {
+      throw new Error(
+        `Exact application id ${spec.id} is already owned by another account; refusing to rebind it`,
+      );
+    }
+    if (application && application.name !== spec.name) {
+      throw new Error(
+        `Exact application id ${spec.id} is named "${application.name}", not "${spec.name}"; ` +
+          'refusing to select or rename it by display name',
+      );
+    }
+    if (!application && spec.id !== undefined) {
+      const [nameCollision] = await getDb()
+        .select({ id: applications.id })
+        .from(applications)
+        .where(and(eq(applications.name, spec.name), eq(applications.createdByUserId, oxyId)))
+        .limit(1);
+      if (nameCollision) {
+        throw new Error(
+          `Application "${spec.name}" already exists as ${nameCollision.id}, but its canonical id is ` +
+            `${spec.id}; refusing a name-based adoption`,
+        );
+      }
+    }
 
     const legacyApplications =
       spec.legacyNames && spec.legacyNames.length > 0
@@ -292,6 +338,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
         const [created] = await getDb()
           .insert(applications)
           .values({
+            ...(spec.id === undefined ? {} : { id: spec.id }),
             name: spec.name,
             createdByUserId: oxyId,
             ...plan.desired,
@@ -322,7 +369,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
       legacyAppsRetired += 1;
     }
 
-    const applicationId = application?.id ?? DRY_RUN_PLACEHOLDER_ID;
+    const applicationId = application?.id ?? spec.id ?? DRY_RUN_PLACEHOLDER_ID;
 
     let credential: typeof applicationCredentials.$inferSelect | null = null;
     if (application && application.id !== DRY_RUN_PLACEHOLDER_ID) {
@@ -406,11 +453,26 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const seedApps = selectSeedEntries(SEED_APPS, process.env.ONLY_APPS, {
+  const onlyApps = process.env.ONLY_APPS;
+  const onlyAppIds = process.env.ONLY_APP_IDS;
+  if (onlyApps !== undefined && onlyAppIds !== undefined) {
+    throw new Error(
+      'ONLY_APPS and ONLY_APP_IDS are mutually exclusive; refusing an ambiguous seed boundary',
+    );
+  }
+
+  const vocabulary = {
     envVar: 'ONLY_APPS',
     singular: 'application',
     plural: 'applications',
-  });
+  };
+  const seedApps =
+    onlyAppIds === undefined
+      ? selectSeedEntriesByLegacyNames(SEED_APPS, onlyApps, vocabulary, 'ONLY_APP_IDS')
+      : selectSeedEntriesByExactIds(SEED_APPS, onlyAppIds, {
+          ...vocabulary,
+          envVar: 'ONLY_APP_IDS',
+        });
 
   await connectPostgres();
   logger.info('Connected to Postgres');

@@ -1,4 +1,4 @@
-const { oxySplashScreenPlugin } = require('@oxyhq/expo-splash/config');
+const { oxySplashScreenPlugin } = require('@oxy.so/expo-splash/config');
 
 // App variant — lets a development build sit next to the production app on the
 // SAME device by giving it a distinct applicationId/bundleId + name. Build the
@@ -51,7 +51,7 @@ module.exports = {
       // Shared Keychain Access Group so this app can READ the identity keypair
       // Commons wrote (silent "Sign in with Oxy"). `$(AppIdentifierPrefix)`
       // expands to the Team ID prefix at build; the runtime group string in
-      // @oxyhq/core's KeyManager stays `group.so.oxy.shared` (suffix match).
+      // @oxy.so/core's KeyManager stays `group.so.oxy.shared` (suffix match).
       // Prerequisite: all Oxy iOS apps ship under the SAME Apple Developer Team.
       entitlements: {
         'keychain-access-groups': ['$(AppIdentifierPrefix)group.so.oxy.shared'],
@@ -74,14 +74,14 @@ module.exports = {
       // own logo (the Oxy mark as a white silhouette on transparent) centered on
       // the dark brand background, with the shared Oxy symbol pinned to the
       // bottom. `oxySplashScreenPlugin` builds the expo-splash-screen tuple; the
-      // bare `@oxyhq/expo-splash` entry (bundled Oxy asset) MUST immediately
+      // bare `@oxy.so/expo-splash` entry (bundled Oxy asset) MUST immediately
       // follow it to add the bottom branding.
       oxySplashScreenPlugin({
         image: './assets/images/splash-logo.png',
         imageWidth: 176,
         backgroundColor: '#0B0B0F',
       }),
-      '@oxyhq/expo-splash',
+      '@oxy.so/expo-splash',
       [
         'expo-local-authentication',
         {
@@ -111,9 +111,9 @@ module.exports = {
       ...(!IS_DEV_VARIANT ? ['./plugins/withSharedUserId'] : []),
       // Requests the signature-level READ_IDENTITY permission + provider queries
       // so this app can READ the shared identity Commons hosts (the native
-      // module now ships inside @oxyhq/services). Reader-only: it never hosts
+      // module now ships inside @oxy.so/services). Reader-only: it never hosts
       // the provider.
-      '@oxyhq/services/plugins/withSharedIdentityReader',
+      '@oxy.so/services/plugins/withSharedIdentityReader',
       // Hosts the signature-protected OxyDeviceSessionProvider for the SHARED
       // DEVICE SESSION credential — a different secret from the identity key, on
       // its own permission and its own encrypted file. Accounts is a hub because
@@ -121,14 +121,14 @@ module.exports = {
       // every UID sibling already sees. This is what lets a newly installed
       // official app join the device's session without a QR and without ever
       // reading the Commons private key.
-      '@oxyhq/services/plugins/withSharedDeviceSessionProvider',
+      '@oxy.so/services/plugins/withSharedDeviceSessionProvider',
       // Oxy Updates (OTA). Points expo-updates at this app's manifest endpoint on
       // the self-hosted update server in oxy-api, sets the runtimeVersion policy
       // and wires the ecosystem code-signing certificate. `expo-updates` itself
       // needs no entry here: prebuild applies its config plugin automatically for
       // every installed versioned Expo SDK package.
       [
-        '@oxyhq/app-preset/plugin/withOxyUpdates',
+        '@oxy.so/app-preset/plugin/withOxyUpdates',
         {
           clientId: OXY_CLIENT_ID,
           channel: OXY_UPDATES_CHANNEL,

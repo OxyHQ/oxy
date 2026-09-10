@@ -1,7 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { isPostgresConnected } from '../config/postgres';
 import { performanceMonitor } from '../utils/performanceMonitor';
-import { logger } from '../utils/logger';
 
 /**
  * Performance monitoring middleware
@@ -9,28 +8,21 @@ import { logger } from '../utils/logger';
  */
 export const performanceMiddleware = (req: Request, res: Response, next: NextFunction) => {
   const startTime = Date.now();
-  const operation = `${req.method} ${req.path}`;
 
   // Track response finish
   res.on('finish', () => {
     const duration = Date.now() - startTime;
+    const route = req.route?.path;
+    const routeTemplate = typeof route === 'string' ? `${req.baseUrl}${route}` : 'unmatched';
+    const operation = typeof route === 'string'
+      ? `${req.method} ${routeTemplate}`
+      : `${req.method} unmatched`;
     
     // Record the metric
     performanceMonitor.recordMetric(operation, duration, {
       method: req.method,
-      path: req.path,
       statusCode: res.statusCode,
-      userAgent: req.get('user-agent'),
     });
-
-    // Log slow requests
-    if (duration > 1000) {
-      logger.warn(`Slow request: ${operation} took ${duration}ms`, {
-        method: req.method,
-        path: req.path,
-        statusCode: res.statusCode,
-      });
-    }
   });
 
   next();
@@ -95,4 +87,3 @@ export const getDatabaseStats = () => {
 };
 
 export default performanceMiddleware;
-

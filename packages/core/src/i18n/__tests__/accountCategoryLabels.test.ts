@@ -1,4 +1,4 @@
-import { ACCOUNT_CATEGORY_IDS, SELECTABLE_ACCOUNT_CATEGORY_IDS } from '@oxyhq/contracts';
+import { ACCOUNT_CATEGORY_IDS, SELECTABLE_ACCOUNT_CATEGORY_IDS } from '@oxy.so/contracts';
 import { accountCategoryLabel, EN_ACCOUNT_CATEGORY_LABELS } from '../accountCategoryLabels';
 
 /**

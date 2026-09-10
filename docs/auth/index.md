@@ -100,7 +100,7 @@ accepted gap with a named reason, not an oversight:
   is the access token — the zero-cookie mint lane's whole proof is possession of
   a `deviceSecret`, so there is nothing to re-mint from and the 401 lane ends it
   loudly). The server still sends both fields, because removing them breaks
-  external integrators pinned to older `@oxyhq/core` and needs an announced
+  external integrators pinned to older `@oxy.so/core` and needs an announced
   cutover. The credential is for the client's own isolated per-`(user, client)`
   device, never the shared one, so the global-credential hole is already closed.
   Tracked in #954, with the reasoning at the call site.

@@ -9,8 +9,8 @@ import { cn } from '@/lib/utils';
  * (#972 workstream 4). The edge authenticates an ordinary self-service
  * `oxy_sk_…` machine credential perfectly well; it refuses for an entirely
  * different reason, and a developer acts on the two differently — one says "you
- * are not allowed", the other says "nobody is served yet". The proxy is
- * unchanged at `POST /alia/chat/completions`.
+ * are not allowed", the other says "nobody is served yet". The transitional
+ * proxy has since been removed; this component describes only the Oxy edge.
  *
  * Sits beside `ModelPlaceholderNotice`, which answers what to write in the
  * `model` field. Both exist as components so the fact is stated once, in one

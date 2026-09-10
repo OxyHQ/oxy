@@ -35,12 +35,14 @@ and holds each of them exactly once:
 - **One customer console.** `packages/console/src/routes/_layout/` — apps,
   models, playground, usage, billing, settings, documentation.
 
-One thing in the repo already contradicts that picture, and it is the thing this
-epic exists to replace: `app.use('/v1', userRateLimiter, aliaRoutes)`
+At the time of this decision one thing contradicted that picture:
+`app.use('/v1', userRateLimiter, aliaRoutes)`
 (`packages/api/src/server.ts:647`) forwards `POST /v1/chat/completions` to
 `https://api.alia.onl/v1` under a single static `ALIA_API_KEY`
-(`packages/api/src/routes/alia.ts:7-8`, `:65-81`). Oxy is currently a proxy in
-front of somebody else's control plane for the exact surface it should own.
+(`packages/api/src/routes/alia.ts:7-8`, `:65-81`). That transitional proxy is
+now removed; generic inference and Inbox point inference use Oxy-to-Kaana.
+Putting Oxy in front of somebody else's control plane for the exact surface it
+should own was the contradiction this decision removed.
 
 A second control plane is not a hypothetical risk here. It is what happens by
 default when a data-plane team needs to answer "who is calling and can they
@@ -59,7 +61,7 @@ The epic's non-negotiable invariants, each with what it forbids in this repo:
    `users.id`. `workspaces` was already collapsed into the account graph; it does
    not come back under another name.
 2. **One application identity: the Oxy `Application` id.** Forbids a data-plane
-   `app_id`, `tenant_id` or `project_key` with its own issuance. Relay receives
+   `app_id`, `tenant_id` or `project_key` with its own issuance. Kaana receives
    `applications.id` and stores it as an opaque string.
 3. **One customer credential lifecycle: `ApplicationCredential`.** Forbids a
    second key table. The OpenAI-compatible machine key of workstream 2.3 is a new
@@ -89,18 +91,18 @@ The epic's non-negotiable invariants, each with what it forbids in this repo:
    beside `application_credentials`.
 4. **One billing account, balance and ledger: Oxy Billing.** Forbids a data-plane
    balance, quota counter or credit column that a customer could ever be shown.
-   Relay may count tokens; it may not decide whether the customer can afford
+   Kaana may count tokens; it may not decide whether the customer can afford
    them.
-5. **One customer-facing developer console: `console.oxy.so`.** Forbids a Relay
-   dashboard, a Relay login and a Relay API-key page. Operator-facing internal
+5. **One customer-facing developer console: `console.oxy.so`.** Forbids a Kaana
+   dashboard, a Kaana login and a Kaana API-key page. Operator-facing internal
    tooling for provider health is not a customer console and is not covered by
    this invariant.
-6. **Relay cannot create or mutate Oxy accounts, members, applications or
-   credentials in its own database.** Forbids write-back of any kind. Relay's
+6. **Kaana cannot create or mutate Oxy accounts, members, applications or
+   credentials in its own database.** Forbids write-back of any kind. Kaana's
    only writes about a customer are its own request/usage records keyed by Oxy
    ids.
 7. **Generic inference endpoints are served through the Oxy public API edge, not
-   through Alia as an infrastructure proxy.** Forbids the current
+   through Alia as an infrastructure proxy.** Forbids the retired
    `packages/api/src/routes/alia.ts` shape surviving the migration: a shared
    static upstream key with no per-customer attribution.
 8. **Availability inside Alia does not imply permission to resell publicly.**
@@ -133,7 +135,7 @@ to place the fact wherever is convenient.
 
 ## Alternatives rejected
 
-**Let Relay own its own accounts and reconcile.** Reconciliation between two
+**Let Kaana own its own accounts and reconcile.** Reconciliation between two
 account graphs is not a background job; it is a permanent source of "the console
 says one thing and the invoice says another", and the failure is silent because
 both sides are internally consistent. The cost is paid by whoever answers a
@@ -157,7 +159,7 @@ what it cannot attribute.
   and only the second one licenses a `DROP`. `api_key_usage_events` itself
   survives: it is general API telemetry with two live readers, and only its stale
   key reference went.
-- Any Relay-side design document that names a customer, an organization, a key
+- Any Kaana-side design document that names a customer, an organization, a key
   or a balance is a boundary violation and is reviewed as one, regardless of how
   the field is spelled.
 - The console remains the only place a customer-visible inference control is

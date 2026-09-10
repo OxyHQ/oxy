@@ -19,11 +19,14 @@ import { retryAsync } from './utils/asyncUtils';
 import { handleHttpError, parseHttpErrorBody } from './utils/errorUtils';
 import { jwtDecode } from 'jwt-decode';
 import { isNative, getPlatformOS } from './utils/platform';
-import { isReactNative } from '@oxyhq/protocol';
+import { isReactNative } from '@oxy.so/protocol';
 import { computeIdentityTag, fnv1a32 } from './utils/cacheKey';
 import { redactUrlQuery } from './utils/redactUrl';
 import type { OxyConfig } from './models/interfaces';
 import type { DeviceSecretMintOutcome } from './session/refresh';
+import { OxyAuthenticationError } from './OxyServices.errors';
+import { getBrowserEdgeRegionHeader } from './utils/edgeRegion';
+import { getBrowserActivityIdHeader } from './utils/activityId';
 
 /**
  * Check if we're running in a native app environment (React Native, not web)
@@ -42,6 +45,20 @@ interface JwtPayload {
 export type AuthRefreshReason = 'preflight' | 'response-401';
 export type AuthRefreshHandler = (reason: AuthRefreshReason) => Promise<string | null>;
 export type AccessTokenProvider = () => string | null;
+
+/**
+ * A low-level authenticated request whose response body remains unread.
+ *
+ * This is intended for streaming protocols such as SSE. The body must already
+ * be serialised so it can be replayed once after an access-token refresh.
+ */
+export interface AuthenticatedResponseRequest {
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  url: string;
+  body?: string;
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
+}
 
 /**
  * Structural type that captures the multipart-write surface every supported
@@ -484,6 +501,8 @@ export class HttpService {
     // clients are not vulnerable to ambient-cookie CSRF, and linked app APIs
     // should not need to implement a duplicate `/csrf-token` route.
     const csrfToken = isStateChangingMethod && !authHeader ? await this.fetchCsrfToken() : null;
+    const edgeRegionHeader = await getBrowserEdgeRegionHeader();
+    const activityIdHeader = getBrowserActivityIdHeader();
 
     // Request function
     const requestFn = async (): Promise<T> => {
@@ -559,6 +578,12 @@ export class HttpService {
             headers[key] = value;
           });
         }
+
+        // This is Cloudflare's coarse serving PoP (for example `mad`), never an
+        // IP or coordinate. Set it after caller headers so request code cannot
+        // accidentally or deliberately substitute a different origin.
+        Object.assign(headers, edgeRegionHeader);
+        Object.assign(headers, activityIdHeader);
 
         // `URLSearchParams` is serialised explicitly rather than handed to
         // `fetch` as-is: RN's fetch does not consistently encode it, and doing
@@ -1241,7 +1266,7 @@ export class HttpService {
    * "An object carrying `data` plus anything else is not an envelope" is the
    * tempting general rule, and it is wrong here: this API already answers
    * `{ data, count }` on ~15 routes, plus `{ data, source }`, `{ data, reason }`
-   * and `{ data, secretDestroyed }`, and a dozen measured Console call sites
+   * and `{ data, credentialRevoked }`, and a dozen measured Console call sites
    * type those as the bare payload (`Array<ProviderConnection>`,
    * `AccountBillingState | null`, …). Preserving those envelopes would hand every
    * one of them an object where it expects its payload — at runtime only, since
@@ -1283,6 +1308,81 @@ export class HttpService {
     const alpha = 0.1;
     this.requestMetrics.averageResponseTime =
       this.requestMetrics.averageResponseTime * (1 - alpha) + duration * alpha;
+  }
+
+  /**
+   * Send an authenticated request without consuming its response body.
+   *
+   * Regular {@link request} calls parse the body before returning. Streaming
+   * consumers instead need the original `Response`, while retaining the same
+   * token ownership and one-time 401 refresh behaviour as every SDK request.
+   * No SDK timeout is installed after the connection opens: the caller-owned
+   * abort signal defines the lifetime of a healthy stream.
+   */
+  async requestAuthenticatedResponse(config: AuthenticatedResponseRequest): Promise<Response> {
+    const authHeader = await this.getAuthHeader();
+    if (!authHeader) {
+      throw new OxyAuthenticationError(
+        'An active Oxy session is required for this request',
+        'AUTH_REQUIRED',
+      );
+    }
+
+    return this.requestAuthenticatedResponseAttempt(config, authHeader, false);
+  }
+
+  private async requestAuthenticatedResponseAttempt(
+    config: AuthenticatedResponseRequest,
+    authHeader: string,
+    isAuthRetry: boolean,
+  ): Promise<Response> {
+    const startTime = Date.now();
+    const headers = new Headers(config.headers);
+    if (!headers.has('Accept')) {
+      headers.set('Accept', 'application/json');
+    }
+    // Authentication is owned by this SDK instance. A caller cannot replace
+    // the bearer with a different session or leak one across linked apps.
+    headers.set('Authorization', authHeader);
+    const edgeRegionHeader = await getBrowserEdgeRegionHeader();
+    for (const [name, value] of Object.entries(edgeRegionHeader)) headers.set(name, value);
+    const activityIdHeader = getBrowserActivityIdHeader();
+    for (const [name, value] of Object.entries(activityIdHeader)) headers.set(name, value);
+
+    try {
+      const fullUrl = this.buildURL(config.url);
+      const response = await fetch(fullUrl, {
+        method: config.method,
+        headers,
+        body: config.method === 'GET' ? undefined : config.body,
+        signal: config.signal,
+        credentials: this.getCredentialsMode(fullUrl),
+      });
+
+      if (response.status === 401 && !isAuthRetry) {
+        const refreshed = await this.refreshAccessToken('response-401');
+        if (refreshed) {
+          await response.body?.cancel();
+          return this.requestAuthenticatedResponseAttempt(config, `Bearer ${refreshed}`, true);
+        }
+
+        this.tokenStore.clearTokens();
+        this.tokenStore.clearCsrfToken();
+        this.notifyTokenChange();
+      }
+
+      const duration = Date.now() - startTime;
+      this.updateMetrics(response.ok, duration);
+      this.config.onRequestEnd?.(config.url, config.method, duration, response.ok);
+      return response;
+    } catch (error: unknown) {
+      const duration = Date.now() - startTime;
+      this.updateMetrics(false, duration);
+      this.config.onRequestEnd?.(config.url, config.method, duration, false);
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      this.config.onRequestError?.(config.url, config.method, normalizedError);
+      throw handleHttpError(normalizedError);
+    }
   }
 
   // Convenience methods
@@ -1343,7 +1443,7 @@ export class HttpService {
    * the resulting token (or `null` when cleared). Returns an unsubscribe
    * function; call it on teardown to avoid leaks.
    *
-   * This is the single hook downstream code (e.g. @oxyhq/services' OxyProvider)
+   * This is the single hook downstream code (e.g. @oxy.so/services' OxyProvider)
    * uses to keep an external token sink — such as the shared `oxyClient`
    * singleton — in lockstep with the active session, regardless of which code
    * path mutated the token.

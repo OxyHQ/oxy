@@ -25,7 +25,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { repoHeads } from '../../db/schema/repoHeads';
 import { signedRecords } from '../../db/schema/signedRecords';

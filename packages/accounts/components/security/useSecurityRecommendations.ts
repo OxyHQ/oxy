@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { alert } from '@oxyhq/bloom';
-import type { ClientSession, SecurityActivity } from '@oxyhq/core';
+import { alert } from '@oxy.so/bloom';
+import type { ClientSession, SecurityActivity } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import type { PrioritizedGroupedItem } from '@/components/sections/types';

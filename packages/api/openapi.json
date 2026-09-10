@@ -35,6 +35,11 @@
         "bearerFormat": "oxy_sk_<id>_<secret>",
         "description": "Machine credential for the inference edge, created in the developer console: `oxy_sk_` followed by a 16-hex credential id, an underscore, and a 64-hex secret. Sent as `Authorization: Bearer oxy_sk_...`. It is not a JWT and carries no user identity — the owning account and application come from the credential row. A user session bearer is refused on /v1/*."
       },
+      "capabilityTicketAuth": {
+        "type": "http",
+        "scheme": "Capability",
+        "description": "Short-lived, signed and audience-bound authority for one exact actor, account, resource and tool. Send as `Authorization: Capability <ticket>`. It is accepted only by routes whose app catalog exposes that tool and is re-authorized immediately before execution so revocation takes effect."
+      },
       "csrfToken": {
         "type": "apiKey",
         "in": "header",
@@ -483,8 +488,9 @@
                   },
                   "username": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
+                    "pattern": "^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$",
+                    "minLength": 3,
+                    "maxLength": 30
                   },
                   "name": {
                     "type": "object",
@@ -513,6 +519,10 @@
                   "description": {
                     "type": "string",
                     "maxLength": 1000
+                  },
+                  "color": {
+                    "type": "string",
+                    "maxLength": 32
                   },
                   "accountCategories": {
                     "type": "array",
@@ -568,6 +578,9 @@
                       ]
                     },
                     "maxItems": 4
+                  },
+                  "isPrivateAccount": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -662,8 +675,9 @@
                   },
                   "username": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
+                    "pattern": "^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$",
+                    "minLength": 3,
+                    "maxLength": 30
                   },
                   "name": {
                     "type": "object",
@@ -1095,8 +1109,9 @@
                 "properties": {
                   "username": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
+                    "pattern": "^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$",
+                    "minLength": 3,
+                    "maxLength": 30
                   },
                   "name": {
                     "type": "object",
@@ -2401,159 +2416,6 @@
         "operationId": "getAccountsIdTree"
       }
     },
-    "/alia/chat/completions": {
-      "post": {
-        "tags": [
-          "AI"
-        ],
-        "summary": "Proxies chat completion requests to the Alia API.",
-        "description": "Supports both streaming (SSE) and non-streaming responses.\n\nRequires a service token whose credential resolves to an active,\nplatform-trusted application (issue #981); a user session bearer is refused.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/alia.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "serviceTokenAuth": []
-          }
-        ],
-        "operationId": "postAliaChatCompletions"
-      }
-    },
-    "/alia/voice/token": {
-      "post": {
-        "tags": [
-          "AI"
-        ],
-        "summary": "POST /alia/voice/token",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/alia.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/alia.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "serviceTokenAuth": []
-          }
-        ],
-        "operationId": "postAliaVoiceToken"
-      }
-    },
-    "/alia/voice/transcribe": {
-      "post": {
-        "tags": [
-          "AI"
-        ],
-        "summary": "POST /alia/voice/transcribe",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/alia.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/alia.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "serviceTokenAuth": []
-          }
-        ],
-        "operationId": "postAliaVoiceTranscribe"
-      }
-    },
     "/analytics": {
       "get": {
         "tags": [
@@ -3140,6 +3002,7 @@
                         "inference:routing:write",
                         "inference:providers:read",
                         "inference:providers:write",
+                        "inference:byok:validate",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -3147,6 +3010,11 @@
                         "reputation:moderation:apply",
                         "reputation:binding:register",
                         "notifications:write",
+                        "capabilities:read",
+                        "catalogs:write",
+                        "capability-tickets:issue",
+                        "capability-audit:write",
+                        "capability-events:publish",
                         "payments:read",
                         "payments:write",
                         "accounts:provision",
@@ -3157,7 +3025,10 @@
                         "follows:events",
                         "follow-targets:register",
                         "chains:write",
-                        "chains:read"
+                        "chains:read",
+                        "acting-as:offline",
+                        "accounts:act-as-session",
+                        "podcasts:write"
                       ]
                     }
                   }
@@ -3397,6 +3268,7 @@
                         "inference:routing:write",
                         "inference:providers:read",
                         "inference:providers:write",
+                        "inference:byok:validate",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -3404,6 +3276,11 @@
                         "reputation:moderation:apply",
                         "reputation:binding:register",
                         "notifications:write",
+                        "capabilities:read",
+                        "catalogs:write",
+                        "capability-tickets:issue",
+                        "capability-audit:write",
+                        "capability-events:publish",
                         "payments:read",
                         "payments:write",
                         "accounts:provision",
@@ -3414,7 +3291,10 @@
                         "follows:events",
                         "follow-targets:register",
                         "chains:write",
-                        "chains:read"
+                        "chains:read",
+                        "acting-as:offline",
+                        "accounts:act-as-session",
+                        "podcasts:write"
                       ]
                     }
                   },
@@ -3745,6 +3625,7 @@
                         "inference:routing:write",
                         "inference:providers:read",
                         "inference:providers:write",
+                        "inference:byok:validate",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -3752,6 +3633,11 @@
                         "reputation:moderation:apply",
                         "reputation:binding:register",
                         "notifications:write",
+                        "capabilities:read",
+                        "catalogs:write",
+                        "capability-tickets:issue",
+                        "capability-audit:write",
+                        "capability-events:publish",
                         "payments:read",
                         "payments:write",
                         "accounts:provision",
@@ -3762,7 +3648,10 @@
                         "follows:events",
                         "follow-targets:register",
                         "chains:write",
-                        "chains:read"
+                        "chains:read",
+                        "acting-as:offline",
+                        "accounts:act-as-session",
+                        "podcasts:write"
                       ]
                     }
                   },
@@ -5325,6 +5214,11 @@
                               "active",
                               "trash"
                             ]
+                          },
+                          "hlsReadyAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "When the adaptive HLS ladder for this asset finished transcoding. ABSENT when there is none — transcoding is asynchronous and per-rendition failures are swallowed, so a video may never get one. Consumers must treat absence as \"no adaptive stream\" and play the progressive original: the `?variant=hls_master` URL is derivable from the id, and building it without this field is what made players fail on a 403 and fall back, once per video per play.\n"
                           }
                         }
                       }
@@ -7568,7 +7462,7 @@
         ],
         "security": [],
         "summary": "Register a new account with a public key",
-        "description": "Create a passwordless account bound to a local secp256k1 identity. The client generates a key pair (see `KeyManager` in `@oxyhq/core`), signs `register:{publicKey}:{timestamp}`, and submits the signature. Username and email are optional but recommended for discoverability.\n",
+        "description": "Create a passwordless account bound to a local secp256k1 identity. The client generates a key pair (see `KeyManager` in `@oxy.so/core`), signs `register:{publicKey}:{timestamp}`, and submits the signature. Username and email are optional but recommended for discoverability.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -7601,7 +7495,7 @@
                     "type": "string",
                     "minLength": 3,
                     "maxLength": 30,
-                    "pattern": "^[a-zA-Z0-9]{3,30}$"
+                    "pattern": "^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$"
                   }
                 }
               }
@@ -10949,7 +10843,7 @@
           "Contacts"
         ],
         "summary": "Discover which contacts are on Oxy",
-        "description": "Privacy-preserving contact-book matching. Clients SHA-256 hash each email and phone number locally (lowercased; phone numbers normalised to E.164 — see `utils/contactHash.ts` in `@oxyhq/core`) and upload only the resulting 64-character hex digests. The server intersects them against the indexed `users.hashed_email` / `users.hashed_phone` columns and returns matched Oxy user IDs only when the matched user has opted in to contact discovery for that identifier type.\nPrivacy invariants:\n  - Raw email / phone never traverses this endpoint.\n  - The response contains no PII — only Oxy user IDs and the hash the\n    caller supplied (so the client can map matches back to the local\n    contact that produced them).\n  - The endpoint never writes to the database. Discovery is stateless.\n\nRate limits: 5 requests per minute per authenticated user; up to 200 hashed identifiers per channel (~400 total) per request. Service tokens are explicitly rejected with 403.\n",
+        "description": "Privacy-preserving contact-book matching. Clients SHA-256 hash each email and phone number locally (lowercased; phone numbers normalised to E.164 — see `utils/contactHash.ts` in `@oxy.so/core`) and upload only the resulting 64-character hex digests. The server intersects them against the indexed `users.hashed_email` / `users.hashed_phone` columns and returns matched Oxy user IDs only when the matched user has opted in to contact discovery for that identifier type.\nPrivacy invariants:\n  - Raw email / phone never traverses this endpoint.\n  - The response contains no PII — only Oxy user IDs and the hash the\n    caller supplied (so the client can map matches back to the local\n    contact that produced them).\n  - The endpoint never writes to the database. Discovery is stateless.\n\nRate limits: 5 requests per minute per authenticated user; up to 200 hashed identifiers per channel (~400 total) per request. Service tokens are explicitly rejected with 403.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -11274,6 +11168,599 @@
           }
         },
         "operationId": "deleteDevicesDeviceId"
+      }
+    },
+    "/email/ai-context": {
+      "get": {
+        "tags": [
+          "Email"
+        ],
+        "summary": "GET /email/ai-context",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/email.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "capabilityTicketAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getEmailAiContext"
+      }
+    },
+    "/email/ai/compose": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /email/ai/compose",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inboxInference.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inboxInference.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "draft"
+                        ]
+                      },
+                      "prompt": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20000
+                      },
+                      "tone": {
+                        "type": "string",
+                        "enum": [
+                          "professional",
+                          "casual",
+                          "friendly",
+                          "formal"
+                        ]
+                      },
+                      "stream": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "prompt",
+                      "tone"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "polish"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20000
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "text"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "change_tone"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20000
+                      },
+                      "tone": {
+                        "type": "string",
+                        "enum": [
+                          "professional",
+                          "casual",
+                          "friendly",
+                          "formal"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "text",
+                      "tone"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "adjust_length"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20000
+                      },
+                      "direction": {
+                        "type": "string",
+                        "enum": [
+                          "shorter",
+                          "longer"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "text",
+                      "direction"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "suggest_subject"
+                        ]
+                      },
+                      "body": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20000
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "body"
+                    ]
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "operation"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postEmailAiCompose"
+      }
+    },
+    "/email/ai/daily-brief": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /email/ai/daily-brief",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inboxInference.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inboxInference.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "startAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "endAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "stream": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "startAt",
+                  "endAt"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postEmailAiDailyBrief"
+      }
+    },
+    "/email/ai/messages/{messageId}/smart-replies": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /email/ai/messages/{messageId}/smart-replies",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inboxInference.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inboxInference.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "postEmailAiMessagesMessageIdSmartReplies"
+      }
+    },
+    "/email/ai/messages/{messageId}/thread-summary": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /email/ai/messages/{messageId}/thread-summary",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inboxInference.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inboxInference.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "postEmailAiMessagesMessageIdThreadSummary"
+      }
+    },
+    "/email/ai/natural-search": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /email/ai/natural-search",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inboxInference.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inboxInference.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postEmailAiNaturalSearch"
       }
     },
     "/email/bundles": {
@@ -12435,6 +12922,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -12447,6 +12944,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -12705,6 +13205,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -12717,6 +13227,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -12888,6 +13401,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -12900,6 +13423,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -12937,6 +13463,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -12949,6 +13485,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -13347,6 +13886,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -13369,6 +13918,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -13558,6 +14110,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -13580,6 +14142,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -13764,6 +14329,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -13786,6 +14361,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -13944,6 +14522,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -13966,6 +14554,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -14288,6 +14879,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -14300,6 +14901,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -14919,6 +15523,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -14931,6 +15545,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -16884,6 +17501,159 @@
         "operationId": "postInferenceAdminDeploymentsDeploymentIdLegalReview"
       }
     },
+    "/inference/admin/deployments/{deploymentId}/platform-fee-price-version": {
+      "put": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`PUT /inference/admin/deployments/:deploymentId/platform-fee-price-version`",
+        "description": "Associate one existing immutable price version with a BYOK-only deployment.\nThis endpoint writes only the exact foreign-key pointer: it cannot create a\nprice version or edit an amount.",
+        "parameters": [
+          {
+            "name": "deploymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The exact deployment and fee-version identities now associated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deploymentId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "platformFeePriceVersionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "required": [
+                        "deploymentId",
+                        "platformFeePriceVersionId"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The deployment is not BYOK-only or the version identity does not match it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "platformFeePriceVersionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "platformFeePriceVersionId"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "putInferenceAdminDeploymentsDeploymentIdPlatformFeePriceVersion"
+      }
+    },
     "/inference/admin/deployments/{deploymentId}/{action}": {
       "post": {
         "tags": [
@@ -16961,6 +17731,16 @@
               }
             }
           },
+          "409": {
+            "description": "The permission transition conflicts with catalogue state, routing evidence or an already approved Kaana identity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded",
             "content": {
@@ -17006,13 +17786,518 @@
         "operationId": "postInferenceAdminDeploymentsDeploymentIdAction"
       }
     },
+    "/inference/admin/kaana-deployments/{kaanaDeploymentId}/routing-scorecard": {
+      "put": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "Replace the routing scorecard for one exact Kaana deployment identity.",
+        "description": "This is a complete scorecard PUT with provenance per dimension: omitted keys are\ninvalid, while NULL deliberately withdraws a signal rather than inventing a\nvalue. The Kaana id in this path is not an Oxy catalogue row id or provider\nslug.",
+        "parameters": [
+          {
+            "name": "kaanaDeploymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The complete scorecard stored for this exact Kaana deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deploymentId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "scorecard": {
+                          "type": "object",
+                          "properties": {
+                            "price": {
+                              "type": "object",
+                              "properties": {
+                                "score": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ],
+                                  "minimum": -1000000,
+                                  "maximum": 1000000
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "enum": [
+                                    "provider_contract",
+                                    "cost_model",
+                                    "reviewed_scorecard"
+                                  ]
+                                },
+                                "evidenceRef": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "priceVersionId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                }
+                              },
+                              "required": [
+                                "score",
+                                "source",
+                                "evidenceRef",
+                                "priceVersionId"
+                              ]
+                            },
+                            "latency": {
+                              "type": "object",
+                              "properties": {
+                                "score": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ],
+                                  "minimum": -1000000,
+                                  "maximum": 1000000
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "enum": [
+                                    "kaana_measurement",
+                                    "reviewed_scorecard"
+                                  ]
+                                },
+                                "evidenceRef": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "measurementWindowStart": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "measurementWindowEnd": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "validUntil": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": [
+                                "score",
+                                "source",
+                                "evidenceRef",
+                                "measurementWindowStart",
+                                "measurementWindowEnd",
+                                "validUntil"
+                              ]
+                            },
+                            "throughput": {
+                              "type": "object",
+                              "properties": {
+                                "score": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ],
+                                  "minimum": -1000000,
+                                  "maximum": 1000000
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "enum": [
+                                    "kaana_measurement",
+                                    "reviewed_scorecard"
+                                  ]
+                                },
+                                "evidenceRef": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "measurementWindowStart": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "measurementWindowEnd": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "validUntil": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": [
+                                "score",
+                                "source",
+                                "evidenceRef",
+                                "measurementWindowStart",
+                                "measurementWindowEnd",
+                                "validUntil"
+                              ]
+                            },
+                            "balanced": {
+                              "type": "object",
+                              "properties": {
+                                "score": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ],
+                                  "minimum": -1000000,
+                                  "maximum": 1000000
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "enum": [
+                                    "cost_model",
+                                    "reviewed_scorecard"
+                                  ]
+                                },
+                                "evidenceRef": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "formulaRef": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "validUntil": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": [
+                                "score",
+                                "source",
+                                "evidenceRef",
+                                "formulaRef",
+                                "validUntil"
+                              ]
+                            },
+                            "reason": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            }
+                          },
+                          "required": [
+                            "price",
+                            "latency",
+                            "throughput",
+                            "balanced",
+                            "reason"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "deploymentId",
+                        "scorecard"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The scorecard conflicts with the exact Kaana deployment state or would make an approved serving route unsafe.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "price": {
+                    "type": "object",
+                    "properties": {
+                      "score": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": -1000000,
+                        "maximum": 1000000
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "provider_contract",
+                          "cost_model",
+                          "reviewed_scorecard"
+                        ]
+                      },
+                      "evidenceRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "priceVersionId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      }
+                    },
+                    "required": [
+                      "score",
+                      "source",
+                      "evidenceRef",
+                      "priceVersionId"
+                    ]
+                  },
+                  "latency": {
+                    "type": "object",
+                    "properties": {
+                      "score": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": -1000000,
+                        "maximum": 1000000
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "kaana_measurement",
+                          "reviewed_scorecard"
+                        ]
+                      },
+                      "evidenceRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "measurementWindowStart": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "measurementWindowEnd": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "validUntil": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "score",
+                      "source",
+                      "evidenceRef",
+                      "measurementWindowStart",
+                      "measurementWindowEnd",
+                      "validUntil"
+                    ]
+                  },
+                  "throughput": {
+                    "type": "object",
+                    "properties": {
+                      "score": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": -1000000,
+                        "maximum": 1000000
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "kaana_measurement",
+                          "reviewed_scorecard"
+                        ]
+                      },
+                      "evidenceRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "measurementWindowStart": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "measurementWindowEnd": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "validUntil": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "score",
+                      "source",
+                      "evidenceRef",
+                      "measurementWindowStart",
+                      "measurementWindowEnd",
+                      "validUntil"
+                    ]
+                  },
+                  "balanced": {
+                    "type": "object",
+                    "properties": {
+                      "score": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": -1000000,
+                        "maximum": 1000000
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "cost_model",
+                          "reviewed_scorecard"
+                        ]
+                      },
+                      "evidenceRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "formulaRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "validUntil": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "score",
+                      "source",
+                      "evidenceRef",
+                      "formulaRef",
+                      "validUntil"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "price",
+                  "latency",
+                  "throughput",
+                  "balanced",
+                  "reason"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "putInferenceAdminKaanaDeploymentsKaanaDeploymentIdRoutingScorecard"
+      }
+    },
     "/inference/admin/metrics": {
       "get": {
         "tags": [
           "Inference"
         ],
         "summary": "`GET /inference/admin/metrics?from=&to=[&accountId=][&applicationId=]`",
-        "description": "The workstream-16 operational metrics: request rate, error rate, cancellation,\ntotal latency, time to first token, fallback, reserve failures, settlement lag\nand reconciliation drift.\n\n## Not `GET /metrics`, and the difference is the reason it is here\n\n`server.ts`'s `GET /metrics` is a PROCESS-LOCAL registry — an in-memory ring\nbuffer keyed by `METHOD /path`, one instance's view, discarded on every deploy.\nEverything on this route is a QUERY over the durable record, so the answer is\nidentical from any instance and survives a deploy. Overloading the older\nendpoint would put two different kinds of number under one key and invite a\nreader to compare them.\n\n## Two of the metrics report a PENDING state rather than a zero\n\n`timeToFirstTokenMs` and `fallback` come back as\n`{ state: 'pending', reason, observedRows, rowsCarryingValue }` while no row\ncarries a value. A `0` there would be indistinguishable from a correctly-zero\nmeasurement, and the second reading is the one a dashboard takes. The state is\nderived from the rows, so it flips to `measured` on its own the moment one\narrives.\n\nThe reason names the MEASURED absence, not a cause — the edge streams both\ndialects and forwards both figures when a report carries them. `dataPlane` on the\npayload is what supplies the cause: `absent` means nothing can have streamed, so\nthe pending needs no investigation, while the same pending with `configured`\nmeans the data plane is not reporting what it should.\n\nStaff-only, like everything on this router: request counts per application are\ncustomer data, and a settlement-lag distribution is Oxy's own operational\nfigure. No wholesale cost or price column is read by any query behind it.",
+        "description": "The workstream-16 operational metrics: request rate, error rate, cancellation,\ntotal latency, time to first token, fallback, reserve failures, settlement lag\nand reconciliation drift.\n\n## Not `GET /metrics`, and the difference is the reason it is here\n\n`server.ts`'s `GET /metrics` is a PROCESS-LOCAL registry — an in-memory ring\nbuffer keyed by `METHOD /path`, one instance's view, discarded on every deploy.\nEverything on this route is a QUERY over the durable record, so the answer is\nidentical from any instance and survives a deploy. Overloading the older\nendpoint would put two different kinds of number under one key and invite a\nreader to compare them.\n\n## Two of the metrics report a PENDING state rather than a zero\n\n`timeToFirstTokenMs` and `fallback` come back as\n`{ state: 'pending', reason, observedRows, rowsCarryingValue }` while no row\ncarries a value. A `0` there would be indistinguishable from a correctly-zero\nmeasurement, and the second reading is the one a dashboard takes. The state is\nderived from the rows, so it flips to `measured` on its own the moment one\narrives.\n\nThe reason names the MEASURED absence, not a cause — the edge streams both\ndialects and forwards both figures when a report carries them. `dataPlane` and\n`dataPlaneExecution` supply the cause: absent configuration or disabled\nexecution means nothing can have streamed; configured plus enabled makes the\nsame pending a reporting fault.\n\nStaff-only, like everything on this router: request counts per application are\ncustomer data, and a settlement-lag distribution is Oxy's own operational\nfigure. No wholesale cost or price column is read by any query behind it.",
         "parameters": [
           {
             "name": "from",
@@ -18106,7 +19391,7 @@
           "Inference"
         ],
         "summary": "`GET /inference/provider-connections/accounts/:accountId`",
-        "description": "Every connection the account owns. Prefixes, fingerprints and validation\nstate; no credential, by construction.",
+        "description": "Every connection the account owns. Lifecycle and validation state only; no\ncredential or credential-derived recognition hint, by construction.",
         "parameters": [
           {
             "name": "accountId",
@@ -18199,7 +19484,7 @@
           "Inference"
         ],
         "summary": "`POST /inference/provider-connections/accounts/:accountId`",
-        "description": "Register a credential at account or project scope. The store is resolved\nbefore the body is read — see the module header.",
+        "description": "Register a credential at account or project scope. Kaana control is resolved\nbefore the parsed credential is validated, wrapped or handed to a service.",
         "parameters": [
           {
             "name": "accountId",
@@ -18307,6 +19592,7 @@
                   },
                   "secret": {
                     "type": "string",
+                    "pattern": "^[\\x21-\\x7E]+$",
                     "minLength": 1,
                     "maxLength": 4096
                   },
@@ -18565,6 +19851,7 @@
                   },
                   "secret": {
                     "type": "string",
+                    "pattern": "^[\\x21-\\x7E]+$",
                     "minLength": 1,
                     "maxLength": 4096
                   },
@@ -18792,7 +20079,7 @@
           "Inference"
         ],
         "summary": "`POST /inference/provider-connections/:connectionId/disable`",
-        "description": "Immediate and reversible. Pure database work — no store round trip — so\n\"immediate\" does not depend on the availability of the thing being stopped.",
+        "description": "Immediate and reversible. Pure database work — no Kaana round trip — so\n\"immediate\" does not depend on the availability of the thing being stopped.",
         "parameters": [
           {
             "name": "connectionId",
@@ -18998,13 +20285,344 @@
         "operationId": "postInferenceProviderConnectionsConnectionIdEnable"
       }
     },
+    "/inference/provider-connections/{connectionId}/reconcile": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`POST /inference/provider-connections/:connectionId/reconcile`",
+        "description": "Ask for Kaana's signed exact outcome first. An explicit 404 may resume the\nSAME operation id; create/rotate then require the original credential again,\nwhile revoke retries without one. No path mints or substitutes an id.",
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The exact applied operation and its metadata-only connection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "schemaVersion": {
+                          "type": "number",
+                          "enum": [
+                            2
+                          ]
+                        },
+                        "connectionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "provider": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
+                          "maxLength": 64
+                        },
+                        "ownerAccountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "scope": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "account"
+                                  ]
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "accountId"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "project"
+                                  ]
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "accountId"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "application"
+                                  ]
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "applicationId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "accountId",
+                                "applicationId"
+                              ]
+                            }
+                          ],
+                          "discriminator": {
+                            "propertyName": "kind"
+                          }
+                        },
+                        "environment": {
+                          "type": "string",
+                          "enum": [
+                            "development",
+                            "staging",
+                            "production"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending_validation",
+                            "active",
+                            "disabled",
+                            "revoked"
+                          ]
+                        },
+                        "custodyState": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "ready",
+                            "reconcile",
+                            "revoked"
+                          ]
+                        },
+                        "credentialHandle": {
+                          "type": "string",
+                          "pattern": "^kcred_[a-z2-7]{26}$"
+                        },
+                        "credentialRevision": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "validation": {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "unvalidated",
+                                "valid",
+                                "invalid",
+                                "expired"
+                              ]
+                            },
+                            "lastValidatedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "failureCode": {
+                              "type": "string",
+                              "enum": [
+                                "unauthorized",
+                                "forbidden",
+                                "not_found",
+                                "rate_limited",
+                                "network",
+                                "unknown"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "state"
+                          ]
+                        },
+                        "upstreamBillsCustomerDirectly": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "termsAcknowledgedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "rotatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "schemaVersion",
+                        "connectionId",
+                        "provider",
+                        "ownerAccountId",
+                        "scope",
+                        "environment",
+                        "status",
+                        "custodyState",
+                        "validation",
+                        "upstreamBillsCustomerDirectly",
+                        "createdAt"
+                      ]
+                    },
+                    "reconciledAction": {
+                      "type": "string",
+                      "enum": [
+                        "create",
+                        "rotate",
+                        "revoke"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "reconciledAction"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "secret": {
+                    "type": "string",
+                    "pattern": "^[\\x21-\\x7E]+$",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postInferenceProviderConnectionsConnectionIdReconcile"
+      }
+    },
     "/inference/provider-connections/{connectionId}/revoke": {
       "post": {
         "tags": [
           "Inference"
         ],
         "summary": "`POST /inference/provider-connections/:connectionId/revoke`",
-        "description": "Terminal, and it destroys the stored credential. A destroy failure does NOT\nblock the revoke — retiring a connection is a safety operation, often because\nthe key leaked — so the response and the audit row both state whether the\nsecret was actually destroyed. There is deliberately no DELETE: a deleted\nconnection would make a past charge unexplainable and would take its own audit\ntrail with it.",
+        "description": "Terminal. Oxy fences it locally before asking Kaana to revoke the exact\ngeneration, and the response states whether Kaana acknowledged that change.\nThere is deliberately no DELETE: a deleted\nconnection would make a past charge unexplainable and would take its own audit\ntrail with it.",
         "parameters": [
           {
             "name": "connectionId",
@@ -19110,7 +20728,7 @@
           "Inference"
         ],
         "summary": "`POST /inference/provider-connections/:connectionId/rotate`",
-        "description": "Replace the credential. The reference is unchanged, so a data plane holding it\nkeeps working and the previous credential is gone the instant the store write\nlands.",
+        "description": "Replace the credential. The reference is unchanged, so a data plane holding it\nkeeps working and the previous generation becomes unavailable once Kaana\nacknowledges the exact revision transition.",
         "parameters": [
           {
             "name": "connectionId",
@@ -19205,6 +20823,7 @@
                 "properties": {
                   "secret": {
                     "type": "string",
+                    "pattern": "^[\\x21-\\x7E]+$",
                     "minLength": 1,
                     "maxLength": 4096
                   }
@@ -19318,6 +20937,15 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "credentialHandle": {
+                    "type": "string",
+                    "pattern": "^kcred_[a-z2-7]{26}$"
+                  },
+                  "credentialRevision": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
                   "state": {
                     "type": "string",
                     "enum": [
@@ -19340,6 +20968,8 @@
                   }
                 },
                 "required": [
+                  "credentialHandle",
+                  "credentialRevision",
                   "state"
                 ]
               }
@@ -19347,6 +20977,525 @@
           }
         },
         "operationId": "postInferenceProviderConnectionsConnectionIdValidation"
+      }
+    },
+    "/inference/provider-connections/{connectionId}/validation-bootstrap": {
+      "get": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "Latest exact attempt for this connection/application pair.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inferenceProviderConnections.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "applicationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inferenceProviderConnections.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getInferenceProviderConnectionsConnectionIdValidationBootstrap"
+      },
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "Create or resume one durable exact-generation bootstrap. Repeating a pending",
+        "description": "operation resends the same operation id; an inconclusive terminal attempt may\nbe followed by a new operation without rotating the credential.",
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inferenceProviderConnections.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "applicationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "deploymentId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "applicationId",
+                  "deploymentId"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postInferenceProviderConnectionsConnectionIdValidationBootstrap"
+      }
+    },
+    "/inference/provider-connections/{connectionId}/validation-bootstrap/outcome": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "Service-authenticated exact terminal callback from Kaana.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inferenceProviderConnections.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inferenceProviderConnections.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
+                    "maxLength": 64
+                  },
+                  "ownerAccountId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                  },
+                  "connectionId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,128}$"
+                  },
+                  "environment": {
+                    "type": "string",
+                    "enum": [
+                      "development",
+                      "staging",
+                      "production"
+                    ]
+                  },
+                  "schemaVersion": {
+                    "type": "number",
+                    "enum": [
+                      1
+                    ]
+                  },
+                  "operationId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,128}$"
+                  },
+                  "applicationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "credentialHandle": {
+                    "type": "string",
+                    "pattern": "^kcred_[a-z2-7]{26}$"
+                  },
+                  "credentialRevision": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "deploymentId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "valid",
+                      "invalid",
+                      "inconclusive"
+                    ]
+                  },
+                  "failureCode": {
+                    "type": "string",
+                    "enum": [
+                      "unauthorized",
+                      "forbidden",
+                      "not_found",
+                      "rate_limited",
+                      "network",
+                      "unknown"
+                    ]
+                  }
+                },
+                "required": [
+                  "provider",
+                  "ownerAccountId",
+                  "connectionId",
+                  "environment",
+                  "schemaVersion",
+                  "operationId",
+                  "applicationId",
+                  "credentialHandle",
+                  "credentialRevision",
+                  "deploymentId",
+                  "state"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postInferenceProviderConnectionsConnectionIdValidationBootstrapOutcome"
+      }
+    },
+    "/inference/provider-connections/{connectionId}/validation-deployments": {
+      "get": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "Exact customer-selectable Oxy catalogue ids. No implicit route is chosen.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inferenceProviderConnections.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "applicationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inferenceProviderConnections.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getInferenceProviderConnectionsConnectionIdValidationDeployments"
       }
     },
     "/inference/reporting/accounts/{accountId}/balance": {
@@ -21429,18 +23578,18 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "routing_profile"
+                              "routing_profile_id"
                             ]
                           },
-                          "routingProfile": {
+                          "routingProfileId": {
                             "type": "string",
-                            "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
-                            "maxLength": 64
+                            "minLength": 1,
+                            "maxLength": 128
                           }
                         },
                         "required": [
                           "kind",
-                          "routingProfile"
+                          "routingProfileId"
                         ]
                       }
                     ],
@@ -21859,18 +24008,18 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "routing_profile"
+                              "routing_profile_id"
                             ]
                           },
-                          "routingProfile": {
+                          "routingProfileId": {
                             "type": "string",
-                            "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
-                            "maxLength": 64
+                            "minLength": 1,
+                            "maxLength": 128
                           }
                         },
                         "required": [
                           "kind",
-                          "routingProfile"
+                          "routingProfileId"
                         ]
                       }
                     ],
@@ -22596,18 +24745,18 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "routing_profile"
+                              "routing_profile_id"
                             ]
                           },
-                          "routingProfile": {
+                          "routingProfileId": {
                             "type": "string",
-                            "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
-                            "maxLength": 64
+                            "minLength": 1,
+                            "maxLength": 128
                           }
                         },
                         "required": [
                           "kind",
-                          "routingProfile"
+                          "routingProfileId"
                         ]
                       }
                     ],
@@ -23470,7 +25619,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              1
+                              2
                             ]
                           },
                           "modelId": {
@@ -24001,8 +26150,6 @@
                           "license",
                           "provenance",
                           "dataPolicy",
-                          "availabilityScope",
-                          "commercialPermission",
                           "deprecation"
                         ]
                       }
@@ -24205,7 +26352,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              1
+                              2
                             ]
                           },
                           "modelId": {
@@ -24736,8 +26883,6 @@
                           "license",
                           "provenance",
                           "dataPolicy",
-                          "availabilityScope",
-                          "commercialPermission",
                           "deprecation"
                         ]
                       }
@@ -24826,7 +26971,7 @@
                         "schemaVersion": {
                           "type": "number",
                           "enum": [
-                            1
+                            2
                           ]
                         },
                         "modelId": {
@@ -25357,8 +27502,6 @@
                         "license",
                         "provenance",
                         "dataPolicy",
-                        "availabilityScope",
-                        "commercialPermission",
                         "deprecation"
                       ]
                     }
@@ -26576,26 +28719,6 @@
           "200": {
             "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/platform-stats.ts`, naming a Zod schema the file imports."
           },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -26608,9 +28731,7 @@
           }
         },
         "security": [
-          {
-            "bearerAuth": []
-          }
+          {}
         ],
         "operationId": "getPlatformStats"
       }
@@ -26627,26 +28748,6 @@
           "200": {
             "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/platform-stats.ts`, naming a Zod schema the file imports."
           },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -26659,9 +28760,7 @@
           }
         },
         "security": [
-          {
-            "bearerAuth": []
-          }
+          {}
         ],
         "operationId": "getPlatformStatsStream"
       }
@@ -29588,7 +31687,7 @@
           "Sessions"
         ],
         "summary": "Resolve a session ID to the user it belongs to",
-        "description": "Look up the user record for a given session ID. Requires a valid access token whose user owns the referenced session — callers cannot look up sessions belonging to other users. Used by SDK clients (e.g. `@oxyhq/core`) to hydrate user state from a stored session reference. Expired, revoked, or non-owned sessions return 404.\n",
+        "description": "Look up the user record for a given session ID. Requires a valid access token whose user owns the referenced session — callers cannot look up sessions belonging to other users. Used by SDK clients (e.g. `@oxy.so/core`) to hydrate user state from a stored session reference. Expired, revoked, or non-owned sessions return 404.\n",
         "parameters": [
           {
             "name": "sessionId",
@@ -30528,7 +32627,8 @@
                     "type": "string",
                     "minLength": 3,
                     "maxLength": 30,
-                    "pattern": "^[a-zA-Z0-9]{3,30}$",
+                    "pattern": "^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$",
+                    "description": "An account of kind `bot` carries one further rule the pattern cannot express: its username must END IN `bot`, compared without regard to case, so `aliabot`, `alia-bot` and `AliaBot` all qualify. Every other kind is held to the pattern alone.",
                     "example": "alice"
                   },
                   "email": {
@@ -30616,7 +32716,7 @@
           "Users"
         ],
         "summary": "Permanently delete the current account",
-        "description": "Hard-delete the authenticated user's account. To prove identity at the time of deletion the client signs `delete:{publicKey}:{timestamp}` with the local secp256k1 private key (see `KeyManager.sign` in `@oxyhq/core`). The signature is rejected if it is older than 5 minutes, if the confirmation text does not match the account's username, or if the account has no associated public key.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user.\n",
+        "description": "Hard-delete the authenticated user's account. To prove identity at the time of deletion the client signs `delete:{publicKey}:{timestamp}` with the local secp256k1 private key (see `KeyManager.sign` in `@oxy.so/core`). The signature is rejected if it is older than 5 minutes, if the confirmation text does not match the account's username, or if the account has no associated public key.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -31049,7 +33149,7 @@
           "Users"
         ],
         "summary": "The authenticated VIEWER's OWN social graph — the accounts they follow, the",
-        "description": "subset who follow back (mutuals), and the accounts they have blocked — as ONE\nids-only payload `{ followingIds, mutualIds, blockedIds, restrictedIds }`. Consolidates the\nthree per-viewer graph reads consuming apps (Mention, Allo, Homiio) otherwise\nmake as separate round trips on nearly every feed request.\n\nThe viewer is derived SERVER-SIDE from the auth token via `resolveViewerId`\n(the same dual-auth as `/mutual-ids` and `/follows-of-follows-ids`) — never a\nclient-supplied id, and there is no `:userId` param to spoof (anti-IDOR).\nOPTIONAL semantics: an anonymous caller (or a service token with no user\ncontext) has no graph → every list is empty.\n\nBacked by a short-TTL Redis cache (`graphCache`) filled on miss and busted by\nthe follow/unfollow/block/unblock write paths; degrades to a straight Postgres\nrecompute when Redis is unconfigured.\n\nRegistered as a two-segment `/me/graph` path (distinct from the single-segment\n`/:userId` param route) so Express never treats it as a `:userId` value.",
+        "description": "subset who follow back (mutuals), and the accounts they have blocked — as ONE\nids-only payload `{ followingIds, mutualIds, blockedIds, restrictedIds }`. Consolidates the\nthree per-viewer graph reads consuming apps (Mention, Allo, Homiio) otherwise\nmake as separate round trips on nearly every feed request.\n\nThe viewer is derived SERVER-SIDE from the authenticated user session via\n`resolveViewerId` — never a client-supplied id, and there is no `:userId`\nparam to spoof (anti-IDOR). Service-token delegation is intentionally not\naccepted because blocks and restrictions are private relationship data.\nOPTIONAL semantics: an anonymous or service-token caller has no graph →\nevery list is empty.\n\nBacked by a short-TTL Redis cache (`graphCache`) filled on miss and busted by\nthe follow/unfollow/block/unblock write paths; degrades to a straight Postgres\nrecompute when Redis is unconfigured.\n\nRegistered as a two-segment `/me/graph` path (distinct from the single-segment\n`/:userId` param route) so Express never treats it as a `:userId` value.",
         "parameters": [],
         "responses": {
           "200": {
@@ -31946,7 +34046,7 @@
           "Inference"
         ],
         "summary": "`POST /v1/audio/speech` — text to audio (#972, the later modalities).",
-        "description": "Ceiling: `characters` = `input.length`. EXACT, declared, and the unit every\nreal TTS provider bills. Deliberately no `audio_output_milliseconds` — see\n`speechRequestSchema`. A duration-priced route fails to quote and is refused\nthrough the existing `no_route_available` path rather than a new branch.\n\nNothing serves this today: the catalogue is empty and no data plane is\nconfigured, so every call answers `service_unavailable`. The point of landing\nit now is that the CEILING is sound before the route exists — the alternative\nis somebody adding this endpoint later under delivery pressure and reaching\nfor a duration guess.\n\nThe success body is BYTES, and the `Content-Type` is the media type the data\nplane reported — which follows `response_format` and is therefore not fixed at\none value. It is published as `application/octet-stream` with a binary schema\nrather than as an enumeration of concrete audio types, because the enumeration\nwould be a claim about what a provider returns, while the bytes are the part\nthis endpoint actually promises.",
+        "description": "Ceiling: `characters` = `input.length`. EXACT, declared, and the unit every\nreal TTS provider bills. Deliberately no `audio_output_milliseconds` — see\n`speechRequestSchema`. A duration-priced route fails to quote and is refused\nthrough the existing `no_route_available` path rather than a new branch.\n\nServing requires an eligible speech route in the catalogue and an enabled\nKaana binding; otherwise the edge returns the ordinary typed refusal. The\nceiling is sound independently of live inventory, avoiding a duration guess\nwhen a route is added.\n\nThe success body is BYTES, and the `Content-Type` is the media type the data\nplane reported — which follows `response_format` and is therefore not fixed at\none value. It is published as `application/octet-stream` with a binary schema\nrather than as an enumeration of concrete audio types, because the enumeration\nwould be a claim about what a provider returns, while the bytes are the part\nthis endpoint actually promises.",
         "parameters": [],
         "responses": {
           "200": {
@@ -33118,7 +35218,7 @@
           "Inference"
         ],
         "summary": "`POST /v1/images/generations` — text to image (#972, the later modalities).",
-        "description": "Ceiling: `images` = `n ?? 1`. EXACT and declared; the prompt adds\n`input_tokens` on the usual character bound. `size` and `quality` are\nforwarded and do NOT widen the hold, which rests on one route per\nsize/quality class in the catalogue — see `imageGenerationsRequestSchema` for\nwhy that is a catalogue decision rather than a contracts one.\n\nAs with speech, nothing serves this today; the value is a sound ceiling\nbefore the endpoint exists.",
+        "description": "Ceiling: `images` = `n ?? 1`. EXACT and declared; the prompt adds\n`input_tokens` on the usual character bound. `size` and `quality` are\nforwarded and do NOT widen the hold, which rests on one route per\nsize/quality class in the catalogue — see `imageGenerationsRequestSchema` for\nwhy that is a catalogue decision rather than a contracts one.\n\nAs with speech, serving is conditional on eligible catalogue inventory and\nan enabled Kaana binding; the value remains a sound ceiling when no route is\navailable.",
         "parameters": [],
         "responses": {
           "200": {
@@ -33306,7 +35406,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              1
+                              2
                             ]
                           },
                           "modelId": {
@@ -33837,8 +35937,6 @@
                           "license",
                           "provenance",
                           "dataPolicy",
-                          "availabilityScope",
-                          "commercialPermission",
                           "deprecation"
                         ]
                       }
@@ -34041,7 +36139,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              1
+                              2
                             ]
                           },
                           "modelId": {
@@ -34572,8 +36670,6 @@
                           "license",
                           "provenance",
                           "dataPolicy",
-                          "availabilityScope",
-                          "commercialPermission",
                           "deprecation"
                         ]
                       }
@@ -34662,7 +36758,7 @@
                         "schemaVersion": {
                           "type": "number",
                           "enum": [
-                            1
+                            2
                           ]
                         },
                         "modelId": {
@@ -35193,8 +37289,6 @@
                         "license",
                         "provenance",
                         "dataPolicy",
-                        "availabilityScope",
-                        "commercialPermission",
                         "deprecation"
                       ]
                     }
@@ -35614,7 +37708,7 @@
           "Inference"
         ],
         "summary": "`POST /v1/responses` — the preferred endpoint.",
-        "description": "Errors are the structured contract shape at the top level rather than the\nplatform's `{ error, message }` envelope: that envelope carries neither\n`requestId` nor `retryable`, and both are load-bearing here.\n\nThe success body also carries `latencyMs`: Oxy's own measurement of this\nrequest, from the moment the edge received it through authentication,\nadmission, routing, the reservation, the upstream call and the settlement of\nthe hold. Most of that interval is the upstream generating tokens, and it is\nnot the round trip a caller measures — a client stopwatch additionally\ncovers DNS, TLS, both network legs and its own parse. `X-Oxy-Latency-Ms`\ncarries the same number on both surfaces. A streamed request reports none:\nits headers are written before the first frame arrives.\n\nA `stream: true` request answers `text/event-stream` instead, and that\nvariant is deliberately not described: no mainstream OpenAPI generator models\nan SSE frame sequence usefully, so the alternative to omitting it is a\nfiction. `inferenceStreamEventSchema` in `@oxyhq/contracts` is the authority\non the frames.",
+        "description": "Errors are the structured contract shape at the top level rather than the\nplatform's `{ error, message }` envelope: that envelope carries neither\n`requestId` nor `retryable`, and both are load-bearing here.\n\nThe success body also carries `latencyMs`: Oxy's own measurement of this\nrequest, from the moment the edge received it through authentication,\nadmission, routing, the reservation, the upstream call and the settlement of\nthe hold. Most of that interval is the upstream generating tokens, and it is\nnot the round trip a caller measures — a client stopwatch additionally\ncovers DNS, TLS, both network legs and its own parse. `X-Oxy-Latency-Ms`\ncarries the same number on both surfaces. A streamed request reports none:\nits headers are written before the first frame arrives.\n\nA `stream: true` request answers `text/event-stream` instead, and that\nvariant is deliberately not described: no mainstream OpenAPI generator models\nan SSE frame sequence usefully, so the alternative to omitting it is a\nfiction. `inferenceStreamEventSchema` in `@oxy.so/contracts` is the authority\non the frames.",
         "parameters": [],
         "responses": {
           "200": {
@@ -36110,6 +38204,11 @@
                     "type": "string",
                     "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
                     "maxLength": 64
+                  },
+                  "routingProfileId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
                   },
                   "input": {
                     "oneOf": [
@@ -36636,108 +38735,6 @@
           }
         },
         "operationId": "postV1Responses"
-      }
-    },
-    "/v1/voice/token": {
-      "post": {
-        "tags": [
-          "Inference"
-        ],
-        "summary": "POST /v1/voice/token",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/alia.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/alia.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "serviceTokenAuth": []
-          }
-        ],
-        "operationId": "postV1VoiceToken"
-      }
-    },
-    "/v1/voice/transcribe": {
-      "post": {
-        "tags": [
-          "Inference"
-        ],
-        "summary": "POST /v1/voice/transcribe",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/alia.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/alia.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "serviceTokenAuth": []
-          }
-        ],
-        "operationId": "postV1VoiceTranscribe"
       }
     },
     "/wallet/purchase": {
@@ -37292,7 +39289,7 @@
     },
     {
       "name": "Inference",
-      "description": "The public inference edge (/v1/*), the model catalogue, and the control-plane surfaces behind it — routing policies, provider connections (BYOK), usage reporting and the staff deployment admin. Routes under /v1/*, /models/* and /inference/*."
+      "description": "The public inference edge (/v1/*), the model catalogue, and the control-plane surfaces behind it — routing policies, provider connections (BYOK), usage reporting and the staff deployment admin. Kaana is the data plane and sole BYOK credential custodian: provider credentials are KMS-encrypted in Kaana PostgreSQL, never stored in Oxy or environment variables. Oxy exposes exact opaque handle/revision metadata and no credential-derived recognition value. The canonical signed Kaana origin is exclusively https://kaana.ai. Routes under /v1/*, /models/* and /inference/*."
     },
     {
       "name": "Analytics",

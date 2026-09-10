@@ -7,7 +7,7 @@
  * single terminal outcome handed to the page's delivery funnel.
  *
  * What the in-flight request LOOKS like is not owned here at all. That is
- * `@oxyhq/services`' `OxySignInRequestSurface` — the same presentational
+ * `@oxy.so/services`' `OxySignInRequestSurface` — the same presentational
  * component the in-app account dialog renders — so the two hosts of a Commons
  * approval cannot drift apart. It resolves the shared `accountSwitcher.*` copy
  * (headline, progress ladder, "Having trouble?", "Try again") in all 11 locales
@@ -35,8 +35,8 @@
  */
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { OxySignInRequestSurface } from "@oxyhq/services"
-import type { OxySignInSurfaceAction } from "@oxyhq/services"
+import { OxySignInRequestSurface } from "@oxy.so/services"
+import type { OxySignInSurfaceAction } from "@oxy.so/services"
 import { AuthFormLayout, AuthFormHeader } from "@/components/auth-form-layout"
 import { useTranslation } from "@/lib/i18n/use-translation"
 import { CommonsOAuthRequest } from "@/lib/commons-oauth-request"

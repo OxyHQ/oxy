@@ -1,4 +1,4 @@
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import type { LedgerBalanceBucket, LedgerBalanceResponse } from '@/lib/reporting';
 import { Badge } from '@/components/ui/badge';
 import { formatMoney } from '@/lib/money';

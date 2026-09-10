@@ -5,9 +5,18 @@
  * Private keys are stored securely using expo-secure-store and never leave the device.
  */
 
-import { ec as EC } from 'elliptic';
 import { isWeb, isIOS, isAndroid } from '../utils/platform';
-import { type ExpoCryptoLike, type ExpoSecureStoreLike, isReactNative, isNodeJS, loadAsyncStorage, loadExpoCrypto, loadNodeCrypto, loadSecureStore, loadSharedIdentityBridge } from '@oxyhq/protocol';
+import { type ExpoCryptoLike, type ExpoSecureStoreLike, isReactNative, isNodeJS, loadAsyncStorage, loadExpoCrypto, loadNodeCrypto, loadSecureStore, loadSharedIdentityBridge } from '@oxy.so/protocol';
+import {
+  deriveSecp256k1PublicKey,
+  generateSecp256k1KeyPair,
+  isValidSecp256k1PrivateKey,
+  isValidSecp256k1PublicKey,
+  normalizeSecp256k1PrivateKey,
+  normalizeSecp256k1PublicKey,
+  signSecp256k1Digest,
+  verifySecp256k1Digest,
+} from '@oxy.so/protocol/secp256k1';
 import { isDev, logger } from '../logger';
 import { hkdfSha256 } from './kdf';
 import {
@@ -22,7 +31,7 @@ import {
  * Options for expo-secure-store calls made by KeyManager.
  *
  * Defined as a standalone interface (not extending expo-secure-store's
- * `SecureStoreOptions`) so that server / Node.js consumers of @oxyhq/core
+ * `SecureStoreOptions`) so that server / Node.js consumers of @oxy.so/core
  * do not transitively pull in expo-modules-core's type declarations under
  * NodeNext module resolution (which would cause NodeJS.Timeout / number
  * pollution across all timer APIs). The fields mirror SecureStoreOptions
@@ -134,12 +143,10 @@ export type IdentityRecoveryResult =
   | { recovered: true; source: 'backup' | 'shared'; publicKey: string }
   | { recovered: false; reason: 'not-lost' | 'no-sources' | 'mismatch' | 'unavailable' };
 
-const ec = new EC('secp256k1');
-
 /**
  * HKDF salt that domain-separates every identity-scoped seed produced by
  * {@link KeyManager.deriveScopedSeed}. Versioned so a future scheme change is a
- * new, non-colliding tag. The per-app domain (e.g. Oxy Pay's FairCoin wallet)
+ * new, non-colliding tag. The per-app domain (e.g. Peable's FairCoin wallet)
  * is carried by the caller's `info` string, not this salt.
  */
 const SCOPED_SEED_KDF_SALT = 'oxy-identity-scoped-seed-v1';
@@ -287,7 +294,7 @@ const ANDROID_ACCOUNT_TYPE = 'com.oxy.account';
 /**
  * Initialize React Native specific modules
  *
- * Delegates to `@oxyhq/protocol`'s `platform/crypto`, a per-platform module
+ * Delegates to `@oxy.so/protocol`'s `platform/crypto`, a per-platform module
  * (`crypto.ts` vs `crypto.native.ts`) selected by the
  * consumer's bundler. On RN it returns a statically-imported handle to
  * `expo-secure-store`; off RN it throws (and is never called because every
@@ -793,17 +800,15 @@ export class KeyManager {
   /**
    * Lowercase and pad to canonical 64-hex-char form.
    *
-   * Tolerates the 1-in-256 leading-zero-strip that elliptic's
-   * `getPrivate('hex')` produces, and the externally-imported uppercase-hex
-   * legacy keys. EVERY `ec.keyFromPrivate(...)` call site in this file must
-   * canonicalize first so that derivation is stable regardless of storage
-   * representation.
+   * Tolerates legacy leading-zero-stripped keys and externally imported
+   * uppercase hex. Every derivation path canonicalizes first so storage
+   * representation cannot change the resulting identity.
    *
    * Private (used only inside KeyManager) — public consumers should not need
    * to think about hex representation.
    */
   private static canonicalPrivateKey(key: string): string {
-    return key.toLowerCase().padStart(64, '0');
+    return normalizeSecp256k1PrivateKey(key);
   }
 
   /**
@@ -811,28 +816,20 @@ export class KeyManager {
    * Returns the keys in hexadecimal format
    */
   static generateKeyPairSync(): KeyPair {
-    const keyPair = ec.genKeyPair();
-    // Pad to canonical 64 hex chars. `elliptic`'s `getPrivate('hex')` strips
-    // leading zero bytes which would otherwise corrupt strict-length checks
-    // and signature derivation on the read path.
-    return {
-      privateKey: keyPair.getPrivate('hex').padStart(64, '0'),
-      publicKey: keyPair.getPublic('hex'),
-    };
+    return generateSecp256k1KeyPair();
   }
 
   /**
    * Generate a new key pair using secure random bytes
    */
   static async generateKeyPair(): Promise<KeyPair> {
-    const randomBytes = await getSecureRandomBytes(32);
-    const privateKeyHex = uint8ArrayToHex(randomBytes);
-    const keyPair = ec.keyFromPrivate(KeyManager.canonicalPrivateKey(privateKeyHex));
-
-    return {
-      privateKey: keyPair.getPrivate('hex').padStart(64, '0'),
-      publicKey: keyPair.getPublic('hex'),
-    };
+    for (let attempt = 0; attempt < 128; attempt += 1) {
+      const privateKey = uint8ArrayToHex(await getSecureRandomBytes(32));
+      if (isValidSecp256k1PrivateKey(privateKey)) {
+        return { privateKey, publicKey: deriveSecp256k1PublicKey(privateKey) };
+      }
+    }
+    throw new Error('Unable to generate a valid secp256k1 private key');
   }
 
   // ==================== SHARED IDENTITY METHODS ====================
@@ -881,7 +878,7 @@ export class KeyManager {
         );
       }
     } else if (isAndroid()) {
-      // Android: write through the cross-app bridge (`@oxyhq/expo-oxy-identity`)
+      // Android: write through the cross-app bridge (`@oxy.so/expo-oxy-identity`)
       // when present — it persists into Commons's hardware-backed
       // EncryptedSharedPreferences behind a signature-protected ContentProvider,
       // so same-key Oxy apps can read it. When the bridge is not linked, fall
@@ -1047,8 +1044,7 @@ export class KeyManager {
     // in canonical 64-hex-char lowercase form going forward. Without this,
     // legacy short keys would derive a different public key on the read path.
     const canonicalPrivate = KeyManager.canonicalPrivateKey(privateKey);
-    const keyPair = ec.keyFromPrivate(canonicalPrivate);
-    const publicKey = keyPair.getPublic('hex');
+    const publicKey = deriveSecp256k1PublicKey(canonicalPrivate);
 
     if (isIOS()) {
       const privateOpts: OxySecureStoreOptions = {
@@ -1413,19 +1409,18 @@ export class KeyManager {
     }
 
     // Final sanity: derive public from the stored private and confirm the
-    // pair signs/verifies cleanly. Catches a (theoretical) elliptic library
-    // corruption immediately rather than the next time the user tries to
-    // sign in.
+    // pair signs/verifies cleanly. Catches crypto-state corruption immediately
+    // rather than the next time the user tries to sign in.
     try {
-      const keyPair = ec.keyFromPrivate(KeyManager.canonicalPrivateKey(readBackPrivate));
-      const derived = keyPair.getPublic('hex');
+      const privateKey = KeyManager.canonicalPrivateKey(readBackPrivate);
+      const derived = deriveSecp256k1PublicKey(privateKey);
       if (derived.toLowerCase() !== readBackPublic.toLowerCase()) {
         throw new IdentityPersistError('Stored public key does not match derived public key.');
       }
       // Sign/verify roundtrip using a known test vector
       const probeHash = '0'.repeat(64);
-      const signature = keyPair.sign(probeHash);
-      if (!keyPair.verify(probeHash, signature)) {
+      const signature = signSecp256k1Digest(privateKey, probeHash);
+      if (!verifySecp256k1Digest(derived, probeHash, signature)) {
         throw new IdentityPersistError('Sign/verify roundtrip failed for newly stored identity.');
       }
     } catch (error) {
@@ -1673,8 +1668,7 @@ export class KeyManager {
     // externally-imported short or uppercase key would derive one public
     // key here and a different one when later read back unpadded.
     const canonicalPrivate = KeyManager.canonicalPrivateKey(privateKey);
-    const keyPair = ec.keyFromPrivate(canonicalPrivate);
-    const publicKey = keyPair.getPublic('hex');
+    const publicKey = deriveSecp256k1PublicKey(canonicalPrivate);
 
     // Refuse silent overwrite — see createIdentity() for rationale. The guard
     // reads storage DIRECTLY (cache-bypassing) AND the marker, and treats
@@ -1921,9 +1915,9 @@ export class KeyManager {
       // sign-in flow when SignatureService.sign() can't find the keypair.
       if (KeyManager.isValidPrivateKey(privateKey) && KeyManager.isValidPublicKey(publicKey)) {
         try {
-          const derived = ec
-            .keyFromPrivate(KeyManager.canonicalPrivateKey(privateKey))
-            .getPublic('hex');
+          const derived = deriveSecp256k1PublicKey(
+            KeyManager.canonicalPrivateKey(privateKey),
+          );
           // Hex equality is case-insensitive; normalize on both sides to
           // tolerate legacy uppercase-stored public keys.
           hasIdentity = derived.toLowerCase() === publicKey.toLowerCase();
@@ -2216,12 +2210,12 @@ export class KeyManager {
       }
 
       // Full sign/verify probe — proves the keypair is functional, not just
-      // bytewise parseable. A previous version of this method would return
-      // true even when the underlying elliptic curve state was wedged.
-      const keyPair = ec.keyFromPrivate(KeyManager.canonicalPrivateKey(privateKey));
+      // bytewise parseable. A previous version of this method would return true
+      // without proving the signing primitive could operate on the key.
+      const canonicalPrivateKey = KeyManager.canonicalPrivateKey(privateKey);
       const probeHash = '0'.repeat(64);
-      const signature = keyPair.sign(probeHash);
-      if (!keyPair.verify(probeHash, signature)) {
+      const signature = signSecp256k1Digest(canonicalPrivateKey, probeHash);
+      if (!verifySecp256k1Digest(publicKey, probeHash, signature)) {
         logger.error('Identity sign/verify probe failed during integrity check', undefined, { component: 'KeyManager' });
         return false;
       }
@@ -2486,24 +2480,10 @@ export class KeyManager {
   }
 
   /**
-   * Get the elliptic curve key object from the stored private key
-   * Used internally for signing operations
-   */
-  static async getKeyPairObject(): Promise<EC.KeyPair | null> {
-    if (isWebPlatform()) {
-      return null; // Identity storage is only available on native platforms
-    }
-    const privateKey = await KeyManager.getPrivateKey();
-    if (!privateKey) return null;
-    return ec.keyFromPrivate(KeyManager.canonicalPrivateKey(privateKey));
-  }
-
-  /**
    * Derive public key from a private key (without storing)
    */
   static derivePublicKey(privateKey: string): string {
-    const keyPair = ec.keyFromPrivate(KeyManager.canonicalPrivateKey(privateKey));
-    return keyPair.getPublic('hex');
+    return deriveSecp256k1PublicKey(KeyManager.canonicalPrivateKey(privateKey));
   }
 
   /**
@@ -2511,7 +2491,7 @@ export class KeyManager {
    * signed rotation payloads so legacy compressed/cased encodings still verify.
    */
   static canonicalPublicKey(publicKey: string): string {
-    return ec.keyFromPublic(publicKey, 'hex').getPublic(false, 'hex').toLowerCase();
+    return normalizeSecp256k1PublicKey(publicKey);
   }
 
   /**
@@ -2535,24 +2515,20 @@ export class KeyManager {
     if (publicKey.length !== 130 && publicKey.length !== 66) {
       return false;
     }
-    try {
-      ec.keyFromPublic(publicKey, 'hex');
+    if (isValidSecp256k1PublicKey(publicKey)) {
       return true;
-    } catch (error) {
-      if (isDev()) {
-        logger.debug('[oxy.crypto] isValidPublicKey rejected input', { component: 'KeyManager' }, error);
-      }
-      return false;
     }
+    if (isDev()) {
+      logger.debug('[oxy.crypto] isValidPublicKey rejected input', { component: 'KeyManager' });
+    }
+    return false;
   }
 
   /**
    * Validate that a string is a valid private key.
    *
    * secp256k1 private keys are 256-bit, so 64 hex chars. We require strict
-   * hex-only input because `elliptic`'s underlying `BN(input, 16)` happily
-   * accepts non-hex characters (treating them as zero), which would let
-   * "not-hex" pass through as a valid (but compromised, near-zero) key.
+   * hex-only input so malformed text can never be coerced into a scalar.
    */
   static isValidPrivateKey(privateKey: string): boolean {
     if (typeof privateKey !== 'string' || privateKey.length === 0) {
@@ -2561,11 +2537,8 @@ export class KeyManager {
     if (!/^[0-9a-fA-F]+$/.test(privateKey)) {
       return false;
     }
-    // secp256k1 private keys are 32 bytes (64 hex chars). `elliptic`'s
-    // `getPrivate('hex')` strips leading zero bytes, so a valid key whose
-    // leading byte is 0 ends up as 62 hex chars in storage. Accept any
-    // length from 1..64 here — we re-pad before deriving below — and
-    // reject longer than 64.
+    // Legacy storage may have stripped leading zero bytes. Accept 1..64 chars
+    // here and normalize before curve validation.
     if (privateKey.length > 64) {
       return false;
     }
@@ -2579,26 +2552,13 @@ export class KeyManager {
     if (/^0{56}/.test(padded)) {
       return false;
     }
-    try {
-      const keyPair = ec.keyFromPrivate(padded);
-      const priv = keyPair.getPrivate();
-      // Private key must be > 0 and < curve order n. elliptic doesn't
-      // enforce this on keyFromPrivate, so we do it here.
-      if (priv.isZero() || priv.cmp(ec.curve.n) >= 0) {
-        return false;
-      }
-      // Verify it can derive a public key
-      const pub = keyPair.getPublic('hex');
-      if (!pub || pub.length === 0) {
-        return false;
-      }
+    if (isValidSecp256k1PrivateKey(padded)) {
       return true;
-    } catch (error) {
-      if (isDev()) {
-        logger.debug('[oxy.crypto] isValidPrivateKey rejected input', { component: 'KeyManager' }, error);
-      }
-      return false;
     }
+    if (isDev()) {
+      logger.debug('[oxy.crypto] isValidPrivateKey rejected input', { component: 'KeyManager' });
+    }
+    return false;
   }
 
   /**
@@ -2607,12 +2567,14 @@ export class KeyManager {
    *
    * The domain separation is carried by `info` (e.g. `"oxypay/faircoin/v1"`),
    * so distinct apps/purposes get independent seeds from the same identity.
+   * That legacy Peable tag is a cryptographic contract and must not be renamed:
+   * changing it would derive a different wallet for every existing user.
    * The output is HKDF keying material, never the private key itself — a
-   * consumer (e.g. Oxy Pay's FairCoin HD wallet) can feed it straight into
+   * consumer (e.g. Peable's FairCoin HD wallet) can feed it straight into
    * `HDKey.fromMasterSeed` and never touches the identity key.
    *
    * Key source (native only): prefers the shared ecosystem identity written to
-   * `group.so.oxy.shared` (what a Relying Party like Oxy Pay reads), then falls
+   * `group.so.oxy.shared` (what a Relying Party like Peable reads), then falls
    * back to this device's primary identity (Commons/Accounts). Both reproduce
    * from the user's Oxy recovery phrase, so the derived seed is recoverable.
    *
@@ -2644,5 +2606,3 @@ export class KeyManager {
 }
 
 export default KeyManager;
-
-

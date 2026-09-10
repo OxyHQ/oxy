@@ -1,11 +1,11 @@
 import type React from 'react';
 import { useMemo } from 'react';
 import { View } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import ProfileSummaryCard from '../components/ProfileSummaryCard';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useOxy } from '../context/OxyContext';

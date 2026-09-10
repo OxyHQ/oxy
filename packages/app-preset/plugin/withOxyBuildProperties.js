@@ -52,7 +52,7 @@ function resolveBuildPropertiesPlugin() {
     mod = require('expo-build-properties');
   } catch (error) {
     throw new Error(
-      "[@oxyhq/app-preset] withOxyBuildProperties requires the peer dependency 'expo-build-properties'. "
+      "[@oxy.so/app-preset] withOxyBuildProperties requires the peer dependency 'expo-build-properties'. "
         + "Install it with `npx expo install expo-build-properties`, or disable it by passing "
         + '`{ ios: false, android: false }` to the preset.',
     );
@@ -60,7 +60,7 @@ function resolveBuildPropertiesPlugin() {
   const plugin = typeof mod === 'function' ? mod : mod.withBuildProperties || mod.default;
   if (typeof plugin !== 'function') {
     throw new Error(
-      "[@oxyhq/app-preset] Could not resolve the 'expo-build-properties' config plugin from the installed package.",
+      "[@oxy.so/app-preset] Could not resolve the 'expo-build-properties' config plugin from the installed package.",
     );
   }
   return plugin;

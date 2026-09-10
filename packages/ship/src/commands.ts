@@ -16,7 +16,7 @@ import {
 import { runExpoExport, readExpoPublicConfig } from './exec';
 import { resolveGitCommit, resolveGitBranch } from './git';
 import { createShipClient } from './config';
-import type { UpdatePlatform } from '@oxyhq/contracts';
+import type { UpdatePlatform } from '@oxy.so/contracts';
 
 /** Progress goes to stderr so `--json` keeps stdout clean for machine parsing. */
 function progress(message: string): void {

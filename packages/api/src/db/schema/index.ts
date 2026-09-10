@@ -10,13 +10,15 @@
  * Only TABLE modules belong here. `deferredForeignKeys.ts` and
  * `protectedColumns.ts` are schema support, imported directly by the code that
  * needs them; the shared column builders they and every table use
- * (`createdAt`, `generatedId`, `timestamptz`, ...) live in `@oxyhq/db`.
+ * (`createdAt`, `generatedId`, `timestamptz`, ...) live in `@oxy.so/db`.
  *
  * The conventions every table follows — naming, ids, enums, timestamps, foreign
  * keys, expiry, protected columns — are in `CONVENTIONS.md`. Read it before
  * adding a table.
  */
 export * from './accountBalances';
+export * from './accountClosureFences';
+export * from './agency';
 export * from './accountMembers';
 export * from './apiKeyUsageEvents';
 export * from './appAffinityEdges';
@@ -78,6 +80,7 @@ export * from './followEvents';
 export * from './identityBackups';
 export * from './identityBindings';
 export * from './inferenceDeployments';
+export * from './inferenceDeploymentRoutingScores';
 export * from './inferenceModelEvaluations';
 export * from './inferenceModelGpaiDocumentation';
 export * from './inferenceModelReleaseArtifacts';
@@ -87,6 +90,8 @@ export * from './inferenceModelRevisions';
 export * from './inferenceModels';
 export * from './inferenceProviderConnectionAuditEvents';
 export * from './inferenceProviderConnections';
+export * from './inferenceProviderCredentialOperations';
+export * from './inferenceProviderCredentialValidations';
 export * from './inferenceProviders';
 export * from './inferencePublishers';
 export * from './inferenceRouteSwitchEvents';
@@ -108,6 +113,7 @@ export * from './mailboxes';
 export * from './messageAttachments';
 export * from './messageRecipients';
 export * from './messages';
+export * from './mcpOAuth';
 export * from './moderationEffects';
 export * from './moderationPolicies';
 export * from './moderationPolicySeverityRules';
@@ -129,6 +135,7 @@ export * from './restrictions';
 export * from './reviewerReputationProfiles';
 export * from './securityActivities';
 export * from './senderAvatars';
+export * from './serviceActingAsRevocations';
 export * from './sessions';
 export * from './signedRecords';
 export * from './spendingLimits';

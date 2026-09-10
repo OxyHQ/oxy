@@ -14,7 +14,10 @@ export function SignUpPage() {
       codeChallenge={searchParams.get("code_challenge") ?? undefined}
       codeChallengeMethod={searchParams.get("code_challenge_method") ?? undefined}
       scope={searchParams.get("scope") ?? undefined}
+      resource={searchParams.get("resource") ?? undefined}
+      responseType={searchParams.get("response_type") ?? undefined}
       responseMode={searchParams.get("response_mode") ?? undefined}
+      mcpLinkIntent={searchParams.get("mcp_link_intent") ?? undefined}
     />
   );
 }

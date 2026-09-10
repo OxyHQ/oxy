@@ -10,7 +10,7 @@
  *
  * ## Absolute read-path invariant
  *
- * Every node fetch here goes through `@oxyhq/core/server`'s `safeFetch`
+ * Every node fetch here goes through `@oxy.so/core/server`'s `safeFetch`
  * (HTTPS-only, private-IP denylist, DNS-pinned, bounded redirects) and runs ONLY
  * in the background — the post-registration probe (fire-and-forget) and the
  * periodic sweep. No function in a request's read path ever awaits a node: a
@@ -44,9 +44,9 @@
 
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { signedRecordSigningInput } from '@oxyhq/protocol';
-import { safeFetch } from '@oxyhq/core/server';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { signedRecordSigningInput } from '@oxy.so/protocol';
+import { safeFetch } from '@oxy.so/core/server';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import {
   USER_NODE_CONTROLLERS,
@@ -169,7 +169,7 @@ export interface MaterializeNodeOptions {
 /**
  * Shape of the `record` payload inside a signed `type:'node'` envelope. Only
  * these fields are projected into the cache; anything else is ignored. Kept API-
- * internal (not a published `@oxyhq/contracts` schema) until F5 stabilises.
+ * internal (not a published `@oxy.so/contracts` schema) until F5 stabilises.
  */
 const nodeRecordSchema = z.object({
   endpoint: z.string().trim().min(1),

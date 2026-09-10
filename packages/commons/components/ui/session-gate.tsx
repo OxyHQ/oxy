@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { Redirect } from 'expo-router';
-import { useOxy, useOnlineStatus } from '@oxyhq/services';
-import { logger } from '@oxyhq/core';
+import { useOxy, useOnlineStatus } from '@oxy.so/services';
+import { logger } from '@oxy.so/core';
 import { useTranslation } from '@/lib/i18n';
 import { useOnboardingStatus } from '@/hooks/useOnboardingStatus';
 import { useSyncIdentity } from '@/hooks/identity/useSyncIdentity';

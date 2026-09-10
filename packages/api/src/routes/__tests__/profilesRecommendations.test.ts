@@ -37,7 +37,7 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
-import { recommendationResponseSchema, safeParseContract } from '@oxyhq/contracts';
+import { recommendationResponseSchema, safeParseContract } from '@oxy.so/contracts';
 
 
 /** The principal the mocked dual-auth middleware attaches. */

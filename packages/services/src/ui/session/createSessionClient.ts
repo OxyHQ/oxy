@@ -1,21 +1,20 @@
-import { io } from 'socket.io-client';
 import {
   SessionClient,
   createSessionClientHost,
   type OxyServices,
   type SessionStateOrigin,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { createTokenTransport } from './tokenTransport';
 
 /**
- * Wire a `SessionClient` for `@oxyhq/services`.
+ * Wire a `SessionClient` for `@oxy.so/services`.
  *
  * The platform-agnostic parts (host adapter, client, projection helpers) live
- * ONCE in `@oxyhq/core`; this thin factory only injects the pieces specific to
+ * ONCE in `@oxy.so/core`; this thin factory only injects the pieces specific to
  * the RN/Expo SDK:
  *
  *  - `socket.io-client`'s `io`, STATICALLY imported (socket.io-client is a real
- *    dependency of `@oxyhq/services`) so realtime session sync never relies on
+ *    dependency of `@oxy.so/services`) so realtime session sync never relies on
  *    core's lazy dynamic import of a bare specifier — bundler-fragile in
  *    Metro/Expo-web against the published core dist.
  *  - the device-first {@link createTokenTransport}, which mints a fallback token
@@ -53,7 +52,6 @@ export function createSessionClient(
   const transport = createTokenTransport(oxyServices, getPinnedAccountId);
   const client = new SessionClient(host, {
     transport,
-    socketFactory: io,
     onUnauthenticated,
     getPinnedAccountId,
   });

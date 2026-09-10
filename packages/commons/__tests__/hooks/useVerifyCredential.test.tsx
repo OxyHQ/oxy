@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { CredentialVerifyResult, VerifiableCredentialResponse } from '@oxyhq/contracts';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import type { CredentialVerifyResult, VerifiableCredentialResponse } from '@oxy.so/contracts';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 import { useVerifyCredential } from '@/hooks/useVerifyCredential';
 
 function makeCredential(

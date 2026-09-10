@@ -1,8 +1,8 @@
 import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { CredentialListResult, VerifiableCredentialResponse } from '@oxyhq/contracts';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import type { CredentialListResult, VerifiableCredentialResponse } from '@oxy.so/contracts';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 import { useCredentials, useMyCredentials } from '@/hooks/useCredentials';
 
 function makeCredential(

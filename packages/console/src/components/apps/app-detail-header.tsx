@@ -9,7 +9,7 @@ import {
 } from '@hugeicons/core-free-icons';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import { resolveStoredImageUrl } from '@/lib/image-upload';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 

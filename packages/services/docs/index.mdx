@@ -1,10 +1,10 @@
 ---
-title: '@oxyhq/services'
+title: '@oxy.so/services'
 description: Expo / React Native SDK with components, screens, and bottom-sheet navigation.
 order: 0
 ---
 
-# @oxyhq/services
+# @oxy.so/services
 
 The Expo, React Native, and React Native Web SDK for the Oxy platform. Ships `OxyProvider`, `useOxy`, the unified account dialog (switcher + sign-in), 25+ pre-built bottom-sheet screens (profile, security, files, payments, trust, …), and native UI primitives like `OxySignInButton`, `Avatar`, and `LogoIcon`.
 
@@ -12,14 +12,14 @@ The Expo, React Native, and React Native Web SDK for the Oxy platform. Ships `Ox
 
 ## What it is
 
-`@oxyhq/services` is the all-in-one mobile SDK. Drop `OxyProvider` at the root of your Expo app and you get sign-in, account management, multi-account switching, file uploads, security screens, and the bottom-sheet navigation system the official Oxy apps use. Authentication state, mutations, and offline queueing are wired through TanStack Query with `networkMode: 'offlineFirst'` and `AsyncStorage`-backed persistence.
+`@oxy.so/services` is the all-in-one mobile SDK. Drop `OxyProvider` at the root of your Expo app and you get sign-in, account management, multi-account switching, file uploads, security screens, and the bottom-sheet navigation system the official Oxy apps use. Authentication state, mutations, and offline queueing are wired through TanStack Query with `networkMode: 'offlineFirst'` and `AsyncStorage`-backed persistence.
 
-Web apps use this same package through `react-native-web` — there is no separate web auth SDK. For server / edge runtimes see [`@oxyhq/core`](/developers/docs/core).
+Web apps use this same package through `react-native-web` — there is no separate web auth SDK. For server / edge runtimes see [`@oxy.so/core`](/developers/docs/core).
 
 ## Install
 
 ```sh
-bun add @oxyhq/services @oxyhq/core
+bun add @oxy.so/services @oxy.so/core
 ```
 
 Required peer dependencies:
@@ -41,7 +41,7 @@ import 'react-native-url-polyfill/auto';
 ## Quick start
 
 ```tsx
-import { OxyProvider, OxySignInButton, useOxy } from '@oxyhq/services';
+import { OxyProvider, OxySignInButton, useOxy } from '@oxy.so/services';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function Root() {
@@ -74,7 +74,7 @@ function Shell() {
 The SDK ships a centralized bottom-sheet router with 29+ pre-built screens. Open one from anywhere with `showBottomSheet(routeName, screenProps?)`:
 
 ```tsx
-import { showBottomSheet } from '@oxyhq/services';
+import { showBottomSheet } from '@oxy.so/services';
 
 <Pressable onPress={() => showBottomSheet('ManageAccount')}>
   <Avatar uri={user?.avatarUrl} />
@@ -100,7 +100,7 @@ Screen modules are loaded on demand via `screenLoaders` in `ui/navigation/routes
 ### Open the account switcher
 
 ```tsx
-import { Avatar, showBottomSheet, useOxy } from '@oxyhq/services';
+import { Avatar, showBottomSheet, useOxy } from '@oxy.so/services';
 
 function Header() {
   const { user } = useOxy();
@@ -115,7 +115,7 @@ function Header() {
 ### Update profile with optimistic write
 
 ```tsx
-import { useUpdateProfile } from '@oxyhq/services';
+import { useUpdateProfile } from '@oxy.so/services';
 
 function UsernameField() {
   const { mutateAsync, isPending } = useUpdateProfile();
@@ -134,7 +134,7 @@ function UsernameField() {
 ### Aggregate mutation status (the "Syncing..." pill)
 
 ```tsx
-import { useMutationStatus } from '@oxyhq/services';
+import { useMutationStatus } from '@oxy.so/services';
 
 function SyncBadge() {
   const status = useMutationStatus(); // 'idle' | 'syncing' | 'error'
@@ -147,7 +147,7 @@ function SyncBadge() {
 ### Upload a file (with FormData via XHR)
 
 ```tsx
-import { useUploadFile } from '@oxyhq/services';
+import { useUploadFile } from '@oxy.so/services';
 
 const { mutateAsync, isPending } = useUploadFile();
 await mutateAsync({ uri: pickedAsset.uri, type: 'image/jpeg', name: 'photo.jpg' });
@@ -158,7 +158,7 @@ On React Native (Expo 56), uploads route through `XMLHttpRequest` — `fetch` re
 ### Online status banner
 
 ```tsx
-import { useOnlineStatus } from '@oxyhq/services';
+import { useOnlineStatus } from '@oxy.so/services';
 
 function OfflineBanner() {
   const online = useOnlineStatus();

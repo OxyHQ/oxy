@@ -29,7 +29,7 @@
  * Postgres this process may create and drop databases on, e.g.:
  *
  *   OXYDB_TEST_ADMIN_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres \
- *     bun run --filter @oxyhq/db test -- liveDatabase.test.ts
+ *     bun run --filter @oxy.so/db test -- liveDatabase.test.ts
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';

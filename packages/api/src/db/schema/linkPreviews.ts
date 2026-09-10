@@ -19,11 +19,11 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text } from 'drizzle-orm/pg-core';
-import type { LinkPreviewStatus } from '@oxyhq/contracts';
-import { createdAt, timestamptz, updatedAt } from '@oxyhq/db';
+import type { LinkPreviewStatus } from '@oxy.so/contracts';
+import { createdAt, timestamptz, updatedAt } from '@oxy.so/db';
 
 /**
- * Resolution states, mirroring `@oxyhq/contracts`' `LinkPreviewStatus`.
+ * Resolution states, mirroring `@oxy.so/contracts`' `LinkPreviewStatus`.
  *
  * `satisfies` proves every value here is a valid status; `LinkPreviewStatusGap`
  * proves the reverse, so adding a status in contracts fails THIS file's

@@ -307,7 +307,7 @@ const cases = [
     // guard would have inspected nothing.
     name: 'a schema module that throws on import FAILS loudly',
     tables: {},
-    source: "throw new Error('cannot resolve @oxyhq/db');\n",
+    source: "throw new Error('cannot resolve @oxy.so/db');\n",
     expectFailure: true,
     expectOutput: 'could not be imported',
   },

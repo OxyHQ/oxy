@@ -14,8 +14,8 @@
  */
 
 import { useCallback, useState } from 'react';
-import { useOxy } from '@oxyhq/services';
-import type { CredentialVerifyResult } from '@oxyhq/contracts';
+import { useOxy } from '@oxy.so/services';
+import type { CredentialVerifyResult } from '@oxy.so/contracts';
 import {
   credentialVerifyReason,
   type CredentialVerifyReasonCode,

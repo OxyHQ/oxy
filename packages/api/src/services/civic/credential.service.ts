@@ -37,9 +37,9 @@ import type {
   CredentialStatus,
   DidDocument,
   Secp256k1VerificationMethod,
-} from '@oxyhq/contracts';
-import { credentialRecordSchema } from '@oxyhq/contracts';
-import { signedRecordSigningInput, verifyEnvelopeSignature, type RejectionReason } from '@oxyhq/protocol';
+} from '@oxy.so/contracts';
+import { credentialRecordSchema } from '@oxy.so/contracts';
+import { signedRecordSigningInput, verifyEnvelopeSignature, type RejectionReason } from '@oxy.so/protocol';
 import SignatureService from '../signature.service';
 import {
   buildUserDid,
@@ -55,7 +55,7 @@ import { verifyAndStoreRecord } from '../signedRecord.service';
 import { getHead } from '../repoLog.service';
 import { oxyRecordStore } from '../oxyRecordStore';
 import { getDb } from '../../config/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { userVerifiedDomains } from '../../db/schema/userVerifiedDomains';
 import { users } from '../../db/schema/users';

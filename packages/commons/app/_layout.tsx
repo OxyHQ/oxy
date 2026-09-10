@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import 'react-native-reanimated';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
+import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 
 // Reanimated 4 ships with a strict logger that surfaces `.value` reads during
 // render as runtime warnings. Several deeply nested third-party components in
@@ -21,9 +21,11 @@ configureReanimatedLogger({
 
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useQueryClient } from '@tanstack/react-query';
-import { OxyProvider, useOxy } from '@oxyhq/services';
-import { KeyManager, logger } from '@oxyhq/core';
-import { BloomThemeProvider, useNavigationTheme } from '@oxyhq/bloom/theme';
+import { OxyProvider, useOxy } from '@oxy.so/services';
+import { productAnalytics } from '@/lib/product-analytics';
+import { KeyManager, logger } from '@oxy.so/core';
+import { useNavigationTheme } from '@oxy.so/bloom/theme';
+import { BloomProvider } from '@oxy.so/bloom/provider';
 
 import { ScrollProvider } from '@/contexts/scroll-context';
 import { ThemeModeProvider, useThemeMode } from '@/contexts/theme-mode-context';
@@ -44,11 +46,11 @@ import { useForegroundNotificationHandler } from '@/hooks/notifications/useForeg
 import {
   preventNativeSplashAutoHide,
   useHideNativeSplashWhenReady,
-} from '@oxyhq/expo-splash';
+} from '@oxy.so/expo-splash';
 
 // NATIVE ONLY: hold the OS splash so the Oxy mark (white silhouette centered on
 // the dark brand background, Oxy symbol pinned to the bottom — configured by
-// `@oxyhq/expo-splash` in app.config.js) stays visible until the app can paint
+// `@oxy.so/expo-splash` in app.config.js) stays visible until the app can paint
 // its FIRST real screen. Commons is NATIVE-ONLY (no web build), so the branded
 // native OS splash is the single splash. We hold it here and hide it from
 // `AppStackContent` (below) once the app is genuinely ready — see the note there
@@ -197,10 +199,10 @@ function RootLayoutInner() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardProvider>
-        {/* OxyProvider does NOT wrap a BloomThemeProvider — by design, to
+        {/* OxyProvider does NOT wrap a BloomProvider — by design, to
             avoid duplicate contexts when an app already ships its own (see
             packages/services/src/ui/components/OxyProvider.tsx). The consumer
-            (this app) owns the BloomThemeProvider and feeds it the resolved
+            (this app) owns the BloomProvider and feeds it the resolved
             theme mode from ThemeModeProvider. */}
         <BloomThemeProvider mode={themeMode}>
           {/* `sessionMode="identity"` — Commons IS the identity, so its session
@@ -222,13 +224,14 @@ function RootLayoutInner() {
             clientId={OXY_CLIENT_ID}
             sessionMode="identity"
             backgroundSession
+            productAnalytics={productAnalytics}
           >
             <LocaleProvider>
               <AppHead />
               <AppStackContent />
             </LocaleProvider>
           </OxyProvider>
-        </BloomThemeProvider>
+        </BloomProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>
   );
@@ -249,7 +252,7 @@ function AppHead() {
  * Renders the navigation stack and drives the native OS splash hand-off.
  *
  * Readiness is computed HERE, inside the providers, not on frame 1 of
- * `RootLayoutInner`. This component lives UNDER `<BloomThemeProvider>`, whose
+ * `RootLayoutInner`. This component lives UNDER `<BloomProvider>`, whose
  * Bloom `FontLoader` gates its subtree — so by the time `AppStackContent`
  * mounts at all, fonts are already loaded. The only remaining readiness signals
  * are:
@@ -264,7 +267,7 @@ function AppHead() {
  * screen, with no blank frame and no white flash.
  */
 function AppStackContent() {
-  // Must be called inside OxyProvider (which wraps BloomThemeProvider)
+  // Must be called inside OxyProvider (which wraps BloomProvider)
   const navTheme = useNavigationTheme();
   const { isStorageReady } = useOxy();
   const { status, needsAuth, identityPresent } = useOnboardingStatus();
@@ -274,7 +277,7 @@ function AppStackContent() {
 
   // NOTE: connecting the vault's session from its OWN primary identity key is
   // the SDK's job, not this app's. `sessionMode="identity"` (see the provider
-  // above) makes `identity-key-signin` a cold-boot step in `@oxyhq/core`, and
+  // above) makes `identity-key-signin` a cold-boot step in `@oxy.so/core`, and
   // the SDK also owns the in-session re-mint, the 401 recovery arm and the
   // offline→online reconnect heal. The app-local auto-connect driver that used
   // to live here was deleted — do not reintroduce one.

@@ -1,7 +1,7 @@
 /**
  * The handshake between `authorize-surface-probe.tsx` and the test that builds
  * it. Kept in its own module because the probe itself cannot be imported by the
- * test: it pulls the real `@oxyhq/bloom` and `@oxyhq/services`, whose React
+ * test: it pulls the real `@oxy.so/bloom` and `@oxy.so/services`, whose React
  * Native dependencies carry Flow syntax that `bun test` refuses to parse. The
  * probe is only ever reached through Vite, which strips Flow; the test only ever
  * needs what is declared here.

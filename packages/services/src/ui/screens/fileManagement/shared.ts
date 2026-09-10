@@ -1,5 +1,5 @@
-import type { RNFileDescriptor } from '@oxyhq/core';
-import { getErrorMessage as getOxyErrorMessage } from '@oxyhq/core';
+import type { RNFileDescriptor } from '@oxy.so/core';
+import { getErrorMessage as getOxyErrorMessage } from '@oxy.so/core';
 
 // Lazy load expo-document-picker (optional dependency).
 // This allows the screen to work even if expo-document-picker is not installed.
@@ -16,7 +16,7 @@ export const loadDocumentPicker = async () => {
 
 /**
  * Extract error message from unknown error type.
- * Delegates to the canonical `getErrorMessage` in `@oxyhq/core` and returns
+ * Delegates to the canonical `getErrorMessage` in `@oxy.so/core` and returns
  * `undefined` for empty results (so callers can fall back to a translated
  * message via `||`).
  */

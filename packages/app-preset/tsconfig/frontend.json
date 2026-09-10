@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "//": "@oxyhq/app-preset — Expo / React Native frontend TypeScript config. Not compiled by tsc (Metro/Expo bundles the source); tsc is only for type-checking. Extends BOTH the Oxy base (strict/composite defaults) AND expo/tsconfig.base (React-Native JSX, customConditions:[\"react-native\"], bundler resolution). Later entries win, so the Expo base overrides the Oxy base where they differ; the explicit overrides below win over both. Consumers extend this and add their own `paths` (e.g. \"@/*\") + `include`.",
+  "//": "@oxy.so/app-preset — Expo / React Native frontend TypeScript config. Not compiled by tsc (Metro/Expo bundles the source); tsc is only for type-checking. Extends BOTH the Oxy base (strict/composite defaults) AND expo/tsconfig.base (React-Native JSX, customConditions:[\"react-native\"], bundler resolution). Later entries win, so the Expo base overrides the Oxy base where they differ; the explicit overrides below win over both. Consumers extend this and add their own `paths` (e.g. \"@/*\") + `include`.",
   "extends": ["./base.json", "expo/tsconfig.base"],
   "compilerOptions": {
     "jsx": "react-native",

@@ -14,8 +14,8 @@
 
 import { randomUUID } from 'node:crypto';
 import { eq, getTableColumns, sql } from 'drizzle-orm';
-import { sqlColumnName } from '@oxyhq/db';
-import { USAGE_UNITS } from '@oxyhq/contracts';
+import { sqlColumnName } from '@oxy.so/db';
+import { USAGE_UNITS } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { accountBalances } from '../accountBalances';
 import {

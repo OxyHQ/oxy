@@ -16,7 +16,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 const mockGetPublicLogSince = jest.fn();
 const mockGetHead = jest.fn();
@@ -43,7 +43,7 @@ jest.mock('../../services/repoLog.service', () => ({
 
 jest.mock('../../services/nodeRegistry.service', () => ({ materializeNodeFromRecord: jest.fn() }));
 jest.mock('../../utils/userCache', () => ({ __esModule: true, default: { invalidate: jest.fn() } }));
-jest.mock('@oxyhq/core/server', () => ({ safeFetch: jest.fn() }));
+jest.mock('@oxy.so/core/server', () => ({ safeFetch: jest.fn() }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));

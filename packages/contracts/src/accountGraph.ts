@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { usernameSchema, usernameSchemaForAccountKind } from './username';
 
 /**
  * Account-graph classification — the ONE authority for the kind vocabulary.
@@ -27,7 +28,7 @@ export type AccountKind = 'personal' | 'organization' | 'project' | 'bot' | 'cha
  * `db/schema/users.ts` mirrors to keep the `users_kind_check` CHECK honest.
  *
  * Deriving the union from the array instead would cost nothing here and be paid
- * by consumers: `kind` travels into `@oxyhq/services` on every device-directory
+ * by consumers: `kind` travels into `@oxy.so/services` on every device-directory
  * context (`deviceContextSchema.kind` → `DeviceContext` → the switcher rows),
  * and an indexed-access type is materially more expensive to check there than a
  * literal union.
@@ -67,9 +68,13 @@ export type ChildAccountKindGap = Exclude<
 export const childAccountKindSchema = z.enum(CHILD_ACCOUNT_KINDS);
 
 /**
- * Whether an operator may ACT AS an account of this kind — switch the whole app
- * into it (`POST /accounts/:id/switch`) or authorise an app to act as it
- * (an OAuth delegated subject).
+ * Whether an account of this kind may be the SUBJECT OF A DELEGATION — an
+ * application acting as it on some person's authority. `POST /internal/accounts/
+ * :id/service-switch` and the OAuth delegated subject both gate on this.
+ *
+ * It is NOT the question an account switcher asks. See
+ * {@link isOperatorSwitchTargetKind}, and the note below on why the difference
+ * is `bot`.
  *
  * Two kinds are refused, for opposite reasons:
  *
@@ -86,8 +91,43 @@ export const childAccountKindSchema = z.enum(CHILD_ACCOUNT_KINDS);
  * Consumers must gate on this predicate rather than testing `kind === 'personal'`,
  * which silently admits every kind added after it was written.
  */
-export function isActAsEligibleKind(kind: AccountKind | null | undefined): boolean {
+export function isDelegatedActAsEligibleKind(kind: AccountKind | null | undefined): boolean {
   return kind === 'organization' || kind === 'project' || kind === 'bot';
+}
+
+/**
+ * Whether a PERSON may switch into an account of this kind — become it, in an
+ * account switcher, for the rest of their session.
+ *
+ * ## Why this is not the same question as {@link isDelegatedActAsEligibleKind}
+ *
+ * The two differ on exactly one kind, `bot`, and that difference is the whole
+ * reason both exist.
+ *
+ * **A bot is not something you become. It is something that operates on your
+ * behalf.** Its whole purpose is to act while nobody is present: an application
+ * holds a credential, names the human whose authority it borrows, and speaks as
+ * the bot. That is delegation, and it is what
+ * {@link isDelegatedActAsEligibleKind} admits it for.
+ *
+ * Handing a person the bot's seat instead inverts that. It puts a human inside
+ * the identity that exists to act without one, and it does so on the human's own
+ * device, next to their personal login — which is precisely what happened: a
+ * `bot` account held a live session on a person's device, offered to them by a
+ * switcher that had asked the delegation question by mistake.
+ *
+ * `channel` is refused here as well, for the reason set out above, and
+ * `personal` because assuming somebody else's login is impersonation.
+ *
+ * ## This is the narrower predicate, deliberately
+ *
+ * Everything a person may become, a service may also act as; the reverse does
+ * not hold. A caller that is unsure which question it is asking wants THIS one:
+ * being wrong here withholds an affordance, while being wrong the other way
+ * hands out a seat.
+ */
+export function isOperatorSwitchTargetKind(kind: AccountKind | null | undefined): boolean {
+  return kind === 'organization' || kind === 'project';
 }
 
 /**
@@ -147,7 +187,7 @@ export function isAccountKind(value: unknown): value is AccountKind {
  * that fits nothing here.
  *
  * TO ADD ONE: append an id (lowercase ASCII, `snake_case`) here, publish
- * `@oxyhq/contracts`, then ship a migration that widens
+ * `@oxy.so/contracts`, then ship a migration that widens
  * `users_account_categories_check` — never edit an existing migration — and add
  * an `accounts.accountCategory.<id>` label to each client's locales.
  *
@@ -346,7 +386,7 @@ export const accountCategoriesSchema = z
  *
  * A person has interests, not a sector — and their interests are not a
  * classification anybody else gets to read off their profile. Spelled out
- * positively, like {@link isActAsEligibleKind} and for the same reason: a `kind
+ * positively, like {@link isDelegatedActAsEligibleKind} and for the same reason: a `kind
  * !== 'personal'` test silently admits every kind invented after it was
  * written, whereas this list forces whoever adds one to decide.
  */
@@ -408,13 +448,102 @@ const accountNameSchema = z
 export const createAccountRequestSchema = z.object({
   parentAccountId: z.string().trim().min(1).optional(),
   kind: childAccountKindSchema,
-  username: z.string().trim().min(1).max(100),
+  /**
+   * The SAME policy a person's handle is held to. `users.username` is one unique
+   * index, so a managed account may not reserve a name a person could not ask
+   * for — and this route's predecessor (`.min(1).max(100)` here, `^[\w.-]+$`
+   * with no ceiling in the service) is how a one-character or dotted or
+   * 100-character handle became reachable for bots alone.
+   *
+   * A `bot` is held to that AND to the label its handle must end in. That half
+   * cannot live on this field — it depends on `kind`, a sibling — so it is in the
+   * `superRefine` below, which reports its issue against this path.
+   */
+  username: usernameSchema,
   name: accountNameSchema,
   bio: z.string().trim().max(500).optional(),
   avatar: z.string().optional(),
   description: z.string().trim().max(1000).optional(),
+  /**
+   * A named color preset KEY (`"blue"`, `"mint"`, …), never a hex value.
+   *
+   * Here at CREATION for the reason `isPrivateAccount` is, in miniature: for a
+   * managed account the color is a visual identity, and an account that is
+   * discoverable without one and acquires it on a second request is a face that
+   * changes by itself. One statement, one row, born looking like what its owner
+   * chose.
+   *
+   * The VALUE is checked in the API rather than here. The vocabulary is
+   * `USER_COLOR_PRESETS`, which is declared next to the `users_color_check` CHECK
+   * that is rendered from it — pinning the list a second time in this package
+   * would be a second source of truth for what the database accepts, and the two
+   * would drift apart silently. What this shape does is keep an over-long or
+   * non-string value from reaching the service at all.
+   */
+  color: z.string().trim().max(32).optional(),
   /** Ordered, PRIMARY FIRST — see rule 2 above {@link ACCOUNT_CATEGORY_IDS}. */
   accountCategories: accountCategoriesSchema.optional(),
+  /**
+   * Create the account already opted OUT of discovery.
+   *
+   * ## Why this belongs at CREATION and not only on the privacy route
+   *
+   * Every account is born discoverable: the column defaults to `false` and
+   * nothing on the create path wrote it, so a new account appears in people
+   * search the instant it exists. For a human signing themselves up that is the
+   * right default and it is NOT changed here. For an account a program creates
+   * on someone's behalf — an agent, an unlaunched project, an organization for
+   * something not yet announced — it publishes the thing before its owner ever
+   * decided to.
+   *
+   * The alternative is a second call right after create, which is a window in
+   * which the account IS public, and a window whose closing depends on a second
+   * request succeeding. A field here has neither: one statement, one row, born
+   * in the state the caller asked for.
+   *
+   * ## It reuses the existing flag deliberately
+   *
+   * This is `privacy_is_private_account`, the same one `PUT /users/:id/privacy`
+   * toggles — not a new "published" column. A second visibility flag would be a
+   * second source of truth for one question, and the two would disagree.
+   *
+   * Inherited semantics, stated because reusing a flag means inheriting ALL of
+   * it: the account is kept out of people search, out of the follow-graph lists
+   * (`followers` / `following` / `mutuals`), out of `/similar` and out of the
+   * recommendation candidate pools, and its non-public, non-unlisted media
+   * becomes follower-gated. It does NOT hide the profile from someone who knows
+   * the handle, and it carries NO follow-approval flow — following is immediate
+   * and unilateral whatever this says, so nothing here creates a request queue
+   * nobody attends.
+   *
+   * ## Not conditioned on `kind`, on purpose
+   *
+   * The same reasoning as `accountCategories` above: this object does not
+   * refine on kind, and an unlaunched organization has exactly the problem an
+   * unpublished agent does. The discovery predicate never reads `kind`, so the
+   * remedy must not either.
+   */
+  isPrivateAccount: z.boolean().optional(),
+}).superRefine((request, ctx) => {
+  // The ONE place `kind` and `username` arrive in the same object, so it is the
+  // only place a wire schema CAN apply the per-kind half of the policy: a bot's
+  // handle must end in `bot`. Not a second rule — it asks
+  // `usernameSchemaForAccountKind`, the same declaration the service asks.
+  //
+  // It is here rather than only in the API because this schema is exported for
+  // CLIENTS: an agent-creation flow that validates its request and is then 400ed
+  // by the server is the "propose, then refuse" defect the minimum length
+  // already caused once. The service check stays regardless — it also governs
+  // renames and the service-provisioned channel route, where the kind comes from
+  // the stored row and never from this object.
+  const parsed = usernameSchemaForAccountKind(request.kind).safeParse(request.username);
+  if (!parsed.success) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['username'],
+      message: parsed.error.issues[0].message,
+    });
+  }
 });
 
 export type CreateAccountRequest = z.infer<typeof createAccountRequestSchema>;

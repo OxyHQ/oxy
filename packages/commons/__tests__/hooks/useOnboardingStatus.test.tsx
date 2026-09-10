@@ -2,9 +2,9 @@ import { useEffect, type ReactNode } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Platform } from 'react-native';
-import type { IdentityStatus } from '@oxyhq/core';
-import { KeyManager } from '@oxyhq/core';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import type { IdentityStatus } from '@oxy.so/core';
+import { KeyManager } from '@oxy.so/core';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 
 const getIdentityStatusMock = jest.fn<Promise<IdentityStatus>, [unknown?]>();
 
@@ -21,8 +21,8 @@ const subscribeIdentityChangedMock = jest.fn((listener: () => void) => {
 // Mock KeyManager.getIdentityStatus (the sole identity probe the hook now uses)
 // and subscribeIdentityChanged surgically. Everything else passes through to the
 // real built module so types + error classes remain consistent.
-jest.mock('@oxyhq/core', () => {
-  const actual = jest.requireActual('@oxyhq/core');
+jest.mock('@oxy.so/core', () => {
+  const actual = jest.requireActual('@oxy.so/core');
   return {
     ...actual,
     KeyManager: {

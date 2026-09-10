@@ -6,7 +6,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, index, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { messages } from './messages';
 import { users } from './users';
 

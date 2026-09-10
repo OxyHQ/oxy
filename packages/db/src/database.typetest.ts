@@ -6,7 +6,7 @@ import type { SqlExecutor } from './database';
  * (unlike `__tests__`, which it does exclude), but excluded from every BUILD
  * tsconfig (`tsconfig.cjs.json`/`tsconfig.esm.json`/`tsconfig.types.json`, via
  * their own `**\/*.typetest.ts` exclude entry) — so it is checked by `bun run
- * --filter @oxyhq/db typescript` but never emitted into `dist/`.
+ * --filter @oxy.so/db typescript` but never emitted into `dist/`.
  *
  * `jest.config.js` now type-checks `__tests__` too (Task 4b overrides
  * `isolatedModules: false` for ts-jest's own resolved compiler options, since

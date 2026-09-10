@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { useTabBarFootprint } from '@oxyhq/bloom/tab-bar';
+import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useColors } from '@/hooks/useColors';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
 

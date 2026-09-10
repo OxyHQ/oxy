@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { OxyAuthChooser, useOxy } from "@oxyhq/services"
-import { getCommonsApprovalBlockingReason, getNormalizedUserHandle, type CommonsApprovalInfo } from "@oxyhq/core"
-import { Button } from "@oxyhq/bloom/button"
+import { OxyAuthChooser, useOxy } from "@oxy.so/services"
+import { getCommonsApprovalBlockingReason, getNormalizedUserHandle, type CommonsApprovalInfo } from "@oxy.so/core"
+import { Button } from "@oxy.so/bloom/button"
 import { buildAuthUrl } from "@/lib/oxy-api-client"
 import { AuthFormLayout, AuthFormHeader, LoadingSpinner } from "@/components/auth-form-layout"
 

@@ -134,6 +134,51 @@ describe('peopleSearchPredicate', () => {
   });
 });
 
+describe('peopleSearchPredicate — account kind', () => {
+  /**
+   * PINS A PRODUCT DECISION THAT NOTHING ELSE PINNED.
+   *
+   * People search is BLIND to `users.kind`: a bot, an organization, a project
+   * and a channel are all returned beside people, on every people surface
+   * (`GET /search`, `GET /profiles/search`, `POST /users/search`), because all
+   * three share this predicate and it has no kind clause.
+   *
+   * Before this test, no suite in the API seeded a non-personal account into a
+   * search — every people-search case used `personal` rows. So adding a kind
+   * clause here, which would remove every bot, organization and channel from
+   * every search surface in the ecosystem at once, was a change CI COULD NOT
+   * SEE. That is the failure this exists for: not that the current behaviour is
+   * right, but that changing it must be a decision somebody makes on purpose.
+   *
+   * The exclusions are the control, and they are what stop this from being
+   * vacuous. "Every kind comes back" is exactly what a predicate that had
+   * stopped filtering ANYTHING would also produce, so a private bot and an
+   * archived bot are seeded alongside: they must NOT come back, which proves
+   * the predicate still discriminates and simply does not discriminate on kind.
+   *
+   * If this ever needs to change, the axis is almost certainly `published` vs
+   * `unpublished` rather than kind — an organization exists to be found, and so
+   * does a channel. `privacyIsPrivateAccount` already expresses that, as the
+   * private bot below demonstrates.
+   */
+  it('returns EVERY account kind, while still excluding private and archived ones', async () => {
+    const personal = await makeUser({ kind: 'personal' });
+    const bot = await makeUser({ kind: 'bot' });
+    const organization = await makeUser({ kind: 'organization' });
+    const project = await makeUser({ kind: 'project' });
+    const channel = await makeUser({ kind: 'channel' });
+    // The controls. Same kind as one of the rows above, so the only thing that
+    // can explain their absence is the gate rather than the kind.
+    const privateBot = await makeUser({ kind: 'bot', privacyIsPrivateAccount: true });
+    const archivedBot = await makeUser({ kind: 'bot', accountStatus: 'archived' });
+    const scope = [personal, bot, organization, project, channel, privateBot, archivedBot];
+
+    expect(await idsMatching(peopleSearchPredicate(), scope)).toEqual(
+      [personal, bot, organization, project, channel].sort()
+    );
+  });
+});
+
 describe('normalizePeopleSearchTerm', () => {
   it('strips one leading @ and caps fuzzy terms at 100 characters', () => {
     const fuzzy = 'a'.repeat(120);

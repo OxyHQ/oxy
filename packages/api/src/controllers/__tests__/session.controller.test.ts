@@ -518,6 +518,44 @@ describe('verifyChallenge', () => {
     );
   });
 
+  it('ignores a deviceId in the body — this endpoint proves identity, not device ownership', async () => {
+    // `createSession` documents its precedence as
+    // `deviceId > stableDeviceKey > UA/IP > random` and stamps an explicit id
+    // VERBATIM. Signing a challenge proves you hold the key for THIS account;
+    // it proves nothing about a device id you merely typed. Honouring one here
+    // put the session — and then `finalizeDeviceLogin`'s device secret — on a
+    // device the caller does not own.
+    const { key, challenge } = await signer();
+    mockCreateSession.mockResolvedValueOnce({
+      sessionId: 'sess-pin',
+      deviceId: 'dev-derived',
+      expiresAt: new Date(Date.now() + 60_000),
+      accessToken: 'at-pin',
+      createdAt: new Date(),
+      deviceType: 'desktop',
+      platform: 'web',
+    });
+    mockFinalizeDeviceLogin.mockResolvedValueOnce({ deviceSecret: 'ds-pin' });
+    const res = captureRes();
+
+    await SessionController.verifyChallenge(
+      request({ body: { ...verifyBody(key, challenge), deviceId: 'someone-elses-device' } }),
+      asResponse(res)
+    );
+
+    const options = mockCreateSession.mock.calls[0][2];
+    expect(options).not.toHaveProperty('deviceId');
+    // Positive control: the options object really is the one being inspected,
+    // so `not.toHaveProperty` is not passing against an empty argument.
+    expect(mockCreateSession).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.anything(),
+      expect.objectContaining({ deviceName: undefined, deviceFingerprint: undefined })
+    );
+    // The session still lands, on the id the server derived.
+    expect(res.body).toMatchObject({ sessionId: 'sess-pin', deviceId: 'dev-derived' });
+  });
+
   it('never puts a bearer credential of the account on the wire', async () => {
     const { key, challenge } = await signer();
     mockCreateSession.mockResolvedValueOnce({

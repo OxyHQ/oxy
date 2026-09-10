@@ -17,21 +17,20 @@
  * assert which key produced each signature.
  */
 
-import type { DidDocument } from '@oxyhq/contracts';
-import * as protocol from '@oxyhq/protocol';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
+import type { DidDocument } from '@oxy.so/contracts';
+import * as protocol from '@oxy.so/protocol';
 import { OxyServices } from '../../OxyServices';
 import { KeyManager } from '../../crypto/keyManager';
 import { SignatureService } from '../../crypto/signatureService';
 import { RecoveryPhraseService } from '../../crypto/recoveryPhrase';
 import { setPlatformOS } from '../../utils/platform';
 
-const ec = new EC('secp256k1');
-const oldKeyPair = ec.genKeyPair();
-const newKeyPair = ec.genKeyPair();
-const OLD_PUBLIC = oldKeyPair.getPublic('hex');
-const NEW_PUBLIC = newKeyPair.getPublic('hex');
-const NEW_PRIVATE = newKeyPair.getPrivate('hex');
+const oldKeyPair = generateSecp256k1KeyPair();
+const newKeyPair = generateSecp256k1KeyPair();
+const OLD_PUBLIC = oldKeyPair.publicKey;
+const NEW_PUBLIC = newKeyPair.publicKey;
+const NEW_PRIVATE = newKeyPair.privateKey;
 
 const pendingFixture = {
   phrase: 'alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima',

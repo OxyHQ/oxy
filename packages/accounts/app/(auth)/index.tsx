@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Linking, ScrollView } from 'react-native';
-import { useOxy, LogoText, openAccountDialog } from '@oxyhq/services';
-import { logger } from '@oxyhq/core';
+import { useOxy, LogoText, openAccountDialog } from '@oxy.so/services';
+import { logger } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { Button } from '@/components/ui';

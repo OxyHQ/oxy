@@ -37,7 +37,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, pgTable, primaryKey, text } from 'drizzle-orm/pg-core';
-import { inList, timestamptz } from '@oxyhq/db';
+import { inList, timestamptz } from '@oxy.so/db';
 
 /**
  * The closed set of things the backfill can find. Declared once and used for

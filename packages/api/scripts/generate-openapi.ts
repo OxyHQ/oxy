@@ -21,7 +21,8 @@
  *        * tags by mount prefix using a human-friendly mapping
  *          (e.g. `/auth/*` → "Authentication")
  *        * infers required security (bearerAuth for anything that uses
- *          `authMiddleware`, serviceTokenAuth for `serviceAuthMiddleware`)
+ *          `authMiddleware` or `emailCapabilityAuth`, serviceTokenAuth for
+ *          `serviceAuthMiddleware`)
  *        * applies the standard error envelope for 4xx/5xx responses.
  *   4. Write the merged document to `packages/api/openapi.json` so the website
  *      sync step can copy it via `git show <ref>:openapi.json`.
@@ -37,6 +38,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import swaggerJsdoc from 'swagger-jsdoc';
 import { z, ZodTypeAny } from 'zod';
+import { INBOX_CAPABILITY_CATALOG } from '../src/capabilities/inbox.catalog';
 
 interface OpenApiInfo {
   title: string;
@@ -77,7 +79,7 @@ const PACKAGE_ROOT = path.resolve(__dirname, '..');
  * the worst possible shape for a tool that writes a PUBLISHED contract: the
  * output looks complete, nothing about the run says otherwise, and the drift is
  * discovered later by whoever trusted it. Measured before this change —
- * `@oxyhq/contracts` and `@oxyhq/db` unbuilt dropped `components.schemas` from
+ * `@oxy.so/contracts` and `@oxy.so/db` unbuilt dropped `components.schemas` from
  * 7 to 4, and the run still reported success.
  *
  * A generator that quietly emits a partial contract is worse than the drift it
@@ -479,7 +481,7 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
       // invisible. A discriminated union used to fall through to the `default`
       // arm below and be published as `{}` — which in OpenAPI does not mean
       // "shape unknown", it means ANY VALUE IS VALID. Measured on `main`: eleven
-      // discriminated unions in `@oxyhq/contracts`' inference namespace alone
+      // discriminated unions in `@oxy.so/contracts`' inference namespace alone
       // were published as unconstrained, `inferenceContentPartSchema` among them
       // — so the published contract said a chat message's content array accepts
       // anything at all, and a generated client typed it `Any`.
@@ -493,7 +495,7 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
     }
     case 'ZodBranded': {
       // A brand is a compile-time-only distinction; the wire shape is the inner
-      // schema's. Reached from `@oxyhq/contracts` identifier types.
+      // schema's. Reached from `@oxy.so/contracts` identifier types.
       return zodToOpenApi((def as { type: ZodTypeAny }).type);
     }
     case 'ZodAny':
@@ -519,7 +521,7 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
  * Load one module a schema reference resolves through, memoized.
  *
  * `specifier` is what the route file wrote — `../schemas/email.schemas` or
- * `@oxyhq/contracts` — narrowed by `schemaModuleSpecifier` before it gets here,
+ * `@oxy.so/contracts` — narrowed by `schemaModuleSpecifier` before it gets here,
  * so nothing with side effects is ever imported.
  */
 const loadedSchemaModules = new Map<string, Record<string, unknown>>();
@@ -649,6 +651,7 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
   'emailProxy.ts': ['/email/proxy'],
   'emailInbound.ts': ['/email/inbound'],
   'email.ts': ['/email'],
+  'inboxInference.ts': ['/email/ai'],
   'credits.ts': ['/credits'],
   'billing.ts': ['/billing'],
   'inferenceEdge.ts': ['/v1'],
@@ -657,14 +660,6 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
   'inferenceRoutingPolicies.ts': ['/inference/routing-policies'],
   'inferenceProviderConnections.ts': ['/inference/provider-connections'],
   'inferenceReporting.ts': ['/inference/reporting'],
-  // Mounted twice, and the two mounts STRADDLE the edge in `server.ts`: `/alia`
-  // at `:683`, the edge's `/v1` at `:690`, this router's `/v1` at `:701`. The
-  // entry sits after the edge because only the `/v1` mount can collide, and the
-  // edge must win it: `server.ts:695-700` states that what the proxy still owns
-  // under `/v1` is `/v1/voice/token` and `/v1/voice/transcribe`, and that
-  // `/v1/chat/completions` is no longer among them. First-wins in dispatch order
-  // reproduces exactly that.
-  'alia.ts': ['/alia', '/v1'],
   'platform-stats.ts': ['/platform-stats'],
   'topics.routes.ts': ['/topics'],
   'contacts.ts': ['/contacts'],
@@ -708,7 +703,6 @@ const TAG_GROUPS: Record<string, string> = {
   '/email/proxy': 'Email',
   '/email/inbound': 'Email',
   '/email': 'Email',
-  '/alia': 'AI',
   '/credits': 'Credits',
   '/billing': 'Billing',
   '/v1': 'Inference',
@@ -742,7 +736,7 @@ const TAG_GROUPS: Record<string, string> = {
  * `/v1` surface was published as taking an empty body.
  *
  * A map also could not express the second half of the truth: a route may validate
- * against a schema from `@oxyhq/contracts` rather than from `src/schemas/`, and 20
+ * against a schema from `@oxy.so/contracts` rather than from `src/schemas/`, and 20
  * `validate()` references do exactly that. One entry per file cannot name two
  * modules.
  *
@@ -795,7 +789,7 @@ function schemaModuleSpecifier(specifier: string): string | undefined {
   // same TypeScript source.
   const bare = specifier.replace(/\.js$/, '');
   if (bare.startsWith('../schemas/')) return bare;
-  if (bare === '@oxyhq/contracts') return bare;
+  if (bare === '@oxy.so/contracts') return bare;
   return undefined;
 }
 
@@ -846,7 +840,7 @@ function findLeadingComment(source: string, position: number): string | undefine
  * hand-maintained list of them was already drifting.
  */
 const MIDDLEWARE_TOKEN_RE =
-  /\b(authMiddleware|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|csrfProtection|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
+  /\b(authMiddleware|emailCapabilityAuth|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|csrfProtection|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
 
 function middlewareTokens(args: string): string[] {
   const found: string[] = [];
@@ -1176,11 +1170,15 @@ export function parseObjectLiteralEntries(source: string): Record<string, string
  *
  *     @response 200 responsesResponseSchema The completed generation.
  *     @response 200 application/octet-stream binary The audio bytes.
+ *     @response 409 Error The requested state conflicts with current state.
  *
  * Two forms, told apart by whether the second token is a media type (contains a
  * `/`; a Zod identifier cannot). Media type defaults to `application/json`.
  * `binary` in the schema position emits `{ type: 'string', format: 'binary' }`,
  * which is how OpenAPI 3.1 spells a byte body.
+ * `Error` names the shared `#/components/schemas/Error` envelope. Non-2xx
+ * responses are emitted only when a route declares them; the generator never
+ * infers a domain conflict such as 409 from handler prose or implementation.
  *
  * The identifier is resolved through the route file's OWN imports, exactly like a
  * `validate({ body })` reference, and an unresolvable one refuses the run rather
@@ -1442,7 +1440,7 @@ function resolveRouteSchema(route: RouteEntry, reference: string): ZodTypeAny | 
       filename: route.filename,
       identifier,
       reason: `imported from "${specifier}", which this generator will not import. Schemas must `
-        + 'come from ../schemas/* or @oxyhq/contracts.',
+        + 'come from ../schemas/* or @oxy.so/contracts.',
     });
     return undefined;
   }
@@ -1472,7 +1470,7 @@ interface BuildOperationInput {
  * descriptions, request body, parameters, and responses with sensible
  * defaults based on the route's middleware and validate calls.
  */
-function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOperation {
+export function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOperation {
   const tag = TAG_GROUPS[route.mountPrefix] ?? 'Misc';
   const { jsdoc, validate, middlewares, verb } = route;
 
@@ -1558,12 +1556,8 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
 
   // Security inference.
   const security: Array<Record<string, string[]>> = [];
-  // Both of these mean "no user bearer reaches this route": the general service
-  // gate, and the inference route's own (`routes/alia.ts`, issue #981), which
-  // additionally requires the credential's application to be platform-trusted.
-  const isServiceOnly = middlewares.some(
-    (m) => m === 'serviceAuthMiddleware' || m === 'requireFirstPartyInferenceCaller'
-  );
+  // General service-only gates mean no user bearer reaches this route.
+  const isServiceOnly = middlewares.includes('serviceAuthMiddleware');
   // The public inference edge (`routes/inferenceEdge.ts`): `edgeGate` calls
   // `authenticateEdgeCaller`, which accepts an `oxy_sk_…` machine credential or
   // a first-party service token, and nothing else — a user session bearer is
@@ -1579,6 +1573,16 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
       m === 'providerConnectionPrincipal' ||
       m === 'routingPolicyPrincipal'
   );
+  // Inbox accepts either the user's normal bearer session or a short-lived,
+  // audience-bound capability ticket. `emailCapabilityAuth` selects the lane
+  // from the Authorization scheme and never treats a Capability ticket as a
+  // general user session.
+  const isEmailCapability = middlewares.includes('emailCapabilityAuth');
+  const acceptsCapabilityTicket =
+    isEmailCapability &&
+    INBOX_CAPABILITY_CATALOG.tools.some(
+      (tool) => tool.invocation.method === verb.toUpperCase() && tool.invocation.path === openApiPath,
+    );
   const isAuth = middlewares.includes('authMiddleware');
   const isOptionalAuth = middlewares.includes('optionalAuthMiddleware');
   if (isEdgeCredential) {
@@ -1589,6 +1593,11 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
     security.push({ bearerAuth: [] });
   } else if (isServiceOnly) {
     security.push({ serviceTokenAuth: [] });
+  } else if (acceptsCapabilityTicket) {
+    security.push({ capabilityTicketAuth: [] });
+    security.push({ bearerAuth: [] });
+  } else if (isEmailCapability) {
+    security.push({ bearerAuth: [] });
   } else if (isAuth) {
     security.push({ bearerAuth: [] });
   } else if (isOptionalAuth) {
@@ -1597,7 +1606,8 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
   } else {
     security.push({});
   }
-  const requiresCredential = isEdgeCredential || isDualPrincipal || isServiceOnly || isAuth;
+  const requiresCredential =
+    isEdgeCredential || isDualPrincipal || isServiceOnly || isEmailCapability || isAuth;
 
   // CSRF — if the route file is mounted with csrfProtection at the server
   // level we don't add it again per-op. The base spec documents the header
@@ -1605,25 +1615,33 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
 
   // Responses.
   //
-  // The success entry comes from the route's own `@response` declarations when it
-  // has any. Without them the operation falls back to a bare `{ description }`,
-  // which is what EVERY machine-derived operation carried before this: 352 of 390
+  // Every explicitly declared response comes from the route's own `@response`
+  // tags. Without a 2xx declaration the operation falls back to a bare
+  // `{ description }`, which is what EVERY machine-derived operation carried
+  // before this: 352 of 390
   // operations published with no success schema, so a generated client returned
   // `Any` from all of them. The fallback still exists because 300-odd operations
   // are not going to be annotated in one change — but the fallback now says so in
   // words a reader of the contract can act on, instead of the word "Success".
   const responses: Record<string, unknown> = {};
   const successTags = route.responseTags.filter((tag) => tag.status.startsWith('2'));
-  for (const tag of successTags) {
-    const schema =
-      tag.schemaRef === 'binary'
-        ? { type: 'string', format: 'binary' }
-        : (() => {
-            const resolved = resolveRouteSchema(route, tag.schemaRef);
-            return resolved === undefined ? {} : zodToOpenApi(resolved);
-          })();
+  for (const tag of route.responseTags) {
+    let schema: Record<string, unknown>;
+    if (tag.schemaRef === 'binary') {
+      schema = { type: 'string', format: 'binary' };
+    } else if (tag.schemaRef === 'Error') {
+      schema = { $ref: '#/components/schemas/Error' };
+    } else {
+      const resolved = resolveRouteSchema(route, tag.schemaRef);
+      schema = resolved === undefined ? {} : zodToOpenApi(resolved);
+    }
     responses[tag.status] = {
-      description: tag.description.length > 0 ? tag.description : 'Success',
+      description:
+        tag.description.length > 0
+          ? tag.description
+          : tag.status.startsWith('2')
+            ? 'Success'
+            : `HTTP ${tag.status}`,
       content: { [tag.mediaType]: { schema } },
     };
   }
@@ -1636,13 +1654,13 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
     };
   }
   if (requestBody || parameters.some((p) => p.in === 'path' || p.in === 'query')) {
-    responses['400'] = {
+    responses['400'] ??= {
       description: 'Validation failed',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }
   if (requiresCredential) {
-    responses['401'] = {
+    responses['401'] ??= {
       description: 'Authentication required',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
@@ -1651,26 +1669,27 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
     middlewares.includes('requireOwnership') ||
     middlewares.includes('requireStaff') ||
     isServiceOnly ||
-    isDualPrincipal
+    isDualPrincipal ||
+    acceptsCapabilityTicket
   ) {
-    responses['403'] = {
+    responses['403'] ??= {
       description: 'Insufficient privileges',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }
   if (pathParamNames.length > 0) {
-    responses['404'] = {
+    responses['404'] ??= {
       description: 'Resource not found',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }
   if (middlewares.some((m) => m === 'rateLimit' || /(?:Limiter|RateLimit)$/.test(m))) {
-    responses['429'] = {
+    responses['429'] ??= {
       description: 'Rate limit exceeded',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }
-  responses['5XX'] = {
+  responses['5XX'] ??= {
     description: 'Server error',
     content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
   };
@@ -1846,13 +1865,13 @@ async function main(): Promise<void> {
     }
     console.error(
       '  The usual cause is unbuilt workspace dependencies — these modules import\n'
-      + '  `@oxyhq/contracts` and `@oxyhq/db`, which resolve through their build output.\n'
+      + '  `@oxy.so/contracts` and `@oxy.so/db`, which resolve through their build output.\n'
       + '  Build them first, from the repository root (this is the same sequence\n'
       + '  `ci.yml` runs before the api tests, for the same reason):\n\n'
-      + '      bun run --filter @oxyhq/contracts build\n'
-      + '      bun run --filter @oxyhq/protocol build\n'
-      + '      bun run --filter @oxyhq/core build\n'
-      + '      bun run --filter @oxyhq/db build\n\n'
+      + '      bun run --filter @oxy.so/contracts build\n'
+      + '      bun run --filter @oxy.so/protocol build\n'
+      + '      bun run --filter @oxy.so/core build\n'
+      + '      bun run --filter @oxy.so/db build\n\n'
       + `  ${OUTPUT_JSON} is UNCHANGED. The previous document is still the committed\n`
       + '  contract, which is the correct outcome: a stale document is recoverable,\n'
       + '  a silently truncated one that ships to consumers is not.\n',
@@ -1891,7 +1910,7 @@ async function main(): Promise<void> {
     }
     console.error(
       '  Schemas are resolved through the route file\'s OWN import statements, from\n'
-      + '  ../schemas/* or @oxyhq/contracts. Nothing else is imported, because a route file\n'
+      + '  ../schemas/* or @oxy.so/contracts. Nothing else is imported, because a route file\n'
       + '  also imports its services and middleware.\n\n'
       + `  ${OUTPUT_JSON} is UNCHANGED.\n`,
     );

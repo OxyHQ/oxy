@@ -1,10 +1,10 @@
 import { type ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { IdentityStatus } from '@oxyhq/core';
-import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxyhq/core';
+import type { IdentityStatus } from '@oxy.so/core';
+import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core';
 import { IdentityMayExistError } from '@/hooks/identity/identityErrors';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 
 /**
  * Auto-create interlock: `createIdentity` must refuse to overwrite whenever a
@@ -24,8 +24,8 @@ const restoreFromPhraseMock = jest.fn();
 const isValidPrivateKeyMock = jest.fn();
 const deleteRecoveryMnemonicMock = jest.fn();
 
-jest.mock('@oxyhq/core', () => {
-  const actual = jest.requireActual('@oxyhq/core');
+jest.mock('@oxy.so/core', () => {
+  const actual = jest.requireActual('@oxy.so/core');
   return {
     ...actual,
     KeyManager: {

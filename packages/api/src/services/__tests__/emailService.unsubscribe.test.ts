@@ -1,7 +1,7 @@
 /**
  * emailService unsubscribe SSRF coverage.
  *
- * The List-Unsubscribe HTTP fetch is routed through @oxyhq/core/server's
+ * The List-Unsubscribe HTTP fetch is routed through @oxy.so/core/server's
  * DNS-pinned `safeFetch`, replacing the prior hand-rolled DNS lookup +
  * `fetch(redirect:'manual')` that left a DNS-rebind TOCTOU window open.
  *
@@ -20,7 +20,7 @@ class FakeSsrfRejection extends Error {
     this.name = 'SsrfRejection';
   }
 }
-jest.mock('@oxyhq/core/server', () => ({
+jest.mock('@oxy.so/core/server', () => ({
   __esModule: true,
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
   SsrfRejection: FakeSsrfRejection,

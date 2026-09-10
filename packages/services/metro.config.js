@@ -1,7 +1,7 @@
 const { getDefaultConfig } = require('metro-config');
 
 /**
- * Metro configuration for @oxyhq/services
+ * Metro configuration for @oxy.so/services
  * This ensures proper React resolution to avoid ReactCurrentDispatcher errors
  */
 module.exports = (async () => {

@@ -17,7 +17,7 @@
  * also folds in `moderation` (not surfaced as its own civic source in Fase 1).
  */
 
-import type { ReputationBalanceBreakdown } from '@oxyhq/contracts';
+import type { ReputationBalanceBreakdown } from '@oxy.so/contracts';
 
 /** A civic reputation source key (drives the `civic.reputation.sources.*` i18n). */
 export type ReputationSourceKey = 'realLife' | 'peerCivic' | 'apps' | 'penalties';

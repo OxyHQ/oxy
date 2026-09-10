@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react"
-import { useAuth, useAssets, useFileFiltering, useFileDownloadUrl, setOxyAssetInstance, type ViewMode, type SortBy } from "@oxyhq/services"
-import type { FileMetadata } from "@oxyhq/core"
+import { useAuth, useAssets, useFileFiltering, useFileDownloadUrl, setOxyAssetInstance, type ViewMode, type SortBy } from "@oxy.so/services"
+import type { FileMetadata } from "@oxy.so/core"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { toast } from "@oxyhq/bloom"
+import { toast } from "@oxy.so/bloom"
 
 const VIEW_MODES: ViewMode[] = ["all", "photos", "videos", "documents", "audio"]
 const SORT_BYS: SortBy[] = ["date", "name", "size", "type"]
@@ -207,7 +207,7 @@ export function FilesDemo() {
         </CardHeader>
         <CardContent>
           <pre className="overflow-auto rounded-md bg-muted p-4 text-xs">
-{`import { useAssets, useFileFiltering, useFileDownloadUrl } from '@oxyhq/services';
+{`import { useAssets, useFileFiltering, useFileDownloadUrl } from '@oxy.so/services';
 
 function Files() {
   const assets = useAssets();

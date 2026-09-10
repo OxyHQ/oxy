@@ -31,7 +31,7 @@ jest.mock('../linkMetadataResolver', () => ({
   normalizeUrl: (url: string) => url, // identity — tests pass already-normalized URLs
 }));
 
-jest.mock('@oxyhq/core/server', () => ({
+jest.mock('@oxy.so/core/server', () => ({
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
   SsrfRejection: class SsrfRejection extends Error {},
 }));

@@ -9,7 +9,7 @@
  *
  * ## Why these assertions are on the MESSAGE and not on the SQLSTATE
  *
- * The trigger raises `23514`, deliberately, so `@oxyhq/db`'s `isCheckViolation`
+ * The trigger raises `23514`, deliberately, so `@oxy.so/db`'s `isCheckViolation`
  * recognises it. But this table already carries three CHECK constraints that
  * raise `23514` too, so a code-only assertion passes whether or not the trigger
  * fired — and a mutation run on PR #997 measured exactly that, with two cases

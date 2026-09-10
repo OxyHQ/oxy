@@ -16,8 +16,8 @@ import type {
   RecommendationRequest,
   RecommendationItem,
   ThemePreference,
-} from '@oxyhq/contracts';
-import { recommendationRequestSchema } from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
+import { recommendationRequestSchema } from '@oxy.so/contracts';
 import type { OxyServicesBase } from '../OxyServices.base';
 import {
   buildQueryParams,
@@ -315,7 +315,7 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
      * the request is ever sent.
      *
      * Routing (two server endpoints, both validated against the same
-     * `@oxyhq/contracts` recommendation schemas so the wire shape cannot drift):
+     * `@oxy.so/contracts` recommendation schemas so the wire shape cannot drift):
      *
      *  - **GET `/profiles/recommendations`** (cached) is used for the simple,
      *    back-compatible case: no options at all, or only `excludeTypes` and/or
@@ -329,7 +329,7 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
      *    cached by the HttpService keyed on the serialized body, so repeated
      *    identical scored requests are deduplicated/cached just like the GET path.
      *
-     * @param options - {@link RecommendationRequest} from `@oxyhq/contracts`.
+     * @param options - {@link RecommendationRequest} from `@oxy.so/contracts`.
      *   Omitted entirely (or `{ excludeTypes }`) preserves the legacy GET path.
      */
     async getProfileRecommendations(

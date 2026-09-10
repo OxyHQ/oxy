@@ -11,12 +11,12 @@
  * redirect, and later replays the raw verifier on the token exchange.
  *
  * All cross-platform crypto (random bytes, SHA-256) is delegated to the shared
- * `@oxyhq/protocol` platform loaders — the exact primitives the rest of core's
+ * `@oxy.so/protocol` platform loaders — the exact primitives the rest of core's
  * crypto already uses — so these helpers run identically on web, Node, and
  * React Native. No `require()`, so the ESM build stays bundler-clean.
  */
 
-import { isNodeJS, isReactNative, loadExpoCrypto, loadNodeCrypto, sha256 } from '@oxyhq/protocol';
+import { isNodeJS, isReactNative, loadExpoCrypto, loadNodeCrypto, sha256 } from '@oxy.so/protocol';
 import { logger } from '../logger';
 
 /** The central Oxy IdP authorization endpoint used by default. */
@@ -156,7 +156,7 @@ function hexToBytes(hex: string): Uint8Array {
  * `BASE64URL(SHA-256(ASCII(codeVerifier)))` (RFC 7636 §4.2). The verifier is
  * base64url (ASCII), so its UTF-8 and ASCII byte encodings are identical.
  *
- * Reuses `@oxyhq/protocol`'s cross-platform {@link sha256} (which returns
+ * Reuses `@oxy.so/protocol`'s cross-platform {@link sha256} (which returns
  * lowercase hex); the digest bytes are recovered and re-encoded as base64url.
  */
 export async function computeCodeChallenge(codeVerifier: string): Promise<string> {

@@ -13,7 +13,7 @@
  *  - The signed data-export ("credible exit") bundle.
  *  - Verified-domain badges (prove ownership of `nate.com`).
  *
- * Wire shapes come from `@oxyhq/contracts` (`DidDocument`,
+ * Wire shapes come from `@oxy.so/contracts` (`DidDocument`,
  * `SignedRecordEnvelope`, `AuthMethodsResponse`, `VerifiedDomain`,
  * `DomainVerificationInstructions`, `ExportBundle`) — the single source of truth
  * the API validates its output against, so producer and consumer cannot drift.
@@ -33,8 +33,8 @@ import type {
   RotateKeyCompleteResponse,
   SignedRecordEnvelope,
   VerifiedDomain,
-} from '@oxyhq/contracts';
-import { signMessage } from '@oxyhq/protocol';
+} from '@oxy.so/contracts';
+import { signMessage } from '@oxy.so/protocol';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { KeyManager } from '../crypto/keyManager';
 import { SignatureService } from '../crypto/signatureService';

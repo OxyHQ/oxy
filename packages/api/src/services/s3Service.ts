@@ -42,7 +42,7 @@ export class S3Service {
       },
     };
 
-    // Add custom endpoint for DigitalOcean Spaces or other S3-compatible services
+    // Add a custom endpoint for non-AWS S3-compatible services.
     if (config.endpointUrl) {
       clientConfig.endpoint = config.endpointUrl;
       clientConfig.forcePathStyle = config.endpointUrl.includes('localhost') || config.endpointUrl.includes('127.0.0.1');
@@ -82,7 +82,7 @@ export class S3Service {
         contentType = contentType || 'application/octet-stream';
       }
 
-      const { finalKey, metadata, acl } = this.prepareObjectOptions(key, options);
+      const { finalKey, metadata, acl, cacheControl } = this.prepareObjectOptions(key, options);
 
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
@@ -91,6 +91,7 @@ export class S3Service {
         // `StreamingBlobPayloadInputTypes`, so no cast is needed.
         Body: body,
         ContentType: contentType,
+        CacheControl: cacheControl,
         Metadata: metadata,
         ACL: acl,
       });
@@ -120,13 +121,14 @@ export class S3Service {
   ): Promise<FileInfo> {
     try {
       const contentType = options.contentType || 'application/octet-stream';
-      const { finalKey, metadata, acl } = this.prepareObjectOptions(key, options);
+      const { finalKey, metadata, acl, cacheControl } = this.prepareObjectOptions(key, options);
 
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
         Key: finalKey,
         Body: buffer,
         ContentType: contentType,
+        CacheControl: cacheControl,
         Metadata: metadata,
         ACL: acl,
       });
@@ -161,7 +163,7 @@ export class S3Service {
     options: UploadOptions = {}
   ): Promise<FileInfo> {
     const contentType = options.contentType || 'application/octet-stream';
-    const { finalKey, metadata, acl } = this.prepareObjectOptions(key, options);
+    const { finalKey, metadata, acl, cacheControl } = this.prepareObjectOptions(key, options);
 
     try {
       const upload = new Upload({
@@ -171,6 +173,7 @@ export class S3Service {
           Key: finalKey,
           Body: body,
           ContentType: contentType,
+          CacheControl: cacheControl,
           Metadata: metadata,
           ACL: acl,
         },
@@ -596,7 +599,7 @@ export class S3Service {
    */
   getPublicUrl(key: string): string {
     if (this.endpointUrl) {
-      // For DigitalOcean Spaces or other S3-compatible services
+      // For non-AWS S3-compatible services.
       const baseUrl = this.endpointUrl.replace('https://', '');
       return `https://${this.bucketName}.${baseUrl}/${key}`;
     } else {
@@ -610,7 +613,7 @@ export class S3Service {
    */
   private generatePublicUrl(key: string): string {
     if (this.endpointUrl) {
-      // For DigitalOcean Spaces or other S3-compatible services
+      // For non-AWS S3-compatible services.
       const baseUrl = this.endpointUrl.replace('https://', '');
       return `https://${this.bucketName}.${baseUrl}/${key}`;
     } else {
@@ -639,6 +642,7 @@ export class S3Service {
       finalKey: this.buildFinalKey(key, options.folder),
       metadata: this.sanitizeMetadata(options.metadata),
       acl: options.publicRead ? 'public-read' as const : 'private' as const,
+      cacheControl: options.cacheControl,
     };
   }
 

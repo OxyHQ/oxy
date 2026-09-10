@@ -41,6 +41,7 @@ import {
   modelSlugSchema,
   publisherSlugSchema,
   RESERVED_ALIA_PUBLISHER,
+  routingProfileIdSchema,
   routingProfileSlugSchema,
   sha256DigestSchema,
 } from './identifiers';
@@ -358,8 +359,12 @@ export const inferenceProviderSchema = z.object({
 /* -------------------------------------------------------------------------- */
 
 /**
- * One concrete servable route: a revision, on a provider, in some regions,
- * under a data policy, with an availability scope and a commercial permission.
+ * One concrete servable route: a revision, on a provider, with its attested
+ * regions, data policy, availability scope and commercial permission.
+ *
+ * `regions: []` means the provider supplied no location attestation. It never
+ * means global availability: Oxy excludes that route whenever a request carries
+ * any explicit regional control, while an unconstrained request may still use it.
  *
  * This is the object a routing policy filters and a route switch names — never
  * a model. Two deployments of the SAME revision are what same-model failover
@@ -374,7 +379,7 @@ export const modelDeploymentSchema = z
     provider: inferenceProviderSlugSchema,
     /** Always revision-pinned: a deployment serves specific weights. */
     modelReference: modelReferenceSchema,
-    regions: z.array(inferenceRegionSchema).min(1),
+    regions: z.array(inferenceRegionSchema),
     dataPolicy: inferenceDataPolicySchema,
     availabilityScope: availabilityScopeSchema,
     commercialPermission: commercialPermissionSchema,
@@ -420,8 +425,10 @@ export const modelDeploymentSchema = z
       });
     }
 
-    // Pricing is what Oxy charges. A BYOK route bills the customer upstream and
-    // carries only a platform fee, which is not a per-unit model price.
+    // This public field is the upstream/model price Oxy charges. A BYOK route
+    // bills the customer upstream and keeps that field absent; Oxy's separately
+    // reviewed platform-fee version is internal billing configuration and never
+    // reuses this provider-price slot.
     if (deployment.priceVersionId !== undefined && deployment.availabilityScope === 'byok_only') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -455,7 +462,7 @@ export const routingProfileCandidateSchema = z
 export const routingProfileSchema = z.object({
   /** See `version.ts`: served on its own by the catalogue, so it is versioned. */
   schemaVersion: z.literal(1),
-  routingProfileId: z.string().min(1).max(128),
+  routingProfileId: routingProfileIdSchema,
   slug: routingProfileSlugSchema,
   displayName: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
@@ -504,7 +511,7 @@ export const catalogueServingProviderSummarySchema = z
  */
 export const modelCatalogueEntrySchema = z.object({
   /** See `version.ts`: this is the public catalogue response shape. */
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   modelId: modelIdSchema,
   publisher: cataloguePublisherSummarySchema,
   displayName: z.string().min(1).max(200),
@@ -522,8 +529,10 @@ export const modelCatalogueEntrySchema = z.object({
   dataPolicy: inferenceDataPolicySchema,
   /** Absent for routes a customer cannot buy per-unit (BYOK-only, internal). */
   pricing: priceSnapshotSchema.optional(),
-  availabilityScope: availabilityScopeSchema,
-  commercialPermission: commercialPermissionSchema,
+  /** Present only when every visible deployment shares one scope. */
+  availabilityScope: availabilityScopeSchema.optional(),
+  /** Present only when every visible deployment shares one permission basis. */
+  commercialPermission: commercialPermissionSchema.optional(),
   deprecation: modelDeprecationSchema,
   evaluations: z.array(modelEvaluationResultSchema).default([]),
   safety: modelSafetyMetadataSchema.optional(),

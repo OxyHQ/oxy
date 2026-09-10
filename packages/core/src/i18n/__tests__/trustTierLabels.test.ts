@@ -1,4 +1,4 @@
-import { TRUST_TIERS } from '@oxyhq/contracts';
+import { TRUST_TIERS } from '@oxy.so/contracts';
 import { EN_TRUST_TIER_LABELS, trustTierLabel } from '../trustTierLabels';
 
 const SHIPPED_LOCALES = [

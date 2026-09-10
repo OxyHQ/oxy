@@ -4,7 +4,7 @@
  * The shared DeviceSession credential is how several official Oxy apps end up on
  * ONE `DeviceSession` — and therefore one globally active account context —
  * WITHOUT any of them reading Commons's private identity key. This plugin wires
- * the Android side of `@oxyhq/services`:
+ * the Android side of `@oxy.so/services`:
  *
  *  - Defines a `signature`-level permission
  *    `so.oxy.shared.permission.READ_DEVICE_SESSION`. `signature` means only apps

@@ -13,10 +13,10 @@
  */
 
 import React from 'react';
-import { OxyProvider, OxySignInButton, useAuth } from '@oxyhq/services';
-import type { User } from '@oxyhq/core';
-import { getNormalizedUserHandle } from '@oxyhq/core';
-import { BloomThemeProvider } from '@oxyhq/bloom/theme';
+import { OxyProvider, OxySignInButton, useAuth } from '@oxy.so/services';
+import type { User } from '@oxy.so/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 // ==================== 1. Config ====================
 

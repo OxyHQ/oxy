@@ -35,8 +35,8 @@ import {
   KeyManager,
   SignatureService,
   type User,
-} from '@oxyhq/core';
-import type { DeviceSessionState } from '@oxyhq/contracts';
+} from '@oxy.so/core';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 
 const redirectToAuthorize = jest.fn();
 jest.mock('../../src/ui/components/oauthNavigation', () => ({
@@ -76,6 +76,7 @@ const fakeSessionClient = {
   signOutPrincipal: jest.fn(async () => undefined),
   start: jest.fn(async () => undefined),
   bootstrap: jest.fn(async () => undefined),
+  adoptState: jest.fn(() => true),
   addCurrentAccount: jest.fn(async () => undefined),
   registerAndActivate: jest.fn(async () => undefined),
   switchAccount: jest.fn(async () => undefined),
@@ -150,7 +151,7 @@ function seedPersistedSession(overrides: Record<string, unknown> = {}): void {
 }
 
 /**
- * An `@oxyhq/core`-shaped stub covering every surface the identity lanes touch:
+ * An `@oxy.so/core`-shaped stub covering every surface the identity lanes touch:
  * the zero-cookie mint (cold boot), the challenge/verify pair (identity sign-in),
  * and the profile reads the projection makes.
  */

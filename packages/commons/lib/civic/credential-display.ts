@@ -14,7 +14,7 @@
  * Bloom colour and a `*.labelKey` to a localized string at the call site.
  */
 
-import type { CredentialStatus, VerifiableCredentialResponse } from '@oxyhq/contracts';
+import type { CredentialStatus, VerifiableCredentialResponse } from '@oxy.so/contracts';
 import type { CivicTone } from './card-presentation';
 
 /** The W3C base type every credential carries; dropped from user-facing display. */

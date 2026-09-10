@@ -7,8 +7,8 @@
  * supposed to depend on being inside a render.
  */
 
-import type { DeviceDirectory, DeviceSessionState } from '@oxyhq/contracts';
-import type { User } from '@oxyhq/core';
+import type { DeviceDirectory, DeviceSessionState } from '@oxy.so/contracts';
+import type { User } from '@oxy.so/core';
 import {
   createOxyRuntime,
   type OxyRuntime,

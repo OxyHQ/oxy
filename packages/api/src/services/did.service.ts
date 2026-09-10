@@ -9,7 +9,7 @@
  * self-sovereign (`controller = [userDid, OXY_DID]`); the change is fully
  * reversible by linking/unlinking the identity auth method.
  *
- * The output is validated against `didDocumentSchema` from `@oxyhq/contracts` so
+ * The output is validated against `didDocumentSchema` from `@oxy.so/contracts` so
  * the API can never serve a document that drifts from the published contract.
  *
  * Pure and platform-agnostic: every input is passed in (no DB access here) so
@@ -18,14 +18,14 @@
  * signed data export.
  */
 
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import {
   didDocumentSchema,
   type DidDocument,
   type SignedRecordEnvelope,
   type VerificationMethod,
   type DidService,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { OXY_NODE_SERVICE_TYPE, OXY_NODE_SERVICE_FRAGMENT } from '../utils/nodes.constants';
 import {
   ATPROTO_BRIDGE_ENABLED,
@@ -118,7 +118,7 @@ export function buildUserDid(userId: string): string {
 
 /**
  * The canonical identity apex — the domain the shipped SDK hardcodes into every
- * CLIENT-signed user DID (`@oxyhq/core` `OXY_IDENTITY_APEX`, i.e. the federation
+ * CLIENT-signed user DID (`@oxy.so/core` `OXY_IDENTITY_APEX`, i.e. the federation
  * apex). When `DID_WEB_DOMAIN` re-anchors the EMITTED `did:web` ids at the API
  * host for zero-proxy web resolution (prod: `api.oxy.so`), client envelopes keep
  * arriving spelled at this apex — both spellings name the SAME account namespace

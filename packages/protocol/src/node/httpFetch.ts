@@ -3,8 +3,8 @@
  * {@link ./didWebResolver} drive — plus the bounded-read helpers that make a
  * response stream safe to consume.
  *
- * The protocol package is app-agnostic and MUST NOT depend on `@oxyhq/core`
- * (core depends on protocol). So instead of importing `@oxyhq/core/server`'s
+ * The protocol package is app-agnostic and MUST NOT depend on `@oxy.so/core`
+ * (core depends on protocol). So instead of importing `@oxy.so/core/server`'s
  * `safeFetch` directly, the node client/resolver accept a {@link NodeFetch} —
  * Oxy supplies an adapter over `safeFetch` (HTTPS-only, DNS-pinned, private-IP
  * denylist, bounded redirects); a test supplies an in-process stub. Either way
@@ -44,7 +44,7 @@ export interface NodeFetchResponse {
 }
 
 /**
- * The injected transport. Oxy adapts `@oxyhq/core/server`'s `safeFetch` to this
+ * The injected transport. Oxy adapts `@oxy.so/core/server`'s `safeFetch` to this
  * shape; tests pass an in-process stub.
  */
 export type NodeFetch = (url: string, init: NodeFetchInit) => Promise<NodeFetchResponse>;

@@ -23,6 +23,8 @@
  *   2. Every environment variable `validateRequiredEnvVars()` requires at boot
  *      (`packages/api/src/config/env.ts`) is either synced, or named in
  *      SUPPLIED_WITHOUT_SECRET_SYNC below with the reason it is not a secret.
+ *   3. Secrets whose authority is SSM-only are never read or copied from a
+ *      GitHub Actions secret and retain their exact task-definition ARN binding.
  *
  * (2) is the half that catches the `DATABASE_URL` shape, and it is anchored on
  * the API's own boot contract rather than on a second copy of the list — the
@@ -69,6 +71,19 @@ const SUPPLIED_WITHOUT_SECRET_SYNC = new Map([
  * a placeholder, so it cannot sit in `required` without breaking local runs.
  */
 const PRODUCTION_MANDATORY_SYNCED_SECRETS = ['DEVICE_ID_SALT'];
+
+/**
+ * Secrets provisioned directly in SSM, outside this repository's GitHub
+ * secret-sync authority. The value is the only task binding deploy-aws.yml may
+ * carry for the name; any `secrets.<NAME>` reference would create a second
+ * source of truth and an automated overwrite path back into SSM.
+ */
+const SSM_ONLY_SECRET_BINDINGS = new Map([
+  [
+    'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY',
+    'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY',
+  ],
+]);
 
 /**
  * Vacuity guards for the boot-contract parse — and ONLY for that parse.
@@ -209,6 +224,20 @@ for (const name of SUPPLIED_WITHOUT_SECRET_SYNC.keys()) {
   }
 }
 
+// ── 3. SSM-only secrets must never gain a GitHub overwrite channel ─────────
+for (const [name, parameterArn] of SSM_ONLY_SECRET_BINDINGS) {
+  const githubSecretReference = new RegExp(`\\$\\{\\{\\s*secrets\\.${name}\\s*\\}\\}`);
+  if (syncEntries.has(name) || listed.has(name) || githubSecretReference.test(workflow)) {
+    fail(
+      `${name} is SSM-owned and must never be read or copied from GitHub Actions secrets; ` +
+      `keep only its TASK_SECRET_OVERRIDES_JSON binding to ${parameterArn}.`,
+    );
+  }
+  if (!workflow.includes(`"${name}":"${parameterArn}"`)) {
+    fail(`${name} is missing its exact TASK_SECRET_OVERRIDES_JSON binding to ${parameterArn}.`);
+  }
+}
+
 if (problems.length > 0) {
   console.error('Deploy secret sync is BROKEN:\n');
   for (const problem of problems) console.error(`- ${problem}`);
@@ -222,5 +251,6 @@ if (problems.length > 0) {
 console.log(
   `Deploy secret sync is consistent: ${syncEntries.size} SYNC_* entries match ${listed.size} listed secrets, ` +
   `all ${requiredEnvVars.length} boot-required env vars are accounted for, ` +
-  `and all ${PRODUCTION_MANDATORY_SYNCED_SECRETS.length} production-mandatory secrets are synced.`
+  `all ${PRODUCTION_MANDATORY_SYNCED_SECRETS.length} production-mandatory secrets are synced, ` +
+  `and all ${SSM_ONLY_SECRET_BINDINGS.size} SSM-only secret bindings have no GitHub copy channel.`
 );

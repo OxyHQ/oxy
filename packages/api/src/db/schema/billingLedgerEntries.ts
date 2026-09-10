@@ -111,7 +111,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, primaryKey, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList } from '@oxyhq/db';
+import { createdAt, generatedId, inList } from '@oxy.so/db';
 import { billingInvoices } from './billingInvoices';
 import { currencyCode, currencyCodeCheck, exactAmount } from './ledgerColumns';
 import { usageReceipts } from './usageReceipts';

@@ -3,7 +3,7 @@
  *
  * ## Why there is no `Number()` in this file
  *
- * `@oxyhq/contracts`' `exactDecimalSchema` carries every amount as a
+ * `@oxy.so/contracts`' `exactDecimalSchema` carries every amount as a
  * non-negative decimal string with up to 12 fractional digits and no exponent,
  * because a JS `number` cannot represent `0.1 + 0.2` and an inference ledger
  * adds millions of tiny amounts. The moment a Console component writes

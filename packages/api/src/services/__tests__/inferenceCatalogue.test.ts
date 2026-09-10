@@ -25,6 +25,7 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   inferenceDeployments,
+  inferenceDeploymentRoutingScores,
   inferenceModelRevisions,
   inferenceModels,
   inferenceProviders,
@@ -33,6 +34,7 @@ import {
   inferenceRoutingProfiles,
   priceVersions,
   priceVersionUnitPrices,
+  users,
 } from '../../db/schema';
 import {
   type CatalogueViewer,
@@ -64,6 +66,7 @@ interface RouteFixture {
   readonly modelId: string;
   readonly modelReference: string;
   readonly revision: string;
+  readonly revisionRowId: string;
   readonly providerSlug: string;
   readonly deploymentId: string;
 }
@@ -86,7 +89,7 @@ async function insertRoute(options: {
   /**
    * A published customer price for this route. Omitted leaves
    * `price_version_id` null, which is what an unpriced route looks like — the
-   * state the edge refuses with `unpriced-route`.
+   * state the edge refuses as unavailable routing evidence.
    *
    * `unitPrices: []` is a distinct, deliberately reachable case: a price VERSION
    * that exists with no unit prices under it.
@@ -95,12 +98,27 @@ async function insertRoute(options: {
     currency: string;
     unitPrices: ReadonlyArray<{ unit: 'input_tokens' | 'output_tokens'; amount: string; per: number }>;
   };
+  /** Keep the route deliberately unpriced. Ordinary selectable fixtures are priced. */
+  unpriced?: boolean;
 }): Promise<RouteFixture> {
   const db = getDb();
   const publisherSlug = `pub${suffix()}`;
   const modelSlug = `mdl${suffix()}`;
   const revision = `r${suffix()}`;
   const providerSlug = `prv${suffix()}`;
+  const exactDeploymentId = options.internalRouteId ?? `kaana-route-${suffix()}`;
+
+  if (options.price !== undefined && options.unpriced === true) {
+    throw new Error('a catalogue fixture cannot be both explicitly priced and unpriced');
+  }
+
+  const [reviewer] = await db
+    .insert(users)
+    .values({
+      username: `catalogue-reviewer-${suffix()}`,
+      email: `catalogue-reviewer-${suffix()}@example.test`,
+    })
+    .returning({ id: users.id });
 
   await db.insert(inferencePublishers).values({ slug: publisherSlug, displayName: 'Fixture Pub' });
 
@@ -147,22 +165,32 @@ async function insertRoute(options: {
   // The price version is scoped to `(modelReference, provider)` with no foreign
   // key back into the catalogue, exactly as the ledger defines it, so a receipt
   // stays reproducible after a revision retires.
+  const publishedPrice =
+    options.availabilityScope === 'byok_only' || options.unpriced === true
+      ? undefined
+      : (options.price ?? {
+          currency: 'USD',
+          unitPrices: [
+            { unit: 'input_tokens' as const, amount: '3.000000000000', per: 1_000_000 },
+            { unit: 'output_tokens' as const, amount: '15.000000000000', per: 1_000_000 },
+          ],
+        });
   let priceVersionId: string | undefined;
-  if (options.price !== undefined) {
+  if (publishedPrice !== undefined) {
     const [version] = await db
       .insert(priceVersions)
       .values({
         status: 'active',
         modelReference: `${model.modelId ?? ''}@${revision}`,
         provider: providerSlug,
-        currency: options.price.currency,
+        currency: publishedPrice.currency,
         effectiveFrom: new Date(),
       })
       .returning({ id: priceVersions.id });
     priceVersionId = version.id;
-    if (options.price.unitPrices.length > 0) {
+    if (publishedPrice.unitPrices.length > 0) {
       await db.insert(priceVersionUnitPrices).values(
-        options.price.unitPrices.map((unitPrice) => ({
+        publishedPrice.unitPrices.map((unitPrice) => ({
           priceVersionId: version.id,
           unit: unitPrice.unit,
           amount: unitPrice.amount,
@@ -198,9 +226,7 @@ async function insertRoute(options: {
           }
         : {}),
       permissionState,
-      ...(options.internalRouteId === undefined
-        ? {}
-        : { internalRouteId: options.internalRouteId }),
+      internalRouteId: exactDeploymentId,
       ...(options.wholesaleCost === undefined
         ? {}
         : {
@@ -212,15 +238,121 @@ async function insertRoute(options: {
     })
     .returning({ id: inferenceDeployments.id });
 
+  if (priceVersionId !== undefined) {
+    const now = Date.now();
+    await db.insert(inferenceDeploymentRoutingScores).values({
+      deploymentId: exactDeploymentId,
+      priceScore: 100,
+      priceSource: 'reviewed_scorecard',
+      priceEvidenceRef: `catalogue-price/${exactDeploymentId}`,
+      priceVersionId,
+      latencyScore: 100,
+      latencySource: 'reviewed_scorecard',
+      latencyEvidenceRef: `catalogue-latency/${exactDeploymentId}`,
+      latencyMeasurementWindowStart: new Date(now - 120_000),
+      latencyMeasurementWindowEnd: new Date(now - 60_000),
+      latencyValidUntil: new Date(now + 3_600_000),
+      throughputScore: 100,
+      throughputSource: 'reviewed_scorecard',
+      throughputEvidenceRef: `catalogue-throughput/${exactDeploymentId}`,
+      throughputMeasurementWindowStart: new Date(now - 120_000),
+      throughputMeasurementWindowEnd: new Date(now - 60_000),
+      throughputValidUntil: new Date(now + 3_600_000),
+      balancedScore: 100,
+      balancedSource: 'reviewed_scorecard',
+      balancedEvidenceRef: `catalogue-balanced/${exactDeploymentId}`,
+      balancedFormulaRef: 'catalogue-test/v1',
+      balancedValidUntil: new Date(now + 3_600_000),
+      reason: 'catalogue test fixture',
+      changedByUserId: reviewer.id,
+      changedAt: new Date(now),
+    });
+  }
+
   if (model.modelId === null) throw new Error('the generated model id did not compose');
 
   return {
     modelId: model.modelId,
     modelReference: `${model.modelId}@${revision}`,
     revision,
+    revisionRowId: revisionRow.id,
     providerSlug,
     deploymentId: deployment.id,
   };
+}
+
+/** A second visible route for the SAME model weights, used to test aggregation. */
+async function insertSiblingDeployment(
+  route: RouteFixture,
+  options: {
+    readonly providerSlug: string;
+    readonly availabilityScope: 'public_payg' | 'oxy_hosted';
+    readonly commercialPermission: 'public_resale_approved' | 'open_weight_hosting';
+    readonly regions: readonly string[];
+    readonly retainsPayloads: boolean;
+    readonly retentionDays: number;
+    readonly trainsOnCustomerData: boolean;
+    readonly zeroDataRetentionAvailable: boolean;
+    readonly subprocessors: readonly string[];
+    readonly policyUrl: string;
+  }
+): Promise<void> {
+  const db = getDb();
+  await db.insert(inferenceProviders).values({
+    slug: options.providerSlug,
+    displayName: `Sibling ${options.providerSlug}`,
+    kind: 'third_party',
+    retainsPayloads: options.retainsPayloads,
+    retentionDays: options.retentionDays,
+    trainsOnCustomerData: options.trainsOnCustomerData,
+    zeroDataRetentionAvailable: options.zeroDataRetentionAvailable,
+  });
+
+  const [priceVersion] = await db
+    .insert(priceVersions)
+    .values({
+      status: 'active',
+      modelReference: route.modelReference,
+      provider: options.providerSlug,
+      currency: 'USD',
+      effectiveFrom: new Date(),
+    })
+    .returning({ id: priceVersions.id });
+  await db.insert(priceVersionUnitPrices).values([
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'input_tokens',
+      amount: '7.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'output_tokens',
+      amount: '21.000000000000',
+      per: 1_000_000,
+    },
+  ]);
+
+  await db.insert(inferenceDeployments).values({
+    modelRevisionId: route.revisionRowId,
+    providerSlug: options.providerSlug,
+    internalRouteId: `kaana-route-${suffix()}`,
+    priceVersionId: priceVersion.id,
+    regions: [...options.regions],
+    retainsPayloads: options.retainsPayloads,
+    retentionDays: options.retentionDays,
+    trainsOnCustomerData: options.trainsOnCustomerData,
+    zeroDataRetentionAvailable: options.zeroDataRetentionAvailable,
+    subprocessors: [...options.subprocessors],
+    policyUrl: options.policyUrl,
+    availabilityScope: options.availabilityScope,
+    commercialPermission: options.commercialPermission,
+    status: 'active',
+    legalReviewStatus: 'approved',
+    legalReviewedAt: new Date(),
+    legalReviewEvidenceRef: `contract-register/${suffix()}`,
+    permissionState: 'approved',
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -330,6 +462,7 @@ describe('a route’s published price reaches the catalogue entry', () => {
     const unpriced = await insertRoute({
       availabilityScope: 'public_payg',
       commercialPermission: 'public_resale_approved',
+      unpriced: true,
     });
 
     const entries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER);
@@ -360,7 +493,7 @@ describe('a route’s published price reaches the catalogue entry', () => {
     // UNGRANTABLE_SCOPES, so no viewer is ever served one and no BYOK route is
     // ever LISTED. An absent price on an entry a customer can actually see
     // therefore has one meaning: the route is not yet priced, which is the state
-    // `resolveEdgeRoute` refuses with `unpriced-route`.
+    // `resolveEdgeRoute` refuses as unavailable routing evidence.
     const byok = await insertRoute({
       availabilityScope: 'byok_only',
       commercialPermission: 'customer_byok',
@@ -424,6 +557,51 @@ describe('a route’s published price reaches the catalogue entry', () => {
     expect(entry?.pricing?.priceVersionId).toEqual(expect.any(String));
     expect(Object.keys(entry ?? {})).not.toContain('priceVersionId');
     expect(Object.keys(entry ?? {})).not.toContain('joinPriceVersionId');
+  });
+});
+
+describe('catalogue terms are aggregates, never the terms of a name-sorted route', () => {
+  it('omits singular terms when routes disagree and publishes the conservative policy', async () => {
+    const route = await insertRoute({
+      availabilityScope: 'public_payg',
+      commercialPermission: 'public_resale_approved',
+    });
+    const alphabeticallyFirstProvider = `aaa-${suffix()}`;
+    await insertSiblingDeployment(route, {
+      providerSlug: alphabeticallyFirstProvider,
+      availabilityScope: 'oxy_hosted',
+      commercialPermission: 'open_weight_hosting',
+      regions: ['eu-west-1'],
+      retainsPayloads: true,
+      retentionDays: 30,
+      trainsOnCustomerData: true,
+      zeroDataRetentionAvailable: false,
+      subprocessors: ['subprocessor-z', 'subprocessor-a'],
+      policyUrl: 'https://example.test/sibling-policy',
+    });
+
+    const entry = (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER)).find(
+      (candidate) => candidate.modelId === route.modelId
+    );
+    expect(entry).toBeDefined();
+    expect(entry?.schemaVersion).toBe(2);
+
+    // Provider ordering is deterministic customer presentation only. Even
+    // though this route sorts first by name, none of its singular commercial
+    // terms or price is promoted into a fake model-wide "primary" route.
+    expect(entry?.servingProviders[0]?.slug).toBe(alphabeticallyFirstProvider);
+    expect(entry).not.toHaveProperty('availabilityScope');
+    expect(entry).not.toHaveProperty('commercialPermission');
+    expect(entry).not.toHaveProperty('pricing');
+
+    expect(entry?.regions).toEqual(['eu-west-1', 'us-west-2']);
+    expect(entry?.dataPolicy).toEqual({
+      retainsPayloads: true,
+      retentionDays: 30,
+      trainsOnCustomerData: true,
+      zeroDataRetentionAvailable: false,
+      subprocessors: ['subprocessor-a', 'subprocessor-z'],
+    });
   });
 });
 
@@ -563,12 +741,13 @@ function everyStringIn(value: unknown): string[] {
 
 describe('the customer view cannot carry an internal route id or a wholesale cost', () => {
   it('serializes neither, from a row that holds both', async () => {
-    const internalRouteId = `relay-route-${suffix()}`;
+    const internalRouteId = `kaana-route-${suffix()}`;
     const wholesaleAmount = '3.140000000000';
 
     const route = await insertRoute({
       availabilityScope: 'public_payg',
       commercialPermission: 'public_resale_approved',
+      unpriced: true,
       internalRouteId,
       wholesaleCost: {
         amount: wholesaleAmount,

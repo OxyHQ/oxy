@@ -1,7 +1,7 @@
 /**
  * The platform half of the shared native DeviceSession credential.
  *
- * `@oxyhq/core` owns the rules (`sharedDeviceCredential.ts`: when to adopt, when
+ * `@oxy.so/core` owns the rules (`sharedDeviceCredential.ts`: when to adopt, when
  * to publish, and above all that an unreadable slot is never an empty one). This
  * module owns only where the bytes live, which is genuinely different per
  * platform:
@@ -44,7 +44,7 @@ import {
   type SharedDeviceCredential,
   type SharedDeviceCredentialRead,
   type SharedDeviceCredentialStore,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 
 /**
  * The iOS Keychain Access Group every official Oxy app declares in its

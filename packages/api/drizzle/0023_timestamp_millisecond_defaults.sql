@@ -8,7 +8,7 @@
 -- a keyset cursor built from that read compares against a value SMALLER than
 -- the row it came from: an ASC page re-matches its own anchor and never
 -- advances, a DESC page silently skips every row sharing the anchor's
--- millisecond. `@oxyhq/db`'s `createdAt()` / `updatedAt()` builders state the
+-- millisecond. `@oxy.so/db`'s `createdAt()` / `updatedAt()` builders state the
 -- full argument, including why it is fixed at the source rather than at each
 -- cursor.
 --

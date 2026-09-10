@@ -21,7 +21,7 @@ import { renderHook, render, screen, fireEvent, act, waitFor } from '@testing-li
 import { createElement, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { FileMetadata } from '@oxyhq/core';
+import type { FileMetadata } from '@oxy.so/core';
 import { fileThumbSource } from '../../src/ui/hooks/useResolvedFileUrls';
 import FileLibraryError from '../../src/ui/screens/fileManagement/FileLibraryError';
 import { queryKeys } from '../../src/ui/hooks/queries/queryKeys';

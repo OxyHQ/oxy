@@ -10,18 +10,18 @@ import type {
   CommonsDenyReason,
   OauthAuthorizeCodeResponse,
   OauthConsentDecision,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   oauthAuthorizeCodeResponseSchema,
   oauthConsentDecisionSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import express from 'express';
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { SessionController } from '../controllers/session.controller';
-import { publicColumns } from '@oxyhq/db/assert';
+import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { appGrants } from '../db/schema/appGrants';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
@@ -30,10 +30,19 @@ import { authSessions } from '../db/schema/authSessions';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { sessions as sessionsTable } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
-import { intersectScopes, isPaymentsScope } from '../utils/applicationScopes';
+import {
+  clearServiceActingAsRevocation,
+  revokeServiceActingAs,
+  SERVICE_ACTING_AS_SCOPE,
+} from '../services/serviceActingAs.service';
+import {
+  intersectScopes,
+  isPaymentsScope,
+  isPrivilegedScope,
+  userConsentRequiredScopes,
+} from '../utils/applicationScopes';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
-import { userConsentRequiredScopes } from '../utils/applicationScopes';
 import { authMiddleware, rejectQueryToken, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
@@ -41,6 +50,7 @@ import { BadRequestError, NotFoundError, UnauthorizedError, ForbiddenError } fro
 import { OAuthError, oauthHandler, sendOAuthSuccess } from '../utils/oauthResponse';
 import { resolveClientAuthentication } from '../utils/oauthClientAuth';
 import { ACCESS_TOKEN_TTL_SECONDS } from '../utils/sessionUtils';
+import { signServiceTokenEd25519 } from '../config/serviceTokenSigning';
 import { logger } from '../utils/logger';
 import SignatureService from '../services/signature.service';
 import { emitAuthSessionUpdate, emitAuthSessionProgress } from '../utils/authSessionSocket';
@@ -96,8 +106,9 @@ import {
 import { normaliseOrigin, isLoopbackOrigin } from '../utils/origin';
 import { deriveCoarseClientLabel } from '../utils/deviceUtils';
 import { serializePublicApplication } from '../utils/serializeApplication';
+import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
 import { composeDisplayName, formatUserNameResponse } from '../utils/displayName';
-import { USERNAME_PATTERN, normalizeUsername } from '../utils/username';
+import { normalizeUsername } from '../utils/username';
 
 const router = express.Router();
 
@@ -197,7 +208,7 @@ router.use('/webauthn', webauthnRouter);
  *     summary: Register a new account with a public key
  *     description: >
  *       Create a passwordless account bound to a local secp256k1 identity.
- *       The client generates a key pair (see `KeyManager` in `@oxyhq/core`),
+ *       The client generates a key pair (see `KeyManager` in `@oxy.so/core`),
  *       signs `register:{publicKey}:{timestamp}`, and submits the
  *       signature. Username and email are optional but recommended for
  *       discoverability.
@@ -228,7 +239,7 @@ router.use('/webauthn', webauthnRouter);
  *                 type: string
  *                 minLength: 3
  *                 maxLength: 30
- *                 pattern: '^[a-zA-Z0-9]{3,30}$'
+ *                 pattern: '^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$'
  *     responses:
  *       200:
  *         description: Account created and the first session issued.
@@ -428,19 +439,11 @@ const checkLimiter = rateLimit({
  *         description: Rate limit exceeded
  */
 router.get('/check-username/:username', checkLimiter, validate({ params: checkUsernameParams }), asyncHandler(async (req, res) => {
-  let { username } = req.params;
-  
-  if (!username) {
-    throw new BadRequestError(
-      'Username must be at least 3 characters long and contain only letters and numbers'
-    );
-  }
-
-  username = normalizeUsername(username);
-
-  if (!USERNAME_PATTERN.test(username)) {
-    throw new BadRequestError('Username can only contain letters and numbers');
-  }
+  // `checkUsernameParams` already held the candidate to `usernameSchema`.
+  // Availability is a READ, but it answers a question about a WRITE — "may I
+  // have this name?" — so it applies the write policy to the string being asked
+  // for. It judges no stored row: the lookup below matches whatever is there.
+  const username = normalizeUsername(req.params.username);
 
   // `lower(btrim(...))` on BOTH sides — that is the expression
   // `users_lower_username_key` indexes, so a plain `username = $1` would be
@@ -2253,7 +2256,7 @@ async function userExists(userId: string): Promise<boolean> {
  * `commons://` + `oxycommons://` as its whole redirect surface
  * (`scripts/seedOxyApplicationsSpecs.ts`), both of which derive to `"null"`.
  *
- * Mirrors `OPAQUE_ORIGIN` in `@oxyhq/core`'s `server/cors.ts`, which refuses the
+ * Mirrors `OPAQUE_ORIGIN` in `@oxy.so/core`'s `server/cors.ts`, which refuses the
  * same value on both sides of the CORS allowlist for the same reason.
  */
 const OPAQUE_ORIGIN = 'null';
@@ -2411,6 +2414,18 @@ async function recordAppGrant(
         )`,
       },
     });
+
+  // Approving `acting-as:offline` is the one signal that undoes a revocation.
+  //
+  // It qualifies because it is consent-required: a request naming it ALWAYS
+  // reaches the consent screen, for a trusted application exactly as for a
+  // third-party one, so arriving here with it means a person read that screen
+  // and approved. Clearing on any successful authorize would instead have made
+  // revocation worthless — a first-party application is auto-approved, so its
+  // next sign-in would silently undo a deliberate refusal.
+  if (requestedScopes.includes(SERVICE_ACTING_AS_SCOPE)) {
+    await clearServiceActingAsRevocation(userId, applicationId);
+  }
 }
 
 const oauthAuthorizeLimiter = rateLimit({
@@ -2834,7 +2849,7 @@ router.get(
       data.push({
         applicationId: grant.applicationId,
         name: app.name,
-        logoUrl: app.icon ?? undefined,
+        logoUrl: app.icon === null ? undefined : stripSensitiveUrlQueryParams(app.icon),
         scopes: grant.scopes,
         firstGrantedAt: grant.firstGrantedAt.toISOString(),
         lastUsedAt: grant.lastUsedAt.toISOString(),
@@ -2896,6 +2911,32 @@ router.delete(
       .where(
         and(eq(appGrants.userId, user._id.toString()), eq(appGrants.applicationId, applicationId))
       );
+
+    // Deleting the grant row is not enough, and for a first-party application it
+    // does nothing at all. Offline delegation is AUTOMATIC for trusted
+    // applications, which by design have no grant row to delete — so a user who
+    // clicked "disconnect" would have revoked nothing, silently, on exactly the
+    // applications with the most authority.
+    //
+    // The marker is the revocation for that case. Written here rather than
+    // behind a second endpoint so ONE user action ends both: the user does not
+    // have to know whether what they had was an OAuth grant or an automatic
+    // first-party delegation. See `services/serviceActingAs.service.ts`.
+    //
+    // Written unconditionally, including for an `applicationId` that names no
+    // application — the FK makes that insert fail, which the surrounding
+    // `asyncHandler` would surface as a 500 and turn this endpoint into an
+    // existence oracle. So it is ordered after the delete and guarded by the
+    // same "does this application exist" read the response never reveals.
+    const [revocable] = await getDb()
+      .select({ id: applications.id })
+      .from(applications)
+      .where(eq(applications.id, applicationId))
+      .limit(1);
+
+    if (revocable) {
+      await revokeServiceActingAs(user._id.toString(), applicationId);
+    }
 
     sendSuccess(res, { revoked: true });
   })
@@ -3236,7 +3277,7 @@ router.post(
     //
     // #937 asks for a third party to receive no DeviceSession credential at all.
     // That is the right end state and it is NOT what this ships, deliberately:
-    // `exchangeOAuthCode` in `@oxyhq/core` hard-requires `deviceId` AND
+    // `exchangeOAuthCode` in `@oxy.so/core` hard-requires `deviceId` AND
     // `deviceSecret` and throws without them, so omitting the pair here breaks
     // every third-party "Sign in with Oxy" through the SDK — silently, since the
     // throw is caught and reported as `exchange-failed`. Closing that needs a
@@ -3624,11 +3665,6 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
     throw new BadRequestError('apiKey and apiSecret are required');
   }
 
-  if (!process.env.ACCESS_TOKEN_SECRET) {
-    logger.error('[ServiceToken] ACCESS_TOKEN_SECRET not configured');
-    throw new Error('Server configuration error');
-  }
-
   // Find the credential by its public key (apiKey). The credential must be a
   // `service` credential that is currently usable: `active`, or `deprecated`
   // but still inside its rotation grace window. `revoked` and grace-expired
@@ -3668,7 +3704,7 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
   // Service tokens are bearer credentials for Oxy-to-Oxy / internal routes;
   // self-service third-party applications must not be able to mint them even if
   // they somehow hold a historical `service` credential row — EXCEPT via the
-  // same narrow Oxy Pay carve-out enforced at credential-creation time
+  // same narrow Peable carve-out enforced at credential-creation time
   // (`applications.ts` POST /:appId/credentials): a non-trusted application MAY
   // mint a service token from a credential whose OWN scopes are a non-empty,
   // payments-only set ({@link isPaymentsScope}, i.e. `payments:read`/
@@ -3677,9 +3713,9 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
   // app's FULL granted scope set (`intersectScopes` fallback), so a scopeless
   // credential must never qualify here — only an explicit, payments-only
   // credential does. Both payments scopes are already non-privileged/
-  // self-grantable and tenant-scoped, and the Oxy Pay Gateway only honours
-  // `payments:*`, so this lets external Oxy Pay merchants (WooCommerce,
-  // Mercaria, etc.) mint the payments-scoped service token the `@oxyhq/pay`
+  // self-grantable and tenant-scoped, and the Peable Gateway only honours
+  // `payments:*`, so this lets external Peable merchants (WooCommerce,
+  // Mercaria, etc.) mint the payments-scoped service token the `@oxy.so/pay`
   // SDK needs without ever letting a self-service app mint a token carrying
   // any other capability.
   const app = await findActiveApplicationById(credential.applicationId);
@@ -3712,9 +3748,9 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
   // name the responsible account, and it is resolved SERVER-side from the
   // presented credential, never accepted from the request. `environment` (F2.0)
   // mirrors the minting credential's own `ApplicationCredential.environment` so
-  // downstream services (e.g. the Oxy Pay Gateway) can enforce test/live
+  // downstream services (e.g. the Peable Gateway) can enforce test/live
   // isolation without a second DB lookup. `issuer`/`audience` MUST match what
-  // `@oxyhq/core`'s `oxy.auth()` / `oxy.serviceAuth()` verifies against
+  // `@oxy.so/core`'s `oxy.auth()` / `oxy.serviceAuth()` verifies against
   // (`OXY_JWT_ISSUER`/`OXY_JWT_AUDIENCE` in `OxyServices.utility.ts`) —
   // omitting them left every real service token unverifiable by any external
   // consumer of the SDK.
@@ -3729,23 +3765,42 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
   // INTERSECTED with the application's granted scopes — a credential can never
   // exceed its app's authority (a privileged scope like federation:write only
   // survives if BOTH the credential AND the app hold it). A credential that
-  // requested no scopes inherits the app's full granted set (unchanged
-  // behaviour for credentials provisioned without explicit scopes).
+  // requested no scopes is a legacy credential: it inherits only the app's
+  // non-privileged grants. Privileged authority must always have been named on
+  // the credential itself, where creation applies the staff-only gate.
   const appScopes = app.scopes;
   const scopes =
-    credential.scopes.length > 0 ? intersectScopes(credential.scopes, appScopes) : appScopes;
-  const token = jwt.sign(
-    {
-      type: 'service',
-      appId: app.id,
-      appName: app.name,
-      credentialId: credential.id,
-      ownerAccountId: app.ownerAccountId,
-      scopes,
-      environment: credential.environment,
-    },
-    process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: SERVICE_TOKEN_EXPIRY, issuer: 'oxy-auth', audience: 'oxy-api' }
+    credential.scopes.length > 0
+      ? intersectScopes(credential.scopes, appScopes)
+      : appScopes.filter((scope) => !isPrivilegedScope(scope));
+  const serviceClaims = {
+    type: 'service',
+    appId: app.id,
+    appName: app.name,
+    credentialId: credential.id,
+    ownerAccountId: app.ownerAccountId,
+    scopes,
+    environment: credential.environment,
+  } as const;
+  const now = Math.floor(Date.now() / 1_000);
+  const asymmetricToken = signServiceTokenEd25519({
+    ...serviceClaims,
+    iat: now,
+    exp: now + SERVICE_TOKEN_EXPIRY,
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+  });
+  if (!asymmetricToken && !process.env.ACCESS_TOKEN_SECRET) {
+    logger.error('[ServiceToken] no asymmetric signing key or legacy access-token key configured');
+    throw new Error('Server configuration error');
+  }
+  // Transitional mint compatibility: signing switches to Ed25519 as soon as
+  // the dedicated key is present. HS256 remains only until the separately
+  // scheduled ADR-0012 retirement window closes.
+  const token = asymmetricToken ?? jwt.sign(
+    serviceClaims,
+    process.env.ACCESS_TOKEN_SECRET as string,
+    { expiresIn: SERVICE_TOKEN_EXPIRY, issuer: 'oxy-auth', audience: 'oxy-api' },
   );
 
   // Update lastUsedAt on the credential and the application.

@@ -1,6 +1,6 @@
 import type React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../../icons/Ionicons';
 
 export interface FileLibraryErrorProps {
     title: string;

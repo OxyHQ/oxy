@@ -25,16 +25,15 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { asc, eq } from 'drizzle-orm';
-import { computeRecordId } from '@oxyhq/protocol';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { computeRecordId } from '@oxy.so/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { repoHeads } from '../../db/schema/repoHeads';
 import { signedRecords } from '../../db/schema/signedRecords';
 import { users } from '../../db/schema/users';
 
-const ec = new EC('secp256k1');
 
 /** A wall-clock base every envelope's `issuedAt` is offset from. */
 const T0 = 1_700_000_000_000;
@@ -45,7 +44,7 @@ interface Signer {
   privateKey: string;
 }
 
-/** The spelling the shipped SDK signs with (`@oxyhq/core` OXY_IDENTITY_APEX). */
+/** The spelling the shipped SDK signs with (`@oxy.so/core` OXY_IDENTITY_APEX). */
 function sdkDid(userId: string): string {
   return `did:web:oxy.so:u:${userId}`;
 }
@@ -85,10 +84,10 @@ describe('the signed-record adapter under DID_WEB_DOMAIN=api.oxy.so', () => {
   });
 
   async function signer(): Promise<Signer> {
-    const pair = ec.genKeyPair();
-    const publicKey = pair.getPublic('hex');
+    const pair = generateSecp256k1KeyPair();
+    const publicKey = pair.publicKey;
     const [row] = await getDb().insert(users).values({ publicKey }).returning({ id: users.id });
-    return { userId: row.id, publicKey, privateKey: pair.getPrivate('hex') };
+    return { userId: row.id, publicKey, privateKey: pair.privateKey };
   }
 
   /** Build + sign a v2 envelope for an explicit subject DID spelling. */

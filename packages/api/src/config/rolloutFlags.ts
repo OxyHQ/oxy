@@ -1,19 +1,21 @@
 /**
  * The inference platform's rollout flags (issue #972 workstream 16, "Rollout").
  *
- * FIVE switches, declared here and nowhere else: the new authentication lane,
- * the public API edge, the ledger, the catalogue, and the privacy/security
+ * SIX switches, declared here and nowhere else: the new authentication lane,
+ * the public API edge, the Kaana execution hop, the ledger, the catalogue, and the privacy/security
  * review a public launch is gated on. {@link describeRolloutFlags} renders all
- * five at once, so "what is on in production" is one call rather than a grep —
+ * six at once, so "what is on in production" is one call rather than a grep —
  * and `GET /inference/admin/rollout` is that call over HTTP.
  *
- * ## Every one of them defaults to the state that does nothing
+ * ## Exposure and money switches default to the state that does nothing
  *
  * An unset variable never opens a surface, never authenticates a customer's API
  * key, never publishes a catalogue and — most of all — never charges anybody.
  * That is not a stylistic preference: a flag you can arm by forgetting a
  * variable is worse than no flag, because it looks like a control while
- * defaulting to the dangerous side. Each default is asserted in
+ * defaulting to the dangerous side. Kaana execution is the exception after its
+ * completed cutover: configured signing/origin bindings are ordinary runtime
+ * wiring, while an explicit `disabled` remains the emergency kill switch. Each default is asserted in
  * `__tests__/rolloutFlags.test.ts` with the environment explicitly cleared, so
  * the assertion fails if a default is ever flipped.
  *
@@ -23,9 +25,9 @@
  *
  * ## An unreadable value resolves to the SAFE state, loudly
  *
- * Relay's `RELAY_ASSUME_FAILOVER_AUTHORIZED` — this ecosystem's precedent for a
- * dangerous switch, and the shape {@link resolveInferenceCharging} copies —
- * makes a malformed value a hard boot failure. That is proportionate for a data
+ * A prior high-risk failover switch in this ecosystem established the precedent
+ * that a dangerous control must never interpret an arbitrary truthy value as
+ * authorization. Its malformed values caused a hard boot failure. That is proportionate for a data
  * plane whose entire job is the thing being gated. It is not proportionate here:
  * `oxy-api` also serves authentication, email, storage and federation, so a typo
  * in an inference rollout flag must not take those down. So a value this module
@@ -35,8 +37,7 @@
  *
  * ## Read per call, never cached
  *
- * Same reasoning as `services/providerSecretStore.ts`: a test can set the
- * variable, and a task-definition change takes effect on restart without a
+ * A test can set the variable, and a task-definition change takes effect on restart without a
  * second mechanism deciding it did not. The work is an environment read and a
  * small parse; nothing here touches the database.
  *
@@ -56,6 +57,7 @@
  * both, and no amount of parsing in this module changes that.
  */
 
+import { isLiveEntityId } from '@oxy.so/db';
 import { classifyApplicationTier, type ApplicationTier } from '../utils/applicationTier';
 import { logger } from '../utils/logger';
 
@@ -101,19 +103,21 @@ export function forgetReportedMisconfigurations(): void {
  * ```text
  * (unset)               nobody. The default.
  * closed                nobody, said out loud.
- * internal              internal/system applications      — internal Alia canary
- * first_party           …plus first-party applications    — Oxy first-party canary
- * allowlist:<id>,<id>   …plus the named applications      — closed external beta
+ * internal              internal/system applications      — tier canary
+ * first_party           internal + first-party apps       — broader tier canary
+ * allowlist:<id>,<id>   exactly the named applications    — exact-app canary/beta
  * public                every application                 — prepaid public launch
  * ```
  *
- * The stages are cumulative because an operational rollout is: a stage that
- * locked out the previous stage's callers would make every advance an outage for
- * the people already depending on it.
+ * The tier audiences are cumulative. `allowlist` is deliberately not: it is the
+ * escape hatch for naming one or more exact application principals without
+ * implicitly admitting every `internal` or `first_party` application. Moving
+ * from a tier audience to an allowlist is therefore a narrowing operation unless
+ * each prior caller is named explicitly.
  *
  * It is an AUDIENCE rather than a phase number, and it names the applications it
  * admits, because "what does `stage 3` mean" is a question a task definition
- * cannot answer and `allowlist:app_x` answers by itself.
+ * cannot answer and `allowlist:<exact application ID>` answers by itself.
  */
 export const EDGE_AUDIENCE_VARIABLE = 'INFERENCE_EDGE_AUDIENCE';
 
@@ -176,7 +180,7 @@ const EDGE_AUDIENCE_SHAPE =
  * decides which one an operator is told about first.
  */
 export function resolveEdgeAudience(): EdgeAudienceResolution {
-  const configured = process.env[EDGE_AUDIENCE_VARIABLE]?.trim();
+  const configured = process.env[EDGE_AUDIENCE_VARIABLE];
   if (configured === undefined || configured.length === 0) {
     return { status: 'closed', reason: 'not_configured' };
   }
@@ -185,16 +189,17 @@ export function resolveEdgeAudience(): EdgeAudienceResolution {
   }
 
   if (configured.startsWith(ALLOWLIST_PREFIX)) {
-    const allowedApplicationIds = configured
-      .slice(ALLOWLIST_PREFIX.length)
-      .split(',')
-      .map((id) => id.trim())
-      .filter((id) => id.length > 0);
-    // An empty list is refused rather than read as `first_party`. A closed beta
-    // with nobody in it is a misconfiguration, and silently serving the previous
-    // stage would hide it for exactly as long as nobody noticed the beta had no
-    // testers.
-    if (allowedApplicationIds.length === 0) {
+    const allowedApplicationIds = configured.slice(ALLOWLIST_PREFIX.length).split(',');
+    const uniqueApplicationIds = new Set(allowedApplicationIds);
+    // IDs are exact database primary keys: never trim, normalize, discard an
+    // empty segment, or silently deduplicate them. A malformed list closes the
+    // whole edge, making an operator correct the intended principal set instead
+    // of running with a different set than the task definition spells.
+    if (
+      allowedApplicationIds.length === 0 ||
+      allowedApplicationIds.some((id) => !isLiveEntityId(id)) ||
+      uniqueApplicationIds.size !== allowedApplicationIds.length
+    ) {
       reportUnreadable(EDGE_AUDIENCE_VARIABLE, configured, EDGE_AUDIENCE_SHAPE);
       return { status: 'closed', reason: 'unreadable' };
     }
@@ -235,11 +240,11 @@ export type EdgeAdmission =
       readonly tier: ApplicationTier;
     };
 
-/** The tiers each audience admits, before the allowlist is consulted. */
+/** The tiers admitted by tier audiences. `allowlist` admits by exact ID only. */
 const AUDIENCE_TIERS: Record<EdgeAudienceName, readonly ApplicationTier[]> = {
   internal: ['internal'],
   first_party: ['internal', 'first_party'],
-  allowlist: ['internal', 'first_party'],
+  allowlist: [],
   public: ['internal', 'first_party', 'third_party'],
 };
 
@@ -262,13 +267,12 @@ export function admitToInferenceEdge(principal: EdgeAdmissionPrincipal): EdgeAdm
   }
 
   const { audience } = resolution;
-  if (AUDIENCE_TIERS[audience.name].includes(tier)) {
-    return { status: 'admitted', audience: audience.name };
+  if (audience.name === 'allowlist') {
+    return audience.allowedApplicationIds.includes(principal.applicationId)
+      ? { status: 'admitted', audience: audience.name }
+      : { status: 'refused', reason: 'outside_audience', tier };
   }
-  if (
-    audience.name === 'allowlist' &&
-    audience.allowedApplicationIds.includes(principal.applicationId)
-  ) {
+  if (AUDIENCE_TIERS[audience.name].includes(tier)) {
     return { status: 'admitted', audience: audience.name };
   }
 
@@ -316,7 +320,39 @@ export function isMachineCredentialLaneEnabled(): boolean {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  3. The ledger — charging, and the shadow metering that precedes it        */
+/*  3. The Kaana execution hop                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `INFERENCE_KAANA_EXECUTION` is an emergency kill switch for constructing the
+ * production Kaana client. Unset and `enabled` both permit normal configured
+ * runtime wiring; only explicit `disabled` closes it. Malformed values fail
+ * closed and are reported.
+ */
+export const KAANA_EXECUTION_VARIABLE = 'INFERENCE_KAANA_EXECUTION';
+
+export type KaanaExecutionState =
+  | { readonly status: 'enabled' }
+  | { readonly status: 'disabled'; readonly reason: 'disabled' | 'unreadable' };
+
+export function resolveKaanaExecution(): KaanaExecutionState {
+  const configured = process.env[KAANA_EXECUTION_VARIABLE]?.trim();
+  if (configured === undefined || configured.length === 0) {
+    return { status: 'enabled' };
+  }
+  if (configured === 'enabled') return { status: 'enabled' };
+  if (configured === 'disabled') return { status: 'disabled', reason: 'disabled' };
+
+  reportUnreadable(KAANA_EXECUTION_VARIABLE, configured, 'enabled | disabled');
+  return { status: 'disabled', reason: 'unreadable' };
+}
+
+export function isKaanaExecutionEnabled(): boolean {
+  return resolveKaanaExecution().status === 'enabled';
+}
+
+/* -------------------------------------------------------------------------- */
+/*  4. The ledger — charging, and the shadow metering that precedes it        */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -333,8 +369,8 @@ export function isMachineCredentialLaneEnabled(): boolean {
  *
  * ## Why a bare `true` is refused
  *
- * The shape is Relay's `RELAY_ASSUME_FAILOVER_AUTHORIZED` and it is refused for
- * the same reason: `true` is the value that arrives by accident. It is what a
+ * The dated-attestation shape follows that established failover precedent and
+ * refuses a bare `true`: that is the value that arrives by accident. It is what a
  * copied task definition carries, what a `.env` picks up, and what somebody
  * types to see whether a flag does anything. `commercial-launch:2026-08-16` is
  * not typed by accident, and it records the two things an auditor asks about a
@@ -342,7 +378,7 @@ export function isMachineCredentialLaneEnabled(): boolean {
  *
  * ## It does not expire, and that is argued rather than inherited
  *
- * Relay's does not either. Expiry would be wrong here in both directions: at
+ * That precedent did not expire automatically either. Expiry would be wrong here in both directions: at
  * public scale an expired authorization either serves the world for free or
  * refuses every request, and both are expensive. What the date buys instead is
  * an age reported beside the flag in {@link describeRolloutFlags}, which is the
@@ -619,6 +655,11 @@ export interface RolloutFlagReport {
     readonly enabled: boolean;
     readonly disabledReason: 'not_configured' | 'disabled' | 'unreadable' | null;
   };
+  readonly kaanaExecution: {
+    readonly variable: string;
+    readonly enabled: boolean;
+    readonly disabledReason: 'disabled' | 'unreadable' | null;
+  };
   readonly charging: {
     readonly variable: string;
     readonly authorized: boolean;
@@ -650,7 +691,7 @@ export interface RolloutFlagReport {
  * Every rollout flag, resolved, in one object.
  *
  * The point of the module: "what is on in production" is answerable without
- * knowing which five variables to grep for, and every arm carries WHY, so a flag
+ * knowing which six variables to grep for, and every arm carries WHY, so a flag
  * that is off because it was mistyped is distinguishable from one that is off
  * because nobody set it.
  *
@@ -661,6 +702,7 @@ export interface RolloutFlagReport {
 export function describeRolloutFlags(): RolloutFlagReport {
   const edge = resolveEdgeAudience();
   const lane = resolveMachineCredentialLane();
+  const kaanaExecution = resolveKaanaExecution();
   const charging = resolveInferenceCharging();
   const catalogue = resolveCatalogueAudience();
   const privacyReview = resolveInferencePrivacyReview();
@@ -677,6 +719,11 @@ export function describeRolloutFlags(): RolloutFlagReport {
       variable: MACHINE_CREDENTIAL_AUTH_VARIABLE,
       enabled: lane.status === 'enabled',
       disabledReason: lane.status === 'disabled' ? lane.reason : null,
+    },
+    kaanaExecution: {
+      variable: KAANA_EXECUTION_VARIABLE,
+      enabled: kaanaExecution.status === 'enabled',
+      disabledReason: kaanaExecution.status === 'disabled' ? kaanaExecution.reason : null,
     },
     charging: {
       variable: CHARGING_AUTHORIZED_VARIABLE,

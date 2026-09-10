@@ -29,21 +29,14 @@
  * production. That is not an oversight to be tidied away by wiring it to the
  * nearest plausible endpoint.
  *
- * The nearest plausible endpoint would be `POST /alia/chat/completions`
- * (`routes/alia.ts`), and mounting it there would be wrong for a reason a rate
- * limit cannot fix: that route forwards the caller's body verbatim to Alia on ONE
- * static `ALIA_API_KEY`, and `max_tokens` is the caller's to choose — so a cap
- * of N requests per window bounds requests, never cost. Worse, the cost lands on
- * a single shared Oxy budget with no per-account attribution, so one key cannot
- * be stopped without stopping all of them. The epic's invariant is "reserve spend
- * before the request enters the data plane", and that reservation lives on the
- * `/v1` edge, which is where this lane already is.
+ * It deliberately authenticates only the metered `/v1` inference edge. Product
+ * agent and voice APIs are not infrastructure inference surfaces.
  *
  * ## Its own lane, and its own request property
  *
  * This does NOT set `req.serviceApp`, and that is the security-relevant choice
  * in the whole module. A service token's gate is that only a platform-TRUSTED
- * application may hold a `service` credential at all (plus the narrow Oxy Pay
+ * application may hold a `service` credential at all (plus the narrow Peable
  * carve-out); everything mounted behind `serviceAuthMiddleware` — federation,
  * accounts provisioning, chains, notifications, signals — is written against
  * that. A machine credential is by design self-serve for external developers,
@@ -69,7 +62,7 @@
 
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { and, eq } from 'drizzle-orm';
-import { verifySecret } from '@oxyhq/core/server';
+import { verifySecret } from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
 import type { ApplicationCredentialEnvironment } from '../db/schema/applicationCredentials';

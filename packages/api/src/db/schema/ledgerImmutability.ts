@@ -58,7 +58,7 @@ export type ImmutableLedgerTable = (typeof IMMUTABLE_LEDGER_TABLES)[number];
  * One shared function rather than five: the message names `TG_TABLE_NAME`, so it
  * is as specific as five copies would be and there is one place for the rule to
  * be correct. `SQLSTATE 23514` (check violation) rather than a bespoke code, so
- * `@oxyhq/db`'s `isCheckViolation` recognises it like any other constraint
+ * `@oxy.so/db`'s `isCheckViolation` recognises it like any other constraint
  * failure — a caller must never have to string-match this message.
  */
 export const LEDGER_IMMUTABILITY_DDL = `CREATE OR REPLACE FUNCTION billing_ledger_row_immutable() RETURNS trigger

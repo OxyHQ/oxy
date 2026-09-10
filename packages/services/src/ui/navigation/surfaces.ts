@@ -4,7 +4,7 @@ import {
   surfaces as bloomSurfaces,
   type PresentOptions,
   type SurfaceControls,
-} from '@oxyhq/bloom/surfaces';
+} from '@oxy.so/bloom/surfaces';
 import type { RouteName } from './routes';
 import {
   getSurfaceConfig,
@@ -17,7 +17,7 @@ import SurfaceScreen from '../components/SurfaceScreen';
 
 /**
  * The SDK's typed surface API — a route registry layered on top of Bloom's
- * content-agnostic surface stack (`@oxyhq/bloom/surfaces`).
+ * content-agnostic surface stack (`@oxy.so/bloom/surfaces`).
  *
  * `present(route)` opens a NEW Bloom surface (the DEPTH axis) whose content is a
  * {@link SurfaceScreen} driven by the route's own {@link SurfaceNavStack} (the

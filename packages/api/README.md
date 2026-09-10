@@ -266,9 +266,9 @@ socket.on('session_state', (state) => {
 ## Integration
 
 This API works with:
-- **[@oxyhq/core](../core/)** - TypeScript client library (`OxyServices`, `SessionClient`)
-- **[@oxyhq/services](../services/)** - Expo / React Native / web UI SDK (`OxyProvider`)
-- **Express.js** applications via `@oxyhq/core/server` middleware
+- **[@oxy.so/core](../core/)** - TypeScript client library (`OxyServices`, `SessionClient`)
+- **[@oxy.so/services](../services/)** - Expo / React Native / web UI SDK (`OxyProvider`)
+- **Express.js** applications via `@oxy.so/core/server` middleware
 - Any HTTP client or REST API consumer
 
 For detailed integration examples, see the **[examples directory](./docs/examples/)**.

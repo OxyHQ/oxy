@@ -289,7 +289,7 @@ export class OxyServicesBase {
    * the Unix epoch (the raw JWT `exp` unit), or `null` when there is no token,
    * the token is opaque/undecodable, or it carries no numeric `exp`.
    *
-   * Exposed so `@oxyhq/services` can schedule a PROACTIVE in-session refresh a
+   * Exposed so `@oxy.so/services` can schedule a PROACTIVE in-session refresh a
    * fixed lead before expiry without re-importing a JWT decoder (and without
    * duplicating the `jwt-decode` dependency in the RN bundle). HttpService keeps
    * the per-request preflight refresh; this powers the idle/background timer.

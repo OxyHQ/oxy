@@ -7,7 +7,7 @@ import type { DeviceCredential, SessionClientHost } from './SessionClient';
  * `SessionClient` is host-agnostic: it only needs a REST + token surface.
  * `OxyServices` already exposes all of that except `getCurrentAccountId`,
  * which has no direct equivalent — the adapter holds a mutable ref set by
- * the caller (`OxyContext` in `@oxyhq/services`) via `setCurrentAccountId`.
+ * the caller (`OxyContext` in `@oxy.so/services`) via `setCurrentAccountId`.
  *
  * Shared here (rather than duplicated per consumer) because it is entirely
  * platform-agnostic: every method it calls exists identically on

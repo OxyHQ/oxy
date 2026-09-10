@@ -390,8 +390,7 @@ describe('the inference vocabulary', () => {
   test('BYOK read is withheld from viewer and billing, unlike account:read', () => {
     // The deliberate decision: BYOK read used to be inherited from `account:read`,
     // which EVERY role holds. It returns no credential material but it does return
-    // which provider an account uses, a key prefix, a fingerprint and validation
-    // failures.
+    // which provider an account uses and its validation failures.
     for (const role of ACCOUNT_ROLE_NAMES) {
       expect(permissionsForAccountRole(role)).toContain('account:read');
     }

@@ -74,7 +74,7 @@ import {
   text,
   unique,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, tsvector, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, tsvector, updatedAt } from '@oxy.so/db';
 
 /** Where a topic sits in the taxonomy. Mongo's `TopicType`, unchanged. */
 export const TOPIC_TYPES = ['category', 'topic', 'entity'] as const;

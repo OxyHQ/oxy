@@ -1,4 +1,4 @@
-import type { VerifiableCredentialResponse } from '@oxyhq/contracts';
+import type { VerifiableCredentialResponse } from '@oxy.so/contracts';
 import {
   CREDENTIAL_BASE_TYPE,
   CREDENTIAL_PRESETS,

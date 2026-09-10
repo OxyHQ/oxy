@@ -2,7 +2,7 @@
  * Classify the surface a "Sign in with Oxy" request is initiated from, for
  * `AccountDialogController`'s `platform` option (issue #691, Phase 4/5).
  *
- * `@oxyhq/core` deliberately refuses to do this itself — it never touches a
+ * `@oxy.so/core` deliberately refuses to do this itself — it never touches a
  * platform global — so the consumer that OWNS the environment classifies it and
  * hands the verdict in. The verdict feeds `selectCommonsDelivery`, where it
  * decides one thing only: whether this device may take the `'open-commons'`
@@ -19,7 +19,7 @@
  *      still reports its mouse as primary, so it is not misclassified.
  */
 
-import type { CommonsDeliveryPlatform } from '@oxyhq/core';
+import type { CommonsDeliveryPlatform } from '@oxy.so/core';
 import { isWebBrowser } from './isWebBrowser';
 
 /**

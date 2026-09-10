@@ -49,7 +49,7 @@ import type {
   AppEndorsementInput,
   AppInterestInput,
   AppAffinityEvent,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 /** Postgres `foreign_key_violation` — an id that names no row. */
 const FOREIGN_KEY_VIOLATION = '23503';

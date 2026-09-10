@@ -1,4 +1,4 @@
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 import type { User } from '../../models/interfaces';
 import { SessionClient, type TokenTransport } from '../SessionClient';
 import { createSessionClientHost } from '../sessionClientHost';

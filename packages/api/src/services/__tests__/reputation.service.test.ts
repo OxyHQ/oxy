@@ -45,7 +45,7 @@ import {
   REPORT_REJECTED_ACTION,
 } from '../../utils/reputation.constants';
 import reputationService from '../reputation.service';
-import type { ReputationCategory } from '@oxyhq/contracts';
+import type { ReputationCategory } from '@oxy.so/contracts';
 
 const uniqueId = () => randomUUID().replace(/-/g, '');
 

@@ -6,14 +6,13 @@
  * composition, and the Oxy organisation document.
  */
 
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { buildUserDid, buildDidDocument, buildOxyDidDocument, OXY_DID } from '../did.service';
-import { didDocumentSchema } from '@oxyhq/contracts';
+import { didDocumentSchema } from '@oxy.so/contracts';
 
-const ec = new EC('secp256k1');
 
 function newPublicKey(): string {
-  return ec.genKeyPair().getPublic('hex');
+  return generateSecp256k1KeyPair().publicKey;
 }
 
 const ORIGINAL_OXY_PUBLIC_KEY = process.env.OXY_PUBLIC_KEY;
@@ -266,7 +265,7 @@ describe('DID_WEB_DOMAIN override', () => {
 
     // The server-emitted spelling.
     expect(fresh.parseUserDid(`did:web:api.oxy.so:u:${id}`)).toBe(id);
-    // The SDK spelling (@oxyhq/core OXY_IDENTITY_APEX) — client-signed envelopes
+    // The SDK spelling (@oxy.so/core OXY_IDENTITY_APEX) — client-signed envelopes
     // arrive anchored at the identity apex regardless of DID_WEB_DOMAIN.
     expect(fresh.parseUserDid(`did:web:oxy.so:u:${id}`)).toBe(id);
 

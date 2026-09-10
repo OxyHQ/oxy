@@ -1,13 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { authenticatedApiCall } from '@oxyhq/core';
+import { authenticatedApiCall } from '@oxy.so/core';
 import type {
   AssetUploadInput,
   NotificationPreferences,
   PrivacySettings,
   User,
   UserPreferences,
-} from '@oxyhq/core';
-import type { UserProfileUpdate } from '@oxyhq/contracts';
+} from '@oxy.so/core';
+import type { UserProfileUpdate } from '@oxy.so/contracts';
 import {
   queryKeys,
   invalidateAccountQueries,
@@ -17,7 +17,7 @@ import {
 } from '../queries/queryKeys';
 import { mutationKeys } from './mutationKeys';
 import { useOxy } from '../../context/OxyContext';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { useAuthStore } from '../../stores/authStore';
 import {
   clearedFieldsFromProfileUpdate,

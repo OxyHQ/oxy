@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import type {
   AccountMember,
   AccountRole,
@@ -16,11 +16,11 @@ import type {
   CreateApplicationCredentialInput,
   CreateApplicationInput,
   UpdateApplicationInput,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { useAccount } from '@/hooks/use-account';
 
 // ===========================================================================
-// Types — re-exported from @oxyhq/core so the Console shares the single
+// Types — re-exported from @oxy.so/core so the Console shares the single
 // source of truth (the `accounts` mixin, which owns app management) rather
 // than maintaining a parallel copy that can drift from the API contract.
 //
@@ -67,7 +67,8 @@ const APPLICATIONS_LIST_PREFIX = ['applications'] as const;
 
 const queryKeys = {
   applications: (accountId: string | undefined) => ['applications', accountId ?? null] as const,
-  application: (appId: string) => ['application', appId] as const,
+  application: (appId: string, accountId: string | undefined) =>
+    ['application', appId, accountId ?? null] as const,
   credentials: (appId: string) => ['application-credentials', appId] as const,
   credentialAudit: (appId: string, credentialId: string) =>
     ['application-credential-audit', appId, credentialId] as const,
@@ -97,11 +98,13 @@ export function useApplications() {
 
 export function useApplication(appId: string) {
   const { oxyServices, isAuthenticated, isReady } = useAuth();
+  const { currentAccount } = useAccount();
+  const accountId = currentAccount?.accountId;
 
   return useQuery({
-    queryKey: queryKeys.application(appId),
+    queryKey: queryKeys.application(appId, accountId),
     queryFn: () => oxyServices.getApp(appId),
-    enabled: isReady && isAuthenticated && !!appId,
+    enabled: isReady && isAuthenticated && !!appId && !!accountId,
     staleTime: 1000 * 60 * 2,
     retry: 1,
   });
@@ -122,7 +125,7 @@ export function useCreateApplication() {
       queryClient.setQueryData<Array<Application>>(queryKeys.applications(accountId), (old) =>
         old ? [newApp, ...old] : [newApp]
       );
-      queryClient.setQueryData(queryKeys.application(newApp._id), newApp);
+      queryClient.setQueryData(queryKeys.application(newApp._id, accountId), newApp);
     },
   });
 }
@@ -146,7 +149,10 @@ export function useUpdateApplication() {
         (old) =>
           old ? old.map((app) => (app._id === updatedApp._id ? updatedApp : app)) : old
       );
-      queryClient.setQueryData(queryKeys.application(updatedApp._id), updatedApp);
+      queryClient.setQueriesData<Application>(
+        { queryKey: ['application', updatedApp._id] },
+        updatedApp
+      );
     },
   });
 }
@@ -166,7 +172,7 @@ export function useDeleteApplication() {
         { queryKey: APPLICATIONS_LIST_PREFIX },
         (old) => (old ? old.filter((app) => app._id !== appId) : old)
       );
-      queryClient.removeQueries({ queryKey: queryKeys.application(appId) });
+      queryClient.removeQueries({ queryKey: ['application', appId] });
       queryClient.removeQueries({ queryKey: queryKeys.credentials(appId) });
     },
   });

@@ -1,5 +1,5 @@
 /**
- * Baseline `@oxyhq/services` mock for auth `bun test`.
+ * Baseline `@oxy.so/services` mock for auth `bun test`.
  *
  * The real package pulls `react-native` at module load time, which bun cannot
  * parse in a node test env. `mock.module` is process-global and last-writer-wins
@@ -72,4 +72,4 @@ export function createServicesMock(
     }
 }
 
-mock.module("@oxyhq/services", () => createServicesMock())
+mock.module("@oxy.so/services", () => createServicesMock())

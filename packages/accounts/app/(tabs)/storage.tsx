@@ -9,7 +9,7 @@ import { OverviewSection } from '@/components/storage/overview-section';
 import { AccountInfoSection } from '@/components/storage/account-info-section';
 import { CategoriesSection } from '@/components/storage/categories-section';
 import { useStorageDetails } from '@/hooks/storage/useStorageDetails';
-import { useOxy, useAccountStorageUsage } from '@oxyhq/services';
+import { useOxy, useAccountStorageUsage } from '@oxy.so/services';
 import { useTranslation } from '@/lib/i18n';
 
 export default function StorageScreen() {

@@ -9,7 +9,7 @@
  * handler (`refresh.ts`) never touch a platform storage API directly.
  *
  * Platform-agnostic — the native factory takes an INJECTED key/value store
- * (`@oxyhq/services` passes a SecureStore-backed adapter) so `@oxyhq/core`
+ * (`@oxy.so/services` passes a SecureStore-backed adapter) so `@oxy.so/core`
  * never imports `expo-secure-store`. The web factory is self-contained
  * (`localStorage`) and degrades to in-memory when storage is unavailable
  * (sandboxed iframe `SecurityError`, private-mode quota, SSR).
@@ -415,7 +415,7 @@ export function createWebAuthStateStore(): AuthStateStore {
 /**
  * A native {@link AuthStateStore} over an injected async key/value store.
  *
- * `@oxyhq/core` never imports `expo-secure-store`; `@oxyhq/services` constructs
+ * `@oxy.so/core` never imports `expo-secure-store`; `@oxy.so/services` constructs
  * the SecureStore-backed adapter and passes it here. Persistence is split across
  * the durable {@link AUTH_STATE_STORAGE_KEY} (mint credential) and the
  * best-effort {@link AUTH_STATE_TOKEN_STORAGE_KEY} (warm access token) — the

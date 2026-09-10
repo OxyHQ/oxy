@@ -53,6 +53,49 @@ describe('verifyCsrfToken', () => {
     mockWarn.mockClear();
   });
 
+  /**
+   * The batch profile read. Its route contract accepts an ANONYMOUS caller and
+   * returns exactly the already-public `GET /users/:id` payload, so there is no
+   * state for a cross-site POST to change — but CSRF gates the VERB, and a
+   * signed-out or cookie-less client was getting a 403 on a read. Measured on
+   * production before the fix: 2,730 `CSRF token missing` rejections on this
+   * path in 24 hours, every one of them a batch lookup that then fell back to
+   * resolving profiles one at a time.
+   */
+  it('allows the anonymous batch profile READ with no cookie and no header', () => {
+    const { res, next } = runVerify({ baseUrl: '/users', path: '/by-ids' });
+
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  // The exemption is the whole route, mount included — a second router defining
+  // its own `/by-ids` must not inherit it.
+  it('still protects a same-named route under a different mount', () => {
+    const { res, next } = runVerify({ baseUrl: '/profiles', path: '/by-ids' });
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  // And it is an exact match, not a prefix: a state-changing sibling that merely
+  // starts with the same text stays protected.
+  it('still protects a route whose path merely starts with an exempt one', () => {
+    const { res, next } = runVerify({ baseUrl: '/users', path: '/by-ids/delete' });
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  // A method change is a different route. `DELETE /users/by-ids` would be a
+  // write, and the exemption must not follow the path across verbs.
+  it('still protects the exempt path under a state-changing method', () => {
+    const { res, next } = runVerify({ method: 'DELETE', baseUrl: '/users', path: '/by-ids' });
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
   it('allows state-changing requests with an explicit bearer token and no CSRF header', () => {
     const { res, next } = runVerify({
       headers: {

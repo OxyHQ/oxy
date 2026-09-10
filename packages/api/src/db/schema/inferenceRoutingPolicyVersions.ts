@@ -16,7 +16,7 @@
  *
  * ## Contradictions that are UNREPRESENTABLE here, not merely rejected
  *
- * `routingPolicySchema`'s refinement (in `@oxyhq/contracts`) rejects the
+ * `routingPolicySchema`'s refinement (in `@oxy.so/contracts`) rejects the
  * contradictory combinations on the wire. This table's job is to make as many of
  * them as possible impossible to STORE, so that a future writer that skips the
  * wire schema — a script, a `psql` session, a second service — cannot produce
@@ -58,7 +58,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList } from '@oxyhq/db';
+import { createdAt, generatedId, inList } from '@oxy.so/db';
 import { currencyCodeCheck, exactAmount } from './ledgerColumns';
 import { inferenceModelRevisions } from './inferenceModelRevisions';
 import { inferenceModels } from './inferenceModels';

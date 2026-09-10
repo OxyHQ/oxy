@@ -15,8 +15,8 @@
 import { randomUUID } from 'node:crypto';
 import { eq, getTableColumns, getTableName, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
-import { sqlColumnName } from '@oxyhq/db';
-import { sweepExpiredRows } from '@oxyhq/db/expiry';
+import { sqlColumnName } from '@oxy.so/db';
+import { sweepExpiredRows } from '@oxy.so/db/expiry';
 import { EXPIRY_SWEEP_TARGETS } from '../../expiry';
 import { IDENTITY_APPROVAL_CAPABILITY } from '../../../utils/applicationCapabilities';
 import { ACCOUNT_MEMBER_STATUSES, accountMembers } from '../accountMembers';

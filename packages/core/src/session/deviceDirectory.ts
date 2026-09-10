@@ -5,7 +5,7 @@ import type {
   DeviceDirectory,
   DeviceDirectoryProfile,
   DevicePrincipal,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getAccountDisplayName } from '../utils/accountUtils';
 import { getNormalizedUserHandle } from '../utils/userHandle';
 

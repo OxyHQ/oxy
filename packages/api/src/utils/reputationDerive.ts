@@ -56,7 +56,7 @@ import {
   REPORTING_TARGET_SAMPLE_SIZE,
   STANDING_WEIGHT_FACTOR,
 } from './moderation.constants';
-import type { ConductStanding, ContributionTier, TrustTier } from '@oxyhq/contracts';
+import type { ConductStanding, ContributionTier, TrustTier } from '@oxy.so/contracts';
 import type { ConductStandingThreshold } from '../db/schema/moderationPolicyStandingThresholds';
 import type {
   ReputationContextualInfluenceSnapshot,

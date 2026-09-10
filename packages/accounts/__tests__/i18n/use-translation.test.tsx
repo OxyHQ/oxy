@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, renderHook } from '@testing-library/react';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
 import { useTranslation } from '@/lib/i18n/use-translation';
 

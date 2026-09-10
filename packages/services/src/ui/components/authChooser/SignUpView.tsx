@@ -14,9 +14,9 @@
 import type React from 'react';
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
-import { Button } from '@oxyhq/bloom/button';
-import { Text } from '@oxyhq/bloom/typography';
-import type { AccountDialogSnapshot, OxyServices } from '@oxyhq/core';
+import { Button } from '@oxy.so/bloom/button';
+import { Text } from '@oxy.so/bloom/typography';
+import type { AccountDialogSnapshot, OxyServices } from '@oxy.so/core';
 import { isWebBrowser } from '../../utils/isWebBrowser';
 import { Dividerish, SubtleLink } from './primitives';
 import { authChooserStyles as styles } from './styles';

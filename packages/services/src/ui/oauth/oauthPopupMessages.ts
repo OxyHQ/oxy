@@ -18,7 +18,7 @@
  * it is reported as a mismatch rather than left to hang until the timeout.
  */
 
-import { logger } from '@oxyhq/core';
+import { logger } from '@oxy.so/core';
 import type { OAuthPopupHandle, OxyOAuthMessage } from './types';
 
 /** `postMessage` discriminator for a successful authorization. */

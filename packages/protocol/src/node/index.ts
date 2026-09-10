@@ -1,14 +1,14 @@
 /**
- * `@oxyhq/protocol/node` — the runnable node substrate.
+ * `@oxy.so/protocol/node` — the runnable node substrate.
  *
  * The Node-only half of the protocol: the Express app factory that backs any
  * Oxy-protocol data node ({@link createNodeApp}), the HTTP {@link NodeClient}
  * that drives a node's routes, the `did:web` verification-method resolver, the
  * record verifier, and the node-protocol shape constants. A SEPARATE subpath
  * from the package root so this Express/Node-only code never enters React
- * Native / web bundles that import `@oxyhq/protocol`.
+ * Native / web bundles that import `@oxy.so/protocol`.
  *
- * Reused by `@oxyhq/node` (the runnable node), a future `mention-node` (an
+ * Reused by `@oxy.so/node` (the runnable node), a future `mention-node` (an
  * env-only deployment of the same base), and oxy-api's node sync (which drives
  * a node via `NodeClient`).
  */

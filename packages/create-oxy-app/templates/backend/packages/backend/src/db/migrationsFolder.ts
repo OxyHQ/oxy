@@ -21,7 +21,7 @@
  * migrator pointed at an empty directory that reports "nothing to do".
  *
  * `__dirname` rather than `import.meta.url`: this package compiles to CommonJS
- * (`@oxyhq/app-preset/tsconfig/backend.json`), and `import.meta` is a syntax
+ * (`@oxy.so/app-preset/tsconfig/backend.json`), and `import.meta` is a syntax
  * error under that module target.
  *
  * NOTE for the container image: the runtime stage copies `dist/`, so it must

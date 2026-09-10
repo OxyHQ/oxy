@@ -14,7 +14,7 @@
  *   - web never runs it.
  */
 import type { OxyServices } from '../../OxyServices';
-import type { DeviceTokenMintResponse } from '@oxyhq/contracts';
+import type { DeviceTokenMintResponse } from '@oxy.so/contracts';
 import type { SessionLoginResponse } from '../../models/session';
 import { runSessionColdBoot } from '../sessionColdBoot';
 import type { DeviceSecretMintOutcome } from '../../session/refresh';

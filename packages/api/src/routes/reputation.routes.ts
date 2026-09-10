@@ -21,7 +21,7 @@ import {
   type ReputationLeaderboardEntry,
   type ReputationRule,
   type ReputationTransaction,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 import {
   authMiddleware,
@@ -145,7 +145,7 @@ function authUserOrService(
 /*
  * SERIALIZERS
  *
- * Every one of these returns a type owned by `@oxyhq/contracts` and hands the
+ * Every one of these returns a type owned by `@oxy.so/contracts` and hands the
  * DTO to that type's schema before it leaves the process. Two guards, and they
  * catch different things:
  *

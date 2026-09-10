@@ -61,7 +61,7 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, tsvector, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, tsvector, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /**
@@ -70,7 +70,7 @@ import { users } from './users';
  * (`geometry`, which drizzle DOES ship a builder for, measures in units of the
  * SRID — degrees for 4326 — so it is not a substitute here.)
  *
- * Declared in this file rather than reusing `@oxyhq/db`'s own `geography`
+ * Declared in this file rather than reusing `@oxy.so/db`'s own `geography`
  * export — kept separate for now since this is the only spatial column in
  * this schema; worth revisiting if a second one lands.
  * The TypeScript type is the `string` Postgres renders the value as (WKB hex),

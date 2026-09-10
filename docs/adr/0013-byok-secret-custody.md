@@ -1,6 +1,6 @@
-# ADR 0013 — Oxy holds a REFERENCE to a customer's provider credential, never the credential; with no secret backend wired, BYOK writes are refused rather than degraded
+# ADR 0013 — historical fail-closed Oxy provider-credential reference
 
-- Status: accepted (the refusal is the decision; the backend is deferred)
+- Status: superseded by [ADR 0019](0019-kaana-byok-custody.md)
 - Date: 2026-08-16
 - Amended: 2026-08-18 — the reference GRAMMAR was open where this ADR read as
   though it were closed. `providerSecretReferenceSchema` admitted
@@ -11,6 +11,12 @@
   reference to name its own connection. The partition bullet below states both
   halves.
 - Issue: #972 (workstream 10)
+
+> Historical record. Present-tense statements below describe the fail-closed
+> design at the time of this decision, not the current implementation. ADR 0019
+> moves every provider credential, including BYOK, to Kaana PostgreSQL encrypted
+> by KMS and leaves Oxy with an opaque handle only. Oxy source support is now
+> implemented; production execution remains explicitly disabled and unverified.
 
 ## Context
 
@@ -23,7 +29,7 @@ That leaves one question, and everything else in the workstream is downstream of
 it: **where does the credential live?**
 
 The epic answers it — "Vault/KMS/managed secret storage, not PostgreSQL or
-client-visible state" — and `providerConnectionSchema` in `@oxyhq/contracts` was
+client-visible state" — and `providerConnectionSchema` in `@oxy.so/contracts` was
 written so a secret cannot be REPRESENTED: the object is `.strict()`, so a
 producer attaching `apiKey`/`secret`/`token` fails the parse, and `keyPrefix` is
 capped at 12 characters so the one field designed to show part of a key cannot be

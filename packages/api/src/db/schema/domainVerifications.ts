@@ -36,7 +36,7 @@
 
 import { sql } from 'drizzle-orm';
 import { index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { users } from './users';
 
 export const domainVerifications = pgTable(

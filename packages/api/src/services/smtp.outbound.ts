@@ -40,6 +40,12 @@ const SECURE_MAIL_CONTENT_OPTIONS = {
   disableUrlAccess: true,
 } satisfies Pick<SMTPTransport.Options, 'disableFileAccess' | 'disableUrlAccess'>;
 
+export function isRetryableSmtpFailure(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('responseCode' in error)) return true;
+  const responseCode = error.responseCode;
+  return typeof responseCode !== 'number' || responseCode < 500 || responseCode >= 600;
+}
+
 class SmtpOutboundService {
   private _transporter: Transporter | null = null;
   private idempotencyInFlight = new Map<string, Promise<{ messageId: string; queued: boolean }>>();
@@ -175,6 +181,7 @@ class SmtpOutboundService {
       }
       return result;
     } catch (error) {
+      if (!isRetryableSmtpFailure(error)) throw error;
       logger.error('Email send failed, queuing for retry', error instanceof Error ? error : new Error(String(error)));
       await this.enqueue({ ...message, messageId });
       const result = { messageId, queued: true };

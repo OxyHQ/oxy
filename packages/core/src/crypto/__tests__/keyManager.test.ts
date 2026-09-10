@@ -57,7 +57,7 @@ jest.mock(
 );
 
 // Production code routes platform-specific module loads through
-// `@oxyhq/protocol`'s `platform/crypto`, which ships in two physical variants
+// `@oxy.so/protocol`'s `platform/crypto`, which ships in two physical variants
 // on disk (`crypto.ts` / `crypto.native.ts`) selected by the consumer's
 // bundler. Jest runs on Node — it picks the default variant, which references
 // Node's built-in `crypto`, not `expo-*`. For the test suite to exercise the
@@ -65,8 +65,8 @@ jest.mock(
 // virtual `expo-*` modules registered above, keeping every other protocol
 // export (canonical bytes, signing, the platform predicates) real. AsyncStorage
 // is a real in-memory map so the identity marker + advisory migration flag work.
-jest.mock('@oxyhq/protocol', () => {
-  const actual = jest.requireActual('@oxyhq/protocol');
+jest.mock('@oxy.so/protocol', () => {
+  const actual = jest.requireActual('@oxy.so/protocol');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { createAsyncStorageMock } = require('./identityMocks');
   const asyncStorage = createAsyncStorageMock();

@@ -63,7 +63,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, numericInList, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, numericInList, timestamptz, updatedAt } from '@oxy.so/db';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
 import { currencyCode, currencyCodeCheck, exactAmount } from './ledgerColumns';

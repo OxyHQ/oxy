@@ -1,34 +1,32 @@
 /**
- * Signed-record envelope tests — the DEVICE-key-bound path in `@oxyhq/core`.
+ * Signed-record envelope tests — the DEVICE-key-bound path in `@oxy.so/core`.
  *
  * `SignatureService.signRecord` / `signRecordV2` read the device key from
- * `KeyManager` and delegate the cryptography to `@oxyhq/protocol`'s
+ * `KeyManager` and delegate the cryptography to `@oxy.so/protocol`'s
  * `signEnvelope`. These tests prove the orchestration: an envelope built from a
  * stored key round-trips through the protocol's `verifyEnvelopeSignature`, and
  * tampering breaks it. The pure canonical-bytes / `computeRecordId` guards live
- * in `@oxyhq/protocol`'s own suite.
+ * in `@oxy.so/protocol`'s own suite.
  *
- * We mock `KeyManager.getPrivateKey` with a REAL elliptic secp256k1 private key,
+ * We mock `KeyManager.getPrivateKey` with a real secp256k1 private key,
  * so the signing/verification is genuine cryptography (not a stub).
  */
 
-import { ec as EC } from 'elliptic';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import {
   canonicalize,
   signedRecordSigningInput,
   verifySignature,
   verifyEnvelopeSignature,
-} from '@oxyhq/protocol';
+} from '@oxy.so/protocol';
 import { KeyManager } from '../keyManager';
 import { SignatureService } from '../signatureService';
 
-const ec = new EC('secp256k1');
-
 describe('SignatureService.signRecord / verifyEnvelopeSignature', () => {
-  const keyPair = ec.genKeyPair();
-  const publicKey = keyPair.getPublic('hex');
-  const privateKey = keyPair.getPrivate('hex').padStart(64, '0');
+  const keyPair = generateSecp256k1KeyPair();
+  const publicKey = keyPair.publicKey;
+  const privateKey = keyPair.privateKey.padStart(64, '0');
 
   beforeEach(() => {
     jest.spyOn(KeyManager, 'getPrivateKey').mockResolvedValue(privateKey);
@@ -119,7 +117,7 @@ describe('SignatureService.signRecord / verifyEnvelopeSignature', () => {
     });
 
     it('rejects verification against an unrelated public key', async () => {
-      const otherKey = ec.genKeyPair().getPublic('hex');
+      const otherKey = generateSecp256k1KeyPair().publicKey;
       const tampered: SignedRecordEnvelope = { ...envelope, publicKey: otherKey };
       await expect(verifyEnvelopeSignature(tampered)).resolves.toBe(false);
     });
@@ -134,9 +132,9 @@ describe('SignatureService.signRecord / verifyEnvelopeSignature', () => {
 });
 
 describe('SignatureService.signRecordV2 / verifyEnvelopeSignature (v2 hash chain)', () => {
-  const keyPair = ec.genKeyPair();
-  const publicKey = keyPair.getPublic('hex');
-  const privateKey = keyPair.getPrivate('hex').padStart(64, '0');
+  const keyPair = generateSecp256k1KeyPair();
+  const publicKey = keyPair.publicKey;
+  const privateKey = keyPair.privateKey.padStart(64, '0');
 
   beforeEach(() => {
     jest.spyOn(KeyManager, 'getPrivateKey').mockResolvedValue(privateKey);

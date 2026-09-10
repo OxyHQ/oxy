@@ -10,7 +10,7 @@
  *     regex; the route builds no regex any more, and a query-shape assertion
  *     could never have told a working gate from a broken one anyway.
  *  2. **The wire shape** — the FULL emitted body, field for field, parsed
- *     against `@oxyhq/contracts`' `userResponseSchema`. Every ecosystem app
+ *     against `@oxy.so/contracts`' `userResponseSchema`. Every ecosystem app
  *     consumes this object; a dropped field is the expensive defect here.
  *
  * Only the two network/identity edges are mocked: the auth middleware (so a
@@ -22,7 +22,7 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
-import { userResponseSchema, safeParseContract } from '@oxyhq/contracts';
+import { userResponseSchema, safeParseContract } from '@oxy.so/contracts';
 
 
 /** Set by a test before the request; read by the mocked optional-auth middleware. */

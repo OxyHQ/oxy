@@ -35,7 +35,7 @@
 
 import { sql, type SQL } from 'drizzle-orm';
 import { check, index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { generatedId, timestamptz } from '@oxyhq/db';
+import { generatedId, timestamptz } from '@oxy.so/db';
 
 /** Where the avatar came from. `none` records a resolved absence, so it caches too. */
 export const SENDER_AVATAR_SOURCES = ['oxy', 'bimi', 'gravatar', 'favicon', 'none'] as const;

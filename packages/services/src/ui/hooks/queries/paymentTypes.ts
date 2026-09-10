@@ -17,10 +17,10 @@
  *
  * All `Date` columns are serialized as ISO-8601 strings over the wire.
  *
- * Note: `@oxyhq/services` deliberately does NOT re-export these from
- * `@oxyhq/core`. They live here because they describe the return shape of
+ * Note: `@oxy.so/services` deliberately does NOT re-export these from
+ * `@oxy.so/core`. They live here because they describe the return shape of
  * the services-layer query hooks; consumers that need core domain types
- * import those directly from `@oxyhq/core`.
+ * import those directly from `@oxy.so/core`.
  */
 
 /** Subscription tier. Mirrors the `plan` enum on the API `Subscription` model. */

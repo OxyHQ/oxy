@@ -68,34 +68,30 @@ export interface RequiredEnvVars {
   // deletions. Defaults to disabled; read per request in `routes/federation.ts`.
   FEDERATION_DOMAIN_PURGE_ENABLED?: string;
 
-  // Which managed secret store BYOK provider credentials are written to
-  // (`vault` | `kms` | `ssm` | `secretsmanager`). Issue #972 workstream 10.
-  //
-  // NOT a secret — it names a STORE, not a credential — so it belongs in the
-  // ECS task definition's plain environment, never in SSM, and it is absent from
-  // the `required` list below on purpose: unset simply means this deployment
-  // accepts no provider credentials, and `POST /inference/provider-connections/**`
-  // refuses with `503 provider_secret_store_unavailable`. Read per request by
-  // `services/providerSecretStore.ts`, which also documents what setting it
-  // would still NOT be enough to wire (no store client ships in this build).
-  INFERENCE_PROVIDER_SECRET_STORE?: string;
-
-  // The inference platform's five rollout flags (issue #972 workstreams 16 and
+  // The inference platform's six rollout flags (issue #972 workstreams 16 and
   // 12). Declared, parsed and reported in ONE place — `config/rolloutFlags.ts` —
   // and readable at `GET /inference/admin/rollout`. None is a secret: each names
-  // a deployment STATE, so all five belong in the ECS task definition's plain
-  // environment and never in SSM, and all five are absent from the `required`
+  // a deployment STATE, so all six belong in the ECS task definition's plain
+  // environment and never in SSM, and all six are absent from the `required`
   // list below on purpose. Unset means the surface is closed, which is why an
   // absent variable can never open one.
   //
   //  - who may reach the public inference edge at all:
-  //    `closed` | `internal` | `first_party` | `allowlist:<appId>,…` | `public`
+  //    `closed` | `internal` | `first_party` | `allowlist:<exactAppId>,…` | `public`
+  //    (`allowlist` admits only those exact IDs; whitespace and malformed IDs
+  //    make the audience unreadable and therefore closed)
   //    (unset = closed; `public` additionally requires BOTH charging to be armed
   //    and the privacy/security review to be recorded)
   INFERENCE_EDGE_AUDIENCE?: string;
   //  - whether an `oxy_sk_…` machine credential authenticates: `enabled` |
   //    `disabled` (unset = disabled)
   INFERENCE_MACHINE_CREDENTIAL_AUTH?: string;
+  // Independent production kill switch for constructing the signed Kaana hop.
+  // Unset and unreadable values are disabled.
+  INFERENCE_KAANA_EXECUTION?: string;
+  // Exact primary key of the Inbox product routing profile. Empty/unset keeps
+  // every Inbox point-inference operation fail-closed.
+  INBOX_INFERENCE_ROUTING_PROFILE_ID?: string;
   //  - whether this deployment may charge customers, as `<reason>:<YYYY-MM-DD>`.
   //    A bare `true` is REFUSED. Unset means SHADOW METERING: every request is
   //    priced and the amount recorded, and no reservation, receipt or balance
@@ -111,42 +107,64 @@ export interface RequiredEnvVars {
   //    authorization control — see the module header.
   INFERENCE_PRIVACY_REVIEW?: string;
 
+  // Minimum remaining lifetime required of latency, throughput and balanced
+  // routing evidence before approval or cutover. No default: the operator must
+  // choose a horizon that covers rollout plus the evidence-refresh SLO.
+  INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS?: string;
+
   // How far above its own trailing daily median an account's hourly inference
   // spend has to go before it is recorded as an anomaly (#972 sections 8 and 12).
   // A number above 1; unset means the documented default in
   // `services/spendAnomaly.service.ts`, and an unreadable value falls back to it
   // and is reported. NOT a rollout flag: it tunes a signal that blocks nothing,
   // and it is deliberately not in `config/rolloutFlags.ts`, which declares the
-  // five switches that open or close a surface.
+  // six switches that open or close a surface.
   INFERENCE_SPEND_ANOMALY_MULTIPLE?: string;
 
   // The inference DATA PLANE this deployment forwards to, and the key it signs
   // envelopes with (issue #972 workstream 4, ADR 0015). Resolved once, at router
-  // construction, in `config/relayDataPlane.ts`.
+  // construction, in `config/kaanaDataPlane.ts`.
   //
   // ALL THREE OR NONE. Unset, this deployment has no data plane: every invoke
   // answers a typed `service_unavailable` and `stream: true` is refused, which is
-  // exactly the behaviour of every deployment before Relay existed. A PARTIAL
+  // exactly the behaviour of every deployment before Kaana existed. A PARTIAL
   // configuration resolves to the same state and is reported at `error` level,
   // because forwarding unsigned envelopes would look like a data-plane outage.
   //
-  //  - the data plane's base URL, e.g. `https://relay.internal`. Names a
+  //  - the data plane's base URL, canonically `https://kaana.ai`. Names a
   //    DEPLOYMENT, not a credential, so it belongs in the ECS task definition's
   //    plain environment and never in SSM.
-  RELAY_BASE_URL?: string;
+  KAANA_BASE_URL?: string;
   //  - the id the data plane knows this signing key by (its `kid`). Not a secret
   //    either; it appears in every request header. No colon, comma or whitespace —
   //    the data plane parses its key set as `kid:base64,kid:base64`.
-  RELAY_EDGE_SIGNING_KEY_ID?: string;
+  KAANA_EDGE_SIGNING_KEY_ID?: string;
   //  - the Ed25519 PRIVATE key, as PEM or that PEM base64-encoded. THIS ONE IS A
-  //    SECRET: it belongs in SSM at `/oxy/oxy-api/RELAY_EDGE_SIGNING_PRIVATE_KEY`,
+  //    SECRET: it belongs in SSM at `/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY`,
   //    which means adding it to BOTH allowlists in `deploy-aws.yml` (the
   //    `SYNC_<NAME>` env block and `API_SECRETS`) when a data plane is first
   //    deployed — `scripts/check-deploy-secrets-sync.mjs` guards that the two
   //    agree. Absent from the `required` list below on purpose: unset means no
   //    data plane, not a broken boot. The data plane holds only the matching
   //    PUBLIC key and so cannot construct an envelope it would itself accept.
-  RELAY_EDGE_SIGNING_PRIVATE_KEY?: string;
+  KAANA_EDGE_SIGNING_PRIVATE_KEY?: string;
+
+  // Separate Ed25519 authority for create/rotate/revoke of customer credentials.
+  // This is service authentication, never provider key material. Both values
+  // are optional and fail closed; the private key is supplied through SSM.
+  KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID?: string;
+  KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY?: string;
+
+  // Ed25519 authority for short-lived capability tickets and catalog receipts.
+  // The key id is public and appears in the JWKS; only the private key belongs in SSM.
+  CAPABILITY_TICKET_SIGNING_KEY_ID?: string;
+  CAPABILITY_TICKET_SIGNING_PRIVATE_KEY?: string;
+
+  // ADR 0012 service-token signer. The active private key is PKCS#8 Ed25519;
+  // the public-only JWKS may additionally pre-publish next/previous rotation keys.
+  SERVICE_TOKEN_SIGNING_KEY_ID?: string;
+  SERVICE_TOKEN_PRIVATE_KEY?: string;
+  SERVICE_TOKEN_PUBLIC_JWKS?: string;
 
   // Follow-graph outbox worker (`follow_events`). OFF by default — acknowledging
   // an event asserts its delivery happened; read by `followOutbox.worker.ts`.

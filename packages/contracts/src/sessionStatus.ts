@@ -7,7 +7,7 @@
  * (consent UI) validates its INPUT against the same schemas. Because there is
  * exactly one definition, the producer and the consumer cannot drift.
  *
- * The class of bug that motivated moving this into `@oxyhq/contracts`: the auth
+ * The class of bug that motivated moving this into `@oxy.so/contracts`: the auth
  * app's LOCAL `sessionStatusSchema` typed `sessionId` as a non-nullable
  * `z.string().optional()`. The producer emits `sessionId: authorizedSessionId ||
  * null`, so a PENDING session (not yet authorized) carries `sessionId: null` —

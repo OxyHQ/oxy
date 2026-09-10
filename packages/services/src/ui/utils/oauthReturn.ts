@@ -1,11 +1,11 @@
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 import {
   clearOAuthHandshake,
   consumeOAuthReturnPath,
   logger,
   canonicalizeOAuthRedirectUri,
   readOAuthHandshake,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { completeOAuthCode } from '../oauth/completeOAuthCode';
 import type { OAuthSessionCommitInput } from '../oauth/types';
 import { isWebBrowser } from './isWebBrowser';

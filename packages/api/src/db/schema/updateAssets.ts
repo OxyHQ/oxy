@@ -26,7 +26,7 @@
 
 import { sql } from 'drizzle-orm';
 import { bigint, check, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 
 /** Upload lifecycle. Only an `uploaded` asset may be referenced by a published update. */
 export const UPDATE_ASSET_STATUSES = ['pending', 'uploaded'] as const;

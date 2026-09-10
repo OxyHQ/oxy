@@ -4,7 +4,7 @@
  *
  * ## Why the response envelopes are written down here
  *
- * `@oxyhq/contracts` already owns what a catalogue entry, a routing profile and a
+ * `@oxy.so/contracts` already owns what a catalogue entry, a routing profile and a
  * model card ARE — those are the Oxy↔data-plane shapes and they are not restated.
  * What it does not own is the ENVELOPE this HTTP surface wraps them in: `{ data,
  * count }` on the collection reads, `{ models, count, timestamp }` on the one
@@ -25,7 +25,7 @@ import {
   modelDocumentationSchema,
   modelRevisionLabelSchema,
   routingProfileSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 /**
  * The revision a documentation read may name.

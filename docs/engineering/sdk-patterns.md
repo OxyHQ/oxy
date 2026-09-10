@@ -1,4 +1,4 @@
-# SDK client patterns (@oxyhq/core and @oxyhq/services)
+# SDK client patterns (@oxy.so/core and @oxy.so/services)
 
 > Moved out of `AGENTS.md` unchanged. The one-line rules stay there.
 
@@ -50,10 +50,10 @@ Without this sweep the HTTP cache returns stale data and the username onboarding
 
 ## Offline-First Persistence (services)
 
-- `@tanstack/react-query-persist-client` wired in `@oxyhq/services` (AsyncStorage; localStorage-backed on web).
+- `@tanstack/react-query-persist-client` wired in `@oxy.so/services` (AsyncStorage; localStorage-backed on web).
 - Query whitelist: `accounts`, `users`, `sessions`, `devices`, `privacy`, `payments` queries are persisted; mutations always persisted; 30-day TTL; 1s throttle; v1 cache cleanup on startup.
 - `OxyProvider` awaits `restored` before exposing the QueryClient → first paint serves cached data, not a loading spinner.
-- `useOnlineStatus()` hook in `@oxyhq/services` — built on `useSyncExternalStore` over `onlineManager`; use for offline banners in app UIs.
+- `useOnlineStatus()` hook in `@oxy.so/services` — built on `useSyncExternalStore` over `onlineManager`; use for offline banners in app UIs.
 - TanStack Query must use a consistent `^5.x` major version across services, console, and test-app-expo — check each workspace's `package.json` for the pinned range.
 
 ## useSessionSocket (services)
@@ -88,12 +88,11 @@ Activated inside `FileManagementScreen` when `isImageOnlyPicker` is true. Apple 
 - `ActivityIndicator` + "Saving…" during processing; Reset link; full a11y + `announceForAccessibility`; reduced-motion respect.
 - i18n keys under `editProfile.crop.*` and `editProfile.toasts.crop*` in en-US.json + es-ES.json.
 
-## New React Query Hooks (@oxyhq/services — exported from package root)
+## New React Query Hooks (@oxy.so/services — exported from package root)
 
 `useUserSubscription`, `useUserPayments`, `useUserWallet`, `useUserWalletTransactions`, `useAccountStorageUsage` — with typed returns (`Subscription`, `Payment`, `Wallet`, `WalletTransaction` in `ui/hooks/queries/paymentTypes.ts`). `payments` + `storage` query-key namespaces added; `payments` whitelisted for offline persistence.
 
-## Bloom Worklets Safety (@oxyhq/bloom)
+## Bloom Worklets Safety (@oxy.so/bloom)
 
 - BottomSheet pan context must use a **primitive** `SharedValue` (`contextY = useSharedValue(0)`), NEVER an object-valued SharedValue — object SharedValues mutated inside worklets crash under `react-native-worklets@0.8.3` (`removeListener` on UI thread).
 - `hooks/mergeRefs.ts` returns a plain `(instance: T|null) => void` (not `React.RefCallback`) so the ref stays assignable across duplicate `@types/react` copies (RN 0.85 / React 19).
-

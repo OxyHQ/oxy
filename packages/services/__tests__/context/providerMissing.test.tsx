@@ -82,7 +82,7 @@ describe('one component named OxyProvider', () => {
     expect(Object.keys(oxyContextModule)).not.toContain('OxyContextProvider');
   });
 
-  // `src/ui/server.ts` is deliberately absent: the `@oxyhq/services/ui/server`
+  // `src/ui/server.ts` is deliberately absent: the `@oxy.so/services/ui/server`
   // subpath is an SSR shim that replaces every export with a render-null / empty
   // no-op, `OxyProvider` and `useOxy` included. It is its own published subpath
   // and its own fabricated runtime; retiring it is a public API removal.

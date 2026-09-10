@@ -27,7 +27,7 @@
  * hit for a different reason ("a CHECK sees only the new row, never the old"), and
  * this takes the same way around it: `plpgsql`, `BEFORE` triggers, and
  * `ERRCODE = '23514'` so a caller sees `check_violation` — the SQLSTATE a CHECK
- * would have raised — and `@oxyhq/db`'s `isCheckViolation` recognises it without
+ * would have raised — and `@oxy.so/db`'s `isCheckViolation` recognises it without
  * anybody string-matching a message.
  *
  * The DDL is authoritative HERE rather than only in
@@ -75,7 +75,7 @@
  * workstream 12, and named so nobody reads this as the enforcement.
  */
 
-import { textArrayLiteral } from '@oxyhq/db';
+import { textArrayLiteral } from '@oxy.so/db';
 
 /**
  * The output modalities that need no marking declared. ONE member, and the tuple

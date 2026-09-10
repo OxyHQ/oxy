@@ -1,6 +1,6 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
-import type { ValidationRequestSummary } from '@oxyhq/contracts';
+import { useOxy } from '@oxy.so/services';
+import type { ValidationRequestSummary } from '@oxy.so/contracts';
 
 /** React Query key for the juror inbox (shared by the entry badge, list + vote screen). */
 export const VALIDATOR_INBOX_KEY = ['civic', 'validator-inbox'] as const;

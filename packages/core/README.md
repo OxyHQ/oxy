@@ -1,17 +1,17 @@
-# @oxyhq/core
+# @oxy.so/core
 
 OxyHQ SDK Foundation. Platform-agnostic core library that works in Node.js, browser, and React Native environments. No React dependency.
 
 ## Installation
 
 ```bash
-bun add @oxyhq/core
+bun add @oxy.so/core
 ```
 
 ## Contents
 
 - **OxyServices API client** — all API methods for interacting with OxyHQ services
-- **Device-first session engine** — `SessionClient` (`src/session/`), `runSessionColdBoot`, and the device-session mixin that back `OxyProvider` in `@oxyhq/services`
+- **Device-first session engine** — `SessionClient` (`src/session/`), `runSessionColdBoot`, and the device-session mixin that back `OxyProvider` in `@oxy.so/services`
 - **OAuth helpers** — `generatePkcePair`, `generateOAuthState`, `buildOAuthAuthorizeUrl` for third-party "Sign in with Oxy" (see [docs/auth/integration-guide.md](../../docs/auth/integration-guide.md))
 - **Crypto** — KeyManager, SignatureService, RecoveryPhraseService
 - **Models and types** — User, ApiError, ClientSession, and more
@@ -27,16 +27,16 @@ bun add @oxyhq/core
 
 The package exposes two public entry points:
 
-- `@oxyhq/core` — main entry (API client, session, crypto, models, shared utilities, i18n, platform, device)
-- `@oxyhq/core/server` — Express-only helpers (`createOxyRateLimit`, `createOxyAuthMiddleware`, `requireOxyAuth`, `getOxyUserId`, `getRequiredOxyUserId`, `createOxyCors`, `createOxySecurityHeaders`, `buildOxyCspDirectives`, `safeFetch`, `verifySecret`, and request types)
+- `@oxy.so/core` — main entry (API client, session, crypto, models, shared utilities, i18n, platform, device)
+- `@oxy.so/core/server` — Express-only helpers (`createOxyRateLimit`, `createOxyAuthMiddleware`, `requireOxyAuth`, `getOxyUserId`, `getRequiredOxyUserId`, `createOxyCors`, `createOxySecurityHeaders`, `buildOxyCspDirectives`, `safeFetch`, `verifySecret`, and request types)
 
-All client/runtime symbols (including `SessionClient`, `KeyManager`, `SignatureService`, `RecoveryPhraseService`, and the shared color / theme / error / network / debug helpers) are re-exported from the package root. Server-only Express helpers live under `@oxyhq/core/server` so React Native and browser bundles never import Express.
+All client/runtime symbols (including `SessionClient`, `KeyManager`, `SignatureService`, `RecoveryPhraseService`, and the shared color / theme / error / network / debug helpers) are re-exported from the package root. Server-only Express helpers live under `@oxy.so/core/server` so React Native and browser bundles never import Express.
 
 ## Usage
 
 ```ts
-import { OxyServices, oxyClient, KeyManager } from '@oxyhq/core';
-import type { User, ApiError } from '@oxyhq/core';
+import { OxyServices, oxyClient, KeyManager } from '@oxy.so/core';
+import type { User, ApiError } from '@oxy.so/core';
 
 // Get user
 const user = await oxyClient.getUserById('123');
@@ -47,20 +47,20 @@ const hasIdentity = await KeyManager.hasIdentity();
 
 ## Device-First Sessions
 
-The session authority is the server-side `DeviceSession` (one document per device: signed-in accounts + active account + revision). `@oxyhq/core` owns the whole client side of that contract:
+The session authority is the server-side `DeviceSession` (one document per device: signed-in accounts + active account + revision). `@oxy.so/core` owns the whole client side of that contract:
 
 - **`SessionClient`** (`src/session/`) — reads `GET /session/device/state`, mutates via `POST /session/device/{add,switch,signout}`, and applies `session_state` socket pushes (room `device:<deviceId>`, token-free payload) so every app on the same device stays in sync.
 - **`runSessionColdBoot`** (`src/boot/sessionColdBoot.ts`) — the ordered, short-circuit cold-boot runner used by `OxyProvider`. It restores silently from device state or resolves to logged-out; it NEVER auto-redirects to a login page.
 - **Zero-cookie transport** — every successful sign-in returns `deviceId` + a 256-bit `deviceSecret`, which the client persists first-party (localStorage per web origin; SecureStore on native). `POST /session/device/token` mints/refreshes a short access token from `{ deviceId, deviceSecret }` (no bearer, no cookies — possession of the secret is the proof) and rotates the secret in-use. There is no cookie, no refresh-token family, and no `#oxy_boot` bootstrap hop. Full contract: [docs/auth/device-session.md](../../docs/auth/device-session.md).
 
-Consumers never build session restore themselves — mount `OxyProvider` from `@oxyhq/services` with a registered `clientId`.
+Consumers never build session restore themselves — mount `OxyProvider` from `@oxy.so/services` with a registered `clientId`.
 
 ## OAuth Helpers (third party)
 
 Third-party apps sign users in with standard OAuth 2.0 Authorization Code + PKCE against `auth.oxy.so`:
 
 ```ts
-import { generatePkcePair, generateOAuthState, buildOAuthAuthorizeUrl } from '@oxyhq/core';
+import { generatePkcePair, generateOAuthState, buildOAuthAuthorizeUrl } from '@oxy.so/core';
 
 const [pkce, state] = await Promise.all([generatePkcePair(), generateOAuthState()]);
 const url = buildOAuthAuthorizeUrl({
@@ -71,7 +71,7 @@ const url = buildOAuthAuthorizeUrl({
 });
 ```
 
-`OxySignInButton` in `@oxyhq/services` uses these internally when the resolved Application is `third_party`. See [docs/auth/integration-guide.md](../../docs/auth/integration-guide.md).
+`OxySignInButton` in `@oxy.so/services` uses these internally when the resolved Application is `third_party`. See [docs/auth/integration-guide.md](../../docs/auth/integration-guide.md).
 
 ## User Identity And Handles
 
@@ -79,7 +79,7 @@ SDK user payloads may arrive with either `id` or Mongo-style `_id`; normalize
 them before exposing state to apps:
 
 ```ts
-import { getNormalizedUserId, normalizeUserIdentity } from '@oxyhq/core';
+import { getNormalizedUserId, normalizeUserIdentity } from '@oxy.so/core';
 
 const id = getNormalizedUserId(user);
 const normalizedUser = normalizeUserIdentity(user);
@@ -95,7 +95,7 @@ leading `@`, preserves an existing `user@instance` handle, and appends
 `instance`/`federation.domain` only for federated users:
 
 ```ts
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 
 getNormalizedUserHandle({ username: 'alice' }); // "alice"
 getNormalizedUserHandle({ username: 'alice', isFederated: true, instance: 'example.social' }); // "alice@example.social"
@@ -108,7 +108,7 @@ instance instead of re-implementing auth headers, session restore, CSRF fetches,
 or user forwarding.
 
 ```ts
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 const mentionApi = oxy.createLinkedClient({ baseURL: 'https://api.mention.earth' });
@@ -136,13 +136,13 @@ Backends should use the SDK server helpers instead of local auth request types
 or `requireAuth` copies.
 
 ```ts
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 import {
   createOxyRateLimit,
   requireOxyAuth,
   getRequiredOxyUserId,
   type OxyAuthRequest,
-} from '@oxyhq/core/server';
+} from '@oxy.so/core/server';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 
@@ -173,7 +173,7 @@ source-list CSP — it governs no browsing context — so harden those with the
 non-CSP headers (`hsts`, `noSniff`, `frameguard`, CORP) instead.
 
 ```ts
-import { createOxySecurityHeaders } from '@oxyhq/core/server';
+import { createOxySecurityHeaders } from '@oxy.so/core/server';
 
 app.use(createOxySecurityHeaders({
   csp: {
@@ -195,7 +195,7 @@ themselves (a Next.js `headers()`, an edge worker) can call
 
 ## User Identity Normalization
 
-`@oxyhq/core` normalizes user payloads returned by auth and user APIs so `id` is
+`@oxy.so/core` normalizes user payloads returned by auth and user APIs so `id` is
 always present when `_id` is the only identifier provided by the backend.
 Consumers should compare `user.id` for ownership and permissions instead of
 using backend-specific fields.

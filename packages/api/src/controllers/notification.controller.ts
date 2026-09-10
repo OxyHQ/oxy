@@ -55,7 +55,7 @@ import {
   notifications,
 } from '../db/schema/notifications';
 import { users } from '../db/schema/users';
-import { isForeignKeyViolation } from '@oxyhq/db';
+import { isForeignKeyViolation } from '@oxy.so/db';
 import { logger } from '../utils/logger';
 import { sendSuccess } from '../utils/asyncHandler';
 import { UnauthorizedError, BadRequestError, NotFoundError, ConflictError, InternalServerError } from '../utils/error';

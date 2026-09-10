@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
-import { useOxy } from '@oxyhq/services';
-import type { CivicCardResult } from '@oxyhq/core';
-import type { RealLifeAttestationResult } from '@oxyhq/contracts';
+import { useOxy } from '@oxy.so/services';
+import type { CivicCardResult } from '@oxy.so/core';
+import type { RealLifeAttestationResult } from '@oxy.so/contracts';
 import type { AttestErrorCode } from '@/lib/civic/civic-errors';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { useAttestStore, type AttestFlowStatus, type AttestSubmitParams } from './attestStore';

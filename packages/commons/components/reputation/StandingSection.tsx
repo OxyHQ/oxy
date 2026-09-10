@@ -4,7 +4,7 @@ import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { CivicBadge } from '@/components/civic/CivicBadge';
 import { StatColumns, type StatColumn } from '@/components/ui/stat-columns';
-import { CompositionBar, type CompositionCategory } from '@oxyhq/bloom/composition-bar';
+import { CompositionBar, type CompositionCategory } from '@oxy.so/bloom/composition-bar';
 import { CategoryRow } from '@/components/reputation/CategoryRow';
 import {
   getTierProgress,
@@ -15,8 +15,8 @@ import type { ReputationSource, ReputationSourceKey } from '@/lib/civic/reputati
 import type { AppColors } from '@/hooks/useColors';
 import type { MaterialCommunityIconName } from '@/types/icons';
 import { mixColors } from '@/utils/color';
-import type { ReputationBalance, TrustTier } from '@oxyhq/contracts';
-import { trustTierLabel } from '@oxyhq/core';
+import type { ReputationBalance, TrustTier } from '@oxy.so/contracts';
+import { trustTierLabel } from '@oxy.so/core';
 import { useTranslation } from '@/lib/i18n';
 
 interface StandingSectionProps {

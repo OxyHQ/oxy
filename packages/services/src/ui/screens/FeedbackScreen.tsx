@@ -1,17 +1,17 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
-import type MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { Button } from "@oxyhq/bloom/button";
+import Ionicons from "../icons/Ionicons";
+import type MaterialCommunityIcons from "../icons/MaterialCommunityIcons";
+import { Button } from "@oxy.so/bloom/button";
 import {
 	SettingsListGroup,
 	SettingsListItem,
-} from "@oxyhq/bloom/settings-list";
-import { Switch } from "@oxyhq/bloom/switch";
-import { TextField, TextFieldInput } from "@oxyhq/bloom/text-field";
-import { useTheme } from "@oxyhq/bloom/theme";
-import { toast } from "@oxyhq/bloom/toast";
-import { H2, Text } from "@oxyhq/bloom/typography";
-import { normalizeTheme } from "@oxyhq/core";
-import { packageInfo } from "@oxyhq/core";
+} from "@oxy.so/bloom/settings-list";
+import { Switch } from "@oxy.so/bloom/switch";
+import { TextField, TextFieldInput } from "@oxy.so/bloom/text-field";
+import { useTheme } from "@oxy.so/bloom/theme";
+import { toast } from "@oxy.so/bloom/toast";
+import { H2, Text } from "@oxy.so/bloom/typography";
+import { normalizeTheme } from "@oxy.so/core";
+import { packageInfo } from "@oxy.so/core";
 import type React from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Animated, Platform, StyleSheet, View } from "react-native";

@@ -2,7 +2,7 @@
 
 ## Context
 
-@oxyhq/services has ~60 custom UI components, many of which duplicate functionality already available in @oxyhq/bloom. This creates inconsistent styling, double maintenance, and prevents the Oxy ecosystem from having a unified design system.
+@oxy.so/services has ~60 custom UI components, many of which duplicate functionality already available in @oxy.so/bloom. This creates inconsistent styling, double maintenance, and prevents the Oxy ecosystem from having a unified design system.
 
 This is Phase 1 of a full migration. It focuses on settings and form components because:
 - 4 screens already use Bloom's `SettingsListGroup`/`SettingsListItem`
@@ -17,12 +17,12 @@ This is Phase 1 of a full migration. It focuses on settings and form components 
 | `GroupedItem` | `SettingsListItem` | Direct replacement. Map `iconName` → Bloom icon prop, `onPress` → `onPress`, `selected` → check state. |
 | `SettingRow` | `SettingsListItem` | Map `label` → title text, `value` → trailing content, toggle → Bloom `Switch` as trailing element. |
 | `Section` / `SectionTitle` | `SettingsListGroup` with `label` prop | Section wraps content with optional title. SettingsListGroup already supports this via its `label` prop. |
-| `GroupedPillButtons` | `SegmentedControl` from `@oxyhq/bloom/segmented-control` | Different API: map items array to SegmentedControl options, `onSelect` → `onSelect`. |
+| `GroupedPillButtons` | `SegmentedControl` from `@oxy.so/bloom/segmented-control` | Different API: map items array to SegmentedControl options, `onSelect` → `onSelect`. |
 
 ## Screens to Update
 
 ### Already on Bloom (reference patterns):
-- `AppInfoScreen.tsx` — imports `SettingsListGroup, SettingsListItem` from `@oxyhq/bloom/settings-list`
+- `AppInfoScreen.tsx` — imports `SettingsListGroup, SettingsListItem` from `@oxy.so/bloom/settings-list`
 - `AccountCenterScreen.tsx` — same
 - `HelpSupportScreen.tsx` — same
 
@@ -49,11 +49,11 @@ This is Phase 1 of a full migration. It focuses on settings and form components 
 
 ## Migration Steps (per screen)
 
-1. Replace import from `../components/GroupedSection` → `import { SettingsListGroup } from '@oxyhq/bloom/settings-list'`
-2. Replace import from `../components/GroupedItem` → `import { SettingsListItem } from '@oxyhq/bloom/settings-list'`
-3. Replace import from `../components/SettingRow` → `import { SettingsListItem } from '@oxyhq/bloom/settings-list'` + `import { Switch } from '@oxyhq/bloom/switch'` (for toggle rows)
-4. Replace import from `../components/Section` → `import { SettingsListGroup } from '@oxyhq/bloom/settings-list'`
-5. Replace import from `../components/internal/GroupedPillButtons` → `import { SegmentedControl } from '@oxyhq/bloom/segmented-control'`
+1. Replace import from `../components/GroupedSection` → `import { SettingsListGroup } from '@oxy.so/bloom/settings-list'`
+2. Replace import from `../components/GroupedItem` → `import { SettingsListItem } from '@oxy.so/bloom/settings-list'`
+3. Replace import from `../components/SettingRow` → `import { SettingsListItem } from '@oxy.so/bloom/settings-list'` + `import { Switch } from '@oxy.so/bloom/switch'` (for toggle rows)
+4. Replace import from `../components/Section` → `import { SettingsListGroup } from '@oxy.so/bloom/settings-list'`
+5. Replace import from `../components/internal/GroupedPillButtons` → `import { SegmentedControl } from '@oxy.so/bloom/segmented-control'`
 6. Update JSX: map old component props to Bloom component props
 7. Remove any StyleSheet references that were only used for the replaced components
 
@@ -92,7 +92,7 @@ Remove from:
 
 ## Verification
 
-1. Build @oxyhq/services: `cd ~/OxyHQServices/packages/services && bun run build`
+1. Build @oxy.so/services: `cd ~/OxyHQServices/packages/services && bun run build`
 2. Check no remaining imports of deleted components: `grep -r "GroupedItem\|GroupedSection\|SettingRow\|SectionTitle" packages/services/src/`
 3. Verify consuming apps (Mention, Allo, Homiio) still build after the services package update
 4. Visual check: settings screens should look consistent with the screens already on Bloom

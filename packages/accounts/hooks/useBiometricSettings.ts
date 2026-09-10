@@ -11,8 +11,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useOxy, usePrivacySettings, useUpdatePrivacySettings } from '@oxyhq/services';
-import { alert, toast } from '@oxyhq/bloom';
+import { useOxy, usePrivacySettings, useUpdatePrivacySettings } from '@oxy.so/services';
+import { alert, toast } from '@oxy.so/bloom';
 
 import {
   canUseBiometrics,

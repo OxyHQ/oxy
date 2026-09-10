@@ -6,7 +6,7 @@
  * cannot drift.
  */
 
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { canonicalize } from './canonicalJson';
 
 /**

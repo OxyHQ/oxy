@@ -73,7 +73,7 @@
  * takes the newer contract, while the tolerant parse costs a misdiagnosis of a
  * cryptographic failure.
  *
- * Decided in: docs/adr/0006-oxy-relay-boundary.md,
+ * Decided in: docs/adr/0006-oxy-kaana-boundary.md,
  * docs/adr/0010-public-api-compatibility.md,
  * docs/adr/0017-authorized-routes-in-the-envelope.md.
  */
@@ -100,4 +100,4 @@
  * change to, say, the catalogue reject every in-flight inference request; the
  * per-shape `schemaVersion` is what a message is validated against.
  */
-export const INFERENCE_CONTRACT_VERSION = '1.3.0';
+export const INFERENCE_CONTRACT_VERSION = '2.0.0';

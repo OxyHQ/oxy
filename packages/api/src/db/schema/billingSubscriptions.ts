@@ -35,7 +35,7 @@
 
 import { sql } from 'drizzle-orm';
 import { bigint, boolean, check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /**

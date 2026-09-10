@@ -4,7 +4,7 @@
  *
  * A verifier nobody invokes reports nothing, and reports it in exactly the shape
  * of success — which is the same failure it was written to catch one level up
- * (`@oxyhq/services@30.0.0` shipped with no `lib/`, and every check that ran was
+ * (`@oxy.so/services@30.0.0` shipped with no `lib/`, and every check that ran was
  * green because it was reading `src/`). Deleting the `postbuild` entry, renaming
  * the script without moving the file, or switching `release` to the partial
  * `build:js` would each disarm it silently; this file makes all three red.

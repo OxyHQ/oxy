@@ -5,10 +5,10 @@
  * on its own without anything else noticing — so they are checked here across
  * every table at once, on the DDL that actually landed rather than on the
  * TypeScript that was meant to produce it. The gate itself (`findSchemaInvariantViolations`)
- * lives in `@oxyhq/db/assert`; the floors below are this schema's own data.
+ * lives in `@oxy.so/db/assert`; the floors below are this schema's own data.
  */
 
-import { findSchemaInvariantViolations } from '@oxyhq/db/assert';
+import { findSchemaInvariantViolations } from '@oxy.so/db/assert';
 import { Table, getTableColumns, getTableName, is, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import * as schema from '../index';

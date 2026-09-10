@@ -21,7 +21,7 @@
  *
  * `resolveViewerId` gated the delegation header on
  * `Types.ObjectId.isValid(viewerId)`, which rejects the **uuid v7 every account
- * created after the Postgres cutover carries** (`@oxyhq/db`'s
+ * created after the Postgres cutover carries** (`@oxy.so/db`'s
  * `generatedId()`). A delegating service naming such a viewer therefore resolved
  * to `undefined` and the request SILENTLY DEGRADED TO ANONYMOUS — viewer-scoped
  * visibility filtering (blocks, restricts, private accounts, follow-gated
@@ -95,7 +95,7 @@ function runMiddleware(req: OptionalUserOrServiceRequest): Promise<void> {
 
 /**
  * The id shape EVERY account created since the Postgres cutover carries —
- * minted by the same `uuidv7()` inside `@oxyhq/db`'s `generatedId()` calls, not a
+ * minted by the same `uuidv7()` inside `@oxy.so/db`'s `generatedId()` calls, not a
  * look-alike literal.
  */
 const VIEWER_ID = uuidv7();

@@ -6,7 +6,7 @@
  * **`amount` must stay a JSON NUMBER.** The column is `numeric(38, 8)` and
  * postgres.js hands a `numeric` back as a STRING, so the naive port ships
  * `"amount": "25.50000000"` where the published `Payment` contract
- * (`@oxyhq/services`) says `amount: number`. The assertions here check the
+ * (`@oxy.so/services`) says `amount: number`. The assertions here check the
  * emitted TYPE, not just the value — `"25.5" == 25.5` is true in JS, so a value
  * comparison alone would pass against the bug.
  *

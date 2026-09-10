@@ -9,8 +9,8 @@
  */
 
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
-import type { ReputationTransaction } from '@oxyhq/contracts';
+import { useOxy } from '@oxy.so/services';
+import type { ReputationTransaction } from '@oxy.so/contracts';
 
 /** How many recent ledger entries the reputation screen surfaces. */
 export const RECENT_ACTIVITY_LIMIT = 8;

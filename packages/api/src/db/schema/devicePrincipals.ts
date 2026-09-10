@@ -29,7 +29,7 @@
  * not read the flat shape at all any more — it renders the directory, where
  * `authuser` sits on the PRINCIPAL (`deviceDirectory.ts`), which is the level
  * the slot always meant. The only client that still sees a per-account
- * `authuser` is `@oxyhq/core`'s `projectSessionState`, which copies it through
+ * `authuser` is `@oxy.so/core`'s `projectSessionState`, which copies it through
  * as display metadata and never groups or dedupes on it. The alternative would
  * be to keep allocating a human slot to a thing.
  *
@@ -49,7 +49,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { generatedId, timestamptz } from '@oxyhq/db';
+import { generatedId, timestamptz } from '@oxy.so/db';
 import { deviceSessions } from './deviceSessions';
 import { users } from './users';
 

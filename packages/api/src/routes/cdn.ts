@@ -21,8 +21,10 @@ import { assetService } from '../services/assetServiceSingleton';
 import { validate } from '../middleware/validate';
 import { assetIdParams } from '../schemas/assets.schemas';
 import { asyncHandler } from '../utils/asyncHandler';
-import { CDN_REDIRECT_MAX_AGE_SECONDS } from '../config/cdn';
+import { CDN_REDIRECT_CACHE_CONTROL } from '../config/cdn';
+import { sendAssetRedirect } from '../utils/cdnRedirect';
 import { logger } from '../utils/logger';
+import { singleQueryValue } from '../utils/queryString';
 
 const router = express.Router();
 
@@ -58,7 +60,7 @@ router.get(
   validate({ params: assetIdParams }),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { id: fileId } = req.params;
-    const variant = typeof req.query.variant === 'string' ? req.query.variant : undefined;
+    const variant = singleQueryValue(req.query.variant);
 
     const file = await assetService.getFile(fileId);
     if (!file) {
@@ -89,8 +91,9 @@ router.get(
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Resource not found' });
     }
 
-    res.setHeader('Cache-Control', `public, max-age=${CDN_REDIRECT_MAX_AGE_SECONDS}`);
-    return res.redirect(cdnUrl);
+    // Cacheable redirect: bodiless, and not rangeable. See `sendAssetRedirect`.
+    res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
+    return sendAssetRedirect(res, cdnUrl);
   })
 );
 

@@ -1,6 +1,6 @@
 import { Router, type Response } from 'express';
 import { and, eq } from 'drizzle-orm';
-import { canonicalFederationHost } from '@oxyhq/federation';
+import { canonicalFederationHost } from '@oxy.so/federation';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { validate } from '../middleware/validate';

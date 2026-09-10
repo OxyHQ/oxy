@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
-import { KeyManager, IdentityUnavailableError } from '@oxyhq/core';
+import { KeyManager, IdentityUnavailableError } from '@oxy.so/core';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
 
 // The `@/components/ui` barrel reaches expo-haptics (untransformed ESM in

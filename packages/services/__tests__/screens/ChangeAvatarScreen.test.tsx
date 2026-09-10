@@ -56,7 +56,7 @@ jest.mock('../../src/ui/hooks/useSurfaceHeader', () => ({
   useSurfaceHeader: jest.fn(),
 }));
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   __esModule: true,
   getNormalizedUserHandle: () => 'nate',
   logger: { debug: jest.fn(), error: jest.fn() },
@@ -71,7 +71,7 @@ jest.mock('../../src/ui/components/SettingsIcon', () => ({
 }));
 
 import { Platform } from 'react-native';
-import { surfaces as bloomSurfaces, toast } from '@oxyhq/bloom';
+import { surfaces as bloomSurfaces, toast } from '@oxy.so/bloom';
 import ChangeAvatarScreen from '../../src/ui/screens/ChangeAvatarScreen';
 
 const navigate = jest.fn();

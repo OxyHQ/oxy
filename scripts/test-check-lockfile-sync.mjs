@@ -60,7 +60,7 @@ function rootManifest(overrides = {}) {
     name: 'fixture-root',
     private: true,
     version: '0.0.0',
-    packageManager: 'bun@1.3.14',
+    packageManager: 'bun@1.4.2',
     // An EXPLICIT path list, matching this repo's root manifest rather than a
     // `packages/*` glob — the shape the check has to model here.
     workspaces: ['packages/alpha', 'packages/beta'],

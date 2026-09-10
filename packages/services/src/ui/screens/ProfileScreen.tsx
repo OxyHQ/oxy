@@ -3,18 +3,18 @@ import { useMemo } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import type { BaseScreenProps } from '../types/navigation';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Button } from '@oxyhq/bloom/button';
-import { H2, Text } from '@oxyhq/bloom/typography';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Button } from '@oxy.so/bloom/button';
+import { H2, Text } from '@oxy.so/bloom/typography';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import FollowButton from '../components/FollowButton';
 import { useFollow } from '../hooks/useFollow';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/OxyContext';
-import { getNormalizedUserHandle, logger, normalizeProfileLinks } from '@oxyhq/core';
+import { getNormalizedUserHandle, logger, normalizeProfileLinks } from '@oxy.so/core';
 import { extractErrorMessage } from '../utils/errorHandlers';
 
 interface ProfileScreenProps extends BaseScreenProps {

@@ -193,8 +193,8 @@ export const createPaymentStyles = (colors: PaymentColors) => StyleSheet.create(
         flex: 1,
         marginLeft: 6,
     },
-    // Oxy Pay styles
-    oxyPayCard: {
+    // Peable styles
+    peableCard: {
         backgroundColor: colors.card ?? colors.background ?? '#fff',
         borderRadius: 16,
         padding: 24,
@@ -202,14 +202,14 @@ export const createPaymentStyles = (colors: PaymentColors) => StyleSheet.create(
         alignItems: 'center',
         width: '100%',
     },
-    oxyPayContent: {
+    peableContent: {
         alignItems: 'center',
         width: '100%',
     },
-    oxyPayIcon: {
+    peableIcon: {
         marginBottom: 8,
     },
-    oxyPayMainTitle: {
+    peableMainTitle: {
         fontWeight: 'bold',
         fontSize: 28,
         color: colors.text,
@@ -217,23 +217,23 @@ export const createPaymentStyles = (colors: PaymentColors) => StyleSheet.create(
         textAlign: 'center',
         letterSpacing: 0.5,
     },
-    oxyPaySubtitle: {
+    peableSubtitle: {
         fontSize: 16,
         color: colors.textSecondary,
         textAlign: 'center',
         marginBottom: 8,
     },
-    oxyPayBalanceBox: {
+    peableBalanceBox: {
         backgroundColor: `${colors.primary}22`,
         borderRadius: 12,
         padding: 8,
         marginTop: 8,
     },
-    oxyPayBalanceText: {
+    peableBalanceText: {
         color: colors.primary,
         fontWeight: '600',
     },
-    oxyPayWaiting: {
+    peableWaiting: {
         fontSize: 14,
         color: colors.textSecondary,
         textAlign: 'center',

@@ -4,11 +4,11 @@
  * Handles signing and verification of messages with the user's DEVICE identity
  * key (read from {@link KeyManager} / secure storage). All cryptography itself —
  * canonical signing input, SHA-256, secp256k1 sign/verify, envelope assembly —
- * is delegated to `@oxyhq/protocol`; this service only resolves the key from
+ * is delegated to `@oxy.so/protocol`; this service only resolves the key from
  * storage and orchestrates the protocol primitives.
  */
 
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import {
   signEnvelope,
   signMessage,
@@ -18,7 +18,7 @@ import {
   loadNodeCrypto,
   isReactNative,
   isNodeJS,
-} from '@oxyhq/protocol';
+} from '@oxy.so/protocol';
 import { KeyManager } from './keyManager';
 import { logger } from '../logger';
 

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text } from 'react-native';
-import type { RouteName } from '@oxyhq/services';
+import type { RouteName } from '@oxy.so/services';
 import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 import { AccountCard } from '@/components/ui';

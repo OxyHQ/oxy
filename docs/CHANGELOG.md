@@ -9,13 +9,63 @@
 > [Nodes / decentralization](nodes/README.md) · [Auth & session](auth/README.md) ·
 > [Architecture](architecture/overview.md).
 
+## `@oxy.so/contracts` 0.40.0 — Kaana BYOK custody clean cut
+
+Version `0.40.0` is the breaking wire-contract release for customer provider
+credentials:
+
+- `KaanaCredentialMutation` / outcome lookup bind the same opaque operation ID
+  to exact `provider + ownerAccountId + connectionId + environment`, actor and,
+  for rotate/revoke, exact handle/revision. Recovery checks outcome first and
+  only an explicit `404` may replay that same operation ID.
+- Create/rotate credentials decode from strict canonical base64 to exactly
+  1–4096 visible ASCII bytes (`0x21`–`0x7e`). Empty, whitespace/control,
+  non-ASCII, non-canonical and oversized values are invalid.
+- `ProviderConnection` advances from wire `schemaVersion: 1` to `2` and carries
+  Kaana's opaque `credentialHandle`, exact
+  `credentialRevision` and custody state. Credential-derived fields are removed:
+  no `secretSha256`, fingerprint or prefix is part of Oxy storage or the public
+  contract.
+- Validation reports bind the current exact handle/revision; a stale generation
+  is refused. Only the trusted Kaana service principal may report them through
+  the dedicated scope and staff-controlled capability. Normal edge resolution
+  admits only `ready + active + valid`, binds that exact opaque generation to
+  the signed route, and keeps a more-specific non-routable row from falling back
+  to a parent. `pending_validation + unvalidated` is deliberately non-routable:
+  the separately authenticated initial-validation bootstrap persists and
+  dispatches an exact application/deployment/generation operation, and only its
+  matching service-authenticated `valid` outcome can promote the current
+  generation transactionally. Billing/quota outcomes remain inconclusive and
+  can be revalidated explicitly without rotating the credential.
+- BYOK deployments now have a separate nullable
+  `platform_fee_price_version_id`. The authenticated edge applies
+  `prefer`/`require`/`disabled`, refuses a missing, mismatched, inactive or
+  ineffective fee version before reservation, carries only the exact credential
+  binding to Kaana, and settles the selected fee version with
+  `platformFeeOnly = true`. This code neither authors nor approves a fee:
+  production still needs an exact immutable fee version to be published and
+  associated, migration `0069_dazzling_switch.sql` and matching releases to be
+  deployed, and the live gates to pass. The provider price is never reused.
+- Canonical routing-profile authority is now its opaque PostgreSQL primary key.
+  Signed inference requests and routing-policy snapshots advance to
+  `schemaVersion: 2` and carry only `routing_profile_id`; the deprecated public
+  `routingProfile` slug is resolved inside Oxy and cannot cross to Kaana. The
+  first Oxy merge remains dark behind explicit
+  `INFERENCE_KAANA_EXECUTION=disabled`; Kaana must deploy dual v1-model/v2-ID
+  decoding before a separate Oxy enablement change. See the
+  [request-v2 cutover runbook](runbooks/kaana-request-v2-cutover.md).
+
+The package version records the contract cut. Publishing, consumer bumps and
+production enablement remain separate verified release/deployment steps; do not
+infer them from this entry.
+
 This initiative turned **Commons by Oxy** (`packages/commons`, a native-only
 identity vault) into a citizen-identity / **"Oxy ID"** app backed by a
 server-side civic engine in `oxy-api`. The thesis: **ownership of identity,
 reputation and data comes from cryptography** (per-subject, hash-chained signed
 records) — not from Oxy granting it. Commons is the user-facing face; the engine
 lives in `packages/api/src/services/civic/` + `routes/civic.ts`; the SDK surface
-lives in `@oxyhq/core` mixins; wire contracts live in `@oxyhq/contracts`.
+lives in `@oxy.so/core` mixins; wire contracts live in `@oxy.so/contracts`.
 
 The roadmap was built in numbered phases **F0 → F5**. F0–F4 plus the
 DNI→"Oxy ID" rename, the Commons navigation restructure and the Reputation
@@ -36,7 +86,7 @@ the native-only **Commons** vault and introduced the DID + signed-records +
 | `6eed55f3` | 2026-06-26 | **feat(identity):** Accounts/Commons split + self-sovereign identity + "Sign in with Oxy". Accounts becomes keyless/management-only; all key/identity UX moves to `packages/commons`. Adds `did:web` documents (`did.service.ts`), signed records (envelope v1, `SignedRecord` model), signed data export, domain verification, and the QR + shared-keychain "Sign in with Oxy" handoff. |
 | `403b18cd` | 2026-06-26 | **chore(api):** register the "Commons by Oxy" + "Oxy Auth" Applications/clientIds so their SSO origins are auto-approved. |
 | `ca97cc7a` | 2026-06-26 | **chore(commons,auth):** wire the real Sign-in-with-Oxy client ids into Commons + the auth app. |
-| `2ce09748` | 2026-06-26 | **chore(release):** publish the identity SDK — `@oxyhq/contracts 0.3.0`, `@oxyhq/core 3.11.0`, `@oxyhq/auth 5.1.1`, `@oxyhq/services 11.1.0`. `contracts 0.3.0` adds `identity.ts` (DID document, signed-record envelope, verified domain, auth-methods, export-bundle schemas). |
+| `2ce09748` | 2026-06-26 | **chore(release):** publish the identity SDK — `@oxy.so/contracts 0.3.0`, `@oxy.so/core 3.11.0`, `@oxy.so/auth 5.1.1`, `@oxy.so/services 11.1.0`. `contracts 0.3.0` adds `identity.ts` (DID document, signed-record envelope, verified domain, auth-methods, export-bundle schemas). |
 | `c38fcf19` | 2026-06-26 | **feat(did):** make the `did:web` anchor domain configurable via `DID_WEB_DOMAIN` env (default `api.oxy.so` → `did:web:api.oxy.so:u:<id>`). |
 
 See [identity/README.md](identity/README.md) for the DID model, the signed-record
@@ -103,12 +153,12 @@ See [reputation/README.md#f4--verifiable-credentials](reputation/README.md#6-f4-
 
 The core invariant for the whole phase: **reads NEVER touch a node.** All node
 I/O is background, via `safeFetch`. A node being down means stale-but-instant,
-never slow. The node reuses the F0 hash chain and `@oxyhq/core` crypto verbatim.
+never slow. The node reuses the F0 hash chain and `@oxy.so/core` crypto verbatim.
 
 | SHA | Date | Summary |
 |---|---|---|
 | `89ce0422` | 2026-06-28 | **feat(nodes): Fase 5a** — user-node **API foundation** (one-way Oxy→node). `UserNode` model + node-as-signed-record registration (a `type:'node'` record via `POST /identity/records`), public `GET /identity/log/:userId` + `GET /identity/head/:userId`, async liveness probe via `safeFetch`, a `#oxy-node` service entry in the DID document, `GET /nodes/me`. |
-| `d9c74692` | 2026-06-28 | **feat(node): Fase 5** — `packages/node` / **`@oxyhq/node`**: a self-hostable Express data-node server (better-sqlite3 log + on-disk blobs) that reuses `@oxyhq/core` verify, enforces chain continuity, authorizes writes by the owner key, and ships with a Dockerfile + Caddyfile for TLS. |
+| `d9c74692` | 2026-06-28 | **feat(node): Fase 5** — `packages/node` / **`@oxy.so/node`**: a self-hostable Express data-node server (better-sqlite3 log + on-disk blobs) that reuses `@oxy.so/core` verify, enforces chain continuity, authorizes writes by the owner key, and ships with a Dockerfile + Caddyfile for TLS. |
 | `c6fb8a86` | 2026-06-28 | **feat(nodes): Fase 5b** — node→Oxy **ingest**. Background `nodeSync` worker: `safeFetch` the node log, **verify every record** (envelope + chain continuity + owner DID), resolve conflicts by **LWW per `(nsid, rkey)`** (higher `issuedAt`, tiebreak `recordId`), **fork keeps both**, and **OXY counter-signs each ingested `recordId`** as an immutable witness against a stolen key rewriting history. `POST /nodes/ingest/notify` is a hint (no authority) that enqueues the pull (BullMQ / interval worker). |
 | `964b265e` | 2026-06-28 | **feat(nodes): Fase 5c** — **managed vault**: `POST /nodes/managed` provisions an OXY-custodial node — Oxy signs the node record with the custodial key (`controller: 'oxy'`) so non-technical users get a "Create your vault" path without self-hosting. The container/storage orchestration of the managed endpoint is infra (deferred to `oxy-infra`); 5c only does the registration + custodial sign against `MANAGED_NODE_BASE_URL`. |
 
@@ -125,8 +175,8 @@ These landed in the same window and touch auth/SDK behavior every app sees.
 |---|---|---|
 | `1d90ba37` | 2026-06-28 | **feat(api,auth,core,accounts):** dynamic CORS derived from the Application registry + a Google/Meta-style consent screen. CORS allow-lists are computed from active `Application.redirectUris` origins instead of a static seed. |
 | `2cafc4a2` | 2026-06-28 | **feat(api):** `GET /users/:id/mutuals` — "followers you know". |
-| `cfb9cf20` | 2026-06-28 | **feat(core):** `getUserMutuals` SDK method (`@oxyhq/core 3.14.0`). |
-| `6a652c2e` | 2026-06-28 | **fix(sdk):** smart returning-user SSO bounce gating; remove `disableAutoSso`. Bumps `@oxyhq/core 3.15.0`, `@oxyhq/auth 6.0.0`, `@oxyhq/services 12.0.0`. The cold-boot `/sso` terminal bounce is now gated so first-time visitors are not bounced unnecessarily, while returning users still restore silently. |
+| `cfb9cf20` | 2026-06-28 | **feat(core):** `getUserMutuals` SDK method (`@oxy.so/core 3.14.0`). |
+| `6a652c2e` | 2026-06-28 | **fix(sdk):** smart returning-user SSO bounce gating; remove `disableAutoSso`. Bumps `@oxy.so/core 3.15.0`, `@oxy.so/auth 6.0.0`, `@oxy.so/services 12.0.0`. The cold-boot `/sso` terminal bounce is now gated so first-time visitors are not bounced unnecessarily, while returning users still restore silently. |
 | `a6b5dbec` | 2026-06-28 | **fix(api):** restrict the public identity-log export (#417) — tighten what `GET /identity/log/:userId` exposes. |
 | `7bf423c0` | 2026-06-28 | **fix(api):** prevent personhood **re-vouch** reputation farming (#418) — a withdrawn-then-re-issued vouch can't re-award `personhood_vouched`. |
 
@@ -139,15 +189,17 @@ Carried forward from [`CONTINUATION.md`](../CONTINUATION.md) §8 and the roadmap
 - **Managed-vault container orchestration** — spinning up per-user node instances
   behind `MANAGED_NODE_BASE_URL` is **infra** (`oxy-infra`), not application code.
   5c only registers + custodial-signs.
-- **`@oxyhq/core` node SDK mixin + Commons node UI** — a "Connect your node" /
+- **`@oxy.so/core` node SDK mixin + Commons node UI** — a "Connect your node" /
   "Create your vault" surface in Commons Settings. (If `OxyServices.nodes.ts`
   is present, the SDK side has landed; the Commons UI is the remaining piece —
   see [nodes/README.md](nodes/README.md).)
-- **Publish `@oxyhq/contracts` 0.4.0 → core → services → auth** — only when an
+- **Publish `@oxy.so/contracts` 0.4.0 → core → services → auth** — only when an
   external app needs the new civic types. Commons consumes them as `workspace:*`
   and the API Docker build builds contracts from source, so no publish is needed
   for current deploys.
-- **Infra (needs AWS):** run `scripts/migrate-karma-to-reputation.ts` as a
-  one-shot ECS task (all balances read 0 until then); seed `isSeedVerifier=true`
-  on a few trusted users to bootstrap the personhood web-of-trust; set
-  `REC_SCORING_V2=true` in `terraform-uswest2/app-services.tf`.
+- **Infra (needs AWS):** set `REC_SCORING_V2=true` in
+  `terraform-uswest2/app-services.tf`.
+  (Two other items formerly listed here are resolved, verified against
+  production: the karma→reputation migration is a no-op — every karma
+  collection is empty cluster-wide, there is nothing to migrate; and
+  `isSeedVerifier=true` is already seeded on the bootstrap trust accounts.)

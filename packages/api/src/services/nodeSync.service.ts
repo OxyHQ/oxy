@@ -8,7 +8,7 @@
  *
  * ## Absolute read-path invariant
  *
- * Every node fetch here goes through `@oxyhq/core/server`'s `safeFetch`
+ * Every node fetch here goes through `@oxy.so/core/server`'s `safeFetch`
  * (HTTPS-only, private-IP denylist, DNS-pinned, bounded redirects) and runs ONLY
  * in the background (the BullMQ worker / the in-process fallback). NOTHING in a
  * request's read path ever calls this. A down/slow/malicious node leaves Oxy's
@@ -68,14 +68,14 @@
  */
 
 import { and, desc, eq, ne } from 'drizzle-orm';
-import { canonicalize, computeRecordId } from '@oxyhq/protocol';
-import { NodeClient, type NodeFetch } from '@oxyhq/protocol/node';
-import { safeFetch } from '@oxyhq/core/server';
+import { canonicalize, computeRecordId } from '@oxy.so/protocol';
+import { NodeClient, type NodeFetch } from '@oxy.so/protocol/node';
+import { safeFetch } from '@oxy.so/core/server';
 import {
   oxySignedRecordTypeSchema,
   signedRecordEnvelopeSchema,
   type SignedRecordEnvelope,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { nodeIngestWitnesses } from '../db/schema/nodeIngestWitnesses';
 import { signedRecords } from '../db/schema/signedRecords';
@@ -105,7 +105,7 @@ type IngestOutcome =
 
 /**
  * The injected transport for the protocol {@link NodeClient}: a thin adapter over
- * `@oxyhq/core/server`'s `safeFetch` (HTTPS-only, DNS-pinned, private-IP
+ * `@oxy.so/core/server`'s `safeFetch` (HTTPS-only, DNS-pinned, private-IP
  * denylist, bounded redirects). The client owns the bounded-body reads; this
  * adapter only hands it the SSRF-safe streamed response. The read-path invariant
  * still holds — this runs ONLY in the background ingest worker.

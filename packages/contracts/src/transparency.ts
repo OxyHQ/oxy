@@ -12,7 +12,7 @@ import { z } from 'zod';
  * different histories, or quietly dropping a record).
  *
  * The Merkle math, the leaf/checkpoint signing bytes, and the proof verifier all
- * live in `@oxyhq/protocol` (`src/transparency/`); this module only fixes the
+ * live in `@oxy.so/protocol` (`src/transparency/`); this module only fixes the
  * SHAPES that cross the wire, so a client and the API cannot drift on them.
  *
  * Digest fields are pinned to 64-char LOWERCASE hex on purpose: the digests are

@@ -4,7 +4,7 @@
  * `OxyServices.verifyChallenge()` returns a `SessionLoginResponse` carrying the
  * first `accessToken` minted by `POST /auth/verify`. It must
  * plant that token internally — mirroring its sibling `claimSessionByToken` —
- * so callers (e.g. @oxyhq/services' `useAuthOperations.performSignIn`) end up
+ * so callers (e.g. @oxy.so/services' `useAuthOperations.performSignIn`) end up
  * with an authenticated client. Session IDs are not public token-minting
  * credentials, so the initial bearer must come from the verify response body.
  *

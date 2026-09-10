@@ -1,5 +1,5 @@
 {
-  "package": "@oxyhq/api",
+  "package": "@oxy.so/api",
   "displayName": "Oxy REST API",
   "shortName": "api",
   "repo": "https://github.com/OxyHQ/OxyHQServices",

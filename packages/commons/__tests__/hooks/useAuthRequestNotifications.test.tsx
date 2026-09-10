@@ -7,7 +7,7 @@ import {
   __resetNotificationAdapter,
   subscribeToNotificationResponses,
   takeLaunchNotificationData,
-} from '@/__mocks__/oxyhq-services';
+} from '@/__mocks__/oxy-services';
 import { COMMONS_AUTH_REQUEST_PUSH_TYPE } from '@/lib/notifications/auth-request-push';
 import {
   coldLaunchApprovalCode,
@@ -28,7 +28,7 @@ function pushPayload(approvalUrl: string): Record<string, unknown> {
  * NOTE: the module-level claim ledger is per app session, so each test uses its
  * own authorize code — the same way two real notifications carry two codes.
  *
- * The subscription itself is the shared `@oxyhq/services` adapter (stubbed here,
+ * The subscription itself is the shared `@oxy.so/services` adapter (stubbed here,
  * tested in that package); what is asserted below is Commons' handling of what
  * the adapter delivers.
  */

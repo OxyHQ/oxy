@@ -12,7 +12,7 @@
  *
  * **`amount` is `numeric(38, 8)`, and postgres.js hands a `numeric` back as a
  * STRING.** The wire has always carried it as a JSON number (`Payment.amount`
- * in `@oxyhq/services`), so the conversion happens here, at the serialization
+ * in `@oxy.so/services`), so the conversion happens here, at the serialization
  * boundary, and nowhere else — nothing in this file computes with the value.
  *
  * **Drizzle returns `null` for an unset optional column where Mongoose returned
@@ -39,7 +39,7 @@ const PAYMENT_TYPES = ['deposit', 'purchase'] as const;
  * One entry of the payment history, exactly as the wire has always carried it.
  *
  * Every optional is `?:` rather than `| null` on purpose — see the header: the
- * absent form is an OMITTED key, which is what `Payment` in `@oxyhq/services`
+ * absent form is an OMITTED key, which is what `Payment` in `@oxy.so/services`
  * models.
  */
 interface PaymentResponse {

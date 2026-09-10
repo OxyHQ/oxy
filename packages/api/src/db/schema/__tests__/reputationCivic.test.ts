@@ -6,7 +6,7 @@
  * out of service code, the canonical affinity pair, and the coherence CHECKs
  * that make a contradictory row unrepresentable rather than merely unlikely.
  *
- * Closed value sets are additionally held against `@oxyhq/contracts` here, so
+ * Closed value sets are additionally held against `@oxy.so/contracts` here, so
  * widening a union there without widening the CHECK fails as a test rather than
  * as a 500 the first time the new value is written.
  */
@@ -23,8 +23,8 @@ import {
   REPUTATION_TRANSACTION_STATUSES as CONTRACT_TRANSACTION_STATUSES,
   TRUST_TIERS as CONTRACT_TRUST_TIERS,
   oxySignedRecordTypeSchema,
-} from '@oxyhq/contracts';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { applications } from '../applications';
 import { personhoodVouches } from '../personhoodVouches';

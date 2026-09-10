@@ -6,7 +6,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { getBaseLanguage, normalizeLocale } from '@oxyhq/core';
+import { getBaseLanguage, normalizeLocale } from '@oxy.so/core';
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from './types';
 import type { ReactNode } from 'react';
 import type { Locale } from './types';

@@ -672,6 +672,23 @@ describe('GET /auth/oauth/client/:clientId — public metadata lookup', () => {
     expect(publicApp).not.toHaveProperty('webhookSecret');
   });
 
+  it('removes legacy credential query parameters from the public icon projection', async () => {
+    const app = await application({
+      icon:
+        'https://cdn.example.test/homiio.svg?size=64&token=secret-marker&access_token=second-marker&authorization=third-marker#app',
+    });
+    const clientId = await credential(app.id);
+
+    const res = await request('GET', `/auth/oauth/client/${clientId}`);
+
+    expect(res.status).toBe(200);
+    const publicApp = (res.body.data as { application: Record<string, unknown> }).application;
+    expect(publicApp.icon).toBe('https://cdn.example.test/homiio.svg?size=64#app');
+    expect(JSON.stringify(publicApp)).not.toContain('secret-marker');
+    expect(JSON.stringify(publicApp)).not.toContain('second-marker');
+    expect(JSON.stringify(publicApp)).not.toContain('third-marker');
+  });
+
   it('returns 404 for an unknown clientId', async () => {
     const res = await request('GET', '/auth/oauth/client/oxy_dk_missing');
     expect(res.status).toBe(404);

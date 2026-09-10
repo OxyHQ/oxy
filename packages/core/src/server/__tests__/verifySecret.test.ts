@@ -1,6 +1,6 @@
 import { verifySecret } from '../verifySecret';
 
-describe('@oxyhq/core/server verifySecret', () => {
+describe('@oxy.so/core/server verifySecret', () => {
   it('returns true for equal secrets', () => {
     expect(verifySecret('s3cr3t-token', 's3cr3t-token')).toBe(true);
     expect(verifySecret('a', 'a')).toBe(true);

@@ -59,6 +59,23 @@ let mockState: MockOxyState = defaultMockState();
 jest.mock('../../src/ui/context/OxyContext', () => ({
   __esModule: true,
   useOxy: () => mockState,
+  useOxyAuthActions: () => mockState,
+}));
+
+jest.mock('../../src/ui/runtime', () => ({
+  __esModule: true,
+  useOxyRuntime: () => ({
+    getSnapshot: () => ({
+      account: mockState.user,
+      isLoading: mockState.isLoading,
+      tokenReady: mockState.isTokenReady,
+      hasAccessToken: mockState.hasAccessToken,
+      authResolved: mockState.isAuthResolved,
+      error: mockState.error ? { message: mockState.error, code: 'test' } : null,
+    }),
+  }),
+  useRuntimeSelector: (runtime: { getSnapshot: () => unknown }, selector: (snapshot: unknown) => unknown) =>
+    selector(runtime.getSnapshot()),
 }));
 
 import { useAuth } from '../../src/ui/hooks/useAuth';
@@ -100,13 +117,12 @@ describe('useAuth.signIn — web dialog path', () => {
   it('opens the unified account dialog on its sign-in view instead of navigating', async () => {
     const { result } = renderHook(() => useAuth());
 
+    let outcome: Awaited<ReturnType<typeof result.current.signIn>> | undefined;
     await act(async () => {
-      // The web path returns a never-resolving promise (the caller reacts to
-      // `isAuthenticated`), so fire-and-forget it.
-      void result.current.signIn();
-      await Promise.resolve();
+      outcome = await result.current.signIn();
     });
 
+    expect(outcome).toEqual({ status: 'dialog-opened' });
     expect(mockState.openAccountDialog).toHaveBeenCalledWith('signin');
     // No key-based sign-in, no redirect helper.
     expect(mockState.signIn).not.toHaveBeenCalled();
@@ -121,10 +137,15 @@ describe('useAuth.signIn — native key-based path', () => {
   it('calls signIn with the provided publicKey when one is passed', async () => {
     const { result } = renderHook(() => useAuth());
 
+    let outcome: Awaited<ReturnType<typeof result.current.signIn>> | undefined;
     await act(async () => {
-      await result.current.signIn('explicit-pubkey');
+      outcome = await result.current.signIn('explicit-pubkey');
     });
 
+    expect(outcome).toEqual({
+      status: 'authenticated',
+      user: { id: 'u1', username: 'native-user', publicKey: 'explicit-pubkey' },
+    });
     expect(mockState.signIn).toHaveBeenCalledWith('explicit-pubkey');
     expect(mockState.openAccountDialog).not.toHaveBeenCalled();
   });

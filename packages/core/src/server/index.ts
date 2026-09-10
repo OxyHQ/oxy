@@ -1,13 +1,13 @@
 /**
- * @oxyhq/core/server — Server-only utilities for Oxy backends
+ * @oxy.so/core/server — Server-only utilities for Oxy backends
  *
  * This subpath export provides Express middleware and Node.js-specific
  * utilities that are not available in React Native or browser environments.
  *
  * @example
  * ```ts
- * import { createOxyRateLimit } from '@oxyhq/core/server';
- * import { oxyClient } from '@oxyhq/core';
+ * import { createOxyRateLimit } from '@oxy.so/core/server';
+ * import { oxyClient } from '@oxy.so/core';
  *
  * const oxy = oxyClient({ apiUrl: 'https://api.oxy.so' });
  *
@@ -94,6 +94,21 @@ export type {
   OxySecurityHeadersOptions,
 } from './securityHeaders';
 
+export {
+  CapabilityTicketError,
+  createCapabilityTicketMiddleware,
+  inputSatisfiesCapabilityLimits,
+  issueCapabilityTicket,
+  readCapabilityAuthorization,
+  verifyCapabilityTicket,
+} from './capabilityTicket';
+export type {
+  CapabilityTicketMiddlewareOptions,
+  CapabilityTicketRequest,
+  CapabilityTicketSigningOptions,
+  CapabilityTicketVerificationOptions,
+} from './capabilityTicket';
+
 // Constant-time secret comparison.
 export { verifySecret } from './verifySecret';
 
@@ -116,6 +131,6 @@ export type { OxyIdentityCacheEvictor } from '../utils/identityCacheSweep';
 // Registrable-apex (eTLD+1) derivation via the Public Suffix List — the SINGLE
 // SOURCE OF TRUTH shared with the IdP worker and the client FAPI auto-detect.
 // Pure host handling (no browser deps), so it is safe on the server subpath and
-// lets `@oxyhq/api` derive `auth.<apex>` without duplicating PSL logic.
+// lets `@oxy.so/api` derive `auth.<apex>` without duplicating PSL logic.
 export { registrableApex } from '../utils/registrableApex';
 export { isOfficialWebOrigin } from '../utils/officialOrigins';

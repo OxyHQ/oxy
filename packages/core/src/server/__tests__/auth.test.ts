@@ -19,7 +19,7 @@ function makeNext(): NextFunction {
   return jest.fn() as unknown as NextFunction;
 }
 
-describe('@oxyhq/core/server auth helpers', () => {
+describe('@oxy.so/core/server auth helpers', () => {
   it('reads the current user id from userId, user.id, or user._id', () => {
     expect(getOxyUserId({ userId: 'user-from-request' } as OxyAuthRequest)).toBe('user-from-request');
     expect(getOxyUserId({ user: { id: 'user-from-id' } } as OxyAuthRequest)).toBe('user-from-id');

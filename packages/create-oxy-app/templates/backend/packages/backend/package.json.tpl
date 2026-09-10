@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@{{APP_SLUG}}/shared-types": "workspace:*",
-    "@oxyhq/core": "{{v.oxyCore}}",
-    "@oxyhq/db": "{{v.oxyDb}}",
+    "@oxy.so/core": "{{v.oxyCore}}",
+    "@oxy.so/db": "{{v.oxyDb}}",
     "dotenv": "{{v.dotenv}}",
     "drizzle-orm": "{{v.drizzleOrm}}",
     "express": "{{v.express}}",

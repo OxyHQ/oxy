@@ -30,7 +30,7 @@
  * U+5350, `卍` U+534D — both CJK Unified Ideographs, General_Category Lo,
  * Script_Extensions Han) is stripped like any other disallowed character. That
  * is NOT a rule of its own here: those code points are subtracted from the
- * allowlist at generation time in `@oxyhq/core`, so they are simply absent from
+ * allowlist at generation time in `@oxy.so/core`, so they are simply absent from
  * `DISPLAY_NAME_DISALLOWED_SOURCE`'s allowed set and this module removes them
  * without knowing they exist — which is exactly why the strip path and the core
  * reject gate cannot drift on them. A character policy cannot see MEANING, and
@@ -43,7 +43,7 @@
  * NOT a change to the script allowlist or the denylist.
  *
  * The character policy is NOT re-derived here: the allowlist and its patterns
- * are the ONE source of truth in `@oxyhq/core` `validationUtils.ts`
+ * are the ONE source of truth in `@oxy.so/core` `validationUtils.ts`
  * (`DISPLAY_NAME_DISALLOWED_SOURCE`, `DISPLAY_NAME_ORPHANED_MARK_SOURCE`). This
  * module imports those sources and compiles the global-flag variants it needs to
  * STRIP, so the strip path here and the core reject path (`isValidDisplayName`)
@@ -62,7 +62,7 @@
  * literally), whereas `cleanDisplayName` yields a clean, already-safe `O'Brien`.
  *
  * Whitespace/Unicode normalization is NOT implemented here: it is delegated to
- * the canonical `normalizeInlineText` from `@oxyhq/core`. This module owns only
+ * the canonical `normalizeInlineText` from `@oxy.so/core`. This module owns only
  * the display-name PRODUCT rules (character policy, shortcode stripping, length
  * cap).
  */
@@ -73,9 +73,9 @@ import {
   DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE,
   MAX_DISPLAY_NAME_LENGTH,
   normalizeInlineText,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 
-/** Re-exported from `@oxyhq/core` — single source of truth for API + clients. */
+/** Re-exported from `@oxy.so/core` — single source of truth for API + clients. */
 export { MAX_DISPLAY_NAME_LENGTH };
 
 /** Matches a `:shortcode:` emoji token (e.g. `:bongoCat:`, `:+1:`). */

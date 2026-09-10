@@ -25,7 +25,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { generatedId } from '@oxyhq/db';
+import { generatedId } from '@oxy.so/db';
 import { messages } from './messages';
 
 /** Which header carried the address. */

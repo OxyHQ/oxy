@@ -34,7 +34,7 @@
  */
 
 import { pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 
 export const federationKeyPairs = pgTable(
   'federation_key_pairs',

@@ -4,7 +4,7 @@
  * A user's node is the decentralised store that holds the authentic copy of their
  * signed-record chain; Oxy keeps a fast, verified projection so reads are always
  * instant while the node stays the source of truth. The SDK surface lives on
- * `@oxyhq/core`'s nodes mixin:
+ * `@oxy.so/core`'s nodes mixin:
  *
  *  - `getMyNode()` → the caller's cached {@link UserNodeStatus} (or `null`).
  *  - `provisionManagedVault()` → ask Oxy to operate a MANAGED vault.
@@ -29,8 +29,8 @@
 
 import { useCallback, useState } from 'react';
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
-import type { RegisterNodeInput, UserNodeStatus } from '@oxyhq/core';
+import { useOxy } from '@oxy.so/services';
+import type { RegisterNodeInput, UserNodeStatus } from '@oxy.so/core';
 import { authenticate } from '@/lib/biometricAuth';
 
 /** Build the shared per-user node query key (read + mutation invalidation share it). */

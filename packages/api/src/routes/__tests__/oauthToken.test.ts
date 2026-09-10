@@ -740,7 +740,7 @@ describe('POST /auth/oauth/token — third-party isolation', () => {
     // own per-(user, client) device, it reaches exactly one session: its own.
     //
     // #937 asks for the pair to be omitted outright. That is the end state and
-    // it is not this: `exchangeOAuthCode` in `@oxyhq/core` throws without both
+    // it is not this: `exchangeOAuthCode` in `@oxy.so/core` throws without both
     // fields, so omitting them breaks every third-party sign-in through the SDK
     // until core ships a release that tolerates a device-less session. This test
     // therefore pins the property that actually protects the user, and the

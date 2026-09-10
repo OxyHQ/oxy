@@ -31,10 +31,10 @@ The multi-person evolution of that model — principals, account contexts, one g
 
 ## Provider mount — `OxyProvider`, device-first like every app
 
-The IdP mounts the single UI SDK, `@oxyhq/services`, with NO special props — it is a device-first origin exactly like accounts.oxy.so (`packages/auth/src/main.tsx`). The previous separate web SDK package no longer exists in the monorepo.
+The IdP mounts the single UI SDK, `@oxy.so/services`, with NO special props — it is a device-first origin exactly like accounts.oxy.so (`packages/auth/src/main.tsx`). The previous separate web SDK package no longer exists in the monorepo.
 
 ```tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 <OxyProvider baseURL={getApiBaseUrl()} clientId={OXY_CLIENT_ID}>
   <BrowserRouter>{/* routes */}</BrowserRouter>
@@ -49,7 +49,7 @@ The provider runs the SAME device-first cold boot every Oxy app runs (restore th
 |-------|----------------|---------|
 | `/login`, `/auth/login` | `src/pages/login.tsx` → `LoginForm` | Account chooser (device accounts) → identifier → password → 2FA. "Sign in with Oxy" opens the services `OxyAccountDialog` (Commons QR). Accepts OAuth params (`client_id`, `redirect_uri`, `state`, `code_challenge`, `scope`, `login_hint`) to resume an authorize flow after sign-in |
 | `/signup`, `/auth/signup` | `src/pages/signup.tsx` | Keyless password account creation (`POST /auth/signup`) |
-| `/authorize`, `/auth/authorize` | `src/pages/authorize.tsx` | OAuth authorize: resolves the Application via `GET /auth/oauth/client/:clientId`, shows the account chooser, checks `GET /auth/oauth/consent`, renders **`OxyConsentScreen`** (from `@oxyhq/services`; shows the Application's name, logo, scopes, `privacyPolicyUrl`/`termsUrl`), mints the single-use code via `POST /auth/oauth/authorize`, redirects to the RP's `redirect_uri` |
+| `/authorize`, `/auth/authorize` | `src/pages/authorize.tsx` | OAuth authorize: resolves the Application via `GET /auth/oauth/client/:clientId`, shows the account chooser, checks `GET /auth/oauth/consent`, renders **`OxyConsentScreen`** (from `@oxy.so/services`; shows the Application's name, logo, scopes, `privacyPolicyUrl`/`termsUrl`), mints the single-use code via `POST /auth/oauth/authorize`, redirects to the RP's `redirect_uri` |
 | `/recover`, `/auth/recover` | `src/pages/recover.tsx` | Password recovery (`/auth/recover/request` → `verify` → `reset`) |
 | `/auth/social/callback` | `src/pages/social-callback.tsx` | Social-provider OAuth callback (no layout) |
 | `/settings`, `/settings/password`, `/settings/linked-accounts` | `ExternalRedirect` | → `https://accounts.oxy.so/security` |
@@ -61,7 +61,7 @@ The provider runs the SAME device-first cold boot every Oxy app runs (restore th
 
 The chooser ("Choose an account to continue") uses the SAME device-first SDK chain every Oxy app uses — there is NO server-side feed, NO `oxy_device` cookie, and NO Pages Function anymore (all deleted in the 2c cutover):
 
-1. `useDeviceSwitcher()` (from `@oxyhq/services`) reads the server's device directory (ADR 0002) — every principal on this device and the contexts each may act as — through the same `buildSwitcherRows` projection the SDK's own switcher renders.
+1. `useDeviceSwitcher()` (from `@oxy.so/services`) reads the server's device directory (ADR 0002) — every principal on this device and the contexts each may act as — through the same `buildSwitcherRows` projection the SDK's own switcher renders.
 2. `components/account-chooser.tsx` renders those rows on `/login` and `/authorize`, grouped by person: the same organization reachable through two people is two rows, and the operator is named once anybody holds more than one account.
 3. Selecting the active context continues immediately; selecting any other calls `activateContext(contextId)` — the pair, never an account id — which re-plants the active bearer, then proceeds. A refusal (including a context id the server has since healed away) falls back to `/login?login_hint=…` for explicit re-auth.
 

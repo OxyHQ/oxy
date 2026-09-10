@@ -1,4 +1,11 @@
-import { blankComments, parseRoutesFromFile } from '../../scripts/generate-openapi';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import {
+  blankComments,
+  buildOperation,
+  parseRoutesFromFile,
+} from '../../scripts/generate-openapi';
+import { INBOX_CAPABILITY_CATALOG } from '../capabilities/inbox.catalog';
 
 /**
  * The route walker decides which credential the PUBLISHED contract says each
@@ -103,6 +110,17 @@ describe('the walker reads code, not prose', () => {
     expect(after?.middlewares).toContain('authMiddleware');
   });
 
+  it('recognises the Inbox dual-lane capability gate at router level', () => {
+    const routes = parseRoutesFromFile(`
+      const router = Router();
+      router.use(emailCapabilityAuth);
+      router.get('/messages', handler);
+    `);
+
+    expect(routes).toHaveLength(1);
+    expect(routes[0]?.middlewares).toContain('emailCapabilityAuth');
+  });
+
   it('does not apply a PATH-SCOPED router.use, which gates a subtree it cannot resolve', () => {
     const routes = parseRoutesFromFile(`
       const router = Router();
@@ -153,5 +171,100 @@ describe('the walker reads code, not prose', () => {
     `);
 
     expect(routes[0]?.jsdoc).toContain('Lists the things.');
+  });
+});
+
+describe('the generated Inbox contract preserves both authentication lanes', () => {
+  const document = JSON.parse(
+    readFileSync(path.resolve(__dirname, '../../openapi.json'), 'utf8'),
+  ) as {
+    paths: Record<string, Record<string, { security?: Array<Record<string, string[]>> }>>;
+  };
+
+  it('publishes only the two explicit email ingress/proxy operations as public', () => {
+    const capabilityOperations = new Set(
+      INBOX_CAPABILITY_CATALOG.tools.map(
+        (tool) => `${tool.invocation.method.toLowerCase()} ${tool.invocation.path}`,
+      ),
+    );
+    const operations = Object.entries(document.paths)
+      .filter(([route]) => route.startsWith('/email'))
+      .flatMap(([route, methods]) =>
+        Object.entries(methods).map(([method, operation]) => ({ route, method, operation })),
+      );
+
+    expect(operations.length).toBeGreaterThan(0);
+    const deliberatelyPublic = new Set(['post /email/inbound', 'get /email/proxy']);
+    for (const { route, method, operation } of operations) {
+      const operationKey = `${method} ${route}`;
+      expect({ route, method, security: operation.security }).toEqual({
+        route,
+        method,
+        security: capabilityOperations.has(operationKey)
+          ? [{ capabilityTicketAuth: [] }, { bearerAuth: [] }]
+          : deliberatelyPublic.has(operationKey)
+            ? [{}]
+            : [{ bearerAuth: [] }],
+      });
+    }
+  });
+});
+
+describe('explicit non-success responses', () => {
+  function operationFor(source: string, openApiPath = '/fixture/things') {
+    const route = parseRoutesFromFile(source)[0];
+    if (route === undefined) throw new Error('response-tag fixture did not produce a route');
+    return buildOperation({
+      route: { ...route, mountPrefix: '/fixture', filename: 'fixture.ts' },
+      openApiPath,
+    });
+  }
+
+  it('publishes an explicitly declared 409 with the shared Error envelope', () => {
+    const operation = operationFor(`
+      /**
+       * Changes the thing.
+       *
+       * @response 409 Error The thing conflicts with current state.
+       */
+      router.put('/things', handler);
+    `);
+
+    expect(operation.responses?.['409']).toEqual({
+      description: 'The thing conflicts with current state.',
+      content: {
+        'application/json': { schema: { $ref: '#/components/schemas/Error' } },
+      },
+    });
+  });
+
+  it('does not invent a 409 for an otherwise identical unannotated route', () => {
+    const operation = operationFor(`
+      /** Changes the thing. */
+      router.put('/things', handler);
+    `);
+
+    expect(operation.responses).not.toHaveProperty('409');
+  });
+
+  it('does not overwrite an explicit non-2xx response with an inferred default', () => {
+    const operation = operationFor(
+      `
+        /**
+         * Changes one thing.
+         *
+         * @response 400 Error The declared domain validation failed.
+         */
+        router.put('/things/:id', handler);
+      `,
+      '/fixture/things/{id}'
+    );
+
+    expect(operation.responses?.['400']).toEqual({
+      description: 'The declared domain validation failed.',
+      content: {
+        'application/json': { schema: { $ref: '#/components/schemas/Error' } },
+      },
+    });
   });
 });

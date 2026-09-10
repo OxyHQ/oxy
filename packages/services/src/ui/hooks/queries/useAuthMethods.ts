@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { AuthMethodEntry, AuthMethodsResponse } from '@oxyhq/contracts';
+import type { AuthMethodEntry, AuthMethodsResponse } from '@oxy.so/contracts';
 import { queryKeys } from './queryKeys';
 import { useOxy } from '../../context/OxyContext';
 

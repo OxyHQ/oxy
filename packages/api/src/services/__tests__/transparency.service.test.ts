@@ -1,7 +1,7 @@
 /**
  * Transparency checkpoint service, against a REAL Postgres.
  *
- * The Merkle math itself is covered in `@oxyhq/protocol`; this suite locks the
+ * The Merkle math itself is covered in `@oxy.so/protocol`; this suite locks the
  * SERVICE behaviour that makes the log trustworthy in production:
  *  - a checkpoint is signed, gapless, and hash-linked to its predecessor;
  *  - the concurrent-writer loser ADOPTS the persisted root instead of publishing
@@ -40,18 +40,17 @@
  * The protocol crypto is real throughout.
  */
 
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { asc, eq, sql } from 'drizzle-orm';
 import {
   checkpointHash,
   verifyCheckpointSignature,
   verifyInclusionProof,
-} from '@oxyhq/protocol';
-import { ec as EC } from 'elliptic';
+} from '@oxy.so/protocol';
 
-const ec = new EC('secp256k1');
-const oxyKey = ec.genKeyPair();
-const OXY_PRIVATE_KEY = oxyKey.getPrivate('hex');
-const OXY_PUBLIC_KEY = oxyKey.getPublic('hex');
+const oxyKey = generateSecp256k1KeyPair();
+const OXY_PRIVATE_KEY = oxyKey.privateKey;
+const OXY_PUBLIC_KEY = oxyKey.publicKey;
 
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },

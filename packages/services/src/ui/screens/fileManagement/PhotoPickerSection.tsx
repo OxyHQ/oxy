@@ -12,10 +12,10 @@ import {
     type LayoutChangeEvent,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
-import type { FileMetadata } from '@oxyhq/core';
+import Ionicons from '../../icons/Ionicons';
+import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import type { FileMetadata } from '@oxy.so/core';
 import { computePhotoGridLayout } from './photoGridLayout';
 import FileLibraryError from './FileLibraryError';
 
@@ -87,7 +87,7 @@ const hapticSelection = async (): Promise<void> => {
  * lands below the floating bar.
  *
  * `FLOATING_NAV_BAR_HEIGHT` mirrors Bloom's `DIALOG_NAV_BAR_HEIGHT` (not exported
- * from `@oxyhq/bloom/dialog`) — the height of the floating bar the refresh spinner
+ * from `@oxy.so/bloom/dialog`) — the height of the floating bar the refresh spinner
  * must clear.
  */
 const FLOATING_NAV_BAR_HEIGHT = 52;

@@ -25,7 +25,7 @@ import {
   validationOpenRequestSchema,
   type SignedRecordEnvelope,
   type CredentialStatus,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { requireStaff } from '../middleware/requireStaff';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';

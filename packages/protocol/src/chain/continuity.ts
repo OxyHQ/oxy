@@ -12,7 +12,7 @@
  * not advance a chain for them).
  */
 
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import type { ChainHead, VerifyOutcome } from './types';
 
 /**

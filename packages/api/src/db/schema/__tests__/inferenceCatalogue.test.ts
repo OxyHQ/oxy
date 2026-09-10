@@ -20,7 +20,7 @@ import {
   modelRevisionLabelSchema,
   modelSlugSchema,
   publisherSlugSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { inferenceDeployments } from '../inferenceDeployments';
 import { inferenceModelRevisions, INFERENCE_REVISION_IMMUTABLE_COLUMNS, INFERENCE_REVISION_IMMUTABILITY_TRIGGER_NAME } from '../inferenceModelRevisions';
@@ -35,6 +35,7 @@ import {
 } from '../inferenceModelProvenance';
 import { inferenceProviders } from '../inferenceProviders';
 import { inferencePublishers } from '../inferencePublishers';
+import { priceVersions } from '../priceVersions';
 import { inferenceRoutingProfileCandidates } from '../inferenceRoutingProfileCandidates';
 import { inferenceRoutingProfiles } from '../inferenceRoutingProfiles';
 import { INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS } from '../protectedColumns';
@@ -47,6 +48,8 @@ import {
 const CHECK_VIOLATION = '23514';
 /** Postgres `unique_violation`. */
 const UNIQUE_VIOLATION = '23505';
+/** Postgres `foreign_key_violation`. */
+const FOREIGN_KEY_VIOLATION = '23503';
 /** Postgres `generated_always` — writing a GENERATED column. */
 const GENERATED_ALWAYS = '428C9';
 
@@ -464,6 +467,65 @@ describe('a route is unselectable until somebody approves it', () => {
     expect(pgErrorCode(await rejection(rejected))).toBe(CHECK_VIOLATION);
   });
 
+  it('allows a BYOK route to name only a separate existing platform-fee version', async () => {
+    const deployment = await deploymentDefaults();
+    const [fee] = await getDb()
+      .insert(priceVersions)
+      .values({
+        modelReference: `fee${suffix()}/model@rev`,
+        provider: deployment.providerSlug,
+        status: 'active',
+        effectiveFrom: new Date(Date.now() - 60_000),
+      })
+      .returning({ id: priceVersions.id });
+
+    const [row] = await getDb()
+      .insert(inferenceDeployments)
+      .values({
+        ...deployment,
+        availabilityScope: 'byok_only',
+        commercialPermission: 'customer_byok',
+        platformFeePriceVersionId: fee.id,
+      })
+      .returning({
+        priceVersionId: inferenceDeployments.priceVersionId,
+        platformFeePriceVersionId: inferenceDeployments.platformFeePriceVersionId,
+      });
+
+    expect(row).toEqual({ priceVersionId: null, platformFeePriceVersionId: fee.id });
+  });
+
+  it('refuses a platform-fee pointer on a non-BYOK route', async () => {
+    const deployment = await deploymentDefaults();
+    const [fee] = await getDb()
+      .insert(priceVersions)
+      .values({
+        modelReference: `fee${suffix()}/model@rev`,
+        provider: deployment.providerSlug,
+        status: 'active',
+        effectiveFrom: new Date(Date.now() - 60_000),
+      })
+      .returning({ id: priceVersions.id });
+
+    const rejected = getDb()
+      .insert(inferenceDeployments)
+      .values({ ...deployment, platformFeePriceVersionId: fee.id });
+    expect(pgErrorCode(await rejection(rejected))).toBe(CHECK_VIOLATION);
+  });
+
+  it('enforces the platform-fee pointer as an exact price-version foreign key', async () => {
+    const deployment = await deploymentDefaults();
+    const rejected = getDb()
+      .insert(inferenceDeployments)
+      .values({
+        ...deployment,
+        availabilityScope: 'byok_only',
+        commercialPermission: 'customer_byok',
+        platformFeePriceVersionId: `missing-${suffix()}`,
+      });
+    expect(pgErrorCode(await rejection(rejected))).toBe(FOREIGN_KEY_VIOLATION);
+  });
+
   it('refuses a partially-filled upstream cost', async () => {
     const rejected = getDb()
       .insert(inferenceDeployments)
@@ -476,13 +538,12 @@ describe('a route is unselectable until somebody approves it', () => {
     expect(pgErrorCode(await rejection(rejected))).toBe(CHECK_VIOLATION);
   });
 
-  it('refuses a route with no region', async () => {
-    // `cardinality`, not `array_length`: the latter is NULL on `{}` and a CHECK
-    // rejects only FALSE, so the obvious spelling would ADMIT this row.
-    const rejected = getDb()
+  it('stores an empty region set as explicitly unattested, never as global', async () => {
+    const [row] = await getDb()
       .insert(inferenceDeployments)
-      .values({ ...(await deploymentDefaults()), regions: [] });
-    expect(pgErrorCode(await rejection(rejected))).toBe(CHECK_VIOLATION);
+      .values({ ...(await deploymentDefaults()), regions: [] })
+      .returning({ regions: inferenceDeployments.regions });
+    expect(row.regions).toEqual([]);
   });
 });
 

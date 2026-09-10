@@ -4,7 +4,7 @@
 import { normalizeLocale, getPrimaryLanguage, getLanguageMetadata, getLanguageName, getNativeLanguageName } from '../utils/languageUtils';
 import type { SupportedLanguage } from '../utils/languageUtils';
 import type { OxyServicesBase } from '../OxyServices.base';
-import { loadAsyncStorage } from '@oxyhq/protocol';
+import { loadAsyncStorage } from '@oxy.so/protocol';
 import { logger } from '../logger';
 
 /**

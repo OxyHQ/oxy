@@ -1,9 +1,9 @@
 import type React from 'react';
 import { useMemo } from 'react';
 import { View, Text, Animated } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { Button } from '@oxyhq/bloom/button';
+import Ionicons from '../../icons/Ionicons';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { Button } from '@oxy.so/bloom/button';
 import FAIRWalletIcon from '../icon/FAIRWalletIcon';
 import { createPaymentStyles } from './paymentStyles';
 import type { PaymentMethod, PaymentColors, PaymentStepAnimations } from './types';

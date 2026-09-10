@@ -1,8 +1,8 @@
 /**
- * The native secure key/value seam every durable `@oxyhq/core` store in this
+ * The native secure key/value seam every durable `@oxy.so/core` store in this
  * package is built on.
  *
- * `@oxyhq/core` owns the store LOGIC (`createNativeAuthStateStore` for the
+ * `@oxy.so/core` owns the store LOGIC (`createNativeAuthStateStore` for the
  * zero-cookie device credential, `createNativeIdentityPinStore` for the identity
  * pin) and takes its persistence as an injected `NativeKeyValueStorage`. This
  * module supplies that injection ONCE, so those stores can never drift onto
@@ -14,7 +14,7 @@
  * controller), so the web bundle never pulls it and a device without it falls
  * back to AsyncStorage rather than crashing.
  */
-import type { NativeKeyValueStorage } from '@oxyhq/core';
+import type { NativeKeyValueStorage } from '@oxy.so/core';
 import { createPlatformStorage } from '../utils/storageHelpers';
 
 // Variable indirection so Metro's static analyzer never traces expo-secure-store

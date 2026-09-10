@@ -7,7 +7,7 @@ import { Readable } from 'stream';
 
 const mockSafeFetch = jest.fn();
 
-jest.mock('@oxyhq/core/server', () => ({
+jest.mock('@oxy.so/core/server', () => ({
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
   SsrfRejection: class SsrfRejection extends Error {},
 }));
@@ -18,11 +18,16 @@ import {
   resolveLinkMetadata,
 } from '../linkMetadataResolver';
 
-function htmlResponse(html: string, finalUrl: string, status = 200): unknown {
+function htmlResponse(
+  html: string,
+  finalUrl: string,
+  status = 200,
+  headers: Record<string, string> = {},
+): unknown {
   return {
     response: Readable.from([Buffer.from(html)]),
     status,
-    headers: { 'content-type': 'text/html; charset=utf-8' },
+    headers: { 'content-type': 'text/html; charset=utf-8', ...headers },
     finalUrl,
   };
 }
@@ -109,6 +114,78 @@ describe('resolveLinkMetadata (generic scrape)', () => {
     expect(result.title).toBe('Twitter Title');
     expect(result.description).toBe('Document description');
   });
+
+  it('uses an absolute canonical URL declared by the document', async () => {
+    const html = `<html><head>
+      <link rel="canonical" href="/canonical-article">
+      <meta property="og:title" content="Canonical article">
+    </head></html>`;
+    mockSafeFetch.mockResolvedValueOnce(htmlResponse(html, 'https://example.com/tracked?id=1'));
+
+    const result = await resolveLinkMetadata('https://short.example/article');
+    expect(result.url).toBe('https://example.com/canonical-article');
+  });
+
+  it('uses og:url as canonical and rejects a non-http canonical link', async () => {
+    mockSafeFetch.mockResolvedValueOnce(htmlResponse(
+      `<html><head>
+        <link rel="canonical" href="javascript:alert(1)">
+        <meta property="og:url" content="https://example.com/og-canonical">
+        <meta property="og:title" content="Safe title">
+      </head></html>`,
+      'https://example.com/story',
+    ));
+
+    const result = await resolveLinkMetadata('https://example.com/story');
+    expect(result.url).toBe('https://example.com/og-canonical');
+  });
+
+  it('extracts article JSON-LD when Open Graph is absent', async () => {
+    const html = `<html><head><script type="application/ld+json">${JSON.stringify({
+      '@type': 'NewsArticle',
+      headline: 'Structured headline',
+      description: 'Structured description',
+      image: { url: '/structured.jpg' },
+    })}</script></head></html>`;
+    mockSafeFetch.mockResolvedValueOnce(htmlResponse(html, 'https://example.com/story'));
+
+    const result = await resolveLinkMetadata('https://example.com/story');
+    expect(result.title).toBe('Structured headline');
+    expect(result.description).toBe('Structured description');
+    expect(result.imageUrl).toBe('https://example.com/structured.jpg');
+  });
+
+  it('accepts explicit Open Graph metadata from a 401 paywall response', async () => {
+    const html = `<html><head>
+      <meta property="og:title" content="Public article title">
+      <meta property="og:description" content="Public article description">
+    </head></html>`;
+    mockSafeFetch.mockResolvedValueOnce(htmlResponse(html, 'https://example.com/story', 401));
+
+    const result = await resolveLinkMetadata('https://example.com/story');
+    expect(result.title).toBe('Public article title');
+    expect(result.description).toBe('Public article description');
+  });
+
+  it('does not cache metadata from a Cloudflare challenge response', async () => {
+    const html = `<html><head><meta property="og:title" content="Challenge"></head></html>`;
+    mockSafeFetch.mockResolvedValueOnce(
+      htmlResponse(html, 'https://example.com/story', 403, { 'cf-mitigated': 'challenge' }),
+    );
+
+    const result = await resolveLinkMetadata('https://example.com/story');
+    expect(result.title).toBeUndefined();
+  });
+
+  it('does not use a generic error-page title from a 404 response', async () => {
+    mockSafeFetch.mockResolvedValueOnce(
+      htmlResponse('<html><head><title>Not found</title></head></html>', 'https://example.com/missing', 404),
+    );
+
+    const result = await resolveLinkMetadata('https://example.com/missing');
+    expect(result.title).toBeUndefined();
+  });
+
 
   it('collapses whitespace in a multi-line, indented <title>', async () => {
     const html = `<html><head>
