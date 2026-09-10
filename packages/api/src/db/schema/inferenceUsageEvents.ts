@@ -74,7 +74,7 @@
 
 import { sql } from 'drizzle-orm';
 import { bigint, check, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList } from '@oxyhq/db';
+import { createdAt, generatedId, inList } from '@oxy.so/db';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
 import {

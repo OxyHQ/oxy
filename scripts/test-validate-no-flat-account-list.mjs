@@ -95,12 +95,12 @@ async function runAgainst(files, { realFloors = false, removeAfterAdd = [] } = {
 function filler(extra = {}) {
   return {
     "packages/core/src/session/deviceDirectory.ts":
-      "import type { DeviceDirectory } from '@oxyhq/contracts';\n"
+      "import type { DeviceDirectory } from '@oxy.so/contracts';\n"
       + "export function resolveActiveContext(directory: DeviceDirectory | null) {\n"
       + "  return directory?.principals[0]?.contexts[0] ?? null;\n"
       + "}\n",
     "packages/core/src/session/deviceSwitcherRows.ts":
-      "import type { DeviceDirectory } from '@oxyhq/contracts';\n"
+      "import type { DeviceDirectory } from '@oxy.so/contracts';\n"
       + "export function buildSwitcherRows(directory: DeviceDirectory) {\n"
       + "  return directory.principals;\n"
       + "}\n",
@@ -115,7 +115,7 @@ function filler(extra = {}) {
       + "  }\n"
       + "}\n",
     "packages/services/src/ui/hooks/useDeviceSwitcher.ts":
-      "import { buildSwitcherRows } from '@oxyhq/core';\n"
+      "import { buildSwitcherRows } from '@oxy.so/core';\n"
       + "export function useDeviceSwitcher() {\n"
       + "  const rows = buildSwitcherRows(directory);\n"
       + "  return { rows, activateContext };\n"
@@ -144,12 +144,12 @@ const reintroductions = [
   {
     name: "SwitchableAccount",
     path: "packages/services/src/ui/hooks/useRows.ts",
-    body: "import type { SwitchableAccount } from '@oxyhq/core';\nexport const rows: SwitchableAccount[] = [];\n",
+    body: "import type { SwitchableAccount } from '@oxy.so/core';\nexport const rows: SwitchableAccount[] = [];\n",
   },
   {
     name: "SwitchableAccountUser",
     path: "packages/services/src/ui/hooks/useRows.ts",
-    body: "import type { SwitchableAccountUser } from '@oxyhq/core';\nexport let user: SwitchableAccountUser;\n",
+    body: "import type { SwitchableAccountUser } from '@oxy.so/core';\nexport let user: SwitchableAccountUser;\n",
   },
   {
     name: "ProjectSwitchableAccountsInput",
@@ -169,7 +169,7 @@ const reintroductions = [
   {
     name: "useSwitchableAccounts",
     path: "packages/auth/components/login-form.tsx",
-    body: "import { useSwitchableAccounts } from '@oxyhq/services';\nexport const rows = useSwitchableAccounts();\n",
+    body: "import { useSwitchableAccounts } from '@oxy.so/services';\nexport const rows = useSwitchableAccounts();\n",
   },
   {
     name: "UseSwitchableAccountsResult",
@@ -221,7 +221,7 @@ const cases = [
     // that is not in the file stops trusting the guard.
     name: "the hook does NOT also report itself as the row type",
     files: filler({
-      "packages/auth/components/login-form.tsx": "import { useSwitchableAccounts } from '@oxyhq/services';\n",
+      "packages/auth/components/login-form.tsx": "import { useSwitchableAccounts } from '@oxy.so/services';\n",
     }),
     expectFailure: true,
     expectOutput: "useSwitchableAccounts is back",
@@ -337,7 +337,7 @@ const cases = [
         "const RETIRED = ['SwitchableAccount', 'projectSwitchableAccounts', 'useAccountStore', 'switchTo'];\n"
         + "export default RETIRED;\n",
       "scripts/test-validate-no-flat-account-list.mjs":
-        "const fixture = \"import type { SwitchableAccountUser } from '@oxyhq/core';\";\n"
+        "const fixture = \"import type { SwitchableAccountUser } from '@oxy.so/core';\";\n"
         + "export default fixture;\n",
     }),
     expectFailure: false,

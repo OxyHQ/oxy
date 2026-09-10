@@ -234,8 +234,7 @@ export async function resolveCredentialAttribution(
  * rule is that the credential ROW — never the token's own claims — is the
  * authority for the application and owner hop. Without this, every consumer of a
  * service token that needs to re-read the registry per request writes the join
- * itself; `routes/alia.ts` already does, which is the fourth copy this module
- * exists to stop becoming a fifth.
+ * itself; centralizing that join prevents authorization copies from drifting.
  *
  * `clientId` on the refusal arms is the credential's PUBLIC key when the row was
  * found and the id that was asked for when it was not — the caller has no other

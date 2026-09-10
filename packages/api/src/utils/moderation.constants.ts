@@ -24,7 +24,7 @@ import type {
     ConductStanding,
     ModerationSeverity,
     ReputationCategory,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import type { ConductStandingThreshold } from '../db/schema/moderationPolicyStandingThresholds';
 
 // =============================================================================

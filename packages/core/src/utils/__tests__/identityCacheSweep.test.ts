@@ -11,7 +11,7 @@
  *
  * The list is shared by every profile writer (`updateProfile`,
  * `updatePrivacySettings`, `updateAccount`) and by the Node-only
- * `oxy:user:invalidate` subscriber in `@oxyhq/core/server`, precisely because
+ * `oxy:user:invalidate` subscriber in `@oxy.so/core/server`, precisely because
  * two hand-written copies of it had already drifted apart.
  */
 

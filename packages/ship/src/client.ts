@@ -7,7 +7,7 @@ import type {
   Update,
   Channel,
   UpdatePlatform,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 /** Minimal fetch surface so the client is testable without a live network. */
 export type FetchFn = (

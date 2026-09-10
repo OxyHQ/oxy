@@ -1,6 +1,6 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   Add01Icon,
@@ -9,8 +9,8 @@ import {
   Package01Icon,
   Settings01Icon,
 } from '@hugeicons/core-free-icons';
-import { toast } from '@oxyhq/bloom/toast';
-import { useAuth } from '@oxyhq/services';
+import { toast } from '@oxy.so/bloom/toast';
+import { useAuth } from '@oxy.so/services';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';

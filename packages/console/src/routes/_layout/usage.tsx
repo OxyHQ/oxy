@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowRight01Icon } from '@hugeicons/core-free-icons';
 import type { ReportRangeDays, UsageDimension, UsageRow } from '@/lib/reporting';

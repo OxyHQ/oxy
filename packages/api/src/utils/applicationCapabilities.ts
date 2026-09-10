@@ -22,12 +22,39 @@ export const APPLICATION_CAPABILITIES = [
    * this capability.
    */
   'identity:approval',
+  /** The application may coordinate delegated agents and request capability tickets. */
+  'agency:coordinate',
+  /** The trusted Kaana data plane may report exact-generation BYOK verdicts. */
+  'kaana:provider-credential-validation',
 ] as const;
 
-export type ApplicationCapability = (typeof APPLICATION_CAPABILITIES)[number];
+export type BuiltInApplicationCapability = (typeof APPLICATION_CAPABILITIES)[number];
+export type CatalogApplicationCapability = `catalog:${string}`;
+export type ApplicationCapability =
+  | BuiltInApplicationCapability
+  | CatalogApplicationCapability;
 
 /** See the vocabulary entry above. */
 export const IDENTITY_APPROVAL_CAPABILITY: ApplicationCapability = 'identity:approval';
+export const AGENCY_COORDINATE_CAPABILITY: ApplicationCapability = 'agency:coordinate';
+export const KAANA_PROVIDER_CREDENTIAL_VALIDATOR_CAPABILITY: ApplicationCapability =
+  'kaana:provider-credential-validation';
+
+/**
+ * Bind one first-party application to the capability catalog namespace it owns.
+ *
+ * Catalog namespaces are dynamic by design, unlike the platform-wide flags in
+ * `APPLICATION_CAPABILITIES`. Keeping construction here prevents ad-hoc string
+ * interpolation from authorizing an empty, mixed-case, or malformed app id.
+ */
+export function catalogApplicationCapability(appId: string): CatalogApplicationCapability {
+  if (!/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/.test(appId)) {
+    throw new Error(
+      'Catalog app id must be lowercase alphanumeric with optional dashes or underscores',
+    );
+  }
+  return `catalog:${appId}`;
+}
 
 /**
  * Predicate: does this application carry `capability`?

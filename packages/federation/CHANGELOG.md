@@ -1,21 +1,29 @@
-# Changelog: `@oxyhq/federation`
+# Changelog: `@oxy.so/federation`
+
+## 0.16.2
+
+### Fixed
+
+- Widened the verified `@oxy.so/contracts` compatibility range through 0.36.x
+  so consumers can adopt the delegated-agency contracts without dependency
+  conflicts.
 
 ## 0.16.1
 
 ### Fixed: 0.16.0's dependency floors were unconsumable
 
-0.16.0 declared `@oxyhq/core@^21.0.0` and `@oxyhq/contracts@^0.27.0`. Neither
+0.16.0 declared `@oxy.so/core@^21.0.0` and `@oxy.so/contracts@^0.27.0`. Neither
 floor was a decision: both come from `workspace:^`, which substitutes whatever
 version the monorepo happened to hold at publish time, and `main` had moved past
 what this package uses. The result was that the WebFinger fix in 0.16.0 — a fix
 for a total outage of signed fetches — could not be installed by the app it was
-written for, whose `@oxyhq/core` override resolves 20.1.0.
+written for, whose `@oxy.so/core` override resolves 20.1.0.
 
 The floors are now the ones the code needs. This package's entire core/contracts
 surface is five symbols: `User` and `getErrorMessage`/`getErrorStatus` from
-`@oxyhq/core`, `AccountKind` and `isAccountKind` from `@oxyhq/contracts` (plus
+`@oxy.so/core`, `AccountKind` and `isAccountKind` from `@oxy.so/contracts` (plus
 `ACCOUNT_KINDS` in a test). All five are present and behaviourally identical
-across `@oxyhq/core` 20.1.x–21.x and `@oxyhq/contracts` 0.25–0.27, and
+across `@oxy.so/core` 20.1.x–21.x and `@oxy.so/contracts` 0.25–0.27, and
 `ACCOUNT_KINDS` holds the same five kinds throughout, so
 `LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND`'s `satisfies Record<AccountKind, …>`
 exhaustiveness check is equally total against the floor.
@@ -81,7 +89,7 @@ which is the outage the branch exists to prevent.
 ### Licence: AGPL-3.0-only becomes Apache-2.0
 
 **Breaking for anyone who tracks the licence, and for nobody else.**
-`@oxyhq/federation` is now Apache-2.0. The code, the API surface and the behaviour are
+`@oxy.so/federation` is now Apache-2.0. The code, the API surface and the behaviour are
 unchanged in this release. It exists to carry the licence change.
 
 This is a widening. Every right the AGPL granted you, Apache-2.0 grants too,
@@ -93,7 +101,7 @@ Versions published before this one keep the licence they were published under,
 permanently. `0.14.1` stays AGPL-3.0-only for anyone who already has it. A licence
 change binds future versions only.
 
-`@oxyhq/federation` is below 1.0.0, where semver puts the breaking position in the minor
+`@oxy.so/federation` is below 1.0.0, where semver puts the breaking position in the minor
 and `^0.14.1` does not accept `0.15.0`. Bumping the minor is therefore the
 same signal a major bump gives a 1.x package: no consumer picks this up
 without editing their manifest, which is the whole point.

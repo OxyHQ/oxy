@@ -1,15 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
-import type { Channel, Update, UpdatePlatform } from '@oxyhq/contracts';
+import { useAuth } from '@oxy.so/services';
+import type { Channel, Update, UpdatePlatform } from '@oxy.so/contracts';
 
 // ===========================================================================
 // Oxy Updates (self-hosted expo-updates) — console admin hooks.
 //
 // The Updates admin API (`/updates/v1/...` on api.oxy.so) is NOT an
-// `@oxyhq/core` mixin, so — like the billing/models hooks — these call it
+// `@oxy.so/core` mixin, so — like the billing/models hooks — these call it
 // through `oxyServices.makeRequest`, which unwraps the standard `{ data }`
 // envelope and keeps the bearer token in lockstep with the active session.
-// Wire types come from `@oxyhq/contracts` (the single source of truth the API
+// Wire types come from `@oxy.so/contracts` (the single source of truth the API
 // validates its output against), so producer and consumer cannot drift.
 //
 // Every endpoint requires the `updates:manage` application permission (owner /

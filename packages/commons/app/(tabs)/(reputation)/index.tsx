@@ -1,8 +1,8 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useOxy } from '@oxyhq/services';
-import { ActivityHeatmap } from '@oxyhq/bloom/activity-heatmap';
+import { useOxy } from '@oxy.so/services';
+import { ActivityHeatmap } from '@oxy.so/bloom/activity-heatmap';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { Screen, CenteredState, PrimaryButton, SessionGate } from '@/components/ui';

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import {
   getCommonsApprovalBlockingReason,
   logger,
   type CommonsApprovalInfo,
-} from '@oxyhq/core';
-import type { CommonsDenyReason } from '@oxyhq/contracts';
+} from '@oxy.so/core';
+import type { CommonsDenyReason } from '@oxy.so/contracts';
 import {
   requestLocalConfirmation,
   type LocalConfirmationUnavailableReason,

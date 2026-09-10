@@ -8,7 +8,7 @@ import type {
 
 /**
  * The first-party login result contract MUST round-trip exactly what the
- * sign-in surfaces emit and what `@oxyhq/core`'s auth mixin parses, so producer
+ * sign-in surfaces emit and what `@oxy.so/core`'s auth mixin parses, so producer
  * and consumers cannot drift. Sign-in is passkey (WebAuthn) or Commons handoff —
  * password and 2FA were removed, so the only outcome is a completed session. The
  * device transport itself is the zero-cookie `deviceId` + `deviceSecret` mint

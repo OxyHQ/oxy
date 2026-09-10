@@ -17,7 +17,7 @@
  *  - the auth.oxy.so IdP's OAuth-bound lane, whose request carries an OAuth
  *    binding the account dialog's session has no concept of.
  *
- * It resolves only what every `@oxyhq/services` consumer already has in context:
+ * It resolves only what every `@oxy.so/services` consumer already has in context:
  * the Bloom theme (`useTheme`) and the SDK's own locale dictionary (`useI18n`,
  * the `accountSwitcher.*` copy in all 11 locales). Host-specific copy — the
  * labels on {@link OxySignInRequestSurfaceProps.subordinate} and
@@ -40,10 +40,10 @@
 
 import type React from 'react';
 import { View } from 'react-native';
-import { Button } from '@oxyhq/bloom/button';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Text } from '@oxyhq/bloom/typography';
-import type { CommonsDeliveryRoute, SignInProgress } from '@oxyhq/core';
+import { Button } from '@oxy.so/bloom/button';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import type { CommonsDeliveryRoute, SignInProgress } from '@oxy.so/core';
 import { useI18n } from '../hooks/useI18n';
 import TroubleDisclosure from './authChooser/TroubleDisclosure';
 import { SubtleLink } from './authChooser/primitives';

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { View, ScrollView, StyleSheet, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { SidebarContent } from './sidebar-content';
 
 // The drawer navigator spreads its full `DrawerContentComponentProps` bag

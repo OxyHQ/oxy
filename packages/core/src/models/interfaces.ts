@@ -4,7 +4,7 @@ import type {
   UserNameResponse,
   UserRelationship,
   ThemePreference,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 export interface OxyConfig {
   baseURL: string;
@@ -612,6 +612,18 @@ export interface ServiceAssetMetadata {
   orientation?: 'portrait' | 'landscape' | 'square';
   /** width / height, derived at asset processing time. */
   aspectRatio?: number;
+  /**
+   * When the adaptive HLS ladder for this asset finished transcoding.
+   *
+   * ABSENT when there is none. Transcoding runs after the upload call returns
+   * and per-rendition failures are swallowed, so a video may get its ladder
+   * minutes later or never. The `?variant=hls_master` URL is derivable from the
+   * `id` alone, which is exactly the trap: a consumer that builds it without
+   * this field hands the player a URL that 403s until the ladder exists, and
+   * the player pays a failed request before falling back — once per video, per
+   * play. Treat absence as "no adaptive stream, play the progressive original".
+   */
+  hlsReadyAt?: string;
 }
 
 /**

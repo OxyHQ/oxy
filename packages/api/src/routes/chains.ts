@@ -42,8 +42,9 @@ function assertChainsScope(req: ServiceAuthRequest): void {
 /**
  * POST /chains/records — append a record to `oxyUserId`'s chain.
  *
- * Requires the `chains:write` scope AND that `collection` falls under one of the
- * calling application's `chainNamespaces`. Oxy issues and signs the envelope
+ * Requires the `chains:write` scope, a matching user OAuth grant, AND that
+ * `collection` falls under one of the calling application's `chainNamespaces`.
+ * Oxy issues and signs the envelope
  * (`issuer = OXY_DID`); the application never holds a chain signing key.
  *
  * 201 with the stored record on success. A namespace violation is 403 rather
@@ -85,6 +86,10 @@ router.post(
           throw new ForbiddenError('collection is not within this application’s chain namespaces');
         case 'unknown_application':
           throw new ForbiddenError('Service credential does not name a known application');
+        case 'subject_forbidden':
+          throw new ForbiddenError(
+            'The subject has not authorized this application to write chain records',
+          );
         case 'signing_disabled':
           res.status(503).json({ error: 'Chain signing is not configured on this deployment' });
           return;

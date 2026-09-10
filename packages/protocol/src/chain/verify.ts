@@ -25,7 +25,7 @@
  * caller makes before invoking the engine, not a property of the envelope.
  */
 
-import { signedRecordEnvelopeSchema, type SignedRecordEnvelope } from '@oxyhq/contracts';
+import { signedRecordEnvelopeSchema, type SignedRecordEnvelope } from '@oxy.so/contracts';
 import { verifyEnvelopeSignature } from '../envelope/sign';
 import { isAuthorizedKey, type VerificationMethodResolver } from '../identity/resolver';
 import { checkContinuity } from './continuity';

@@ -1,21 +1,8 @@
-import { commonsDenyReasonSchema } from '@oxyhq/contracts';
+import { commonsDenyReasonSchema, usernameSchema } from '@oxy.so/contracts';
 import { z } from 'zod';
-import { INVALID_USERNAME_MESSAGE, USERNAME_PATTERN } from '../utils/username';
 
 const deviceIdField = z.string().trim().min(1).max(128).optional();
 
-/**
- * A username is a routing key (`/@alice`, `acct:alice@…`), not prose. The length
- * bounds alone accepted `"al ice"` — the pattern is what actually rejects
- * whitespace and punctuation. The signup / registration controllers enforce the
- * same rule; declaring it on the schema means the request never reaches them.
- */
-const usernameField = z
-  .string()
-  .trim()
-  .min(3)
-  .max(30)
-  .regex(USERNAME_PATTERN, INVALID_USERNAME_MESSAGE);
 
 // POST /auth/register (public key)
 export const registerPublicKeySchema = z.object({
@@ -23,7 +10,7 @@ export const registerPublicKeySchema = z.object({
   signature: z.string().trim().min(1),
   timestamp: z.number(),
   email: z.string().trim().email().optional(),
-  username: usernameField.optional(),
+  username: usernameSchema.optional(),
 });
 
 // POST /auth/challenge
@@ -39,12 +26,20 @@ export const verifyChallengeSchema = z.object({
   timestamp: z.number(),
   deviceName: z.string().trim().optional(),
   deviceFingerprint: z.string().trim().optional(),
-  deviceId: deviceIdField,
+  // No `deviceId`: this body is unauthenticated, and `createSession` treats an
+  // explicit device id as authoritative over everything else it derives.
 });
 
-// GET /auth/check-username/:username
+/**
+ * GET /auth/check-username/:username
+ *
+ * The availability check answers a question about a WRITE, so it holds the
+ * candidate to the write policy. Its predecessor bounded the length and nothing
+ * else, which meant the UI could be told `al ice` was "available" and then be
+ * 400ed for asking for it.
+ */
 export const checkUsernameParams = z.object({
-  username: z.string().trim().min(3).max(30),
+  username: usernameSchema,
 });
 
 // GET /auth/check-email/:email
@@ -139,7 +134,7 @@ export const authSessionAuthorizeSignedSchema = z.object({
 
 // POST /auth/session/deny/:authorizeCode
 // Optional reason from the closed `COMMONS_DENY_REASONS` set, whose single
-// declaration lives in `@oxyhq/contracts` — the same one the persisted
+// declaration lives in `@oxy.so/contracts` — the same one the persisted
 // `AuthSession.deniedReason` enum and the client SDK read. Anything outside it
 // (including a free-form string) is rejected with 400 before the handler runs.
 export const authSessionDenySchema = z.object({

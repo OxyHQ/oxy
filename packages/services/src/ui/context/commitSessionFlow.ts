@@ -1,5 +1,8 @@
-import type { User } from '@oxyhq/core';
-import { logger as loggerUtil } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
+import { logger as loggerUtil } from '@oxy.so/core';
+import { allowsAutomaticIdpRedirect } from '../oauth/legacyRedirectLanes';
+import type { WebAuthMode } from '../oauth/types';
+import { isWebBrowser } from '../utils/isWebBrowser';
 import { isUnauthorizedStatus } from './oxyContextHelpers';
 
 const LOG_CONTEXT = { component: 'OxyContext', method: 'commitSession' } as const;
@@ -12,6 +15,8 @@ export interface CommitDeviceSetAndResolveDeps {
    * reconciles the device set in the background).
    */
   activate: boolean;
+  /** Cold boot already carries authoritative device state from the mint. */
+  hasDeviceState?: boolean;
   /** The committing account id (only used by `registerAndActivate`). */
   userId?: string;
   /** Minimal user carried by the commit input; used if the profile fetch fails. */
@@ -46,6 +51,7 @@ export async function commitDeviceSetAndResolve(
 ): Promise<void> {
   const {
     activate,
+    hasDeviceState = false,
     userId,
     fallbackUser,
     registerAndActivate,
@@ -65,7 +71,7 @@ export async function commitDeviceSetAndResolve(
   const reconcileDeviceSet = async (): Promise<void> => {
     if (activate) {
       await registerAndActivate(userId);
-    } else {
+    } else if (!hasDeviceState) {
       await addCurrentAccount();
     }
     await startSocket();
@@ -121,8 +127,67 @@ export async function commitDeviceSetAndResolve(
   }
 
   // Cold boot: resolve auth from the profile fetch FIRST; reconcile the device
-  // set (membership + socket + sessions projection) in a DETACHED background
+  // set (membership when the mint did not already return it, socket + sessions
+  // projection) in a DETACHED background
   // task so first paint is not blocked behind those round-trips.
   await hydrateAndResolve();
   void reconcileDeviceSet().catch(logReconcileError);
+}
+
+export interface MaybeSyncHubAfterCommitDeps {
+  /** Deliberate sign-in (`true`) vs. a cold-boot / background commit (`false`). */
+  activate: boolean;
+  /** Per-commit opt-in — `commitSession`'s `options.hubSync`. */
+  hubSyncRequested: boolean;
+  /** Provider-level opt-out — `OxyProviderProps.hubSync`. */
+  hubSyncEnabled: boolean;
+  /**
+   * The provider's web sign-in transport — `OxyProviderProps.webAuthMode`.
+   * A first-class input: `'popup'` forbids the redirect outright.
+   */
+  webAuthMode: WebAuthMode;
+  /**
+   * Starts the full-page hop to `auth.oxy.so/sync`; resolves `true` when the
+   * navigation was actually started.
+   */
+  syncHub: () => Promise<boolean>;
+}
+
+/**
+ * Post-sign-in hub sync: plant this device's credential on the IdP hub so OTHER
+ * official origins can silently restore a session on their next cold boot.
+ *
+ * The tail of the ONE commit funnel (`commitSession`), extracted so every gate
+ * on this legacy lane lives — and is tested — in one place. Returns whether the
+ * full-page redirect was started; a failure is non-fatal and never propagates
+ * (the sign-in itself already succeeded).
+ *
+ * Four gates, all of which must pass:
+ * 1. `activate` — only a deliberate sign-in syncs; a cold-boot restore never does.
+ * 2. `hubSyncRequested` — the in-place lanes (account switch, popup OAuth) opt out.
+ * 3. `hubSyncEnabled` — the provider-level `hubSync` prop.
+ * 4. `allowsAutomaticIdpRedirect(webAuthMode)` — hub sync REPLACES the document
+ *    with `auth.oxy.so`, so `webAuthMode: 'popup'` forbids it: a redirect that
+ *    bounces the tab defeats the entire point of the mode, no matter which
+ *    commit path produced the session (issue #691, "Cold boot and cross-domain
+ *    behavior"). Redirect mode — the default and the compatibility path — is
+ *    unchanged, and this whole function disappears with it in phase 7b.
+ */
+export async function maybeSyncHubAfterCommit(
+  deps: MaybeSyncHubAfterCommitDeps,
+): Promise<boolean> {
+  const { activate, hubSyncRequested, hubSyncEnabled, webAuthMode, syncHub } = deps;
+
+  if (!activate || !hubSyncRequested || !hubSyncEnabled) return false;
+  if (!allowsAutomaticIdpRedirect(webAuthMode)) return false;
+  if (!isWebBrowser()) return false;
+
+  try {
+    return await syncHub();
+  } catch (hubError) {
+    if (__DEV__) {
+      loggerUtil.debug('Hub sync after sign-in failed (non-fatal)', LOG_CONTEXT, hubError);
+    }
+    return false;
+  }
 }

@@ -32,14 +32,14 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
+import { appGrants } from '../../db/schema/appGrants';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import chainsRoutes from '../chains';
 
-const ec = new EC('secp256k1');
 
 let server: http.Server;
 let savedEnv: { priv?: string; pub?: string };
@@ -47,9 +47,9 @@ let savedEnv: { priv?: string; pub?: string };
 beforeAll(async () => {
   await connectPostgres();
   savedEnv = { priv: process.env.OXY_PRIVATE_KEY, pub: process.env.OXY_PUBLIC_KEY };
-  const pair = ec.genKeyPair();
-  process.env.OXY_PRIVATE_KEY = pair.getPrivate('hex');
-  process.env.OXY_PUBLIC_KEY = pair.getPublic('hex');
+  const pair = generateSecp256k1KeyPair();
+  process.env.OXY_PRIVATE_KEY = pair.privateKey;
+  process.env.OXY_PUBLIC_KEY = pair.publicKey;
 
   const app = express();
   app.use(express.json());
@@ -81,6 +81,12 @@ async function application(chainNamespaces: string[]): Promise<string> {
     .values({ name: `test-${randomUUID()}`, ownerAccountId, chainNamespaces })
     .returning({ id: applications.id });
   return row.id;
+}
+
+async function authorize(appId: string, userId: string): Promise<void> {
+  await getDb()
+    .insert(appGrants)
+    .values({ applicationId: appId, userId, scopes: ['chains:write'] });
 }
 
 function post(body: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
@@ -150,10 +156,12 @@ describe('POST /chains/records', () => {
 
   it('appends when the scope and the namespace both allow it', async () => {
     const appId = await application(['app.mention.']);
+    const userId = await account();
+    await authorize(appId, userId);
     present(appId, ['chains:write']);
 
     const res = await post({
-      oxyUserId: await account(),
+      oxyUserId: userId,
       collection: 'app.mention.feed.post',
       rkey: 'r1',
       record: { text: 'hi' },
@@ -162,6 +170,20 @@ describe('POST /chains/records', () => {
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ seq: 0, verified: true });
     expect(typeof res.body.recordId).toBe('string');
+  });
+
+  it('refuses an authorized service credential when the subject did not consent', async () => {
+    const appId = await application(['app.mention.']);
+    present(appId, ['chains:write']);
+
+    const res = await post({
+      oxyUserId: await account(),
+      collection: 'app.mention.feed.post',
+      rkey: 'r1',
+      record: {},
+    });
+
+    expect(res.status).toBe(403);
   });
 
   it('refuses a collection outside the application’s namespace, with the scope present', async () => {

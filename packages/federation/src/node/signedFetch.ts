@@ -6,15 +6,15 @@
  * -----------------------------------------------------------------------
  * An HTTP signature is bound to the `(request-target)`/`host` of ONE specific
  * URL, so on a redirect the signature MUST be recomputed for the new target.
- * `@oxyhq/core/server`'s `safeFetch` follows redirects internally and re-sends
+ * `@oxy.so/core/server`'s `safeFetch` follows redirects internally and re-sends
  * the ORIGINAL headers on each hop (it never re-signs, and it destroys redirect
  * bodies), so it cannot back per-hop re-signing. Instead — mirroring how
- * `@oxyhq/protocol/node` injects its `NodeFetch` adapter over `safeFetch` — this
+ * `@oxy.so/protocol/node` injects its `NodeFetch` adapter over `safeFetch` — this
  * factory takes a single-hop transport that validates + IP-pins ONE request and
  * returns the response WITHOUT following redirects. The engine owns the
  * federation policy (signing, the bounded redirect loop that re-signs each hop,
  * the unsigned 5xx fallback); the app supplies the SSRF transport (Mention adapts
- * its `@oxyhq/core/server`-based single-hop fetch), keeping the SSRF/DNS-pin
+ * its `@oxy.so/core/server`-based single-hop fetch), keeping the SSRF/DNS-pin
  * policy in ONE place.
  */
 
@@ -39,7 +39,7 @@ export interface SingleHopFetchInit {
 /**
  * An SSRF-safe single-hop fetch: it validates + IP-pins the URL and returns the
  * response WITHOUT following redirects (a 3xx is returned as-is so the caller can
- * re-sign the next hop). Mention adapts its `@oxyhq/core/server`-backed
+ * re-sign the next hop). Mention adapts its `@oxy.so/core/server`-backed
  * `fetchUpstreamSingleHop` into this shape.
  */
 export type SingleHopFetch = (url: string, init: SingleHopFetchInit) => Promise<Response>;

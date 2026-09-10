@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
-import type { VouchResult } from '@oxyhq/contracts';
+import { useOxy } from '@oxy.so/services';
+import type { VouchResult } from '@oxy.so/contracts';
 import { vouchErrorCode, type VouchErrorCode } from '@/lib/civic/civic-errors';
 import { authenticate } from '@/lib/biometricAuth';
 import { personhoodQueryKey } from './usePersonhood';

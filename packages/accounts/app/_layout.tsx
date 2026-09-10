@@ -1,5 +1,5 @@
 // Tailwind v4 + NativeWind entry. Importing it here is what makes react-native-css
-// compile the utility stylesheet for the web build so @oxyhq/services' className-based
+// compile the utility stylesheet for the web build so @oxy.so/services' className-based
 // screens (the file-management cluster, etc.) render their layout on web instead of
 // falling through to react-native-web's base View reset.
 import '../global.css';
@@ -14,10 +14,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import type { ReactNode } from 'react';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { OxyProvider , useOxy } from '@oxyhq/services';
-import { BloomThemeProvider, useNavigationTheme } from '@oxyhq/bloom/theme';
-import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
-import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
+import { OxyProvider , useOxy } from '@oxy.so/services';
+import { productAnalytics } from '@/lib/product-analytics';
+import { BloomThemeProvider, useNavigationTheme } from '@oxy.so/bloom/theme';
+import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
+import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 
 
 import { ScrollProvider } from '@/contexts/scroll-context';
@@ -30,7 +31,7 @@ import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/constants/oxy';
 import {
   preventNativeSplashAutoHide,
   useHideNativeSplashWhenReady,
-} from '@oxyhq/expo-splash';
+} from '@oxy.so/expo-splash';
 
 // Reanimated 4 ships with a strict logger that surfaces `.value` reads during
 // render as runtime warnings. Several deeply nested third-party components in
@@ -46,7 +47,7 @@ configureReanimatedLogger({
 // `useHideNativeSplashWhenReady`). This makes the native OS splash the SINGLE
 // splash on native — the Oxy mark (white silhouette) centered on the dark brand
 // background with the Oxy symbol pinned to the bottom (configured by
-// `@oxyhq/expo-splash` in app.config.js). The custom `AppSplashScreen` React
+// `@oxy.so/expo-splash` in app.config.js). The custom `AppSplashScreen` React
 // overlay is gated to web only. No-op on web (the shared helper guards
 // `Platform.OS === 'web'`).
 preventNativeSplashAutoHide();
@@ -152,7 +153,7 @@ function RootLayoutInner() {
             theme mode from ThemeModeProvider. */}
         <BloomThemeProvider mode={themeMode}>
           <ConnectionStatusToasts />
-          <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} authRedirectUri={OXY_AUTH_REDIRECT_URI}>
+          <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} authRedirectUri={OXY_AUTH_REDIRECT_URI} productAnalytics={productAnalytics}>
             <AppImageResolver>
               <LocaleProvider>
                 <AppHead />

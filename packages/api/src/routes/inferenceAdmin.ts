@@ -23,9 +23,9 @@
  * and this module has to ask for them by name, which is exactly the shape
  * `CONVENTIONS.md` wants an opt-in to have.
  *
- * INTENDED, not built: publishing a price version. `price_versions` is the
- * ledger's table (workstream 7) and is not in this schema barrel yet — see
- * `services/inferenceCatalogueAdmin.service.ts`.
+ * Price versions are authored and reviewed separately. This surface can attach
+ * one existing immutable version as a BYOK platform-fee pointer, but it cannot
+ * create a version or edit any monetary amount.
  *
  * Also here, and not a catalogue operation at all: `GET /rollout`, the one place
  * this deployment's rollout flags are readable, and `GET /metrics`, the
@@ -39,11 +39,12 @@ import { desc, eq } from 'drizzle-orm';
 import {
   modelGpaiDocumentationSchema,
   modelReleaseIngestionRequestSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { describeRolloutFlags } from '../config/rolloutFlags';
 import {
   inferenceTokenAnomalies,
+  inferenceDeploymentRoutingScores,
   inferenceDeployments,
   inferenceModelRevisions,
   inferenceModels,
@@ -55,11 +56,16 @@ import { requireStaff, requireStaffCapability } from '../middleware/requireStaff
 import { validate } from '../middleware/validate';
 import {
   deploymentParams,
+  kaanaDeploymentParams,
   legalReviewBody,
   metricsQuery,
   permissionActionBody,
   permissionActionParams,
+  platformFeePriceVersionBody,
+  platformFeePriceVersionResponse,
   revisionParams,
+  routingScorecardResponse,
+  routingScoresBody,
   spendAnomalyQuery,
   tokenAnomalyQuery,
 } from '../schemas/inferenceAdmin.schemas';
@@ -68,6 +74,8 @@ import {
   DeploymentNotFoundError,
   DeploymentPermissionRefused,
   recordLegalReview,
+  setDeploymentPlatformFeePriceVersion,
+  setDeploymentRoutingScores,
 } from '../services/inferenceCatalogueAdmin.service';
 import {
   ingestModelRelease,
@@ -150,7 +158,36 @@ const DEPLOYMENT_ADMIN_COLUMNS = {
   status: inferenceDeployments.status,
   dedicatedCapacity: inferenceDeployments.dedicatedCapacity,
   priceVersionId: inferenceDeployments.priceVersionId,
+  platformFeePriceVersionId: inferenceDeployments.platformFeePriceVersionId,
   internalRouteId: inferenceDeployments.internalRouteId,
+  routingPriceScore: inferenceDeploymentRoutingScores.priceScore,
+  routingPriceSource: inferenceDeploymentRoutingScores.priceSource,
+  routingPriceEvidenceRef: inferenceDeploymentRoutingScores.priceEvidenceRef,
+  routingPriceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
+  routingLatencyScore: inferenceDeploymentRoutingScores.latencyScore,
+  routingLatencySource: inferenceDeploymentRoutingScores.latencySource,
+  routingLatencyEvidenceRef: inferenceDeploymentRoutingScores.latencyEvidenceRef,
+  routingLatencyMeasurementWindowStart:
+    inferenceDeploymentRoutingScores.latencyMeasurementWindowStart,
+  routingLatencyMeasurementWindowEnd:
+    inferenceDeploymentRoutingScores.latencyMeasurementWindowEnd,
+  routingLatencyValidUntil: inferenceDeploymentRoutingScores.latencyValidUntil,
+  routingThroughputScore: inferenceDeploymentRoutingScores.throughputScore,
+  routingThroughputSource: inferenceDeploymentRoutingScores.throughputSource,
+  routingThroughputEvidenceRef: inferenceDeploymentRoutingScores.throughputEvidenceRef,
+  routingThroughputMeasurementWindowStart:
+    inferenceDeploymentRoutingScores.throughputMeasurementWindowStart,
+  routingThroughputMeasurementWindowEnd:
+    inferenceDeploymentRoutingScores.throughputMeasurementWindowEnd,
+  routingThroughputValidUntil: inferenceDeploymentRoutingScores.throughputValidUntil,
+  routingBalancedScore: inferenceDeploymentRoutingScores.balancedScore,
+  routingBalancedSource: inferenceDeploymentRoutingScores.balancedSource,
+  routingBalancedEvidenceRef: inferenceDeploymentRoutingScores.balancedEvidenceRef,
+  routingBalancedFormulaRef: inferenceDeploymentRoutingScores.balancedFormulaRef,
+  routingBalancedValidUntil: inferenceDeploymentRoutingScores.balancedValidUntil,
+  routingScoreReason: inferenceDeploymentRoutingScores.reason,
+  routingScoreChangedByUserId: inferenceDeploymentRoutingScores.changedByUserId,
+  routingScoreChangedAt: inferenceDeploymentRoutingScores.changedAt,
   upstreamWholesaleCostAmount: inferenceDeployments.upstreamWholesaleCostAmount,
   upstreamWholesaleCostCurrency: inferenceDeployments.upstreamWholesaleCostCurrency,
   upstreamWholesaleCostUnit: inferenceDeployments.upstreamWholesaleCostUnit,
@@ -277,10 +314,10 @@ router.get(
  * arrives.
  *
  * The reason names the MEASURED absence, not a cause — the edge streams both
- * dialects and forwards both figures when a report carries them. `dataPlane` on the
- * payload is what supplies the cause: `absent` means nothing can have streamed, so
- * the pending needs no investigation, while the same pending with `configured`
- * means the data plane is not reporting what it should.
+ * dialects and forwards both figures when a report carries them. `dataPlane` and
+ * `dataPlaneExecution` supply the cause: absent configuration or disabled
+ * execution means nothing can have streamed; configured plus enabled makes the
+ * same pending a reporting fault.
  *
  * Staff-only, like everything on this router: request counts per application are
  * customer data, and a settlement-lag distribution is Oxy's own operational
@@ -322,6 +359,10 @@ router.get(
         eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
       )
       .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
+      .leftJoin(
+        inferenceDeploymentRoutingScores,
+        eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId)
+      )
       .orderBy(desc(inferenceDeployments.createdAt));
 
     res.json({ data: rows, count: rows.length });
@@ -357,9 +398,69 @@ router.post(
 );
 
 /**
+ * Replace the routing scorecard for one exact Kaana deployment identity.
+ * This is a complete scorecard PUT with provenance per dimension: omitted keys are
+ * invalid, while NULL deliberately withdraws a signal rather than inventing a
+ * value. The Kaana id in this path is not an Oxy catalogue row id or provider
+ * slug.
+ *
+ * @response 200 routingScorecardResponse The complete scorecard stored for this exact Kaana deployment.
+ * @response 409 Error The scorecard conflicts with the exact Kaana deployment state or would make an approved serving route unsafe.
+ */
+router.put(
+  '/kaana-deployments/:kaanaDeploymentId/routing-scorecard',
+  requireCataloguePublish,
+  validate({ params: kaanaDeploymentParams, body: routingScoresBody }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const scores = routingScoresBody.parse(req.body);
+    try {
+      const result = await setDeploymentRoutingScores({
+        deploymentId: req.params.kaanaDeploymentId,
+        scorecard: scores,
+        staffUserId: staffUserId(req),
+      });
+      res.json(routingScorecardResponse.parse({ data: result }));
+    } catch (error) {
+      throw translate(error);
+    }
+  })
+);
+
+/**
+ * `PUT /inference/admin/deployments/:deploymentId/platform-fee-price-version`
+ *
+ * Associate one existing immutable price version with a BYOK-only deployment.
+ * This endpoint writes only the exact foreign-key pointer: it cannot create a
+ * price version or edit an amount.
+ *
+ * @response 200 platformFeePriceVersionResponse The exact deployment and fee-version identities now associated.
+ * @response 409 Error The deployment is not BYOK-only or the version identity does not match it.
+ */
+router.put(
+  '/deployments/:deploymentId/platform-fee-price-version',
+  requireCataloguePublish,
+  validate({ params: deploymentParams, body: platformFeePriceVersionBody }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const params = deploymentParams.parse(req.params);
+    const body = platformFeePriceVersionBody.parse(req.body);
+    try {
+      const result = await setDeploymentPlatformFeePriceVersion({
+        deploymentId: params.deploymentId,
+        platformFeePriceVersionId: body.platformFeePriceVersionId,
+      });
+      res.json(platformFeePriceVersionResponse.parse({ data: result }));
+    } catch (error) {
+      throw translate(error);
+    }
+  })
+);
+
+/**
  * `POST /inference/admin/deployments/:deploymentId/:action`
  *
  * `approve` | `restrict` | `suspend` | `retire`.
+ *
+ * @response 409 Error The permission transition conflicts with catalogue state, routing evidence or an already approved Kaana identity.
  */
 router.post(
   '/deployments/:deploymentId/:action',

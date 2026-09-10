@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import type { ReportRangeDays, SpendDimension, UsageDimension } from '@/lib/reporting';
 import {

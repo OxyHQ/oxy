@@ -9,7 +9,7 @@
  *
  * ## Why the id format is load-bearing here
  *
- * `@oxyhq/core` fetches this endpoint IMMEDIATELY BEFORE signing every v2 record
+ * `@oxy.so/core` fetches this endpoint IMMEDIATELY BEFORE signing every v2 record
  * (`OxyServices.civic.ts` `_signMyCivicRecordV2`, `OxyServices.nodes.ts`
  * `registerMyNode`) to learn the `seq`/`prev` it must sign over. The route used
  * to run `:userId` through the legacy 24-hex id predicate in
@@ -59,7 +59,7 @@ jest.mock('../../services/nodeRegistry.service', () => ({
 }));
 
 jest.mock('../../utils/userCache', () => ({ __esModule: true, default: { invalidate: jest.fn() } }));
-jest.mock('@oxyhq/core/server', () => ({ safeFetch: jest.fn() }));
+jest.mock('@oxy.so/core/server', () => ({ safeFetch: jest.fn() }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));

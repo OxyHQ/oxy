@@ -40,7 +40,7 @@ dotenv.config();
  * `_id` is also not Mongo baggage on this value. `users.id` holds the 24-char
  * ObjectId hex verbatim by the migration contract's own decree, and carrying
  * `_id` beside `id` on this document is the documented contract
- * (`@oxyhq/contracts` `resolveUserId` = `user.id ?? user._id`).
+ * (`@oxy.so/contracts` `resolveUserId` = `user.id ?? user._id`).
  *
  * ## The cast is gone, which is the other half of the change
  *
@@ -295,14 +295,6 @@ export const serviceAuthMiddleware = (req: ServiceAuthRequest, res: Response, ne
   }
 
   const token = authHeader.split(' ')[1];
-
-  if (!process.env.ACCESS_TOKEN_SECRET) {
-    logger.error('ACCESS_TOKEN_SECRET not configured');
-    return res.status(500).json({
-      error: 'Server configuration error',
-      message: 'Server configuration error',
-    });
-  }
 
   const verification = verifyServiceToken(token);
   if (verification.ok) {

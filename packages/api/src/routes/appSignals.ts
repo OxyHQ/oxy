@@ -14,7 +14,7 @@ import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { ForbiddenError, BadRequestError } from '../utils/error';
 import { appSignalsService } from '../services/appSignals.service';
-import { appUserSignalIngestSchema, appAffinityEventsIngestSchema } from '@oxyhq/contracts';
+import { appUserSignalIngestSchema, appAffinityEventsIngestSchema } from '@oxy.so/contracts';
 
 const router = Router();
 

@@ -10,7 +10,7 @@
  * `migrate` is a callback, not a built-in migration mechanism. The original
  * version of this harness (the caller-side code this module was ported from)
  * shelled out to that application's own `bun run db:migrate`, because at the
- * time nothing applied migrations generically. `@oxyhq/db/migrate`'s
+ * time nothing applied migrations generically. `@oxy.so/db/migrate`'s
  * `runMigrations` now does exactly that, driven entirely by caller-supplied
  * options (its own migrations folder, its own extensions, its own deploy
  * phase) — so a caller passes `(url) => runMigrations({ databaseUrl: url, ... })`
@@ -60,7 +60,7 @@ export interface CreateTestDatabaseOptions {
    * throwaway database's OWN connection string — never `adminUrl`: `CREATE
    * DATABASE` has already run by the time this is called, so the hook
    * connects to the real target, not the maintenance database. Typically a
-   * closure over `runMigrations` from `@oxyhq/db/migrate`, or a caller's own
+   * closure over `runMigrations` from `@oxy.so/db/migrate`, or a caller's own
    * migration entrypoint.
    *
    * Omitted, the throwaway database is returned empty — a caller may still

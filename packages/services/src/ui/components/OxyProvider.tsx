@@ -1,50 +1,28 @@
-import { useEffect, useRef, useState, type FC, type ReactNode } from 'react';
-import { AppState, Platform, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState, type FC } from 'react';
+import { AppState, Platform, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { OxyProviderProps } from '../types/navigation';
 import { OxyRuntimeProvider, type OxyRuntimeProviderProps } from '../context/OxyContext';
 import { QueryClientProvider, focusManager, onlineManager } from '@tanstack/react-query';
-import { SurfaceProvider } from '@oxyhq/bloom/surfaces';
-import { ToastOutlet } from '@oxyhq/bloom/toast';
-import { logger as loggerUtil } from '@oxyhq/core';
+import { SurfaceProvider } from '@oxy.so/bloom/surfaces';
+import { ToastOutlet } from '@oxy.so/bloom/toast';
+import { logger as loggerUtil } from '@oxy.so/core';
 import { RequireOxyAuth } from './RequireOxyAuth';
 import { attachQueryPersistence, createQueryClient } from '../hooks/queryClient';
-import { createPlatformStorage, type StorageInterface } from '../utils/storageHelpers';
+import { createMemoryStorage, createPlatformStorage, type StorageInterface } from '../utils/storageHelpers';
 import { isNetConnectivityOnline } from '../utils/netConnectivity';
-
-/**
- * Background color shown for the brief window between mount and the
- * persisted-cache hydration completing. Matches the typical splash-screen
- * backgrounds used across Oxy apps (dark surface, white-on-dark text), so
- * the transition reads as a continuation of the splash instead of a
- * white flash. Apps that need a different boot color can keep doing their
- * own `expo-splash-screen` orchestration — this placeholder just guarantees
- * we never render a transparent `null` while we wait.
- *
- * Light-mode background. Apps that boot into dark mode see a brief light
- * flash here, which is unavoidable without re-implementing the BloomTheme
- * resolver outside of `<BloomThemeProvider>`. The light value is far less
- * jarring than `null` (transparent) on either theme.
- */
-const BOOT_BG_COLOR = '#ffffff';
+import { KeyboardBoundary } from './KeyboardBoundary';
+import { ProductAnalyticsObserver } from '../analytics/productAnalytics';
 
 const bootStyles = StyleSheet.create({
     providerRoot: {
         flex: 1,
     },
-    bootShell: {
-        flex: 1,
-        backgroundColor: BOOT_BG_COLOR,
-    },
 });
 
 // Detect if running on web
 const isWeb = Platform.OS === 'web';
-
-// Variable indirection: the module name is computed at runtime so Metro's
-// static analyzer cannot trace this into the web bundle. Native-only.
-const KEYBOARD_CONTROLLER_MODULE = 'react-native-keyboard-controller';
 
 /**
  * OxyProvider - Universal provider for Expo apps (native + web)
@@ -57,7 +35,7 @@ const KEYBOARD_CONTROLLER_MODULE = 'react-native-keyboard-controller';
  *
  * Usage:
  * ```tsx
- * import { OxyProvider, useAuth } from '@oxyhq/services';
+ * import { OxyProvider, useAuth } from '@oxy.so/services';
  *
  * function App() {
  *   return (
@@ -85,6 +63,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
     oxyServices,
     children,
     onAuthStateChange,
+    productAnalytics,
     storageKeyPrefix,
     clientId,
     baseURL,
@@ -99,52 +78,30 @@ const OxyProvider: FC<OxyProviderProps> = ({
     deviceCredentialStorage = 'persistent',
 }) => {
 
-    // Dynamic KeyboardProvider for native. Uses variable indirection
-    // (KEYBOARD_CONTROLLER_MODULE) so Metro's static analyzer cannot trace
-    // the import into the web bundle. On web, the runtime guard short-circuits
-    // before the import runs.
-    const [KBProvider, setKBProvider] = useState<FC<{ children: ReactNode }> | null>(null);
-    useEffect(() => {
-        if (isWeb) return;
-        const moduleName = KEYBOARD_CONTROLLER_MODULE;
-        import(moduleName)
-            .then((mod) => setKBProvider(() => mod.KeyboardProvider))
-            .catch((error) => {
-                if (__DEV__) {
-                    loggerUtil.warn('react-native-keyboard-controller not available, skipping keyboard support', { component: 'OxyProvider' }, error);
-                }
-            });
-    }, []);
-    const KeyboardWrapper: FC<{ children: ReactNode }> = KBProvider ?? (({ children }) => <>{children}</>);
-
     // Storage + persistence wiring.
     //
-    // We MUST await the restore() promise before exposing the QueryClient to
-    // children — otherwise the first render sees an empty cache and any
-    // <Suspense> queries or `enabled: !!cached` gates would skip the offline
-    // hit. Once the persisted blob has been hydrated (or definitively failed
-    // to hydrate), we mark the client ready and unblock rendering.
-    const storageRef = useRef<StorageInterface | null>(null);
+    // The QueryClient exists synchronously so cache I/O can never delay the app
+    // tree's first render. Persistence hydrates in the background; TanStack's
+    // persisted-client timestamps prevent older stored data from replacing a
+    // newer query that settled while restore was in flight.
     const queryClientRef = useRef<ReturnType<typeof createQueryClient> | null>(null);
     const persistenceUnsubRef = useRef<(() => void) | null>(null);
+    const ownsQueryClientRef = useRef(providedQueryClient === undefined);
+    const [platformStorage, setPlatformStorage] = useState<StorageInterface | null>(null);
 
     // If the consumer supplied their own QueryClient we use it as-is and skip
     // persistence — their host app owns that lifecycle.
-    const [queryClient, setQueryClient] = useState<ReturnType<typeof createQueryClient> | null>(() => {
+    const [queryClient] = useState<ReturnType<typeof createQueryClient>>(() => {
         if (providedQueryClient) {
             queryClientRef.current = providedQueryClient;
             return providedQueryClient;
         }
-        return null;
+        const client = createQueryClient();
+        queryClientRef.current = client;
+        return client;
     });
 
     useEffect(() => {
-        if (providedQueryClient) {
-            queryClientRef.current = providedQueryClient;
-            setQueryClient(providedQueryClient);
-            return;
-        }
-
         let mounted = true;
 
         const bootstrap = async (): Promise<void> => {
@@ -155,26 +112,17 @@ const OxyProvider: FC<OxyProviderProps> = ({
                 if (__DEV__) {
                     loggerUtil.warn('Failed to initialize storage for query persistence', { component: 'OxyProvider' }, error);
                 }
+                storage = createMemoryStorage();
             }
 
-            if (!mounted || queryClientRef.current) return;
+            if (!mounted) return;
 
-            storageRef.current = storage;
-            const client = createQueryClient();
-            const { restored, unsubscribe } = attachQueryPersistence(client, storage);
-            persistenceUnsubRef.current = unsubscribe;
-
-            // Block first render until the persisted cache is restored so
-            // offline reads land synchronously on the very first paint.
-            await restored;
-
-            if (!mounted) {
-                unsubscribe();
-                return;
-            }
-
-            queryClientRef.current = client;
-            setQueryClient(client);
+            setPlatformStorage(storage);
+            const client = queryClientRef.current;
+            if (!client || !ownsQueryClientRef.current) return;
+            const persistence = attachQueryPersistence(client, storage);
+            persistenceUnsubRef.current = persistence.unsubscribe;
+            await persistence.restored;
         };
 
         bootstrap();
@@ -184,7 +132,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
             persistenceUnsubRef.current?.();
             persistenceUnsubRef.current = null;
         };
-    }, [providedQueryClient]);
+    }, []);
 
     // Hook React Query focus manager into app state (native) or visibility (web)
     useEffect(() => {
@@ -256,27 +204,9 @@ const OxyProvider: FC<OxyProviderProps> = ({
         };
     }, []);
 
-    // While the QueryClient is being created and the persisted cache is
-    // hydrating, render a solid-color shell instead of `null`. Returning
-    // `null` here on mid-range Android devices flashed a transparent
-    // surface for 200–600ms after the native splash hid, which read as a
-    // glitch. The shell keeps the screen filled with a sensible default
-    // until children can mount under a real <QueryClientProvider>.
-    if (!queryClient) {
-        return (
-            <GestureHandlerRootView style={bootStyles.providerRoot}>
-                <SafeAreaProvider>
-                    <KeyboardWrapper>
-                        <View style={bootStyles.bootShell} />
-                    </KeyboardWrapper>
-                </SafeAreaProvider>
-            </GestureHandlerRootView>
-        );
-    }
-
     // Core content: QueryClient + OxyContext + UI overlays.
     //
-    // Theming is owned by `@oxyhq/bloom`. Consumers must mount their own
+    // Theming is owned by `@oxy.so/bloom`. Consumers must mount their own
     // `<BloomThemeProvider>` in their app root and configure it directly
     // (defaultColorPreset, defaultMode, persistKey, storage, fonts, etc.).
     // OxyProvider does NOT wrap a BloomThemeProvider — that would create a
@@ -295,8 +225,10 @@ const OxyProvider: FC<OxyProviderProps> = ({
                 webAuthMode={webAuthMode}
                 backgroundSession={backgroundSession}
                 deviceCredentialStorage={deviceCredentialStorage}
+                platformStorage={platformStorage}
                 onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
             >
+                {productAnalytics ? <ProductAnalyticsObserver analytics={productAnalytics} /> : null}
                 <SurfaceProvider>
                     {requireAuth === 'off' ? (
                         children
@@ -312,9 +244,9 @@ const OxyProvider: FC<OxyProviderProps> = ({
     return (
         <GestureHandlerRootView style={bootStyles.providerRoot}>
             <SafeAreaProvider>
-                <KeyboardWrapper>
+                <KeyboardBoundary>
                     {coreContent}
-                </KeyboardWrapper>
+                </KeyboardBoundary>
             </SafeAreaProvider>
         </GestureHandlerRootView>
     );

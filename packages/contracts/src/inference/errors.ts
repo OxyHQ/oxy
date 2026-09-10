@@ -233,7 +233,7 @@ const CREDENTIAL_PATTERNS: readonly RegExp[] = [
  * pattern it describes:
  *
  *  - **Never redact by replacing the span this pattern matched.** The span is
- *    the MARKER; the secret is what follows it. OxyHQ/Relay#3 measured the
+ *    the MARKER; the secret is what follows it. OxyHQ/Kaana#3 measured the
  *    result: `{x-api-key: <key>}` is refused, `{x-[redacted] <key>}` was
  *    accepted, and both carry the key. Redaction made the leak worse by
  *    converting "this string is dangerous" into "this string is fine".

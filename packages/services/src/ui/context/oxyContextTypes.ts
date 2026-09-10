@@ -1,10 +1,15 @@
 import type { ReactNode } from 'react';
-import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, AccountDialogController, AccountDialogView, ApiError, SessionClient, SessionMode } from '@oxyhq/core';
+import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, AccountDialogController, AccountDialogView, ApiError, SessionClient, SessionMode } from '@oxy.so/core';
 import type { UseFollowHook } from '../hooks/useFollow.types';
 import type { useLanguageManagement } from '../hooks/useLanguageManagement';
 import type { RouteName } from '../navigation/routes';
 import type { StartWebOAuthSignInOptions } from '../oauth/browserAuthTransport';
+import type {
+  OAuthConsentResult,
+  RequestOAuthConsentOptions,
+} from '../oauth/explicitOAuthConsent';
 import type { WebAuthMode, WebOAuthSignInResult } from '../oauth/types';
+import type { StorageInterface } from '../utils/storageHelpers';
 
 export interface OxyContextState {
   user: User | null;
@@ -112,6 +117,14 @@ export interface OxyContextState {
    */
   startWebOAuthSignIn: (options: StartWebOAuthSignInOptions) => Promise<WebOAuthSignInResult>;
 
+  /**
+   * Ask the already-authenticated user for explicit OAuth consent to exact
+   * application scopes. Must be called from a user gesture. Works on web and
+   * native and commits only a callback bound to the same user, state, PKCE pair
+   * and byte-exact redirect URI.
+   */
+  requestOAuthConsent: (options: RequestOAuthConsentOptions) => Promise<OAuthConsentResult>;
+
   logout: (targetSessionId?: string) => Promise<void>;
   logoutAll: () => Promise<void>;
   switchSession: (sessionId: string) => Promise<User>;
@@ -208,6 +221,8 @@ export interface OxyRuntimeProviderProps {
   deviceCredentialStorage?: 'persistent' | 'ephemeral';
   onAuthStateChange?: (user: User | null) => void;
   onError?: (error: ApiError) => void;
+  /** Storage instance owned by the public provider; internal composition seam. */
+  platformStorage?: StorageInterface | null;
 }
 
 /** Internal commit input — session plus zero-cookie device credential. */
@@ -219,4 +234,6 @@ export interface CommitInput {
   expiresAt?: string;
   userId?: string;
   user?: { id: string; username?: string; avatar?: string };
+  /** State returned with a device-token mint, avoiding an immediate REST reread. */
+  deviceState?: import('@oxy.so/contracts').DeviceSessionState;
 }

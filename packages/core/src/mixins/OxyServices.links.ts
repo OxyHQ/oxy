@@ -7,7 +7,7 @@
  * consumers render the returned URLs directly with no per-app proxy.
  *
  * Wire shapes (`LinkPreview`, `LinkPreviewBatchResponse`) are the single source
- * of truth in `@oxyhq/contracts`; this mixin imports them rather than
+ * of truth in `@oxy.so/contracts`; this mixin imports them rather than
  * redefining them so producer (oxy-api) and consumers cannot drift.
  *
  * Caching note: these GET/POST reads are NOT cached at the SDK layer (`cache:
@@ -15,7 +15,7 @@
  * later read, so an SDK GET cache would pin the stale `'pending'` snapshot.
  * App-side caching (React Query / stores) owns this responsibility.
  */
-import type { LinkPreview } from '@oxyhq/contracts';
+import type { LinkPreview } from '@oxy.so/contracts';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { buildUrl } from '../utils/apiUtils';
 

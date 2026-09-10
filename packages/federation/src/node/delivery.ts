@@ -24,7 +24,7 @@
  * call `deliverToFollowers` / `deliverActivity` / `queueDelivery` here.
  */
 
-import type { AccountKind } from '@oxyhq/contracts';
+import type { AccountKind } from '@oxy.so/contracts';
 import { AP_CONTEXT } from '../apContext';
 import { signRequest, type HttpSignatureSigner } from '../httpSignature';
 import type { UrlBuilders } from '../urls';
@@ -78,7 +78,7 @@ export interface DeliverSingleHopInit {
 
 /**
  * An SSRF-safe single-hop POST: validates + IP-pins the URL and returns the raw
- * response WITHOUT following redirects. Mention adapts its `@oxyhq/core/server`-
+ * response WITHOUT following redirects. Mention adapts its `@oxy.so/core/server`-
  * backed `fetchUpstreamSingleHop` into this shape.
  */
 export type DeliverSingleHop = (url: string, init: DeliverSingleHopInit) => Promise<DeliverSingleHopResult>;

@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import { logger } from '@oxyhq/core';
+import { logger } from '@oxy.so/core';
 import {
   subscribeToNotificationResponses,
   takeLaunchNotificationData,
-} from '@oxyhq/services/notifications';
+} from '@oxy.so/services/notifications';
 import {
   authRequestCodeFromPush,
   claimAuthRequestCode,

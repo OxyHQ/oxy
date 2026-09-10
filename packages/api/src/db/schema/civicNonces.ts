@@ -27,7 +27,7 @@
  */
 
 import { index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { users } from './users';
 
 export const civicNonces = pgTable(

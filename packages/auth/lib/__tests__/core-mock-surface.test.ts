@@ -1,7 +1,7 @@
 /**
- * The `@oxyhq/core` test mock must cover every value the app actually imports.
+ * The `@oxy.so/core` test mock must cover every value the app actually imports.
  *
- * `setup-core-source.ts` stubs `@oxyhq/core` with an explicit ALLOWLIST of pure
+ * `setup-core-source.ts` stubs `@oxy.so/core` with an explicit ALLOWLIST of pure
  * helpers, because importing the real entry pulls optional React Native modules
  * bun cannot parse. An allowlist that is maintained by hand drifts, and this
  * particular drift is close to invisible: a missing name does not fail one
@@ -13,7 +13,7 @@
  * the error text pointed at core's built output rather than at this allowlist,
  * which sent the first diagnosis at the build.
  *
- * So: scan the app's own source for value imports of `@oxyhq/core` and assert
+ * So: scan the app's own source for value imports of `@oxy.so/core` and assert
  * the mocked module actually provides each one. Type-only imports are skipped —
  * they are erased before runtime and never reach the module registry.
  */
@@ -22,7 +22,7 @@ import { describe, expect, it } from 'bun:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import * as mockedCore from '@oxyhq/core';
+import * as mockedCore from '@oxy.so/core';
 
 /** App source roots. `__tests__` is excluded — test files may stub freely. */
 const APP_SOURCE_ROOTS = ['src', 'components', 'lib', 'hooks'];
@@ -65,7 +65,7 @@ function collectSourceFiles(): string[] {
 }
 
 /**
- * `import { a, b as c, type D } from "@oxyhq/core"` — including multi-line.
+ * `import { a, b as c, type D } from "@oxy.so/core"` — including multi-line.
  *
  * The specifier list is `[^{}]*`, NOT a lazy `[\s\S]*?`: lazy matching happily
  * starts at an EARLIER import's brace and runs to core's closing one, so a file
@@ -73,10 +73,10 @@ function collectSourceFiles(): string[] {
  * "core import". That produced three phantom names on the first run of this
  * scanner. Excluding braces confines each match to a single import clause.
  */
-const CORE_IMPORT = /import\s+(type\s+)?\{([^{}]*)\}\s*from\s*["']@oxyhq\/core["']/g;
+const CORE_IMPORT = /import\s+(type\s+)?\{([^{}]*)\}\s*from\s*["']@oxy.so\/core["']/g;
 
 /**
- * The VALUE names a file imports from `@oxyhq/core`. Returns the imported name
+ * The VALUE names a file imports from `@oxy.so/core`. Returns the imported name
  * (the left side of `as`), since that is the key the module must expose.
  */
 function valueImportsFrom(source: string): string[] {
@@ -93,7 +93,7 @@ function valueImportsFrom(source: string): string[] {
     return names;
 }
 
-describe('@oxyhq/core test mock surface', () => {
+describe('@oxy.so/core test mock surface', () => {
     const files = collectSourceFiles();
 
     const imported = new Map<string, string[]>();
@@ -110,14 +110,14 @@ describe('@oxyhq/core test mock surface', () => {
         expect(imported.size).toBeGreaterThanOrEqual(MIN_VALUE_IMPORTS);
     });
 
-    it('provides every value the app imports from @oxyhq/core', () => {
+    it('provides every value the app imports from @oxy.so/core', () => {
         const missing = [...imported.entries()]
             .filter(([name]) => !(name in mockedCore))
             .map(([name, sites]) => `${name} (imported by ${sites.join(', ')})`);
 
         expect(
             missing,
-            `setup-core-source.ts does not stub these @oxyhq/core exports, so bun will abort ` +
+            `setup-core-source.ts does not stub these @oxy.so/core exports, so bun will abort ` +
                 `the whole test file that imports them:\n  ${missing.join('\n  ')}`,
         ).toEqual([]);
     });

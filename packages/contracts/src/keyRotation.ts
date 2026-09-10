@@ -13,7 +13,7 @@
  * remaining credential can be replaced — the server only cares that the
  * signature validates against the current `publicKey`.
  *
- * The API validates its output against these schemas; `@oxyhq/core`'s identity
+ * The API validates its output against these schemas; `@oxy.so/core`'s identity
  * mixin validates its input against the same definitions, so producer and
  * consumer cannot drift.
  *

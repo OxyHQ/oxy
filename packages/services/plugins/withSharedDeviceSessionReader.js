@@ -4,7 +4,7 @@
  * A reader app JOINS the device's existing session — it adopts the shared
  * `deviceId` + `deviceSecret` a hub app published, so it lands signed in with no
  * QR and, crucially, without ever asking for Commons's private identity key.
- * This plugin wires the minimal Android side of `@oxyhq/services`:
+ * This plugin wires the minimal Android side of `@oxy.so/services`:
  *
  *  - Requests the `signature`-level permission
  *    `so.oxy.shared.permission.READ_DEVICE_SESSION` (defined by the hub apps).

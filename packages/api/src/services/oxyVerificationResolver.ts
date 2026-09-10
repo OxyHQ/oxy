@@ -1,7 +1,7 @@
 /**
  * Oxy VerificationMethodResolver — the identity HALF of the chain adapter.
  *
- * This is the Oxy AUTHORIZATION policy the app-agnostic @oxyhq/protocol engine
+ * This is the Oxy AUTHORIZATION policy the app-agnostic @oxy.so/protocol engine
  * delegates to: given a subject DID, it resolves the account's current
  * verification methods (its primary key + any `identity` auth-method keys) and
  * the Oxy custodial issuer that may sign provenance records ABOUT the subject.
@@ -18,7 +18,7 @@
  */
 
 import { and, eq } from 'drizzle-orm';
-import type { ResolvedVerificationMethods, VerificationMethodResolver } from '@oxyhq/protocol';
+import type { ResolvedVerificationMethods, VerificationMethodResolver } from '@oxy.so/protocol';
 import { OXY_DID, parseUserDid } from './did.service';
 import { getDb } from '../config/postgres';
 import { userAuthMethods } from '../db/schema/userAuthMethods';

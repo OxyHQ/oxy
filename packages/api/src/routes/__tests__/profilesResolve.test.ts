@@ -21,7 +21,7 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
-import { userResponseSchema, safeParseContract } from '@oxyhq/contracts';
+import { userResponseSchema, safeParseContract } from '@oxy.so/contracts';
 
 
 let currentViewerId: string | undefined;

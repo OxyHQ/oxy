@@ -1,8 +1,8 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
-import { getNormalizedUserHandle } from '@oxyhq/core';
-import { useAuth } from '@oxyhq/services';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import { useAuth } from '@oxy.so/services';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   Add01Icon,
@@ -14,7 +14,7 @@ import {
   Mail01Icon,
   UserMultiple02Icon,
 } from '@hugeicons/core-free-icons';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import type { AccountMember, AccountRole, AssignableAccountRole } from '@/hooks/use-account';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

@@ -3,13 +3,13 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useRouter, usePathname, type Href } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { darkenColor } from '@/utils/color-utils';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import type { MaterialCommunityIconName } from '@/types/icons';
 import { useTranslation } from '@/lib/i18n';
-import { ProfileButton } from '@oxyhq/services';
+import { ProfileButton } from '@oxy.so/services';
 
 // Narrow to the string variant of Href so menu items can be used as React
 // keys and compared to `pathname` strings without casting.

@@ -1,5 +1,5 @@
 import { mutationOptions, useMutation } from '@tanstack/react-query';
-import type { InferenceError, InferenceMessage } from '@oxyhq/contracts';
+import type { InferenceError, InferenceMessage } from '@oxy.so/contracts';
 import config from '@/lib/config';
 
 // ===========================================================================
@@ -31,7 +31,7 @@ import config from '@/lib/config';
  * The body `POST /v1/responses` returns.
  *
  * Declared here because there is no shared contract for this response shape:
- * `routes/inferenceEdge.ts` builds the object inline and `@oxyhq/contracts`
+ * `routes/inferenceEdge.ts` builds the object inline and `@oxy.so/contracts`
  * carries the REQUEST vocabulary and the error, but not this envelope. The
  * fields it does own — `InferenceMessage`, `InferenceError` — are imported rather
  * than restated, so the half that is contracted cannot drift.

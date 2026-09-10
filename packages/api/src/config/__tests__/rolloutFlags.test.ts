@@ -12,8 +12,8 @@
  *
  * ## The environment is cleared, not assumed
  *
- * `beforeEach` deletes all five variables rather than trusting them to be
- * absent. A sibling suite in the same worker sets four of them
+ * `beforeEach` deletes all six variables rather than trusting them to be
+ * absent. A sibling suite in the same worker sets several of them
  * (`routes/__tests__/inferenceEdge.test.ts`), and `process.env` is shared across
  * every file a worker runs — so an assumed-empty environment is exactly how a
  * default test would silently start measuring somebody else's fixture.
@@ -32,14 +32,17 @@ import {
   forgetReportedMisconfigurations,
   isCataloguePublished,
   isChargingAuthorized,
+  isKaanaExecutionEnabled,
   isMachineCredentialLaneEnabled,
   isPrivacyReviewRecorded,
   MACHINE_CREDENTIAL_AUTH_VARIABLE,
+  KAANA_EXECUTION_VARIABLE,
   PRIVACY_REVIEW_VARIABLE,
   resolveCatalogueAudience,
   resolveEdgeAudience,
   resolveInferenceCharging,
   resolveInferencePrivacyReview,
+  resolveKaanaExecution,
   resolveMachineCredentialLane,
   type EdgeAdmissionPrincipal,
 } from '../rolloutFlags';
@@ -50,6 +53,7 @@ const mockedLogger = logger as jest.Mocked<typeof logger>;
 const FLAG_VARIABLES = [
   EDGE_AUDIENCE_VARIABLE,
   MACHINE_CREDENTIAL_AUTH_VARIABLE,
+  KAANA_EXECUTION_VARIABLE,
   CHARGING_AUTHORIZED_VARIABLE,
   CATALOGUE_AUDIENCE_VARIABLE,
   PRIVACY_REVIEW_VARIABLE,
@@ -76,19 +80,26 @@ afterAll(() => {
   }
 });
 
+const ALIA_APPLICATION_ID = '6a2f851751b784a86fd0e934';
+const MENTION_APPLICATION_ID = '6a2f851751b784a86fd0e916';
+const HOMIIO_APPLICATION_ID = '6a2f851751b784a86fd0e922';
+const INBOX_APPLICATION_ID = '6a37b3e61ddfd195b656819b';
+const KAANA_APPLICATION_ID = '68b7c4e19f2a6d0e3c8b5174';
+const ANOTHER_THIRD_PARTY_APPLICATION_ID = '64f7c2a1b8e9d3f4a1c2b3d4';
+
 /** The three tiers, as an admission decision reads them off an Application row. */
 const THIRD_PARTY: EdgeAdmissionPrincipal = {
-  applicationId: 'app_third_party',
+  applicationId: '01991f50-76f7-7c13-88e3-63dd44a80b9d',
   applicationType: 'third_party',
   applicationIsInternal: false,
 };
 const FIRST_PARTY: EdgeAdmissionPrincipal = {
-  applicationId: 'app_first_party',
+  applicationId: '01991f50-76f7-7c13-88e3-63dd44a80b9e',
   applicationType: 'first_party',
   applicationIsInternal: false,
 };
 const INTERNAL: EdgeAdmissionPrincipal = {
-  applicationId: 'app_internal',
+  applicationId: '01991f50-76f7-7c13-88e3-63dd44a80b9f',
   applicationType: 'internal',
   applicationIsInternal: false,
 };
@@ -101,6 +112,7 @@ describe('the safe default', () => {
   it('serves nobody, authenticates no machine key, charges nobody and publishes nothing', () => {
     expect(resolveEdgeAudience()).toEqual({ status: 'closed', reason: 'not_configured' });
     expect(isMachineCredentialLaneEnabled()).toBe(false);
+    expect(isKaanaExecutionEnabled()).toBe(true);
     expect(isChargingAuthorized()).toBe(false);
     expect(isCataloguePublished()).toBe(false);
     // And claims no review has happened. An unset variable must never be read as
@@ -127,6 +139,7 @@ describe('the safe default', () => {
   it('and every one of them opens when the deployment says so — the positive control', () => {
     process.env[EDGE_AUDIENCE_VARIABLE] = 'public';
     process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE] = 'enabled';
+    process.env[KAANA_EXECUTION_VARIABLE] = 'enabled';
     process.env[CHARGING_AUTHORIZED_VARIABLE] = ARMED_CHARGING;
     process.env[CATALOGUE_AUDIENCE_VARIABLE] = 'public';
     process.env[PRIVACY_REVIEW_VARIABLE] = ARMED_PRIVACY_REVIEW;
@@ -136,10 +149,27 @@ describe('the safe default', () => {
       audience: { name: 'public', allowedApplicationIds: [] },
     });
     expect(isMachineCredentialLaneEnabled()).toBe(true);
+    expect(isKaanaExecutionEnabled()).toBe(true);
     expect(isChargingAuthorized()).toBe(true);
     expect(isCataloguePublished()).toBe(true);
     expect(isPrivacyReviewRecorded()).toBe(true);
     expect(admitToInferenceEdge(THIRD_PARTY)).toEqual({ status: 'admitted', audience: 'public' });
+  });
+});
+
+describe('the Kaana execution switch', () => {
+  it('is enabled by default and retains an explicit emergency kill switch', () => {
+    expect(resolveKaanaExecution()).toEqual({ status: 'enabled' });
+
+    process.env[KAANA_EXECUTION_VARIABLE] = 'disabled';
+    expect(resolveKaanaExecution()).toEqual({ status: 'disabled', reason: 'disabled' });
+  });
+
+  it('fails closed for an unreadable value and reports why', () => {
+    process.env[KAANA_EXECUTION_VARIABLE] = 'yes';
+
+    expect(resolveKaanaExecution()).toEqual({ status: 'disabled', reason: 'unreadable' });
+    expect(mockedLogger.error).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -172,21 +202,65 @@ describe('the edge audience makes each rollout state expressible', () => {
     expect(admitToInferenceEdge(THIRD_PARTY)).toMatchObject({ status: 'refused' });
   });
 
-  it('admits exactly the named applications during a closed beta', () => {
-    process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${THIRD_PARTY.applicationId},app_other`;
+  it('admits exactly the listed IDs, independent of application tier', () => {
+    process.env[EDGE_AUDIENCE_VARIABLE] =
+      `allowlist:${THIRD_PARTY.applicationId},${ANOTHER_THIRD_PARTY_APPLICATION_ID}`;
 
     expect(admitToInferenceEdge(THIRD_PARTY)).toEqual({
       status: 'admitted',
       audience: 'allowlist',
     });
-    // Cumulative: a stage does not lock out the previous stage's callers.
-    expect(admitToInferenceEdge(FIRST_PARTY).status).toBe('admitted');
-    expect(admitToInferenceEdge(INTERNAL).status).toBe('admitted');
-    // The control: a third-party application that is NOT named stays out, so
-    // the case above is not passing because `allowlist` admits everyone.
-    expect(
-      admitToInferenceEdge({ ...THIRD_PARTY, applicationId: 'app_not_in_the_beta' })
-    ).toMatchObject({ status: 'refused', reason: 'outside_audience' });
+    expect(admitToInferenceEdge(FIRST_PARTY)).toMatchObject({
+      status: 'refused',
+      reason: 'outside_audience',
+    });
+    expect(admitToInferenceEdge(INTERNAL)).toMatchObject({
+      status: 'refused',
+      reason: 'outside_audience',
+    });
+  });
+
+  it('can admit only Alia while Mention, Homiio, Inbox and another internal app stay out', () => {
+    process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${ALIA_APPLICATION_ID}`;
+
+    const principals: Record<string, EdgeAdmissionPrincipal> = {
+      alia: {
+        applicationId: ALIA_APPLICATION_ID,
+        applicationType: 'internal',
+        applicationIsInternal: true,
+      },
+      mention: {
+        applicationId: MENTION_APPLICATION_ID,
+        applicationType: 'first_party',
+        applicationIsInternal: false,
+      },
+      homiio: {
+        applicationId: HOMIIO_APPLICATION_ID,
+        applicationType: 'first_party',
+        applicationIsInternal: false,
+      },
+      inbox: {
+        applicationId: INBOX_APPLICATION_ID,
+        applicationType: 'first_party',
+        applicationIsInternal: false,
+      },
+      kaana: {
+        applicationId: KAANA_APPLICATION_ID,
+        applicationType: 'internal',
+        applicationIsInternal: true,
+      },
+    };
+
+    expect(admitToInferenceEdge(principals.alia)).toEqual({
+      status: 'admitted',
+      audience: 'allowlist',
+    });
+    for (const excluded of ['mention', 'homiio', 'inbox', 'kaana']) {
+      expect(admitToInferenceEdge(principals[excluded])).toMatchObject({
+        status: 'refused',
+        reason: 'outside_audience',
+      });
+    }
   });
 
   it('is closed by an allowlist with nobody in it, rather than silently serving the previous stage', () => {
@@ -194,6 +268,26 @@ describe('the edge audience makes each rollout state expressible', () => {
 
     expect(resolveEdgeAudience()).toEqual({ status: 'closed', reason: 'unreadable' });
     expect(admitToInferenceEdge(FIRST_PARTY)).toMatchObject({ status: 'refused' });
+  });
+
+  it.each([
+    [`allowlist: ${ALIA_APPLICATION_ID}`],
+    [`allowlist:${ALIA_APPLICATION_ID} `],
+    [` allowlist:${ALIA_APPLICATION_ID}`],
+    [`allowlist:${ALIA_APPLICATION_ID}, ${HOMIIO_APPLICATION_ID}`],
+    [`allowlist:${ALIA_APPLICATION_ID},`],
+    [`allowlist:,${ALIA_APPLICATION_ID}`],
+    [`allowlist:${ALIA_APPLICATION_ID},${ALIA_APPLICATION_ID}`],
+    ['allowlist:not-an-application-id'],
+  ])('fails closed for a non-canonical exact-ID list: %s', (configured) => {
+    process.env[EDGE_AUDIENCE_VARIABLE] = configured;
+
+    expect(resolveEdgeAudience()).toEqual({ status: 'closed', reason: 'unreadable' });
+    expect(admitToInferenceEdge({
+      applicationId: ALIA_APPLICATION_ID,
+      applicationType: 'internal',
+      applicationIsInternal: true,
+    })).toMatchObject({ status: 'refused', reason: 'unreadable' });
   });
 
   it('is closed by an unreadable value, and says so once rather than on every request', () => {
@@ -491,7 +585,7 @@ describe('the catalogue audience', () => {
 /* -------------------------------------------------------------------------- */
 
 describe('describeRolloutFlags answers "what is on here"', () => {
-  it('reports every flag closed, with the reason for each, when nothing is set', () => {
+  it('reports safe exposure defaults and normal Kaana wiring when nothing is set', () => {
     expect(describeRolloutFlags()).toEqual({
       edge: {
         variable: EDGE_AUDIENCE_VARIABLE,
@@ -504,6 +598,11 @@ describe('describeRolloutFlags answers "what is on here"', () => {
         variable: MACHINE_CREDENTIAL_AUTH_VARIABLE,
         enabled: false,
         disabledReason: 'not_configured',
+      },
+      kaanaExecution: {
+        variable: KAANA_EXECUTION_VARIABLE,
+        enabled: true,
+        disabledReason: null,
       },
       charging: {
         variable: CHARGING_AUTHORIZED_VARIABLE,
@@ -531,14 +630,15 @@ describe('describeRolloutFlags answers "what is on here"', () => {
   });
 
   it('names a closed beta’s applications, and the decision behind an armed charge', () => {
-    process.env[EDGE_AUDIENCE_VARIABLE] = 'allowlist:app_alpha,app_beta';
+    process.env[EDGE_AUDIENCE_VARIABLE] =
+      `allowlist:${ALIA_APPLICATION_ID},${HOMIIO_APPLICATION_ID}`;
     process.env[CHARGING_AUTHORIZED_VARIABLE] = ARMED_CHARGING;
 
     const report = describeRolloutFlags();
     expect(report.edge).toMatchObject({
       open: true,
       audience: 'allowlist',
-      allowedApplicationIds: ['app_alpha', 'app_beta'],
+      allowedApplicationIds: [ALIA_APPLICATION_ID, HOMIIO_APPLICATION_ID],
     });
     expect(report.charging).toMatchObject({
       authorized: true,

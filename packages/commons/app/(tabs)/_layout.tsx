@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router/tabs';
-import { TabBarMinimizeProvider } from '@oxyhq/bloom/tab-bar';
+import { TabBarMinimizeProvider } from '@oxy.so/bloom/tab-bar';
 import { ErrorFallback } from '@/components/error-fallback';
 import { CommonsTabBar } from '@/components/CommonsTabBar';
 

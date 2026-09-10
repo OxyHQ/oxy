@@ -4,11 +4,11 @@
  * The DTO emits ONLY the plural `languages` array (there is no singular
  * `language`). `getUserLanguages` normalizes to canonical BCP-47 locales,
  * drops unsupported entries, and de-duplicates. Output stays valid against the
- * canonical `@oxyhq/contracts` user-response contract (passthrough).
+ * canonical `@oxy.so/contracts` user-response contract (passthrough).
  */
 
 import { formatUserResponse } from '../userTransform';
-import { userResponseSchema, safeParseContract } from '@oxyhq/contracts';
+import { userResponseSchema, safeParseContract } from '@oxy.so/contracts';
 
 const ID = '507f1f77bcf86cd799439021';
 

@@ -6,7 +6,7 @@
 -- WHAT WAS WRONG
 --
 -- The old CHECK read `^(vault|kms|ssm|secretsmanager):[A-Za-z0-9/_.:@-]+$`, under
--- a comment — here and on `providerSecretReferenceSchema` in `@oxyhq/contracts` —
+-- a comment — here and on `providerSecretReferenceSchema` in `@oxy.so/contracts` —
 -- claiming a producer could not pass a raw key through the field and have it look
 -- like a reference. It could. Splicing a credential in after the store name,
 --

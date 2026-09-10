@@ -27,7 +27,7 @@ import {
   modelSystemicRiskTierSchema,
   SYSTEMIC_RISK_COMPUTE_THRESHOLD_FLOPS,
   trainingComputeFlopsSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import {
   GPAI_DOCUMENTATION_INTERNAL_COLUMNS,

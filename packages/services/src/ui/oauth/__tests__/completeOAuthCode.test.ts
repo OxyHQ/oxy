@@ -1,4 +1,4 @@
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 import { completeOAuthCode } from '../completeOAuthCode';
 import type { OAuthSessionCommitInput } from '../types';
 

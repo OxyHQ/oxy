@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { AccountNode } from '@oxyhq/core';
+import type { AccountNode } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import type { GroupedItem } from '@/components/sections/types';

@@ -2,7 +2,7 @@
  * First-party login result contract.
  *
  * SINGLE SOURCE OF TRUTH for the first-party login result (the session arm). The
- * API validates its OUTPUT against this schema; every consumer (`@oxyhq/core`'s
+ * API validates its OUTPUT against this schema; every consumer (`@oxy.so/core`'s
  * auth mixin) validates its INPUT against the same definition, so producer and
  * consumers cannot drift. Sign-in is passkey (WebAuthn) or Commons handoff —
  * password and 2FA were removed, so the only outcome is a completed session.

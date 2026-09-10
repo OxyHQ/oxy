@@ -21,7 +21,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, integer, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /** How records move: the node pulls (default), or Oxy pushes. */

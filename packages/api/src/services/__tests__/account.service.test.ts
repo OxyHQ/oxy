@@ -22,7 +22,7 @@ import {
   ACCOUNT_CATEGORY_IDS,
   CHILD_ACCOUNT_KINDS,
   type AccountCategoryId,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
 import { MAX_ACCOUNT_DEPTH, userAncestors } from '../../db/schema/userAncestors';
@@ -57,6 +57,20 @@ let seedCounter = 0;
 function uniqueUsername(prefix: string): string {
   seedCounter += 1;
   return `${prefix}${seedCounter}z${Date.now().toString(36)}`;
+}
+
+/**
+ * A handle legal for `kind`. Only `bot` differs — `botUsernameSchema`
+ * (`@oxy.so/contracts`) requires its handle to end in `bot` — so a loop over every
+ * child kind has to carry the label for that one member, or the iteration 400s
+ * on a question that has nothing to do with what the case is testing.
+ */
+function uniqueUsernameFor(
+  kind: (typeof CHILD_ACCOUNT_KINDS)[number],
+  prefix: string
+): string {
+  const handle = uniqueUsername(prefix);
+  return kind === 'bot' ? `${handle}bot` : handle;
 }
 
 interface SeedOptions {
@@ -309,6 +323,75 @@ describe('createChildAccount', () => {
     expect(membership.accountId).toBe(account.id);
   });
 
+  /**
+   * THE FIELD REACHES THE COLUMN, and saying nothing leaves the default.
+   *
+   * Both halves are load-bearing and they fail differently. A create path that
+   * ignores `isPrivateAccount` publishes an account its owner never published —
+   * silently, because nothing errors and the row looks fine. A create path that
+   * defaults it the OTHER way hides every account every existing caller makes,
+   * equally silently. So the default case is asserted beside the explicit one
+   * rather than assumed from the column definition.
+   *
+   * Read back from the stored row, never from the service's return value: the
+   * question is what the database holds, and a serializer that echoed the input
+   * would answer it wrongly.
+   */
+  test('creates an account opted OUT of discovery when asked, and discoverable when not', async () => {
+    const root = await seedAccount();
+
+    const hidden = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'bot',
+      username: uniqueUsernameFor('bot', 'hidden'),
+      isPrivateAccount: true,
+    });
+    const silent = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'bot',
+      username: uniqueUsernameFor('bot', 'silent'),
+    });
+    const explicit = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'bot',
+      username: uniqueUsernameFor('bot', 'explicit'),
+      isPrivateAccount: false,
+    });
+
+    const stored = async (id: string) => {
+      const [row] = await getDb()
+        .select({ isPrivate: users.privacyIsPrivateAccount })
+        .from(users)
+        .where(eq(users.id, id));
+      return row.isPrivate;
+    };
+
+    expect(await stored(hidden.account.id)).toBe(true);
+    // The unchanged behaviour for every caller that predates this option.
+    expect(await stored(silent.account.id)).toBe(false);
+    expect(await stored(explicit.account.id)).toBe(false);
+  });
+
+  /**
+   * Not conditioned on `kind`. `createAccountRequestSchema` takes an explicit
+   * position against kind-conditional fields and a contracts test enforces it,
+   * so a create path that honoured this only for `bot` would contradict the
+   * contract while still passing the case above.
+   */
+  test('honours the opt-out for every child kind, not only bot', async () => {
+    const root = await seedAccount();
+
+    for (const kind of ['organization', 'project', 'bot', 'channel'] as const) {
+      const { account } = await accountService.createChildAccount(root.id, root.id, {
+        kind,
+        username: uniqueUsernameFor(kind, `priv${kind}`),
+        isPrivateAccount: true,
+      });
+      const [row] = await getDb()
+        .select({ isPrivate: users.privacyIsPrivateAccount })
+        .from(users)
+        .where(eq(users.id, account.id));
+      expect({ kind, isPrivate: row.isPrivate }).toEqual({ kind, isPrivate: true });
+    }
+  });
+
   test('rejects a personal child kind', async () => {
     const root = await seedAccount();
     await expect(
@@ -398,7 +481,7 @@ describe('createChildAccount', () => {
     for (const kind of CHILD_ACCOUNT_KINDS) {
       const { account } = await accountService.createChildAccount(root.id, root.id, {
         kind,
-        username: uniqueUsername(`cat-${kind}`),
+        username: uniqueUsernameFor(kind, `cat-${kind}`),
         accountCategories: ['technology'],
       });
       expect(account.accountCategories).toEqual(['technology']);
@@ -500,16 +583,21 @@ describe('createChildAccount', () => {
     expect(row).toBeUndefined();
   });
 
-  test('suffixes the username on collision', async () => {
+  /**
+   * This used to assert `${taken}1` — the suffix. Asking for a handle and being
+   * given a different one is the server answering a question nobody asked, and
+   * the consumers were already written for the refusal: Alia retries on 409, and
+   * the cost-centre seed treats a suffix as a failure. `accountUsernameCollision`
+   * covers the rename, the case-insensitivity and the lost race.
+   */
+  test('refuses a taken username rather than suffixing it', async () => {
     const root = await seedAccount();
     const taken = uniqueUsername('oxy');
     await seedAccount({ kind: 'organization', username: taken });
 
-    const { account } = await accountService.createChildAccount(root.id, root.id, {
-      kind: 'organization',
-      username: taken,
-    });
-    expect(account.username).toBe(`${taken}1`);
+    await expect(
+      accountService.createChildAccount(root.id, root.id, { kind: 'organization', username: taken })
+    ).rejects.toMatchObject({ statusCode: 409 });
   });
 
   test('enforces MAX_ACCOUNT_DEPTH', async () => {

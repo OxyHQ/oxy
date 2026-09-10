@@ -5,7 +5,7 @@ import {
   oxyAccountIdSchema,
   responseFormatSchema,
   routingTargetSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { chatCompletionsRequestSchema } from '../schemas/inferenceEdge.schemas';
 import { zodToOpenApi } from '../../scripts/generate-openapi';
 
@@ -34,7 +34,7 @@ import { zodToOpenApi } from '../../scripts/generate-openapi';
  *    3.0 form, which a conforming consumer drops in silence — so a nullable field
  *    was published as non-nullable.
  *
- * The fixtures are the REAL schemas from `@oxyhq/contracts` and from the edge,
+ * The fixtures are the REAL schemas from `@oxy.so/contracts` and from the edge,
  * not tidy stand-ins: the defect lived in the shapes the API actually publishes,
  * and a hand-made two-branch union would have been converted correctly by a
  * narrower fix. Every case is paired with an assertion that the converter still

@@ -35,7 +35,7 @@
 import { sql } from 'drizzle-orm';
 import { check, doublePrecision, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { applications } from './applications';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 export const appEndorsementEdges = pgTable(

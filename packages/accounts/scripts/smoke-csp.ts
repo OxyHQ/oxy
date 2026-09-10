@@ -21,7 +21,7 @@
  *   SMOKE_TARGET=https://accounts.oxy.so bun run packages/accounts/scripts/smoke-csp.ts
  */
 
-import { cspSourcesFor, extractInlineScripts, inlineScriptCspHash } from '@oxyhq/core/server';
+import { cspSourcesFor, extractInlineScripts, inlineScriptCspHash } from '@oxy.so/core/server';
 
 const TARGET = (process.env.SMOKE_TARGET || 'https://accounts.oxy.so').replace(/\/+$/, '');
 const REQUEST_TIMEOUT_MS = 15000;

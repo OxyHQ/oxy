@@ -13,7 +13,7 @@
  * prevCheckpointHash}` — never from the surrounding storage document, and never
  * from other signatures. That is what makes a checkpoint CO-SIGNABLE: the
  * operator and any number of independent witnesses (e.g. user-run
- * `@oxyhq/node` deployments) each sign the identical bytes with their own key,
+ * `@oxy.so/node` deployments) each sign the identical bytes with their own key,
  * with zero coordination and in any order. Two conflicting roots for one
  * `index`, each carrying valid signatures, is then transferable proof of
  * equivocation that needs no cooperation from the operator to demonstrate.
@@ -25,7 +25,7 @@
 import { canonicalize } from '../envelope/canonicalJson';
 import { sha256 } from '../envelope/recordId';
 import { signMessage, verifySignature } from '../envelope/sign';
-import { derivePublicKeyHex } from '../envelope/secp256k1';
+import { deriveSecp256k1PublicKey } from '../secp256k1';
 
 /** Domain prefix for checkpoint signing bytes. */
 const CHECKPOINT_PREFIX = 'oxy.transparency.checkpoint.v1:';
@@ -88,7 +88,7 @@ export async function signCheckpoint(
   privateKeyHex: string,
 ): Promise<TransparencyCheckpointSignature> {
   return {
-    publicKey: derivePublicKeyHex(privateKeyHex),
+    publicKey: deriveSecp256k1PublicKey(privateKeyHex),
     alg: ALG,
     signature: await signMessage(checkpointSigningInput(fields), privateKeyHex),
   };

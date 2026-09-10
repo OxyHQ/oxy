@@ -6,7 +6,7 @@
  *
  * ## The attribute set, and why each one
  *
- *  - `__Host-` prefix (in the NAME, from `@oxyhq/contracts`) — a browser refuses
+ *  - `__Host-` prefix (in the NAME, from `@oxy.so/contracts`) — a browser refuses
  *    to store the cookie at all if it carries `Domain`, if `Path` is not `/`, or
  *    if `Secure` is missing. So "bound to `auth.oxy.so` alone; no other `oxy.so`
  *    host can read or overwrite it" is enforced by the client, not merely
@@ -39,7 +39,7 @@ import {
   BROWSER_HUB_COOKIE_ATTRIBUTES,
   BROWSER_HUB_COOKIE_NAME,
   BROWSER_HUB_HANDLE_TTL_MS,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 /**
  * The characters a hub handle may contain — base64url, which is exactly what

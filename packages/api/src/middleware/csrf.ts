@@ -65,9 +65,51 @@ export function setCsrfToken(req: Request, res: Response, next: NextFunction) {
  *    This is necessary because React Native's fetch doesn't persist cookies like browsers do.
  *    Native apps already use JWT authentication which provides strong request authentication.
  */
+/**
+ * POST endpoints that CHANGE NOTHING, addressed as `<mount><route>`.
+ *
+ * CSRF exists to stop a state change made with credentials the browser attaches
+ * by itself. It is aimed at the EFFECT, not at the verb — and `SAFE_METHODS`
+ * below is a proxy for the effect that these endpoints break: they are reads
+ * that use POST only because their input is a list of ids too long for a query
+ * string.
+ *
+ * `POST /users/by-ids` is the measured case. Its own contract is "optional
+ * dual-auth — accepts a service token, a user session, or an ANONYMOUS caller"
+ * returning exactly the already-public `GET /users/:id` payload; and yet an
+ * anonymous caller got a 403 (verified against production: 2,730 `CSRF token
+ * missing` rejections on this path in 24 hours). What it costs is not an error
+ * message — every consumer falls back to resolving profiles one at a time, so
+ * the batch endpoint built to remove N+1 lookups is skipped exactly when the
+ * caller has no session.
+ *
+ * A Bearer request already skips this middleware, so the entries here are only
+ * about the cookie-less and the signed-out. Adding one is a claim that the
+ * handler performs no write — `csrf.test.ts` pins the current set, and a
+ * handler that starts writing must leave it.
+ */
+const CSRF_EXEMPT_READS = new Set(['POST /users/by-ids']);
+
+/**
+ * `<mount><route>` for the request, e.g. `/users` + `/by-ids`.
+ *
+ * Both halves, never `originalUrl`: the mount is what disambiguates two routers
+ * that each define `/by-ids`, and `originalUrl` would carry the query string
+ * into the comparison. `baseUrl` is always a string under Express; the fallback
+ * keeps the signature exact for a caller that constructs a bare request object.
+ */
+function routeSignature(req: Request): string {
+  return `${req.method} ${req.baseUrl ?? ''}${req.path}`;
+}
+
 export function verifyCsrfToken(req: Request, res: Response, next: NextFunction) {
   // Skip verification for safe methods
   if (SAFE_METHODS.includes(req.method)) {
+    return next();
+  }
+
+  // A POST that is a read. See CSRF_EXEMPT_READS.
+  if (CSRF_EXEMPT_READS.has(routeSignature(req))) {
     return next();
   }
 
@@ -76,7 +118,7 @@ export function verifyCsrfToken(req: Request, res: Response, next: NextFunction)
   // cross-site on behalf of an attacker. Auth middleware still validates the
   // token and rejects invalid or expired user/service tokens.
   const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
+  if (authHeader?.startsWith('Bearer ') || authHeader?.startsWith('Capability ')) {
     return next();
   }
 

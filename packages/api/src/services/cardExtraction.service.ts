@@ -2,7 +2,7 @@
  * Card Extraction Service
  *
  * Extracts structured data cards (trips, purchases, events, bills, packages)
- * and key highlights from incoming emails using the Alia AI API.
+ * and key highlights through Oxy's metered Kaana inference path.
  * Runs as fire-and-forget after message storage — never blocks email delivery.
  *
  * ## What the Postgres port changed
@@ -24,21 +24,17 @@
  * projection became an `EXISTS`, not a load of every attachment row.
  */
 
-import axios from 'axios';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { qualified } from '@oxyhq/db';
+import { qualified } from '@oxy.so/db';
 import {
   MESSAGE_CARD_TYPES,
   messages,
   type MessageHighlight,
 } from '../db/schema/messages';
 import { messageAttachments } from '../db/schema/messageAttachments';
-import { AI_LABELING_CONFIG } from '../config/email.config';
 import { logger } from '../utils/logger';
-
-const ALIA_BASE_URL = 'https://api.alia.onl/v1';
-const ALIA_API_KEY = process.env.ALIA_API_KEY;
+import { executeInboxPointInference, inboxCompletionText } from './inboxInference.service';
 
 /** Bytes of message body handed to the extractor. */
 const MAX_BODY_CHARS = 3000;
@@ -71,8 +67,6 @@ class CardExtractionService {
    */
   async extractAndUpdate(userId: string, messageId: string): Promise<void> {
     try {
-      if (!ALIA_API_KEY) return;
-
       const db = getDb();
       const [message] = await db
         .select({
@@ -86,7 +80,7 @@ class CardExtractionService {
           // question it is asked instead of loading every attachment row.
           // Both sides of the correlation are QUALIFIED: an unqualified pair
           // inside a subquery resolves against the subquery's own table and
-          // silently answers a different question (`@oxyhq/db`'s casing module).
+          // silently answers a different question (`@oxy.so/db`'s casing module).
           hasAttachments: sql<boolean>`exists (
             select 1 from ${messageAttachments}
             where ${qualified(messageAttachments.messageId)} = ${qualified(messages.id)}
@@ -110,28 +104,20 @@ class CardExtractionService {
         hasAttachments: message.hasAttachments,
       });
 
-      const response = await axios.post(
-        `${ALIA_BASE_URL}/chat/completions`,
-        {
-          model: AI_LABELING_CONFIG.model,
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
-          ],
-          max_tokens: 800,
-          temperature: 0.1,
-          stream: false,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${ALIA_API_KEY}`,
-          },
-          timeout: EXTRACTION_TIMEOUT_MS,
-        },
-      );
+      const completion = await executeInboxPointInference({
+        userId,
+        feature: 'card_extraction',
+        messages: [
+          { role: 'system', content: [{ type: 'text', text: system }] },
+          { role: 'user', content: [{ type: 'text', text: user }] },
+        ],
+        maxOutputTokens: 800,
+        temperature: 0.1,
+        responseFormat: { type: 'json_object' },
+        signal: AbortSignal.timeout(EXTRACTION_TIMEOUT_MS),
+      });
 
-      const content = response.data?.choices?.[0]?.message?.content || '';
+      const content = inboxCompletionText(completion);
       const result = this.parseResult(content);
 
       if (!result.card && result.highlights.length === 0) return;

@@ -1,13 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { useNavigate, Link } from "react-router-dom"
-import { toast } from "@oxyhq/bloom/toast"
+import { toast } from "@oxy.so/bloom/toast"
 import { Check, KeyRound, X, Loader2 } from "lucide-react"
-import { useOxy } from "@oxyhq/services"
+import { useOxy } from "@oxy.so/services"
 
 import { buildApiUrl } from "@/lib/oxy-api-client"
 import { buildPostLoginRedirect } from "@/lib/auth-utils"
 import { describePasskeyError } from "@/lib/passkey-error"
-import { Button } from "@oxyhq/bloom/button"
+import { Button } from "@oxy.so/bloom/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { AuthFormLayout, AuthFormHeader } from "@/components/auth-form-layout"
@@ -21,12 +21,16 @@ type SignUpFormProps = React.ComponentProps<"div"> & {
     codeChallenge?: string
     codeChallengeMethod?: string
     scope?: string
+    resource?: string
+    responseType?: string
     /**
      * `response_mode=web_message` (popup sign-in), carried through to
      * `/authorize` so the result is posted to the opener rather than navigating
      * this popup to the relying party.
      */
     responseMode?: string
+    /** `?mcp_link_intent=` — return to `/mcp/link` after the account exists. */
+    mcpLinkIntent?: string
 }
 
 type AvailabilityStatus = "idle" | "checking" | "available" | "taken"
@@ -98,10 +102,29 @@ export function SignUpForm({
     codeChallenge,
     codeChallengeMethod,
     scope,
+    resource,
+    responseType,
     responseMode,
+    mcpLinkIntent,
     ...props
 }: SignUpFormProps) {
     const navigate = useNavigate()
+    const loginPath = (() => {
+        const params = new URLSearchParams()
+        if (sessionToken) params.set("token", sessionToken)
+        if (redirectUri) params.set("redirect_uri", redirectUri)
+        if (state) params.set("state", state)
+        if (clientId) params.set("client_id", clientId)
+        if (codeChallenge) params.set("code_challenge", codeChallenge)
+        if (codeChallengeMethod) params.set("code_challenge_method", codeChallengeMethod)
+        if (scope) params.set("scope", scope)
+        if (resource) params.set("resource", resource)
+        if (responseType) params.set("response_type", responseType)
+        if (responseMode) params.set("response_mode", responseMode)
+        if (mcpLinkIntent) params.set("mcp_link_intent", mcpLinkIntent)
+        const query = params.toString()
+        return query ? `/login?${query}` : "/login"
+    })()
     // Sign-up commits its session through the SAME device-first SDK funnel every
     // Oxy app uses (`registerWithPasskey`): it runs the WebAuthn creation
     // ceremony, plants the access token, persists the zero-cookie
@@ -150,7 +173,10 @@ export function SignUpForm({
                 codeChallenge,
                 codeChallengeMethod,
                 scope,
+                resource,
+                responseType,
                 responseMode,
+                mcpLinkIntent,
             }))
         } catch (err) {
             const message = describePasskeyError(err)
@@ -203,7 +229,7 @@ export function SignUpForm({
                         </Button>
                     </Field>
                     <FieldDescription>
-                        Already have an account? <Link to="/login">Sign in</Link>
+                        Already have an account? <Link to={loginPath}>Sign in</Link>
                     </FieldDescription>
                 </FieldGroup>
             </form>

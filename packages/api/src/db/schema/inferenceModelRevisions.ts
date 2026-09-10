@@ -42,7 +42,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, pgTable, text, uniqueIndex, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 import { inferenceModels } from './inferenceModels';
 import { REVISION_CHECK_PATTERN } from './inferenceSlug';
 

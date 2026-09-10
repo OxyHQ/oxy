@@ -20,7 +20,7 @@
  *
  * ## `--target-database=<name>` is REQUIRED, on every run including a dry run
  *
- * `expectedDatabase` is optional in `@oxyhq/db` so an existing consumer can
+ * `expectedDatabase` is optional in `@oxy.so/db` so an existing consumer can
  * adopt the package without changing every invocation site. A new app adopts it
  * from day one, because this is the guard whose absence does not fail loudly:
  * pointed at the wrong database a migrator finds an empty ledger, applies the
@@ -59,7 +59,7 @@ import {
   runMigrations,
   type MigrationRun,
   type RequiredExtension,
-} from '@oxyhq/db/migrate';
+} from '@oxy.so/db/migrate';
 import { logger } from '../utils/logger';
 import { MIGRATIONS_FOLDER } from './migrationsFolder';
 

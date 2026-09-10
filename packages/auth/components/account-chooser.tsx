@@ -1,8 +1,8 @@
 import { ChevronRight, UserPlus } from "lucide-react"
-import { showsPrincipalHeaders, type SwitcherContextRow, type SwitcherPrincipalRow } from "@oxyhq/core"
+import { showsPrincipalHeaders, type SwitcherContextRow, type SwitcherPrincipalRow } from "@oxy.so/core"
 import { cn } from "@/lib/utils"
-import { Button } from "@oxyhq/bloom/button"
-import { Avatar } from "@oxyhq/bloom/avatar"
+import { Button } from "@oxy.so/bloom/button"
+import { Avatar } from "@oxy.so/bloom/avatar"
 import { AuthFormHeader } from "@/components/auth-form-layout"
 
 type AccountChooserProps = React.ComponentProps<"div"> & {

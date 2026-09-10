@@ -5,7 +5,7 @@
  * 2. Resolves directory imports to index.js
  * 3. Adds import attributes for JSON imports
  *
- * @oxyhq/contracts has exactly one runtime dependency (`zod`), which ships a
+ * @oxy.so/contracts has exactly one runtime dependency (`zod`), which ships a
  * spec-compliant ESM build with its own `.js`-extensioned internal specifiers,
  * so no CJS default-import interop rewrites are needed here.
  */

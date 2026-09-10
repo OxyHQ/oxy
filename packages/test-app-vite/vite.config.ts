@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url)
 const reactNativeCssBabel = require("react-native-css/babel")
 const emptyModule = resolve(currentDir, "./src/empty-module.js")
 
-// test-app-vite bundles the `@oxyhq/services` React Native graph on the web via
+// test-app-vite bundles the `@oxy.so/services` React Native graph on the web via
 // rolldown-vite + `vite-plugin-react-native-web` (same pattern as packages/console):
 // it aliases react-native → react-native-web, applies `.web.*` extension priority
 // in dev AND build, strips Flow types, keeps expo-modules-core's side-effectful web

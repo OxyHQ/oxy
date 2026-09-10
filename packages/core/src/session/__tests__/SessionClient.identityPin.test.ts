@@ -10,7 +10,7 @@
  * NEVER follows it. The pinned token's lifecycle belongs to the cold boot /
  * re-mint lane, which mints it with an explicit `accountId`.
  */
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 import { SessionClient, type SessionClientHost, type TokenTransport } from '../SessionClient';
 
 const PINNED = 'vault-user';

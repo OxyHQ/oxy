@@ -25,9 +25,10 @@
  *
  * ## What is NOT here, and must never be
  *
- * - **Provider credentials of any kind.** BYOK secrets live in managed secret
- *   storage (workstream 10); Oxy's own upstream keys are the data plane's.
- * - **Route health.** Relay owns technical deployment health and availability
+ * - **Provider credentials of any kind.** Kaana encrypts BYOK credentials in
+ *   its PostgreSQL database with KMS and resolves them only inside inference;
+ *   Oxy stores only metadata plus the opaque exact handle/revision.
+ * - **Route health.** Kaana owns technical deployment health and availability
  *   (ADR 0006). `status` here is the CATALOGUE's decision about whether a route
  *   may be offered at all, which is a different question from whether it is
  *   answering right now, and the two must not be collapsed — the fake
@@ -46,14 +47,24 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, numeric, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  numeric,
+  pgTable,
+  text,
+  unique,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import {
   availabilityScopeSchema,
   commercialPermissionSchema,
   INFERENCE_MONEY_SCALE,
   USAGE_UNITS,
-} from '@oxyhq/contracts';
-import { createdAt, generatedId, inList, textArrayLiteral, timestamptz, updatedAt } from '@oxyhq/db';
+} from '@oxy.so/contracts';
+import { createdAt, generatedId, inList, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
 import { inferenceModelRevisions } from './inferenceModelRevisions';
 import { inferenceProviders } from './inferenceProviders';
 import { priceVersions } from './priceVersions';
@@ -72,13 +83,16 @@ export const COMMERCIAL_PERMISSIONS = commercialPermissionSchema.options;
 /**
  * The catalogue's own decision about whether a route may be offered.
  *
- * Distinct from Relay's health signal, which Oxy does not store: `degraded` here
+ * Distinct from Kaana's health signal, which Oxy does not store: `degraded` here
  * means "offer it with a warning", not "it is timing out right now".
  * Mirrors `modelDeploymentSchema.status`.
  */
 export const DEPLOYMENT_STATUSES = ['active', 'degraded', 'disabled', 'retired'] as const;
 
 export type DeploymentStatus = (typeof DEPLOYMENT_STATUSES)[number];
+
+export const APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX =
+  'inference_deployments_approved_internal_route_id_key';
 
 /**
  * The approval lifecycle a route moves through (workstream 11's admin workflow).
@@ -147,10 +161,10 @@ export const inferenceDeployments = pgTable(
       .references(() => inferenceProviders.slug, { onDelete: 'restrict' }),
 
     /**
-     * Where it runs. At least one, enforced with `cardinality` — `array_length`
-     * is NULL on an empty array and a CHECK rejects only FALSE, so `>= 1`
-     * written that way would ADMIT `{}` and make a residency policy match a
-     * route with no declared region.
+     * Where Kaana has ATTESTED that the deployment may run. An empty array is
+     * explicit "region not attested", never "global": any routing policy with
+     * an allow- or deny-region control excludes it, while an unconstrained
+     * policy may still use it.
      */
     regions: text().array().notNull(),
 
@@ -228,9 +242,23 @@ export const inferenceDeployments = pgTable(
     priceVersionId: text().references(() => priceVersions.id, { onDelete: 'restrict' }),
 
     /**
+     * The separately reviewed Oxy platform-fee price used only when
+     * `availability_scope = 'byok_only'`.
+     *
+     * The upstream provider still bills the customer directly, so
+     * `price_version_id` remains NULL for BYOK. This pointer names only Oxy's
+     * own fee schedule and is nullable so a draft route can exist before an
+     * operator publishes and associates that schedule. An active/approved
+     * route without a usable fee remains fail-closed in the edge resolver.
+     */
+    platformFeePriceVersionId: text().references(() => priceVersions.id, {
+      onDelete: 'restrict',
+    }),
+
+    /**
      * PROTECTED. The data plane's own identifier for this route.
      *
-     * Stored so operations can correlate a catalogue row with what Relay is
+     * Stored so operations can correlate a catalogue row with what Kaana is
      * running. It is exactly the kind of internal topology the serving boundary
      * says must never reach a customer, even when attribution is permitted:
      * naming the serving PROVIDER is attribution, naming the internal route is
@@ -246,7 +274,7 @@ export const inferenceDeployments = pgTable(
      *
      * This is NOT a price version and NOT customer money. The ledger owns
      * `price_versions` and every customer-facing amount; this column exists so
-     * staff can review margin against a route's contracted rate, and Relay
+     * staff can review margin against a route's contracted rate, and Kaana
      * remains the authority for MEASURED upstream cost (ADR 0006). Two price
      * authorities is the failure this epic exists to prevent, so nothing reads
      * this in a billing path.
@@ -283,8 +311,12 @@ export const inferenceDeployments = pgTable(
       t.providerSlug,
       t.availabilityScope
     ),
-
-    check('inference_deployments_regions_check', sql`cardinality(${t.regions}) >= 1`),
+    // Drafts may model audience-specific offers independently. Publication may
+    // not: until serving has a viewer-aware cross-scope commercial contract,
+    // one exact Kaana deployment identity can back at most one approved row.
+    uniqueIndex(APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX)
+      .on(t.internalRouteId)
+      .where(sql`${t.permissionState} = 'approved' and ${t.internalRouteId} is not null`),
 
     /* ---- closed value sets ---------------------------------------------- */
 
@@ -344,6 +376,11 @@ export const inferenceDeployments = pgTable(
     check(
       'inference_deployments_byok_has_no_price_version',
       sql`${t.availabilityScope} <> 'byok_only' or ${t.priceVersionId} is null`
+    ),
+    /** A platform-fee pointer has meaning only on a BYOK-only route. */
+    check(
+      'inference_deployments_platform_fee_only_for_byok',
+      sql`${t.platformFeePriceVersionId} is null or ${t.availabilityScope} = 'byok_only'`
     ),
 
     /* ---- the approval gate (workstream 11) ------------------------------ */

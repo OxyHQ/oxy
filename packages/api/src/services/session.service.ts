@@ -556,8 +556,9 @@ class SessionService {
       // session per exchange. When a `stableDeviceKey` is supplied, derive a
       // deterministic deviceId from (userId, key) and feed it as the provided
       // deviceId so `extractDeviceInfo` skips the UA/IP derivation entirely —
-      // one (user, RP) then reuses a single session via the lookup below (no
-      // current caller passes `stableDeviceKey`; see `SessionCreateOptions`).
+      // one (user, key) then reuses a single session via the lookup below. The
+      // callers are the untrusted-client OAuth exchange and the service account
+      // switch; see `SessionCreateOptions` for the key each of them uses.
       // An explicit `deviceId` — e.g. the account-switch route threading the
       // operator's own central deviceId onto the minted managed-account
       // session — wins over the derived stable id, letting the caller stamp a

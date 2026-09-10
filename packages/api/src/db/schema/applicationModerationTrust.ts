@@ -26,9 +26,9 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, doublePrecision, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { APPLICATION_MODERATION_STANDINGS } from '@oxyhq/contracts';
+import { APPLICATION_MODERATION_STANDINGS } from '@oxy.so/contracts';
 import { applications } from './applications';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /** Renders a `const` tuple as a SQL `in (…)` list. */
@@ -48,7 +48,7 @@ export const applicationModerationTrust = pgTable(
       .notNull()
       .references(() => applications.id, { onDelete: 'cascade' }),
     /**
-     * Imported straight from `@oxyhq/contracts` rather than copied: the tuple is
+     * Imported straight from `@oxy.so/contracts` rather than copied: the tuple is
      * the shared cross-package vocabulary, and the Mongoose model reads the same
      * one, so the two cannot drift.
      */

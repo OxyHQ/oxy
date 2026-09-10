@@ -1,8 +1,8 @@
 /**
- * `@oxyhq/federation/node` — the runnable Node/Express federation engine.
+ * `@oxy.so/federation/node` — the runnable Node/Express federation engine.
  *
  * A SEPARATE subpath from the package root so this Node-only code never enters
- * isomorphic bundles that import `@oxyhq/federation`.
+ * isomorphic bundles that import `@oxy.so/federation`.
  *
  * Phase 2 (HTTP signatures): the signed-fetch transport — a signed ActivityPub
  * GET with per-hop HTTP-signature re-signing, built over an app-injected

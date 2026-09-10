@@ -1,13 +1,13 @@
 import { Readable } from 'node:stream';
 import type { IncomingMessage } from 'node:http';
 import type { Request, Response as ExpressResponse } from 'express';
-import { SsrfRejection } from '@oxyhq/core/server';
+import { SsrfRejection } from '@oxy.so/core/server';
 import { proxyResource } from '../emailProxy.controller';
 
 const mockSafeFetch = jest.fn();
 
-jest.mock('@oxyhq/core/server', () => ({
-  ...jest.requireActual('@oxyhq/core/server'),
+jest.mock('@oxy.so/core/server', () => ({
+  ...jest.requireActual('@oxy.so/core/server'),
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
 }));
 

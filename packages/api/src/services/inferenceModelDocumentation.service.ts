@@ -24,7 +24,7 @@
  * ## Ingesting is not publishing, and the containment is structural
  *
  * Oxy holds no Alia signing key and what verifies a release manifest is an open
- * decision (`@oxyhq/contracts`' `inference/aliaModelRelease.ts` argues it), so
+ * decision (`@oxy.so/contracts`' `inference/aliaModelRelease.ts` argues it), so
  * ingestion records no verification finding. What authorizes it is the staff
  * member, recorded on the release row and gated on
  * `inference:catalogue:publish`.
@@ -55,7 +55,7 @@
  */
 
 import { and, asc, eq } from 'drizzle-orm';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import {
   type AliaModelReleaseManifest,
   type ModelDocumentation,
@@ -64,7 +64,7 @@ import {
   type ModelReleaseIngestionResult,
   modelDocumentationSchema,
   modelReleaseIngestionResultSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb, type Transaction } from '../config/postgres';
 import {
   inferenceModelEvaluations,

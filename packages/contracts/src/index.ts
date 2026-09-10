@@ -1,8 +1,8 @@
 /**
- * @oxyhq/contracts — single source of truth for API request/response contracts.
+ * @oxy.so/contracts — single source of truth for API request/response contracts.
  *
- * Zod schemas plus their inferred types, shared by the backend (`@oxyhq/api`)
- * and the client SDKs (`@oxyhq/core`, `@oxyhq/services`). The
+ * Zod schemas plus their inferred types, shared by the backend (`@oxy.so/api`)
+ * and the client SDKs (`@oxy.so/core`, `@oxy.so/services`). The
  * producer validates its output and every consumer validates its input against
  * exactly the same definitions, so the wire shape cannot drift.
  *
@@ -16,7 +16,8 @@ export {
     CHILD_ACCOUNT_KINDS,
     childAccountKindSchema,
     isAccountKind,
-    isActAsEligibleKind,
+    isDelegatedActAsEligibleKind,
+    isOperatorSwitchTargetKind,
     ACCOUNT_CATEGORY_IDS,
     ACCOUNT_CATEGORY_KINDS,
     accountCategoriesSchema,
@@ -37,6 +38,18 @@ export type {
     ChildAccountKind,
     CreateAccountRequest,
 } from './accountGraph';
+
+export {
+    usernameSchema,
+    usernameSchemaForAccountKind,
+    isValidUsername,
+    stripDisallowedUsernameCharacters,
+    applyBotUsernameSuffix,
+    USERNAME_MIN_LENGTH,
+    USERNAME_MAX_LENGTH,
+    USERNAME_INVALID_MESSAGE,
+    BOT_USERNAME_INVALID_MESSAGE,
+} from './username';
 
 export {
     // Schemas
@@ -187,9 +200,7 @@ export {
     oxySignedRecordTypeSchema,
 } from './oxyRecordTypes';
 
-export type {
-    OxySignedRecordType,
-} from './oxyRecordTypes';
+export type { OxySignedRecordType } from './oxyRecordTypes';
 
 export {
     // Schemas
@@ -197,11 +208,7 @@ export {
     logPageResponseSchema,
 } from './protocol';
 
-export type {
-    LexiconRecord,
-    ChainHeadResponse,
-    LogPageResponse,
-} from './protocol';
+export type { LexiconRecord, ChainHeadResponse, LogPageResponse } from './protocol';
 
 export {
     // Schemas
@@ -490,15 +497,9 @@ export type {
     DeviceDirectorySync,
 } from './deviceDirectory';
 
-export {
-    oauthConsentDecisionSchema,
-    oauthAuthorizeCodeResponseSchema,
-} from './oauth';
+export { oauthConsentDecisionSchema, oauthAuthorizeCodeResponseSchema } from './oauth';
 
-export type {
-    OauthConsentDecision,
-    OauthAuthorizeCodeResponse,
-} from './oauth';
+export type { OauthConsentDecision, OauthAuthorizeCodeResponse } from './oauth';
 
 export {
     BROWSER_HUB_COOKIE_NAME,
@@ -712,6 +713,7 @@ export {
     modelIdSchema,
     modelRevisionLabelSchema,
     modelReferenceSchema,
+    routingProfileIdSchema,
     routingProfileSlugSchema,
     inferenceProviderSlugSchema,
     deploymentIdSchema,
@@ -786,17 +788,29 @@ export type {
 } from './inference/errors';
 
 export {
+    embeddingVectorSchema,
+    embeddingUsageSchema,
+    embeddingSuccessSchema,
+    embeddingFailureSchema,
+    embeddingResponseSchema,
+} from './inference/embeddings';
+
+export type {
+    EmbeddingVector,
+    EmbeddingUsage,
+    EmbeddingSuccess,
+    EmbeddingFailure,
+    EmbeddingResponse,
+} from './inference/embeddings';
+
+export {
     // Price versions and the snapshot a settled receipt keeps.
     priceVersionStatusSchema,
     priceVersionSchema,
     priceSnapshotSchema,
 } from './inference/priceVersion';
 
-export type {
-    PriceVersionStatus,
-    PriceVersion,
-    PriceSnapshot,
-} from './inference/priceVersion';
+export type { PriceVersionStatus, PriceVersion, PriceSnapshot } from './inference/priceVersion';
 
 export {
     // The six distinct catalogue objects + the customer-safe projection.
@@ -993,9 +1007,29 @@ export type {
 
 export {
     // BYOK connection metadata that structurally cannot carry a secret.
-    PROVIDER_SECRET_REFERENCE_NAMESPACE,
     providerConnectionScopeSchema,
-    providerSecretReferenceSchema,
+    kaanaCredentialHandleSchema,
+    kaanaCredentialOperationIdSchema,
+    kaanaCredentialOperationActionSchema,
+    kaanaCredentialIdentitySchema,
+    kaanaCredentialCreateMutationSchema,
+    kaanaCredentialRotateMutationSchema,
+    kaanaCredentialRevokeMutationSchema,
+    kaanaCredentialMutationSchema,
+    kaanaCredentialCreateOutcomeRequestSchema,
+    kaanaCredentialRotateOutcomeRequestSchema,
+    kaanaCredentialRevokeOutcomeRequestSchema,
+    kaanaCredentialOutcomeRequestSchema,
+    kaanaCredentialAppliedOutcomeSchema,
+    kaanaCredentialConflictOutcomeSchema,
+    kaanaCredentialOutcomeSchema,
+    kaanaCredentialValidationTaskSchema,
+    kaanaCredentialValidationOutcomeStateSchema,
+    kaanaCredentialValidationFailureCodeSchema,
+    kaanaCredentialValidationOutcomeSchema,
+    providerCredentialValidationOperationSchema,
+    providerCredentialValidationDeploymentSchema,
+    providerCredentialCustodyStateSchema,
     providerConnectionValidationSchema,
     providerConnectionStatusSchema,
     providerConnectionSchema,
@@ -1003,8 +1037,18 @@ export {
 
 export type {
     ProviderConnectionScope,
+    KaanaCredentialOperationAction,
+    KaanaCredentialIdentity,
+    KaanaCredentialMutation,
+    KaanaCredentialOutcomeRequest,
+    KaanaCredentialOutcome,
+    KaanaCredentialValidationTask,
+    KaanaCredentialValidationOutcome,
+    ProviderCredentialValidationOperation,
+    ProviderCredentialValidationDeployment,
     ProviderConnectionValidation,
     ProviderConnectionStatus,
+    ProviderCredentialCustodyState,
     ProviderConnection,
 } from './inference/providerConnection';
 
@@ -1085,3 +1129,89 @@ export type {
     CostCenterSpend,
     ProductEntitlement,
 } from './inference/entitlement';
+
+export {
+    AUTONOMY_LEVELS,
+    CAPABILITY_PACKAGES,
+    autonomyLevelSchema,
+    capabilityPackageSchema,
+    actorRefSchema,
+    resourceRefSchema,
+    toolGrantOverrideSchema,
+    grantLimitSchema,
+    executionAuthorizationRefSchema,
+    capabilityCoordinatorSchema,
+    delegationGrantSchema,
+    automationTriggerSchema,
+    automationActorSelectionSchema,
+    automationDataFlowSchema,
+    automationDefinitionSchema,
+    capabilityTicketClaimsSchema,
+    policyDecisionSchema,
+    auditResultSchema,
+    auditEventSchema,
+    catalogToolSchema,
+    catalogEventSchema,
+    appCapabilityCatalogSchema,
+    catalogRegistrationSchema,
+    normalizedAppEventSchema,
+} from './agency';
+
+export type {
+    AutonomyLevel,
+    CapabilityPackage,
+    ActorRef,
+    ResourceRef,
+    ToolGrantOverride,
+    GrantLimit,
+    ExecutionAuthorizationRef,
+    CapabilityCoordinator,
+    DelegationGrant,
+    AutomationTrigger,
+    AutomationActorSelection,
+    AutomationDefinition,
+    CapabilityTicketClaims,
+    PolicyDecision,
+    AuditEvent,
+    CatalogTool,
+    CatalogEvent,
+    AppCapabilityCatalog,
+    CatalogRegistration,
+    NormalizedAppEvent,
+} from './agency';
+
+export {
+    emailContextAddressSchema,
+    emailContextMailboxSchema,
+    emailContextMessageSchema,
+    emailAgentContextSchema,
+} from './emailAgentContext';
+
+export type {
+    EmailContextAddress,
+    EmailContextMailbox,
+    EmailContextMessage,
+    EmailAgentContext,
+} from './emailAgentContext';
+
+export {
+    inboxComposeRequestSchema,
+    inboxDailyBriefRequestSchema,
+    inboxNaturalSearchRequestSchema,
+    inboxMessageInferenceParamsSchema,
+    inboxInferenceTextResponseSchema,
+    inboxNaturalSearchResponseSchema,
+    inboxSmartRepliesResponseSchema,
+    inboxThreadSummaryResponseSchema,
+    inboxInferenceStreamEventSchema,
+} from './inference/inbox';
+
+export type {
+    InboxComposeRequest,
+    InboxDailyBriefRequest,
+    InboxInferenceTextResponse,
+    InboxNaturalSearchResponse,
+    InboxSmartRepliesResponse,
+    InboxThreadSummaryResponse,
+    InboxInferenceStreamEvent,
+} from './inference/inbox';

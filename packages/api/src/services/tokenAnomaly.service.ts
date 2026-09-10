@@ -89,7 +89,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { executeRows } from '@oxyhq/db';
+import { executeRows } from '@oxy.so/db';
 import { getDb } from '../config/postgres';
 import { inferenceTokenAnomalies } from '../db/schema/inferenceTokenAnomalies';
 import { logger } from '../utils/logger';

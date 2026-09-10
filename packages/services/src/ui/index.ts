@@ -1,9 +1,9 @@
 /**
- * @oxyhq/services/ui — public subpath
+ * @oxy.so/services/ui — public subpath
  *
  * Tree-shakeable static re-exports of the most common UI surface. Backend
- * environments (SSR) should import `@oxyhq/services/ui/server` instead;
- * client-only callers can use `@oxyhq/services/ui/client` for a slightly
+ * environments (SSR) should import `@oxy.so/services/ui/server` instead;
+ * client-only callers can use `@oxy.so/services/ui/client` for a slightly
  * narrower bundle.
  *
  * Static `export ... from` only — no runtime `require()`, no platform
@@ -25,22 +25,24 @@ export { LogoText } from './components/logo/LogoText';
 export { RequireOxyAuth } from './components/RequireOxyAuth';
 export type { RequireOxyAuthProps, RequireOxyAuthPrompt } from './components/RequireOxyAuth';
 export { default as FollowButton } from './components/FollowButton';
+export { default as PeableButton } from './components/PeableButton';
+export type { PeableButtonProps } from './components/PeableButton';
+/** @deprecated Use `PeableButton` instead. */
 export { default as OxyPayButton } from './components/OxyPayButton';
+/** @deprecated Use `PeableButtonProps` instead. */
+export type { OxyPayButtonProps } from './components/OxyPayButton';
 export { default as ProfileButton } from './components/ProfileButton';
 
 // Context + hooks
 export { useOxy, useOptionalOxy, OxyProviderMissingError } from './context/OxyContext';
 export { useAuth } from './hooks/useAuth';
+export type { AuthActions, AuthState, SignInOutcome, UseAuthReturn } from './hooks/useAuth';
 export { useFollow, useSeedFollowStatuses } from './hooks/useFollow';
 export { useStorage } from './hooks/useStorage';
 export type { UseStorageOptions, UseStorageResult } from './hooks/useStorage';
 
-// Screens
-export { default as ProfileScreen } from './screens/ProfileScreen';
-export { default as ManageAccountScreen } from './screens/ManageAccountScreen';
-export { default as CreateAccountScreen } from './screens/CreateAccountScreen';
-export { default as AccountMembersScreen } from './screens/AccountMembersScreen';
-export { default as AccountSettingsScreen } from './screens/AccountSettingsScreen';
+// Route screens live at `@oxy.so/services/screens`; a static export here defeats
+// the lazy route registry and moves the screens back into the initial chunk.
 
 // Stores
 export { useAuthStore } from './stores/authStore';

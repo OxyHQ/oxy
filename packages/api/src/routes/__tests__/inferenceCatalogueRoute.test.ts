@@ -55,7 +55,7 @@ import { MACHINE_CREDENTIAL_AUTH_VARIABLE } from '../../config/rolloutFlags';
 import { errorHandler } from '../../middleware/errorHandler';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import catalogueRouter from '../inferenceCatalogue';
-import type { ModelCatalogueEntry } from '@oxyhq/contracts';
+import type { ModelCatalogueEntry } from '@oxy.so/contracts';
 
 let server: http.Server;
 
@@ -139,7 +139,7 @@ async function insertRoute(options: {
   const modelSlug = `cmdl${suffix()}`;
   const revision = `cr${suffix()}`;
   const providerSlug = `cprv${suffix()}`;
-  const internalRouteId = `relay-route-${suffix()}`;
+  const internalRouteId = `kaana-route-${suffix()}`;
 
   await db.insert(inferencePublishers).values({ slug: publisherSlug, displayName: 'Cat Pub' });
 
@@ -336,7 +336,7 @@ function signServiceToken(input: {
       scopes: ['inference:invoke'],
     },
     input.secret ?? (process.env.ACCESS_TOKEN_SECRET as string),
-    { expiresIn: '1h' }
+    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' }
   );
 }
 
@@ -711,7 +711,7 @@ describe('GET /models/stats keeps Console’s envelope and invents nothing', () 
       expect(entry).not.toHaveProperty(invented);
     }
     // CONTROL: the object is a real entry, so the absences above are absences.
-    expect(entry.schemaVersion).toBe(1);
+    expect(entry.schemaVersion).toBe(2);
     expect(entry.displayName).toBe('Catalogue Fixture Model');
   });
 });

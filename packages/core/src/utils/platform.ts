@@ -122,7 +122,7 @@ export function setPlatformOS(os: PlatformOS): void {
  *
  * Native defines a global `window` but no `document`, so the DOM probe — not a
  * bare `window` check — is the reliable discriminator. This is the single
- * source of truth consumed by `@oxyhq/services` (which dropped
+ * source of truth consumed by `@oxy.so/services` (which dropped
  * their local copies), so every consumer shares the exact same predicate.
  *
  * NOTE: this is a live runtime probe (not the cached `getPlatformOS()` verdict)

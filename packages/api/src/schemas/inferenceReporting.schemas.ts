@@ -51,7 +51,7 @@ import {
   inferenceRequestOutcomeSchema,
   usageSourceSchema,
   USAGE_UNITS,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   MAX_SPENDING_ALERT_THRESHOLDS,
   SPENDING_ALERT_THRESHOLDS_BPS,

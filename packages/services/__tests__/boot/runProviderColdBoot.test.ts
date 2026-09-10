@@ -33,7 +33,7 @@ const runSessionColdBootMock = jest.fn(
     Promise.resolve({ kind: 'unauthenticated' }),
 );
 const loggerWarn = jest.fn();
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   logger: { warn: (...args: unknown[]) => loggerWarn(...args), debug: jest.fn(), error: jest.fn() },
   runSessionColdBoot: (opts: ColdBootOpts) => runSessionColdBootMock(opts),
 }));

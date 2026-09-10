@@ -34,7 +34,7 @@ import blockCache, { restrictCache } from '../utils/blockCache';
  *
  * The guard is therefore deleted rather than adapted. It was inert only while
  * every id happened to be 24-hex; new rows carry uuid v7 ids
- * (`@oxyhq/db`'s `generatedId()`), which the regex rejects — under the old code every
+ * (`@oxy.so/db`'s `generatedId()`), which the regex rejects — under the old code every
  * post-cutover account would have silently bypassed block and restrict
  * enforcement on media. `__tests__/mediaPrivacyService.test.ts` pins this:
  * reinstate the regex and the blocked-viewer case goes red.

@@ -50,11 +50,11 @@ import {
 import {
   REPUTATION_TARGET_ENTITY_TYPES as CONTRACT_TARGET_ENTITY_TYPES,
   REPUTATION_TRANSACTION_STATUSES as CONTRACT_TRANSACTION_STATUSES,
-} from '@oxyhq/contracts';
-import type { ReputationTargetEntityType, ReputationTransactionStatus } from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
+import type { ReputationTargetEntityType, ReputationTransactionStatus } from '@oxy.so/contracts';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 import { REPUTATION_CATEGORIES } from './reputationRules';
 import { users } from './users';
 

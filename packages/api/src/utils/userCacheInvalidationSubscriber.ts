@@ -1,4 +1,4 @@
-import { OXY_USER_INVALIDATION_CHANNEL, oxyUserInvalidationEventSchema } from '@oxyhq/contracts';
+import { OXY_USER_INVALIDATION_CHANNEL, oxyUserInvalidationEventSchema } from '@oxy.so/contracts';
 import type Redis from 'ioredis';
 
 import { logger } from './logger';

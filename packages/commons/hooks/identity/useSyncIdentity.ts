@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
-import { useOxy, useAuthStore, handleAuthError } from '@oxyhq/services';
-import type { User } from '@oxyhq/core';
+import { useOxy, useAuthStore, handleAuthError } from '@oxy.so/services';
+import type { User } from '@oxy.so/core';
 import { useSilentKeySignIn } from '../useSilentKeySignIn';
 import {
   useIdentityStore,
@@ -30,7 +30,7 @@ export interface UseSyncIdentityResult {
  * This is REGISTRATION sync, not cold-boot session restore: restoring an
  * already-registered identity's session is owned end-to-end by the SDK
  * (`sessionMode="identity"` → the `identity-key-signin` cold-boot step in
- * `@oxyhq/core`, plus its pinned re-mint / 401 / reconnect lanes). What stays
+ * `@oxy.so/core`, plus its pinned re-mint / 401 / reconnect lanes). What stays
  * here is the half the SDK cannot do — publishing a brand-new or offline-created
  * public key to the server (`checkPublicKeyRegistered` → `register`) and then
  * concluding it with a session so the username step has a bearer.

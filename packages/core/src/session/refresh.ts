@@ -20,7 +20,7 @@
  *
  * Framework-free; no module-level mutable state.
  */
-import type { DeviceTokenMintResponse } from '@oxyhq/contracts';
+import type { DeviceSessionState, DeviceTokenMintResponse } from '@oxy.so/contracts';
 import type { OxyServices } from '../OxyServices';
 import type { AuthRefreshHandler, AuthRefreshReason } from '../HttpService';
 import type { AuthStateStore, PersistedAuthState } from './authStateStore';
@@ -105,7 +105,7 @@ export interface RefreshDeps {
  *    divergence that logs users out.
  */
 export type DeviceSecretMintOutcome =
-  | { status: 'ok'; token: string; sessionId: string; userId: string }
+  | { status: 'ok'; token: string; sessionId: string; userId: string; state: DeviceSessionState }
   | { status: 'no-secret' }
   | { status: 'invalid-secret' }
   | { status: 'no-session' }
@@ -202,7 +202,13 @@ export async function refreshDeviceSecretArm(deps: {
       return { status: 'persist-failed' };
     }
     oxy.setTokens(mint.accessToken);
-    return { status: 'ok', token: mint.accessToken, sessionId: next.sessionId, userId: next.userId };
+    return {
+      status: 'ok',
+      token: mint.accessToken,
+      sessionId: next.sessionId,
+      userId: next.userId,
+      state: mint.state,
+    };
   });
 }
 

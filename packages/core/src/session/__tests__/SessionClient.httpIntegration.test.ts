@@ -1,4 +1,4 @@
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 import { OxyServices } from '../../OxyServices';
 import { SessionClient } from '../SessionClient';
 import { createSessionClientHost } from '../sessionClientHost';

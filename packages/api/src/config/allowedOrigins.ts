@@ -9,7 +9,6 @@
  * It is TRUSTED-ONLY and never widens to third-party app origins — that is the
  * exact CSRF / token-leak boundary we close. The trusted set is now sourced
  * from {@link dynamicOriginRegistry}: it is the union of
- *  - {@link BOOTSTRAP_CORE_ORIGINS} (fail-safe first-party seed),
  *  - active first-party / internal / system / official Applications'
  *    `redirectUris` origins (auto-authorized by registering the app in Console),
  *  - validated `OXY_EXTRA_ALLOWED_ORIGINS` (emergency escape hatch),
@@ -19,9 +18,8 @@
  * state-changing requests against prod (owner-approved).
  *
  * Registering a NEW first-party frontend now authorizes its origin
- * automatically via the Application registry — no code edit here. The bootstrap
- * core remains as a fail-safe so the migration can never drop an origin that
- * already works. THIRD-PARTY app origins are handled by `getCorsDecision`
+ * automatically via the Application registry — no code edit here. THIRD-PARTY
+ * app origins are handled by `getCorsDecision`
  * (non-credentialed lane) in the registry — they are intentionally NOT visible
  * to `isAllowedOrigin`.
  */

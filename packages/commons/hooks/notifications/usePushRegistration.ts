@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { useOxy } from '@oxyhq/services';
-import { logger } from '@oxyhq/core';
+import { useOxy } from '@oxy.so/services';
+import { logger } from '@oxy.so/core';
 import { useTranslation } from '@/lib/i18n';
 import { registerVaultPushToken } from '@/lib/notifications/push-registration';
 

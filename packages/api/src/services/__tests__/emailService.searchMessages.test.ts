@@ -309,4 +309,5 @@ describe('searchMessages — structured filters', () => {
     expect(first.data).toHaveLength(2);
     expect(new Set([...first.data, ...second.data].map((m) => m.id)).size).toBe(4);
   });
+
 });

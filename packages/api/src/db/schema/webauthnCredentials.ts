@@ -12,7 +12,7 @@
 
 import { sql } from 'drizzle-orm';
 import { bigint, boolean, check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { bytea, createdAt, generatedId, timestamptz } from '@oxyhq/db';
+import { bytea, createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { users } from './users';
 
 /** Whether the credential is bound to one authenticator or syncs across devices. */

@@ -1,0 +1,49 @@
+# `console.oxy.so` is a Worker, not a Pages project.
+#
+# WHY: a Pages project ALWAYS serves `<project>.pages.dev` and Cloudflare offers
+# no way to switch it off — `wrangler pages project` has only `list`, `create`
+# and `delete`. Alia measured the consequence before migrating: `alia.onl` and
+# `alia-app.pages.dev` served byte-identical deployments, and the second was in
+# no CORS allowlist, so it rendered the shell and failed every call it made.
+# `oxy-console.pages.dev` is the same defect on the application registry, whose
+# only allowlisted origin is `https://console.oxy.so`
+# (`packages/api/src/config/dynamicOriginRegistry.ts`, and the registered
+# `redirectUris` in `packages/api/src/scripts/seedOxyApplicationsSpecs.ts`).
+# `workers_dev = false` leaves `console.oxy.so` as the only name that reaches
+# this deployment.
+#
+# Verified against wrangler 4.130.0, control-verified: a `--dry-run` accepts
+# `workers_dev` and `not_found_handling` without comment, while the same run
+# flags an invented top-level key as "Unexpected fields" and rejects an invented
+# key inside `[[routes]]` outright. Recognised, not ignored.
+name = "oxy-console"
+compatibility_date = "2026-09-09"
+
+workers_dev = false
+
+# Static assets with no `main`: no Worker script runs, every request is served
+# from the uploaded directory.
+#
+# 411 files, 21 MB, largest 9.4 MiB (the Vite entry chunk): inside the
+# 20,000-file and 25 MiB-per-file limits.
+[assets]
+directory = "./dist"
+
+# A REAL single-page app, unlike accounts next door: `vite build` emits ONE
+# `index.html` plus hashed assets — measured, 1 HTML file in `dist` — and
+# TanStack Router does every route on the client. So the fallback is not an edge
+# case here, it is how every URL but `/` is answered.
+#
+# Replaces `public/_redirects` (`/*  /index.html  200`), deleted in this same
+# change because Workers' `_redirects` deliberately does not implement 200
+# rewrites. Behaviour is unchanged, including the wart it already ships: a miss
+# on a stale hashed `.js` is answered with `text/html`.
+not_found_handling = "single-page-application"
+
+# The only way in. Cloudflare writes the record for a custom domain itself,
+# which is why the pre-existing proxied record for this hostname has to be
+# DELETED before the first deploy — a Worker custom domain refuses a hostname
+# that already has externally managed records (`code: 100117`).
+[[routes]]
+pattern = "console.oxy.so"
+custom_domain = true

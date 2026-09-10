@@ -16,7 +16,7 @@ import { OxyServices } from '../../OxyServices';
 import { KeyManager, IdentityAlreadyExistsError } from '../../crypto/keyManager';
 import { RecoveryPhraseService } from '../../crypto/recoveryPhrase';
 import { encryptAead, decryptAead } from '../../crypto/aead';
-import type { EncryptedBackupEnvelope, BackupUploadRequest } from '@oxyhq/contracts';
+import type { EncryptedBackupEnvelope, BackupUploadRequest } from '@oxy.so/contracts';
 
 const FIXED_PHRASE =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';

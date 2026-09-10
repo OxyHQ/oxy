@@ -21,10 +21,10 @@
  */
 
 import { useCallback } from 'react';
-import type { OxyServices } from '@oxyhq/core';
-import { translate, updateAvatarVisibility } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
+import { translate, updateAvatarVisibility } from '@oxy.so/core';
 import type { QueryClient } from '@tanstack/react-query';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { updateProfileWithAvatar } from '../utils/avatarUtils';
 import { openWithinOrPresent } from '../navigation/surfaces';
 import type { AvatarCropResult } from '../screens/AvatarCropScreen';

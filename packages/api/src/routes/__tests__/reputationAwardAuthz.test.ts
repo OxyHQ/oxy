@@ -23,7 +23,7 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
-import { reputationTransactionSchema, safeParseContract } from '@oxyhq/contracts';
+import { reputationTransactionSchema, safeParseContract } from '@oxy.so/contracts';
 
 /** `authUserOrService` verifies the token itself, so the real JWT must be used. */
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));

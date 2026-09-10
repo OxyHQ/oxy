@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, Linking } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxy.so/bloom';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { FAIRCOIN_WALLET_URL } from '@/constants/payments';

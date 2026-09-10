@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useUpdateProfile } from './mutations/useAccountMutations';
 import { useAuthStore } from '../stores/authStore';
-import type { UserProfileUpdate } from '@oxyhq/contracts';
+import type { UserProfileUpdate } from '@oxy.so/contracts';
 
 interface ProfileLocation {
     id: string;

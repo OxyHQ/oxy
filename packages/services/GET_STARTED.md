@@ -1,15 +1,15 @@
-# Getting Started with @oxyhq/services
+# Getting Started with @oxy.so/services
 
 Zero-config authentication for Expo, React Native, and React Native Web apps. Session state syncs automatically across every Oxy app on the same device.
 
-> **Web apps:** Use `@oxyhq/services` too — via `react-native-web`. See the [Platform Guide](./PLATFORM_GUIDE.md).
+> **Web apps:** Use `@oxy.so/services` too — via `react-native-web`. See the [Platform Guide](./PLATFORM_GUIDE.md).
 >
-> **Backend / Node.js:** Use `@oxyhq/core` only. See the [Platform Guide](./PLATFORM_GUIDE.md).
+> **Backend / Node.js:** Use `@oxy.so/core` only. See the [Platform Guide](./PLATFORM_GUIDE.md).
 
 ## Installation
 
 ```bash
-bun add @oxyhq/services @oxyhq/core
+bun add @oxy.so/services @oxy.so/core
 ```
 
 ### Peer Dependencies
@@ -28,7 +28,7 @@ bun add react-native-reanimated react-native-gesture-handler \
 ### 1. Wrap with Provider
 
 ```tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 export default function App() {
   return (
@@ -47,7 +47,7 @@ export default function App() {
 ### 2. Use Authentication
 
 ```tsx
-import { useAuth, OxySignInButton } from '@oxyhq/services';
+import { useAuth, OxySignInButton } from '@oxy.so/services';
 
 function HomeScreen() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
@@ -100,7 +100,7 @@ Third-party integration (Console setup, OAuth endpoints, backend verification) i
 ## useAuth Hook Reference
 
 ```tsx
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 
 const {
   // State
@@ -144,7 +144,7 @@ import 'react-native-url-polyfill/auto';
 ```tsx
 // app/_layout.tsx
 import 'react-native-url-polyfill/auto';
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.oxy.so';
 const OXY_CLIENT_ID = process.env.EXPO_PUBLIC_OXY_CLIENT_ID;
@@ -166,7 +166,7 @@ export default function RootLayout() {
 Auth and account switching live in the account dialog:
 
 ```tsx
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 const { openAccountDialog } = useOxy();
 
@@ -207,21 +207,21 @@ A brand-new browser origin starts logged out until the user signs in there once.
 
 ## Backend (Node.js / Express / Next.js API)
 
-For server-side usage, install `@oxyhq/core` only.
+For server-side usage, install `@oxy.so/core` only.
 
 ### Installation
 
 ```bash
-bun add @oxyhq/core
+bun add @oxy.so/core
 ```
 
 ### Verifying Oxy users (Express)
 
-Use `@oxyhq/core/server` — do not hand-roll bearer parsing or session-validation middleware:
+Use `@oxy.so/core/server` — do not hand-roll bearer parsing or session-validation middleware:
 
 ```typescript
-import { OxyServices } from '@oxyhq/core';
-import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxyhq/core/server';
+import { OxyServices } from '@oxy.so/core';
+import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
 import express from 'express';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
@@ -238,7 +238,7 @@ app.get('/api/me', (req, res) => {
 ### Reading public data
 
 ```typescript
-import { oxyClient } from '@oxyhq/core';
+import { oxyClient } from '@oxy.so/core';
 
 const user = await oxyClient.getUserById('123');
 const profile = await oxyClient.getProfileByUsername('john_doe');
@@ -248,7 +248,7 @@ const profile = await oxyClient.getProfileByUsername('john_doe');
 
 ```typescript
 // app/api/user/[id]/route.ts
-import { oxyClient } from '@oxyhq/core';
+import { oxyClient } from '@oxy.so/core';
 import { NextResponse } from 'next/server';
 
 export async function GET(req, { params }) {
@@ -284,7 +284,7 @@ await oxyClient.listUserFiles();
 await oxyClient.deleteFile(fileId);
 ```
 
-Trust surfaces are exposed as `Trust*` bottom-sheet routes in `@oxyhq/services`.
+Trust surfaces are exposed as `Trust*` bottom-sheet routes in `@oxy.so/services`.
 
 ---
 
@@ -293,7 +293,7 @@ Trust surfaces are exposed as `Trust*` bottom-sheet routes in `@oxyhq/services`.
 For full control, use `useOxy` instead of `useAuth`:
 
 ```tsx
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 const {
   // All useAuth state plus:
@@ -339,7 +339,7 @@ OXY_API_URL=https://api.oxy.so
 
 ### "useAuth/useOxy must be used within OxyProvider"
 
-Wrap your app with `<OxyProvider>` from `@oxyhq/services` (all platforms).
+Wrap your app with `<OxyProvider>` from `@oxy.so/services` (all platforms).
 
 ### Session not restoring on web
 

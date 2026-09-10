@@ -47,7 +47,7 @@
  */
 
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { executeRows } from '@oxyhq/db';
+import { executeRows } from '@oxy.so/db';
 import {
   accountBillingStateSchema,
   autoRechargeAttemptSchema,
@@ -57,7 +57,7 @@ import {
   type BillingMode,
   type BillingProfile,
   type BillingProfileStatus,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { accountBalances } from '../db/schema/accountBalances';
 import {

@@ -42,7 +42,7 @@
 import { index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { appCategories } from './appCategories';
 import { applications } from './applications';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 
 /**
  * Where a listing is in its life.

@@ -8,7 +8,7 @@
  */
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 import {
   clearBackgroundSession,
   isBackgroundSessionSupported,
@@ -61,7 +61,7 @@ export function useBackgroundSessionSync({
     let current = true;
     // Deliberately NOT caught. `syncBackgroundSession` already handles every
     // runtime failure internally and throws for exactly one thing: an installed
-    // `@oxyhq/core` too old to provision. That is a dependency mistake which must
+    // `@oxy.so/core` too old to provision. That is a dependency mistake which must
     // surface, so it is allowed to reject — adding a `.catch()` here would put it
     // back behind the silence it was moved out of.
     const run = () => {

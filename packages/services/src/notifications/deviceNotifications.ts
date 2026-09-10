@@ -1,17 +1,17 @@
 /**
- * The ONE place `@oxyhq/services` touches `expo-notifications`.
+ * The ONE place `@oxy.so/services` touches `expo-notifications`.
  *
  * Every Oxy app that receives push needs the identical adapter — native-only,
  * dynamically imported, reading the OS permission and minting an EXPO push
  * token — so it lives here instead of being copied into each app. The
  * bearer-authenticated transport (`registerPushToken` / `unregisterPushToken`)
- * already lives in `@oxyhq/core`; core may never import an `expo-*` module, and
+ * already lives in `@oxy.so/core`; core may never import an `expo-*` module, and
  * this adapter is the Expo-side half that closes that gap.
  *
  * ## Reached through its OWN entry point, never the root barrel
  *
  * ```ts
- * import { getExpoPushToken } from '@oxyhq/services/notifications';
+ * import { getExpoPushToken } from '@oxy.so/services/notifications';
  * ```
  *
  * This is the only module in the package that depends on peers an app which
@@ -43,7 +43,7 @@
  * form it accepts. `getDevicePushTokenAsync()` — the raw APNs/FCM token — is
  * deliberately NOT used anywhere: registering one of those looks entirely
  * successful (the row is stored, the endpoint returns 200) and then every push
- * silently fails at delivery time. `@oxyhq/core`'s `registerPushToken` rejects a
+ * silently fails at delivery time. `@oxy.so/core`'s `registerPushToken` rejects a
  * raw device token before sending, and this module is the reason it never has to.
  *
  * ## The payload is untrusted
@@ -55,8 +55,8 @@
  * foreground handler likewise answers with a visibility verdict and nothing else.
  */
 
-import { createLogger } from '@oxyhq/core';
-import type { PushTokenPlatform } from '@oxyhq/core';
+import { createLogger } from '@oxy.so/core';
+import type { PushTokenPlatform } from '@oxy.so/core';
 import { Platform } from 'react-native';
 
 const log = createLogger('deviceNotifications');
@@ -325,7 +325,7 @@ export interface NotificationChannelSpec {
    * The channel id. It MUST match the id the sender attaches: Android 8+ drops
    * a notification whose channel the app has not created, silently and with no
    * error on either side, which is the hardest push symptom there is to
-   * diagnose. Ids that cross the wire belong in `@oxyhq/contracts`, not in a
+   * diagnose. Ids that cross the wire belong in `@oxy.so/contracts`, not in a
    * string typed on both sides.
    */
   id: string;

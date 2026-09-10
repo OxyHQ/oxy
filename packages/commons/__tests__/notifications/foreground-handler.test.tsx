@@ -8,7 +8,7 @@ import {
   __hasNotificationResponseListener,
   __resetNotificationAdapter,
   installForegroundNotificationHandler,
-} from '@/__mocks__/oxyhq-services';
+} from '@/__mocks__/oxy-services';
 import { COMMONS_AUTH_REQUEST_PUSH_TYPE } from '@/lib/notifications/auth-request-push';
 import { useForegroundNotificationHandler } from '@/hooks/notifications/useForegroundNotificationHandler';
 import { useAuthRequestNotifications } from '@/hooks/notifications/useAuthRequestNotifications';
@@ -29,7 +29,7 @@ function pushPayload(approvalUrl: string): Record<string, unknown> {
  * phone. These tests pin the rule that fixes it, AND pin that fixing it did not
  * hand the notification any new powers.
  *
- * The install itself belongs to the shared `@oxyhq/services` adapter (which owns
+ * The install itself belongs to the shared `@oxy.so/services` adapter (which owns
  * the one-shot latch, the native-only guard, and the banner/list/sound/badge
  * shape, all tested in that package). What Commons owns — and what is asserted
  * here — is the POLICY it hands that adapter: which payload earns a banner.

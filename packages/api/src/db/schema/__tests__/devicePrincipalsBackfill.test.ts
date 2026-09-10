@@ -30,7 +30,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres, { type Sql } from 'postgres';
-import { DATABASE_CASING } from '@oxyhq/db';
+import { DATABASE_CASING } from '@oxy.so/db';
 import * as schema from '../index';
 import { createTestDatabase, dropTestDatabase } from '../../testDatabase';
 import { deviceSessionAccounts } from '../deviceSessionAccounts';

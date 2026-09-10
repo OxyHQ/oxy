@@ -1,8 +1,8 @@
 # Session Architecture
 
 > Device-first session model for the Oxy ecosystem. The server is the single session
-> authority (`DeviceSession`); clients mirror it through `SessionClient` in `@oxyhq/core`
-> and receive real-time pushes over Socket.IO. There is **one** UI SDK: `@oxyhq/services`
+> authority (`DeviceSession`); clients mirror it through `SessionClient` in `@oxy.so/core`
+> and receive real-time pushes over Socket.IO. There is **one** UI SDK: `@oxy.so/services`
 > (`OxyProvider`) — the former web-only SDK package was deleted from the monorepo.
 >
 > Related docs: [device-session API reference](./auth/device-session.md) ·
@@ -56,7 +56,7 @@ from the request body.
 | POST | `/session/device/switch` | `{ accountId }` | Sets `activeAccountId`, bumps `revision`, broadcasts. If the target session was revoked, heals the device set (drops the dead account), broadcasts the healed state, and returns 403. |
 | POST | `/session/device/signout` | `{ accountId }` or `{ all: true }` | Removes one account or clears the device set; picks the next active account; broadcasts. `{ all: true }` also clears the device's `secretHash`. |
 
-Every response is validated against `deviceSessionSyncSchema` from `@oxyhq/contracts`:
+Every response is validated against `deviceSessionSyncSchema` from `@oxy.so/contracts`:
 
 ```
 { data: { state: DeviceSessionState, activeToken: { accessToken, expiresAt } | null } }
@@ -121,17 +121,23 @@ relying-party origin, no cookie.
    - **Hub-ticket sync** (`POST /session/device/hub-ticket` +
      `/session/device/redeem-ticket` → a one-time redirect to `auth.oxy.so/sync`) —
      gone, including the server routes, service, model, rate limiters, and the
-     `@oxyhq/contracts` ticket schemas.
+     `@oxy.so/contracts` ticket schemas.
 
    Do not reintroduce either. The accepted trade is explicit: a signed-out first visit
    on a new origin, in exchange for a tab that never leaves the relying party's route
    without the user asking.
 
+   Both hops are FULL-PAGE, non-gesture navigations, so both are gated on
+   `webAuthMode: 'redirect'` (`OxyProvider` prop, default; issue #691 Phases 2/7a) —
+   `webAuthMode: 'popup'` disables both (`allowsAutomaticIdpRedirect`), trading
+   cross-domain silent sync for a tab that never leaves the relying party's route. See
+   "Cold boot" below.
+
 ## Cold boot
 
 `runSessionColdBoot` (`packages/core/src/boot/sessionColdBoot.ts`, exported from
-`@oxyhq/core`) is a pure ordered short-circuit: the first step that yields a session
-wins. `@oxyhq/services`' `runProviderColdBoot` (`packages/services/src/ui/boot/`) wraps
+`@oxy.so/core`) is a pure ordered short-circuit: the first step that yields a session
+wins. `@oxy.so/services`' `runProviderColdBoot` (`packages/services/src/ui/boot/`) wraps
 it with the web-only OAuth-return lane described below. It is invoked by `OxyProvider`
 on mount — apps never implement restore themselves, and the boot never navigates the
 top-level window.
@@ -186,7 +192,7 @@ PRIMARY identity key owns the session PERMANENTLY, independent of the device's m
    refresh scheduler and the reactive 401 lane own retries).
 
 If nothing yields a session, `runSessionColdBoot` resolves signed out — silently, with no
-navigation and no dialog. One more lane runs around it, in `@oxyhq/services`, for WEB
+navigation and no dialog. One more lane runs around it, in `@oxy.so/services`, for WEB
 apps in `'account'` mode only (it is inert in `sessionMode: 'identity'`, which would
 otherwise commit whichever account the IdP resolves rather than the local key's owner):
 
@@ -231,10 +237,10 @@ flowchart TD
   Gesture --> In
 ```
 
-## `SessionClient` (`@oxyhq/core`)
+## `SessionClient` (`@oxy.so/core`)
 
 `packages/core/src/session/` — a framework-agnostic client mirror of the server state.
-Exported from `@oxyhq/core` as `SessionClient`, plus the wiring helpers
+Exported from `@oxy.so/core` as `SessionClient`, plus the wiring helpers
 `createSessionClient` and `createSessionClientHost`. `OxyProvider` constructs it; apps
 consume it only through hooks.
 
@@ -329,7 +335,7 @@ membership. See [device-session.md](./auth/device-session.md) for the full API d
 
 ## SDK surface
 
-`@oxyhq/services` is the single UI SDK for Expo, React Native, and React Native Web. Auth state is implemented in a split context layer under `packages/services/src/ui/context/`:
+`@oxy.so/services` is the single UI SDK for Expo, React Native, and React Native Web. Auth state is implemented in a split context layer under `packages/services/src/ui/context/`:
 
 | Module | Role |
 |--------|------|
@@ -341,7 +347,7 @@ membership. See [device-session.md](./auth/device-session.md) for the full API d
 | `navigation/accountDialogManager.ts` | Imperative `openAccountDialog('signin')` |
 
 ```tsx
-import { OxyProvider, useAuth, OxySignInButton } from '@oxyhq/services';
+import { OxyProvider, useAuth, OxySignInButton } from '@oxy.so/services';
 
 export function App() {
   return (
@@ -371,7 +377,7 @@ function Home() {
 - **`OxySignInButton`** resolves the registered Application via
   `GET /auth/oauth/client/:clientId`: official apps open the dialog in-app;
   `third_party` apps sign in via OAuth + PKCE (`generatePkcePair`, `generateOAuthState`,
-  `buildOAuthAuthorizeUrl` from `@oxyhq/core`). On web the transport is `OxyProvider`
+  `buildOAuthAuthorizeUrl` from `@oxy.so/core`). On web the transport is `OxyProvider`
   prop `webAuthMode: 'popup' | 'redirect'` (default `'popup'`; issue #691 Phases 2/7b) —
   `'popup'` opens a small `auth.oxy.so` window and relays the result via `postMessage`
   instead of navigating the relying party's tab, falling back to a full-page redirect if
@@ -379,7 +385,7 @@ function Home() {
   the hop only ever starts from a real user gesture. See the
   [integration guide](./auth/integration-guide.md).
 - **`OxyConsentScreen`** — the IdP's OAuth consent surface, exported from
-  `@oxyhq/services` and mounted by auth.oxy.so.
+  `@oxy.so/services` and mounted by auth.oxy.so.
 
 ### IdP exception
 
@@ -409,7 +415,7 @@ navigations to the IdP: the cold-boot **`prompt=none` silent restore**
 value on `buildOAuthAuthorizeUrl`) and the post-sign-in **hub-ticket sync**
 (`hubSync.ts`, the `auth.oxy.so/sync` page, `POST /session/device/hub-ticket` +
 `/session/device/redeem-ticket`, the `DeviceHubTicket` model, and the ticket schemas in
-`@oxyhq/contracts`). `webAuthMode` now defaults to `'popup'` and only picks the transport
+`@oxy.so/contracts`). `webAuthMode` now defaults to `'popup'` and only picks the transport
 for a sign-in the user actually asked for.
 
 Cold boot is the device-secret chain above plus the `?code=` return leg — nothing else.

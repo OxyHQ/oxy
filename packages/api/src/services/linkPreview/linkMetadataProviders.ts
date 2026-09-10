@@ -1,5 +1,5 @@
 import type { URL } from 'url';
-import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxyhq/core/server';
+import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { LINK_PREVIEW_TIMEOUT_MS } from './constants';
 import { readBoundedBody } from './boundedBody';

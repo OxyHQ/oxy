@@ -24,6 +24,7 @@ import {
   resolveCatalogueViewer,
   type CatalogueApplicationPrincipal,
 } from '../../services/inferenceCatalogue.service';
+import { catalogApplicationCapability } from '../../utils/applicationCapabilities';
 import {
   APPLICATION_SCOPES,
   isPrivilegedScope,
@@ -34,8 +35,13 @@ import { INTERNAL_COST_CENTERS } from '../internalCostCenterSpecs';
 import { computeSeedApplicationPlan } from '../seedOxyApplicationsPlan';
 import {
   ALIA_APPLICATION_SCOPES,
+  ALIA_APPLICATION_ID,
   ALIA_OWNER_ACCOUNT_USERNAME,
+  HOMIIO_APPLICATION_ID,
+  INBOX_APPLICATION_ID,
+  KAANA_APPLICATION_ID,
   SEED_APPS,
+  seedApplicationLookupIdentity,
   type SeedAppSpec,
 } from '../seedOxyApplicationsSpecs';
 
@@ -71,7 +77,76 @@ function seededPrincipal(spec: SeedAppSpec): CatalogueApplicationPrincipal {
 }
 
 describe('the canonical official-application registry', () => {
+  describe('Kaana has one exact machine identity', () => {
+    it('pins the opaque id, origin, narrow scope and validator capability', () => {
+      const kaana = specNamed('Kaana');
+      expect(kaana).toMatchObject({
+        id: KAANA_APPLICATION_ID,
+        websiteUrl: 'https://kaana.ai',
+        type: 'internal',
+        redirectUris: [],
+        scopes: ['inference:byok:validate'],
+        capabilities: ['kaana:provider-credential-validation'],
+      });
+      expect(KAANA_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    });
+
+    it('does not infer Kaana from display-name order', () => {
+      const matches = SEED_APPS.filter((spec) => spec.id === KAANA_APPLICATION_ID);
+      expect(matches).toHaveLength(1);
+      expect(matches[0]?.name).toBe('Kaana');
+    });
+  });
+
+  describe('Homiio is reconciled by its deployed opaque identity', () => {
+    it('pins the exact id and the narrow scopes its service credential needs', () => {
+      expect(specNamed('Homiio')).toMatchObject({
+        id: HOMIIO_APPLICATION_ID,
+        scopes: [
+          'user:read',
+          'reputation:write',
+          'inference:invoke',
+          'acting-as:offline',
+        ],
+      });
+      expect(HOMIIO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    });
+
+    it('drives the production seed lookup by id, never by the Homiio display name', () => {
+      const homiio = specNamed('Homiio');
+      expect(seedApplicationLookupIdentity(homiio, PLATFORM_OWNER_ID)).toEqual({
+        kind: 'id',
+        id: HOMIIO_APPLICATION_ID,
+      });
+      expect(SEED_APPS.filter((spec) => spec.id === HOMIIO_APPLICATION_ID)).toEqual([homiio]);
+    });
+
+    it('pins only the exact web and PKCE-bound native consent redirects', () => {
+      const redirectUris = specNamed('Homiio').redirectUris;
+      expect(redirectUris).toEqual([
+        'https://homiio.com',
+        'homiio://oauth/consent',
+      ]);
+      expect(redirectUris.every((uri) => uri === uri.trim())).toBe(true);
+      expect(redirectUris.some((uri) => /\s|\*/.test(uri))).toBe(false);
+      expect(redirectUris.map((uri) => new URL(uri).protocol)).toEqual([
+        'https:',
+        'homiio:',
+      ]);
+    });
+  });
+
   describe('Alia sees the internal catalogue audience', () => {
+    it('pins the exact active production application primary key', () => {
+      const alia = specNamed('Alia');
+      expect(alia.id).toBe(ALIA_APPLICATION_ID);
+      expect(ALIA_APPLICATION_ID).toBe('6a2f851751b784a86fd0e934');
+      expect(seedApplicationLookupIdentity(alia, PLATFORM_OWNER_ID)).toEqual({
+        kind: 'id',
+        id: ALIA_APPLICATION_ID,
+      });
+    });
+
     it('is registered as an application the catalogue treats as internal', () => {
       const viewer = resolveCatalogueViewer(seededPrincipal(specNamed('Alia')));
       expect(viewer.scopes).toContain('internal_alia');
@@ -105,12 +180,23 @@ describe('the canonical official-application registry', () => {
     });
   });
 
-  describe('Alia holds exactly the inference scopes it needs', () => {
+  describe('Alia holds exactly the inference and delegation scopes it needs', () => {
     const WITHHELD: readonly string[] = [
       'inference:routing:write',
       'inference:providers:write',
       'inference:providers:read',
     ];
+
+    /**
+     * The two staff-gated scopes Alia is authorised to hold, and the ONLY two.
+     *
+     * Named as a constant because three assertions below need the same list and
+     * they ask different questions of it — that both are granted, that no THIRD
+     * privileged scope has joined them, and that neither name is a typo. A
+     * misspelling would be absent from `PRIVILEGED_APPLICATION_SCOPES`, absent
+     * from the grant, and would read exactly like a deliberate decision.
+     */
+    const DELEGATION_SCOPES: readonly string[] = ['acting-as:offline', 'accounts:act-as-session'];
 
     it('declares the argued set and nothing else', () => {
       expect(specNamed('Alia').scopes).toEqual([...ALIA_APPLICATION_SCOPES]);
@@ -135,9 +221,38 @@ describe('the canonical official-application registry', () => {
       expect(ALIA_APPLICATION_SCOPES).toContain('inference:usage:read');
     });
 
-    it('holds no staff-gated scope of any family', () => {
+    it('carries both delegation scopes the service lane is built on', () => {
+      // `acting-as:offline` is what `GET /internal/service-acting-as/verify`
+      // reads before it will answer `authorized: true`, and
+      // `accounts:act-as-session` is what `POST /internal/accounts/:id/service-switch`
+      // requires before it will mint a session for a managed account. Without
+      // either, the corresponding capability is UNREACHABLE rather than merely
+      // unauthorized — which is a silent absence, not an error.
+      expect(ALIA_APPLICATION_SCOPES).toEqual(expect.arrayContaining([...DELEGATION_SCOPES]));
+    });
+
+    it('holds exactly those two staff-gated scopes and no others', () => {
+      // This REPLACES "holds no staff-gated scope of any family", which was a
+      // real gate rather than a formality: the seed is the one path where a
+      // staff-only scope reaches an application without a person reviewing a
+      // request for it. What changed is the DECISION — Alia is now argued to
+      // need two of them — not whether anything is enforced. So the replacement
+      // has to bite in the same place, and it does in both directions: a THIRD
+      // privileged scope added here lengthens the array and fails, and either
+      // named one going missing shortens it and fails.
       const privileged = ALIA_APPLICATION_SCOPES.filter((scope) => isPrivilegedScope(scope));
-      expect(privileged).toEqual([]);
+      expect(privileged).toEqual([...DELEGATION_SCOPES]);
+    });
+
+    it('both delegation names are REAL privileged scopes, so pinning them means something', () => {
+      // Vacuity floor for the two assertions above, in their own currency: if
+      // `accounts:act-as-session` were misspelled it would be a non-scope, the
+      // privileged filter would return only one entry, and the pin would fail —
+      // but it would fail looking like a policy regression rather than a typo.
+      for (const scope of DELEGATION_SCOPES) {
+        expect(isValidApplicationScope(scope)).toBe(true);
+        expect(isPrivilegedScope(scope)).toBe(true);
+      }
     });
 
     it.each(WITHHELD)('withholds %s', (scope) => {
@@ -152,11 +267,35 @@ describe('the canonical official-application registry', () => {
       }
     });
 
-    it('grants nothing outside the inference family except the `user:read` baseline', () => {
-      const outsiders = ALIA_APPLICATION_SCOPES.filter(
-        (scope) => scope !== 'user:read' && !scope.startsWith('inference:')
+    /**
+     * The one filter both assertions below run, so the negative claim and its
+     * positive control cannot drift apart. A control that re-implements the
+     * predicate it is controlling measures the re-implementation.
+     */
+    const outsidersOf = (scopes: readonly string[]): string[] =>
+      scopes.filter(
+        (scope) =>
+          scope !== 'user:read' &&
+          !scope.startsWith('inference:') &&
+          !DELEGATION_SCOPES.includes(scope)
       );
-      expect(outsiders).toEqual([]);
+
+    it('grants nothing outside inference, `user:read` and the two delegation scopes', () => {
+      // This REPLACES "grants nothing outside the inference family except the
+      // `user:read` baseline". The exemption list grew by exactly the two scopes
+      // argued for above and by nothing else, which is the point: the sentence
+      // this test enforces is still "and nothing else".
+      expect(outsidersOf(ALIA_APPLICATION_SCOPES)).toEqual([]);
+    });
+
+    it('that scan can see an outsider at all', () => {
+      // Positive control the original assertion never had. An empty result and a
+      // filter that matches nothing are the same observation, and the exemption
+      // list just got longer — which is precisely when a widened predicate stops
+      // catching what it was written for.
+      expect(outsidersOf([...ALIA_APPLICATION_SCOPES, 'federation:write'])).toEqual([
+        'federation:write',
+      ]);
     });
   });
 
@@ -182,6 +321,80 @@ describe('the canonical official-application registry', () => {
         (spec.scopes ?? []).includes('federation:write')
       );
       expect(holders.map((spec) => spec.name)).toEqual(['Mention']);
+    });
+  });
+
+  describe('Noted owns only its catalog service authority', () => {
+    const NOTED_SERVICE_SCOPES = [
+      'user:read',
+      'catalogs:write',
+      'capabilities:read',
+      'capability-audit:write',
+      'capability-events:publish',
+    ];
+
+    it('declares the scopes used by catalog registration, introspection, audit and events', () => {
+      expect(specNamed('Noted').scopes).toEqual(NOTED_SERVICE_SCOPES);
+    });
+
+    it('is bound to the Noted catalog namespace and no other platform capability', () => {
+      expect(specNamed('Noted').capabilities).toEqual([
+        catalogApplicationCapability('noted'),
+      ]);
+    });
+
+    it('refuses malformed catalog namespace identifiers', () => {
+      expect(() => catalogApplicationCapability('Noted')).toThrow('Catalog app id');
+      expect(() => catalogApplicationCapability('')).toThrow('Catalog app id');
+    });
+  });
+
+  describe('Oxy Inbox owns its catalog and authenticated app events', () => {
+    it('has only the scopes its deployed backend uses', () => {
+      expect(specNamed('Oxy Inbox').scopes).toEqual([
+        'user:read',
+        'inference:invoke',
+        'catalogs:write',
+        'capability-events:publish',
+      ]);
+    });
+
+    it('pins the measured production application id', () => {
+      expect(specNamed('Oxy Inbox').id).toBe(INBOX_APPLICATION_ID);
+      expect(INBOX_APPLICATION_ID).toBe('6a37b3e61ddfd195b656819b');
+    });
+
+    it('cannot register a catalog outside the Inbox namespace', () => {
+      expect(specNamed('Oxy Inbox').capabilities).toEqual([
+        catalogApplicationCapability('inbox'),
+      ]);
+    });
+  });
+
+  describe('Mention owns its canonical catalog namespace', () => {
+    it('can register the Mention catalog without receiving another app namespace', () => {
+      expect(specNamed('Mention').scopes).toContain('catalogs:write');
+      expect(specNamed('Mention').capabilities).toEqual([
+        catalogApplicationCapability('mention'),
+      ]);
+    });
+  });
+
+  describe('Mercaria owns only its catalog execution authority', () => {
+    it('declares the scopes used by catalog registration, ticket introspection and audit', () => {
+      expect(specNamed('Mercaria').scopes).toEqual([
+        'user:read',
+        'catalogs:write',
+        'capabilities:read',
+        'capability-audit:write',
+      ]);
+    });
+
+    it('is bound to the Mercaria catalog namespace without coordinator authority', () => {
+      expect(specNamed('Mercaria').capabilities).toEqual([
+        catalogApplicationCapability('mercaria'),
+      ]);
+      expect(specNamed('Mercaria').scopes).not.toContain('capability-tickets:issue');
     });
   });
 

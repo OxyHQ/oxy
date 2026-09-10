@@ -36,8 +36,8 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
 const mockSafeFetch = jest.fn();
-jest.mock('@oxyhq/core/server', () => ({
-  ...jest.requireActual('@oxyhq/core/server'),
+jest.mock('@oxy.so/core/server', () => ({
+  ...jest.requireActual('@oxy.so/core/server'),
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
 }));
 

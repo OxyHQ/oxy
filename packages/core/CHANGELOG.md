@@ -1,6 +1,20 @@
-# Changelog — `@oxyhq/core`
+# Changelog — `@oxy.so/core`
 
-## Unreleased
+## 23.2.0
+
+### Added
+
+- `OxyResponsesRequest.routingProfileId` lets trusted product integrations name
+  an exact opaque Oxy routing-profile primary key. The client serializes the ID
+  byte-for-byte; Oxy resolves it before constructing the stable Kaana envelope.
+  Existing `model` and public `routingProfile` slug selectors remain compatible.
+
+## 23.0.1
+
+### Added
+
+- Ed25519 capability-ticket issue and verification helpers with key ids,
+  strict audience/resource binding and per-action limit enforcement.
 
 ### Security: `oxy.auth()` authenticated forged tokens as any account
 
@@ -76,7 +90,7 @@ resolving to an identity was relying on the vulnerability.
 ### Licence: AGPL-3.0-only becomes Apache-2.0
 
 **Breaking for anyone who tracks the licence, and for nobody else.**
-`@oxyhq/core` is now Apache-2.0. The code, the API surface and the behaviour are
+`@oxy.so/core` is now Apache-2.0. The code, the API surface and the behaviour are
 unchanged in this release. It exists to carry the licence change.
 
 This is a widening. Every right the AGPL granted you, Apache-2.0 grants too,
@@ -101,20 +115,20 @@ exactly what happened at `12.5.4`, and it is not happening again.
 
 ### Fixes `17.0.0`, which could not be imported at all
 
-`17.0.0` shipped `@oxyhq/core/server/userInvalidation`, which imports
+`17.0.0` shipped `@oxy.so/core/server/userInvalidation`, which imports
 `OXY_USER_INVALIDATION_CHANNEL`, `isPublishedOxyUserChangeReason` and
-`oxyUserInvalidationEventSchema` from `@oxyhq/contracts` — but it pinned
-`@oxyhq/contracts@^0.20.0`, and `0.20.0` exports none of them. A clean install of
-`17.0.0` therefore failed on any import of `@oxyhq/core/server`:
+`oxyUserInvalidationEventSchema` from `@oxy.so/contracts` — but it pinned
+`@oxy.so/contracts@^0.20.0`, and `0.20.0` exports none of them. A clean install of
+`17.0.0` therefore failed on any import of `@oxy.so/core/server`:
 
 ```
-The requested module '@oxyhq/contracts' does not provide an export named
+The requested module '@oxy.so/contracts' does not provide an export named
 'OXY_USER_INVALIDATION_CHANNEL'
 ```
 
 That subpath carries `createOxyAuthMiddleware`, `safeFetch`, `createOxyCors` and
 `verifySecret`, so a backend on `17.0.0` did not boot. `17.0.2` pins
-`@oxyhq/contracts@^0.21.0`, which is the version that actually exports the symbols.
+`@oxy.so/contracts@^0.21.0`, which is the version that actually exports the symbols.
 `17.0.0` is deprecated; no consumer had bumped to it. (`17.0.1` was versioned on
 `main` but never published, so `17.0.2` is the first release carrying its changes.)
 
@@ -123,19 +137,19 @@ unmodified — this release exists solely to correct the dependency range.
 
 ## 17.0.1
 
-### `@oxyhq/core/server` — cross-service identity cache eviction
+### `@oxy.so/core/server` — cross-service identity cache eviction
 
 `evictOxyIdentityCache` now sweeps the same session-bound and `/users/me` prefixes
 the user mixin clears after a local profile write, plus `GET:/auth/lookup/` (login-flow
 lookup cache). Without these, a cross-service invalidation left stale identity in
 session-scoped caches for up to five minutes.
 
-New exports from `@oxyhq/core/server` (shipped in `17.0.0`, documented here):
+New exports from `@oxy.so/core/server` (shipped in `17.0.0`, documented here):
 `publishOxyUserInvalidation`, `createOxyUserInvalidationHandler`, `evictOxyIdentityCache`.
 
 ## 17.0.0
 
-Shipped the invalidation publish/consume helpers on `@oxyhq/core/server` for Oxy backends
+Shipped the invalidation publish/consume helpers on `@oxy.so/core/server` for Oxy backends
 that cache identity via `OxyServices`. See `packages/core/src/server/userInvalidation.ts`.
 
 ## 16.1.0
@@ -167,10 +181,10 @@ root v8 devDependency and fail `tsc`.
 
 ## 15.0.0
 
-### BREAKING — the reputation types moved to `@oxyhq/contracts`
+### BREAKING — the reputation types moved to `@oxy.so/contracts`
 
-`@oxyhq/core` no longer exports **any** reputation type, nor
-`isFullReputationBalance`. The whole family now lives in `@oxyhq/contracts`
+`@oxy.so/core` no longer exports **any** reputation type, nor
+`isFullReputationBalance`. The whole family now lives in `@oxy.so/contracts`
 (`>= 0.20.0`), which the API's serializers are annotated and validated against —
 so a server-side change to the wire shape fails the build instead of silently
 diverging from the SDK type, which is what produced the view-split bug below.
@@ -179,10 +193,10 @@ diverging from the SDK type, which is what produced the view-split bug below.
 meanings are unchanged.
 
 ```diff
--import type { ReputationBalance, TrustTier } from '@oxyhq/core';
--import { isFullReputationBalance } from '@oxyhq/core';
-+import type { ReputationBalance, TrustTier } from '@oxyhq/contracts';
-+import { isFullReputationBalance } from '@oxyhq/contracts';
+-import type { ReputationBalance, TrustTier } from '@oxy.so/core';
+-import { isFullReputationBalance } from '@oxy.so/core';
++import type { ReputationBalance, TrustTier } from '@oxy.so/contracts';
++import { isFullReputationBalance } from '@oxy.so/contracts';
 ```
 
 Affected: `ReputationCategory`, `TrustTier`, `ReputationTransactionStatus`,
@@ -235,7 +249,7 @@ below for what actually changed — everything there applies here.
 
 ## 13.2.0 — DEPRECATED (shipped a breaking change under a MINOR)
 
-> **Read this if you consume `@oxyhq/core` directly.** 13.2.0 contains a
+> **Read this if you consume `@oxy.so/core` directly.** 13.2.0 contains a
 > **runtime-breaking change to a publicly exported function** and was published
 > as a MINOR, so a `^13.0.0` range could pick it up silently. It has since been
 > deprecated, and npm now resolves `^13.0.0` to `13.0.0` rather than `13.2.0`;

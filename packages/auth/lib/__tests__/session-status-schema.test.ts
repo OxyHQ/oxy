@@ -15,13 +15,13 @@
  * authorize page to its unresolved-application error path, so the schema must
  * mirror the API's real `/auth/session/status` shape exactly.
  *
- * The schema + parse helper now come from `@oxyhq/contracts` (the single source
+ * The schema + parse helper now come from `@oxy.so/contracts` (the single source
  * of truth shared with the API producer). Importing them through `@/lib/schemas`
  * — which re-exports the contracts versions — also proves the auth app is wired
  * onto the canonical contract, not a local copy that could drift again.
  */
 import { describe, expect, test } from "bun:test"
-import { sessionStatusSchema as contractsSessionStatusSchema } from "@oxyhq/contracts"
+import { sessionStatusSchema as contractsSessionStatusSchema } from "@oxy.so/contracts"
 import { sessionStatusSchema, safeParse } from "@/lib/schemas"
 
 describe("sessionStatusSchema", () => {
@@ -178,10 +178,10 @@ describe("sessionStatusSchema", () => {
         expect(safeParse(sessionStatusSchema, payload)).toBeNull()
     })
 
-    test("the @/lib/schemas re-export IS the @oxyhq/contracts schema (no local copy)", () => {
+    test("the @/lib/schemas re-export IS the @oxy.so/contracts schema (no local copy)", () => {
         // Identity check: if a local copy ever crept back in, this fails — the
         // whole point of centralizing the session-status contract is ONE schema
-        // owned by @oxyhq/contracts and consumed (not redefined) by the auth app.
+        // owned by @oxy.so/contracts and consumed (not redefined) by the auth app.
         expect(sessionStatusSchema).toBe(contractsSessionStatusSchema)
     })
 })

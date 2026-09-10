@@ -1,6 +1,6 @@
 import { View, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { OxySignInButton } from '@oxyhq/services';
+import { OxySignInButton } from '@oxy.so/services';
 import { useTranslation } from '@/lib/i18n';
 
 export default function SignInScreen() {

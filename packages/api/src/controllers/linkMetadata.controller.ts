@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { normalizeInlineText } from '@oxyhq/core';
+import { normalizeInlineText } from '@oxy.so/core';
 import { logger } from '../utils/logger';
 import { linkPreviewService } from '../services/linkPreview/linkPreviewService';
 

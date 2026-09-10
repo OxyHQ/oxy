@@ -31,9 +31,9 @@
  */
 
 import { and, eq, gte, lte, sql, type SQL } from 'drizzle-orm';
-import { sqlColumnName } from '@oxyhq/db';
-import type { InferenceRequestOutcome, UsageSource, UsageUnit } from '@oxyhq/contracts';
-import type { InferenceEnvironment } from '@oxyhq/contracts';
+import { sqlColumnName } from '@oxy.so/db';
+import type { InferenceRequestOutcome, UsageSource, UsageUnit } from '@oxy.so/contracts';
+import type { InferenceEnvironment } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { inferenceUsageDailyRollups } from '../db/schema/inferenceUsageDailyRollups';
 import {

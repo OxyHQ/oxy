@@ -6,7 +6,7 @@ order: 0
 
 # Accounts (MyAccount)
 
-The Oxy MyAccount app is the canonical surface for managing an existing account: devices, sessions, privacy, language, payment methods, connected apps, and security activity. Built on Expo Router + `@oxyhq/services`, it ships as a native iOS/Android app and a web build, all from the same source.
+The Oxy MyAccount app is the canonical surface for managing an existing account: devices, sessions, privacy, language, payment methods, connected apps, and security activity. Built on Expo Router + `@oxy.so/services`, it ships as a native iOS/Android app and a web build, all from the same source.
 
 **Keyless by design**: identity creation, key management, and recovery phrases live in Commons by Oxy (`packages/commons`). `accounts.oxy.so` is the sole owner of account management in the ecosystem — the IdP (`auth.oxy.so`) permanently redirects its former settings pages here.
 
@@ -70,4 +70,4 @@ Jest tests live in `packages/accounts` and run with the package's own `bun run t
 
 ## API surface
 
-There is no public JS API for the app — it's a deployed product. For programmatic equivalents, integrate via [`@oxyhq/core`](/developers/docs/core) (Node/server) or [`@oxyhq/services`](/developers/docs/services) (Expo/RN/web).
+There is no public JS API for the app — it's a deployed product. For programmatic equivalents, integrate via [`@oxy.so/core`](/developers/docs/core) (Node/server) or [`@oxy.so/services`](/developers/docs/services) (Expo/RN/web).

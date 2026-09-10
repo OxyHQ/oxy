@@ -1,12 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import { View, Linking } from 'react-native';
-import { toast } from '@oxyhq/bloom/toast';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { logger } from '@oxyhq/core';
+import { toast } from '@oxy.so/bloom/toast';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { logger } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 

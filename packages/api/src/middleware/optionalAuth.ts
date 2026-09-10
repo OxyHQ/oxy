@@ -100,7 +100,7 @@ export function getMediaViewerUserId(req: AuthenticatedRequest): string | undefi
 /**
  * The HTTP header a calling SERVICE sets to name the end-user (viewer) it is
  * acting on behalf of for personalization. Mirrors the platform convention used
- * by `@oxyhq/core` `makeServiceRequest(..., userId)` and `@oxyhq/core/server`.
+ * by `@oxy.so/core` `makeServiceRequest(..., userId)` and `@oxy.so/core/server`.
  */
 const OXY_USER_ID_HEADER = 'x-oxy-user-id';
 
@@ -194,7 +194,7 @@ export async function optionalUserOrServiceAuth(
  * ## Why a shape check SURVIVES the Postgres port here, when its siblings did not
  *
  * The `Types.ObjectId.isValid` guard this replaces rejected the **uuid v7 every
- * account created after the cutover carries** (`@oxyhq/db`'s
+ * account created after the cutover carries** (`@oxy.so/db`'s
  * `generatedId()`), so a post-cutover viewer id arriving in this header resolved
  * to `undefined` and the request SILENTLY DEGRADED TO ANONYMOUS — viewer-scoped
  * visibility filtering (blocks, restricts, private accounts, follow-gated

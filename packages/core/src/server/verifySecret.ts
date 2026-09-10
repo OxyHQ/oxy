@@ -10,7 +10,7 @@
  * check, and never throws — replacing the `token !== SECRET` pattern (Alia
  * docker-host / integrations webhook secrets, internal webhook bearers, etc.).
  *
- * Node-only (`node:crypto`); exported solely from `@oxyhq/core/server`.
+ * Node-only (`node:crypto`); exported solely from `@oxy.so/core/server`.
  */
 
 import { timingSafeEqual } from 'node:crypto';

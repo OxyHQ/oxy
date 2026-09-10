@@ -10,7 +10,7 @@
  * Postgres table.
  */
 import { Readable } from 'stream';
-import { linkPreviewSchema } from '@oxyhq/contracts';
+import { linkPreviewSchema } from '@oxy.so/contracts';
 
 delete process.env.REDIS_URL;
 
@@ -19,7 +19,7 @@ const mockUpload = jest.fn();
 const mockGetPublicCdnUrl = jest.fn();
 const mockEnqueueWarm = jest.fn();
 
-jest.mock('@oxyhq/core/server', () => ({
+jest.mock('@oxy.so/core/server', () => ({
   safeFetch: (...a: unknown[]) => mockSafeFetch(...a),
   SsrfRejection: class SsrfRejection extends Error {},
 }));

@@ -1,6 +1,6 @@
-import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxyhq/contracts';
-import type { PushTokenPlatform, RegisterPushTokenInput } from '@oxyhq/core';
-import { ensureNotificationChannel } from '@oxyhq/services';
+import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxy.so/contracts';
+import type { PushTokenPlatform, RegisterPushTokenInput } from '@oxy.so/core';
+import { ensureNotificationChannel } from '@oxy.so/services';
 import {
   registerInstallationPushToken,
   retireInstallationPushToken,

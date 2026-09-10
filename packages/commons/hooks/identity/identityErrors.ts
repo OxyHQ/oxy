@@ -2,7 +2,7 @@
  * Utility functions for error handling in identity operations
  */
 
-import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxyhq/core';
+import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core';
 
 /**
  * Thrown by the create/import preflight when the identity KEYS are absent but an
@@ -50,7 +50,7 @@ export const isIdentityPreflightRefusal = (
 
 /**
  * Type guard for errors that expose a numeric `status` field
- * (e.g. fetch-style errors, ApiError instances from @oxyhq/core).
+ * (e.g. fetch-style errors, ApiError instances from @oxy.so/core).
  */
 function hasNumericStatus(e: unknown): e is { status: number } {
   return (

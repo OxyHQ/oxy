@@ -6,7 +6,7 @@
  * (mocked): the chooser renders the correct view from `snapshot.view`, activates
  * a `principal acting as account` pair through `controller.activateContext`, and
  * auto-starts "Sign in with Oxy" on web when the sign-in entry is reached. The
- * controller's own state machine is unit-tested in `@oxyhq/core`.
+ * controller's own state machine is unit-tested in `@oxy.so/core`.
  *
  * The switcher's rows come from the device DIRECTORY (ADR 0002), so the fixtures
  * here put the SAME organization under TWO people wherever the grouping matters:
@@ -31,10 +31,10 @@
  */
 
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { surfaces, toast } from '@oxyhq/bloom';
-import type { DeviceDirectory } from '@oxyhq/contracts';
-import type { AccountDialogSnapshot, SignInFlowState, User } from '@oxyhq/core';
-import { resolveActiveContext } from '@oxyhq/core';
+import { surfaces, toast } from '@oxy.so/bloom';
+import type { DeviceDirectory } from '@oxy.so/contracts';
+import type { AccountDialogSnapshot, SignInFlowState, User } from '@oxy.so/core';
+import { resolveActiveContext } from '@oxy.so/core';
 
 const makeUser = (id: string, displayName: string): User =>
   ({ id, username: id, name: { displayName } } as unknown as User);
@@ -218,7 +218,7 @@ jest.mock('../../src/ui/hooks/queries/useServicesQueries', () => ({
 // a key that is missing (or renamed) surfaces here as its raw dotted path and
 // fails the assertions below.
 jest.mock('../../src/ui/hooks/useI18n', () => {
-  const { translate } = jest.requireActual('@oxyhq/core');
+  const { translate } = jest.requireActual('@oxy.so/core');
   return {
     __esModule: true,
     useI18n: () => ({
@@ -247,8 +247,8 @@ jest.mock('../../src/ui/utils/isWebBrowser', () => ({
 }));
 
 const isOxyRpOriginMock = jest.fn(() => true);
-jest.mock('@oxyhq/core', () => {
-  const actual = jest.requireActual('@oxyhq/core');
+jest.mock('@oxy.so/core', () => {
+  const actual = jest.requireActual('@oxy.so/core');
   return { __esModule: true, ...actual, isOxyRpOrigin: () => isOxyRpOriginMock() };
 });
 

@@ -1,6 +1,6 @@
 {
-  "name": "@oxyhq/ship",
-  "version": "0.2.0",
+  "name": "@oxy.so/ship",
+  "version": "1.0.0",
   "description": "oxy-ship — publish Expo OTA updates to the Oxy Updates service",
   "license": "Apache-2.0",
   "type": "commonjs",
@@ -25,8 +25,8 @@
     "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
   },
   "dependencies": {
-    "@oxyhq/contracts": "workspace:*",
-    "@oxyhq/core": "workspace:*"
+    "@oxy.so/contracts": "workspace:*",
+    "@oxy.so/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

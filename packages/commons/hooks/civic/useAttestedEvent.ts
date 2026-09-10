@@ -1,4 +1,4 @@
-import { useOxyEvent } from '@oxyhq/services';
+import { useOxyEvent } from '@oxy.so/services';
 
 export interface AttestedEventPayload {
   subjectUserId: string;

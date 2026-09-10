@@ -1,5 +1,5 @@
-import type { DeviceSessionState } from '@oxyhq/contracts';
-import { logger } from '@oxyhq/core';
+import type { DeviceSessionState } from '@oxy.so/contracts';
+import { logger } from '@oxy.so/core';
 import { createTokenTransport } from '../tokenTransport';
 
 // The device-first transport no longer owns a private mint single-flight: it

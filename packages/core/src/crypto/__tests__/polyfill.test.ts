@@ -4,16 +4,16 @@
  * Regression coverage for the latent Node crash: when a Node runtime ships
  * WITHOUT a global WebCrypto (Node 18 script entrypoints, some embedded hosts),
  * the installed `getRandomValues` shim must be backed by `node:crypto` and MUST
- * NOT fall through to `@oxyhq/protocol`'s RN-only `getRandomBytesRN` stub (which
+ * NOT fall through to `@oxy.so/protocol`'s RN-only `getRandomBytesRN` stub (which
  * throws `Tried to load 'expo-crypto...' outside React Native`).
  */
 
-// Controllable stand-ins for `@oxyhq/protocol`'s platform predicates. Names are
+// Controllable stand-ins for `@oxy.so/protocol`'s platform predicates. Names are
 // `mock`-prefixed so the (hoisted) `jest.mock` factory may reference them.
 const mockGetRandomBytesRN = jest.fn<Uint8Array, [number]>();
 const mockState = { isNodeJS: true };
 
-jest.mock('@oxyhq/protocol', () => ({
+jest.mock('@oxy.so/protocol', () => ({
   isNodeJS: () => mockState.isNodeJS,
   getRandomBytesRN: (byteCount: number) => mockGetRandomBytesRN(byteCount),
 }));

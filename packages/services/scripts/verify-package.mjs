@@ -1,10 +1,10 @@
 // @ts-check
 /**
- * Assert that what `@oxyhq/services` actually PACKS is what its manifest
+ * Assert that what `@oxy.so/services` actually PACKS is what its manifest
  * promises: every `exports` target present, `lib/` whole, and the dependency
  * ranges resolvable by a consumer.
  *
- * Why this exists: `@oxyhq/services@30.0.0` was published with NO `lib/` at
+ * Why this exists: `@oxy.so/services@30.0.0` was published with NO `lib/` at
  * all — 276 tarball entries against 30.0.1's 2017, `lib/` at zero while `files`
  * still listed it, and 26 of the 33 `exports` targets pointing at files that did
  * not exist. Every web, Vite, Node and `tsc` consumer got a bundler failure on
@@ -99,9 +99,20 @@ const MIN_EXPORTS_TARGETS = 20;
 const DECLARED_TREES = ['commonjs', 'module'];
 
 /**
+ * Metro consumers resolve the React Native export to `src/`, so declarations
+ * for imported binary assets must live beside those assets. A package-global
+ * wildcard declaration is sufficient while building this repository, but it
+ * is not part of a consumer's transitive source graph.
+ */
+const SOURCE_ASSET_DECLARATIONS = [
+  'src/assets/fonts/icons/OxyServicesIonicons.ttf.d.ts',
+  'src/assets/fonts/icons/OxyServicesMaterialCommunityIcons.ttf.d.ts',
+];
+
+/**
  * Dependency-range protocols bun is expected to have substituted away by the
  * time the tarball exists. A literal one surviving means the tarball was built
- * by something other than `bun pm pack` — `@oxyhq/core@12.10.1` shipped exactly
+ * by something other than `bun pm pack` — `@oxy.so/core@12.10.1` shipped exactly
  * that and was unresolvable for every consumer.
  *
  * Scope, stated because it is easy to overread: this script does its own
@@ -178,7 +189,7 @@ function tarballManifest(tarball) {
  * An `exports` PATTERN resolves to whatever `*` expands to, so "the target
  * exists" is the wrong question — the right one is whether the expansion has any
  * match at all. `./plugins/*` -> `./plugins/*.js` covers 4 config plugins today;
- * zero matches means every `@oxyhq/services/plugins/withX` import in every app's
+ * zero matches means every `@oxy.so/services/plugins/withX` import in every app's
  * `app.config.js` fails, and a literal-path check would call that file present
  * and be wrong twice over (there is no file named `plugins/*.js`).
  *
@@ -248,6 +259,14 @@ function checkFloors(files) {
 
 function checkDeclarations(files) {
   const problems = [];
+
+  const missingSourceAssets = SOURCE_ASSET_DECLARATIONS.filter((path) => !files.has(path));
+  if (missingSourceAssets.length > 0) {
+    problems.push(
+      'React Native source assets are missing colocated declarations:\n' +
+        missingSourceAssets.map((path) => `    - ${path}`).join('\n'),
+    );
+  }
 
   for (const tree of DECLARED_TREES) {
     const prefix = `lib/${tree}/`;

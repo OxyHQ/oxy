@@ -5,17 +5,17 @@
  *
  * Usage in an app's `app.config.js` (CommonJS):
  *
- *   const { oxySplashScreenPlugin } = require('@oxyhq/expo-splash/config');
+ *   const { oxySplashScreenPlugin } = require('@oxy.so/expo-splash/config');
  *
  *   plugins: [
  *     'expo-router',
  *     oxySplashScreenPlugin({ image: './assets/images/splash-logo.png' }),
- *     '@oxyhq/expo-splash', // Oxy bottom branding — MUST come after the line above
+ *     '@oxy.so/expo-splash', // Oxy bottom branding — MUST come after the line above
  *   ]
  *
  * Returns the `['expo-splash-screen', { ... }]` tuple. The app passes its own
  * center logo; the Oxy "from Oxy" bottom mark is added separately by the
- * `@oxyhq/expo-splash` config plugin (`app.plugin.js`).
+ * `@oxy.so/expo-splash` config plugin (`app.plugin.js`).
  *
  * DEFAULTS (verified on-device):
  *   - imageWidth 176: Android 12+ masks the splash icon to a CIRCLE — the 240dp

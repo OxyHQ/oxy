@@ -88,7 +88,12 @@ tags:
       The public inference edge (/v1/*), the model catalogue, and the
       control-plane surfaces behind it — routing policies, provider
       connections (BYOK), usage reporting and the staff deployment admin.
-      Routes under /v1/*, /models/* and /inference/*.
+      Kaana is the data plane and sole BYOK credential custodian: provider
+      credentials are KMS-encrypted in Kaana PostgreSQL, never stored in Oxy
+      or environment variables. Oxy exposes exact opaque handle/revision
+      metadata and no credential-derived recognition value. The
+      canonical signed Kaana origin is exclusively https://kaana.ai. Routes
+      under /v1/*, /models/* and /inference/*.
   - name: Analytics
     description: Read-only analytics for the authenticated account.
   - name: System
@@ -124,6 +129,14 @@ components:
         not a JWT and carries no user identity — the owning account and
         application come from the credential row. A user session bearer is
         refused on /v1/*.
+    capabilityTicketAuth:
+      type: http
+      scheme: Capability
+      description: >
+        Short-lived, signed and audience-bound authority for one exact actor,
+        account, resource and tool. Send as `Authorization: Capability <ticket>`.
+        It is accepted only by routes whose app catalog exposes that tool and is
+        re-authorized immediately before execution so revocation takes effect.
     csrfToken:
       type: apiKey
       in: header

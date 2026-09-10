@@ -6,7 +6,7 @@ import { Readable } from 'stream';
 
 const mockSafeFetch = jest.fn();
 
-jest.mock('@oxyhq/core/server', () => ({
+jest.mock('@oxy.so/core/server', () => ({
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
   SsrfRejection: class SsrfRejection extends Error {},
 }));

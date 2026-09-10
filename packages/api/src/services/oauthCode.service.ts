@@ -39,7 +39,7 @@ import * as crypto from 'crypto';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { authCodes } from '../db/schema/authCodes';
-import type { SelectedRow } from '@oxyhq/db';
+import type { SelectedRow } from '@oxy.so/db';
 
 export const AUTH_CODE_TTL_MS = 60 * 1000;
 export const AUTH_CODE_BYTES = 32;

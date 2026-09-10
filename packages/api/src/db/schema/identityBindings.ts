@@ -23,10 +23,10 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { IDENTITY_BINDING_STATUSES, IDENTITY_BINDING_TYPES } from '@oxyhq/contracts';
+import { IDENTITY_BINDING_STATUSES, IDENTITY_BINDING_TYPES } from '@oxy.so/contracts';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 export const identityBindings = pgTable(

@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
 import { type Readable, Transform } from 'stream';
-import { normalizeInlineText } from '@oxyhq/core';
-import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxyhq/core/server';
+import { normalizeInlineText } from '@oxy.so/core';
+import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import type { S3Service } from './s3Service';
 import {
   FEDERATION_MEDIA_CACHE_PURPOSE,
@@ -17,6 +17,7 @@ import {
   stripPublicPrefix,
   isPublicKey,
   storageKeyForVisibility,
+  IMMUTABLE_ASSET_CACHE_CONTROL,
 } from '../config/cdn';
 import { logger } from '../utils/logger';
 import { ConflictError } from '../utils/error';
@@ -182,7 +183,7 @@ export class AssetService {
 
   /**
    * Fetch a remote federation image for storage repair through the shared,
-   * DNS-pinned {@link safeFetch} (`@oxyhq/core/server`). safeFetch resolves the
+   * DNS-pinned {@link safeFetch} (`@oxy.so/core/server`). safeFetch resolves the
    * host once, connects to the validated IP, re-validates every redirect hop,
    * and denies private/loopback/link-local/metadata IPs — closing the
    * DNS-rebinding TOCTOU window that a separate validate-then-`fetch` left open.
@@ -310,6 +311,7 @@ export class AssetService {
 
     await this.s3Service.uploadBuffer(file.storageKey, fileBuffer, {
       contentType: file.mime || mimeType,
+      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
     });
 
     if (file.size !== fileBuffer.length) {
@@ -455,7 +457,11 @@ export class AssetService {
         return variant;
       }
       if (this.variantService.isVideoMp4Rendition(variantType)) {
-        return this.variantService.ensureVideoMp4Rendition(fileObj, variantType);
+        // MP4 renditions are generated during the trusted upload pipeline. Do
+        // not generate a missing rendition here: ensureVariant is also reached
+        // from unauthenticated public media routes, where transcoding on demand
+        // would let arbitrary callers consume unbounded FFmpeg CPU and memory.
+        throw new Error(`Video rendition ${variantType} is not available`);
       }
       // A SIZE name (`thumb`, `w320`, …) asked of a video means "an image of
       // this asset at that size", which for a video is a render of its poster
@@ -688,7 +694,8 @@ export class AssetService {
 
       // Upload to S3
       await this.s3Service.uploadBuffer(storageKey, fileBuffer, {
-        contentType: mimeType
+        contentType: mimeType,
+        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
       });
 
       // Queue variant generation
@@ -890,8 +897,14 @@ export class AssetService {
     };
 
     try {
+      // The temp key itself is a uuid and is deleted moments later, but the
+      // promotion below is a server-side `CopyObject` with the default
+      // `MetadataDirective: COPY` — so the content-addressed object inherits
+      // whatever `Cache-Control` this PUT stored. Setting it here is what makes
+      // the promoted object immutable to caches.
       await this.s3Service.uploadStream(tempKey, body, {
         contentType: mimeType,
+        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
         abortSignal: abortController.signal,
       });
       completed = true;
@@ -1371,6 +1384,7 @@ export class AssetService {
 
       await this.s3Service.uploadBuffer(file.storageKey, repaired.buffer, {
         contentType: repaired.mime,
+        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
       });
 
       const updated = await updateFile(file.id, {

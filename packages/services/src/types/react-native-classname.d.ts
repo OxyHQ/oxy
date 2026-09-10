@@ -8,7 +8,7 @@
 // React Native 0.85 that heritage no longer matches, and the nested
 // `@react-native/virtualized-lists` copy does not resolve from a CONSUMER's
 // `node_modules` — so when this package's source is type-checked through the
-// `react-native` export condition (which resolves `@oxyhq/services` to raw
+// `react-native` export condition (which resolves `@oxy.so/services` to raw
 // `src/`), those className members silently drop and consumer `tsc` fails with
 // TS2769 on screens that use `contentContainerClassName` (e.g.
 // ManageAccountScreen, ConnectedAppsScreen).

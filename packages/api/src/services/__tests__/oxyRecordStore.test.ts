@@ -23,8 +23,8 @@
 
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { computeRecordId } from '@oxyhq/protocol';
-import type { OxySignedRecordType, SignedRecordEnvelope } from '@oxyhq/contracts';
+import { computeRecordId } from '@oxy.so/protocol';
+import type { OxySignedRecordType, SignedRecordEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { repoHeads } from '../../db/schema/repoHeads';
 import { signedRecords } from '../../db/schema/signedRecords';

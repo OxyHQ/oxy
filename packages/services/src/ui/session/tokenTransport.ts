@@ -1,5 +1,5 @@
-import { logger, type OxyServices, type TokenTransport } from '@oxyhq/core';
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import { logger, type OxyServices, type TokenTransport } from '@oxy.so/core';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 
 /**
  * Platform `TokenTransport` for `SessionClient` (device-first model).

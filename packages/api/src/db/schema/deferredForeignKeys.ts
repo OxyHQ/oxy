@@ -20,15 +20,15 @@
  * nobody decided about.
  *
  * Both lists are this schema's own DATA — they name this schema's tables and
- * columns, so they have no home in `@oxyhq/db`. The `DeferredForeignKey` shape
+ * columns, so they have no home in `@oxy.so/db`. The `DeferredForeignKey` shape
  * itself is no longer declared here, though: it is identical to
- * `@oxyhq/db/assert`'s own export of the same name (the gate that walks this
+ * `@oxy.so/db/assert`'s own export of the same name (the gate that walks this
  * list, `findIdColumnViolations`, now lives there too), so this file imports
  * the type rather than keeping a second copy that could drift from it.
  */
 
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
-import type { DeferredForeignKey } from '@oxyhq/db/assert';
+import type { DeferredForeignKey } from '@oxy.so/db/assert';
 import { appAffinitySeenEvents } from './appAffinitySeenEvents';
 import { appEndorsementEdges } from './appEndorsementEdges';
 import { appUpdates } from './appUpdates';
@@ -36,6 +36,7 @@ import { authCodes } from './authCodes';
 import { authSessions } from './authSessions';
 import { billingSubscriptions } from './billingSubscriptions';
 import { billingTransactions } from './billingTransactions';
+import { capabilityExecutionAuthorizations } from './agency';
 import { followEvents } from './followEvents';
 import { bookmarks } from './bookmarks';
 import { conductStrikes } from './conductStrikes';
@@ -50,13 +51,20 @@ import { federationKeyPairs } from './federationKeyPairs';
 import { fileLinks } from './fileLinks';
 import { identityBindings } from './identityBindings';
 import { inferenceDeployments } from './inferenceDeployments';
+import {
+  inferenceDeploymentRoutingScoreEvents,
+  inferenceDeploymentRoutingScores,
+} from './inferenceDeploymentRoutingScores';
 import { inferenceModelReleaseSignatures } from './inferenceModelReleaseSignatures';
 import { inferenceModelReleases } from './inferenceModelReleases';
 import { inferenceModels } from './inferenceModels';
+import { inferenceProviderConnectionAuditEvents } from './inferenceProviderConnectionAuditEvents';
+import { inferenceProviderCredentialValidations } from './inferenceProviderCredentialValidations';
 import { inferenceRouteSwitchEvents } from './inferenceRouteSwitchEvents';
 import { inferenceUsageEvents } from './inferenceUsageEvents';
 import { messageAttachments } from './messageAttachments';
 import { messages } from './messages';
+import { mcpOauthClients } from './mcpOAuth';
 import { moderationEffects } from './moderationEffects';
 import { notifications } from './notifications';
 import { pushTokens } from './pushTokens';
@@ -94,6 +102,34 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: capabilityExecutionAuthorizations,
+    column: capabilityExecutionAuthorizations.runId,
+    reason:
+      "The Alia runtime's run identifier. Runs live in Alia's database; Oxy " +
+      'stores the value only to bind authority and audit across service boundaries.',
+  },
+  {
+    table: capabilityExecutionAuthorizations,
+    column: capabilityExecutionAuthorizations.stepId,
+    reason:
+      "The Alia runtime's optional step identifier. The step belongs to Alia's " +
+      'execution graph and has no row in the Oxy database to reference.',
+  },
+  {
+    table: capabilityExecutionAuthorizations,
+    column: capabilityExecutionAuthorizations.automationId,
+    reason:
+      "The Alia runtime's automation identifier. Automation definitions remain " +
+      'owned by Alia; Oxy keeps this opaque correlation value for revocation and audit.',
+  },
+  {
+    table: mcpOauthClients,
+    column: mcpOauthClients.clientId,
+    reason:
+      "This client's own RFC 7591 public identifier. It is a natural handle " +
+      'minted by Oxy, not a reference to another database row.',
+  },
   {
     table: followEvents,
     column: followEvents.relationshipId,
@@ -523,9 +559,54 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     column: inferenceDeployments.internalRouteId,
     reason:
       'The DATA PLANE’s own identifier for this route, stored so operations can ' +
-      'correlate a catalogue row with what Relay is running. Relay’s id space, ' +
+      'correlate a catalogue row with what Kaana is running. Kaana’s id space, ' +
       'not Oxy’s, and deliberately never dereferenced here. PROTECTED: it is ' +
       'operational topology and never reaches a customer.',
+  },
+  {
+    table: inferenceProviderCredentialValidations,
+    column: inferenceProviderCredentialValidations.kaanaDeploymentId,
+    reason:
+      'The protected exact deployment identifier resolved by Kaana for this ' +
+      'credential probe. It belongs to Kaana\'s inventory, not an Oxy row, and ' +
+      'is retained as immutable cross-service evidence rather than dereferenced locally.',
+  },
+  {
+    table: inferenceProviderConnectionAuditEvents,
+    column: inferenceProviderConnectionAuditEvents.actorUserId,
+    reason:
+      'An immutable attribution snapshot kept after the acting user may be ' +
+      'deleted. A foreign key would either erase truthful authorship or block ' +
+      'account deletion; the audit row expires as a whole under its retention policy.',
+  },
+  {
+    table: inferenceDeploymentRoutingScores,
+    column: inferenceDeploymentRoutingScores.deploymentId,
+    reason:
+      'The exact Kaana deployment identity. Multiple catalogue rows may map the ' +
+      'same external route for different audiences, so no unique local column can ' +
+      'be a foreign-key target; the admin writer proves the mapping before write.',
+  },
+  {
+    table: inferenceDeploymentRoutingScoreEvents,
+    column: inferenceDeploymentRoutingScoreEvents.deploymentId,
+    reason:
+      'An append-only audit copy of the same exact Kaana deployment identity. It ' +
+      'must survive catalogue changes and therefore intentionally has no local FK.',
+  },
+  {
+    table: inferenceDeploymentRoutingScores,
+    column: inferenceDeploymentRoutingScores.changedByUserId,
+    reason:
+      'An immutable attribution snapshot of the staff actor. It deliberately has ' +
+      'no FK so deleting an account cannot rewrite or invalidate routing history.',
+  },
+  {
+    table: inferenceDeploymentRoutingScoreEvents,
+    column: inferenceDeploymentRoutingScoreEvents.changedByUserId,
+    reason:
+      'An immutable attribution snapshot of the staff actor. It deliberately has ' +
+      'no FK so deleting an account cannot rewrite or invalidate routing history.',
   },
   {
     table: appEndorsementEdges,
@@ -610,7 +691,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     column: inferenceUsageEvents.deploymentId,
     reason:
       '(f) The data plane’s endpoint identity. Operational detail belonging ' +
-      'to Relay, stored opaquely for attribution and never dereferenced here.',
+      'to Kaana, stored opaquely for attribution and never dereferenced here.',
   },
 
   // --- the routing policy control plane (#972 workstream 6) ----------------

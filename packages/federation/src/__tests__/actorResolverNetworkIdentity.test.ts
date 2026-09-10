@@ -126,7 +126,7 @@ function makeResolver(
       inlineDisplayName: (raw) => raw,
       sanitizeFieldValue: (html) => html,
       htmlToPlainText: (html) => html,
-    
+
       ...textOverrides,
     },
     logger: { info: () => {}, warn: (message) => { warnings.push(message); } },

@@ -38,7 +38,7 @@ import {
   safeErrorTextSchema,
   type InferenceError,
   type InferenceErrorCode,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { logger } from './logger';
 
 /** The header every response carries, success or failure. */
@@ -90,7 +90,7 @@ const RETRYABILITY: Readonly<Record<InferenceErrorCode, boolean>> = {
   // when finance does something, not when a client waits.
   provider_billing_refused: false,
   // A data plane that is not configured is the platform's to fix, not the
-  // client's to wait out — see `services/relayClient.ts`. `false` here is why
+  // client's to wait out — see `services/kaanaClient.ts`. `false` here is why
   // the no-data-plane refusal does not teach every SDK to retry forever.
   service_unavailable: false,
   internal_error: false,

@@ -3,20 +3,20 @@ import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
-import { useTheme } from '@oxyhq/bloom/theme';
-import { ProfileCard } from '@oxyhq/bloom/profile-card';
-import type { ProfileCardProps } from '@oxyhq/bloom/profile-card';
-import { DotGridMeter } from '@oxyhq/bloom/dot-grid-meter';
-import { StatBar } from '@oxyhq/bloom/stat-bar';
-import { ActivityHeatmap, bucketByDay } from '@oxyhq/bloom/activity-heatmap';
-import { AvatarGroup } from '@oxyhq/bloom/avatar-group';
-import type { AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
-import { CompositionBar } from '@oxyhq/bloom/composition-bar';
-import type { CompositionCategory } from '@oxyhq/bloom/composition-bar';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { ProfileCard } from '@oxy.so/bloom/profile-card';
+import type { ProfileCardProps } from '@oxy.so/bloom/profile-card';
+import { DotGridMeter } from '@oxy.so/bloom/dot-grid-meter';
+import { StatBar } from '@oxy.so/bloom/stat-bar';
+import { ActivityHeatmap, bucketByDay } from '@oxy.so/bloom/activity-heatmap';
+import { AvatarGroup } from '@oxy.so/bloom/avatar-group';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import { CompositionBar } from '@oxy.so/bloom/composition-bar';
+import type { CompositionCategory } from '@oxy.so/bloom/composition-bar';
 
 /**
  * Profile preview cards showcase — an Apple-Watch-style gallery of the
- * @oxyhq/bloom ProfileCard and its metric primitives. Everything on this screen
+ * @oxy.so/bloom ProfileCard and its metric primitives. Everything on this screen
  * is mock data; it exists to exercise every new component in both light and dark
  * theme. Colors come from Bloom's useTheme() so the gallery tracks the active
  * color preset like the rest of the app chrome.
@@ -196,7 +196,7 @@ export default function ProfileCardsScreen() {
       <View className="mb-1 gap-1.5">
         <Text className="text-[30px] font-extrabold tracking-[-0.5px] text-foreground">Profile preview cards</Text>
         <Text className="text-[15px] leading-[21px] text-muted-foreground">
-          @oxyhq/bloom ProfileCard — Apple-Watch-style preview cards and their metric primitives.
+          @oxy.so/bloom ProfileCard — Apple-Watch-style preview cards and their metric primitives.
         </Text>
       </View>
 

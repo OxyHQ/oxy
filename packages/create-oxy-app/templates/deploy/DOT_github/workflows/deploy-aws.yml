@@ -60,7 +60,12 @@ jobs:
               continue
             fi
             case " $SHARED " in *" $k "*) path="/oxy/_shared/$k";; *) path="/oxy/$APP/$k";; esac
-            aws ssm put-parameter --name "$path" --value "$v" --type SecureString --overwrite >/dev/null && echo "synced -> $path"
+            printf '%s' "$v" | aws ssm put-parameter \
+              --name "$path" \
+              --type SecureString \
+              --value file:///dev/stdin \
+              --overwrite >/dev/null
+            echo "synced -> $path"
           done
 
       - name: Login to ECR

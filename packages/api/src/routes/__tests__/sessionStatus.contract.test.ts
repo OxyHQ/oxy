@@ -2,7 +2,7 @@
  * PRODUCER drift-guard for `GET /auth/session/status/:sessionToken`, against a
  * REAL Postgres.
  *
- * The API is the FAITHFUL PRODUCER of `@oxyhq/contracts`'s
+ * The API is the FAITHFUL PRODUCER of `@oxy.so/contracts`'s
  * `sessionStatusSchema`. These tests exercise the REAL route over real rows and
  * assert that the `{ data: ... }` inner object PARSES against the shared
  * contract, so a port that quietly changes a field's nullability is caught here
@@ -25,7 +25,7 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
-import { sessionStatusSchema, safeParseContract } from '@oxyhq/contracts';
+import { sessionStatusSchema, safeParseContract } from '@oxy.so/contracts';
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -145,7 +145,7 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('GET /auth/session/status/:sessionToken — @oxyhq/contracts sessionStatusSchema', () => {
+describe('GET /auth/session/status/:sessionToken — @oxy.so/contracts sessionStatusSchema', () => {
   it('parses a PENDING device request (sessionId / publicKey / userId all null)', async () => {
     const sessionToken = await authRequest();
 

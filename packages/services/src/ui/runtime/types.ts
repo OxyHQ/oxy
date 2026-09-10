@@ -1,5 +1,5 @@
-import type { DeviceDirectory, DeviceSessionState } from '@oxyhq/contracts';
-import type { ClientSession, DeviceContext, User } from '@oxyhq/core';
+import type { DeviceDirectory, DeviceSessionState } from '@oxy.so/contracts';
+import type { ClientSession, DeviceContext, User } from '@oxy.so/core';
 
 /**
  * The runtime's coarse verdict about this device's session.

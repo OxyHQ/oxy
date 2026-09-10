@@ -11,17 +11,17 @@
  * authorize URL, and the handshake — those are asserted in
  * `src/ui/oauth/__tests__/browserAuthTransport.test.ts`. What is asserted here
  * is that the button routes to it and never navigates on its own. Native still
- * builds the handshake itself with the REAL `@oxyhq/core` PKCE helpers and hands
+ * builds the handshake itself with the REAL `@oxy.so/core` PKCE helpers and hands
  * it to the RP.
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Platform } from 'react-native';
-import { toast } from '@oxyhq/bloom/toast';
-import { logger } from '@oxyhq/core';
-import type { PublicApplication } from '@oxyhq/core';
+import { toast } from '@oxy.so/bloom/toast';
+import { logger } from '@oxy.so/core';
+import type { PublicApplication } from '@oxy.so/core';
 import { redirectToAuthorize, openAuthorizeUrlNative } from '../../src/ui/components/oauthNavigation';
-import { OXY_OAUTH_STATE_STORAGE_KEY } from '@oxyhq/core';
+import { OXY_OAUTH_STATE_STORAGE_KEY } from '@oxy.so/core';
 import OxySignInButton from '../../src/ui/components/OxySignInButton';
 import type { StartWebOAuthSignInOptions } from '../../src/ui/oauth/browserAuthTransport';
 import type { WebAuthMode, WebOAuthSignInResult } from '../../src/ui/oauth/types';

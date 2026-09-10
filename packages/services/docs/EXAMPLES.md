@@ -15,7 +15,7 @@ Complete working examples for common use cases.
 ### Complete Login Flow
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useState } from 'react';
 import { View, TextInput, Button, Alert } from 'react-native';
 
@@ -75,7 +75,7 @@ function LoginScreen() {
 ### Sign Up Flow
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useState } from 'react';
 
 function SignUpScreen() {
@@ -114,7 +114,7 @@ function SignUpScreen() {
 ### User Profile Screen
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useEffect, useState } from 'react';
 import { View, Text, Image, ActivityIndicator } from 'react-native';
 
@@ -178,7 +178,7 @@ function UserProfile({ userId }: { userId: string }) {
 ### Edit Profile
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useState } from 'react';
 
 function EditProfileScreen() {
@@ -214,7 +214,7 @@ function EditProfileScreen() {
 ### Image Upload with Preview
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 
@@ -284,7 +284,7 @@ function ImageUpload() {
 ### Multiple File Upload
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useState } from 'react';
 
 function MultipleFileUpload() {
@@ -335,7 +335,7 @@ function MultipleFileUpload() {
 ### Follow/Unfollow Button
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useState, useEffect } from 'react';
 
 function FollowButton({ userId }: { userId: string }) {
@@ -385,7 +385,7 @@ function FollowButton({ userId }: { userId: string }) {
 ### Followers List
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useState, useEffect } from 'react';
 import { FlatList, View, Text, Image } from 'react-native';
 
@@ -449,7 +449,7 @@ function FollowersList({ userId }: { userId: string }) {
 
 ```typescript
 // App.tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 
@@ -470,7 +470,7 @@ export default function App() {
 }
 
 // HomeScreen.tsx
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useEffect, useState } from 'react';
 
 function HomeScreen({ navigation }) {
@@ -506,7 +506,7 @@ function HomeScreen({ navigation }) {
 
 ```typescript
 // ProductScreen.tsx
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useState } from 'react';
 
 function ProductScreen({ productId }: { productId: string }) {
@@ -560,7 +560,7 @@ function ProductScreen({ productId }: { productId: string }) {
 
 ```typescript
 // ContentEditor.tsx
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useState } from 'react';
 
 function ContentEditor() {

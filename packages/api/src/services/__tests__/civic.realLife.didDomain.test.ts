@@ -4,7 +4,7 @@
  *
  * Production re-anchors server-emitted DIDs at the API host
  * (`DID_WEB_DOMAIN=api.oxy.so`, oxy-infra `app-services.tf`) while the shipped
- * SDK (`@oxyhq/core` `OXY_IDENTITY_APEX`) signs every client envelope at the
+ * SDK (`@oxy.so/core` `OXY_IDENTITY_APEX`) signs every client envelope at the
  * canonical identity apex (`did:web:oxy.so:u:<accountId>`). The self-issuance
  * gate used to compare DID STRINGS, so every client-signed attestation failed
  * `not_self_issued` in prod — and only in prod, because dev collapses both
@@ -28,9 +28,9 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { and, eq } from 'drizzle-orm';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { reputationTransactions } from '../../db/schema/reputationTransactions';
 import { signedRecords } from '../../db/schema/signedRecords';
@@ -43,10 +43,9 @@ import {
   REAL_LIFE_ATTESTED_POINTS,
 } from '../../utils/reputation.constants';
 
-const ec = new EC('secp256k1');
-const oxyKey = ec.genKeyPair();
-const OXY_PUBLIC = oxyKey.getPublic('hex');
-const OXY_PRIVATE = oxyKey.getPrivate('hex');
+const oxyKey = generateSecp256k1KeyPair();
+const OXY_PUBLIC = oxyKey.publicKey;
+const OXY_PRIVATE = oxyKey.privateKey;
 
 /** Captured BEFORE `beforeAll` overwrites it, so it can be put back. */
 const ORIGINAL_DID_WEB_DOMAIN = process.env.DID_WEB_DOMAIN;
@@ -54,7 +53,7 @@ const ORIGINAL_DID_WEB_DOMAIN = process.env.DID_WEB_DOMAIN;
 const unique = () => randomUUID();
 const ATTESTATION_COLLECTION = 'app.oxy.attestation';
 
-/** The spelling the shipped SDK signs with (`@oxyhq/core` OXY_IDENTITY_APEX). */
+/** The spelling the shipped SDK signs with (`@oxy.so/core` OXY_IDENTITY_APEX). */
 const sdkDid = (id: string): string => `did:web:oxy.so:u:${id}`;
 /** The spelling the server emits under the prod anchor. */
 const serverDid = (id: string): string => `did:web:api.oxy.so:u:${id}`;
@@ -66,13 +65,13 @@ interface Signer {
 }
 
 async function signer(): Promise<Signer> {
-  const keyPair = ec.genKeyPair();
-  const publicKey = keyPair.getPublic('hex');
+  const keyPair = generateSecp256k1KeyPair();
+  const publicKey = keyPair.publicKey;
   const [row] = await getDb()
     .insert(users)
     .values({ username: `u-${unique().slice(0, 18)}`, publicKey })
     .returning({ id: users.id });
-  return { id: row.id, privateKey: keyPair.getPrivate('hex'), publicKey };
+  return { id: row.id, privateKey: keyPair.privateKey, publicKey };
 }
 
 async function account(): Promise<string> {

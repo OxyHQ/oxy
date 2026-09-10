@@ -23,7 +23,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import { View } from 'react-native';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@oxyhq/bloom/accordion';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@oxy.so/bloom/accordion';
 import { SubtleLink } from './primitives';
 import { authChooserStyles as styles } from './styles';
 import type { OxySignInSurfaceAction, Theme, Translate } from './types';

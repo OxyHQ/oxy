@@ -27,11 +27,11 @@
 
 import crypto from 'crypto';
 import { and, eq } from 'drizzle-orm';
-import { verifyEnvelopeSignature, type RejectionReason } from '@oxyhq/protocol';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
-import { realLifeAttestationRecordSchema } from '@oxyhq/contracts';
+import { verifyEnvelopeSignature, type RejectionReason } from '@oxy.so/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
+import { realLifeAttestationRecordSchema } from '@oxy.so/contracts';
 import { getDb } from '../../config/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { civicNonces } from '../../db/schema/civicNonces';
 import { reputationTransactions } from '../../db/schema/reputationTransactions';
 import { users } from '../../db/schema/users';

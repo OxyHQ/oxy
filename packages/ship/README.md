@@ -1,4 +1,4 @@
-# @oxyhq/ship — `oxy-ship`
+# @oxy.so/ship — `oxy-ship`
 
 Publish Expo OTA updates to the self-hosted **Oxy Updates** service (the
 expo-updates protocol server inside `oxy-api`). Runs under Bun and Node.
@@ -61,4 +61,6 @@ oxy-ship update:list [--channel production] [--runtime-version 1.2.3] [--platfor
 ## CI
 
 Copy `templates/publish-update.yml` into an app repo. It publishes to
-`production` on push to `main` and to `pr-<n>` on pull requests.
+`production` on push to `main`. The workflow intentionally does not run for
+pull requests, so untrusted pull request code and metadata cannot access the
+OTA publishing credentials.

@@ -10,7 +10,7 @@
  *    error
  */
 
-import type { OxyServices, FollowMutationResult } from '@oxyhq/core';
+import type { OxyServices, FollowMutationResult } from '@oxy.so/core';
 import { useFollowStore } from '../followStore';
 
 // A microtask + macrotask flush: `resolveFollowStatuses` schedules its bulk call

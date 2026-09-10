@@ -1,5 +1,5 @@
 import * as React from 'react';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Link } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
@@ -9,8 +9,8 @@ import {
   Tick02Icon,
   UserMultiple02Icon,
 } from '@hugeicons/core-free-icons';
-import { useAuth } from '@oxyhq/services';
-import { toast } from '@oxyhq/bloom/toast';
+import { useAuth } from '@oxy.so/services';
+import { toast } from '@oxy.so/bloom/toast';
 import { buildWorkspaceTree } from './workspace-tree';
 import type { AccountKind, AccountNode, AccountRole } from '@/hooks/use-account';
 import {

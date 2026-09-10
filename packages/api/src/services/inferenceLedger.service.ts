@@ -53,8 +53,8 @@
  */
 
 import { and, eq, lte, sql } from 'drizzle-orm';
-import { executeRows } from '@oxyhq/db';
-import { INFERENCE_MONEY_SCALE, type UsageUnit } from '@oxyhq/contracts';
+import { executeRows } from '@oxy.so/db';
+import { INFERENCE_MONEY_SCALE, type UsageUnit } from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { accountBalances } from '../db/schema/accountBalances';
 import {
@@ -81,9 +81,9 @@ import type {
   ExternalPaymentKind,
   ExternalPaymentProvider,
   InferenceEnvironment,
-} from '@oxyhq/contracts';
-import type { InferenceRequestOutcome, UsageSource } from '@oxyhq/contracts';
-import type { UsageRefundReason } from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
+import type { InferenceRequestOutcome, UsageSource } from '@oxy.so/contracts';
+import type { UsageRefundReason } from '@oxy.so/contracts';
 
 /** The rounding scale of every computed amount, as a SQL literal. */
 const MONEY_SCALE = sql.raw(String(INFERENCE_MONEY_SCALE));
@@ -1657,7 +1657,7 @@ async function computeDraw(
  * One price applied to every reported unit, summed. That arithmetic is only the
  * request's cost because the contract's units PARTITION it: `cached_input_tokens`
  * is a sibling of `input_tokens` and not a detail inside it, and the same for
- * `reasoning_tokens` and `output_tokens` (`@oxyhq/contracts`' `USAGE_UNITS`). A
+ * `reasoning_tokens` and `output_tokens` (`@oxy.so/contracts`' `USAGE_UNITS`). A
  * report normalized the other way — the way every OpenAI-compatible provider
  * emits one — would be charged twice for its cached and reasoning tokens here,
  * with no symptom: the receipt would still be internally consistent and every

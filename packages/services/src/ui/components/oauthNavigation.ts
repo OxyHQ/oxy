@@ -9,7 +9,7 @@
  */
 
 import { Linking } from 'react-native';
-import { logger, persistOAuthReturnPath } from '@oxyhq/core';
+import { logger, persistOAuthReturnPath } from '@oxy.so/core';
 
 /** Minimal shape of the optional `expo-web-browser` auth-session result. */
 interface WebBrowserAuthResult {
@@ -31,6 +31,16 @@ export interface OpenAuthorizeResult {
      * `Linking.openURL` fallback, which cannot observe the return URL).
      */
     redirectUrl: string | null;
+}
+
+export interface OpenAuthorizeOptions {
+    /**
+     * Whether to fall back to `Linking.openURL` when an in-app auth session is
+     * unavailable. Explicit-consent callers disable this because they must
+     * observe and validate the callback before reporting success.
+     * @default true
+     */
+    allowExternalFallback?: boolean;
 }
 
 /**
@@ -64,6 +74,7 @@ export function redirectToAuthorize(url: string): void {
 export async function openAuthorizeUrlNative(
     url: string,
     redirectUri: string,
+    options: OpenAuthorizeOptions = {},
 ): Promise<OpenAuthorizeResult> {
     try {
         const mod = (await import('expo-web-browser')) as unknown as WebBrowserModule;
@@ -81,6 +92,10 @@ export async function openAuthorizeUrlNative(
             { component: 'oauthNavigation' },
             error,
         );
+    }
+
+    if (options.allowExternalFallback === false) {
+        return { redirectUrl: null };
     }
 
     // Fallback: Linking cannot observe the return URL, so the RP completes the

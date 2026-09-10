@@ -58,7 +58,7 @@
 -- this table's guard a dependency of the BYOK workstream.
 --
 -- `SQLSTATE 23514` (check violation) rather than a bespoke code, so
--- `@oxyhq/db`'s `isCheckViolation` recognises it like any other constraint
+-- `@oxy.so/db`'s `isCheckViolation` recognises it like any other constraint
 -- failure — a caller must never have to string-match this message.
 
 CREATE OR REPLACE FUNCTION credential_audit_row_immutable() RETURNS trigger

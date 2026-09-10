@@ -1,4 +1,4 @@
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 import { ShipClient } from './client';
 import { requireString, baseUrlFlag, type ShipFlags } from './args';
 
@@ -6,7 +6,7 @@ import { requireString, baseUrlFlag, type ShipFlags } from './args';
  * Build an authenticated ShipClient from flags/env. Credentials come from
  * `--client-id`/`OXY_SHIP_CLIENT_ID` + `--secret`/`OXY_SHIP_SECRET`; the API
  * origin from `--url`/`--api-url`/`OXY_API_URL` (default production). Token
- * minting + refresh is delegated to `@oxyhq/core`'s service-auth so the CLI never
+ * minting + refresh is delegated to `@oxy.so/core`'s service-auth so the CLI never
  * plumbs `/auth/service-token` itself.
  */
 export function createShipClient(flags: ShipFlags): ShipClient {

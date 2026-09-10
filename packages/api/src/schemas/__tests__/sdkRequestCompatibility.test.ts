@@ -2,7 +2,7 @@
  * The SDK's request type and the edge's request schema, held together
  * (issue #972, workstream 15).
  *
- * `@oxyhq/core`'s `OxyResponsesRequest` names the fields a customer sends to
+ * `@oxy.so/core`'s `OxyResponsesRequest` names the fields a customer sends to
  * `POST /v1/responses`. `responsesRequestSchema` decides which fields are
  * accepted. They are two declarations of one wire shape and they live in
  * different packages — the schema stays here because it is a PUBLIC DIALECT
@@ -24,22 +24,23 @@
  * control is what proves it does not.
  */
 
-import type { OxyResponsesRequest } from '@oxyhq/core';
-import { responsesRequestSchema } from '../inferenceEdge.schemas';
+import type { OxyResponsesRequest } from '@oxy.so/core';
+import { normalizeResponsesRequest, responsesRequestSchema } from '../inferenceEdge.schemas';
 
 /**
- * Fields `responsesRequestSchema` accepts and `OxyResponsesRequest` deliberately
- * does not declare.
+ * Fields `responsesRequestSchema` accepts and the SDK deliberately controls at
+ * the method boundary instead of exposing on `OxyResponsesRequest`.
  *
- * EXACT, not a floor: an entry here is a capability the SDK cannot express, and
- * a growing list is the gate switching itself off one defensible line at a time.
+ * EXACT, not a floor: an entry here must name a transport choice expressed by a
+ * public SDK method, and a growing list is the gate switching itself off one
+ * defensible line at a time.
  *
- * `stream` — the edge refuses `stream: true` with `invalid_request` because
- * there is no data plane to stream from, so a client field that could only ever
- * produce a refusal would be a worse artefact than an absent one. When streaming
- * ships, this entry is removed in the same change that adds the SDK method.
+ * `stream` — `OxyInferenceClient.respond()` omits it and expects JSON;
+ * `OxyInferenceClient.stream()` injects literal `true` and expects SSE. Keeping
+ * it out of the shared request type prevents a caller from choosing a body that
+ * contradicts the method's return transport.
  */
-const SDK_OMITTED_FIELDS = ['stream'] as const;
+const SDK_METHOD_CONTROLLED_FIELDS = ['stream'] as const;
 
 /**
  * Every field of `OxyResponsesRequest`, populated.
@@ -86,6 +87,11 @@ const profileRequest: OxyResponsesRequest = {
   input: 'hello',
 };
 
+const exactProfileRequest: OxyResponsesRequest = {
+  routingProfileId: '018f25d8-9c52-7b9e-84f9-512a11c8642a',
+  input: 'hello',
+};
+
 describe('OxyResponsesRequest ↔ responsesRequestSchema', () => {
   it('accepts every field the SDK can send', () => {
     const parsed = responsesRequestSchema.safeParse(exhaustiveRequest);
@@ -97,6 +103,32 @@ describe('OxyResponsesRequest ↔ responsesRequestSchema', () => {
     expect(parsed.success ? null : parsed.error.issues).toBeNull();
   });
 
+  it('accepts and preserves the exact routing-profile ID form byte-for-byte', () => {
+    const parsed = responsesRequestSchema.parse(exactProfileRequest);
+    expect(normalizeResponsesRequest(parsed).target).toEqual({
+      kind: 'routing_profile_id',
+      routingProfileId: '018f25d8-9c52-7b9e-84f9-512a11c8642a',
+    });
+
+    const whitespaceModified = responsesRequestSchema.parse({
+      ...exactProfileRequest,
+      routingProfileId: ' 018f25d8-9c52-7b9e-84f9-512a11c8642a',
+    });
+    expect(normalizeResponsesRequest(whitespaceModified).target).toEqual({
+      kind: 'routing_profile_id',
+      routingProfileId: ' 018f25d8-9c52-7b9e-84f9-512a11c8642a',
+    });
+  });
+
+  it.each([
+    [{ model: 'acme/some-model', routingProfile: 'auto' }],
+    [{ model: 'acme/some-model', routingProfileId: 'profile-id' }],
+    [{ routingProfile: 'auto', routingProfileId: 'profile-id' }],
+    [{ model: 'acme/some-model', routingProfile: 'auto', routingProfileId: 'profile-id' }],
+  ])('refuses multiple target selectors: %j', (selectors) => {
+    expect(responsesRequestSchema.safeParse({ ...selectors, input: 'hello' }).success).toBe(false);
+  });
+
   it('negative control: an unknown field is refused, so the two above are not vacuous', () => {
     const parsed = responsesRequestSchema.safeParse({
       ...exhaustiveRequest,
@@ -105,20 +137,24 @@ describe('OxyResponsesRequest ↔ responsesRequestSchema', () => {
     expect(parsed.success).toBe(false);
   });
 
-  it('the SDK can express every field the schema accepts, but the named exemptions', () => {
+  it('the SDK can express every field the schema accepts', () => {
     // The other direction: a capability added to the edge that no SDK caller
     // can reach parses fine and would be invisible to the cases above.
     const schemaFields = Object.keys(responsesRequestSchema.innerType().shape).sort();
     const sdkFields = [
-      ...new Set([...Object.keys(exhaustiveRequest), ...Object.keys(profileRequest)]),
+      ...new Set([
+        ...Object.keys(exhaustiveRequest),
+        ...Object.keys(profileRequest),
+        ...Object.keys(exactProfileRequest),
+      ]),
     ].sort();
 
-    expect(schemaFields).toEqual([...sdkFields, ...SDK_OMITTED_FIELDS].sort());
+    expect(schemaFields).toEqual([...sdkFields, ...SDK_METHOD_CONTROLLED_FIELDS].sort());
   });
 
-  it('the exemption list is exactly what it claims to be', () => {
+  it('the method-controlled field list is exactly what it claims to be', () => {
     // An exact count, so an entry cannot be appended to make a failure go away
     // without somebody editing this number and answering for it.
-    expect(SDK_OMITTED_FIELDS).toEqual(['stream']);
+    expect(SDK_METHOD_CONTROLLED_FIELDS).toEqual(['stream']);
   });
 });

@@ -21,7 +21,7 @@ Welcome to Oxy! This guide will help you integrate Oxy into your application in 
 ### Install the Package
 
 ```bash
-bun add @oxyhq/services
+bun add @oxy.so/services
 ```
 
 ### Install Peer Dependencies
@@ -77,7 +77,7 @@ import 'react-native-url-polyfill/auto';
 
 ```typescript
 // App.tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 import { YourApp } from './YourApp';
 
 export default function App() {
@@ -93,7 +93,7 @@ export default function App() {
 
 ```typescript
 // components/UserProfile.tsx
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { View, Text, Button } from 'react-native';
 
 export function UserProfile() {
@@ -121,7 +121,7 @@ export function UserProfile() {
 
 ```typescript
 // App.tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 import { YourApp } from './YourApp';
 
 export default function App() {
@@ -138,7 +138,7 @@ export default function App() {
 ```typescript
 // server.ts
 import express from 'express';
-import { oxyClient } from '@oxyhq/core';
+import { oxyClient } from '@oxy.so/core';
 
 const app = express();
 app.use(express.json());
@@ -175,20 +175,20 @@ Oxy ships with two entry points. Pick the one that matches your environment so t
 
 ### Frontend (React Native, React, Expo)
 
-- **Import path:** `import { OxyProvider, useOxy, useFollow, ... } from '@oxyhq/services';`
+- **Import path:** `import { OxyProvider, useOxy, useFollow, ... } from '@oxy.so/services';`
 - Wrap your app with `OxyProvider` to get the context, hooks, and UI components.
 - Hooks such as `useOxy`, `useFollow`, `useI18n`, etc., as well as components like `OxySignInButton` and `FollowButton`, are only available in frontend/React environments.
 - Make sure the required peer dependencies are installed (Reanimated, Gesture Handler, etc.) and add `import 'react-native-url-polyfill/auto'` when running on React Native/Expo so uploads work.
 
 ### Backend (Node.js, serverless, API routes)
 
-- **Import path:** `import { oxyClient, OxyServices } from '@oxyhq/core';`
-- The `@oxyhq/core` package contains only the TypeScript client—no React or React Native code—so it is safe for Node.js, Express, Next.js API routes, and serverless functions.
+- **Import path:** `import { oxyClient, OxyServices } from '@oxy.so/core';`
+- The `@oxy.so/core` package contains only the TypeScript client—no React or React Native code—so it is safe for Node.js, Express, Next.js API routes, and serverless functions.
 - Use the preconfigured `oxyClient` for convenience, or instantiate your own `new OxyServices({ baseURL })` if you need custom configuration or multiple instances.
 - You can reuse tokens generated on the frontend (`OxyProvider`) by sending them to your backend via headers or cookies—the backend `oxyClient` understands the same token format.
 - The backend bundle also exposes helpers such as `oxyClient.auth()` for Express middleware.
 
-> **Tip:** In SSR frameworks (Next.js, Remix, etc.) import UI hooks/components from `@oxyhq/services` in client components and import `@oxyhq/core` anywhere that runs on the server (API routes, middleware, server components).
+> **Tip:** In SSR frameworks (Next.js, Remix, etc.) import UI hooks/components from `@oxy.so/services` in client components and import `@oxy.so/core` anywhere that runs on the server (API routes, middleware, server components).
 
 ## Platform-Specific Setup
 
@@ -196,7 +196,7 @@ Oxy ships with two entry points. Pick the one that matches your environment so t
 
 1. **Install dependencies**:
 ```bash
-bun add @oxyhq/services react-native-reanimated react-native-gesture-handler
+bun add @oxy.so/services react-native-reanimated react-native-gesture-handler
 ```
 
 2. **Add polyfill** (first line of `index.js`):
@@ -216,7 +216,7 @@ module.exports = {
 
 1. **Install dependencies**:
 ```bash
-bunx expo install @oxyhq/services expo expo-font expo-image expo-linear-gradient
+bunx expo install @oxy.so/services expo expo-font expo-image expo-linear-gradient
 ```
 
 2. **Add polyfill** (first line of `App.js`):
@@ -230,7 +230,7 @@ import 'react-native-url-polyfill/auto';
 
 ```typescript
 // app/layout.tsx or pages/_app.tsx
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 
 export default function RootLayout({ children }) {
   return (
@@ -246,7 +246,7 @@ export default function RootLayout({ children }) {
 ```typescript
 // main.ts
 import { createApp } from 'vue';
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxy.so/services';
 import App from './App.vue';
 
 // Note: OxyProvider is React-based, so you'll need to use the core API directly
@@ -258,7 +258,7 @@ import App from './App.vue';
 ### Step 1: Authentication
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 function LoginScreen() {
   const { login, isAuthenticated, user } = useOxy();
@@ -291,7 +291,7 @@ function LoginScreen() {
 ### Step 2: Fetch User Data
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useEffect, useState } from 'react';
 
 function UserProfile() {
@@ -323,7 +323,7 @@ function UserProfile() {
 ### Step 3: Upload Files
 
 ```typescript
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import * as ImagePicker from 'expo-image-picker';
 
 function AvatarUpload() {

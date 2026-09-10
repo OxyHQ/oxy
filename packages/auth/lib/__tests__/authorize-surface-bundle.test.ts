@@ -5,11 +5,11 @@
  * WHY THIS TEST IS SHAPED LIKE THIS. `auth.oxy.so/authorize` served a blank page
  * and React error #130 ("element type is undefined") for every request whose
  * `client_id` resolved to a real application — the only requests that reach
- * `CommonsOAuthLane`, and through it `@oxyhq/services`' `OxySignInRequestSurface`.
+ * `CommonsOAuthLane`, and through it `@oxy.so/services`' `OxySignInRequestSurface`.
  * Nothing was wrong with the source: the same commit rendered the same URL
  * correctly under `vite` dev, and `components/__tests__/authorize-commons-lane.test.tsx`
  * was green throughout, because it — like every test in this package — replaces
- * the whole `@oxyhq/services` specifier with a double. The defect lived in the
+ * the whole `@oxy.so/services` specifier with a double. The defect lived in the
  * production bundle and nowhere else.
  *
  * So this test builds the real thing: the app's OWN `vite.config.ts`, in

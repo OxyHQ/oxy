@@ -270,7 +270,7 @@ describe('syncBackgroundSession', () => {
   });
 });
 
-describe('a @oxyhq/core too old to provision', () => {
+describe('a @oxy.so/core too old to provision', () => {
   /**
    * The ONE failure that must not be quiet. Every other failure here is caught and
    * logged at warn, which is right for a flaky network — but a version skew means
@@ -288,7 +288,7 @@ describe('a @oxyhq/core too old to provision', () => {
   test('rejects loudly and logs at error rather than warning quietly', async () => {
     const native = fakeNative(null);
     const { syncBackgroundSession } = await loadModule(native);
-    const { logger } = await import('@oxyhq/core');
+    const { logger } = await import('@oxy.so/core');
     const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
     const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
 

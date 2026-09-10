@@ -26,13 +26,21 @@ import {
   unlinkFileSchema,
 } from '../schemas/assets.schemas';
 import { generateMissingFilePlaceholder, TRANSPARENT_PNG_PLACEHOLDER } from '../utils/placeholders';
-import { buildCdnUrl, stripPublicPrefix, isPublicKey, CDN_REDIRECT_MAX_AGE_SECONDS } from '../config/cdn';
+import {
+  buildCdnUrl,
+  stripPublicPrefix,
+  isPublicKey,
+  CDN_REDIRECT_CACHE_CONTROL,
+  IMMUTABLE_ASSET_CACHE_CONTROL,
+} from '../config/cdn';
+import { sendAssetRedirect } from '../utils/cdnRedirect';
 import { MEDIA_TOKEN_QUERY_PARAM, MEDIA_TOKEN_TTL_SECONDS, signMediaToken } from '../utils/mediaToken';
 import { FEDERATION_CACHE_MAX_BYTES, USER_MEDIA_MAX_BYTES, isAllowedCacheMime } from '../constants/federationCache';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema';
 import { resolveFileMediaMetadata } from '../utils/fileMediaMetadata';
+import { singleQueryValue } from '../utils/queryString';
 
 interface AuthenticatedRequest extends express.Request {
   user?: {
@@ -455,7 +463,8 @@ router.post('/:id/upload-direct', authMiddleware, validate({ params: assetIdPara
 
   // Upload buffer to the predetermined storageKey
   await s3Service.uploadBuffer(file.storageKey, req.file.buffer, {
-    contentType: req.file.mimetype || file.mime || 'application/octet-stream'
+    contentType: req.file.mimetype || file.mime || 'application/octet-stream',
+    cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
   });
 
   sendSuccess(res, { fileId, key: file.storageKey });
@@ -1026,6 +1035,19 @@ router.delete(
  *                       status:
  *                         type: string
  *                         enum: [active, trash]
+ *                       hlsReadyAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: >
+ *                           When the adaptive HLS ladder for this asset finished
+ *                           transcoding. ABSENT when there is none — transcoding
+ *                           is asynchronous and per-rendition failures are
+ *                           swallowed, so a video may never get one. Consumers
+ *                           must treat absence as "no adaptive stream" and play
+ *                           the progressive original: the `?variant=hls_master`
+ *                           URL is derivable from the id, and building it without
+ *                           this field is what made players fail on a 403 and
+ *                           fall back, once per video per play.
  *       400:
  *         description: Validation failed (empty array or more than 100 ids).
  *       401:
@@ -1048,16 +1070,36 @@ router.post(
     // Metadata only: never expose bytes, signed URLs, owner ids, storage keys,
     // links, or variants. Deleted tombstones are omitted so a resolved id always
     // maps to a live asset.
+    //
+    // `hlsReadyAt` is NOT the variant list arriving through the back door. The
+    // list is storage detail — keys, formats, renditions — and stays private.
+    // This is one bit of PLAYABILITY, and withholding it forced every consumer
+    // into the same broken guess: the adaptive URL is derivable from the id
+    // (`?variant=hls_master`), so callers built it unconditionally and shipped it
+    // to players, because nothing here would tell them whether the ladder
+    // existed. Upload-time transcoding is asynchronous and per-rendition
+    // failures are swallowed, so for many videos it does not — and the player
+    // discovered that by failing: a 403 on the manifest, a playback error, and a
+    // fallback to the progressive original, once per video per play. Measured in
+    // Mention on a Pixel 10 Pro. A consumer that can ask stops guessing.
     const data = files
       .filter((file) => file.status !== 'deleted')
       .map((file) => {
         const media = resolveFileMediaMetadata(file);
+        // The same readiness test the service itself uses before serving a
+        // variant (`assetService`/`variantService`): a row exists AND it has
+        // been stamped ready. A row without `readyAt` is a transcode that was
+        // started, not one that finished.
+        const hlsMaster = file.variants?.find(
+          (variant) => variant.type === 'hls_master' && variant.readyAt
+        );
         return {
           id: file.id,
           sha256: file.sha256,
           mime: file.mime,
           size: file.size,
           status: file.status,
+          ...(hlsMaster?.readyAt ? { hlsReadyAt: new Date(hlsMaster.readyAt).toISOString() } : {}),
           ...(media.width !== undefined ? { width: media.width } : {}),
           ...(media.height !== undefined ? { height: media.height } : {}),
           ...(media.durationSec !== undefined ? { durationSec: media.durationSec } : {}),
@@ -1425,7 +1467,7 @@ router.get('/:id/url', authMiddleware, validate({ params: assetIdParams, query: 
   const { id: fileId } = req.params;
   const { variant, expiresIn } = req.query;
 
-  const variantType = typeof variant === 'string' ? variant : undefined;
+  const variantType = singleQueryValue(variant);
   const expiry = typeof expiresIn === 'string' ? Number.parseInt(expiresIn) : 3600;
 
   const file = await assetService.getFile(fileId);
@@ -1552,7 +1594,7 @@ router.get('/:id/stream', mediaHeadersMiddleware, validate({ params: assetIdPara
   const userId = getMediaViewerUserId(req);
   const { id: fileId } = req.params;
   const { variant } = req.query;
-  const variantType = typeof variant === 'string' ? variant : undefined;
+  const variantType = singleQueryValue(variant);
 
   const fallback = typeof req.query.fallback === 'string' ? req.query.fallback : '';
 
@@ -1669,8 +1711,8 @@ router.get('/:id/stream', mediaHeadersMiddleware, validate({ params: assetIdPara
     // Fast path: the resolved object key is already under the `public/` prefix
     // (every new upload, and any visibility-relocated object) — no S3 probe.
     if (isPublicKey(storageKey)) {
-      res.setHeader('Cache-Control', `public, max-age=${CDN_REDIRECT_MAX_AGE_SECONDS}`);
-      return res.redirect(buildCdnUrl(stripPublicPrefix(storageKey)));
+      res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
+      return sendAssetRedirect(res, buildCdnUrl(stripPublicPrefix(storageKey)));
     }
 
     // Legacy public object whose DB key still points at a non-public key, but
@@ -1681,8 +1723,8 @@ router.get('/:id/stream', mediaHeadersMiddleware, validate({ params: assetIdPara
     try {
       const cdnUrl = await assetService.getPublicCdnUrl(file, variantType);
       if (cdnUrl) {
-        res.setHeader('Cache-Control', `public, max-age=${CDN_REDIRECT_MAX_AGE_SECONDS}`);
-        return res.redirect(cdnUrl);
+        res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
+        return sendAssetRedirect(res, cdnUrl);
       }
     } catch (cdnProbeError) {
       logger.debug('CDN probe failed for public asset stream; streaming through origin', {
@@ -1782,7 +1824,7 @@ router.get('/:id/download', validate({ params: assetIdParams }), optionalAuthMid
     throw new ForbiddenError('Access denied');
   }
 
-  const variantType = typeof variant === 'string' ? variant : undefined;
+  const variantType = singleQueryValue(variant);
   const expiry = typeof expiresIn === 'string' ? Number.parseInt(expiresIn) : 3600;
 
   if (!(await assetService.fileContentExists(fileId, file))) {
@@ -1809,7 +1851,7 @@ router.get('/:id/download', validate({ params: assetIdParams }), optionalAuthMid
     : signMediaToken(fileId, userId);
   const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variantType, mediaToken);
   res.setHeader('Cache-Control', 'private, max-age=60');
-  return res.redirect(url);
+  return sendAssetRedirect(res, url);
 }));
 
 /**

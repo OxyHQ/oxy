@@ -20,7 +20,7 @@ import {
   pendingEntries,
   readJournal,
   readLastAppliedMillis,
-} from '@oxyhq/db/migrate';
+} from '@oxy.so/db/migrate';
 import { MIGRATIONS_FOLDER } from '../migrationsFolder';
 
 /** Write a `drizzle/meta/_journal.json` into a throwaway directory. */

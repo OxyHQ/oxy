@@ -1,7 +1,7 @@
 /**
  * PostgreSQL connection for {{APP_NAME}}.
  *
- * Drizzle ORM over postgres.js, built through `@oxyhq/db`'s `createDatabase` so
+ * Drizzle ORM over postgres.js, built through `@oxy.so/db`'s `createDatabase` so
  * the handle is constructed with `DATABASE_CASING` — the one setting that
  * decides what queries REFERENCE, and which `drizzle.config.ts` reads again to
  * decide what the DDL CREATES. Both sides read the same exported constant, so
@@ -15,8 +15,8 @@
  * handle synchronously from anywhere via `getDb()`.
  */
 
-import { createDatabase, type OxyDatabase } from '@oxyhq/db';
-import { assertPostgresMigrationsCurrent, readJournal } from '@oxyhq/db/migrate';
+import { createDatabase, type OxyDatabase } from '@oxy.so/db';
+import { assertPostgresMigrationsCurrent, readJournal } from '@oxy.so/db/migrate';
 import type postgres from 'postgres';
 import { logger } from '../utils/logger';
 import { MIGRATIONS_FOLDER } from './migrationsFolder';

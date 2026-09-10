@@ -1,4 +1,4 @@
-import { useAuth, useSecurityActivity, usePrivacySettings, useUpdatePrivacySettings } from "@oxyhq/services"
+import { useAuth, useSecurityActivity, usePrivacySettings, useUpdatePrivacySettings } from "@oxy.so/services"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { toast } from "@oxyhq/bloom"
+import { toast } from "@oxy.so/bloom"
 
 export function SecurityDemo() {
   const { isAuthenticated } = useAuth()
@@ -142,7 +142,7 @@ export function SecurityDemo() {
         </CardHeader>
         <CardContent>
           <pre className="overflow-auto rounded-md bg-muted p-4 text-xs">
-{`import { useSecurityActivity, usePrivacySettings, useUpdatePrivacySettings } from '@oxyhq/services';
+{`import { useSecurityActivity, usePrivacySettings, useUpdatePrivacySettings } from '@oxy.so/services';
 
 function Security() {
   const { data: activity } = useSecurityActivity();

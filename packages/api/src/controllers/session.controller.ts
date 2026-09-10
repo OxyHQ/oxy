@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { and, asc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
-import { publicColumns } from '@oxyhq/db/assert';
+import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { authChallenges } from '../db/schema/authChallenges';
 import { notifications } from '../db/schema/notifications';
@@ -24,22 +24,30 @@ import { userService } from '../services/user.service';
 import securityActivityService from '../services/securityActivityService';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
 import type { AuthRequest } from '../middleware/auth';
-import { INVALID_USERNAME_MESSAGE, USERNAME_PATTERN, normalizeUsername } from '../utils/username';
+import { isValidUsername, USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
+import { normalizeUsername } from '../utils/username';
 import type { SessionCreateOptions } from '../types/session.types';
 
+/**
+ * Session options an UNAUTHENTICATED sign-in body may set.
+ *
+ * Deliberately no `deviceId`. `createSession` documents its precedence as
+ * `deviceId > stableDeviceKey > UA/IP > random` and stamps an explicit id
+ * verbatim, so accepting one here let a caller who has only proved they are
+ * THEMSELVES place that session on a device id they merely knew — and
+ * `finalizeDeviceLogin` then mints a device secret against it. The callers that
+ * legitimately pin a device id are server-side and already authorized (the
+ * account-switch route threading the operator's own central device id); they
+ * call `createSession` directly.
+ */
 export function sessionCreateOptionsFromBody(body: {
   deviceName?: string;
   deviceFingerprint?: string;
-  deviceId?: string;
 }): SessionCreateOptions {
-  const opts: SessionCreateOptions = {
+  return {
     deviceName: body.deviceName,
     deviceFingerprint: body.deviceFingerprint,
   };
-  if (typeof body.deviceId === 'string' && body.deviceId.trim()) {
-    opts.deviceId = body.deviceId.trim();
-  }
-  return opts;
 }
 
 /**
@@ -176,8 +184,8 @@ export class SessionController {
         }
 
         normalizedUsername = normalizeUsername(username);
-        if (!USERNAME_PATTERN.test(normalizedUsername)) {
-          return res.status(400).json({ message: INVALID_USERNAME_MESSAGE });
+        if (!isValidUsername(normalizedUsername)) {
+          return res.status(400).json({ message: USERNAME_INVALID_MESSAGE });
         }
       }
 
@@ -338,7 +346,7 @@ export class SessionController {
    */
   static async verifyChallenge(req: Request, res: Response) {
     try {
-      const { publicKey, challenge, signature, timestamp, deviceName, deviceFingerprint, deviceId } = req.body;
+      const { publicKey, challenge, signature, timestamp, deviceName, deviceFingerprint } = req.body;
       const db = getDb();
 
       if (!publicKey || !challenge || !signature || !timestamp) {
@@ -417,7 +425,7 @@ export class SessionController {
       const session = await sessionService.createSession(
         user.id,
         req,
-        sessionCreateOptionsFromBody({ deviceName, deviceFingerprint, deviceId }),
+        sessionCreateOptionsFromBody({ deviceName, deviceFingerprint }),
       );
       const sessionAfterCreate = Date.now();
 

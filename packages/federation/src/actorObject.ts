@@ -18,7 +18,7 @@
  * absolute-URL invariant and assembles the AP `Image` object.
  */
 
-import { type AccountKind, isAccountKind } from '@oxyhq/contracts';
+import { type AccountKind, isAccountKind } from '@oxy.so/contracts';
 import type { UrlBuilders } from './urls';
 
 /**
@@ -74,7 +74,7 @@ export type LocalActorType = Extract<ApActorType, 'Person' | 'Organization' | 'S
  * Oxy account kind → the AS2 actor type the fediverse is told about it.
  *
  * `satisfies Record<AccountKind, LocalActorType>` is the load-bearing part: a
- * kind added to `@oxyhq/contracts` fails THIS build rather than silently
+ * kind added to `@oxy.so/contracts` fails THIS build rather than silently
  * inheriting `Person`, which is how every non-person account came to describe
  * itself as an individual human in the first place.
  *

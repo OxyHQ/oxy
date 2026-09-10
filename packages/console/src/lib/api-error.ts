@@ -1,5 +1,5 @@
 /**
- * Error-narrowing helpers for errors propagated by the `@oxyhq/core`
+ * Error-narrowing helpers for errors propagated by the `@oxy.so/core`
  * `OxyServices` client. `handleError` rethrows a standard `Error` augmented
  * with optional `code` / `status` / `details` fields (see `OxyServices.base.ts`),
  * so we narrow against those without `as any`.

@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
 import { View, Linking } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { toast } from '@oxyhq/bloom/toast';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';

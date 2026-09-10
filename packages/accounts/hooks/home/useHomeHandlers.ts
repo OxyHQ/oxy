@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useRouter } from 'expo-router';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 
 export interface HomeHandlers {
   handleAvatarPress: () => void;

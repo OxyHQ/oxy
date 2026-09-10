@@ -27,7 +27,7 @@ Service tokens are minted against the Application registry:
 ## Getting a Service Token
 
 ```typescript
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 oxy.configureServiceAuth('oxy_dk_...', 'secret...');

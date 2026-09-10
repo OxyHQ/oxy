@@ -28,8 +28,8 @@ import {
   signEnvelope,
   signedRecordSigningInput,
   verifyEnvelopeSignature,
-} from '@oxyhq/protocol';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+} from '@oxy.so/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { repoHeads } from '../repoHeads';
 import { signedRecords } from '../signedRecords';

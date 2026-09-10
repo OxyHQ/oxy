@@ -12,7 +12,7 @@
  * - **`userID` becomes `user_id`.** The capital-D spelling is unique to this one
  *   model — every other model in the package, ported or not, spells it `userId`
  *   — and carrying it would put a single irregular column into a schema whose
- *   naming is otherwise mechanical (`@oxyhq/db`'s casing module derives every SQL name from
+ *   naming is otherwise mechanical (`@oxy.so/db`'s casing module derives every SQL name from
  *   the property). The backfill's field map records `userID` → `user_id`; it is
  *   the only entry in this batch that is not an identity mapping.
  *
@@ -32,7 +32,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /** The aggregation window a row covers. Mongo's `period` enum, unchanged. */

@@ -32,7 +32,7 @@ describe('SqlExecutor', () => {
   // `transaction` callback's declared TYPES, extracted at the type level, so a
   // plain `src/` module gated by `tsc` is the more direct fit than a Jest test.
   // It is excluded from every BUILD tsconfig but not from `tsconfig.json` — so
-  // `bun run --filter @oxyhq/db typescript` is the command that gates it.
+  // `bun run --filter @oxy.so/db typescript` is the command that gates it.
 });
 
 describe('executeRows', () => {

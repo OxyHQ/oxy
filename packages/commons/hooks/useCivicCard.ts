@@ -13,15 +13,15 @@
  * the SDK's account/session caches.
  *
  * NOTE: cross-app-restart persistence of `civic` keys would require adding the
- * `civic` prefix to the `@oxyhq/services` persist whitelist
+ * `civic` prefix to the `@oxy.so/services` persist whitelist
  * (`PERSISTED_QUERY_PREFIXES` in `packages/services/src/ui/hooks/queryClient.ts`)
  * — an upstream change. Within a session the in-memory cache already serves the
  * last-known card while offline.
  */
 
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
-import type { CivicCardResult } from '@oxyhq/core';
+import { useOxy } from '@oxy.so/services';
+import type { CivicCardResult } from '@oxy.so/core';
 
 /** Keep a resolved card available for a day so the offline view has something
  *  to render after the 5-minute freshness window lapses. */

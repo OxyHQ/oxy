@@ -44,7 +44,7 @@
  * more. Over-matching deletes content for a domain that was never blocked, and
  * that is irreversible. So host comparison goes through
  * {@link canonicalFederationHost} / {@link isSameFederationHost} from
- * `@oxyhq/federation` — the same functions `createDomainPolicy` is built from,
+ * `@oxy.so/federation` — the same functions `createDomainPolicy` is built from,
  * not a local copy that agrees today. Consequences, all deliberate:
  *
  *   - `www.` is stripped on both sides. Oxy's resolve paths store
@@ -63,7 +63,7 @@
  */
 
 import { and, asc, count, eq, gt, inArray, ne } from 'drizzle-orm';
-import { canonicalFederationHost, isSameFederationHost } from '@oxyhq/federation';
+import { canonicalFederationHost, isSameFederationHost } from '@oxy.so/federation';
 import { getDb } from '../../config/postgres';
 import { files } from '../../db/schema/files';
 import { userFollows } from '../../db/schema/userFollows';

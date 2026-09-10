@@ -55,7 +55,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, integer, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
 /** The one signature algorithm the protocol emits. */
 export const CHECKPOINT_SIGNATURE_ALGORITHMS = ['ES256K-DER-SHA256'] as const;

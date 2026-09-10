@@ -1,13 +1,13 @@
 import { logger } from './logger';
 
-interface PerformanceMetric {
+export interface PerformanceMetric {
   operation: string;
   duration: number;
   timestamp: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
-interface PerformanceStats {
+export interface PerformanceStats {
   operation: string;
   count: number;
   avgDuration: number;
@@ -20,12 +20,21 @@ interface PerformanceStats {
   p99: number;
 }
 
-class PerformanceMonitor {
-  private metrics: PerformanceMetric[] = [];
+interface DurationWindow {
+  values: number[];
+  next: number;
+  count: number;
+}
+
+export class PerformanceMonitor {
+  private metrics: Array<PerformanceMetric | undefined> = new Array(1000);
+  private metricsNext = 0;
+  private metricsCount = 0;
   private stats: Map<string, PerformanceStats> = new Map();
-  private durations: Map<string, number[]> = new Map();
-  private maxMetrics = 1000;
-  private maxDurations = 500;
+  private durations: Map<string, DurationWindow> = new Map();
+  private readonly maxMetrics = 1000;
+  private readonly maxDurations = 500;
+  private readonly maxOperations = 512;
   private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor() {
@@ -35,7 +44,7 @@ class PerformanceMonitor {
   /**
    * Start timing an operation
    */
-  startTimer(operation: string): (metadata?: Record<string, any>) => void {
+  startTimer(operation: string): (metadata?: Record<string, unknown>) => void {
     const startTime = Date.now();
     
     return (metadata?: Record<string, any>) => {
@@ -47,7 +56,7 @@ class PerformanceMonitor {
   /**
    * Record a performance metric
    */
-  recordMetric(operation: string, duration: number, metadata?: Record<string, any>): void {
+  recordMetric(operation: string, duration: number, metadata?: Record<string, unknown>): void {
     const metric: PerformanceMetric = {
       operation,
       duration,
@@ -55,13 +64,10 @@ class PerformanceMonitor {
       metadata
     };
 
-    this.metrics.push(metric);
+    this.metrics[this.metricsNext] = metric;
+    this.metricsNext = (this.metricsNext + 1) % this.maxMetrics;
+    this.metricsCount = Math.min(this.metricsCount + 1, this.maxMetrics);
     this.updateStats(operation, duration);
-
-    // Keep only the latest metrics
-    if (this.metrics.length > this.maxMetrics) {
-      this.metrics = this.metrics.slice(-this.maxMetrics);
-    }
 
     // Log slow operations
     if (duration > 1000) {
@@ -78,19 +84,18 @@ class PerformanceMonitor {
     return sorted[Math.max(0, idx)];
   }
 
-  private updateStats(operation: string, duration: number): void {
-    // Track recent durations for percentile calculation
-    let durs = this.durations.get(operation);
-    if (!durs) {
-      durs = [];
-      this.durations.set(operation, durs);
+  private updateStats(rawOperation: string, duration: number): void {
+    const operation = this.stats.has(rawOperation) || this.stats.size < this.maxOperations
+      ? rawOperation
+      : 'other';
+    let window = this.durations.get(operation);
+    if (!window) {
+      window = { values: new Array(this.maxDurations), next: 0, count: 0 };
+      this.durations.set(operation, window);
     }
-    durs.push(duration);
-    if (durs.length > this.maxDurations) {
-      durs.splice(0, durs.length - this.maxDurations);
-    }
-
-    const sorted = [...durs].sort((a, b) => a - b);
+    window.values[window.next] = duration;
+    window.next = (window.next + 1) % this.maxDurations;
+    window.count = Math.min(window.count + 1, this.maxDurations);
 
     const existing = this.stats.get(operation);
     if (existing) {
@@ -100,9 +105,6 @@ class PerformanceMonitor {
       existing.minDuration = Math.min(existing.minDuration, duration);
       existing.maxDuration = Math.max(existing.maxDuration, duration);
       existing.lastUpdated = Date.now();
-      existing.p50 = this.percentile(sorted, 0.5);
-      existing.p95 = this.percentile(sorted, 0.95);
-      existing.p99 = this.percentile(sorted, 0.99);
     } else {
       this.stats.set(operation, {
         operation,
@@ -123,28 +125,49 @@ class PerformanceMonitor {
    * Get performance statistics
    */
   getStats(): PerformanceStats[] {
-    return Array.from(this.stats.values()).sort((a, b) => b.count - a.count);
+    return Array.from(this.stats.values(), (stats) => this.withPercentiles(stats))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  private withPercentiles(stats: PerformanceStats): PerformanceStats {
+    const window = this.durations.get(stats.operation);
+    if (!window) return stats;
+    const sorted = window.values.slice(0, window.count).sort((a, b) => a - b);
+    return {
+      ...stats,
+      p50: this.percentile(sorted, 0.5),
+      p95: this.percentile(sorted, 0.95),
+      p99: this.percentile(sorted, 0.99),
+    };
   }
 
   /**
    * Get statistics for a specific operation
    */
   getOperationStats(operation: string): PerformanceStats | undefined {
-    return this.stats.get(operation);
+    const stats = this.stats.get(operation);
+    return stats ? this.withPercentiles(stats) : undefined;
   }
 
   /**
    * Get recent metrics
    */
   getRecentMetrics(limit = 50): PerformanceMetric[] {
-    return this.metrics.slice(-limit);
+    const count = Math.min(Math.max(0, limit), this.metricsCount);
+    const result: PerformanceMetric[] = [];
+    const start = (this.metricsNext - count + this.maxMetrics) % this.maxMetrics;
+    for (let offset = 0; offset < count; offset += 1) {
+      const metric = this.metrics[(start + offset) % this.maxMetrics];
+      if (metric) result.push(metric);
+    }
+    return result;
   }
 
   /**
    * Get metrics for a specific operation
    */
   getOperationMetrics(operation: string, limit = 50): PerformanceMetric[] {
-    return this.metrics
+    return this.getRecentMetrics(this.metricsCount)
       .filter(m => m.operation === operation)
       .slice(-limit);
   }
@@ -177,7 +200,15 @@ class PerformanceMonitor {
    */
   private cleanup(): void {
     const oneHourAgo = Date.now() - (60 * 60 * 1000);
-    this.metrics = this.metrics.filter(m => m.timestamp > oneHourAgo);
+    const recent = this.getRecentMetrics(this.metricsCount).filter((metric) => metric.timestamp > oneHourAgo);
+    this.metrics = new Array(this.maxMetrics);
+    this.metricsNext = 0;
+    this.metricsCount = 0;
+    for (const metric of recent) {
+      this.metrics[this.metricsNext] = metric;
+      this.metricsNext = (this.metricsNext + 1) % this.maxMetrics;
+      this.metricsCount += 1;
+    }
     
     for (const [operation, stats] of this.stats.entries()) {
       if (stats.lastUpdated < oneHourAgo) {
@@ -211,7 +242,9 @@ class PerformanceMonitor {
    * Clear all metrics and stats
    */
   clear(): void {
-    this.metrics = [];
+    this.metrics = new Array(this.maxMetrics);
+    this.metricsNext = 0;
+    this.metricsCount = 0;
     this.stats.clear();
     this.durations.clear();
     logger.info('Performance monitor cleared');
@@ -228,13 +261,15 @@ class PerformanceMonitor {
   } {
     const stats = this.getStats();
     const totalOperations = stats.length;
-    const slowOperations = this.getSlowOperations().length;
-    const averageResponseTime = stats.length > 0 
-      ? stats.reduce((sum, stat) => sum + stat.avgDuration, 0) / stats.length 
+    const slowOperations = stats.filter((stat) => stat.avgDuration > 1000).length;
+    const requestCount = stats.reduce((sum, stat) => sum + stat.count, 0);
+    const totalDuration = stats.reduce((sum, stat) => sum + stat.totalDuration, 0);
+    const averageResponseTime = requestCount > 0
+      ? totalDuration / requestCount
       : 0;
 
     return {
-      totalMetrics: this.metrics.length,
+      totalMetrics: this.metricsCount,
       totalOperations,
       slowOperations,
       averageResponseTime
@@ -244,4 +279,4 @@ class PerformanceMonitor {
 
 // Export singleton instance
 export const performanceMonitor = new PerformanceMonitor();
-export default performanceMonitor; 
+export default performanceMonitor;

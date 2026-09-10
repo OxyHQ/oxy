@@ -1,4 +1,4 @@
-import { canSwitchIntoAccount } from '@oxyhq/core';
+import { canSwitchIntoAccount } from '@oxy.so/core';
 import type { AccountNode } from '@/hooks/use-account';
 
 /** The workspace switcher's rendered shape — see {@link buildWorkspaceTree}. */

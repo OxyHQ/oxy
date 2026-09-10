@@ -7,10 +7,10 @@ import {
     useWindowDimensions,
 } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { Button } from '@oxyhq/bloom/button';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { H4 } from '@oxyhq/bloom/typography';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Button } from '@oxy.so/bloom/button';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { H4 } from '@oxy.so/bloom/typography';
+import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import QRCode from 'react-native-qrcode-svg';

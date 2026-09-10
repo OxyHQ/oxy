@@ -102,7 +102,7 @@ consumer-supplied QueryClient becomes *the* QueryClient — never nested under
 another. Outlets that render rows or surfaces mount exactly once.
 
 **Off the central value**, available as focused hooks or ordinary exports from
-`@oxyhq/services`: `useFollow`, avatar-picker presentation, arbitrary
+`@oxy.so/services`: `useFollow`, avatar-picker presentation, arbitrary
 bottom-sheet navigation, detailed passkey management, detailed device
 management, payments/files/social APIs, and locale metadata that does not
 determine session behaviour. They remain available; they are not fields on the

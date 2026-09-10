@@ -1,4 +1,4 @@
-import type { SecurityActivity, SecurityEventType } from '@oxyhq/core';
+import type { SecurityActivity, SecurityEventType } from '@oxy.so/core';
 import {
   formatEventDescription,
   getEventIcon,

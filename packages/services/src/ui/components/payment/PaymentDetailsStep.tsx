@@ -1,12 +1,12 @@
 import type React from 'react';
 import { useMemo } from 'react';
 import { View, Text, Animated, TouchableOpacity, Clipboard, Linking } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { Button } from '@oxyhq/bloom/button';
-import { TextField, TextFieldInput } from '@oxyhq/bloom/text-field';
+import Ionicons from '../../icons/Ionicons';
+import { Button } from '@oxy.so/bloom/button';
+import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import FAIRWalletIcon from '../icon/FAIRWalletIcon';
 import { createPaymentStyles } from './paymentStyles';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import type { CardDetails, PaymentColors, PaymentStepAnimations } from './types';
 import { useI18n } from '../../hooks/useI18n';
 
@@ -71,7 +71,7 @@ const PaymentDetailsStep: React.FC<PaymentDetailsStepProps> = ({
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>
                     {paymentMethod === 'card' ? t('payment.details.cardDetails') :
-                        paymentMethod === 'oxy' ? t('payment.details.oxyPay') :
+                        paymentMethod === 'oxy' ? t('payment.details.peable') :
                             paymentMethod === 'faircoin' ? t('payment.details.faircoinPayment') : t('payment.details.paymentDetails')}
                 </Text>
 
@@ -149,16 +149,16 @@ const PaymentDetailsStep: React.FC<PaymentDetailsStepProps> = ({
                 )}
 
                 {paymentMethod === 'oxy' && (
-                    <View style={styles.oxyPayCard}>
-                        <View style={styles.oxyPayContent}>
-                            <Ionicons name="wallet-outline" size={64} color={colors.primary} style={styles.oxyPayIcon} />
-                            <Text style={styles.oxyPayMainTitle}>{t('payment.details.oxyPay')}</Text>
-                            <Text style={styles.oxyPaySubtitle}>{t('payment.details.payWithWallet')}</Text>
-                            <View style={styles.oxyPayBalanceBox}>
-                                <Text style={styles.oxyPayBalanceText}>{t('payment.details.balance', { balance: '⊜ 123.45' })}</Text>
+                    <View style={styles.peableCard}>
+                        <View style={styles.peableContent}>
+                            <Ionicons name="wallet-outline" size={64} color={colors.primary} style={styles.peableIcon} />
+                            <Text style={styles.peableMainTitle}>{t('payment.details.peable')}</Text>
+                            <Text style={styles.peableSubtitle}>{t('payment.details.payWithWallet')}</Text>
+                            <View style={styles.peableBalanceBox}>
+                                <Text style={styles.peableBalanceText}>{t('payment.details.balance', { balance: '⊜ 123.45' })}</Text>
                             </View>
                             <View style={{ height: 18 }} />
-                            <Text style={styles.oxyPayWaiting}>{t('payment.details.readyToProcess')}</Text>
+                            <Text style={styles.peableWaiting}>{t('payment.details.readyToProcess')}</Text>
                         </View>
                     </View>
                 )}

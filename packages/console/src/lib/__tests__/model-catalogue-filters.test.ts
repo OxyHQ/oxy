@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { modelCatalogueEntrySchema } from '@oxyhq/contracts';
+import { modelCatalogueEntrySchema } from '@oxy.so/contracts';
 import {
   EMPTY_CATALOGUE_FILTERS,
   catalogueFacets,
   filterCatalogue,
   isEmptyFilterSet,
 } from '../model-catalogue-filters';
-import type { ModelCatalogueEntry } from '@oxyhq/contracts';
+import type { ModelCatalogueEntry } from '@oxy.so/contracts';
 
 /**
  * Fixtures are built through `modelCatalogueEntrySchema.parse`, the SAME schema
@@ -45,7 +45,7 @@ function entry(overrides: {
   };
 
   return modelCatalogueEntrySchema.parse({
-    schemaVersion: 1,
+    schemaVersion: 2,
     modelId: overrides.modelId,
     publisher: {
       slug: publisherSlug,

@@ -57,8 +57,8 @@
 
 import { sql } from 'drizzle-orm';
 import { check, foreignKey, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz } from '@oxyhq/db';
-import { inferenceRouteSwitchReasonSchema } from '@oxyhq/contracts';
+import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
+import { inferenceRouteSwitchReasonSchema } from '@oxy.so/contracts';
 import { applications } from './applications';
 import { inferenceRoutingPolicyFallbacks } from './inferenceRoutingPolicyFallbacks';
 import { inferenceRoutingPolicyVersions } from './inferenceRoutingPolicyVersions';

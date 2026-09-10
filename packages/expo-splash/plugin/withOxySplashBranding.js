@@ -8,9 +8,9 @@
  *
  * This plugin ships its OWN bundled Oxy branding assets (Android 2.5:1 padded
  * canvas + iOS tight square). Consuming apps do NOT supply the Oxy asset — they
- * just add `"@oxyhq/expo-splash"` to their `plugins` array. The `expo-splash-screen`
+ * just add `"@oxy.so/expo-splash"` to their `plugins` array. The `expo-splash-screen`
  * plugin config (the app's centered logo) is built separately via
- * `oxySplashScreenPlugin` from `@oxyhq/expo-splash/config`.
+ * `oxySplashScreenPlugin` from `@oxy.so/expo-splash/config`.
  *
  * ORDERING: this plugin MUST run AFTER the `expo-splash-screen` plugin in the
  * config `plugins` array, because it augments the resources that plugin
@@ -279,7 +279,7 @@ function applyBrandingToStoryboardXml(xml, options) {
     throw new Error(
       'withOxySplashBranding: unexpected SplashScreen.storyboard shape — ' +
         'the expected view controller view was not found. Ensure ' +
-        'expo-splash-screen runs before @oxyhq/expo-splash.',
+        'expo-splash-screen runs before @oxy.so/expo-splash.',
     );
   }
 

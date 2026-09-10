@@ -56,7 +56,7 @@ function keyForIp(ip: string): string {
   return req.observedKey;
 }
 
-describe('@oxyhq/core/server rate limiter', () => {
+describe('@oxy.so/core/server rate limiter', () => {
   const originalEnv = {
     IP_HASH_SALT: process.env.IP_HASH_SALT,
     DEVICE_ID_SALT: process.env.DEVICE_ID_SALT,

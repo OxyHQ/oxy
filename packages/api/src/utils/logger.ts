@@ -9,12 +9,12 @@ const isDev = process.env.NODE_ENV === 'development';
  * ## THIS IS DEFENCE IN DEPTH. IT IS NOT THE CONTROL.
  *
  * The control for a customer's BYOK credential is structural and lives
- * elsewhere: `services/providerSecretStore.ts`'s `ProviderSecretValue` holds the
+ * elsewhere: `services/kaanaCredentialControl.ts`'s `ProviderCredentialValue` holds the
  * plaintext in a `#value` — runtime-private, not merely `tsc`-private — and
  * overrides `toString`, `toJSON` and `Symbol.for('nodejs.util.inspect.custom')`,
- * the last being exactly what pino reaches for. A `ProviderSecretValue` cannot
+ * the last being exactly what pino reaches for. A `ProviderCredentialValue` cannot
  * become a string by accident, whatever the field is called. Free-text error
- * messages are refused separately, by `@oxyhq/contracts`' `safeErrorTextSchema`
+ * messages are refused separately, by `@oxy.so/contracts`' `safeErrorTextSchema`
  * through `utils/inferenceEdgeErrors.ts`, and the inference edge's own log lines
  * are pinned by `routes/__tests__/inferenceEdge.test.ts`.
  *

@@ -13,7 +13,7 @@ import { dirname, join, resolve } from 'node:path';
 const ESM_DIR = new URL('../dist/esm', import.meta.url).pathname;
 
 // CJS packages that need default-import interop
-const CJS_PACKAGES = new Set(['elliptic', 'buffer', 'bip39', 'invariant']);
+const CJS_PACKAGES = new Set(['buffer', 'bip39', 'invariant']);
 
 async function fixSpecifier(specifier, fromFile) {
   const dir = dirname(fromFile);
@@ -60,7 +60,7 @@ async function walk(dir) {
       );
 
       // Fix 3: Rewrite CJS named imports to default + destructure
-      // e.g. `import { ec as EC } from 'elliptic'` → `import _elliptic from 'elliptic'; const { ec: EC } = _elliptic;`
+      // e.g. a named import becomes a default import plus destructuring.
       for (const pkg of CJS_PACKAGES) {
         // Named imports: import { x, y as z } from 'pkg'
         const namedRe = new RegExp(

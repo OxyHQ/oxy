@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import { Text, StyleSheet } from 'react-native';
-import type { WalletTransaction } from '@oxyhq/services';
+import type { WalletTransaction } from '@oxy.so/services';
 import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 import { AccountCard, EmptyStateCard } from '@/components/ui';

@@ -3,15 +3,15 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import {
   KeyManager,
   RecoveryPhraseService,
   IdentityAlreadyExistsError,
   IdentityUnavailableError,
   handleHttpError,
-} from '@oxyhq/core';
-import { alert } from '@oxyhq/bloom';
+} from '@oxy.so/core';
+import { alert } from '@oxy.so/bloom';
 import { useColors } from '@/hooks/useColors';
 import { Button, KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';

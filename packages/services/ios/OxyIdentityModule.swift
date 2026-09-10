@@ -4,7 +4,7 @@ import ExpoModulesCore
  * iOS no-op implementation of the shared Oxy identity bridge.
  *
  * On Apple platforms the cross-app identity share is handled directly by
- * `@oxyhq/core`'s `KeyManager` via the Keychain Access Group
+ * `@oxy.so/core`'s `KeyManager` via the Keychain Access Group
  * (`group.so.oxy.shared`) — there is no ContentProvider equivalent to wrap. So
  * every function here resolves to `nil` / no-op, which makes the JS
  * `loadSharedIdentityBridge()` seam a pass-through on iOS: `KeyManager`'s iOS

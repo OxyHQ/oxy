@@ -40,9 +40,9 @@ import {
   CONDUCT_STRIKE_STATUSES,
   MODERATION_EFFECT_TYPES,
   MODERATION_SEVERITIES,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { applications } from './applications';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { moderationPolicies } from './moderationPolicies';
 import { reputationTransactions } from './reputationTransactions';
 import { users } from './users';

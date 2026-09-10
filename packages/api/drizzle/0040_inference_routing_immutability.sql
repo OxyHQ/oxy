@@ -56,7 +56,7 @@
 -- `inference_route_switch_events`' two references, all ON DELETE RESTRICT -- so
 -- the reachable delete is exactly the one that erases nothing anybody relied on.
 --
--- ERRCODE 23514 (`check_violation`) so `@oxyhq/db`'s `isCheckViolation`
+-- ERRCODE 23514 (`check_violation`) so `@oxy.so/db`'s `isCheckViolation`
 -- recognises this like any other constraint failure and no caller has to
 -- string-match a message.
 

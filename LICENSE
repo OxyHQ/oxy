@@ -14,15 +14,15 @@ not a misdetection.
 1. The SDK and client layer: Apache License 2.0
 ----------------------------------------------------------------------------
 
-  packages/contracts        @oxyhq/contracts
-  packages/protocol         @oxyhq/protocol
-  packages/core             @oxyhq/core
-  packages/services         @oxyhq/services
-  packages/app-preset       @oxyhq/app-preset
-  packages/expo-splash      @oxyhq/expo-splash
+  packages/contracts        @oxy.so/contracts
+  packages/protocol         @oxy.so/protocol
+  packages/core             @oxy.so/core
+  packages/services         @oxy.so/services
+  packages/app-preset       @oxy.so/app-preset
+  packages/expo-splash      @oxy.so/expo-splash
   packages/create-oxy-app   create-oxy-app
-  packages/federation       @oxyhq/federation
-  packages/ship             @oxyhq/ship
+  packages/federation       @oxy.so/federation
+  packages/ship             @oxy.so/ship
 
 Each of those directories holds a verbatim copy of the Apache License 2.0
 and a NOTICE file. Use, modification and redistribution of those packages
@@ -36,9 +36,9 @@ cost money, nobody would integrate it.
 2. The server layer: The Breathe License 1.0
 ----------------------------------------------------------------------------
 
-  packages/api              @oxyhq/api
-  packages/db               @oxyhq/db
-  packages/node             @oxyhq/node
+  packages/api              @oxy.so/api
+  packages/db               @oxy.so/db
+  packages/node             @oxy.so/node
 
 License identifier LicenseRef-Breathe-1.0. Each of those directories holds
 the full license text with its Parameters filled in, plus a NOTICE file.
@@ -67,7 +67,7 @@ packages as open source.
 
 Nothing here is retroactive. Every version of these packages already
 published under an earlier license stays under that license, permanently,
-for anyone who has it. @oxyhq/api up to and including 1.0.3 was published as
+for anyone who has it. @oxy.so/api up to and including 1.0.3 was published as
 MIT and remains MIT in those versions, forever. These terms bind the
 versions released from here on, and nothing else.
 
@@ -113,7 +113,7 @@ section 2. The reverse is fine, and is what section 2 does.
 
 A Breathe package must never take a GPL or AGPL dependency that is linked in
 process, because those licences are mutually incompatible with these terms.
-That constraint is why @oxyhq/db is in section 2 rather than staying where
-it was: @oxyhq/api imports it directly, so leaving it AGPL while @oxyhq/api
+That constraint is why @oxy.so/db is in section 2 rather than staying where
+it was: @oxy.so/api imports it directly, so leaving it AGPL while @oxy.so/api
 moved to Breathe would have made the combination distributable under neither
 licence.

@@ -59,11 +59,11 @@
 
 import { sql } from 'drizzle-orm';
 import { bigint, check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 import {
   inferenceEnvironmentSchema,
   usageReservationStatusSchema,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
 import {

@@ -142,7 +142,7 @@ export interface RunMigrationsOptions {
  * a cast this repository does not permit.
  *
  * Exported for direct unit testing (it needs no database), but NOT part of
- * `@oxyhq/db/migrate`'s public surface — `migrate/index.ts` does not
+ * `@oxy.so/db/migrate`'s public surface — `migrate/index.ts` does not
  * re-export it. It has exactly one caller, {@link runMigrations}.
  *
  * @returns The temporary folder. The caller owns it and must remove it.

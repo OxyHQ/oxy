@@ -8,14 +8,14 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useOxy } from '@oxyhq/services';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { toast } from '@oxyhq/bloom';
+import { useOxy } from '@oxy.so/services';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { toast } from '@oxy.so/bloom';
 import { useColors } from '@/hooks/useColors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Button } from '@/components/ui';
-import { getAccountDisplayName, getNormalizedUserHandle } from '@oxyhq/core';
+import { getAccountDisplayName, getNormalizedUserHandle } from '@oxy.so/core';
 import { useAvatarUrl } from '@/hooks/useAvatarUrl';
 import { useTranslation } from '@/lib/i18n';
 

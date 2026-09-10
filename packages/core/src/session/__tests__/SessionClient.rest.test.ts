@@ -1,4 +1,4 @@
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 import { SessionClient, type SessionClientHost } from '../SessionClient';
 
 const STATE = (rev: number): DeviceSessionState => ({
@@ -22,6 +22,15 @@ function makeHost(makeRequest: jest.Mock): SessionClientHost {
 const SYNC = (rev: number) => ({ state: STATE(rev), activeToken: { accessToken: `jwt-${rev}`, expiresAt: 'x' } });
 
 describe('SessionClient REST', () => {
+  it('adopts state already returned by a mint without another request', () => {
+    const makeRequest = jest.fn();
+    const c = new SessionClient(makeHost(makeRequest));
+
+    expect(c.adoptState(STATE(2))).toBe(true);
+    expect(c.getState()?.revision).toBe(2);
+    expect(makeRequest).not.toHaveBeenCalled();
+  });
+
   it('bootstrap GETs /session/device/state and applies it', async () => {
     const makeRequest = jest.fn().mockResolvedValueOnce(SYNC(3));
     const host = makeHost(makeRequest);
@@ -40,6 +49,7 @@ describe('SessionClient REST', () => {
     expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/switch', { accountId: 'a1' }, { cache: false });
     expect(c.getState()?.revision).toBe(4);
     expect(host.setTokens).toHaveBeenCalledWith('jwt-4');
+    c.stop();
   });
 
   it('signOut one account POSTs { accountId }', async () => {
@@ -47,6 +57,7 @@ describe('SessionClient REST', () => {
     const c = new SessionClient(makeHost(makeRequest));
     await c.signOut({ accountId: 'a1' });
     expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/signout', { accountId: 'a1' }, { cache: false });
+    c.stop();
   });
 
   it('signOut all POSTs { all: true }', async () => {
@@ -54,6 +65,7 @@ describe('SessionClient REST', () => {
     const c = new SessionClient(makeHost(makeRequest));
     await c.signOut({ all: true });
     expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/signout', { all: true }, { cache: false });
+    c.stop();
   });
 
   it('addCurrentAccount POSTs /session/device/add with no body', async () => {
@@ -61,6 +73,7 @@ describe('SessionClient REST', () => {
     const c = new SessionClient(makeHost(makeRequest));
     await c.addCurrentAccount();
     expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/add', undefined, { cache: false });
+    c.stop();
   });
 
   it('does not throw / does not apply when the server returns invalid state', async () => {

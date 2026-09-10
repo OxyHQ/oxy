@@ -1,4 +1,4 @@
-import type { AccountDialogSnapshot } from '@oxyhq/core';
+import type { AccountDialogSnapshot } from '@oxy.so/core';
 
 /**
  * The snapshot `useSyncExternalStore` reads before a controller exists.

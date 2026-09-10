@@ -66,8 +66,8 @@
  * It is a cache write only — zero network, one `setQueryData` per key.
  */
 
-import type { UserNameResponse, UserProfileUpdate } from "@oxyhq/contracts";
-import type { UpdateAccountInput } from "@oxyhq/core";
+import type { UserNameResponse, UserProfileUpdate } from "@oxy.so/contracts";
+import type { UpdateAccountInput } from "@oxy.so/core";
 import type { QueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "../../stores/authStore";
 import { queryKeys } from "./queryKeys";

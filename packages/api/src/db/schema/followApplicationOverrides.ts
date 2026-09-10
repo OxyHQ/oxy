@@ -27,7 +27,7 @@
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { applications } from './applications';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { followRelationships } from './followRelationships';
 
 export const FOLLOW_OVERRIDE_MODES = ['enabled', 'disabled'] as const;

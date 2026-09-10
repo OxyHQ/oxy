@@ -12,15 +12,27 @@ if [[ ! "$IMAGE_URI" =~ ^.+@sha256:[0-9a-fA-F]{64}$ ]]; then
 fi
 
 CONTAINER_NAME="${CONTAINER_NAME:-$APP}"
+# Remembered before the default lands, so the serial-rollout floor below can
+# raise it WITHOUT overriding a caller who asked for a specific budget.
+MAX_WAIT_SECS_WAS_EXPLICIT=false
+if [[ -n "${MAX_WAIT_SECS:-}" ]]; then
+  MAX_WAIT_SECS_WAS_EXPLICIT=true
+fi
 MAX_WAIT_SECS="${MAX_WAIT_SECS:-1200}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
+ONE_SHOT_START_MAX_WAIT_SECS="${ONE_SHOT_START_MAX_WAIT_SECS:-300}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
 INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
+TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"
+TASK_REMOVE_NAMES_JSON="${TASK_REMOVE_NAMES_JSON:-}"
+TASK_EXTRA_CONTAINERS_JSON="${TASK_EXTRA_CONTAINERS_JSON:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
+PRE_DEPLOY_TASK_COMMAND_JSON="${PRE_DEPLOY_TASK_COMMAND_JSON:-}"
 POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
+POST_DEPLOY_TASKS_JSON="${POST_DEPLOY_TASKS_JSON:-}"
 # Exit code a smoke script uses to say "this failed, and rolling back cannot fix
 # it" — a check that crosses a boundary this deploy does not own (a CDN in front
 # of the origin, another service the route consults). Reverting the image for one
@@ -39,6 +51,11 @@ if ! [[ "$MAX_WAIT_SECS" =~ ^[0-9]+$ ]] || (( MAX_WAIT_SECS < 1 )); then
 fi
 if ! [[ "$POLL_INTERVAL" =~ ^[0-9]+$ ]] || (( POLL_INTERVAL < 1 )); then
   echo "::error::POLL_INTERVAL must be a positive integer."
+  exit 1
+fi
+if ! [[ "$ONE_SHOT_START_MAX_WAIT_SECS" =~ ^[0-9]+$ ]] ||
+   (( ONE_SHOT_START_MAX_WAIT_SECS < 1 )); then
+  echo "::error::ONE_SHOT_START_MAX_WAIT_SECS must be a positive integer."
   exit 1
 fi
 if [[ "$RUN_MIGRATIONS" != "true" && "$RUN_MIGRATIONS" != "false" ]]; then
@@ -62,6 +79,40 @@ if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]] &&
   echo "::error::POST_DEPLOY_TASK_COMMAND_JSON must be a non-empty JSON string array."
   exit 1
 fi
+if [[ -z "$POST_DEPLOY_TASKS_JSON" ]]; then
+  POST_DEPLOY_TASKS_JSON='[]'
+fi
+if ! jq -e '
+  type == "array" and
+  length <= 10 and
+  all(
+    .[];
+    type == "object" and
+    (.label | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9 .:_-]{0,79}$")) and
+    (
+      .command |
+      type == "array" and
+      length > 0 and
+      all(.[]; type == "string" and length > 0)
+    )
+  )
+' <<<"$POST_DEPLOY_TASKS_JSON" >/dev/null; then
+  echo "::error::POST_DEPLOY_TASKS_JSON must be an array of at most 10 labeled, non-empty command arrays."
+  exit 1
+fi
+if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" && "$POST_DEPLOY_TASKS_JSON" != '[]' ]]; then
+  echo "::error::Use POST_DEPLOY_TASK_COMMAND_JSON or POST_DEPLOY_TASKS_JSON, not both."
+  exit 1
+fi
+if [[ -n "$PRE_DEPLOY_TASK_COMMAND_JSON" ]] &&
+   ! jq -e '
+     type == "array" and
+     length > 0 and
+     all(.[]; type == "string" and length > 0)
+  ' <<<"$PRE_DEPLOY_TASK_COMMAND_JSON" >/dev/null; then
+  echo "::error::PRE_DEPLOY_TASK_COMMAND_JSON must be a non-empty JSON string array."
+  exit 1
+fi
 if [[ -z "$TASK_SECRET_OVERRIDES_JSON" ]]; then
   TASK_SECRET_OVERRIDES_JSON='{}'
 fi
@@ -79,6 +130,80 @@ if ! jq -e '
   )
 ' <<<"$TASK_SECRET_OVERRIDES_JSON" >/dev/null; then
   echo "::error::TASK_SECRET_OVERRIDES_JSON must map environment variable names to complete SSM parameter ARNs."
+  exit 1
+fi
+if [[ -z "$TASK_ENV_OVERRIDES_JSON" ]]; then
+  TASK_ENV_OVERRIDES_JSON='{}'
+fi
+if ! jq -e '
+  type == "object" and
+  length <= 50 and
+  all(
+    to_entries[];
+    (.key | type == "string" and test("^[A-Z][A-Z0-9_]{0,127}$")) and
+    (.value | type == "string" and utf8bytelength <= 4096)
+  )
+' <<<"$TASK_ENV_OVERRIDES_JSON" >/dev/null; then
+  echo "::error::TASK_ENV_OVERRIDES_JSON must map environment variable names to string values of at most 4096 bytes."
+  exit 1
+fi
+if [[ -z "$TASK_REMOVE_NAMES_JSON" ]]; then
+  TASK_REMOVE_NAMES_JSON='[]'
+fi
+if ! jq -e '
+  type == "array" and
+  length <= 50 and
+  length == (unique | length) and
+  all(.[]; type == "string" and test("^[A-Z][A-Z0-9_]{0,127}$"))
+' <<<"$TASK_REMOVE_NAMES_JSON" >/dev/null; then
+  echo "::error::TASK_REMOVE_NAMES_JSON must be an array of at most 50 unique environment variable names."
+  exit 1
+fi
+if [[ -z "$TASK_EXTRA_CONTAINERS_JSON" ]]; then
+  TASK_EXTRA_CONTAINERS_JSON='[]'
+fi
+if ! jq -e --arg primary "$CONTAINER_NAME" '
+  type == "array" and
+  length <= 4 and
+  ([.[].name] | length == (unique | length)) and
+  all(
+    .[];
+    type == "object" and
+    .name != $primary and
+    (.name | type == "string" and test("^[a-z0-9][a-z0-9-]{0,62}$")) and
+    (.image | type == "string" and test("^[A-Za-z0-9./_-]+:[A-Za-z0-9._-]+$")) and
+    .essential == false
+  )
+' <<<"$TASK_EXTRA_CONTAINERS_JSON" >/dev/null; then
+  echo "::error::TASK_EXTRA_CONTAINERS_JSON must contain at most four uniquely named, non-essential container definitions and cannot replace the app container."
+  exit 1
+fi
+task_override_name_overlap="$(jq -n \
+  --argjson environment "$TASK_ENV_OVERRIDES_JSON" \
+  --argjson secrets "$TASK_SECRET_OVERRIDES_JSON" \
+  '[($environment | keys[]) as $name | select($secrets | has($name))] | length')"
+if [[ "$task_override_name_overlap" != "0" ]]; then
+  echo "::error::TASK_ENV_OVERRIDES_JSON names must not overlap TASK_SECRET_OVERRIDES_JSON; secret values may never be injected as plaintext environment."
+  exit 1
+fi
+task_remove_override_overlap="$(jq -n \
+  --argjson environment "$TASK_ENV_OVERRIDES_JSON" \
+  --argjson secrets "$TASK_SECRET_OVERRIDES_JSON" \
+  --argjson remove "$TASK_REMOVE_NAMES_JSON" \
+  '[($environment + $secrets | keys[]) as $name | select($remove | index($name) != null)] | length')"
+if [[ "$task_remove_override_overlap" != "0" ]]; then
+  echo "::error::TASK_REMOVE_NAMES_JSON must not name a TASK_ENV_OVERRIDES_JSON or TASK_SECRET_OVERRIDES_JSON entry."
+  exit 1
+fi
+if [[ -n "$INTERNAL_METRICS_PARAMETER" ]] &&
+   jq -e 'has("INTERNAL_METRICS_TOKEN")' <<<"$TASK_ENV_OVERRIDES_JSON" >/dev/null; then
+  echo "::error::TASK_ENV_OVERRIDES_JSON must not override INTERNAL_METRICS_TOKEN; it is an SSM-backed secret."
+  exit 1
+fi
+if [[ -n "$INTERNAL_METRICS_PARAMETER" ]] &&
+   jq -e 'index("INTERNAL_METRICS_TOKEN") != null or index("INTERNAL_METRICS_ENABLED") != null' \
+     <<<"$TASK_REMOVE_NAMES_JSON" >/dev/null; then
+  echo "::error::TASK_REMOVE_NAMES_JSON must not remove enabled internal metrics configuration."
   exit 1
 fi
 
@@ -107,6 +232,47 @@ if ! [[ "$service_desired_count" =~ ^[0-9]+$ ]] ||
   echo "::error::ECS service $APP must have a positive desiredCount before deployment (current: ${service_desired_count:-missing}). Scale the service up explicitly before retrying."
   exit 1
 fi
+
+# The rollout surge, as the PERCENTAGE of desiredCount that ECS multiplies (and
+# rounds DOWN) to get the ceiling on running tasks — so this is the smallest
+# value whose floor is `desired + 1`: replace ONE task at a time.
+#
+# It was the literal 200, i.e. "the service may double while it rolls". That
+# asks the ACCOUNT for as much Fargate vCPU again as the service already holds,
+# and on 2026-09-08 that is what stopped oxy-api deploying at all: the account's
+# Fargate On-Demand vCPU quota is 30, the cluster was running ~27.5, and every
+# rollout died placing its first surge task —
+#
+#   (service oxy-api) was unable to place a task. The reason for failure is
+#   You've reached the limit on the number of vCPUs you can run concurrently
+#   (service oxy-api) deployment failed: tasks failed to start
+#
+# — and rolled back. Nothing was wrong with any image; production simply kept
+# serving the previous revision while every deploy job went red.
+#
+# A rolling replacement needs exactly one spare slot. `minimumHealthyPercent`
+# stays at 100, so capacity never dips; the cost is that the rollout is serial,
+# which is what the wait floor below accounts for.
+surge_percent_for_desired_count() {
+  local desired="$1"
+  # ceil((desired + 1) * 100 / desired) in integer arithmetic.
+  echo $(( ((desired + 1) * 100 + desired - 1) / desired ))
+}
+deployment_surge_percent="$(surge_percent_for_desired_count "$service_desired_count")"
+
+# One task at a time means the rollout takes desiredCount rounds of
+# start + health-check grace + deregistration drain. The inherited 1200s budget
+# was sized for a parallel rollout and would now report a false failure on any
+# service with more than a handful of tasks — measured on oxy-api: 90s grace,
+# 60s drain, ~6 tasks. 300s per round plus a fixed 300s of registration and
+# settling, and never below the old default.
+if [[ "$MAX_WAIT_SECS_WAS_EXPLICIT" != "true" ]]; then
+  serial_rollout_budget=$(( 300 * service_desired_count + 300 ))
+  if (( serial_rollout_budget > MAX_WAIT_SECS )); then
+    MAX_WAIT_SECS="$serial_rollout_budget"
+  fi
+fi
+echo "Rollout surge: ${deployment_surge_percent}% of ${service_desired_count} task(s) (one extra), wait budget ${MAX_WAIT_SECS}s."
 
 task_definition_file="$(mktemp)"
 rendered_task_definition_file="$(mktemp)"
@@ -303,7 +469,12 @@ print_one_shot_logs() {
 run_one_shot_command() {
   local label="$1"
   local command_json="$2"
+  local retry_fargate_capacity="${3:-false}"
+  local expected_service_task_definition="${4:-$new_task_definition}"
   local overrides run_json task_json exit_code stopped_reason container_reason
+  local start_wait_elapsed=0
+  local retry_sleep service_retry_json service_retry_status
+  local service_retry_task_definition service_retry_desired service_retry_running service_retry_pending
 
   overrides="$(jq -cn \
     --arg name "$CONTAINER_NAME" \
@@ -315,15 +486,61 @@ run_one_shot_command() {
       }]
     }')"
 
-  if ! run_json="$(aws "${one_shot_run_task_args[@]}" --overrides "$overrides")"; then
-    echo "::error::ECS failed to start the $label task."
-    return 1
-  fi
-  if [[ "$(jq '.failures | length' <<<"$run_json")" != "0" ]]; then
-    echo "::error::ECS refused to start the $label task."
-    jq '.failures' <<<"$run_json"
-    return 1
-  fi
+  while :; do
+    if ! run_json="$(aws "${one_shot_run_task_args[@]}" --overrides "$overrides")"; then
+      echo "::error::ECS failed to start the $label task."
+      return 1
+    fi
+    if [[ "$(jq '.failures | length' <<<"$run_json")" == "0" ]]; then
+      break
+    fi
+    if [[ "$retry_fargate_capacity" != "true" ]] ||
+       ! jq -e '
+         (.failures | type == "array" and length > 0) and
+         all(
+           .failures[];
+           (.reason // "") == "RESOURCE:CPU" or
+           ((.reason // "") | ascii_downcase | contains("limit on the number of vcpus you can run concurrently"))
+         )
+       ' <<<"$run_json" >/dev/null; then
+      echo "::error::ECS refused to start the $label task."
+      jq '.failures' <<<"$run_json"
+      return 1
+    fi
+    if (( start_wait_elapsed >= ONE_SHOT_START_MAX_WAIT_SECS )); then
+      echo "::error::ECS still could not start the $label task after waiting ${ONE_SHOT_START_MAX_WAIT_SECS}s for Fargate vCPU capacity."
+      jq '.failures' <<<"$run_json"
+      return 1
+    fi
+
+    retry_sleep="$POLL_INTERVAL"
+    if (( start_wait_elapsed + retry_sleep > ONE_SHOT_START_MAX_WAIT_SECS )); then
+      retry_sleep=$((ONE_SHOT_START_MAX_WAIT_SECS - start_wait_elapsed))
+    fi
+    echo "::warning::Fargate vCPU capacity refused $label; waiting ${retry_sleep}s before the next bounded retry."
+    sleep "$retry_sleep"
+    start_wait_elapsed=$((start_wait_elapsed + retry_sleep))
+
+    if ! service_retry_json="$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")" ||
+       [[ "$(jq '.failures | length' <<<"$service_retry_json")" != "0" ]] ||
+       [[ "$(jq '.services | length' <<<"$service_retry_json")" != "1" ]]; then
+      echo "::error::Refusing to retry $label because the ECS service state could not be read."
+      return 1
+    fi
+    service_retry_status="$(jq -r '.services[0].status // "NONE"' <<<"$service_retry_json")"
+    service_retry_task_definition="$(jq -r '.services[0].taskDefinition // empty' <<<"$service_retry_json")"
+    service_retry_desired="$(jq -r '.services[0].desiredCount // empty' <<<"$service_retry_json")"
+    service_retry_running="$(jq -r '.services[0].runningCount // 0' <<<"$service_retry_json")"
+    service_retry_pending="$(jq -r '.services[0].pendingCount // 0' <<<"$service_retry_json")"
+    if [[ "$service_retry_status" != "ACTIVE" ||
+          "$service_retry_task_definition" != "$expected_service_task_definition" ||
+          ! "$service_retry_desired" =~ ^[0-9]+$ ]] ||
+       (( service_retry_desired < 1 )); then
+      echo "::error::Refusing to retry $label because $APP no longer has the deployed task definition active at positive desiredCount."
+      return 1
+    fi
+    echo "::notice::Retrying $label after confirming $APP is ACTIVE at the deployed task definition with desired=$service_retry_desired running=$service_retry_running pending=$service_retry_pending."
+  done
 
   active_one_shot_task_arn="$(jq -r '.tasks[0].taskArn // empty' <<<"$run_json")"
   if [[ -z "$active_one_shot_task_arn" ]]; then
@@ -358,19 +575,33 @@ run_one_shot_command() {
 }
 
 rollback_service() {
-  local rollback_json rollback_deployment_id
+  local rollback_json rollback_deployment_id rollback_service_json rollback_desired_count
 
-  echo "::warning::Rolling $APP back to $current_task_definition."
+  if ! rollback_service_json="$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")" ||
+     [[ "$(jq '.failures | length' <<<"$rollback_service_json")" != "0" ]] ||
+     [[ "$(jq '.services | length' <<<"$rollback_service_json")" != "1" ]]; then
+    echo "::error::ECS service state could not be read before rollback."
+    return 1
+  fi
+  rollback_desired_count="$(jq -r '.services[0].desiredCount // empty' <<<"$rollback_service_json")"
+  if ! [[ "$rollback_desired_count" =~ ^[0-9]+$ ]] ||
+     (( rollback_desired_count < 1 )); then
+    echo "::error::Refusing rollback at a missing or zero desiredCount (current: ${rollback_desired_count:-missing})."
+    return 1
+  fi
+
+  echo "::warning::Rolling $APP back to $current_task_definition while preserving current desiredCount=$rollback_desired_count."
   if ! rollback_json="$(aws ecs update-service \
     --cluster "$CLUSTER" \
     --service "$APP" \
     --task-definition "$current_task_definition" \
-    --desired-count "$service_desired_count" \
-    --deployment-configuration '{
-      "deploymentCircuitBreaker": {"enable": true, "rollback": true},
-      "minimumHealthyPercent": 100,
-      "maximumPercent": 200
-    }' \
+    --desired-count "$rollback_desired_count" \
+    --deployment-configuration "$(jq -nc \
+      --argjson maxPercent "$(surge_percent_for_desired_count "$rollback_desired_count")" '{
+        deploymentCircuitBreaker: {enable: true, rollback: true},
+        minimumHealthyPercent: 100,
+        maximumPercent: $maxPercent
+      }')" \
     --output json)"; then
     echo "::error::ECS rejected the rollback to $current_task_definition."
     return 1
@@ -414,6 +645,12 @@ task_secret_overrides="$(jq -c '
     | {name: .key, valueFrom: .value}
   ]
 ' <<<"$TASK_SECRET_OVERRIDES_JSON")"
+task_environment_overrides="$(jq -c '
+  [
+    to_entries[]
+    | {name: .key, value: .value}
+  ]
+' <<<"$TASK_ENV_OVERRIDES_JSON")"
 
 aws ecs describe-task-definition \
   --task-definition "$current_task_definition" \
@@ -426,12 +663,32 @@ if [[ "$container_matches" != "1" ]]; then
   echo "::error::Expected exactly one container named $CONTAINER_NAME; found $container_matches. Available: $available_containers"
   exit 1
 fi
+existing_secret_overlap="$(jq \
+  --arg name "$CONTAINER_NAME" \
+  --argjson taskEnvironmentOverrides "$task_environment_overrides" \
+  '
+    ($taskEnvironmentOverrides | map(.name)) as $plainNames
+    | [
+        .containerDefinitions[]
+        | select(.name == $name)
+        | (.secrets // [])[]
+        | select(.name as $secretName | ($plainNames | index($secretName)) != null)
+      ]
+    | length
+  ' "$task_definition_file")"
+if [[ "$existing_secret_overlap" != "0" ]]; then
+  echo "::error::TASK_ENV_OVERRIDES_JSON must not replace an existing ECS secret; move only non-secret operational configuration through plaintext environment."
+  exit 1
+fi
 
 jq \
   --arg name "$CONTAINER_NAME" \
   --arg image "$IMAGE_URI" \
   --arg internalMetricsSecretArn "$internal_metrics_secret_arn" \
   --argjson taskSecretOverrides "$task_secret_overrides" \
+  --argjson taskEnvironmentOverrides "$task_environment_overrides" \
+  --argjson taskRemoveNames "$TASK_REMOVE_NAMES_JSON" \
+  --argjson extraContainers "$TASK_EXTRA_CONTAINERS_JSON" \
   '
     del(
       .taskDefinitionArn,
@@ -443,6 +700,7 @@ jq \
       .registeredBy
     )
     | ($taskSecretOverrides | map(.name)) as $taskSecretNames
+    | ($taskEnvironmentOverrides | map(.name)) as $taskEnvironmentNames
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image
@@ -467,12 +725,29 @@ jq \
                 | map(
                     select(
                       .name as $existingName
-                      | ($taskSecretNames | index($existingName)) == null
+                      | ($taskSecretNames | index($existingName)) == null and
+                        ($taskRemoveNames | index($existingName)) == null
                     )
                   ))
               + $taskSecretOverrides
             )
+          | .environment = (
+              ((.environment // [])
+                | map(
+                    select(
+                      .name as $existingName
+                      | ($taskEnvironmentNames | index($existingName)) == null and
+                        ($taskRemoveNames | index($existingName)) == null
+                    )
+                  ))
+              + $taskEnvironmentOverrides
+            )
         else . end
+      )
+    | ($extraContainers | map(.name)) as $extraNames
+    | .containerDefinitions = (
+        (.containerDefinitions | map(select(.name as $existing | ($extraNames | index($existing)) == null)))
+        + $extraContainers
       )
   ' \
   "$task_definition_file" >"$rendered_task_definition_file"
@@ -483,7 +758,10 @@ new_task_definition="$(aws ecs register-task-definition \
   --output text)"
 
 one_shot_run_task_args=()
-if [[ "$RUN_MIGRATIONS" == "true" || -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
+if [[ "$RUN_MIGRATIONS" == "true" ||
+      -n "$PRE_DEPLOY_TASK_COMMAND_JSON" ||
+      -n "$POST_DEPLOY_TASK_COMMAND_JSON" ||
+      "$(jq 'length' <<<"$POST_DEPLOY_TASKS_JSON")" != "0" ]]; then
   network_configuration="$(jq -c '.services[0].networkConfiguration' <<<"$service_json")"
   if [[ -z "$network_configuration" || "$network_configuration" == "null" ]]; then
     echo "::error::ECS service $APP has no network configuration for the migration task."
@@ -522,7 +800,21 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
   # nothing. A migration that never runs is the outage this whole path exists for.
   if ! run_one_shot_command \
     "Migration" \
-    '["node","packages/api/dist/db/migrate.js","--phase=pre"]'; then
+    '["node","packages/api/dist/db/migrate.js","--phase=pre"]' \
+    true \
+    "$current_task_definition"; then
+    exit 1
+  fi
+fi
+
+if [[ -n "$PRE_DEPLOY_TASK_COMMAND_JSON" ]]; then
+  # This uses the newly registered task definition after additive migrations,
+  # but before update-service. It is the slot for cutover invariants whose
+  # failure must leave the previous image serving untouched.
+  if ! run_one_shot_command \
+    "Pre-deploy readiness" \
+    "$PRE_DEPLOY_TASK_COMMAND_JSON"; then
+    echo "::error::Pre-deploy readiness failed; the service was not updated."
     exit 1
   fi
 fi
@@ -538,11 +830,11 @@ if ! deploy_update_json="$(aws ecs update-service \
   --service "$APP" \
   --task-definition "$new_task_definition" \
   --desired-count "$service_desired_count" \
-  --deployment-configuration '{
-    "deploymentCircuitBreaker": {"enable": true, "rollback": true},
-    "minimumHealthyPercent": 100,
-    "maximumPercent": 200
-  }' \
+  --deployment-configuration "$(jq -nc --argjson maxPercent "$deployment_surge_percent" '{
+    deploymentCircuitBreaker: {enable: true, rollback: true},
+    minimumHealthyPercent: 100,
+    maximumPercent: $maxPercent
+  }')" \
   --output json)"; then
   echo "::error::ECS rejected the service update; restoring the previous task definition defensively."
   if ! rollback_service; then
@@ -594,7 +886,8 @@ fi
 if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
   if ! run_one_shot_command \
     "Post-deploy reconciliation" \
-    "$POST_DEPLOY_TASK_COMMAND_JSON"; then
+    "$POST_DEPLOY_TASK_COMMAND_JSON" \
+    true; then
     echo "::error::Post-deploy reconciliation failed."
     if ! rollback_service; then
       echo "::error::Reconciliation and rollback both failed; manual intervention is required."
@@ -602,6 +895,18 @@ if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
     exit 1
   fi
 fi
+
+while IFS= read -r post_deploy_task; do
+  post_deploy_label="$(jq -r '.label' <<<"$post_deploy_task")"
+  post_deploy_command="$(jq -c '.command' <<<"$post_deploy_task")"
+  if ! run_one_shot_command "$post_deploy_label" "$post_deploy_command" true; then
+    echo "::error::$post_deploy_label failed."
+    if ! rollback_service; then
+      echo "::error::$post_deploy_label and rollback both failed; manual intervention is required."
+    fi
+    exit 1
+  fi
+done < <(jq -c '.[]' <<<"$POST_DEPLOY_TASKS_JSON")
 
 if [[ "$smoke_reported_external_failure" == "true" ]]; then
   echo "::error::$APP is deployed and live at $new_task_definition, but its post-deploy smoke checks are still failing on a dependency. Nothing was rolled back; this release needs a human."

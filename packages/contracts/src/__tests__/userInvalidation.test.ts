@@ -6,7 +6,7 @@ import {
   oxyUserInvalidationEventSchema,
 } from '../index';
 
-describe('@oxyhq/contracts userInvalidation', () => {
+describe('@oxy.so/contracts userInvalidation', () => {
   it('pins the channel name', () => {
     // Both sides subscribe/publish by this literal; a rename is a silent
     // "invalidation never arrives", so it is pinned rather than derived.

@@ -59,7 +59,7 @@
 -- training-content summary moves. That documentation is republished, exactly as
 -- `inference_model_revisions.model_card_url` already is.
 --
--- `SQLSTATE 23514` (check_violation) rather than a bespoke code, so `@oxyhq/db`'s
+-- `SQLSTATE 23514` (check_violation) rather than a bespoke code, so `@oxy.so/db`'s
 -- `isCheckViolation` recognises it like any other constraint failure.
 
 CREATE TABLE "inference_model_gpai_documentation" (

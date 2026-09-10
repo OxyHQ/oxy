@@ -1,9 +1,9 @@
 import type React from 'react';
 import { View, Linking } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { SettingsIcon } from '../components/SettingsIcon';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 

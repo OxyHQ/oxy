@@ -9,7 +9,7 @@
  * co-signer (Oxy plus witness nodes).
  */
 
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '../secp256k1';
 import {
   sha256,
   transparencyLeafHash,
@@ -25,8 +25,6 @@ import {
   type TransparencyHeadEntry,
   type TransparencyCheckpointFields,
 } from '../index';
-
-const ec = new EC('secp256k1');
 
 const HEAD_A: TransparencyHeadEntry = {
   subjectDid: 'did:web:oxy.so:u:aaa',
@@ -313,27 +311,27 @@ describe('checkpoint signing', () => {
   });
 
   it('verifies a signature made by the signer', async () => {
-    const key = ec.genKeyPair();
-    const signature = await signCheckpoint(fields, key.getPrivate('hex'));
+    const key = generateSecp256k1KeyPair();
+    const signature = await signCheckpoint(fields, key.privateKey);
     expect(signature.alg).toBe('ES256K-DER-SHA256');
-    expect(signature.publicKey).toBe(key.getPublic('hex'));
+    expect(signature.publicKey).toBe(key.publicKey);
     await expect(verifyCheckpointSignature(fields, signature)).resolves.toBe(true);
   });
 
   it('rejects a signature once any signed field is altered', async () => {
-    const key = ec.genKeyPair();
-    const signature = await signCheckpoint(fields, key.getPrivate('hex'));
+    const key = generateSecp256k1KeyPair();
+    const signature = await signCheckpoint(fields, key.privateKey);
     await expect(
       verifyCheckpointSignature({ ...fields, treeSize: fields.treeSize + 1 }, signature),
     ).resolves.toBe(false);
   });
 
   it('lets independent co-signers sign the identical bytes, so witnesses need no coordination', async () => {
-    const oxy = ec.genKeyPair();
-    const witnessOne = ec.genKeyPair();
-    const witnessTwo = ec.genKeyPair();
+    const oxy = generateSecp256k1KeyPair();
+    const witnessOne = generateSecp256k1KeyPair();
+    const witnessTwo = generateSecp256k1KeyPair();
     const signatures = await Promise.all(
-      [oxy, witnessOne, witnessTwo].map((k) => signCheckpoint(fields, k.getPrivate('hex'))),
+      [oxy, witnessOne, witnessTwo].map((k) => signCheckpoint(fields, k.privateKey)),
     );
     for (const signature of signatures) {
       await expect(verifyCheckpointSignature(fields, signature)).resolves.toBe(true);
@@ -343,8 +341,8 @@ describe('checkpoint signing', () => {
   });
 
   it('does not accept a signature from one checkpoint on the next one', async () => {
-    const key = ec.genKeyPair();
-    const signature = await signCheckpoint(fields, key.getPrivate('hex'));
+    const key = generateSecp256k1KeyPair();
+    const signature = await signCheckpoint(fields, key.privateKey);
     const next: TransparencyCheckpointFields = {
       ...fields,
       index: fields.index + 1,

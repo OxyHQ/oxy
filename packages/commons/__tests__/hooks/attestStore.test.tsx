@@ -1,7 +1,7 @@
 import type React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 
 // Tripwire: the attest flow must NEVER touch the device biometric gate. If any
 // module in this test's import graph calls `authenticate`, this spy records it.

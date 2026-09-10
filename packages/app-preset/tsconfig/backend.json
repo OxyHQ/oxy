@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "//": "@oxyhq/app-preset — Node/Bun backend TypeScript config. Compiled with tsc to dist/ (CommonJS) and THAT emitted output is what the Docker/ECS image runs — module format and emit layout are a runtime contract. Overrides the Oxy base only where this becomes an emitting CommonJS Node service. Consumers set their own `rootDir`/`outDir`/`include` (and `paths` to resolve workspace deps from source during type-check).",
+  "//": "@oxy.so/app-preset — Node/Bun backend TypeScript config. Compiled with tsc to dist/ (CommonJS) and THAT emitted output is what the Docker/ECS image runs — module format and emit layout are a runtime contract. Overrides the Oxy base only where this becomes an emitting CommonJS Node service. Consumers set their own `rootDir`/`outDir`/`include` (and `paths` to resolve workspace deps from source during type-check).",
   "extends": "./base.json",
   "compilerOptions": {
     "module": "commonjs",

@@ -1,4 +1,4 @@
-import { useAuth, useSessions, useUserDevices, useSwitchSession, useLogoutSession, useLogoutAll } from "@oxyhq/services"
+import { useAuth, useSessions, useUserDevices, useSwitchSession, useLogoutSession, useLogoutAll } from "@oxy.so/services"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
-import { toast } from "@oxyhq/bloom"
+import { toast } from "@oxy.so/bloom"
 
 // `useUserDevices()` is typed loosely (`any[]`) by the SDK; this describes the
 // device fields this demo renders so the map callback is fully typed.
@@ -199,7 +199,7 @@ export function SessionsDemo() {
         </CardHeader>
         <CardContent>
           <pre className="overflow-auto rounded-md bg-muted p-4 text-xs">
-{`import { useSessions, useSwitchSession, useLogoutAll } from '@oxyhq/services';
+{`import { useSessions, useSwitchSession, useLogoutAll } from '@oxy.so/services';
 
 function Sessions() {
   const { data: sessions } = useSessions();

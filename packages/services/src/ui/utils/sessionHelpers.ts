@@ -1,4 +1,4 @@
-import type { ClientSession } from '@oxyhq/core';
+import type { ClientSession } from '@oxy.so/core';
 
 interface DeviceSession {
   sessionId: string;

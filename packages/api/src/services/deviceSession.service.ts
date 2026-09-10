@@ -10,13 +10,13 @@ import type {
   DevicePrincipal,
   DeviceSessionState,
   SessionAccount,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   BROWSER_HUB_HANDLE_TTL_MS,
   deviceDirectorySchema,
-  isActAsEligibleKind,
-} from '@oxyhq/contracts';
-import { isUniqueViolation } from '@oxyhq/db';
+  isOperatorSwitchTargetKind,
+} from '@oxy.so/contracts';
+import { isUniqueViolation } from '@oxy.so/db';
 import { getDb, type Database } from '../config/postgres';
 import { deviceAccountContexts } from '../db/schema/deviceAccountContexts';
 import { devicePrincipals } from '../db/schema/devicePrincipals';
@@ -1023,7 +1023,11 @@ class DeviceSessionService {
    * which needs none of it.
    *
    * A CHANNEL is never here — it is a content identity, not a seat anybody
-   * occupies (`isActAsEligibleKind`), so it can never be a switcher row. The
+   * occupies — and neither is a BOT, which is something that operates on a
+   * person's behalf rather than something they become
+   * (`isOperatorSwitchTargetKind`). These rows ARE the account switcher: the SDK
+   * renders the device directory and does not filter by kind, so a kind admitted
+   * here is a kind offered on screen. The
    * permission is read off the resolved membership rather than off the role,
    * exactly as `verifyActingAs` does, so a per-member revoke of
    * `account:act_as` removes the row here too instead of the directory offering
@@ -1036,7 +1040,7 @@ class DeviceSessionService {
     for (const node of nodes) {
       const actable =
         node.relationship === 'self' ||
-        (isActAsEligibleKind(node.kind) &&
+        (isOperatorSwitchTargetKind(node.kind) &&
           node.callerMembership !== null &&
           effectivePermissionsForMember(node.callerMembership).includes('account:act_as'));
       if (!actable) continue;

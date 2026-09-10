@@ -13,7 +13,7 @@
  * before that button even enables.
  *
  * `OxyAuthChooser` itself is stubbed (its own completion paths are tested in
- * @oxyhq/services) — this file isolates HubPasskeyPage's OWN gating logic.
+ * @oxy.so/services) — this file isolates HubPasskeyPage's OWN gating logic.
  */
 import { beforeEach, describe, expect, mock, test } from "bun:test"
 import React, { act } from "react"
@@ -48,7 +48,7 @@ const stableUser = { id: "u1", username: "nate", name: { displayName: "Nate" } }
 // expose the full surface this page consumes, mirroring the leak-safe
 // convention `login-form-passkey.test.tsx` established.
 mock.module(
-    "@oxyhq/services",
+    "@oxy.so/services",
     () =>
         createServicesMock({
             useOxy: () => ({
@@ -60,7 +60,7 @@ mock.module(
             // Minimal stub: a single button that fires the SAME onComplete prop
             // OxyAuthChooser fires on every completion path (ceremony, QR,
             // active-account tap) — the real component's own paths are tested in
-            // @oxyhq/services.
+            // @oxy.so/services.
             OxyAuthChooser: ({ onComplete }: { onComplete?: () => void }) => {
                 chooserOnComplete = onComplete
                 return React.createElement(

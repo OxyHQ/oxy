@@ -1,5 +1,5 @@
 import { useRef, useState } from "react"
-import { useAuth, useCurrentUser, useUpdateProfile, useUploadAvatar, useUserByUsername } from "@oxyhq/services"
+import { useAuth, useCurrentUser, useUpdateProfile, useUploadAvatar, useUserByUsername } from "@oxy.so/services"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
-import { toast } from "@oxyhq/bloom"
+import { toast } from "@oxy.so/bloom"
 
 export function ProfileDemo() {
   const { isAuthenticated, oxyServices } = useAuth()
@@ -246,7 +246,7 @@ export function ProfileDemo() {
         </CardHeader>
         <CardContent>
           <pre className="overflow-auto rounded-md bg-muted p-4 text-xs">
-{`import { useCurrentUser, useUpdateProfile, useUploadAvatar } from '@oxyhq/services';
+{`import { useCurrentUser, useUpdateProfile, useUploadAvatar } from '@oxy.so/services';
 
 function Profile() {
   const { data: user } = useCurrentUser();

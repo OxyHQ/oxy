@@ -12,6 +12,10 @@ on:
     paths:
       - 'packages/create-oxy-app/**'
       - 'packages/app-preset/**'
+      - 'packages/contracts/**'
+      - 'packages/core/**'
+      - 'packages/db/**'
+      - 'packages/services/**'
 
 # Least privilege: this workflow only reads the repo (no writes, no packages).
 permissions:
@@ -43,15 +47,14 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
 
       - name: Install monorepo deps
-        run: bun install
-
+        run: bun install --frozen-lockfile --minimum-release-age=0
       - name: Build the create-oxy-app CLI
         run: bun run --cwd packages/create-oxy-app build
 
@@ -70,19 +73,25 @@ jobs:
           echo '{"name":"coa-runner","private":true}' > package.json
           bun add "$RUNNER_TEMP"/create-oxy-app-*.tgz
 
-      - name: Pack @oxyhq/app-preset from the monorepo
+      - name: Build + pack the generated app's Oxy dependencies from HEAD
         run: |
-          # @oxyhq/app-preset may be unpublished at HEAD, so the generated app has
-          # to take it from this checkout. Install it from a PACKED TARBALL rather
-          # than pointing a `file:` override at the source directory: bun
+          # A workspace release may be unpublished at HEAD, so the generated app
+          # must take every Oxy package it names from this checkout. This also
+          # breaks the release chicken-and-egg: smoke must pass before merge, and
+          # publication is allowed only from the exact green main commit.
+          #
+          # Install from PACKED TARBALLS rather than `file:` source directories: bun
           # materializes a `file:` DIRECTORY dependency as a tree of symlinks back
           # to that directory, and node resolves a symlinked module to its realpath.
-          # Every `require` inside the preset (expo/metro-config, metro-config,
-          # nativewind/metro) would then resolve from THIS checkout's node_modules
-          # instead of the generated app's. A tarball is extracted as real files,
-          # which is exactly what a `bun add @oxyhq/app-preset` from the registry
-          # produces, and it also exercises the package's `files` list.
-          bun pm pack --cwd packages/app-preset --destination "$RUNNER_TEMP"
+          # A tarball is extracted as real files, exactly like a registry install,
+          # and exercises each package's publish-time workspace-range rewriting and
+          # `files` list. create-oxy-app's build already built contracts/core;
+          # services needs its publishable lib output before packing.
+          bun run --cwd packages/db build
+          bun run --cwd packages/services build
+          for package in contracts core db services app-preset; do
+            bun pm pack --cwd "packages/$package" --destination "$RUNNER_TEMP"
+          done
 
       - name: Scaffold a test app (from the packed tarball)
         run: |
@@ -93,7 +102,7 @@ jobs:
 
       - name: Assert the scaffold ships a hoisted-linker bunfig.toml
         run: |
-          # Isolated linker (bun's default) does not hoist @oxyhq/app-preset to
+          # Isolated linker (bun's default) does not hoist @oxy.so/app-preset to
           # the root node_modules, so shared-types' tsconfig extends fail. The
           # generated app MUST carry bunfig.toml with the hoisted linker.
           grep -q 'linker = "hoisted"' "$RUNNER_TEMP/smoke-app/bunfig.toml"
@@ -118,22 +127,34 @@ jobs:
           ! grep -rniE 'mongo' . --exclude-dir=node_modules
           docker compose -f docker-compose.postgres.yml config -q
 
-      - name: Install the generated app (+ local @oxyhq/app-preset)
+      - name: Install the generated app with packed Oxy HEAD dependencies
         working-directory: ${{ runner.temp }}/smoke-app
         run: |
-          # Override @oxyhq/app-preset with the tarball packed above, so the app
-          # installs the HEAD preset the same way a real consumer installs the
-          # published one. See the pack step for why a tarball and not a dir.
+          # Override direct and transitive Oxy dependencies with the tarballs
+          # packed above. This tests HEAD as a registry consumer without publishing
+          # an unmerged package merely to make the pre-merge smoke resolvable.
           node -e '
             const fs = require("fs");
             const path = require("path");
             const dir = process.env.RUNNER_TEMP;
-            const tarball = fs.readdirSync(dir).find((f) => /^oxyhq-app-preset-.*\.tgz$/.test(f));
-            if (!tarball) throw new Error("packed @oxyhq/app-preset tarball not found in " + dir);
-            const local = "file:" + path.join(dir, tarball);
+            const packed = [
+              ["@oxy.so/contracts", /^oxy\.so-contracts-.*\.tgz$/],
+              ["@oxy.so/core", /^oxy\.so-core-.*\.tgz$/],
+              ["@oxy.so/db", /^oxy\.so-db-.*\.tgz$/],
+              ["@oxy.so/services", /^oxy\.so-services-.*\.tgz$/],
+              ["@oxy.so/app-preset", /^oxy\.so-app-preset-.*\.tgz$/],
+            ];
+            const files = fs.readdirSync(dir);
             const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
-            p.overrides["@oxyhq/app-preset"] = local;
-            p.resolutions["@oxyhq/app-preset"] = local;
+            for (const [name, pattern] of packed) {
+              const matches = files.filter((file) => pattern.test(file));
+              if (matches.length !== 1) {
+                throw new Error(`expected exactly one packed ${name} tarball in ${dir}, found ${matches.length}`);
+              }
+              const local = "file:" + path.join(dir, matches[0]);
+              p.overrides[name] = local;
+              p.resolutions[name] = local;
+            }
             fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n");
           '
           bun install --ignore-scripts
@@ -157,7 +178,7 @@ jobs:
                 throw new Error(label + " escaped the generated app: " + target);
               }
             };
-            assertInsideApp("@oxyhq/app-preset", require.resolve("@oxyhq/app-preset/metro"));
+            assertInsideApp("@oxy.so/app-preset", require.resolve("@oxy.so/app-preset/metro"));
             assertInsideApp("resolver.emptyModulePath", require("./metro.config.js").resolver.emptyModulePath);
           '
 

@@ -37,7 +37,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 import { currencyCode, currencyCodeCheck, exactAmount } from './ledgerColumns';
 import { usageReceipts } from './usageReceipts';
 import { users } from './users';

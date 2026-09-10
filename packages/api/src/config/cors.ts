@@ -3,8 +3,8 @@
  *
  * Two-lane Origin policy derived from the Application registry
  * (`./dynamicOriginRegistry`):
- *  - TRUSTED origins (first-party / internal / system / official apps, the
- *    bootstrap-core seed, and `OXY_EXTRA_ALLOWED_ORIGINS`) get the credentialed
+ *  - TRUSTED origins (first-party / internal / system / official apps and
+ *    `OXY_EXTRA_ALLOWED_ORIGINS`) get the credentialed
  *    lane: `Access-Control-Allow-Origin: <origin>` + `Access-Control-Allow-
  *    Credentials: true`. The origin is ALWAYS echoed back, NEVER `*`, because
  *    the response carries credentials.
@@ -57,6 +57,11 @@ export const ALLOWED_HEADERS = [
   'X-Device-Fingerprint',
   'x-device-fingerprint',
   'X-Native-App',
+  // Anonymous coarse Cloudflare PoP propagated by browser SDKs. This carries
+  // neither an IP nor an identity and is consumed only by thresholded activity
+  // aggregation.
+  'X-Oxy-Edge-Region',
+  'X-Oxy-Activity-Id',
   // The inference edge reads `Idempotency-Key` on every invoke and dedupes on
   // it. Absent from this list, a browser cannot SEND it at all — the preflight
   // rejects the header — so no browser client could use idempotency support the

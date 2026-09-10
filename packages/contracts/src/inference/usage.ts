@@ -175,7 +175,7 @@ export const inferenceRequestOutcomeSchema = z.enum([
  * The three other outcomes legitimately carry none, which is why the rule is
  * conditional rather than a `.min(1)` on the field. In the reference data plane
  * `failed` is DERIVED from having no units — `outcomeFor` in
- * `internal/relay/executor.go` returns `partial` when units exist and `failed`
+ * Kaana's `internal/kaana/executor.go` returns `partial` when units exist and `failed`
  * when they do not — and `cancelled` is reported for a client that stopped
  * before anything was measured. An unconditional minimum would refuse those
  * reports, and a refused report is a request that ran, cost money upstream and
@@ -184,7 +184,7 @@ export const inferenceRequestOutcomeSchema = z.enum([
 export const normalizedUsageReportSchema = z
   .object({
     /** See `version.ts`: emitted by the data plane as a whole message. */
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     requestId: requestIdSchema,
     generationId: generationIdSchema.optional(),
     attribution: inferenceAttributionSchema,
@@ -193,7 +193,8 @@ export const normalizedUsageReportSchema = z
     usageSource: usageSourceSchema,
     resolvedModelReference: modelReferenceSchema,
     servingProvider: inferenceProviderSlugSchema,
-    deploymentId: deploymentIdSchema.optional(),
+    /** Exact Kaana deployment that attempted the request; never inferred from names. */
+    deploymentId: deploymentIdSchema,
     /** How many allowed route switches occurred while serving this request. */
     routeSwitches: z.number().int().nonnegative().max(100),
     startedAt: inferenceTimestampSchema,

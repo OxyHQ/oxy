@@ -3,7 +3,7 @@
  *
  * ## This is a WHITELIST, not a second validator
  *
- * `routingPolicySchema` in `@oxyhq/contracts` owns what a valid policy IS,
+ * `routingPolicySchema` in `@oxy.so/contracts` owns what a valid policy IS,
  * including the refinement that rejects contradictory ones. Nothing here
  * restates any of that: {@link routingPolicyControlsBody} lists the fields a
  * CUSTOMER may set, built out of the contract's own leaf schemas
@@ -42,7 +42,7 @@ import {
   routingTargetSchema,
   unitPriceSchema,
   USAGE_UNITS,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 /**
  * How many providers, regions or licences one policy may name.

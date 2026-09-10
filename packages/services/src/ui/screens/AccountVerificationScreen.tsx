@@ -4,15 +4,15 @@ import {
     StyleSheet,
 } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { toast } from '@oxyhq/bloom/toast';
-import { surfaces } from '@oxyhq/bloom/surfaces';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { H4, Text } from '@oxyhq/bloom/typography';
-import { Button } from '@oxyhq/bloom/button';
-import { TextField, TextFieldInput } from '@oxyhq/bloom/text-field';
-import { IconCircle } from '@oxyhq/bloom/icon-circle';
-import { BenefitList, BenefitRow } from '@oxyhq/bloom/benefit-list';
-import * as Icons from '@oxyhq/bloom/icons';
+import { toast } from '@oxy.so/bloom/toast';
+import { surfaces } from '@oxy.so/bloom/surfaces';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { H4, Text } from '@oxy.so/bloom/typography';
+import { Button } from '@oxy.so/bloom/button';
+import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
+import { IconCircle } from '@oxy.so/bloom/icon-circle';
+import { BenefitList, BenefitRow } from '@oxy.so/bloom/benefit-list';
+import * as Icons from '@oxy.so/bloom/icons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/OxyContext';

@@ -62,7 +62,7 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { BROWSER_HUB_HANDLE_TTL_MS } from '@oxyhq/contracts';
+import { BROWSER_HUB_HANDLE_TTL_MS } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
 import { deviceSessions } from '../../db/schema/deviceSessions';

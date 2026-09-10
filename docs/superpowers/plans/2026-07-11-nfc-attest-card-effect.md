@@ -4,7 +4,7 @@
 
 **Goal:** Android phones emit the real-life-attestation payload over NFC (HCE) while the Oxy ID card is on screen; any phone can tap to receive it; the card physically reacts when read (level 1) and when the server confirms the attestation (level 2, QR flow included).
 
-**Architecture:** The NFC tag content is byte-for-byte the QR string (`oxycommons://attest?payload=…` from `useAttestQr`). Emission = `react-native-hce` NDEF Type 4 session armed while `(id)/index` is focused. Reception = Android system NDEF dispatch (deep link, app closed included) or an in-app `react-native-nfc-manager` reader button (iPhone). Confirmation = new `civic:attested` Socket.IO event to the subject's `user:<id>` room, surfaced to apps through a new generic `SessionClient.onServerEvent` API in `@oxyhq/core` + `useOxyEvent` hook in `@oxyhq/services`. Card effect = two Reanimated shared values (`scanPulse`, `attestGlow`) threaded through the existing `TiltContext` into the Skia canvas.
+**Architecture:** The NFC tag content is byte-for-byte the QR string (`oxycommons://attest?payload=…` from `useAttestQr`). Emission = `react-native-hce` NDEF Type 4 session armed while `(id)/index` is focused. Reception = Android system NDEF dispatch (deep link, app closed included) or an in-app `react-native-nfc-manager` reader button (iPhone). Confirmation = new `civic:attested` Socket.IO event to the subject's `user:<id>` room, surfaced to apps through a new generic `SessionClient.onServerEvent` API in `@oxy.so/core` + `useOxyEvent` hook in `@oxy.so/services`. Card effect = two Reanimated shared values (`scanPulse`, `attestGlow`) threaded through the existing `TiltContext` into the Skia canvas.
 
 **Tech Stack:** Expo SDK 57 / RN 0.86, react-native-reanimated + @shopify/react-native-skia, react-native-hce, react-native-nfc-manager, Socket.IO, Jest (per-package configs).
 
@@ -38,7 +38,7 @@
 Create `packages/core/src/session/__tests__/SessionClient.serverEvents.test.ts`. Reuse the exact harness from `SessionClient.socketFactory.test.ts` (`FakeSocket`, `makeHost`, `SYNC`):
 
 ```ts
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 import type { MinimalSocket, SocketIOFactory } from '../socketLoader';
 import { SessionClient, type SessionClientHost } from '../SessionClient';
 
@@ -215,7 +215,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `SessionClient.onServerEvent` (Task 1), the internal Oxy context.
-- Produces: `useOxyEvent(event: string, handler: (payload: unknown) => void): void` — exported from `@oxyhq/services`. Subscribes for the component's lifetime; `handler` identity may change freely (ref-stable internally).
+- Produces: `useOxyEvent(event: string, handler: (payload: unknown) => void): void` — exported from `@oxy.so/services`. Subscribes for the component's lifetime; `handler` identity may change freely (ref-stable internally).
 
 No unit test in services: the hook is a 15-line lifetime wrapper over `onServerEvent`, which Task 1 tests directly, and Task 4's commons test covers the consumer contract. (Standing up a context harness in services for this would test React, not our logic.)
 
@@ -248,7 +248,7 @@ export function useOxyEvent(event: string, handler: (payload: unknown) => void):
 }
 ```
 
-Adjust the import path/name to match how sibling hooks in `packages/services/src/ui/hooks/` import `useOxy` (mirror an existing hook file's import exactly). If `useOxy()`'s return type does not include `sessionClient`, add it to the context type in `oxyContextTypes.ts` (typed as the `SessionClient` class imported `import type { SessionClient } from '@oxyhq/core'` — check how `OxyContext.tsx` already types it and reuse that).
+Adjust the import path/name to match how sibling hooks in `packages/services/src/ui/hooks/` import `useOxy` (mirror an existing hook file's import exactly). If `useOxy()`'s return type does not include `sessionClient`, add it to the context type in `oxyContextTypes.ts` (typed as the `SessionClient` class imported `import type { SessionClient } from '@oxy.so/core'` — check how `OxyContext.tsx` already types it and reuse that).
 
 - [ ] **Step 2: Export from the package root**
 
@@ -369,16 +369,16 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `packages/commons/hooks/civic/useAttestedEvent.ts`
-- Modify: `packages/commons/__mocks__/oxyhq-services.ts` (add `useOxyEvent` support)
+- Modify: `packages/commons/__mocks__/oxy-services.ts` (add `useOxyEvent` support)
 - Test: `packages/commons/__tests__/hooks/useAttestedEvent.test.tsx`
 
 **Interfaces:**
-- Consumes: `useOxyEvent` from `@oxyhq/services` (Task 2); event shape from Task 3.
+- Consumes: `useOxyEvent` from `@oxy.so/services` (Task 2); event shape from Task 3.
 - Produces: `useAttestedEvent(onAttested: (payload: AttestedEventPayload) => void): void` and `interface AttestedEventPayload { byUserId: string; recordId: string; points: number; at: string }`.
 
 - [ ] **Step 1: Extend the services mock**
 
-In `packages/commons/__mocks__/oxyhq-services.ts` (match the file's existing style), add a capture-and-fire helper:
+In `packages/commons/__mocks__/oxy-services.ts` (match the file's existing style), add a capture-and-fire helper:
 
 ```ts
 type OxyEventHandler = (payload: unknown) => void;
@@ -412,7 +412,7 @@ If the mock file has a `__reset…` helper, clear `oxyEventHandlers` there too. 
 
 ```tsx
 import { renderHook, act } from '@testing-library/react';
-import { __emitOxyEvent } from '@/__mocks__/oxyhq-services';
+import { __emitOxyEvent } from '@/__mocks__/oxy-services';
 import { useAttestedEvent } from '@/hooks/civic/useAttestedEvent';
 
 describe('useAttestedEvent', () => {
@@ -455,7 +455,7 @@ Expected: FAIL — module `@/hooks/civic/useAttestedEvent` not found.
 `packages/commons/hooks/civic/useAttestedEvent.ts`:
 
 ```ts
-import { useOxyEvent } from '@oxyhq/services';
+import { useOxyEvent } from '@oxy.so/services';
 
 export interface AttestedEventPayload {
   byUserId: string;
@@ -492,7 +492,7 @@ Expected: 3/3 PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/commons/hooks/civic/useAttestedEvent.ts packages/commons/__mocks__/oxyhq-services.ts packages/commons/__tests__/hooks/useAttestedEvent.test.tsx
+git add packages/commons/hooks/civic/useAttestedEvent.ts packages/commons/__mocks__/oxy-services.ts packages/commons/__tests__/hooks/useAttestedEvent.test.tsx
 git commit -m "feat(commons): useAttestedEvent — server-confirmed attestation listener
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
@@ -1377,7 +1377,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Modify: `packages/commons/app/(scan)/attest.tsx`
 
 **Interfaces:**
-- Consumes: `useNfcReader` (Task 7), `parseScan` from `@/lib/commons-signin/parse-scan`, `parseAttestPayload` from `@oxyhq/core`.
+- Consumes: `useNfcReader` (Task 7), `parseScan` from `@/lib/commons-signin/parse-scan`, `parseAttestPayload` from `@oxy.so/core`.
 - Produces: an NFC read lands on `(scan)/attest` with the SAME params the QR path produces; a system NDEF tap (`oxycommons://attest?payload=…`, Android, app possibly closed) is parsed by `attest.tsx` directly.
 
 - [ ] **Step 1: Route NFC reads through the existing scan routing**
@@ -1422,7 +1422,7 @@ const fromPayload = useMemo(() => {
 }, [raw.payload]);
 ```
 
-then prefer `fromPayload`'s fields over the individual params when present. **Before coding, read `packages/commons/lib/commons-signin/parse-scan.ts` lines ~55–85** — it shows exactly how `parseAttestPayload` output maps to the router params (`subjectDid`, `context`, `nonce`, `exp`); mirror that mapping so both entry paths produce identical state, including the exp string→number conversion the screen already does. If `parseAttestPayload` returns null on bad input instead of throwing, drop the try/catch and null-check instead — match the real signature in `@oxyhq/core`.
+then prefer `fromPayload`'s fields over the individual params when present. **Before coding, read `packages/commons/lib/commons-signin/parse-scan.ts` lines ~55–85** — it shows exactly how `parseAttestPayload` output maps to the router params (`subjectDid`, `context`, `nonce`, `exp`); mirror that mapping so both entry paths produce identical state, including the exp string→number conversion the screen already does. If `parseAttestPayload` returns null on bad input instead of throwing, drop the try/catch and null-check instead — match the real signature in `@oxy.so/core`.
 
 - [ ] **Step 3: Typecheck + full suite**
 
@@ -1449,9 +1449,9 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```bash
 cd /home/nate/Oxy/OxyHQServices
 bun run build:all
-bun run --filter @oxyhq/core test
-bun run --filter @oxyhq/services test
-bun run --filter @oxyhq/api test
+bun run --filter @oxy.so/core test
+bun run --filter @oxy.so/services test
+bun run --filter @oxy.so/api test
 cd packages/commons && bun run test && bunx tsc --noEmit
 ```
 

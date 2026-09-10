@@ -1,15 +1,15 @@
 /* Shared Oxy Tailwind v4 + NativeWind + Bloom base (imports + SDK @source globs).
-   See @oxyhq/app-preset/base.css. App-specific globs and theme follow below.
+   See @oxy.so/app-preset/base.css. App-specific globs and theme follow below.
 
    Wiring this file (via `input: './global.css'` in metro.config.js) is what
    compiles the NativeWind/Tailwind utility stylesheet for the web build. Without
    it, react-native-css still puts `className` tokens on the DOM but NO backing
    `.flex-row` / `.bg-primary` / `.gap-*` rules exist, so every className layout
-   utility used by @oxyhq/services' screens (the file-management cluster, etc.)
+   utility used by @oxy.so/services' screens (the file-management cluster, etc.)
    is inert on web and react-native-web's base View reset shows through
    (flex-direction:column, padding:0). The `@source` globs below (inherited from
    base.css) scan the built SDK packages so those utilities are generated. */
-@import "@oxyhq/app-preset/base.css";
+@import "@oxy.so/app-preset/base.css";
 
 @source "./app/**/*.{js,jsx,ts,tsx}";
 @source "./components/**/*.{js,jsx,ts,tsx}";

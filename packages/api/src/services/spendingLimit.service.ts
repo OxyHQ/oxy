@@ -40,7 +40,7 @@
  */
 
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
-import { executeRows } from '@oxyhq/db';
+import { executeRows } from '@oxy.so/db';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import {
   spendingLimitNotifications,

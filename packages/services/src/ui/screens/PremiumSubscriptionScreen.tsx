@@ -2,21 +2,21 @@ import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { View, ScrollView, ActivityIndicator } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { toast } from '@oxyhq/bloom/toast';
-import { surfaces } from '@oxyhq/bloom/surfaces';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Button } from '@oxyhq/bloom/button';
-import { Chip } from '@oxyhq/bloom/chip';
-import { Badge } from '@oxyhq/bloom/badge';
-import { Card, CardBody } from '@oxyhq/bloom/card';
-import { H2, H4, H5, Text } from '@oxyhq/bloom/typography';
-import { BenefitList, BenefitRow } from '@oxyhq/bloom/benefit-list';
+import { toast } from '@oxy.so/bloom/toast';
+import { surfaces } from '@oxy.so/bloom/surfaces';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Button } from '@oxy.so/bloom/button';
+import { Chip } from '@oxy.so/bloom/chip';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Card, CardBody } from '@oxy.so/bloom/card';
+import { H2, H4, H5, Text } from '@oxy.so/bloom/typography';
+import { BenefitList, BenefitRow } from '@oxy.so/bloom/benefit-list';
 import {
     SegmentedControl,
     SegmentedControlItem,
     SegmentedControlItemText,
-} from '@oxyhq/bloom/segmented-control';
-import Ionicons from '@expo/vector-icons/Ionicons';
+} from '@oxy.so/bloom/segmented-control';
+import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/OxyContext';

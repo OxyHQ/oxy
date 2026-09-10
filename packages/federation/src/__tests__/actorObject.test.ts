@@ -1,4 +1,4 @@
-import { ACCOUNT_KINDS } from '@oxyhq/contracts';
+import { ACCOUNT_KINDS } from '@oxy.so/contracts';
 import {
   AP_CONTEXT,
   createLocalActorBuilder,

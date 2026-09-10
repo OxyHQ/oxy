@@ -17,7 +17,7 @@
  * supplies its own resolver; the decision logic lives here, once.
  */
 
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import type { RejectionReason } from '../chain/types';
 
 /**

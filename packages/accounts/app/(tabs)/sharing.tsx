@@ -3,7 +3,7 @@ import { View, StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { ScreenHeader } from '@/components/ui';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useTranslation } from '@/lib/i18n';
 import { useContactSync } from '@/hooks/sharing/useContactSync';
 import { usePrivacyCounts } from '@/hooks/sharing/usePrivacyCounts';

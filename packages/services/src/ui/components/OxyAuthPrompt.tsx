@@ -6,7 +6,7 @@ import {
     type StyleProp,
     type ViewStyle,
 } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../stores/authStore';
 import LogoIcon from './logo/LogoIcon';

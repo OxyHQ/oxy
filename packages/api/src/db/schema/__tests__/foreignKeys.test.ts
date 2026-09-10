@@ -3,7 +3,7 @@
  *
  * The migration lands table by table, so some foreign keys cannot be declared
  * yet — their parent table does not exist. `deferredForeignKeys.ts` records each
- * one as data; `findIdColumnViolations` (`@oxyhq/db/assert`) turns that record
+ * one as data; `findIdColumnViolations` (`@oxy.so/db/assert`) turns that record
  * into a gate with two properties:
  *
  *   1. A deferred foreign key becomes MANDATORY the moment its parent table
@@ -20,8 +20,8 @@
 
 import { is, type Column } from 'drizzle-orm';
 import { PgTable, getTableConfig } from 'drizzle-orm/pg-core';
-import { findIdColumnViolations } from '@oxyhq/db/assert';
-import { sqlColumnName } from '@oxyhq/db';
+import { findIdColumnViolations } from '@oxy.so/db/assert';
+import { sqlColumnName } from '@oxy.so/db';
 import * as schema from '../index';
 import {
   DEFERRED_FOREIGN_KEYS,

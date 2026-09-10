@@ -2,8 +2,8 @@
  * Email Inbound Webhook Route
  *
  * Receives inbound email from Cloudflare Email Routing via a worker webhook.
- * Replaces the direct SMTP inbound server (port 25) which is blocked by
- * DigitalOcean.
+ * Replaces the direct SMTP inbound server so the API does not expose or depend
+ * on a public port 25 listener.
  *
  * Flow:
  *   1. Cloudflare Email Routing receives email for *@oxy.so
@@ -16,7 +16,7 @@
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { timingSafeEqual } from 'node:crypto';
-import { normalizeInlineText } from '@oxyhq/core';
+import { normalizeInlineText } from '@oxy.so/core';
 import { and, eq, not, sql } from 'drizzle-orm';
 import { simpleParser } from 'mailparser';
 import type { ParsedMail } from 'mailparser';

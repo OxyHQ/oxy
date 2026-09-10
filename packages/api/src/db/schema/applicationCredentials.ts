@@ -66,7 +66,7 @@ import { sql } from 'drizzle-orm';
 import { check, foreignKey, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { APPLICATION_SCOPES } from '../../utils/applicationScopes';
 import { applications } from './applications';
-import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /**

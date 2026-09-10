@@ -1,12 +1,13 @@
 import { useEffect } from "react"
 import ReactDOM from "react-dom/client"
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
-import { BloomThemeProvider } from "@oxyhq/bloom/theme"
-import { ConnectionStatusToasts } from "@oxyhq/bloom/connection-status"
-import { OxyProvider } from "@oxyhq/services"
+import { BloomThemeProvider } from "@oxy.so/bloom/theme"
+import { ConnectionStatusToasts } from "@oxy.so/bloom/connection-status"
+import { OxyProvider } from "@oxy.so/services"
 import { getBloomThemeCSS, setBasePreset } from "@/lib/bloom-css"
 import { getApiBaseUrl } from "@/lib/oxy-api-client"
 import { OXY_CLIENT_ID } from "@/lib/oxy-client"
+import { productAnalytics } from "@/lib/product-analytics"
 import { isBrowserHubEnabled } from "@/lib/hub-client"
 import { LayoutProvider } from "@/lib/layout-context"
 import { LocaleProvider } from "@/lib/i18n/locale-context"
@@ -15,6 +16,7 @@ import { LoginPage } from "@/src/pages/login"
 import { SignUpPage } from "@/src/pages/signup"
 import { AuthorizePage } from "@/src/pages/authorize"
 import { HubAuthorizePage } from "@/src/pages/hub-authorize"
+import { McpLinkPage } from "@/src/pages/mcp-link"
 import { HubPasskeyPage } from "@/src/pages/hub-passkey"
 import "@/app/globals.css"
 
@@ -71,6 +73,7 @@ function App() {
                 <OxyProvider
                     baseURL={getApiBaseUrl()}
                     clientId={OXY_CLIENT_ID}
+                    productAnalytics={productAnalytics}
                     // With the browser hub ON, the durable credential for this
                     // browser profile is the server-side DeviceSession behind
                     // `__Host-oxy-device`, so this origin persists none of its
@@ -94,6 +97,12 @@ function App() {
                                 <Route path="/auth/login" element={<LoginPage />} />
                                 <Route path="/auth/signup" element={<SignUpPage />} />
                                 <Route path="/auth/authorize" element={<AuthorizeRoute />} />
+                                {/* Adding another account to an existing MCP
+                                    connection. Not an OAuth request: there is no
+                                    relying party and no redirect — the person
+                                    approves here and returns to their assistant. */}
+                                <Route path="/mcp/link" element={<McpLinkPage />} />
+                                <Route path="/auth/mcp/link" element={<McpLinkPage />} />
                             </Route>
 
                             {/* Account management lives on accounts.oxy.so — the IdP no longer

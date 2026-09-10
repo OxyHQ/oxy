@@ -1,6 +1,6 @@
 // Tailwind v4 + NativeWind entry. Importing it here is what makes react-native-css
 // compile the utility stylesheet for the web build, so className layout utilities
-// (from this app and @oxyhq/services) render on web instead of falling through to
+// (from this app and @oxy.so/services) render on web instead of falling through to
 // react-native-web's base View reset. Pairs with postcss.config.mjs.
 import '../global.css';
 
@@ -10,10 +10,10 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { OxyProvider, useOxy } from '@oxyhq/services';
-import { BloomThemeProvider } from '@oxyhq/bloom/theme';
-import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
-import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
+import { OxyProvider, useOxy } from '@oxy.so/services';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
+import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { API_URL, OXY_CLIENT_ID } from '@/lib/config';
 import { queryClient } from '@/lib/queryClient';
 import { THEME_PERSIST_KEY, themeStorage } from '@/lib/themePersistence';

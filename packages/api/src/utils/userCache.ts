@@ -16,8 +16,8 @@
  * `req.user` must normalize it rather than assume `Date`.
  */
 
-import type { OxyUserChangeReason } from '@oxyhq/contracts';
-import { publishOxyUserInvalidation } from '@oxyhq/core/server';
+import type { OxyUserChangeReason } from '@oxy.so/contracts';
+import { publishOxyUserInvalidation } from '@oxy.so/core/server';
 
 import { getRedisClient } from '../config/redis';
 import type { AccountDocument } from '../services/user.service';

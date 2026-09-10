@@ -6,8 +6,8 @@ import React, {
   useMemo,
 } from 'react';
 import { I18nManager } from 'react-native';
-import { useOxy, useUpdateProfile } from '@oxyhq/services';
-import { getBaseLanguage, isRTLLocale, normalizeLocale } from '@oxyhq/core';
+import { useOxy, useUpdateProfile } from '@oxy.so/services';
+import { getBaseLanguage, isRTLLocale, normalizeLocale } from '@oxy.so/core';
 import {
   DEFAULT_LOCALE,
   SUPPORTED_LOCALES,

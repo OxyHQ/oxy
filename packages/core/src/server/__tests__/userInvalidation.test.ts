@@ -1,4 +1,4 @@
-import { OXY_USER_INVALIDATION_CHANNEL } from '@oxyhq/contracts';
+import { OXY_USER_INVALIDATION_CHANNEL } from '@oxy.so/contracts';
 
 import {
   createOxyUserInvalidationHandler,
@@ -34,7 +34,7 @@ function makeEvictor() {
   return { evictor, entries, prefixes };
 }
 
-describe('@oxyhq/core/server publishOxyUserInvalidation', () => {
+describe('@oxy.so/core/server publishOxyUserInvalidation', () => {
   it('publishes a profile change on the contract channel', () => {
     const publisher = makePublisher();
     const published = publishOxyUserInvalidation(publisher, 'user-1', 'profile');
@@ -105,7 +105,7 @@ describe('@oxyhq/core/server publishOxyUserInvalidation', () => {
   });
 });
 
-describe('@oxyhq/core/server createOxyUserInvalidationHandler', () => {
+describe('@oxy.so/core/server createOxyUserInvalidationHandler', () => {
   const validMessage = JSON.stringify({ userId: 'user-1', reason: 'profile', at: 1 });
 
   it('sweeps the SDK identity cache for the invalidated user', () => {

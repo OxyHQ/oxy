@@ -87,6 +87,106 @@ describe('OxyServices.createLinkedClient', () => {
     linked.dispose();
   });
 
+  it('returns an unread authenticated streaming response', async () => {
+    const calls: FetchCall[] = [];
+    globalThis.fetch = async (input, init) => {
+      calls.push({ url: String(input), init });
+      return new Response('data: {"delta":"hello"}\n\n', {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    };
+
+    const oxy = createServices();
+    const accessToken = createJwt({
+      userId: 'user_1',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    });
+    oxy.setTokens(accessToken);
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl/' });
+
+    const response = await linked.client.requestAuthenticatedResponse({
+      method: 'POST',
+      url: '/alia/chat',
+      body: JSON.stringify({ message: 'hello' }),
+      headers: {
+        Authorization: 'Bearer caller_supplied_token',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    expect(response.bodyUsed).toBe(false);
+    expect(await response.text()).toBe('data: {"delta":"hello"}\n\n');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe('https://api.alia.onl/alia/chat');
+    expect(readHeaders(calls[0]?.init).authorization).toBe(`Bearer ${accessToken}`);
+
+    linked.dispose();
+  });
+
+  it('refreshes once after a streaming response 401 and keeps the final body unread', async () => {
+    const calls: FetchCall[] = [];
+    globalThis.fetch = async (input, init) => {
+      calls.push({ url: String(input), init });
+      if (calls.length === 1) {
+        return new Response('expired', { status: 401 });
+      }
+      return new Response('data: done\n\n', {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    };
+
+    const oxy = createServices();
+    const oldToken = createJwt({
+      userId: 'user_1',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    });
+    const refreshedToken = createJwt({
+      userId: 'user_1',
+      exp: Math.floor(Date.now() / 1000) + 7200,
+    });
+    oxy.setTokens(oldToken);
+    oxy.getClient().setAuthRefreshHandler(async () => refreshedToken);
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+
+    const response = await linked.client.requestAuthenticatedResponse({
+      method: 'POST',
+      url: '/alia/chat',
+      body: '{}',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    expect(calls).toHaveLength(2);
+    expect(readHeaders(calls[0]?.init).authorization).toBe(`Bearer ${oldToken}`);
+    expect(readHeaders(calls[1]?.init).authorization).toBe(`Bearer ${refreshedToken}`);
+    expect(oxy.getAccessToken()).toBe(refreshedToken);
+    expect(linked.client.getAccessToken()).toBe(refreshedToken);
+    expect(response.bodyUsed).toBe(false);
+    expect(await response.text()).toBe('data: done\n\n');
+
+    linked.dispose();
+  });
+
+  it('rejects an authenticated streaming request before fetch without a session', async () => {
+    const fetchMock = jest.fn();
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    const oxy = createServices();
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+
+    await expect(linked.client.requestAuthenticatedResponse({
+      method: 'POST',
+      url: '/alia/chat',
+      body: '{}',
+    })).rejects.toMatchObject({
+      code: 'AUTH_REQUIRED',
+      status: 401,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    linked.dispose();
+  });
+
   it('keeps the session owner intact when a linked response 401 cannot refresh', async () => {
     const oxy = createServices();
     oxy.setTokens('stale_access');

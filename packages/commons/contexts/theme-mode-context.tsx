@@ -7,7 +7,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { Appearance, Platform } from 'react-native';
-import type { ThemeMode } from '@oxyhq/bloom/theme';
+import type { ThemeMode } from '@oxy.so/bloom/theme';
 
 interface ThemeModeContextValue {
   themeMode: ThemeMode;

@@ -5,17 +5,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from '@oxyhq/bloom/toast';
-import { surfaces } from '@oxyhq/bloom/surfaces';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Text } from '@oxyhq/bloom/typography';
-import { Button } from '@oxyhq/bloom/button';
-import { TextField, TextFieldInput } from '@oxyhq/bloom/text-field';
-import { Divider } from '@oxyhq/bloom/divider';
-import type { AccountMember, AccountRole } from '@oxyhq/core';
-import { accountRoleLabel, getNormalizedUserHandle } from '@oxyhq/core';
+import { toast } from '@oxy.so/bloom/toast';
+import { surfaces } from '@oxy.so/bloom/surfaces';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import { Button } from '@oxy.so/bloom/button';
+import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
+import { Divider } from '@oxy.so/bloom/divider';
+import type { AccountMember, AccountRole } from '@oxy.so/core';
+import { accountRoleLabel, getNormalizedUserHandle } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
@@ -264,7 +264,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
           {/* Invite form */}
           {canInvite ? (
             <View className="gap-space-12 p-space-16 rounded-radius-20 bg-fill">
-              <Text className="text-body font-bodyBold text-text">
+              <Text className="text-body font-semibold text-text">
                 {t('accounts.members.invite.title') || 'Add a member'}
               </Text>
               <TextField isInvalid={!!inviteError}>
@@ -310,7 +310,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                       }}
                     >
                       <Text
-                        className="text-caption font-bodyBold"
+                        className="text-caption font-semibold"
                         style={{ color: selected ? colors.background : colors.text }}
                       >
                         {roleLabel(role)}
@@ -371,7 +371,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                             </Text>
                             {isOwner ? (
                               <View className="px-space-8 py-space-4 rounded-radius-full" style={{ backgroundColor: colors.primarySubtle }}>
-                                <Text className="text-caption font-bodyBold" style={{ color: colors.primary }}>
+                                <Text className="text-caption font-semibold" style={{ color: colors.primary }}>
                                   {roleLabel('owner')}
                                 </Text>
                               </View>
@@ -414,7 +414,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                                     }}
                                   >
                                     <Text
-                                      className="text-caption font-bodyBold"
+                                      className="text-caption font-semibold"
                                       style={{ color: selected ? colors.background : colors.text }}
                                     >
                                       {roleLabel(role)}
@@ -441,7 +441,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                                   className="flex-row items-center gap-space-4"
                                 >
                                   <Ionicons name="swap-horizontal-outline" size={16} color={colors.icon} />
-                                  <Text className="text-caption font-bodyBold text-text-secondary">
+                                  <Text className="text-caption font-semibold text-text-secondary">
                                     {t('accounts.members.actions.transfer') || 'Transfer ownership'}
                                   </Text>
                                 </TouchableOpacity>
@@ -455,7 +455,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                                   className="flex-row items-center gap-space-4"
                                 >
                                   <Ionicons name="trash-outline" size={16} color={colors.error} />
-                                  <Text className="text-caption font-bodyBold" style={{ color: colors.error }}>
+                                  <Text className="text-caption font-semibold" style={{ color: colors.error }}>
                                     {t('accounts.members.actions.remove') || 'Remove'}
                                   </Text>
                                 </TouchableOpacity>

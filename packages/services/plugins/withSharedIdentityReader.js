@@ -3,7 +3,7 @@
  *
  * Reader apps do NOT host the shared identity — they only READ it from the
  * Commons-hosted `OxyIdentityProvider` to enable silent "Sign in with Oxy".
- * This plugin wires the minimal Android side of `@oxyhq/services`:
+ * This plugin wires the minimal Android side of `@oxy.so/services`:
  *
  *  - Requests the `signature`-level permission `so.oxy.shared.permission.READ_IDENTITY`
  *    (defined by Commons). Because it is `signature`, it is only granted when

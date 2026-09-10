@@ -1,5 +1,9 @@
 import type { S3Service } from './s3Service';
-import { storageKeyForVisibility } from '../config/cdn';
+import {
+  storageKeyForVisibility,
+  HLS_MASTER_PLAYLIST_CACHE_CONTROL,
+  IMMUTABLE_ASSET_CACHE_CONTROL,
+} from '../config/cdn';
 import { logger } from '../utils/logger';
 import sharp from 'sharp';
 import path from 'path';
@@ -560,6 +564,7 @@ export class VariantService {
         const out = await pipeline.toBuffer();
         await this.s3Service.uploadBuffer(variantKey, out, {
           contentType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
+          cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
         });
 
         variants.push({
@@ -868,7 +873,8 @@ export class VariantService {
 
           // Upload to S3
           await this.s3Service.uploadBuffer(posterKey, optimized, {
-            contentType: 'image/jpeg'
+            contentType: 'image/jpeg',
+            cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
           });
 
           const imageMetadata = await sharp(optimized).metadata();
@@ -1054,7 +1060,8 @@ export class VariantService {
 
           // Upload to S3
           await this.s3Service.uploadBuffer(variantKey, variantBuffer, {
-            contentType: 'video/mp4'
+            contentType: 'video/mp4',
+            cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
           });
 
           resolve({
@@ -1193,7 +1200,8 @@ export class VariantService {
             const playlistBuffer = fs.readFileSync(outputPath);
             const playlistKey = this.generateVariantKey(sha256, `hls_${config.type}`, 'm3u8', visibility);
             await this.s3Service.uploadBuffer(playlistKey, playlistBuffer, {
-              contentType: 'application/vnd.apple.mpegurl'
+              contentType: 'application/vnd.apple.mpegurl',
+              cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
             });
 
             // Upload all segment files and delete immediately after upload
@@ -1203,7 +1211,8 @@ export class VariantService {
               const segmentBuffer = fs.readFileSync(segmentPath);
               const segmentKey = this.generateVariantKey(sha256, `hls_${config.type}_${segment}`, 'ts', visibility);
               await this.s3Service.uploadBuffer(segmentKey, segmentBuffer, {
-                contentType: 'video/mp2t'
+                contentType: 'video/mp2t',
+                cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
               });
               // Delete segment immediately after upload (no temp file accumulation)
               try {
@@ -1245,7 +1254,8 @@ export class VariantService {
               const masterPlaylist = this.generateMasterPlaylist(hlsVariants);
               const masterKey = this.generateVariantKey(sha256, 'hls_master', 'm3u8', visibility);
               await this.s3Service.uploadBuffer(masterKey, Buffer.from(masterPlaylist), {
-                contentType: 'application/vnd.apple.mpegurl'
+                contentType: 'application/vnd.apple.mpegurl',
+                cacheControl: HLS_MASTER_PLAYLIST_CACHE_CONTROL,
               });
 
               variants.push({
@@ -1292,7 +1302,27 @@ export class VariantService {
   }
 
   /**
-   * Generate HLS master playlist
+   * Generate HLS master playlist.
+   *
+   * The rendition URIs are BASENAMES, and that is the whole content of this
+   * function's correctness. A master playlist's URIs resolve relative to the
+   * MASTER's own URL (RFC 8216 §4.3.4.2), and `generateVariantKey` puts the
+   * master and every rendition in one directory —
+   * `variants/<year>/<month>/<prefix>/<sha256>/<type>.m3u8` — so a sibling is
+   * named by its file name alone.
+   *
+   * It used to emit `variant.playlist`, which is the S3 STORAGE KEY. Measured
+   * against production before this change:
+   *
+   *   master   cloud.oxy.so/variants/2026/09/e8/<sha>/hls_master.m3u8      200
+   *   its URI  public/variants/2026/09/e8/<sha>/hls_360p.m3u8
+   *   resolves cloud.oxy.so/variants/2026/09/e8/<sha>/public/variants/…    403
+   *   correct  cloud.oxy.so/variants/2026/09/e8/<sha>/hls_360p.m3u8        200
+   *
+   * So every ladder this service has produced is unplayable: a player fetches
+   * the master, then 403s on every rendition it lists. The failure is invisible
+   * from the server — the master is served, S3 has all the objects, and the only
+   * broken thing is a string inside a text file.
    */
   private generateMasterPlaylist(variants: Array<{ resolution: string; bitrate: string; playlist: string }>): string {
     let playlist = '#EXTM3U\n#EXT-X-VERSION:3\n\n';
@@ -1300,7 +1330,8 @@ export class VariantService {
     variants.forEach((variant) => {
       const bitrateNumber = this.parseBitrate(variant.bitrate);
       playlist += `#EXT-X-STREAM-INF:BANDWIDTH=${bitrateNumber},RESOLUTION=${variant.resolution}\n`;
-      playlist += `${variant.playlist}\n\n`;
+      const uri = variant.playlist.slice(variant.playlist.lastIndexOf('/') + 1);
+      playlist += `${uri}\n\n`;
     });
 
     return playlist;
@@ -1554,6 +1585,7 @@ export class VariantService {
     const key = this.generateVariantKey(file.sha256, config.type, format, file.visibility);
     await this.s3Service.uploadBuffer(key, out, {
       contentType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
+      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
     });
 
     const imgMeta = await sharp(out).metadata();

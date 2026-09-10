@@ -34,7 +34,7 @@ export interface NameResponse extends Record<string, unknown> {
    * The user's REAL display name (explicit `displayName`, or composed from
    * `first`/`last`). OMITTED when the user has no real name — the API no longer
    * synthesizes one from `username` / `publicKey` / `'Anonymous'`. Matches the
-   * optional `@oxyhq/contracts` `UserNameResponse` contract; consumers fall back
+   * optional `@oxy.so/contracts` `UserNameResponse` contract; consumers fall back
    * to the handle when this field is absent.
    */
   displayName?: string;

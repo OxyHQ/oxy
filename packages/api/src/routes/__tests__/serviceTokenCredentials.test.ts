@@ -7,7 +7,7 @@
  * the credential must be USABLE (`active`, or `deprecated` within its rotation
  * grace), the SECRET must match its stored SHA-256 hash under a constant-time
  * comparison, and the owning application must be platform-trusted — except for
- * the narrow Oxy Pay carve-out keyed on the CREDENTIAL's own payments-only
+ * the narrow Peable carve-out keyed on the CREDENTIAL's own payments-only
  * scopes.
  *
  * The previous version mocked `models/ApplicationCredential` /
@@ -297,7 +297,7 @@ describe('POST /auth/service-token — the secret and the credential type', () =
   });
 });
 
-describe('POST /auth/service-token — the trust gate and the Oxy Pay carve-out', () => {
+describe('POST /auth/service-token — the trust gate and the Peable carve-out', () => {
   it('rejects a NON-trusted application', async () => {
     const client = await serviceClient(
       { scopes: ['user:read'] },
@@ -379,7 +379,7 @@ describe('POST /auth/service-token — the minted claims', () => {
     const claims = decodeServiceJwt((res.body.data as { token: string }).token);
     expect(claims.type).toBe('service');
     // The claim name `appId` is a WIRE CONTRACT — it is the Application id, and
-    // `@oxyhq/core`'s service-token verification reads it under this name.
+    // `@oxy.so/core`'s service-token verification reads it under this name.
     expect(claims.appId).toBe(client.applicationId);
     expect(claims.appName).toBe(client.appName);
     expect(claims.credentialId).toBe(client.credentialId);
@@ -493,6 +493,18 @@ describe('POST /auth/service-token — the minted claims', () => {
 
     const claims = decodeServiceJwt((res.body.data as { token: string }).token);
     expect([...(claims.scopes ?? [])].sort()).toEqual(['files:read', 'user:read']);
+  });
+
+  it('never lets a legacy scopeless credential inherit privileged app scopes', async () => {
+    const client = await serviceClient(
+      { scopes: [] },
+      { scopes: ['user:read', 'acting-as:offline', 'accounts:act-as-session'] },
+    );
+
+    const res = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
+
+    const claims = decodeServiceJwt((res.body.data as { token: string }).token);
+    expect(claims.scopes).toEqual(['user:read']);
   });
 
   /**

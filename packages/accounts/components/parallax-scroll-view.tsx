@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { ThemedView } from '@/components/themed-view';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useColors } from '@/hooks/useColors';
 import { useScrollContext } from '@/contexts/scroll-context';
 

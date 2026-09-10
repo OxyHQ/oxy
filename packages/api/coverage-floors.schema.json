@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "API merged coverage floors",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "description", "floors"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "floors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["statements", "branches", "functions", "lines"],
+      "properties": {
+        "statements": { "type": "number", "minimum": 0, "maximum": 100 },
+        "branches": { "type": "number", "minimum": 0, "maximum": 100 },
+        "functions": { "type": "number", "minimum": 0, "maximum": 100 },
+        "lines": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    }
+  }
+}

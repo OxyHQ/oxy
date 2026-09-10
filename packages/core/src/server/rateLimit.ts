@@ -19,7 +19,7 @@ import { createOptionalOxyAuth } from './auth';
  *      ALB) many users share one egress IP, so a single bucket was split across
  *      all of them → frequent, spurious HTTP 429s.
  *
- * `@oxyhq/core` already owns the session: `oxy.auth()` resolves `req.user` /
+ * `@oxy.so/core` already owns the session: `oxy.auth()` resolves `req.user` /
  * `req.userId`. Per-user rate limiting is the same concern (session identity),
  * so it belongs here — once — instead of being re-implemented per app.
  *
@@ -113,7 +113,7 @@ function isBuiltInExempt(req: Request): boolean {
  *    host can rotate through an enormous address space and evade a per-address
  *    limit. We bucket IPv6 to its /56 prefix BEFORE hashing.
  *  - express-rate-limit only exposes an `ipKeyGenerator` /56 helper from v8
- *    onwards; `@oxyhq/core` pins v7 (peer `^7.0.0`), so the masking is
+ *    onwards; `@oxy.so/core` pins v7 (peer `^7.0.0`), so the masking is
  *    implemented here rather than pulling a major-version bump of a
  *    security-critical dependency (and its rate-limit-redis compatibility) into
  *    an unrelated privacy change. This mirrors `packages/api/src/utils/ipKey.ts`.

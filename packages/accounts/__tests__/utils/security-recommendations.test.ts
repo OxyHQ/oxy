@@ -1,4 +1,4 @@
-import type { ClientSession, SecurityActivity } from '@oxyhq/core';
+import type { ClientSession, SecurityActivity } from '@oxy.so/core';
 import {
   selectSecurityRecommendations,
   countStaleSessions,

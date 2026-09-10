@@ -433,8 +433,8 @@
       "subtitle": "Your in-app wallet for Oxy services",
       "transactions": "Transactions",
       "payments": "Payments",
-      "oxyPay": "Oxy Pay",
-      "oxyPaySubtitle": "Balance: {{balance}} — Pay for subscriptions, services, and features",
+      "peable": "Peable",
+      "peableSubtitle": "Balance: {{balance}} — Pay for subscriptions, services, and features",
       "fairwallet": "FAIRWallet",
       "fairwalletSubtitle": "Direct FairCoin payments via QR code scanning"
     },
@@ -442,15 +442,15 @@
       "card": "Credit/Debit Card",
       "cardWithMethod": "{{method}} •••• — Secure card payments",
       "cardEmpty": "Secure card payments — No card on file",
-      "oxyPay": "Oxy Pay",
-      "oxyPaySubtitle": "Balance: {{balance}} — Use your in-app wallet balance",
+      "peable": "Peable",
+      "peableSubtitle": "Balance: {{balance}} — Use your in-app wallet balance",
       "fairwallet": "FAIRWallet",
       "fairwalletSubtitle": "Pay with FairCoin via QR code"
     },
     "expanded": {
       "cardBody": "Secure card payments processed through Oxy services. Your card details are encrypted and handled by secure payment processors. Cards are charged when purchasing subscriptions or services.",
-      "oxyPayTitle": "Oxy Pay Wallet",
-      "oxyPayBody": "Your in-app wallet uses FairCoin as the base currency. Use your balance to pay for subscriptions, premium features, and services within the Oxy ecosystem. Your current balance is displayed at the top of this screen.",
+      "peableTitle": "Peable Wallet",
+      "peableBody": "Your in-app wallet uses FairCoin as the base currency. Use your balance to pay for subscriptions, premium features, and services within the Oxy ecosystem. Your current balance is displayed at the top of this screen.",
       "fairwalletBody": "FAIRWallet enables direct FairCoin payments via QR code scanning. When making a payment, choose FAIRWallet as your payment method and scan the generated QR code with your FairCoin wallet app. Transactions use blockchain technology for transparency and security."
     },
     "history": {
@@ -483,14 +483,14 @@
     "info": {
       "fairCoin": "FairCoin (⊜)",
       "fairCoinBody": "FairCoin is the base cryptocurrency used across all Oxy services. All transactions, including subscriptions, services, and in-app purchases, are denominated in FairCoin.",
-      "oxyPay": "Oxy Pay",
-      "oxyPayBody": "Oxy Pay is your in-app wallet that stores your FairCoin balance. Use it to pay for subscriptions, premium features, and services within the Oxy ecosystem. Your balance is displayed at the top of this screen.",
+      "peable": "Peable",
+      "peableBody": "Peable is your in-app wallet that stores your FairCoin balance. Use it to pay for subscriptions, premium features, and services within the Oxy ecosystem. Your balance is displayed at the top of this screen.",
       "fairwallet": "FAIRWallet",
       "fairwalletBody": "FAIRWallet enables direct FairCoin payments via QR code scanning. When making a payment, you can choose FAIRWallet as your payment method and scan the generated QR code with your FairCoin wallet app.",
       "security": "Security & Privacy",
       "securityBody": "All payments are processed securely through Oxy services. Your payment information is encrypted and never stored on your device. Credit card details are handled by secure payment processors, and cryptocurrency transactions use blockchain technology for transparency and security.",
       "paymentMethods": "Payment Methods",
-      "paymentMethodsBody": "You can pay using Credit/Debit Cards, Oxy Pay wallet balance, or FAIRWallet. When purchasing subscriptions or services, the payment gateway will guide you through the process and allow you to choose your preferred payment method."
+      "paymentMethodsBody": "You can pay using Credit/Debit Cards, Peable wallet balance, or FAIRWallet. When purchasing subscriptions or services, the payment gateway will guide you through the process and allow you to choose your preferred payment method."
     },
     "fairCoinBanner": {
       "title": "FairCoin Wallet",

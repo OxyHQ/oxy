@@ -17,25 +17,25 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
+import { appGrants } from '../../db/schema/appGrants';
 import { signedRecords } from '../../db/schema/signedRecords';
 import { users } from '../../db/schema/users';
 import { OXY_DID } from '../did.service';
 import { appendAppRecord, collectionIsWithinNamespaces } from '../appChainWrite.service';
 
-const ec = new EC('secp256k1');
 
 let restoreEnv: { priv?: string; pub?: string };
 
 beforeAll(async () => {
   await connectPostgres();
   restoreEnv = { priv: process.env.OXY_PRIVATE_KEY, pub: process.env.OXY_PUBLIC_KEY };
-  const pair = ec.genKeyPair();
-  process.env.OXY_PRIVATE_KEY = pair.getPrivate('hex');
-  process.env.OXY_PUBLIC_KEY = pair.getPublic('hex');
+  const pair = generateSecp256k1KeyPair();
+  process.env.OXY_PRIVATE_KEY = pair.privateKey;
+  process.env.OXY_PUBLIC_KEY = pair.publicKey;
 });
 
 afterAll(async () => {
@@ -57,6 +57,12 @@ async function application(chainNamespaces: string[]): Promise<string> {
     .values({ name: `test-${randomUUID()}`, ownerAccountId, chainNamespaces })
     .returning({ id: applications.id });
   return row.id;
+}
+
+async function authorize(appId: string, userId: string): Promise<void> {
+  await getDb()
+    .insert(appGrants)
+    .values({ applicationId: appId, userId, scopes: ['chains:write'] });
 }
 
 describe('collectionIsWithinNamespaces', () => {
@@ -96,6 +102,7 @@ describe('collectionIsWithinNamespaces', () => {
 describe('appendAppRecord', () => {
   it('appends under the subject’s chain, issued by Oxy', async () => {
     const [appId, userId] = [await application(['app.mention.']), await account()];
+    await authorize(appId, userId);
 
     const result = await appendAppRecord({
       appId,
@@ -123,6 +130,7 @@ describe('appendAppRecord', () => {
 
   it('chains a second record onto the first', async () => {
     const [appId, userId] = [await application(['app.mention.']), await account()];
+    await authorize(appId, userId);
     const first = await appendAppRecord({
       appId, oxyUserId: userId, collection: 'app.mention.feed.post', rkey: 'a', record: { text: '1' },
     });
@@ -144,6 +152,16 @@ describe('appendAppRecord', () => {
     });
 
     expect(result).toEqual({ ok: false, reason: 'namespace_forbidden', detail: 'app.syra.listen' });
+  });
+
+  it('refuses a subject who has not authorized the application', async () => {
+    const [appId, userId] = [await application(['app.mention.']), await account()];
+
+    const result = await appendAppRecord({
+      appId, oxyUserId: userId, collection: 'app.mention.feed.post', rkey: 'x', record: {},
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'subject_forbidden' });
   });
 
   it('refuses everything for an application with no grant', async () => {

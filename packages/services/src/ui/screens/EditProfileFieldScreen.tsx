@@ -6,21 +6,21 @@ import {
     TouchableOpacity,
     type TextInputProps,
 } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import type { BaseScreenProps } from '../types/navigation';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Text } from '@oxyhq/bloom/typography';
-import { Button } from '@oxyhq/bloom/button';
-import { TextField, TextFieldInput } from '@oxyhq/bloom/text-field';
-import { normalizeTheme } from '@oxyhq/core';
-import type { User } from '@oxyhq/core';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import { Button } from '@oxy.so/bloom/button';
+import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
+import { normalizeTheme } from '@oxy.so/core';
+import type { User } from '@oxy.so/core';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { SurfaceHeaderAction } from '../components/SurfaceHeaderAction';
 import { useOxy } from '../context/OxyContext';
 import { useProfileEditing } from '../hooks/useProfileEditing';
-import { toast } from '@oxyhq/bloom/toast';
-import { EMAIL_REGEX, DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxyhq/core';
+import { toast } from '@oxy.so/bloom/toast';
+import { EMAIL_REGEX, DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxy.so/core';
 import { getLinkTitle, getLinkDescription, linksToListItems } from './linkFormat';
 
 /**

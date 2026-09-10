@@ -8,7 +8,7 @@
  * byte-for-byte), and the cache sweep on every mutation.
  */
 
-import type { AuthMethodsResponse, DidDocument, SignedRecordEnvelope, VerifiedDomain } from '@oxyhq/contracts';
+import type { AuthMethodsResponse, DidDocument, SignedRecordEnvelope, VerifiedDomain } from '@oxy.so/contracts';
 import { OxyServices } from '../../OxyServices';
 import { KeyManager } from '../../crypto/keyManager';
 import { SignatureService } from '../../crypto/signatureService';

@@ -28,7 +28,7 @@
  */
 
 import { integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { generatedId, updatedAt } from '@oxyhq/db';
+import { generatedId, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 export const identityBackups = pgTable(

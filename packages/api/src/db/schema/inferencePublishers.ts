@@ -32,7 +32,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, updatedAt } from '@oxyhq/db';
+import { createdAt, updatedAt } from '@oxy.so/db';
 import { SLUG_CHECK_PATTERN } from './inferenceSlug';
 
 export const inferencePublishers = pgTable(
@@ -41,7 +41,7 @@ export const inferencePublishers = pgTable(
     /**
      * The publisher's namespace, e.g. `openai`, `anthropic`, `meta`, `alia`.
      * Lowercase and URL-safe, matching `publisherSlugSchema` in
-     * `@oxyhq/contracts` — the grammar is part of the PUBLIC contract, since it
+     * `@oxy.so/contracts` — the grammar is part of the PUBLIC contract, since it
      * is half of a string customers type.
      */
     slug: text().primaryKey(),

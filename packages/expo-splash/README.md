@@ -1,4 +1,4 @@
-# @oxyhq/expo-splash
+# @oxy.so/expo-splash
 
 Shared **native-splash toolkit** for Oxy Expo apps. Every Oxy app gets the same
 "Instagram, from Meta" splash: the app's **own logo centered** on the shared dark
@@ -12,14 +12,14 @@ iOS assets) is bundled with this package, so nothing is duplicated per app.
 
 | Piece | Entry point | Runs in | Purpose |
 | --- | --- | --- | --- |
-| Oxy bottom-branding config plugin | `@oxyhq/expo-splash` (in `plugins`) | prebuild (Node) | Pins the Oxy symbol to the bottom of the native splash (Android `windowSplashScreenBrandingImage` + iOS LaunchScreen storyboard). Bundles the Oxy assets. |
-| `expo-splash-screen` config helper | `@oxyhq/expo-splash/config` | `app.config.js` (Node) | Builds the `["expo-splash-screen", {…}]` tuple with the Oxy-standard defaults; app passes its own logo. |
-| Native-splash lifecycle helpers | `@oxyhq/expo-splash` (runtime import) | app runtime (`_layout`) | Hold the OS splash until the app is ready, then hide it — no blank gap, no duplicate custom splash on native. |
+| Oxy bottom-branding config plugin | `@oxy.so/expo-splash` (in `plugins`) | prebuild (Node) | Pins the Oxy symbol to the bottom of the native splash (Android `windowSplashScreenBrandingImage` + iOS LaunchScreen storyboard). Bundles the Oxy assets. |
+| `expo-splash-screen` config helper | `@oxy.so/expo-splash/config` | `app.config.js` (Node) | Builds the `["expo-splash-screen", {…}]` tuple with the Oxy-standard defaults; app passes its own logo. |
+| Native-splash lifecycle helpers | `@oxy.so/expo-splash` (runtime import) | app runtime (`_layout`) | Hold the OS splash until the app is ready, then hide it — no blank gap, no duplicate custom splash on native. |
 
 ## Install
 
 ```bash
-bun add @oxyhq/expo-splash
+bun add @oxy.so/expo-splash
 ```
 
 `expo`, `expo-splash-screen`, `react`, and `react-native` are peer dependencies
@@ -30,7 +30,7 @@ bun add @oxyhq/expo-splash
 ### 1. `app.config.js` — build the splash-screen config + add the branding plugin
 
 ```js
-const { oxySplashScreenPlugin } = require('@oxyhq/expo-splash/config');
+const { oxySplashScreenPlugin } = require('@oxy.so/expo-splash/config');
 
 module.exports = {
   expo: {
@@ -41,7 +41,7 @@ module.exports = {
       oxySplashScreenPlugin({ image: './assets/images/splash-logo.png' }),
       // Oxy "from Oxy" bottom branding. MUST come AFTER the line above —
       // it augments the splash resources that plugin generates.
-      '@oxyhq/expo-splash',
+      '@oxy.so/expo-splash',
     ],
   },
 };
@@ -61,11 +61,11 @@ geometry differs):
 - A `dark` variant mirroring the light one, so the splash is identical in both OS
   appearance modes.
 
-The `@oxyhq/expo-splash` branding plugin accepts an options object for
+The `@oxy.so/expo-splash` branding plugin accepts an options object for
 flexibility, all optional:
 
 ```js
-['@oxyhq/expo-splash', {
+['@oxy.so/expo-splash', {
   // imageWidth: 48,          // iOS-only bottom-mark point width (Android is
   //                          // fixed by the OS container). Default 48.
   // androidImage: './my-2.5-1-branding.png',  // override the bundled Oxy asset
@@ -86,7 +86,7 @@ import { Platform } from 'react-native';
 import {
   preventNativeSplashAutoHide,
   useHideNativeSplashWhenReady,
-} from '@oxyhq/expo-splash';
+} from '@oxy.so/expo-splash';
 import AppSplashScreen from '@/components/AppSplashScreen';
 
 // Hold the OS splash at module load (native only; no-op on web).
@@ -116,7 +116,7 @@ export default function RootLayout() {
 Prefer imperative control? Use `hideNativeSplash()` directly instead of the hook:
 
 ```tsx
-import { hideNativeSplash } from '@oxyhq/expo-splash';
+import { hideNativeSplash } from '@oxy.so/expo-splash';
 // …later, when ready:
 hideNativeSplash();
 ```
@@ -129,7 +129,7 @@ custom overlay would duplicate it.
 
 ## API
 
-Runtime (`import { … } from '@oxyhq/expo-splash'`):
+Runtime (`import { … } from '@oxy.so/expo-splash'`):
 
 - **`preventNativeSplashAutoHide(): void`** — hold the OS splash at module load
   (native only; no-op on web; swallows late-call rejections).
@@ -138,12 +138,12 @@ Runtime (`import { … } from '@oxyhq/expo-splash'`):
 - **`useHideNativeSplashWhenReady(appIsReady: boolean): void`** — hook that hides
   the OS splash as soon as `appIsReady` flips to `true`.
 
-Config (`const { oxySplashScreenPlugin } = require('@oxyhq/expo-splash/config')`):
+Config (`const { oxySplashScreenPlugin } = require('@oxy.so/expo-splash/config')`):
 
 - **`oxySplashScreenPlugin({ image, imageWidth?, backgroundColor?, resizeMode?, darkImage?, darkBackgroundColor? })`**
   → `['expo-splash-screen', {…}]` tuple.
 
-Config plugin (`plugins: ['@oxyhq/expo-splash']`):
+Config plugin (`plugins: ['@oxy.so/expo-splash']`):
 
 - Options: `{ imageWidth?, androidImage?, iosImage? }` — all optional; defaults
   ship the bundled Oxy symbol.

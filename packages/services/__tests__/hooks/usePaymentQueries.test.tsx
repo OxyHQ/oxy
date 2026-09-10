@@ -11,7 +11,7 @@
  *    so the SDK method is never called).
  *  - `authenticatedApiCall` is the auth wrapper, matching `useUserDevices`.
  *
- * `@oxyhq/core`'s `authenticatedApiCall` is mocked to invoke its callback
+ * `@oxy.so/core`'s `authenticatedApiCall` is mocked to invoke its callback
  * directly so the test exercises hook wiring, not token-refresh internals
  * (those are covered by core's own suite). `useOxy` is mocked to supply a
  * stub `oxyServices` whose payment methods are jest mocks.
@@ -119,7 +119,7 @@ const authenticatedApiCallMock = jest.fn(
     apiCall(),
 );
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   __esModule: true,
   authenticatedApiCall: (
     svc: unknown,

@@ -1,5 +1,5 @@
 /**
- * Lightweight `@oxyhq/bloom/composition-bar` stub for component tests.
+ * Lightweight `@oxy.so/bloom/composition-bar` stub for component tests.
  */
 import React from 'react';
 

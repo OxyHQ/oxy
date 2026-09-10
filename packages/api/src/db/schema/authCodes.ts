@@ -30,7 +30,7 @@
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { applications } from './applications';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /** PKCE transforms accepted at issue time. `plain` is refused at the edge. */

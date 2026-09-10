@@ -8,7 +8,7 @@ import {
   hasNotificationPermission,
   pushTokenPlatform,
   requestNotificationPermission,
-} from '@/__mocks__/oxyhq-services';
+} from '@/__mocks__/oxy-services';
 import { OXY_CLIENT_ID } from '@/constants/oxy';
 import { usePushRegistration } from '@/hooks/notifications/usePushRegistration';
 import { LocaleProvider } from '@/lib/i18n';
@@ -52,7 +52,7 @@ function installSession(
  * call before the session resolves is a guaranteed 401, and a registration
  * without the OS permission is one the user never agreed to.
  *
- * The device half is the shared `@oxyhq/services` adapter (stubbed here, tested
+ * The device half is the shared `@oxy.so/services` adapter (stubbed here, tested
  * in that package), so what these tests pin is the Commons orchestration around
  * it: the gate, the client-id scoping, and the one-attempt-per-identity rule.
  */

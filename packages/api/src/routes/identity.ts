@@ -19,11 +19,11 @@
  * Five public read routes opened by running `userId` through the legacy 24-hex
  * id predicate in `utils/validation.ts` and throwing a 404 on a miss. That
  * predicate is `/^[0-9a-f]{24}$/i` and rejects the **uuid v7 every account
- * created after the Postgres cutover carries** (`@oxyhq/db`'s
+ * created after the Postgres cutover carries** (`@oxy.so/db`'s
  * `generatedId()`), so each answered 404 BEFORE ANY QUERY RAN for such an
  * account.
  *
- * `GET /identity/records/:userId/chain/head` is the severe one: `@oxyhq/core`
+ * `GET /identity/records/:userId/chain/head` is the severe one: `@oxy.so/core`
  * fetches it immediately before signing EVERY v2 record (`OxyServices.civic.ts`
  * `_signMyCivicRecordV2`, `OxyServices.nodes.ts` `registerMyNode`) to learn the
  * `seq`/`prev` it must sign over. A 404 there is not a degraded read — it aborts
@@ -67,7 +67,7 @@ import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
-import { safeFetch } from '@oxyhq/core/server';
+import { safeFetch } from '@oxy.so/core/server';
 import {
   signedRecordEnvelopeSchema,
   domainVerificationRequestSchema,
@@ -75,7 +75,7 @@ import {
   type SignedRecordEnvelope,
   type ChainHeadResponse,
   type LogPageResponse,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { domainVerifications } from '../db/schema/domainVerifications';
 import { users } from '../db/schema/users';

@@ -11,7 +11,7 @@
  * `Application.findById(credential.applicationId)` — and the second one CAST its
  * argument. `findById` throws a `CastError` on anything that is not 24-char hex,
  * so for an application whose id is the **uuid v7 every row minted after the
- * Postgres cutover carries** (`@oxyhq/db`'s `generatedId()`) this
+ * Postgres cutover carries** (`@oxy.so/db`'s `generatedId()`) this
  * function did not return null: it THREW, out of a helper whose whole contract
  * is "null when it does not resolve". `POST /notifications/push-token` answers
  * that with a 500 instead of its documented 400, and `emailPushDelivery` loses

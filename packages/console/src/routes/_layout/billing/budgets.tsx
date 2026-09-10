@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
-import { toast } from '@oxyhq/bloom/toast';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { toast } from '@oxy.so/bloom/toast';
 import type { CreateBudgetInput } from '@/hooks/use-inference-reporting';
 import type { Budget } from '@/lib/reporting';
 import { Badge } from '@/components/ui/badge';

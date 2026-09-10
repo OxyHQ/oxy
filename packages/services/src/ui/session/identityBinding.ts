@@ -1,7 +1,7 @@
 /**
  * Identity-bound sessions — the PLATFORM half of `sessionMode: 'identity'`.
  *
- * `@oxyhq/core` owns everything platform-agnostic about an identity-bound
+ * `@oxy.so/core` owns everything platform-agnostic about an identity-bound
  * session: the pin store shapes, `resolveIdentityPin`,
  * `establishIdentitySession`, and the pinned cold-boot / re-mint lanes. What it
  * deliberately leaves out is WHICH pin store a given runtime should use, so this
@@ -21,7 +21,7 @@ import {
   createWebIdentityPinStore,
   resolveIdentityPin,
   type IdentityBinding,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { isReactNative } from '../utils/storageHelpers';
 import { createNativeSecureKeyValueStorage } from './nativeSecureStorage';
 

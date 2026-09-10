@@ -13,13 +13,13 @@
  * `TRUST_TIERS`, `REPUTATION_TRANSACTION_STATUSES`,
  * `REPUTATION_TARGET_ENTITY_TYPES`, `REPUTATION_DISPUTE_STATUSES` and their
  * derived unions — deliberately do NOT live here: they are part of the wire
- * contract and are owned by `@oxyhq/contracts`, so the mongoose enums below,
+ * contract and are owned by `@oxy.so/contracts`, so the mongoose enums below,
  * the route request schemas, and the SDK's unions are all the same tuple.
- * Import them from `@oxyhq/contracts`.
+ * Import them from `@oxy.so/contracts`.
  *
  * All exports are frozen (`as const`) so the values cannot drift at runtime.
  */
-import type { TrustTier } from '@oxyhq/contracts';
+import type { TrustTier } from '@oxy.so/contracts';
 
 // =============================================================================
 // TRUST-TIER THRESHOLDS (#219)

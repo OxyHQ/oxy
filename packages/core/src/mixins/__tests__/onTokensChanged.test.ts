@@ -1,7 +1,7 @@
 /**
  * `OxyServices.onTokensChanged` token-mirroring subscription tests.
  *
- * `onTokensChanged(listener)` is the single hook @oxyhq/services' OxyProvider
+ * `onTokensChanged(listener)` is the single hook @oxy.so/services' OxyProvider
  * uses to keep the shared `oxyClient` singleton's token store in lockstep with
  * whichever OxyServices instance actually owns the session. It must fire on
  * EVERY access-token mutation — explicit `setTokens`, `clearTokens`, and the

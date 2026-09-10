@@ -1,4 +1,4 @@
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceSessionState } from '@oxy.so/contracts';
 import * as socketLoader from '../socketLoader';
 import type { MinimalSocket, SocketIOFactory } from '../socketLoader';
 import { SessionClient, type SessionClientHost } from '../SessionClient';

@@ -1,3 +1,4 @@
+import { shutdownTelemetry } from './telemetry';
 import express from "express";
 import http from "http";
 import { count, ne, sql } from "drizzle-orm";
@@ -22,11 +23,14 @@ import linksRoutes from './routes/links';
 import storeRoutes from './routes/store';
 import locationSearchRoutes from './routes/locationSearch';
 import authRoutes from './routes/auth';
+import mcpOAuthRoutes, { mcpOAuthDiscoveryRouter } from './routes/mcpOAuth';
 import assetRoutes from './routes/assets';
 import cdnRoutes from './routes/cdn';
 import storageRoutes from './routes/storage';
 import applicationRoutes from './routes/applications';
+import internalRoutes from './routes/internal';
 import accountRoutes from './routes/accounts';
+import capabilityRoutes from './routes/capabilities';
 import devicesRouter from './routes/devices';
 import securityRoutes from './routes/security';
 import subscriptionRoutes from './routes/subscription.routes';
@@ -49,7 +53,6 @@ import emailInboundRoutes, {
   inboundRateLimit,
   verifyEmailInboundWebhookSecret,
 } from './routes/emailInbound';
-import aliaRoutes from './routes/alia';
 import creditsRoutes from './routes/credits';
 import billingRoutes from './routes/billing';
 import accountBillingRoutes from './routes/accountBilling';
@@ -61,6 +64,11 @@ import inferenceRoutingPolicyRoutes from './routes/inferenceRoutingPolicies';
 import inferenceProviderConnectionRoutes from './routes/inferenceProviderConnections';
 import inferenceReportingRoutes from './routes/inferenceReporting';
 import platformStatsRoutes from './routes/platform-stats';
+import {
+  initializePlatformActivity,
+  platformActivityMiddleware,
+  stopPlatformActivity,
+} from './services/platformActivity.service';
 import topicsRoutes from './routes/topics.routes';
 import followsV2Routes, { meFollowsRouter } from './routes/follows.v2.routes';
 import followRegistryV2Routes from './routes/followRegistry.v2.routes';
@@ -85,7 +93,7 @@ import {
   TOKEN_ANOMALY_SWEEP_INTERVAL_MS,
 } from './services/tokenAnomaly.service';
 import { RECONCILIATION_SWEEP_INTERVAL_MS } from './db/schema/billingReconciliation';
-import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
+import { sweepAllExpiredRows } from '@oxy.so/db/expiry';
 import { EXPIRY_SWEEP_INTERVAL_MS, EXPIRY_SWEEP_TARGETS } from './db/expiry';
 import { AUTO_RECHARGE_SWEEP_INTERVAL_MS } from './db/schema/billingAutoRechargeAttempts';
 import { RESERVATION_EXPIRY_SWEEP_INTERVAL_MS } from './db/schema/usageReservations';
@@ -147,6 +155,8 @@ import { errorHandler } from './middleware/errorHandler';
 import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
+import { createInboxMcpHttpService } from './capabilities/inbox-mcp-http';
+import { serviceTokenPublicJwks, serviceTokenSigningConfig } from './config/serviceTokenSigning';
 
 // Load environment variables
 dotenv.config();
@@ -154,6 +164,7 @@ dotenv.config();
 // Validate configuration early - fail fast with clear errors
 try {
   validateRequiredEnvVars();
+  serviceTokenSigningConfig();
   logger.info('Environment configuration validated', getSanitizedConfig());
 } catch (error) {
   logger.error('Configuration error:', error);
@@ -168,6 +179,20 @@ app.set('trust proxy', 1);
 
 // Security headers middleware (first, before any other middleware)
 app.use(securityHeaders);
+
+// The external Inbox MCP endpoint owns its raw JSON body, exact resource host,
+// OAuth challenge, and origin policy. Mount it before compression and global
+// body parsing so the protocol boundary is enforced exactly once.
+const inboxMcpHttpService = createInboxMcpHttpService();
+app.all(
+  inboxMcpHttpService.protectedResourceMetadataPath,
+  (request, response) => {
+    inboxMcpHttpService.handleProtectedResourceMetadata(request, response);
+  },
+);
+app.all(inboxMcpHttpService.mcpPath, (request, response) => {
+  void inboxMcpHttpService.handleMcp(request, response);
+});
 
 // Compress responses (gzip/brotli)
 app.use(compression());
@@ -268,6 +293,13 @@ const io = new SocketIOServer(server, {
   cors: SOCKET_IO_CORS_CONFIG,
 });
 initializeIO(io);
+
+// Public, aggregate-only activity stream for oxy.so/dashboard. It carries the
+// processing region, a bounded route group and a k-anonymous bucket count —
+// never an IP, user, raw path or other request-level value. The Redis adapter
+// fans buckets out across API tasks.
+const platformActivityNamespace = io.of('/platform-activity');
+initializePlatformActivity(platformActivityNamespace);
 
 // Attach Redis adapter for multi-instance broadcast (if Redis available)
 const redis = getRedisClient();
@@ -469,6 +501,7 @@ async function gracefulShutdown(signal: string) {
     logger.info('HTTP server closed');
   });
 
+  stopPlatformActivity();
   stopFollowOutboxWorker();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
@@ -485,6 +518,7 @@ async function gracefulShutdown(signal: string) {
   }
   await closeRedis();
   await closePostgres();
+  await shutdownTelemetry();
 
   logger.info('All connections closed, exiting');
   process.exit(0);
@@ -565,10 +599,9 @@ app.get("/health", async (req, res) => {
 //   - `memory`     — this process's RSS and heap figures.
 //   - `database`   — the DATABASE HOSTNAME and database name from
 //                    `DATABASE_URL` (`getDatabaseStats`), i.e. the RDS endpoint.
-//   - `performance.slowOperations` — keyed by `` `${req.method} ${req.path}` ``
-//                    with the path UNPARAMETERIZED, so the list enumerates the
-//                    API's internal surface and carries the concrete ids and
-//                    usernames of whichever requests happened to be slow.
+//   - `performance.slowOperations` — keyed by method + Express route template.
+//                    Concrete ids, usernames, query strings and user agents are
+//                    deliberately never retained by the monitor.
 //
 // `requireStaff` is this repo's existing gate for that audience — the same one
 // `/platform-stats`, `/inference/admin`, `/cost-centers` and the staff-only
@@ -616,7 +649,20 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Apply rate limiting middleware globally (before routes)
+// Count completed platform requests into short anonymous buckets. Mount after
+// the /api normaliser so the exclusion set sees canonical paths.
+app.use(platformActivityMiddleware);
+
+// Public signing metadata is cacheable and must remain reachable by every Oxy
+// service verifier. It carries public keys only and sits outside the shared-IP
+// application limiter so a busy NAT cannot turn valid service tokens into an
+// authentication outage.
+app.get('/.well-known/jwks.json', (_request, response) => {
+  response.set('cache-control', 'public, max-age=300, must-revalidate');
+  response.json({ keys: serviceTokenPublicJwks() });
+});
+
+// Apply rate limiting middleware globally (before application routes)
 // Note: Auth routes have their own stricter rate limiting
 app.use(rateLimiter);
 app.use(bruteForceProtection);
@@ -626,6 +672,8 @@ app.get('/csrf-token', getCsrfToken);
 
 // API Routes
 // Apply stricter rate limiting to auth routes
+app.use(mcpOAuthDiscoveryRouter);
+app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
 app.use("/auth", authRateLimiter, authRoutes);
 app.use("/auth", userRateLimiter, csrfProtection, authLinkingRoutes); // Auth linking (requires auth)
 app.use("/assets", assetRoutes);
@@ -681,18 +729,29 @@ app.use('/links', linksRoutes);
 app.use('/store', storeRoutes);
 app.use('/location-search', locationSearchRoutes);
 app.use('/applications', csrfProtection, applicationRoutes);
+// Service-to-service only. The router gates ITSELF on a valid service token AND
+// a platform-trusted calling application (`routes/internal.ts`), so the mount
+// adds no middleware of its own — putting the gate in the router means an
+// endpoint added there cannot be mounted past it.
+//
+// No `csrfProtection`: CSRF defends ambient credentials a browser attaches by
+// itself, and this router accepts only a bearer service token, which a browser
+// never sends on its own. No `userRateLimiter` either — that limiter keys on a
+// user session this router has none of; its limiter keys on the calling
+// application instead.
+app.use('/internal', internalRoutes);
 // Unified Account graph (tree + membership + service credentials). Per-route
 // rate limiters (rl:accounts:*) live inside the router.
 app.use('/accounts', csrfProtection, accountRoutes);
+app.use('/capabilities', userRateLimiter, csrfProtection, capabilityRoutes);
 app.use('/devices', userRateLimiter, csrfProtection, devicesRouter);
 app.use('/security', userRateLimiter, csrfProtection, securityRoutes);
 app.use('/subscription', userRateLimiter, csrfProtection, subscriptionRoutes);
 app.use('/email/proxy', emailProxyRoutes); // public, no auth — must be before /email
 app.use('/email/inbound', emailInboundRoutes); // Cloudflare Email Routing webhook — must be before /email
 app.use('/email', userRateLimiter, csrfProtection, emailRoutes);
-app.use('/alia', userRateLimiter, aliaRoutes);
 // The public inference edge (issue #972 workstream 4, ADR 0010). Mounted at
-// `/v1` BEFORE `aliaRoutes` and BEFORE `/v1/models`, so it owns `/v1/responses`,
+// `/v1` BEFORE `/v1/models`, so it owns `/v1/responses`,
 // `/v1/chat/completions` and `/v1/generations/:id`. It carries no
 // `userRateLimiter`: its callers are application credentials, not users, and it
 // applies its own per-credential and per-application budgets (`rl:machine:*`,
@@ -702,13 +761,6 @@ app.use('/v1', inferenceEdgeRoutes);
 // `GET /models` can never diverge — one selectability predicate, one audience
 // rule, one code path.
 app.use('/v1/models', inferenceCatalogueRoutes);
-// What the Alia proxy still owns under `/v1`: `/v1/voice/token` and
-// `/v1/voice/transcribe`. ADR 0010 states these are Alia PRODUCT endpoints that
-// happen to live here and are not part of the inference edge; where they end up
-// is workstream 14's decision. `/v1/chat/completions` is no longer among them —
-// the edge above takes it, and the proxy's own mount at `/alia/chat/completions`
-// keeps every platform-trusted caller working, one base URL apart.
-app.use('/v1', userRateLimiter, aliaRoutes);
 app.use('/credits', userRateLimiter, csrfProtection, creditsRoutes);
 // Account-scoped billing (issue #972, sections 7.1/7.4/7.5). Mounted BEFORE
 // `/billing`, or Express hands `accounts` and `cost-centers` to the
@@ -1044,14 +1096,10 @@ export async function bootstrap(
   // ready.
   await waitForDatabaseConnection(startupTimeoutMs);
 
-  // Build the dynamic CORS origin snapshot from the Application registry now
-  // that the database is connected. The registry boot-seeds from the
-  // bootstrap-core set synchronously at import, so requests before this
-  // resolves are still safe; this adds the registered
-  // first-party/third-party app origins.
-  // Background-safe (fail-soft) — never blocks startup.
-  await refreshOriginRegistry();
+  // Repair legacy empty allowlists first, then publish one complete registry
+  // snapshot. Startup fails closed if that authoritative read is unavailable.
   await reconcileOfficialRedirectUris();
+  await refreshOriginRegistry({ required: true });
 
   // Seed platform-default reputation rules (idempotent) — currently the
   // cross-app `endorsement_received` rule awarded by /app-signals/ingest.

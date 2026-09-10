@@ -72,12 +72,12 @@ import {
   unique,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
 import {
   inferenceRequestOutcomeSchema,
   usageSourceSchema,
   USAGE_UNITS,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
 import { inferenceRoutingPolicyVersions } from './inferenceRoutingPolicyVersions';

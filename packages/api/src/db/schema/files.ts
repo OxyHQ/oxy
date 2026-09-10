@@ -63,7 +63,7 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /** Lifecycle of a stored asset. `deleted` is a tombstone, not a removed row. */

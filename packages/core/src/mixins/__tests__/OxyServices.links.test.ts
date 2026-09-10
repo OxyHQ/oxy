@@ -11,7 +11,7 @@
  *    `data` map keyed by the requested url, and surfaces a chunk failure.
  */
 
-import type { LinkPreview } from '@oxyhq/contracts';
+import type { LinkPreview } from '@oxy.so/contracts';
 import { OxyServices } from '../../OxyServices';
 
 const sampleResolved: LinkPreview = {

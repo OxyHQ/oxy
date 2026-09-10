@@ -1,4 +1,4 @@
-import { ErrorCodes } from '@oxyhq/core';
+import { ErrorCodes } from '@oxy.so/core';
 import {
   extractAuthErrorMessage,
   handleAuthError,

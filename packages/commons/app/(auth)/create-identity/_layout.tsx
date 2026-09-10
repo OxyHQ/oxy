@@ -8,8 +8,10 @@ import { Stack } from 'expo-router';
  *   2. `recovery-phrase` — MUST be shown before anything else; gesture
  *                          back is disabled so users can't accidentally
  *                          skip writing down their phrase
- *   3. `username`        — pick a username
- *   4. `notifications`   — request push perms, finish onboarding
+ *   3. `interests`       — pick interest tags; the account already exists
+ *                          (`createIdentity` registered + signed in at step 1)
+ *   4. `username`        — pick a username
+ *   5. `notifications`   — request push perms, finish onboarding
  */
 export default function CreateIdentityLayout() {
   return (
@@ -28,6 +30,7 @@ export default function CreateIdentityLayout() {
           gestureEnabled: false,
         }}
       />
+      <Stack.Screen name="interests" />
       <Stack.Screen name="username" />
       <Stack.Screen name="notifications" />
     </Stack>

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useColors } from '@/hooks/useColors';
 import { NotificationsStep } from '@/components/auth/NotificationsStep';
 import { useAuthHandlers } from '@/hooks/auth/useAuthHandlers';

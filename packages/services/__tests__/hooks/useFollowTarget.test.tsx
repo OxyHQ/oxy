@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import type { FollowStatus } from '@oxyhq/contracts';
+import type { FollowStatus } from '@oxy.so/contracts';
 import { useFollowTarget } from '../../src/ui/hooks/useFollowTarget';
 import { useFollowTargetStore } from '../../src/ui/stores/followTargetStore';
 

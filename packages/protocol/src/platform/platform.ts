@@ -7,7 +7,7 @@
  *
  * Only the two predicates the protocol's platform-crypto loaders need live
  * here. Richer platform detection (`getPlatformOS`, `isWeb`, `isNative`, …)
- * is an SDK concern and stays in `@oxyhq/core`.
+ * is an SDK concern and stays in `@oxy.so/core`.
  */
 
 /**

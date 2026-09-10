@@ -2,11 +2,11 @@
  * Federation signed-fetch signing-string contract.
  *
  * Locks oxy-api's outbound signed GETs to the same draft-cavage signing string
- * as @oxyhq/federation (incl. query strings on the request-target line).
+ * as @oxy.so/federation (incl. query strings on the request-target line).
  */
 
 import crypto from 'crypto';
-import { signRequest } from '@oxyhq/federation';
+import { signRequest } from '@oxy.so/federation';
 
 const TEST_PRIVATE_KEY_PEM = `-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCiZQEzhw+dKDGE

@@ -1,6 +1,6 @@
 /**
  * OxyConsentScreen — the unified OAuth authorize/consent surface for
- * `@oxyhq/services`.
+ * `@oxy.so/services`.
  *
  * A PURE, presentational React Native component: it renders the resolved
  * requesting-application identity, the permissions (scopes) being requested,
@@ -20,11 +20,11 @@
  */
 import { useCallback } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { logger } from '@oxyhq/core';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { Button } from '@oxyhq/bloom/button';
-import { Text } from '@oxyhq/bloom/typography';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { logger } from '@oxy.so/core';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Button } from '@oxy.so/bloom/button';
+import { Text } from '@oxy.so/bloom/typography';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useI18n } from '../hooks/useI18n';
 import { LogoIcon } from './logo/LogoIcon';
 
@@ -78,7 +78,7 @@ export interface OxyConsentScreenProps {
  * scopes (`openid` / `profile` / `email` / `offline_access`) and the Oxy scope
  * set — including the `<resource>:read` ids the API actually issues
  * (`profile:read`, `email:read`) — map to a curated `consent.scopes.*` sentence
- * that already ships in `@oxyhq/core` for all 11 locales. This is the SAME
+ * that already ships in `@oxy.so/core` for all 11 locales. This is the SAME
  * vocabulary the Commons approval screen uses
  * (`packages/commons/lib/commons-signin/scope-summary.ts`), so one permission
  * reads identically wherever it is granted. Unknown scopes fall back to the raw

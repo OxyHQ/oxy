@@ -64,7 +64,7 @@
  * (`hsts`, `noSniff`, `frameguard`, CORP) rather than adding directives that
  * apply to no document.
  *
- * Node/Express-only: exported solely from `@oxyhq/core/server`.
+ * Node/Express-only: exported solely from `@oxy.so/core/server`.
  */
 
 import { createHash } from 'node:crypto';

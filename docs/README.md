@@ -1,5 +1,8 @@
 # OxyHQServices — Platform Documentation
 
+Dependency health: [`@oxy.so/doctor`](../packages/doctor/README.md) is the
+read-only CLI for local and CI checks; pair it with Renovate-managed update PRs.
+
 Comprehensive developer documentation for the Oxy platform: the identity
 provider, the SDK, the "Oxy ID" self-sovereign identity + civic layer, and the
 decentralization (user data nodes) layer.
@@ -8,7 +11,7 @@ decentralization (user data nodes) layer.
 
 ## What Oxy is, on one screen
 
-OxyHQServices (`@oxyhq/sdk`) is the platform layer for the whole Oxy ecosystem. It
+OxyHQServices (`@oxy.so/sdk`) is the platform layer for the whole Oxy ecosystem. It
 is four things in one Bun-workspaces monorepo:
 
 1. **An API + a device-first, zero-cookie session model.** `api.oxy.so` owns
@@ -21,11 +24,11 @@ is four things in one Bun-workspaces monorepo:
    authorize/consent IdP — it is not a relying party and not the session
    authority.
 
-2. **A client SDK.** `@oxyhq/core` (platform-agnostic client, `SessionClient`,
-   `/server` middleware), `@oxyhq/services` (the single UI SDK — `OxyProvider`
-   on web and Expo/RN), `@oxyhq/contracts` (Zod API contracts), and
-   `@oxyhq/protocol` (signed-record/crypto substrate). Every Oxy app
-   (Mention, Allo, Homiio, Syra, accounts, console, inbox) consumes these for
+2. **A client SDK.** `@oxy.so/core` (platform-agnostic client, `SessionClient`,
+   `/server` middleware), `@oxy.so/services` (the single UI SDK — `OxyProvider`
+   on web and Expo/RN), `@oxy.so/contracts` (Zod API contracts), and
+   `@oxy.so/protocol` (signed-record/crypto substrate). Every Oxy app
+   (Mention, Allo, Homiio, Syra, accounts, console) consumes these for
    auth, profiles, payments, and media — zero per-app session code.
 
 3. **Oxy ID — self-sovereign identity.** Account-anchored `did:web` documents,
@@ -34,13 +37,13 @@ is four things in one Bun-workspaces monorepo:
    native-only **Commons by Oxy** vault app.
 
 4. **Decentralization — user data nodes.** A user can run their own
-   `@oxyhq/node` server that *owns* their signed records; Oxy keeps a fast,
+   `@oxy.so/node` server that *owns* their signed records; Oxy keeps a fast,
    always-available read copy and re-verifies everything it ingests. Reads never
    touch a node.
 
 The unifying thesis: **ownership comes from cryptography, not from Oxy granting
 it.** A record signed in Commons verifies identically on Oxy, on a personal node,
-and in any third-party verifier — using the exact same `@oxyhq/core` code.
+and in any third-party verifier — using the exact same `@oxy.so/core` code.
 
 ---
 
@@ -54,8 +57,10 @@ and in any third-party verifier — using the exact same `@oxyhq/core` code.
 | [auth/integration-guide.md](auth/integration-guide.md) | "Sign in with Oxy" for third-party apps: Console registration, OAuth 2.0 + PKCE (SPA / server / native), `OxySignInButton`, consent, grant revocation |
 | [identity/README.md](identity/README.md) | `did:web` documents (custodial ↔ self-sovereign), signed records (envelope v2, hash chain, `verifyEnvelope`), signed export, domain verification, "Sign in with Oxy" |
 | [reputation/README.md](reputation/README.md) | Oxy Trust ledger (tiers/influence), crypto-owned reputation, F2 real-life attestation + validator jury, F3 proof-of-personhood, F4 verifiable credentials |
-| [nodes/README.md](nodes/README.md) | The data-node model, `@oxyhq/node` server, registration, Oxy→node export, node→Oxy ingest (verify/LWW/fork/counter-sign), managed vault |
-| [inference/README.md](inference/README.md) | The inference platform: credentials, attribution, the model catalogue, exact billing, migrations — **and, in one place, what is not built yet and what tracks it** |
+| [nodes/README.md](nodes/README.md) | The data-node model, `@oxy.so/node` server, registration, Oxy→node export, node→Oxy ingest (verify/LWW/fork/counter-sign), managed vault |
+| [inference/README.md](inference/README.md) | The Oxy control plane + Kaana inference data plane: credentials, attribution, the model catalogue, exact billing, migrations and deployment gates |
+| [inference/request-routing.md](inference/request-routing.md) | The canonical Kaana/Alia/Oxy boundary, product request paths, provider-key custody and cutover gates |
+| [telemetry.md](telemetry.md) | Anonymous activity headers, 60-second cardinality, collector/realtime boundaries and privacy contract |
 | [runbooks/README.md](runbooks/README.md) | Rotation and break-glass procedures for every credential Oxy issues — trigger, commands, how to verify the write took, rollback, and what to do when the normal path is unavailable. The AWS half stays in `oxy-infra`. |
 | [architecture/oxy-auth-platform.md](architecture/oxy-auth-platform.md) | The auth platform master plan (phases, decisions, target architecture) |
 | [CHANGELOG.md](CHANGELOG.md) | Chronological "what changed and why" for the whole F0→F5 + Oxy ID rename + Commons/Reputation UI initiative, with commit SHAs |
@@ -71,9 +76,10 @@ and in any third-party verifier — using the exact same `@oxyhq/core` code.
   [auth/integration-guide.md](auth/integration-guide.md) is the copy-paste
   OAuth + PKCE walkthrough.
 - **Building against Oxy inference?** Start at
-  [inference/README.md](inference/README.md) — it is the status board, and it
-  says plainly that there is no public inference endpoint today. Do not skip it
-  and read the topic pages first.
+  [inference/request-routing.md](inference/request-routing.md), then use
+  [inference/README.md](inference/README.md) as the status board. Verify the
+  exact audience, catalogue route, signed Kaana binding and charging stage rather
+  than inferring production reachability from merged code.
 - **Working on Oxy ID / Commons / civic features?** Read
   [identity/README.md](identity/README.md) → [reputation/README.md](reputation/README.md)
   → [nodes/README.md](nodes/README.md), in that order — each builds on the prior.
@@ -110,6 +116,7 @@ mechanisms it used to restate live here:
 - [engineering/sdk-patterns.md](engineering/sdk-patterns.md) — `HttpService`, the offline queue, persistence, `useSessionSocket`, the bottom-sheet and media patterns, `KeyManager` safety
 - [engineering/local-dev-cursor-cloud.md](engineering/local-dev-cursor-cloud.md) — local infra, building shared libs, the end-to-end auth smoke test
 - [engineering/measurement-traps.md](engineering/measurement-traps.md) — checks that run clean while measuring the wrong thing: what `origin/main..HEAD` actually compares, why `--theirs` is inverted during a rebase, and why a transforming query schema must parse its own output
+- [engineering/package-namespace.md](engineering/package-namespace.md) — canonical npm names, package ownership and the clean `@oxy.so` scope boundary
 
 ---
 

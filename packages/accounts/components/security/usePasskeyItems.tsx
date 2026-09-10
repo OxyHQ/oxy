@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, TouchableOpacity } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { alert, toast } from '@oxyhq/bloom';
-import { isOxyRpOrigin } from '@oxyhq/core';
-import { useAuthMethods, useOxy } from '@oxyhq/services';
+import { alert, toast } from '@oxy.so/bloom';
+import { isOxyRpOrigin } from '@oxy.so/core';
+import { useAuthMethods, useOxy } from '@oxy.so/services';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation, useLocale } from '@/lib/i18n';
 import type { GroupedItem } from '@/components/sections/types';

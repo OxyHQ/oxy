@@ -9,7 +9,7 @@
  *
  * This is the load-bearing primitive for the protocol's signed records
  * (`signEnvelope` + `verifyEnvelopeSignature`): every implementation imports
- * THIS function from `@oxyhq/protocol`, so cross-implementation number/string
+ * THIS function from `@oxy.so/protocol`, so cross-implementation number/string
  * formatting differences cannot cause a verify mismatch.
  *
  * Rules (the JSON Canonicalization Scheme subset we need):

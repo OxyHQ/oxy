@@ -51,7 +51,7 @@
  * that erases nothing anybody relied on.
  *
  * `SQLSTATE 23514` (check violation) rather than a bespoke code, so
- * `@oxyhq/db`'s `isCheckViolation` recognises it like any other constraint
+ * `@oxy.so/db`'s `isCheckViolation` recognises it like any other constraint
  * failure and no caller has to string-match these messages.
  */
 

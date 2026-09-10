@@ -8,7 +8,7 @@
  * fail to type-check with TS2307 — regardless of whether that consumer has any
  * interest in push. That is exactly the regression this file exists to catch:
  * it shipped once (22.13.x) and broke consumers that use no notifications at
- * all. The adapter now lives behind the `@oxyhq/services/notifications` entry
+ * all. The adapter now lives behind the `@oxy.so/services/notifications` entry
  * point, and this test is what keeps it there.
  *
  * The check walks the REAL module graph rather than grepping `src/index.ts`,
@@ -26,10 +26,9 @@ const BARREL = join(SRC, 'index.ts');
 /**
  * Specifiers that must not be reachable from the root barrel.
  *
- * Scoped to the two the notifications adapter owns. The other optional expo
- * peers (`expo-image-picker`, `expo-document-picker`, …) ARE legitimately
- * reachable from the barrel today because the UI screens that use them are core
- * to the SDK, so listing them here would fail for a different, unrelated reason.
+ * Scoped to the two the notifications adapter owns. Other optional Expo peers
+ * are guarded by the screen/subpath isolation tests rather than mixed into this
+ * notification-specific assertion.
  */
 const FORBIDDEN = ['expo-notifications', 'expo-constants'] as const;
 

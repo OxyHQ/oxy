@@ -52,7 +52,7 @@ export interface SwitcherContextRow {
    * has none and the renderer should use the ambient theme accent.
    *
    * Forwarded verbatim, never resolved to a colour here: mapping a preset name
-   * to a hex is Bloom's job, and `@oxyhq/core` cannot import a UI package.
+   * to a hex is Bloom's job, and `@oxy.so/core` cannot import a UI package.
    */
   color: string | null;
   /** Whether this pair is the device's active context. */

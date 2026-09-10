@@ -1,5 +1,5 @@
 /**
- * @oxyhq/app-preset — Babel config factory.
+ * @oxy.so/app-preset — Babel config factory.
  *
  * The standard Babel config every Oxy Expo app shares: babel-preset-expo with
  * `unstable_transformImportMeta`, the `@ → ./` module-resolver alias, and the
@@ -8,7 +8,7 @@
  *
  * Usage — a one-line babel.config.js:
  *
- *   module.exports = require('@oxyhq/app-preset/babel');
+ *   module.exports = require('@oxy.so/app-preset/babel');
  *
  * The peer packages (`babel-preset-expo`, `babel-plugin-module-resolver`,
  * `react-native-worklets`) resolve from the consuming app's node_modules, where

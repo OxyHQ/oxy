@@ -64,7 +64,7 @@ describe('inferenceErrorSchema', () => {
 
   it('can classify a platform-side failure no retry will ever clear', () => {
     // The closed set had no such code, and the gap was found from the other side
-    // of the interface (OxyHQ/Relay#1, issue #1017): an upstream refusing the
+    // of the interface (OxyHQ/Kaana#1, issue #1017): an upstream refusing the
     // PLATFORM's own credential could only be reported as `provider_error`,
     // which is retryable, so every client retried a request that cannot succeed
     // until an operator rotates a key.
@@ -86,7 +86,7 @@ describe('inferenceErrorSchema', () => {
   });
 
   it('separates an upstream refusing to bill OXY from a customer quota', () => {
-    // The second gap the same port found (OxyHQ/Relay#3, issue #1027): an
+    // The second gap the same port found (OxyHQ/Kaana#3, issue #1027): an
     // upstream answering 402 to the PLATFORM could only be reported as
     // `quota_exceeded`, which is right about retryability and points the
     // customer at their own balance — an account that is not the one at fault
@@ -165,7 +165,7 @@ describe('provider error passthrough', () => {
   });
 
   it('refuses text a span redaction has stripped the marker from (#1027)', () => {
-    // The mechanism OxyHQ/Relay#3 measured. An upstream echoes a request header
+    // The mechanism OxyHQ/Kaana#3 measured. An upstream echoes a request header
     // back in its error body; a producer redacts the span its OWN copy of this
     // pattern matched, which is the MARKER, and the value survives. The
     // unredacted string was refused, so the redacted one being accepted means

@@ -1,4 +1,4 @@
-import type { AccountRelationship } from '@oxyhq/core';
+import type { AccountRelationship } from '@oxy.so/core';
 
 /**
  * The one account whose permissions do not come from a membership row.

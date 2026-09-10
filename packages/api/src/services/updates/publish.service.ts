@@ -40,7 +40,7 @@ import type {
   Update,
   UpdatePlatform,
   UpdateStatus,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { s3Service } from '../s3ServiceSingleton';
 import { getDb, type Database } from '../../config/postgres';
 import {
@@ -73,7 +73,7 @@ const ASSET_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 type DbHandle = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
 
 /* -------------------------------------------------------------------------- */
-/*  Serializers (Drizzle row → @oxyhq/contracts wire shape)                   */
+/*  Serializers (Drizzle row → @oxy.so/contracts wire shape)                   */
 /* -------------------------------------------------------------------------- */
 
 /**

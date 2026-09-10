@@ -23,3 +23,32 @@ export function safeRedirectUrl(value?: string | null): string | null {
     return null;
   }
 }
+
+/**
+ * Validate an external MCP client's redirect URI. MCP public clients commonly
+ * bind an ephemeral HTTP loopback port, while every non-loopback target must use
+ * HTTPS. Credentials and fragments are never valid redirect bindings.
+ */
+export function safeMcpRedirectUrl(value?: string | null): string | null {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    const loopback =
+      parsed.hostname === 'localhost' ||
+      parsed.hostname === '127.0.0.1' ||
+      parsed.hostname === '[::1]';
+    if (
+      parsed.username ||
+      parsed.password ||
+      parsed.hash ||
+      (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback))
+    ) {
+      return null;
+    }
+    // OAuth redirect bindings use exact string comparison. Validation must not
+    // normalize a registered URI (for example by removing a root slash).
+    return value;
+  } catch {
+    return null;
+  }
+}

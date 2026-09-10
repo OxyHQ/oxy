@@ -40,7 +40,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
-import { exactDecimalSchema } from '@oxyhq/contracts';
+import { exactDecimalSchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';

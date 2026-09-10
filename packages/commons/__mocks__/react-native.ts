@@ -25,6 +25,12 @@ interface StubProps {
   disabled?: boolean;
 }
 
+interface TextInputStubProps extends StubProps {
+  value?: string;
+  placeholder?: string;
+  onChangeText?: (value: string) => void;
+}
+
 function domProps(props: StubProps): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (props.testID) out['data-testid'] = props.testID;
@@ -83,6 +89,20 @@ export const Pressable = pressable;
 export const TouchableOpacity = pressable;
 export const TouchableWithoutFeedback = pressable;
 
+export const TextInput = ({
+  value,
+  placeholder,
+  onChangeText,
+  ...rest
+}: TextInputStubProps): React.ReactElement =>
+  React.createElement('input', {
+    ...domProps(rest),
+    value,
+    placeholder,
+    onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
+      onChangeText?.(event.target.value),
+  });
+
 export const Platform: {
   OS: PlatformOS;
   select: <T>(obj: Partial<Record<PlatformOS | 'default' | 'native', T>>) => T | undefined;
@@ -107,6 +127,19 @@ export const StyleSheet = {
 export const Dimensions = {
   get: () => ({ width: 375, height: 812 }),
   addEventListener: () => ({ remove: () => undefined }),
+};
+
+export const Linking = {
+  openURL: async (_url: string): Promise<void> => undefined,
+  openSettings: async (): Promise<void> => undefined,
+};
+
+export const AppState = {
+  currentState: 'active',
+  addEventListener: (
+    _type: 'change',
+    _listener: (state: 'active' | 'background' | 'inactive' | 'unknown' | 'extension') => void,
+  ) => ({ remove: () => undefined }),
 };
 
 export const useColorScheme = (): 'light' | 'dark' => 'light';

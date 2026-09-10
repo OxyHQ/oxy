@@ -27,7 +27,7 @@
  * ## Why the wire types are declared here rather than imported
  *
  * The reporting projections live in `packages/api/src/schemas/`, not in
- * `@oxyhq/contracts`, so there is nothing to import. The consequence is
+ * `@oxy.so/contracts`, so there is nothing to import. The consequence is
  * deliberate and worth naming: the interfaces below are an ALLOWLIST. A field
  * the API adds — an upstream wholesale cost, an internal route id, a deployment
  * id — does not exist in these types, is dropped by the projections, and cannot

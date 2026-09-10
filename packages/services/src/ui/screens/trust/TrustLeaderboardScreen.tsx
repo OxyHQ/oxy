@@ -7,15 +7,15 @@ import {
     FlatList,
     TouchableOpacity,
 } from 'react-native';
-import type { ReputationLeaderboardEntry } from '@oxyhq/contracts';
-import { getNormalizedUserHandle, logger, trustTierLabel } from '@oxyhq/core';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { H6, Text } from '@oxyhq/bloom/typography';
-import { Chip } from '@oxyhq/bloom/chip';
-import { Button } from '@oxyhq/bloom/button';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import type { ReputationLeaderboardEntry } from '@oxy.so/contracts';
+import { getNormalizedUserHandle, logger, trustTierLabel } from '@oxy.so/core';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { H6, Text } from '@oxy.so/bloom/typography';
+import { Chip } from '@oxy.so/bloom/chip';
+import { Button } from '@oxy.so/bloom/button';
+import Ionicons from '../../icons/Ionicons';
 import type { BaseScreenProps } from '../../types/navigation';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
 import { useOxy } from '../../context/OxyContext';

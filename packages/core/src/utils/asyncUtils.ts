@@ -53,7 +53,7 @@ export async function parallelWithErrorHandling<T>(
  *
  * Centralising this lookup prevents retry predicates from silently falling
  * through when one of the two shapes is missing, which previously caused
- * @oxyhq/core to retry 4xx responses and turn sub-10ms failures into
+ * @oxy.so/core to retry 4xx responses and turn sub-10ms failures into
  * multi-second stalls for every missing-resource lookup.
  */
 function extractHttpStatus(error: unknown): number | undefined {

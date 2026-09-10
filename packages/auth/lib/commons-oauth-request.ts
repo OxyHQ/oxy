@@ -39,7 +39,7 @@
  * performs the PKCE exchange with the verifier it never sent anywhere.
  */
 
-import { selectCommonsDelivery } from "@oxyhq/core";
+import { selectCommonsDelivery } from "@oxy.so/core";
 import type {
   CommonsDeliveryRoute,
   CommonsOAuthContext,
@@ -47,7 +47,7 @@ import type {
   CommonsSignInActionResult,
   CommonsSignInHandle,
   CommonsSignInStatus,
-} from "@oxyhq/core";
+} from "@oxy.so/core";
 
 /**
  * Fallback poll cadence for the request's approval state.
