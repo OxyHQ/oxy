@@ -4,7 +4,7 @@ import { compareVersions, isFirstPartyPackage, lockfileVersions, rangeIncludesVe
 describe('Oxy Doctor checks', () => {
   test('recognizes ecosystem package scopes', () => {
     expect(isFirstPartyPackage('@oxy.so/core')).toBe(true);
-    expect(isFirstPartyPackage('@oxy.so/core')).toBe(false);
+    expect(isFirstPartyPackage('@clarity.surf/sdk')).toBe(false);
     expect(isFirstPartyPackage('@clarity.surf/sdk')).toBe(false);
     expect(isFirstPartyPackage('@alia.onl/sdk')).toBe(false);
     expect(isFirstPartyPackage('react')).toBe(false);
