@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import {
+  type AppCapabilityCatalog,
   type ActorRef,
   type AutonomyLevel,
   type CapabilityTicketClaims,
-  type CatalogTool,
   type GrantLimit,
   type PolicyDecision,
   type ResourceRef,
@@ -14,6 +14,7 @@ import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning
 import { getDb } from '../config/postgres';
 import {
   accountCapabilityPolicies,
+  appCapabilityCatalogRegistrations,
   capabilityExecutionAuthorizations,
   delegationCapabilities,
   delegationGrants,
@@ -26,6 +27,8 @@ import accountService from './account.service';
 import { activeCapabilityCatalog } from './capabilityCatalog.service';
 import { resolveLiveAgencyCoordinator } from './agencyServicePrincipal.service';
 import { AGENCY_COORDINATE_CAPABILITY } from '../utils/applicationCapabilities';
+import { autonomousSensitiveToolLimitError, grantAllowsTool } from './capabilityGrantPolicy';
+import { capabilityLimitError } from './capabilityLimitPolicy';
 
 const AUTONOMY_RANK: Readonly<Record<AutonomyLevel, number>> = {
   read_only: 0,
@@ -33,8 +36,6 @@ const AUTONOMY_RANK: Readonly<Record<AutonomyLevel, number>> = {
   execute_on_request: 2,
   autonomous: 3,
 };
-const SENSITIVE_PACKAGES = new Set(['finance', 'security', 'delegate']);
-
 export interface CapabilityCoordinatorPrincipal {
   applicationId: string;
   credentialId: string;
@@ -52,10 +53,16 @@ export interface AuthorityResult {
   decision: PolicyDecision;
   ticket?: string;
   claims?: CapabilityTicketClaims;
+  resolvedAuthority?: {
+    capabilities: string[];
+    limits: GrantLimit[];
+    autonomy: AutonomyLevel;
+  };
 }
 
 interface GrantParts {
   grant: DelegationGrantRow;
+  boundCatalog: AppCapabilityCatalog;
   capabilities: string[];
   overrides: Array<{ tool: string; decision: 'allow' | 'deny' }>;
   limits: GrantLimit[];
@@ -68,18 +75,6 @@ export function mostRestrictiveAutonomy(levels: readonly AutonomyLevel[]): Auton
   return levels.reduce((result, level) => (
     AUTONOMY_RANK[level] < AUTONOMY_RANK[result] ? level : result
   ));
-}
-
-export function grantAllowsTool(
-  tool: CatalogTool,
-  grant: Pick<GrantParts, 'capabilities' | 'overrides'> & { capabilityPackages: readonly string[] },
-): boolean {
-  const override = grant.overrides.find((entry) => entry.tool === tool.name);
-  if (override?.decision === 'deny') return false;
-  if (override?.decision === 'allow') return true;
-  if (tool.requiredCapabilities.every((capability) => grant.capabilities.includes(capability))) return true;
-  return !SENSITIVE_PACKAGES.has(tool.capabilityPackage)
-    && grant.capabilityPackages.includes(tool.capabilityPackage);
 }
 
 function mergeLimits(primary: readonly GrantLimit[], narrowing: readonly GrantLimit[]): GrantLimit[] {
@@ -151,7 +146,13 @@ async function loadGrant(
     or(isNull(delegationGrants.expiresAt), gt(delegationGrants.expiresAt, now)),
   )).orderBy(desc(delegationGrants.createdAt)).limit(1);
   if (!grant) return null;
-  const [capabilities, overrides, limits] = await Promise.all([
+  if (!grant.catalogRegistrationId) return null;
+  const [registrations, capabilities, overrides, limits] = await Promise.all([
+    db.select({ catalog: appCapabilityCatalogRegistrations.catalog })
+      .from(appCapabilityCatalogRegistrations).where(and(
+        eq(appCapabilityCatalogRegistrations.id, grant.catalogRegistrationId),
+        eq(appCapabilityCatalogRegistrations.appSlug, grant.resourceApp),
+      )).limit(1),
     db.select({ capability: delegationCapabilities.capability })
       .from(delegationCapabilities).where(eq(delegationCapabilities.grantId, grant.id)),
     db.select({ tool: delegationToolOverrides.tool, decision: delegationToolOverrides.decision })
@@ -162,7 +163,15 @@ async function loadGrant(
         eq(delegationLimits.tool, authorization.tool),
       )),
   ]);
-  return { grant, capabilities: capabilities.map((entry) => entry.capability), overrides, limits };
+  const registration = registrations[0];
+  if (!registration) return null;
+  return {
+    grant,
+    boundCatalog: registration.catalog,
+    capabilities: capabilities.map((entry) => entry.capability),
+    overrides,
+    limits,
+  };
 }
 
 function denied(reason: string): AuthorityResult {
@@ -171,7 +180,7 @@ function denied(reason: string): AuthorityResult {
 
 export async function evaluateCapabilityAuthority(
   request: AuthorityRequest,
-  options: { issueTicket?: boolean; now?: Date } = {},
+  options: { issueTicket?: boolean; includeResolvedAuthority?: boolean; now?: Date } = {},
 ): Promise<AuthorityResult> {
   const now = options.now ?? new Date();
   const coordinator = await resolveLiveAgencyCoordinator(
@@ -225,6 +234,14 @@ export async function evaluateCapabilityAuthority(
   let grantAutonomy: AutonomyLevel = 'autonomous';
   let limits = authorization.limits.filter((limit) => limit.tool === authorization.tool);
   if (limits.length !== authorization.limits.length) return denied('execution_limit_tool_mismatch');
+  const authorizationLimitError = capabilityLimitError(limits, [tool], authorization.resourceType);
+  if (authorizationLimitError) return denied(authorizationLimitError);
+  const authorizationSensitiveLimitError = autonomousSensitiveToolLimitError(
+    authorization.maximumAutonomy,
+    tool,
+    limits,
+  );
+  if (authorizationSensitiveLimitError) return denied(authorizationSensitiveLimitError);
   if (actor.type === 'agent') {
     const [actorRow] = await getDb().select({ kind: users.kind, accountStatus: users.accountStatus })
       .from(users).where(eq(users.id, actor.accountId)).limit(1);
@@ -237,8 +254,18 @@ export async function evaluateCapabilityAuthority(
       capabilities: grantParts.capabilities,
       overrides: grantParts.overrides,
       capabilityPackages: grantParts.grant.capabilityPackages,
-    })) return denied('grant_does_not_allow_tool');
+    }, grantParts.boundCatalog.tools.find((entry) => entry.name === tool.name))) {
+      return denied('grant_does_not_allow_tool');
+    }
     grantAutonomy = grantParts.grant.maximumAutonomy;
+    const grantLimitError = capabilityLimitError(grantParts.limits, [tool], authorization.resourceType);
+    if (grantLimitError) return denied(grantLimitError);
+    const grantSensitiveLimitError = autonomousSensitiveToolLimitError(
+      grantAutonomy,
+      tool,
+      grantParts.limits,
+    );
+    if (grantSensitiveLimitError) return denied(grantSensitiveLimitError);
     try {
       limits = mergeLimits(grantParts.limits, limits);
     } catch {
@@ -260,6 +287,8 @@ export async function evaluateCapabilityAuthority(
   if (tool.effect !== 'read' && AUTONOMY_RANK[effectiveAutonomy] < AUTONOMY_RANK.execute_on_request) {
     return denied('effect_requires_execution_authority');
   }
+  const sensitiveLimitError = autonomousSensitiveToolLimitError(effectiveAutonomy, tool, limits);
+  if (sensitiveLimitError) return denied(sensitiveLimitError);
 
   const decision: PolicyDecision = {
     allowed: true,
@@ -267,7 +296,17 @@ export async function evaluateCapabilityAuthority(
     effectiveAutonomy,
     ...(grantParts ? { grantId: grantParts.grant.id } : {}),
   };
-  if (!options.issueTicket) return { decision };
+  const resolvedAuthority = {
+    capabilities: tool.requiredCapabilities,
+    limits,
+    autonomy: effectiveAutonomy,
+  };
+  if (!options.issueTicket) {
+    return {
+      decision,
+      ...(options.includeResolvedAuthority ? { resolvedAuthority } : {}),
+    };
+  }
 
   const resource = resourceOf(authorization);
   const automationId = authorization.automationId;
@@ -314,7 +353,36 @@ export async function evaluateCapabilityAuthority(
     exp: issuedAt + 60,
     jti,
   };
-  return { decision, ticket, claims };
+  return {
+    decision,
+    ticket,
+    claims,
+    ...(options.includeResolvedAuthority ? { resolvedAuthority } : {}),
+  };
+}
+
+function sameCapabilities(left: readonly string[], right: readonly string[]): boolean {
+  const sortedLeft = [...left].sort();
+  const sortedRight = [...right].sort();
+  return sortedLeft.length === sortedRight.length
+    && sortedLeft.every((capability, index) => capability === sortedRight[index]);
+}
+
+function sameLimits(left: readonly GrantLimit[], right: readonly GrantLimit[]): boolean {
+  const compare = (first: GrantLimit, second: GrantLimit): number => (
+    first.tool.localeCompare(second.tool) || first.key.localeCompare(second.key)
+  );
+  const sortedLeft = [...left].sort(compare);
+  const sortedRight = [...right].sort(compare);
+  return sortedLeft.length === sortedRight.length
+    && sortedLeft.every((limit, index) => {
+      const other = sortedRight[index];
+      return other !== undefined
+        && limit.tool === other.tool
+        && limit.key === other.key
+        && typeof limit.value === typeof other.value
+        && limit.value === other.value;
+    });
 }
 
 function claimsMatchAuthorization(claims: CapabilityTicketClaims, authorization: ExecutionAuthorizationRow): boolean {
@@ -358,9 +426,16 @@ export async function reauthorizeCapabilityTicket(claims: CapabilityTicketClaims
   if (!authorization || !claimsMatchAuthorization(claims, authorization)) {
     return { allowed: false, reason: 'ticket_execution_authorization_mismatch' };
   }
-  const result = await evaluateCapabilityAuthority(request, { now });
+  const result = await evaluateCapabilityAuthority(request, { now, includeResolvedAuthority: true });
   if (claims.grantId && result.decision.grantId !== claims.grantId) {
     return { allowed: false, reason: 'ticket_grant_is_no_longer_current' };
+  }
+  const resolved = result.resolvedAuthority;
+  if (result.decision.allowed && (!resolved
+    || claims.autonomy !== resolved.autonomy
+    || !sameCapabilities(claims.capabilities, resolved.capabilities)
+    || !sameLimits(claims.limits, resolved.limits))) {
+    return { allowed: false, reason: 'ticket_authority_snapshot_no_longer_current' };
   }
   return result.decision;
 }

@@ -304,7 +304,18 @@ const { AuthorizePage } = await import("@/src/pages/authorize")
 /** Application lookup + consent probe. Overridden per test where it matters. */
 let applicationResponse: { status: number; body: unknown } = {
   status: 200,
-  body: { data: { application: { id: "app-1", name: "Example App", scopes: [] } } },
+  body: {
+    data: {
+      application: {
+        id: "app-1",
+        name: "Example App",
+        type: "third_party",
+        isOfficial: false,
+        isInternal: false,
+        scopes: [],
+      },
+    },
+  },
 }
 
 const fetchMock = mock(async (input: RequestInfo | URL) => {
@@ -398,7 +409,18 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
     fetchMock.mockClear()
     applicationResponse = {
       status: 200,
-      body: { data: { application: { id: "app-1", name: "Example App", scopes: [] } } },
+      body: {
+        data: {
+          application: {
+            id: "app-1",
+            name: "Example App",
+            type: "third_party",
+            isOfficial: false,
+            isInternal: false,
+            scopes: [],
+          },
+        },
+      },
     }
     pollResult = { authorized: false, status: "pending", pushSentAt: null, openedAt: null }
     sessionState = {
@@ -728,7 +750,18 @@ describe("AuthorizePage — a visitor who already has a session here", () => {
     fetchMock.mockClear()
     applicationResponse = {
       status: 200,
-      body: { data: { application: { id: "app-1", name: "Example App", scopes: [] } } },
+      body: {
+        data: {
+          application: {
+            id: "app-1",
+            name: "Example App",
+            type: "third_party",
+            isOfficial: false,
+            isInternal: false,
+            scopes: [],
+          },
+        },
+      },
     }
     const nate = contextRow({
       contextId: "ctx-1",

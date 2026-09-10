@@ -486,9 +486,25 @@ export type {
     DeviceDirectorySync,
 } from './deviceDirectory';
 
-export { oauthConsentDecisionSchema, oauthAuthorizeCodeResponseSchema } from './oauth';
+export {
+    oauthConsentDecisionSchema,
+    oauthAuthorizeCodeResponseSchema,
+    mcpOAuthClientApplicationSchema,
+    mcpOAuthWriteActionSchema,
+    mcpOAuthConsentContextSchema,
+    mcpOAuthClientInfoResponseSchema,
+    mcpOAuthConsentResponseSchema,
+} from './oauth';
 
-export type { OauthConsentDecision, OauthAuthorizeCodeResponse } from './oauth';
+export type {
+    OauthConsentDecision,
+    OauthAuthorizeCodeResponse,
+    McpOAuthClientApplication,
+    McpOAuthWriteAction,
+    McpOAuthConsentContext,
+    McpOAuthClientInfoResponse,
+    McpOAuthConsentResponse,
+} from './oauth';
 
 export {
     BROWSER_HUB_COOKIE_NAME,
@@ -1128,6 +1144,7 @@ export {
     resourceRefSchema,
     toolGrantOverrideSchema,
     grantLimitSchema,
+    capabilityCatalogBindingSchema,
     executionAuthorizationRefSchema,
     capabilityCoordinatorSchema,
     delegationGrantSchema,
@@ -1153,6 +1170,7 @@ export type {
     ResourceRef,
     ToolGrantOverride,
     GrantLimit,
+    CapabilityCatalogBinding,
     ExecutionAuthorizationRef,
     CapabilityCoordinator,
     DelegationGrant,

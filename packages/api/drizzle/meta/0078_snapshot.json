@@ -1,6 +1,6 @@
 {
-  "id": "fa9b22d2-9d4a-41d0-b553-cf1a90eaa8c8",
-  "prevId": "ad2b3550-9d96-48a7-81f9-4821b9a2f025",
+  "id": "dcab78b7-5b44-4748-a2e5-95eb8d503128",
+  "prevId": "d5b73a0e-64da-41ec-be76-b344a5671f69",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1087,6 +1087,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "catalog_registration_id": {
+          "name": "catalog_registration_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "capability_packages": {
           "name": "capability_packages",
           "type": "text[]",
@@ -1215,6 +1221,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "delegation_grants_catalog_registration_idx": {
+          "name": "delegation_grants_catalog_registration_idx",
+          "columns": [
+            {
+              "expression": "catalog_registration_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1255,6 +1276,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "delegation_grants_catalog_registration_id_app_capability_catalog_registrations_id_fk": {
+          "name": "delegation_grants_catalog_registration_id_app_capability_catalog_registrations_id_fk",
+          "tableFrom": "delegation_grants",
+          "tableTo": "app_capability_catalog_registrations",
+          "columnsFrom": [
+            "catalog_registration_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
           "onUpdate": "no action"
         },
         "delegation_grants_created_by_user_id_users_id_fk": {
@@ -3881,7 +3915,7 @@
         },
         "application_credentials_scopes_check": {
           "name": "application_credentials_scopes_check",
-          "value": "\"application_credentials\".\"scopes\" <@ array['files:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'accounts:provision', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'podcasts:write']::text[]"
+          "value": "\"application_credentials\".\"scopes\" <@ array['files:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'accounts:provision', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'podcasts:write']::text[]"
         },
         "application_credentials_rotated_from_not_self_check": {
           "name": "application_credentials_rotated_from_not_self_check",
@@ -4294,7 +4328,7 @@
         },
         "applications_scopes_check": {
           "name": "applications_scopes_check",
-          "value": "\"applications\".\"scopes\" <@ array['files:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'accounts:provision', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'podcasts:write']::text[]"
+          "value": "\"applications\".\"scopes\" <@ array['files:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'accounts:provision', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'podcasts:write']::text[]"
         }
       },
       "isRLSEnabled": false
@@ -9814,11 +9848,11 @@
         },
         "files_purpose_check": {
           "name": "files_purpose_check",
-          "value": "\"files\".\"purpose\" in ('user', 'federation-media-cache', 'link-preview')"
+          "value": "\"files\".\"purpose\" in ('user', 'federation-media-cache')"
         },
         "files_system_owner_check": {
           "name": "files_system_owner_check",
-          "value": "\"files\".\"system_owner\" is null or \"files\".\"system_owner\" in ('__federation__', '__federation_media_cache__', '__link_preview_cache__')"
+          "value": "\"files\".\"system_owner\" is null or \"files\".\"system_owner\" in ('__federation__', '__federation_media_cache__')"
         },
         "files_owner_exclusive_check": {
           "name": "files_owner_exclusive_check",
@@ -16658,149 +16692,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.link_previews": {
-      "name": "link_previews",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "requested_url": {
-          "name": "requested_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "canonical_url": {
-          "name": "canonical_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "site_name": {
-          "name": "site_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "favicon": {
-          "name": "favicon",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "image_url": {
-          "name": "image_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "origin_image_url": {
-          "name": "origin_image_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "origin_favicon_url": {
-          "name": "origin_favicon_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "resolved_at": {
-          "name": "resolved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {
-        "link_previews_status_idx": {
-          "name": "link_previews_status_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "link_previews_updated_at_idx": {
-          "name": "link_previews_updated_at_idx",
-          "columns": [
-            {
-              "expression": "updated_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "link_previews_status_check": {
-          "name": "link_previews_status_check",
-          "value": "\"link_previews\".\"status\" in ('resolved', 'pending', 'empty')"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.mailboxes": {
       "name": "mailboxes",
       "schema": "",
@@ -19735,6 +19626,139 @@
       },
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.normalized_app_event_outbox": {
+      "name": "normalized_app_event_outbox",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event": {
+          "name": "event",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "processed_at": {
+          "name": "processed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claimed_at": {
+          "name": "claimed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claimed_by": {
+          "name": "claimed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "failed_at": {
+          "name": "failed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "normalized_app_event_outbox_pending_idx": {
+          "name": "normalized_app_event_outbox_pending_idx",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"normalized_app_event_outbox\".\"processed_at\" is null and \"normalized_app_event_outbox\".\"failed_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "normalized_app_event_outbox_dead_letter_idx": {
+          "name": "normalized_app_event_outbox_dead_letter_idx",
+          "columns": [
+            {
+              "expression": "failed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"normalized_app_event_outbox\".\"failed_at\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "normalized_app_event_outbox_event_id_key": {
+          "name": "normalized_app_event_outbox_event_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "event_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "normalized_app_event_outbox_attempts_check": {
+          "name": "normalized_app_event_outbox_attempts_check",
+          "value": "\"normalized_app_event_outbox\".\"attempts\" >= 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.notifications": {

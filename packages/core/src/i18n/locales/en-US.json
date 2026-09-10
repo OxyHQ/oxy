@@ -2127,6 +2127,18 @@
       "title": "Permissions requested",
       "basic": "Sign you in and read your basic profile"
     },
+    "resource": {
+      "title": "Oxy app and protected resource"
+    },
+    "writeActions": {
+      "title": "Actions this connection can perform"
+    },
+    "effects": {
+      "write": "Write",
+      "external": "External",
+      "financial": "Financial",
+      "security": "Security"
+    },
     "scopes": {
       "openid": "Confirm your identity",
       "profile": "Read your basic profile",
@@ -2147,7 +2159,8 @@
       "federationWrite": "Act across federated services"
     },
     "account": {
-      "title": "Signing in as"
+      "title": "Signing in as",
+      "id": "Account ID: {{id}}"
     },
     "links": {
       "website": "Website",

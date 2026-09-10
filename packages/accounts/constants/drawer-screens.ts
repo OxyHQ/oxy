@@ -20,6 +20,7 @@ export type DrawerRouteName =
   | 'index'
   | 'personal-info'
   | 'security'
+  | 'agency'
   | 'activity'
   | 'devices'
   | 'data'
@@ -52,6 +53,7 @@ export const DRAWER_SCREENS: readonly DrawerScreenConfig[] = [
   { name: 'index', labelKey: 'drawer.home', titleKey: 'drawer.home' },
   { name: 'personal-info', labelKey: 'drawer.personalInfo', titleKey: 'drawer.personalInfo' },
   { name: 'security', labelKey: 'drawer.security', titleKey: 'drawer.security' },
+  { name: 'agency', labelKey: 'drawer.agency', titleKey: 'drawer.agency' },
   { name: 'activity', labelKey: 'drawer.activity', titleKey: 'drawer.activity' },
   { name: 'devices', labelKey: 'drawer.devices', titleKey: 'drawer.devices' },
   { name: 'data', labelKey: 'drawer.data', titleKey: 'drawer.data' },
