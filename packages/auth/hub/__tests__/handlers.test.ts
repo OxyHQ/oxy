@@ -158,8 +158,8 @@ function setCookieOf(response: Response): string | null {
 }
 
 /** Neither credential may ever appear in what the browser receives. */
-async function expectNoCredentialLeak(response: Response): Promise<void> {
-    const raw = await response.clone().text()
+async function expectNoCredentialLeak(body: unknown): Promise<void> {
+    const raw = JSON.stringify(body)
     expect(raw).not.toContain(ACCESS_TOKEN)
     expect(raw).not.toContain(HANDLE)
     expect(raw).not.toContain(NEXT_HANDLE)
@@ -266,7 +266,7 @@ describe("POST /hub/session", () => {
         expect(body.status).toBe("active")
         expect(body.directory).toEqual(DIRECTORY)
         expect(body).not.toHaveProperty("accessToken")
-        await expectNoCredentialLeak(response)
+        await expectNoCredentialLeak(body)
     })
 
     test("forwards the cookie's handle upstream, and only there", async () => {
@@ -392,7 +392,7 @@ describe("POST /hub/claim", () => {
         )
         const body = await bodyOf(response)
         expect(body.status).toBe("active")
-        await expectNoCredentialLeak(response)
+        await expectNoCredentialLeak(body)
     })
 
     test("the deviceSecret the claim mints never reaches the browser", async () => {
@@ -450,7 +450,7 @@ describe("POST /hub/rotate", () => {
         expect(setCookieOf(response)).toContain(
             `__Host-oxy-device=${NEXT_HANDLE};`
         )
-        await expectNoCredentialLeak(response)
+        await expectNoCredentialLeak(await bodyOf(response))
     })
 
     test("a dead handle clears the cookie instead of rotating", async () => {
@@ -512,7 +512,7 @@ describe("POST /hub/activate", () => {
         const body = await bodyOf(response)
         expect(body.status).toBe("active")
         expect((body.directory as { activeContextId: string }).activeContextId).toBe("ctx-2")
-        await expectNoCredentialLeak(response)
+        await expectNoCredentialLeak(body)
     })
 
     test("reports signed_out without a hub session", async () => {
@@ -566,14 +566,15 @@ describe("POST /hub/authorize — a later official origin joining", () => {
         })
 
         const response = await handleHubAuthorize(withHandle("/hub/authorize", JOIN), ENV)
-        expect(await bodyOf(response)).toEqual({
+        const body = await bodyOf(response)
+        expect(body).toEqual({
             status: "code",
             code: "auth-code-1",
             state: JOIN.state,
             redirectUri: JOIN.redirectUri,
             expiresIn: 300,
         })
-        await expectNoCredentialLeak(response)
+        await expectNoCredentialLeak(body)
     })
 
     test("asks for consent and mints NOTHING when the server says to ask", async () => {

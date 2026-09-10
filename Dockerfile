@@ -9,7 +9,7 @@
 ## Run:    docker run --env-file .env -p 8080:8080 oxy-api
 ##
 
-FROM oven/bun:1.3.14-alpine@sha256:5acc90a93e91ff07bf72aa90a7c9f0fa189765aec90b47bdbf2152d2196383c0 AS bun-bin
+FROM oven/bun:1.4.2-alpine@sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f AS bun-bin
 
 FROM node:24-alpine AS bun-node
 
@@ -17,7 +17,7 @@ FROM node:24-alpine AS bun-node
 # wrapper retained multiple @oven platform binaries and added 346 MiB to the
 # runtime while only one 85 MiB executable can ever run in a given image.
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
-RUN test "$(bun --version)" = "1.3.14"
+RUN test "$(bun --version)" = "1.4.2"
 
 FROM bun-node AS builder
 
@@ -146,7 +146,7 @@ FROM node:24-alpine
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN apk add --no-cache ffmpeg curl \
-    && test "$(bun --version)" = "1.3.14"
+    && test "$(bun --version)" = "1.4.2"
 
 WORKDIR /app
 

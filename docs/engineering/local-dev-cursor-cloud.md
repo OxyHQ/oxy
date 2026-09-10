@@ -3,7 +3,7 @@
 > Moved out of `AGENTS.md` unchanged.
 
 
-Local dev is a **Bun workspace monorepo** (`bun@1.3.14`, on `PATH` via `/usr/local/bin/bun`). The startup update script runs only `bun install`. Everything below is not auto-run — do it per session as needed. Standard build/dev/test commands live in the root `README.md`, root `package.json` scripts, and the "Commands" section above; only the non-obvious local caveats are captured here.
+Local dev is a **Bun workspace monorepo** (`bun@1.4.2`, on `PATH` via `/usr/local/bin/bun`). The startup update script runs only `bun install`. Everything below is not auto-run — do it per session as needed. Standard build/dev/test commands live in the root `README.md`, root `package.json` scripts, and the "Commands" section above; only the non-obvious local caveats are captured here.
 
 **Local infra (not auto-started):**
 - **PostgreSQL (required for API + tests)** — start with `docker compose -f docker-compose.dev.yml up -d postgres` (or any local Postgres on `127.0.0.1:5432`). API tests create a throwaway database on every `bun run test` via `jest.globalSetup.ts` and need `TEST_DATABASE_URL` or `DATABASE_URL` pointing at it. Verify with `pg_isready -h 127.0.0.1 -p 5432`.

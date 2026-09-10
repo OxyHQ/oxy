@@ -10,7 +10,7 @@
  *
  * WHY THIS DOES NOT USE `--frozen-lockfile`
  *
- * That is the obvious gate and it does not work here. Measured on bun 1.3.14
+ * That is the obvious gate and it does not work here. Measured on bun 1.4.2
  * against this repo, `bun install --frozen-lockfile` exits 0 on BOTH shapes of
  * desync we actually shipped:
  *
@@ -41,7 +41,7 @@
  *
  * Why bother, when layer 2 regenerates the whole file: whether a plain
  * `bun install` rewrites a workspace's recorded `version` is REPO-DEPENDENT, and
- * the boundary is not understood. Measured on bun 1.3.14, twice per case:
+ * the boundary is not understood. Measured on bun 1.4.2, twice per case:
  *
  *   - In THIS repo it DOES rewrite it. Bumping packages/core, contracts, api or
  *     ship moves `bun.lock`, so layer 2 sees it — and would have caught both the

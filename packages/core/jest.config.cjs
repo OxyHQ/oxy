@@ -4,6 +4,7 @@ module.exports = {
   testEnvironment: 'node',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'json'],
   moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
     // Resolve workspace deps from TypeScript SOURCE so core tests do not depend
     // on packages being built first (mirrors packages/api/jest.config.js).
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
@@ -13,6 +14,7 @@ module.exports = {
     // overrides in the KeyManager suites resolve deterministically.
     '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
     '^@oxy.so/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
+    '^@oxy.so/telemetry/browser$': '<rootDir>/../telemetry/src/browser.ts',
   },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {

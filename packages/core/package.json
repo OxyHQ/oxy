@@ -86,7 +86,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "bun run build:cjs && bun run build:esm && bun run build:types && bun run copy-assets && node scripts/mark-module-formats.mjs",
+    "build": "bun run --filter @oxy.so/telemetry build && bun run build:cjs && bun run build:esm && bun run build:types && bun run copy-assets && node scripts/mark-module-formats.mjs",
     "copy-assets": "cp -r src/i18n/locales dist/cjs/i18n/locales && cp -r src/i18n/locales dist/esm/i18n/locales",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs",
