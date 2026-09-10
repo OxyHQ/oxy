@@ -78,6 +78,9 @@
     "sharp": ">=0.33.0",
     "tailwindcss": ">=4.0.0"
   },
+  "devDependencies": {
+    "expo": "catalog:"
+  },
   "peerDependenciesMeta": {
     "@oxy.so/bloom": {
       "optional": true

@@ -82,6 +82,7 @@
     "@types/react": "*",
     "expo": "catalog:",
     "expo-splash-screen": "*",
+    "jest": "^30.5.1",
     "react": "*",
     "react-native": "*",
     "typescript": "^5.9.2"

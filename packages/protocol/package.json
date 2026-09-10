@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/protocol",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Oxy Protocol — the app-agnostic base substrate: signed-record envelope, canonical JSON, signature/verification, and platform crypto. Reused by any Oxy app to decentralize its own content.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -145,6 +145,7 @@
     "@types/node": "^22.20.1",
     "@types/supertest": "catalog:",
     "expo-crypto": "~56.0.3",
+    "expo-modules-core": "catalog:",
     "expo-secure-store": "~56.0.4",
     "express": "catalog:",
     "jest": "^30.5.1",

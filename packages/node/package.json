@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/node",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Oxy personal data node — a self-hostable server that stores and serves a user's own signed records (their personal repo) for Oxy to ingest/mirror (Fase 5 decentralization)",
   "private": true,
   "type": "module",

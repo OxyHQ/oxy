@@ -788,6 +788,22 @@ export type {
 } from './inference/errors';
 
 export {
+    embeddingVectorSchema,
+    embeddingUsageSchema,
+    embeddingSuccessSchema,
+    embeddingFailureSchema,
+    embeddingResponseSchema,
+} from './inference/embeddings';
+
+export type {
+    EmbeddingVector,
+    EmbeddingUsage,
+    EmbeddingSuccess,
+    EmbeddingFailure,
+    EmbeddingResponse,
+} from './inference/embeddings';
+
+export {
     // Price versions and the snapshot a settled receipt keeps.
     priceVersionStatusSchema,
     priceVersionSchema,

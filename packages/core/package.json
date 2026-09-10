@@ -159,6 +159,7 @@
     "expo-secure-store": "~56.0.4",
     "express": "catalog:",
     "express-rate-limit": "catalog:",
+    "jest": "^30.5.1",
     "regexpu-core": "^6.4.0",
     "release-it": "catalog:",
     "typescript": "^5.9.2",
