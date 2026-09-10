@@ -44,6 +44,7 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { and, eq, sql } from "drizzle-orm";
 import { routingScoreValidityThreshold } from "../src/config/inferenceRoutingScoreValidity";
+import { assertPlatformScopeWriteRolloutComplete } from "../src/config/inferencePlatformScopeWriteGate";
 import {
   KAANA_INITIAL_BALANCED_FORMULA_REF,
   KAANA_INITIAL_MODEL,
@@ -78,8 +79,6 @@ import {
   inferencePublishers,
   inferenceRoutingProfileCandidates,
   inferenceRoutingProfiles,
-  LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
-  normalizeInferenceDeploymentAvailabilityScope,
   priceVersionUnitPrices,
   priceVersions,
   users,
@@ -115,7 +114,7 @@ const REVIEWED_CATALOGUE_FACTS = {
   balancedFormulaRef: KAANA_INITIAL_BALANCED_FORMULA_REF,
   scorecardReason: KAANA_INITIAL_SCORECARD_REASON,
   deploymentPolicy: {
-    availabilityScope: "internal_alia",
+    availabilityScope: "platform_internal",
     commercialPermission: "standard_application_use",
     permissionState: "approved",
     legalReviewStatus: "approved",
@@ -123,7 +122,7 @@ const REVIEWED_CATALOGUE_FACTS = {
     dedicatedCapacity: false,
     regions: [],
     permissionStateNote:
-      "Owner-approved initial internal Alia route; primary-source review 2026-09-02.",
+      "Owner-approved initial platform-internal route; primary-source review 2026-09-02.",
     upstreamWholesaleCostAmount: null,
     upstreamWholesaleCostCurrency: null,
     upstreamWholesaleCostUnit: null,
@@ -149,8 +148,9 @@ const REVIEWED_CATALOGUE_FACTS = {
     isProductPreset: true,
   },
 } as const;
-const reviewedFactsSha256 =
-  createKaanaCatalogueReviewedFactsSha256(REVIEWED_CATALOGUE_FACTS);
+const reviewedFactsSha256 = createKaanaCatalogueReviewedFactsSha256(
+  REVIEWED_CATALOGUE_FACTS,
+);
 
 class DryRunRollback extends Error {}
 
@@ -342,7 +342,10 @@ async function ensureModel(
     .from(inferenceModels)
     .where(eq(inferenceModels.modelId, KAANA_INITIAL_MODEL_ID))
     .for("update");
-  let row = requireAtMostOne(`Model ID ${KAANA_INITIAL_MODEL_ID}`, existingRows);
+  let row = requireAtMostOne(
+    `Model ID ${KAANA_INITIAL_MODEL_ID}`,
+    existingRows,
+  );
   if (row === undefined) {
     const createdRows = await tx
       .insert(inferenceModels)
@@ -469,9 +472,7 @@ async function ensurePriceVersion(
     modelReference: KAANA_INITIAL_MODEL_REFERENCE,
     provider: provider.slug,
     currency: REVIEWED_CATALOGUE_FACTS.pricePolicy.currency,
-    effectiveFrom: new Date(
-      REVIEWED_CATALOGUE_FACTS.pricePolicy.effectiveFrom,
-    ),
+    effectiveFrom: new Date(REVIEWED_CATALOGUE_FACTS.pricePolicy.effectiveFrom),
     effectiveUntil: REVIEWED_CATALOGUE_FACTS.pricePolicy.effectiveUntil,
     supersedesPriceVersionId:
       REVIEWED_CATALOGUE_FACTS.pricePolicy.supersedesPriceVersionId,
@@ -587,7 +588,6 @@ async function ensureDeployment(
       createdRows,
     );
     inserted.push(`deployment:${provider.deploymentId}`);
-    rows = await readLogicalDeploymentRows();
   }
   assertFields(`deployment:${provider.deploymentId}`, row, expected);
 }
@@ -779,6 +779,10 @@ async function bootstrap(): Promise<BootstrapSummary> {
     APPLY,
     process.env,
   );
+  const inventory = await requireLiveInventory();
+  await connectPostgres();
+  const inserted: string[] = [];
+  let summary: BootstrapSummary | undefined;
   try {
     await getDb().transaction(async (tx) => {
       await tx.execute(
@@ -789,31 +793,14 @@ async function bootstrap(): Promise<BootstrapSummary> {
       const modelId = await ensureModel(tx, inserted);
       const revisionId = await ensureRevision(tx, modelId, inserted);
 
-        for (const provider of KAANA_INITIAL_PROVIDERS) {
-          await ensureProvider(tx, provider, inserted);
-          const priceVersionId = await ensurePriceVersion(tx, provider, inserted);
-          await ensureDeployment(
-            tx,
-            provider,
-            revisionId,
-            priceVersionId,
-            inserted,
-          );
-          await ensureScorecard(tx, provider, priceVersionId, inserted);
-        }
-        const routingProfileIds = await ensureProfiles(tx, revisionId, inserted);
-        summary = {
-          inventorySnapshotId: inventory.snapshotId,
-          inventoryIssuedAt: inventory.issuedAt,
-          inventoryVersionId: inventory.versionId,
-          publisher: KAANA_INITIAL_PUBLISHER.slug,
-          model: `${KAANA_INITIAL_PUBLISHER.slug}/${KAANA_INITIAL_MODEL.slug}`,
-          revision: KAANA_INITIAL_MODEL_REFERENCE,
-          providers: KAANA_INITIAL_PROVIDERS.map((provider) => provider.slug),
-          deployments: KAANA_INITIAL_PROVIDERS.map(
-            (provider) => provider.deploymentId,
-          ),
-          routingProfileIds,
+      for (const provider of KAANA_INITIAL_PROVIDERS) {
+        await ensureProvider(tx, provider, inserted);
+        const priceVersionId = await ensurePriceVersion(tx, provider, inserted);
+        await ensureDeployment(
+          tx,
+          provider,
+          revisionId,
+          priceVersionId,
           inserted,
         );
         await ensureScorecard(tx, provider, priceVersionId, inserted);
@@ -859,11 +846,17 @@ async function bootstrap(): Promise<BootstrapSummary> {
         reason: bootstrapReason,
       });
       summary = { ...summaryWithoutPlan, planSha256 };
+      await rolloutGuard.assertStillComplete();
       if (!APPLY) throw new DryRunRollback("dry-run rollback");
     });
   } catch (error) {
     if (!(error instanceof DryRunRollback)) throw error;
+  } finally {
+    rolloutGuard.close();
   }
+  if (summary === undefined)
+    throw new Error("Bootstrap transaction produced no summary");
+  return summary;
 }
 
 bootstrap()

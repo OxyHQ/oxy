@@ -41,7 +41,9 @@ on:
         type: string
 
 concurrency:
-  group: kaana-catalogue-bootstrap-production
+  # Catalogue publication observes and writes against the same live API
+  # revision as the deploy workflow, so both operations share one lock.
+  group: deploy-oxy-api
   cancel-in-progress: false
 
 permissions:
@@ -52,6 +54,7 @@ env:
   AWS_REGION: us-west-2
   AWS_ACCOUNT_ID: "237343248947"
   CLUSTER: oxy-cluster
+  SERVICE: oxy-api
   LIVE_SERVICE: oxy-api
   NETWORK_SERVICE: kaana-publisher
   LIVE_CONTAINER: oxy-api
@@ -74,14 +77,35 @@ env:
 jobs:
   bootstrap:
     if: github.ref == 'refs/heads/main'
+    environment: production
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     steps:
+      - name: Check out the dispatched revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
       - name: Configure AWS credentials (OIDC, no stored keys)
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-kaana-catalogue-bootstrap
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Attest the live rollout before catalogue work
+        env:
+          EXPECTED_LIVE_TASK_DEFINITION_ARN: ${{ inputs.expected_live_task_definition_arn }}
+          EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN: ${{ inputs.expected_bootstrap_task_definition_arn }}
+          EXPECTED_LIVE_IMAGE_DIGEST: ${{ inputs.expected_live_image_digest }}
+        run: |
+          set -euo pipefail
+          expected_image="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/oxy/oxy-api@${EXPECTED_LIVE_IMAGE_DIGEST}"
+          # Observe every live task twice; the dedicated task identity and the
+          # actual one-shot below verify exact RunTask and iam:PassRole authority.
+          .github/scripts/attest-kaana-catalogue-rollout.sh \
+            "$CLUSTER" "$SERVICE" "$EXPECTED_LIVE_TASK_DEFINITION_ARN" "$LIVE_CONTAINER" \
+            "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" "$BOOTSTRAP_CONTAINER" "$expected_image"
 
       - name: Run the exact dry-run-first PostgreSQL bootstrap
         env:
@@ -510,3 +534,16 @@ jobs:
             echo '- Idempotency dry-run committed writes: 0; planned operations: 0'
             echo '- Routing eligibility was not asserted; application audience remains a separate launch gate.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Re-attest the live rollout after catalogue work
+        if: always()
+        env:
+          EXPECTED_LIVE_TASK_DEFINITION_ARN: ${{ inputs.expected_live_task_definition_arn }}
+          EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN: ${{ inputs.expected_bootstrap_task_definition_arn }}
+          EXPECTED_LIVE_IMAGE_DIGEST: ${{ inputs.expected_live_image_digest }}
+        run: |
+          set -euo pipefail
+          expected_image="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/oxy/oxy-api@${EXPECTED_LIVE_IMAGE_DIGEST}"
+          .github/scripts/attest-kaana-catalogue-rollout.sh \
+            "$CLUSTER" "$SERVICE" "$EXPECTED_LIVE_TASK_DEFINITION_ARN" "$LIVE_CONTAINER" \
+            "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" "$BOOTSTRAP_CONTAINER" "$expected_image"
