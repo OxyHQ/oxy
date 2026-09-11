@@ -22,7 +22,7 @@ const CONNECT_TIMEOUT_MS = 30_000;
 
 const missingEnvironment = [
   'DATABASE_URL',
-  'REDIS_URL',
+  'QUEUE_REDIS_URL',
   'AWS_ACCESS_KEY_ID',
   'AWS_SECRET_ACCESS_KEY',
   'AWS_S3_BUCKET',

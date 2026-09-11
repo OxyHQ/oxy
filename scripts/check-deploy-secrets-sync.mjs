@@ -80,6 +80,10 @@ const PRODUCTION_MANDATORY_SYNCED_SECRETS = ['DEVICE_ID_SALT'];
  */
 const SSM_ONLY_SECRET_BINDINGS = new Map([
   [
+    'QUEUE_REDIS_URL',
+    'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL',
+  ],
+  [
     'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY',
     'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY',
   ],
