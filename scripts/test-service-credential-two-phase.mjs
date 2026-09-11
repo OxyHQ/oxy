@@ -44,7 +44,8 @@ for (const crashAfter of ["run-task", "prepare-commit", "package", "finalize"]) 
 	assert.equal(state.oldUsable, true);
 }
 
-assert.match(prepare, /status: "pending"/);
+assert.match(prepare, /status: rotateScopeMismatch \? "pending" : "active"/);
+assert.match(prepare, /reason: "abandoned_pending_handoff"/);
 assert.doesNotMatch(prepare, /\.set\(\{ status: "deprecated"/);
 assert.match(finalize, /credential\.status !== "pending"/);
 assert.match(finalize, /refusing false idempotence/);
@@ -61,6 +62,7 @@ assert.ok(durablePackage >= 0 && finalizePending > durablePackage);
 const bindingFailure = workflow.indexOf("credential task binding could not be persisted");
 assert.ok(bindingFailure >= 0);
 assert.match(workflow, /preserve_temp_parameter="true"/);
+assert.match(workflow, /requiresFinalization/);
 
 process.stdout.write(
 	"Two-phase credential handoff is safe at every task, package, and finalize crash boundary.\n",

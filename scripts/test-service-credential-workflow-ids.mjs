@@ -228,7 +228,7 @@ assert.match(
 );
 assert.match(provisionScript, new RegExp(canonicalAliaApplicationId));
 assert.match(provisionScript, /rotatedFromCredentialId: rotatedFrom\?\.id/);
-assert.match(provisionScript, /status: "pending"/);
+assert.match(provisionScript, /status: rotateScopeMismatch \? "pending" : "active"/);
 assert.doesNotMatch(provisionScript, /status: "deprecated"/);
 assert.match(finalizeScript, /status: "deprecated", expiresAt: graceExpiresAt/);
 assert.match(finalizeScript, /status: "active"/);

@@ -61,6 +61,7 @@ import {
 } from "../src/db/schema/applicationCredentials";
 import { applications } from "../src/db/schema/applications";
 import { users } from "../src/db/schema/users";
+import { recordCredentialLifecycleEvent } from "../src/services/applicationCredentialAudit.service";
 import { APPLICATION_SCOPES } from "../src/utils/applicationScopes";
 import { isCredentialUsable } from "../src/utils/credentialUsability";
 import { logger } from "../src/utils/logger";
@@ -188,6 +189,7 @@ interface ResultRow {
 	rotatedFromCredentialId: string | null;
 	graceExpiresAt: string | null;
 	secretEnc: SecretEnvelope | null;
+	requiresFinalization: boolean;
 }
 
 function writeResult(row: ResultRow): void {
@@ -352,10 +354,24 @@ async function run(): Promise<void> {
 		const pendingCredentials = candidateRows.filter(
 			(row) => row.status === "pending",
 		);
-		if (pendingCredentials.length > 0) {
+		if (pendingCredentials.length > 0 && !rotateScopeMismatch) {
 			throw new Error(
 				`Application "${appName}" has an unfinished pending ${environment} service credential (${pendingCredentials.map((credential) => credential.id).join(", ")}). Recover or revoke it before preparing another secret.`,
 			);
+		}
+		for (const pending of pendingCredentials) {
+			await db
+				.update(applicationCredentials)
+				.set({ status: "revoked" })
+				.where(eq(applicationCredentials.id, pending.id));
+			await recordCredentialLifecycleEvent(db, {
+				applicationId: application.id,
+				credentialId: pending.id,
+				eventType: "revoked",
+				actorUserId: owner.id,
+				environment,
+				metadata: { reason: "abandoned_pending_handoff" },
+			});
 		}
 		const usableCredentials = candidateRows.filter(isCredentialUsable);
 		const exactScopeCredentials = usableCredentials.filter((credential) =>
@@ -397,6 +413,7 @@ async function run(): Promise<void> {
 				rotatedFromCredentialId: null,
 				graceExpiresAt: null,
 				secretEnc: null,
+				requiresFinalization: false,
 			};
 
 			return reusedResult;
@@ -447,6 +464,7 @@ async function run(): Promise<void> {
 				rotatedFromCredentialId: rotatedFrom?.id ?? null,
 				graceExpiresAt: null,
 				secretEnc: null,
+				requiresFinalization: rotateScopeMismatch,
 			};
 
 			return planResult;
@@ -472,7 +490,7 @@ async function run(): Promise<void> {
 				// The row cannot authenticate until the encrypted one-time secret has
 				// been durably handed off. A separate exact-id finalize transaction
 				// activates it and only then deprecates its predecessor.
-				status: "pending",
+				status: rotateScopeMismatch ? "pending" : "active",
 				rotatedFromCredentialId: rotatedFrom?.id,
 				createdByUserId: owner.id,
 			})
@@ -483,6 +501,16 @@ async function run(): Promise<void> {
 
 		if (!credential) {
 			throw new Error("Failed to insert service credential");
+		}
+		if (!rotateScopeMismatch) {
+			await recordCredentialLifecycleEvent(db, {
+				applicationId: application.id,
+				credentialId: credential.id,
+				eventType: "created",
+				actorUserId: owner.id,
+				environment,
+				metadata: { type: "service", scopes },
+			});
 		}
 
 		logger.info("Service credential prepared for durable handoff", {
@@ -512,6 +540,7 @@ async function run(): Promise<void> {
 			rotatedFromCredentialId: rotatedFrom?.id ?? null,
 			graceExpiresAt: null,
 			secretEnc,
+			requiresFinalization: rotateScopeMismatch,
 		};
 
 		return result;
