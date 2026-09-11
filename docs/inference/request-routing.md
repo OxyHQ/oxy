@@ -209,8 +209,14 @@ project descriptors only and must record zero provider requests and zero Oxy
 ledger writes. Then run the
 [`Kaana signed production canary`](../../.github/workflows/kaana-signed-canary.yml)
 with one exact `deploymentId` and the exact `snapshotId` from that readback. It
-makes the two explicitly confirmed one-token provider requests while ambient
-execution remains disabled. Only a separate reviewed deploy change may enable
+makes the two explicitly confirmed one-token provider requests against an
+isolated Kaana candidate task attested by exact task ARN, task-definition ARN,
+image digest and RFC1918 address while ambient execution remains disabled. The
+signer runs in a separate Oxy task and reaches the candidate only through its
+private task address on port 8080; `https://kaana.ai` remains the sole external
+Kaana origin and no signing key enters the Kaana task. The Kaana workflow always
+stops the candidate and deregisters its temporary definition when the bounded
+canary window ends. Only a separate reviewed deploy change may enable
 the ambient flag after both runs pass; product consumers such as Alia are
 enabled after that Oxy rollout and readback, never before it. The complete
 inputs, negative probes and rollback order are in

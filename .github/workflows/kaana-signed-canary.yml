@@ -21,6 +21,22 @@ on:
         description: Exact snapshot ID emitted by the signed live readback workflow
         required: true
         type: string
+      candidate_task_arn:
+        description: Exact running isolated Kaana candidate task ARN
+        required: true
+        type: string
+      candidate_task_definition_arn:
+        description: Exact isolated Kaana candidate task-definition ARN
+        required: true
+        type: string
+      candidate_image_digest:
+        description: Exact isolated Kaana candidate image digest
+        required: true
+        type: string
+      candidate_private_ip:
+        description: Exact RFC1918 private IP attested by ECS for the candidate
+        required: true
+        type: string
       deployment_id:
         description: Exact opaque deployment ID from Kaana's signed live snapshot
         required: true
@@ -89,6 +105,10 @@ jobs:
           EXPECTED_LIVE_TASK_DEFINITION_ARN: ${{ inputs.expected_live_task_definition_arn }}
           EXPECTED_LIVE_IMAGE_DIGEST: ${{ inputs.expected_live_image_digest }}
           CANARY_EXPECTED_SNAPSHOT_ID: ${{ inputs.expected_snapshot_id }}
+          CANDIDATE_TASK_ARN: ${{ inputs.candidate_task_arn }}
+          CANDIDATE_TASK_DEFINITION_ARN: ${{ inputs.candidate_task_definition_arn }}
+          CANDIDATE_IMAGE_DIGEST: ${{ inputs.candidate_image_digest }}
+          CANDIDATE_PRIVATE_IP: ${{ inputs.candidate_private_ip }}
           CANARY_DEPLOYMENT_ID: ${{ inputs.deployment_id }}
           CANARY_ROUTING_PROFILE_ID: ${{ inputs.routing_profile_id }}
           CANARY_ROUTING_POLICY_ID: ${{ inputs.routing_policy_id }}
@@ -113,6 +133,22 @@ jobs:
           if [[ ! "$EXPECTED_LIVE_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
             echo '::error::expected_live_image_digest must be one exact lowercase sha256 digest'
             exit 64
+          fi
+          if [[ ! "$CANDIDATE_TASK_ARN" =~ ^arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/[a-f0-9]{32}$ ]] ||
+             [[ ! "$CANDIDATE_TASK_DEFINITION_ARN" =~ ^arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-candidate:[0-9]+$ ]] ||
+             [[ ! "$CANDIDATE_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] ||
+             [[ ! "$CANDIDATE_PRIVATE_IP" =~ ^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.) ]]; then
+            echo '::error::candidate task identity is not exact and private'
+            exit 64
+          fi
+          candidate=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$CANDIDATE_TASK_ARN" --query 'tasks[0]' --output json)
+          if [ "$(jq -r '.lastStatus' <<<"$candidate")" != RUNNING ] ||
+             [ "$(jq -r '.taskDefinitionArn' <<<"$candidate")" != "$CANDIDATE_TASK_DEFINITION_ARN" ] ||
+             [ "$(jq -r '[.containers[] | select(.name == "kaana")] | length' <<<"$candidate")" != 1 ] ||
+             [ "$(jq -r '.containers[] | select(.name == "kaana") | .imageDigest' <<<"$candidate")" != "$CANDIDATE_IMAGE_DIGEST" ] ||
+             [ "$(jq -r '[.attachments[].details[] | select(.name == "privateIPv4Address") | .value] | unique | .[0]' <<<"$candidate")" != "$CANDIDATE_PRIVATE_IP" ]; then
+            echo '::error::running candidate does not match the reviewed task/image/private-IP receipt'
+            exit 1
           fi
           if [ -z "$CANARY_REASON" ] || [ "$CANARY_REASON" != "${CANARY_REASON# }" ] || [ "$CANARY_REASON" != "${CANARY_REASON% }" ] || [[ "$CANARY_REASON" == *$'\n'* ]] || [[ "$CANARY_REASON" == *$'\r'* ]]; then
             echo '::error::reason must be non-empty and contain no edge whitespace or newlines'
@@ -141,6 +177,7 @@ jobs:
             exit 1
           fi
           network=$(jq -ec '.networkConfiguration' <<<"$service_json")
+          network=$(jq -c '.awsvpcConfiguration.securityGroups += ["sg-05da1736e1a5f0acc"] | .awsvpcConfiguration.securityGroups |= unique' <<<"$network")
           live_task_json=$(aws ecs describe-task-definition \
             --task-definition "$live_task_definition" \
             --query taskDefinition --output json)
@@ -258,12 +295,14 @@ jobs:
             --arg policy_version "$CANARY_ROUTING_POLICY_VERSION" \
             --arg account "$CANARY_ACCOUNT_ID" \
             --arg application "$CANARY_APPLICATION_ID" \
-            --arg credential "$CANARY_CREDENTIAL_ID" '
+            --arg credential "$CANARY_CREDENTIAL_ID" \
+            --arg candidate_ip "$CANDIDATE_PRIVATE_IP" '
               {containerOverrides:[{
                 name:$container,
                 command:["node","packages/api/scripts/run-kaana-signed-canary.mjs"],
                 environment:[
                   {name:"CANARY_CONTRACT_VERSION",value:"2.0.0"},
+                  {name:"CANARY_KAANA_PRIVATE_ORIGIN",value:("http://" + $candidate_ip + ":8080")},
                   {name:"CANARY_EXPECTED_SNAPSHOT_ID",value:$snapshot},
                   {name:"CANARY_DEPLOYMENT_ID",value:$deployment},
                   {name:"CANARY_ROUTING_PROFILE_ID",value:$profile},
@@ -393,6 +432,10 @@ jobs:
             echo "- Live task: \`$live_task_definition\`"
             echo "- Live image: \`$live_image\`"
             echo "- Kaana snapshot: \`$(jq -r '.snapshotId' <<<"$result")\`"
+            echo "- Isolated candidate task: \`$CANDIDATE_TASK_ARN\`"
+            echo "- Candidate task definition: \`$CANDIDATE_TASK_DEFINITION_ARN\`"
+            echo "- Candidate image: \`$CANDIDATE_IMAGE_DIGEST\`"
+            echo "- Candidate transport: private RFC1918 task address on port 8080"
             echo "- Exact deployment: \`$CANARY_DEPLOYMENT_ID\`"
             echo "- Model derived from signed descriptor: \`$(jq -r '.modelReference' <<<"$result")\`"
             echo '- Negative route/slug cases: passed before provider access'

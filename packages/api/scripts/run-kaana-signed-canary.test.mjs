@@ -41,6 +41,25 @@ function runtime() {
   };
 }
 
+test('candidate origin accepts only an exact RFC1918 HTTP endpoint on port 8080', () => {
+  const base = runtime();
+  const privateEnv = {
+    INFERENCE_KAANA_EXECUTION: 'disabled',
+    KAANA_BASE_URL: 'https://kaana.ai',
+    KAANA_EDGE_SIGNING_KEY_ID: base.config.keyId,
+    KAANA_EDGE_SIGNING_PRIVATE_KEY: base.config.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+    CANARY_CONTRACT_VERSION: '2.0.0',
+    CANARY_KAANA_PRIVATE_ORIGIN: 'http://10.21.2.34:8080',
+  };
+  assert.equal(readKaanaSigningConfig(privateEnv).baseUrl, 'http://10.21.2.34:8080');
+  for (const origin of ['https://10.21.2.34:8080', 'http://8.8.8.8:8080', 'http://10.21.2.34:80', 'http://127.0.0.1:8080']) {
+    assert.throws(
+      () => readKaanaSigningConfig({ ...privateEnv, CANARY_KAANA_PRIVATE_ORIGIN: origin }),
+      (error) => error instanceof KaanaCanaryError && error.code === 'candidate_kaana_origin_is_not_private',
+    );
+  }
+});
+
 function signingInput(keyId, timestamp, body) {
   const digest = createHash('sha256').update(body).digest('hex');
   return Buffer.from(
