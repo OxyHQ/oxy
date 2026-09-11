@@ -358,6 +358,9 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     balancedEvidenceRef: `balanced-score/${tag}`,
     balancedFormulaRef: 'edge-test/v1',
     balancedValidUntil: new Date(now + 3_600_000),
+    fundingClass: 'standard_payg',
+    fundingState: 'available',
+    fundingEvidenceRef: `funding-score/${tag}`,
     reason: 'edge test fixture',
     changedByUserId: account.id,
     changedAt: new Date(now),
@@ -529,6 +532,9 @@ async function addDeployment(
     balancedEvidenceRef: `balanced-score/${tag}`,
     balancedFormulaRef: 'edge-test/v1',
     balancedValidUntil: new Date(now + 3_600_000),
+    fundingClass: 'standard_payg',
+    fundingState: 'available',
+    fundingEvidenceRef: `funding-score/${tag}`,
     reason: 'edge test fixture alternate',
     changedByUserId: fixture.accountId,
     changedAt: new Date(now),
@@ -649,6 +655,9 @@ async function addByokDeployment(
     balancedEvidenceRef: `byok-balanced-score/${tag}`,
     balancedFormulaRef: 'edge-byok-test/v1',
     balancedValidUntil: new Date(now + 3_600_000),
+    fundingClass: 'standard_payg',
+    fundingState: 'available',
+    fundingEvidenceRef: `byok-funding-score/${tag}`,
     reason: 'BYOK edge test fixture',
     changedByUserId: fixture.accountId,
     changedAt: new Date(now),
@@ -3530,6 +3539,20 @@ describe('the envelope’s authorized routes', () => {
       outputPricePerMillion: '5.000000000000',
       routingScore: 100,
     });
+    await getDb()
+      .update(inferenceDeploymentRoutingScores)
+      .set({
+        fundingClass: 'free_entitlement',
+        fundingRemaining: '100.000000000000',
+        fundingRemainingUnit: 'requests',
+        fundingObservedAt: new Date(Date.now() - 60_000),
+        fundingValidUntil: new Date(Date.now() + 3_600_000),
+      })
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, fixture.deploymentId));
+    await getDb()
+      .update(inferenceDeploymentRoutingScores)
+      .set({ fundingClass: 'discounted_payg' })
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, affordable.deploymentId));
     await givenPolicy(fixture, {
       maxPricePerRequest: { amount: '0.010000000000', currency: 'USD' },
     });

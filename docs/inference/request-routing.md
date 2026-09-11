@@ -62,21 +62,65 @@ region set to match.
 Oxy orders policy-qualified deployments with one explicit rule:
 
 1. for a routing profile, lower explicit candidate `priority` comes first;
-2. within the same priority, the reviewed score for `optimiseFor` is descending;
-3. if scores are equal, lexicographic comparison of the exact `deploymentId` by
+2. an explicit customer BYOK preference comes next;
+3. within the same priority and credential preference, an eligible reviewed funding class is ordered as
+   `free_entitlement`, `discounted_payg`, `promotional_credit`, then
+   `standard_payg`;
+4. within the same funding class, the reviewed score for `optimiseFor` is descending;
+5. if scores are equal, lexicographic comparison of the exact `deploymentId` by
    ECMAScript UTF-16 code units is the sole deterministic tie-break.
 
 Provider name, model name, display name, locale collation, insertion order and
 database return order never participate. Kaana receives the already ordered
 signed list, attempts it in that order and never re-ranks it by health or name.
 
+The funding class is data on the exact deployment scorecard, never inferred
+from a provider or model. `free_entitlement` means a currently available free
+allowance/free tier; `discounted_payg` means a cheaper metered rate that charges
+immediately; `promotional_credit` means granted credit that will eventually be
+exhausted or expire; `standard_payg` is ordinary paid usage. Free and promotional
+entries require a bounded observation window. `fundingState` records whether the
+observed allocation is `available`, `exhausted`, `rate_limited` or `unknown`;
+optional `fundingRemaining` is an exact non-negative decimal and is meaningful
+only together with its `fundingRemainingUnit`; `fundingEvidenceRef` identifies
+the provider statement, contract or reviewed measurement behind the observation.
+The database has no permanent default for class, state or evidence: migrations
+backfill pre-existing scorecards as standard paid and immediately drop those
+defaults, so every later scorecard and audit event must state reviewed economics.
+A zero balance, non-available
+state, future observation or expired observation removes the route from this
+economic preference set; it never falls through as though it were still free.
+
+Oxy owns this commercial classification and the ordering it produces. Kaana owns
+provider-key custody, live technical health, actual provider limits and measured
+usage. Compatibility, customer policy and request capacity qualify a route before
+funding priority; Kaana's signed preflight and execution then provide the live
+health/rate-limit boundary. Oxy does not turn cached economic evidence into a
+claim that a provider is healthy.
+
+This deployment-level order becomes exact credential spending only when Kaana
+binds each signed deployment to one reviewed `(provider, keyId)`. [Kaana PR
+#93](https://github.com/OxyHQ/Kaana/pull/93) is the source candidate for that
+boundary; source code is not rollout evidence.
+Migration `0013`, exact binding readback and a real canary must all succeed on
+the running artifact before production is described as credential-exact. Until
+then, provider-pool rotation can cross key funding classes inside one deployment,
+so this Oxy change must not be presented as completed end-to-end economics.
+
+Examples: a provider's renewable free allowance with `remaining = 120` requests
+and a future `validUntil` is class 1; a low list-price endpoint with no granted
+balance is class 2; a `$500` launch credit is class 3 until its exact balance is
+zero or its observation expires; an ordinary card-billed endpoint is class 4.
+When class 1 becomes rate-limited it is skipped and class 2 precedes class 3 —
+promotional money is not re-labelled “free” merely because it was granted.
+
 `maxPricePerRequest` qualifies routes within each explicit priority before the
-score/ID winner is admitted. The catalogue may prefilter the unavoidable flat
+funding/score/ID winner is admitted. The catalogue may prefilter the unavoidable flat
 fee because Kaana emits `requests: 1` once per attempted request, but the edge
 authoritatively quotes the complete maximum for this request from each pinned
 price version. A different currency or a total above the cap excludes that
 candidate. If the caller omitted `maxOutputTokens`, the first priority that has
-a price survivor chooses it by score descending then exact ID; that survivor's
+a price survivor chooses it by funding class, score descending and exact ID; that survivor's
 model maximum fixes the implicit output ceiling before lower priorities are
 resolved for capacity. A priority with no price survivor fixes nothing. If no
 candidate survives, the edge returns `policy_violation` (403) before reservation
@@ -136,7 +180,7 @@ and commercial permission are published only when every visible deployment
 agrees; otherwise that singular field is absent. No provider name, display name,
 locale comparison, insertion order or database order may invent a catalogue
 "primary" route. Runtime selection remains exclusively the explicit
-priority-score-ID rule above.
+priority-BYOK-funding-score-ID rule above.
 
 ## Provider-key custody
 

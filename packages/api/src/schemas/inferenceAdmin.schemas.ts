@@ -12,6 +12,8 @@
 import { z } from 'zod';
 import {
   BALANCED_ROUTING_SCORE_SOURCES,
+  INFERENCE_FUNDING_CLASSES,
+  INFERENCE_FUNDING_STATES,
   MEASURED_ROUTING_SCORE_SOURCES,
   PRICE_ROUTING_SCORE_SOURCES,
 } from '../db/schema/inferenceDeploymentRoutingScores';
@@ -181,6 +183,55 @@ export const routingScoresBody = z
         validUntil: instant,
       })
       .strict(),
+    economics: z
+      .object({
+        fundingClass: z.enum(INFERENCE_FUNDING_CLASSES),
+        state: z.enum(INFERENCE_FUNDING_STATES),
+        evidenceRef,
+        remaining: z.string().regex(/^\d+(?:\.\d{1,12})?$/).nullable(),
+        remainingUnit: z.string().trim().min(1).max(64).nullable(),
+        observedAt: instant.nullable(),
+        validUntil: instant.nullable(),
+      })
+      .strict()
+      .superRefine((value, context) => {
+        if ((value.remaining === null) !== (value.remainingUnit === null)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['remaining'],
+            message: 'remaining and remainingUnit must be present or absent together',
+          });
+        }
+        if ((value.observedAt === null) !== (value.validUntil === null)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['validUntil'],
+            message: 'observedAt and validUntil must be present or absent together',
+          });
+        }
+        if (
+          value.observedAt !== null &&
+          value.validUntil !== null &&
+          Date.parse(value.validUntil) <= Date.parse(value.observedAt)
+        ) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['validUntil'],
+            message: 'validUntil must be after observedAt',
+          });
+        }
+        if (
+          (value.fundingClass === 'free_entitlement' ||
+            value.fundingClass === 'promotional_credit') &&
+          value.validUntil === null
+        ) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['validUntil'],
+            message: 'free and promotional funding require expiring observations',
+          });
+        }
+      }),
     reason: z.string().trim().min(1).max(500),
   })
   .strict();

@@ -756,7 +756,14 @@ describe('a routing-profile target', () => {
     ]);
     await getDb()
       .update(inferenceDeploymentRoutingScores)
-      .set({ balancedScore: 10_000 })
+      .set({
+        balancedScore: 10_000,
+        fundingClass: 'free_entitlement',
+        fundingRemaining: '100.000000000000',
+        fundingRemainingUnit: 'requests',
+        fundingObservedAt: new Date(Date.now() - 60_000),
+        fundingValidUntil: new Date(Date.now() + 3_600_000),
+      })
       .where(eq(inferenceDeploymentRoutingScores.deploymentId, fixture.primaryDeploymentId));
 
     const seen: InferenceRequest[] = [];
@@ -802,6 +809,69 @@ describe('a routing-profile target', () => {
         (route) => route.modelReference === fixture.pinnedModelReference
       )
     ).toBe(true);
+  });
+
+  it('orders different models at one priority by funding before an adversarial score', async () => {
+    const fixture = await makeFixture();
+    await givePolicy(fixture);
+    const tag = suffix();
+    const [profile] = await getDb()
+      .insert(inferenceRoutingProfiles)
+      .values({
+        slug: `funding-profile-${tag}`,
+        displayName: `Funding profile ${tag}`,
+        optimiseFor: 'balanced',
+        isProductPreset: false,
+      })
+      .returning({ id: inferenceRoutingProfiles.id, slug: inferenceRoutingProfiles.slug });
+    await getDb().insert(inferenceRoutingProfileCandidates).values([
+      { routingProfileId: profile.id, modelId: fixture.modelRowId, priority: 0 },
+      { routingProfileId: profile.id, modelId: fixture.otherModelRowId, priority: 0 },
+    ]);
+    await getDb()
+      .update(inferenceDeploymentRoutingScores)
+      .set({ balancedScore: 10_000 })
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, fixture.primaryDeploymentId));
+    await getDb()
+      .update(inferenceDeploymentRoutingScores)
+      .set({
+        balancedScore: 1,
+        fundingClass: 'free_entitlement',
+        fundingRemaining: '100.000000000000',
+        fundingRemainingUnit: 'requests',
+        fundingObservedAt: new Date(Date.now() - 60_000),
+        fundingValidUntil: new Date(Date.now() + 3_600_000),
+      })
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, fixture.otherPrimaryDeploymentId));
+
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      foldedKaana(
+        (envelope) => {
+          seen.push(envelope);
+          return [];
+        },
+        fixture.provider
+      ),
+      async (request) => {
+        const response = await request(
+          '/v1/responses',
+          { routingProfile: profile.slug, input: 'Say hello.', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].authorizedRoutes[0]).toMatchObject({
+      deploymentId: fixture.otherPrimaryDeploymentId,
+      modelReference: fixture.otherPinnedModelReference,
+    });
+    expect(seen[0].authorizedRoutes[1]).toMatchObject({
+      deploymentId: fixture.primaryDeploymentId,
+      modelReference: fixture.pinnedModelReference,
+    });
   });
 });
 

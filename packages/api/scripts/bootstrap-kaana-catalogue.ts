@@ -126,6 +126,9 @@ const REVIEWED_CATALOGUE_FACTS = {
   },
   scorePolicy: {
     latencyEvidenceRef: "not-measured:exact-deployment-bootstrap-2026-09-02",
+    fundingClass: "standard_payg" as const,
+    fundingState: "available" as const,
+    fundingEvidenceSource: "provider.priceEvidenceRef",
   },
   candidatePolicy: {
     modelId: null,
@@ -621,6 +624,9 @@ async function ensureScorecard(
     balancedEvidenceRef: `${provider.priceEvidenceRef};${provider.performanceEvidenceRef}`,
     balancedFormulaRef: KAANA_INITIAL_BALANCED_FORMULA_REF,
     balancedValidUntil: validUntil,
+    fundingClass: REVIEWED_CATALOGUE_FACTS.scorePolicy.fundingClass,
+    fundingState: REVIEWED_CATALOGUE_FACTS.scorePolicy.fundingState,
+    fundingEvidenceRef: provider.priceEvidenceRef,
     reason: provider.scorecardReason ?? KAANA_INITIAL_SCORECARD_REASON,
     changedByUserId: reviewerUserId,
     changedAt: reviewedAt,

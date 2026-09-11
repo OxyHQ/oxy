@@ -370,6 +370,15 @@ function completeScorecard(fixture: Pick<DeploymentFixture, 'priceVersionId'>) {
       formulaRef: 'routing-formula/balanced-v1',
       validUntil,
     },
+    economics: {
+      fundingClass: 'standard_payg' as const,
+      state: 'available' as const,
+      evidenceRef: 'funding-review/standard-payg',
+      remaining: null,
+      remainingUnit: null,
+      observedAt: null,
+      validUntil: null,
+    },
     reason: 'Reviewed against the current provider contract and performance report',
   };
 }
@@ -867,6 +876,23 @@ describe('the Kaana routing scorecard endpoint is a full, attributed replacement
       (fixture: DeploymentFixture) => {
         const body = completeScorecard(fixture);
         return { ...body, balanced: { ...body.balanced, evidenceRef: '   ' } };
+      },
+    ],
+    [
+      'free funding without expiring evidence',
+      (fixture: DeploymentFixture) => {
+        const body = completeScorecard(fixture);
+        return {
+          ...body,
+          economics: { ...body.economics, fundingClass: 'free_entitlement' },
+        };
+      },
+    ],
+    [
+      'a remaining balance without its unit',
+      (fixture: DeploymentFixture) => {
+        const body = completeScorecard(fixture);
+        return { ...body, economics: { ...body.economics, remaining: '10.000000000000' } };
       },
     ],
   ] as const)('answers 400 for %s and writes nothing', async (_label, buildBody) => {

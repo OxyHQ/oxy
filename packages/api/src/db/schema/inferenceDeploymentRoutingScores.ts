@@ -19,7 +19,7 @@
 
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 import { sql } from 'drizzle-orm';
-import { check, integer, pgTable, text } from 'drizzle-orm/pg-core';
+import { check, integer, numeric, pgTable, text } from 'drizzle-orm/pg-core';
 import { priceVersions } from './priceVersions';
 
 export const PRICE_ROUTING_SCORE_SOURCES = [
@@ -38,6 +38,28 @@ export const BALANCED_ROUTING_SCORE_SOURCES = ['cost_model', 'reviewed_scorecard
 export type PriceRoutingScoreSource = (typeof PRICE_ROUTING_SCORE_SOURCES)[number];
 export type MeasuredRoutingScoreSource = (typeof MEASURED_ROUTING_SCORE_SOURCES)[number];
 export type BalancedRoutingScoreSource = (typeof BALANCED_ROUTING_SCORE_SOURCES)[number];
+
+/**
+ * Commercial funding buckets are deliberately provider-agnostic. Operators
+ * classify each exact deployment from observed account terms; routing never
+ * guesses from a provider/model name or from a hand-maintained allow-list.
+ */
+export const INFERENCE_FUNDING_CLASSES = [
+  'free_entitlement',
+  'discounted_payg',
+  'promotional_credit',
+  'standard_payg',
+] as const;
+
+export const INFERENCE_FUNDING_STATES = [
+  'available',
+  'exhausted',
+  'rate_limited',
+  'unknown',
+] as const;
+
+export type InferenceFundingClass = (typeof INFERENCE_FUNDING_CLASSES)[number];
+export type InferenceFundingState = (typeof INFERENCE_FUNDING_STATES)[number];
 
 export const inferenceDeploymentRoutingScores = pgTable(
   'inference_deployment_routing_scores',
@@ -66,6 +88,14 @@ export const inferenceDeploymentRoutingScores = pgTable(
     balancedEvidenceRef: text().notNull(),
     balancedFormulaRef: text().notNull(),
     balancedValidUntil: timestamptz().notNull(),
+    fundingClass: text({ enum: INFERENCE_FUNDING_CLASSES }).notNull(),
+    fundingState: text({ enum: INFERENCE_FUNDING_STATES }).notNull(),
+    fundingEvidenceRef: text().notNull(),
+    /** Optional provider-reported quota remaining, kept exact and unit-labelled. */
+    fundingRemaining: numeric({ precision: 30, scale: 12 }),
+    fundingRemainingUnit: text(),
+    fundingObservedAt: timestamptz(),
+    fundingValidUntil: timestamptz(),
     reason: text().notNull(),
     changedByUserId: text().notNull(),
     changedAt: timestamptz().notNull(),
@@ -107,6 +137,24 @@ export const inferenceDeploymentRoutingScores = pgTable(
         and ${t.throughputMeasurementWindowEnd} >= ${t.throughputMeasurementWindowStart}
         and ${t.throughputValidUntil} >= ${t.throughputMeasurementWindowEnd}`
     ),
+    check(
+      'inference_deployment_routing_scores_funding_class_check',
+      sql`${t.fundingClass} in (${sql.raw(inList(INFERENCE_FUNDING_CLASSES))})`
+    ),
+    check(
+      'inference_deployment_routing_scores_funding_state_check',
+      sql`${t.fundingState} in (${sql.raw(inList(INFERENCE_FUNDING_STATES))})`
+    ),
+    check(
+      'inference_deployment_routing_scores_funding_evidence_check',
+      sql`(${t.fundingRemaining} is null) = (${t.fundingRemainingUnit} is null)
+        and length(btrim(${t.fundingEvidenceRef})) between 1 and 500
+        and (${t.fundingRemaining} is null or ${t.fundingRemaining} >= 0)
+        and (${t.fundingRemainingUnit} is null or length(btrim(${t.fundingRemainingUnit})) between 1 and 64)
+        and (${t.fundingObservedAt} is null) = (${t.fundingValidUntil} is null)
+        and (${t.fundingValidUntil} is null or ${t.fundingValidUntil} > ${t.fundingObservedAt})
+        and (${t.fundingClass} in ('discounted_payg', 'standard_payg') or (${t.fundingObservedAt} is not null and ${t.fundingValidUntil} is not null))`
+    ),
   ]
 );
 
@@ -139,6 +187,13 @@ export const inferenceDeploymentRoutingScoreEvents = pgTable(
     balancedEvidenceRef: text().notNull(),
     balancedFormulaRef: text().notNull(),
     balancedValidUntil: timestamptz().notNull(),
+    fundingClass: text({ enum: INFERENCE_FUNDING_CLASSES }).notNull(),
+    fundingState: text({ enum: INFERENCE_FUNDING_STATES }).notNull(),
+    fundingEvidenceRef: text().notNull(),
+    fundingRemaining: numeric({ precision: 30, scale: 12 }),
+    fundingRemainingUnit: text(),
+    fundingObservedAt: timestamptz(),
+    fundingValidUntil: timestamptz(),
     reason: text().notNull(),
     changedByUserId: text().notNull(),
     createdAt: createdAt(),
@@ -177,6 +232,24 @@ export const inferenceDeploymentRoutingScoreEvents = pgTable(
         and ${t.latencyValidUntil} >= ${t.latencyMeasurementWindowEnd}
         and ${t.throughputMeasurementWindowEnd} >= ${t.throughputMeasurementWindowStart}
         and ${t.throughputValidUntil} >= ${t.throughputMeasurementWindowEnd}`
+    ),
+    check(
+      'inference_deployment_routing_score_events_funding_class_check',
+      sql`${t.fundingClass} in (${sql.raw(inList(INFERENCE_FUNDING_CLASSES))})`
+    ),
+    check(
+      'inference_deployment_routing_score_events_funding_state_check',
+      sql`${t.fundingState} in (${sql.raw(inList(INFERENCE_FUNDING_STATES))})`
+    ),
+    check(
+      'inference_deployment_routing_score_events_funding_evidence_check',
+      sql`(${t.fundingRemaining} is null) = (${t.fundingRemainingUnit} is null)
+        and length(btrim(${t.fundingEvidenceRef})) between 1 and 500
+        and (${t.fundingRemaining} is null or ${t.fundingRemaining} >= 0)
+        and (${t.fundingRemainingUnit} is null or length(btrim(${t.fundingRemainingUnit})) between 1 and 64)
+        and (${t.fundingObservedAt} is null) = (${t.fundingValidUntil} is null)
+        and (${t.fundingValidUntil} is null or ${t.fundingValidUntil} > ${t.fundingObservedAt})
+        and (${t.fundingClass} in ('discounted_payg', 'standard_payg') or (${t.fundingObservedAt} is not null and ${t.fundingValidUntil} is not null))`
     ),
   ]
 );

@@ -343,7 +343,7 @@ exact deployment set the stage would authorize:
   the edge still quotes the complete request maximum at each priority. A
   higher-score over-cap route must lose to an affordable same-priority route;
   an all-over-cap set must return 403 with no reservation and no Kaana call. With
-  omitted output, prove that the first priority's score/ID winner fixes the
+  omitted output, prove that the first priority's funding/score/ID winner fixes the
   implicit ceiling before lower priorities are capacity-checked.
 - **A covering hold.** The reservation quote includes `requests: 1` in every
   operation and every completion partition, uses the price row's exact
