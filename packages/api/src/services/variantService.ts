@@ -8,7 +8,6 @@ import { logger } from '../utils/logger';
 import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
 import { execSync, spawn } from 'child_process';
 import type { VariantConfig } from '../types/variant.types';
 import type {
@@ -57,8 +56,20 @@ type VideoProbeMetadata = {
   audioCodec?: string;
 };
 
-// Get FFmpeg and FFprobe paths - use static binaries if available, otherwise fallback to system
+// Get FFmpeg and FFprobe paths from the image first, then optional bundled binaries.
 function getFfmpegPath(): string {
+  try {
+    const resolved = execSync('which ffmpeg', { encoding: 'utf8' }).trim();
+    if (resolved) {
+      logger.info('[VariantService] Using system ffmpeg', { binaryPath: resolved });
+      return resolved;
+    }
+  } catch (error) {
+    logger.debug('[VariantService] System ffmpeg is unavailable', {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   try {
     // ffmpeg-static exports the path as a string directly
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -90,22 +101,10 @@ function getFfmpegPath(): string {
     } else {
       logger.warn('[VariantService] ffmpeg-static did not return a string', { type: typeof ffmpegStatic, value: ffmpegStatic });
     }
-  } catch (e) {
-    const error = e as Error;
-    logger.error('[VariantService] Error loading ffmpeg-static', { message: error.message, stack: error.stack });
-  }
-
-  // Fallback to system ffmpeg - resolve via PATH so callers that check
-  // fs.existsSync() get an absolute path (arm64 Linux has no ffmpeg-static binary,
-  // but the Docker image installs system ffmpeg at /usr/bin/ffmpeg).
-  try {
-    const resolved = execSync('which ffmpeg', { encoding: 'utf8' }).trim();
-    if (resolved) {
-      logger.info('[VariantService] Using system ffmpeg', { binaryPath: resolved });
-      return resolved;
-    }
-  } catch {
-    // `which` exits non-zero when ffmpeg is not on PATH
+  } catch (error) {
+    logger.debug('[VariantService] ffmpeg-static is unavailable', {
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 
   logger.warn('[VariantService] System ffmpeg not found in PATH - video processing may fail. Install with: apk add ffmpeg (or apt-get install ffmpeg)');
@@ -114,6 +113,18 @@ function getFfmpegPath(): string {
 }
 
 function getFfprobePath(): string {
+  try {
+    const resolved = execSync('which ffprobe', { encoding: 'utf8' }).trim();
+    if (resolved) {
+      logger.info('[VariantService] Using system ffprobe', { binaryPath: resolved });
+      return resolved;
+    }
+  } catch (error) {
+    logger.debug('[VariantService] System ffprobe is unavailable', {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   try {
     // ffprobe-static exports an object with a path property
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -145,33 +156,15 @@ function getFfprobePath(): string {
           }
         } else {
           logger.warn('[VariantService] ffprobe-static path does not exist', { binaryPath });
-          // Check if this is an unsupported architecture issue
-          const arch = os.arch();
-          const platform = os.platform();
-          if (platform === 'linux' && arch === 'arm64') {
-            logger.warn('[VariantService] ffprobe-static does not provide ARM64 Linux binaries', { arch, platform });
-          }
         }
       } else {
         logger.warn('[VariantService] ffprobe-static did not provide a path');
       }
     }
-  } catch (e) {
-    const error = e as Error;
-    logger.error('[VariantService] Error loading ffprobe-static', { message: error.message, stack: error.stack });
-  }
-  
-  // Fallback to system ffprobe - resolve via PATH so callers that check
-  // fs.existsSync() get an absolute path (arm64 Linux has no ffprobe-static binary,
-  // but the Docker image installs system ffprobe at /usr/bin/ffprobe).
-  try {
-    const resolved = execSync('which ffprobe', { encoding: 'utf8' }).trim();
-    if (resolved) {
-      logger.info('[VariantService] Using system ffprobe', { binaryPath: resolved });
-      return resolved;
-    }
-  } catch {
-    // `which` exits non-zero when ffprobe is not on PATH
+  } catch (error) {
+    logger.debug('[VariantService] ffprobe-static is unavailable', {
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 
   logger.warn('[VariantService] System ffprobe not found in PATH - video metadata extraction may fail. Install with: apk add ffmpeg (or apt-get install ffmpeg)');
