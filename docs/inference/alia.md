@@ -273,7 +273,9 @@ and appends the `rotated` and `created` audit events. An ambiguous set still
 fails closed; the workflow never accepts a credential ID or name selector. An
 apply first replaces the ephemeral envelope key with a versioned recovery
 package bound to the exact application, credential, name, environment and scope
-set. It then installs and authenticates the secret/key pair, deletes that package
+set. A separate SecureString binds the exact ECS task ARN to the workflow run
+and attempt before the task is awaited; recovery never searches or orders an ECS
+task list. It then installs and authenticates the secret/key pair, deletes that package
 and the ephemeral task definition, and forces the exact `alia` ECS service to a
 stable, completed rollout. If either destination write or authentication fails,
 the package is deliberately retained and the service is not rolled out. A retry

@@ -148,8 +148,8 @@ assert.doesNotMatch(
 );
 assert.equal(
 	provision.match(/put-secure-parameter\.sh/g)?.length,
-	3,
-	"the envelope key and both recovery-package write paths must use the stdin-only SSM writer",
+	4,
+	"the envelope key, task binding and both recovery-package paths must use the stdin-only SSM writer",
 );
 assert.equal(
 	handoffScript.match(/put-secure-parameter\.sh/g)?.length,
@@ -160,7 +160,9 @@ assert.match(provision, /stale_temp_parameter recovery requires dry_run=false/);
 assert.match(provision, /schemaVersion:1/);
 assert.match(provision, /preserve_temp_parameter="true"/);
 assert.match(provision, /handoff-service-credential-pair\.sh/);
-assert.match(provision, /aws ecs list-tasks/);
+assert.doesNotMatch(provision, /aws ecs list-tasks|taskArns\[-1\]|--desired-status/);
+assert.match(provision, /binding_parameter="\$temp_parameter-binding"/);
+assert.match(provision, /\.runAttempt == \$run_attempt/);
 assert.match(
 	provision,
 	/--started-by "gh-svc-cred-\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}"/,
