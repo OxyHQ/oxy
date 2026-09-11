@@ -597,7 +597,7 @@ describe('routing-score authoring', () => {
         from inference_deployment_routing_scores
         where deployment_id = ${deployment.internalRouteId}
       `)
-    ).rejects.toMatchObject({ code: '23502' });
+    ).rejects.toMatchObject({ cause: { code: '23502' } });
   });
 
   it('replaces all four scores by exact Kaana deployment identity', async () => {
