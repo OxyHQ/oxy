@@ -124,7 +124,7 @@ import {
   startTransparencyCheckpointJobs,
   stopTransparencyCheckpointJobs,
 } from './queue/transparencyCheckpoint.queue';
-import { startAssetVariantJobs, stopAssetVariantJobs } from './queue/assetVariants.queue';
+import { startAssetVariantProducer, stopAssetVariantProducer } from './queue/assetVariants.queue';
 import {
   startConductRiskExpiryJobs,
   stopConductRiskExpiryJobs,
@@ -510,7 +510,7 @@ async function gracefulShutdown(signal: string) {
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
   await stopTransparencyCheckpointJobs();
-  await stopAssetVariantJobs();
+  await stopAssetVariantProducer();
   await stopConductRiskExpiryJobs();
   await stopSubscriptionExpiryJobs();
   await stopSmtpInbound();
@@ -1345,11 +1345,10 @@ export async function bootstrap(
   // Never throws; a failed publish retries on the next tick.
   await startTransparencyCheckpointJobs();
 
-  // Drain asset variant generation (sharp / ffmpeg) off the upload path. The
-  // worker's concurrency is deliberately small — this is the CPU- and
-  // memory-heaviest work the process does, and running it unbounded is what
-  // starved the JS thread until the ELB health check timed out.
-  await startAssetVariantJobs();
+  // The HTTP fleet only produces durable jobs. sharp/ffmpeg is consumed by the
+  // standalone asset-variant worker, so media load cannot starve HTTP health
+  // checks or multiply with API replica count.
+  await startAssetVariantProducer();
 
   // Let active moderation consequences lapse on schedule. The ledger row
   // stays permanently; only the active risk decays, so a minor error does

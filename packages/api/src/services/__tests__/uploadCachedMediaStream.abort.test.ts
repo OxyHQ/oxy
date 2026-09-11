@@ -48,8 +48,8 @@ jest.mock('../variantService', () => ({
 }));
 
 import {
-  startAssetVariantJobs,
-  stopAssetVariantJobs,
+  startAssetVariantProducer,
+  stopAssetVariantProducer,
 } from '../../queue/assetVariants.queue';
 
 /**
@@ -155,15 +155,15 @@ afterAll(async () => {
 beforeEach(async () => {
   // The queue keeps a module-level pending set; without a stop/start an item
   // enqueued by the previous test drains into this one's spy.
-  await stopAssetVariantJobs();
-  await startAssetVariantJobs();
+  await stopAssetVariantProducer();
+  await startAssetVariantProducer();
   fileCache.clear();
   mockGenerateVariants.mockReset();
   mockGenerateVariants.mockResolvedValue(undefined);
 });
 
 afterAll(async () => {
-  await stopAssetVariantJobs();
+  await stopAssetVariantProducer();
 });
 
 describe('uploadCachedMediaStream — abort cleanup', () => {
