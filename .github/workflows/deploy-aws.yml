@@ -266,7 +266,6 @@ jobs:
             --cluster "$CLUSTER" \
             --service "$WORKER_SERVICE" \
             --task-definition "$new_task_definition" \
-            --desired-count 1 \
             --deployment-configuration 'deploymentCircuitBreaker={enable=true,rollback=true},minimumHealthyPercent=100,maximumPercent=200' \
             >/dev/null
 
@@ -276,8 +275,8 @@ jobs:
             if jq -e --arg task "$new_task_definition" '
               .services[0] as $service
               | $service.taskDefinition == $task
-                and $service.desiredCount == 1
-                and $service.runningCount == 1
+                and $service.desiredCount > 0
+                and $service.runningCount == $service.desiredCount
                 and $service.pendingCount == 0
                 and ($service.deployments | length) == 1
                 and $service.deployments[0].status == "PRIMARY"
