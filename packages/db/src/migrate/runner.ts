@@ -259,7 +259,7 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`
       throw new Error(plan.blocked);
     }
 
-    if (plan.deferred.length > 0 || options.bridgeThroughTag) {
+    if (plan.deferred.length > 0) {
       options.logger.info(
         `Leaving ${plan.deferred.length} migration(s) for a later phase (phase=${options.run}): ${plan.deferred.map((entry) => entry.tag).join(', ')}`
       );
@@ -293,7 +293,7 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`
     // it stops; a phase applying everything pending uses the real one, so the
     // common path is byte for byte what it always was.
     let migrationsFolder = options.migrationsFolder;
-    if (plan.deferred.length > 0) {
+    if (plan.deferred.length > 0 || options.bridgeThroughTag) {
       const lastAppliedTag = plan.apply[plan.apply.length - 1].tag;
       const count = entries.findIndex((entry) => entry.tag === lastAppliedTag) + 1;
       prefixFolder = materializeJournalPrefix(entries, count, options.migrationsFolder);
