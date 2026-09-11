@@ -366,6 +366,7 @@ async function insertDeployment(
     balancedValidUntil: new Date(now + 3_600_000),
     fundingClass: options.fundingClass ?? 'standard_payg',
     fundingState: options.fundingState ?? 'available',
+    fundingEvidenceRef: `funding-score/${internalRouteId}`,
     ...(options.fundingRemaining === undefined
       ? {}
       : { fundingRemaining: options.fundingRemaining, fundingRemainingUnit: 'requests' }),
