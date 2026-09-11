@@ -89,6 +89,9 @@ export interface RequiredEnvVars {
   // Exact primary key of the Inbox product routing profile. Empty/unset keeps
   // every Inbox point-inference operation fail-closed.
   INBOX_INFERENCE_ROUTING_PROFILE_ID?: string;
+  // Background card extraction is opt-in independently of interactive Inbox
+  // inference. Unset is disabled while the Inbox route is not production-ready.
+  CARD_EXTRACTION_ENABLED?: string;
   //  - whether this deployment may charge customers, as `<reason>:<YYYY-MM-DD>`.
   //    A bare `true` is REFUSED. Unset means SHADOW METERING: every request is
   //    priced and the amount recorded, and no reservation, receipt or balance

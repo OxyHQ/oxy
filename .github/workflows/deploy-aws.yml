@@ -184,6 +184,27 @@ jobs:
           echo "digest=$DIGEST" >>"$GITHUB_OUTPUT"
           echo "Built $COMMIT_TAG -> $DIGEST"
 
+      - name: Detect the one-time asset queue cutover
+        id: asset_queue_cutover
+        run: |
+          set -euo pipefail
+          task_definition=$(aws ecs describe-services \
+            --cluster "$CLUSTER" \
+            --services oxy-asset-variant-worker \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          has_queue_binding=$(aws ecs describe-task-definition \
+            --task-definition "$task_definition" \
+            --query 'taskDefinition.containerDefinitions[?name==`oxy-asset-variant-worker`].secrets[?name==`QUEUE_REDIS_URL`] | length(@)' \
+            --output text)
+          if [ "$has_queue_binding" = "0" ]; then
+            echo "required=true" >>"$GITHUB_OUTPUT"
+            echo "First dedicated asset queue rollout: API will move before the worker."
+          else
+            echo "required=false" >>"$GITHUB_OUTPUT"
+            echo "Dedicated asset queue already active: retaining consumer-first rollout."
+          fi
+
       # Whether this release contains a migration that must run AFTER the rollout.
       #
       # Answerable from the repository alone, which is the only reason it can be
@@ -222,9 +243,16 @@ jobs:
             }]')
             echo "No post-rollout migrations in this release."
           fi
+          if [ "${{ steps.asset_queue_cutover.outputs.required }}" = "true" ]; then
+            tasks=$(jq -c '. + [{
+              label: "Legacy asset queue drain gate",
+              command: ["node", "packages/api/dist/asset-variant-legacy-drain-gate.js"]
+            }]' <<<"$tasks")
+          fi
           echo "tasks=$tasks" >>"$GITHUB_OUTPUT"
 
       - name: Deploy asset-variant worker before the API
+        if: steps.asset_queue_cutover.outputs.required != 'true'
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           WORKER_SERVICE: oxy-asset-variant-worker
@@ -253,9 +281,20 @@ jobs:
             exit 1
           fi
 
-          rendered_task_definition=$(jq --arg name "$WORKER_CONTAINER" --arg image "$IMAGE_URI" '
+          rendered_task_definition=$(jq \
+            --arg name "$WORKER_CONTAINER" \
+            --arg image "$IMAGE_URI" \
+            --arg queue_redis_url "arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL" '
             del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
-            | .containerDefinitions |= map(if .name == $name then .image = $image else . end)
+            | .containerDefinitions |= map(
+                if .name == $name then
+                  .image = $image
+                  | .secrets = ((.secrets // [] | map(select(.name != "QUEUE_REDIS_URL"))) + [{
+                      name: "QUEUE_REDIS_URL",
+                      valueFrom: $queue_redis_url
+                    }])
+                else . end
+              )
           ' <<<"$task_definition")
           new_task_definition=$(aws ecs register-task-definition \
             --cli-input-json "$rendered_task_definition" \
@@ -344,7 +383,7 @@ jobs:
           # provisioned directly in SSM; it is intentionally absent from every
           # GitHub-secret sync entry and allow-list above.
           TASK_SECRET_OVERRIDES_JSON: >-
-            {"CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY","INBOX_APPLICATION_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_KEY","INBOX_APPLICATION_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_SECRET"}
+            {"CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY","INBOX_APPLICATION_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_KEY","INBOX_APPLICATION_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_SECRET","QUEUE_REDIS_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL"}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then
@@ -353,3 +392,9 @@ jobs:
           fi
 
           bash .github/scripts/deploy-ecs-image.sh
+
+      - name: Deploy asset-variant worker after the drained cutover
+        if: steps.asset_queue_cutover.outputs.required == 'true'
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+        run: bash .github/scripts/deploy-asset-variant-worker.sh

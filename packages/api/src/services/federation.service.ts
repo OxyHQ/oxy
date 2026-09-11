@@ -23,6 +23,11 @@ import { composeDisplayName } from '../utils/displayName';
 import { cleanDisplayName } from '../utils/displayNameSanitize';
 import { sanitizePlainText, decodeHtmlEntities } from '../utils/sanitize';
 import { bridgeVouchesForNetwork } from '../config/federationBridgeTrust';
+import {
+  acquireAvatarOriginLease,
+  clearAvatarOriginFailures,
+  recordAvatarOriginRateLimit,
+} from './federation/avatarFetchBackpressure';
 
 /** The `users.kind` closed value set, derived from the column itself. */
 type AccountKind = (typeof ACCOUNT_KINDS)[number];
@@ -1002,6 +1007,34 @@ class FederationService {
     ownerUserId = FEDERATION_SYSTEM_USER,
   ): Promise<{ fileId: string | null; etag?: string; lastModified?: string; notModified: boolean }> {
     try {
+      const originCooldownMs = await acquireAvatarOriginLease(avatarUrl);
+      if (originCooldownMs > 0) {
+        logger.info('Federated avatar fetch deferred by origin backpressure', {
+          origin: new URL(avatarUrl).origin,
+          retryAfterMs: originCooldownMs,
+        });
+        return { fileId: null, notModified: false };
+      }
+
+      return this.downloadAndStoreAvatarWithLease(
+        avatarUrl,
+        existingAvatarFileId,
+        conditional,
+        ownerUserId,
+      );
+    } catch (err) {
+      logger.warn(`Failed to download/store federated avatar: ${err}`);
+      return { fileId: null, notModified: false };
+    }
+  }
+
+  private async downloadAndStoreAvatarWithLease(
+    avatarUrl: string,
+    existingAvatarFileId?: string,
+    conditional?: { etag?: string; lastModified?: string },
+    ownerUserId = FEDERATION_SYSTEM_USER,
+  ): Promise<{ fileId: string | null; etag?: string; lastModified?: string; notModified: boolean }> {
+    try {
       const requestHeaders: Record<string, string> = { 'User-Agent': USER_AGENT };
       if (conditional?.etag) {
         requestHeaders['If-None-Match'] = conditional.etag;
@@ -1018,12 +1051,28 @@ class FederationService {
         return { fileId: null, notModified: false };
       }
 
+      const headerValue = (name: string): string | undefined => {
+        const value = res.headers[name];
+        return Array.isArray(value) ? value[0] : value || undefined;
+      };
+
+      if (res.status === 429) {
+        res.response.destroy();
+        const retryAfterMs = await recordAvatarOriginRateLimit(avatarUrl, headerValue('retry-after'));
+        logger.warn('Federated avatar origin rate limited the download', {
+          origin: new URL(avatarUrl).origin,
+          retryAfterMs,
+        });
+        return { fileId: null, notModified: false };
+      }
+
       // 304: the host confirms the remote bytes are unchanged. This only means
       // our local copy is usable if the referenced asset still exists in S3.
       // If the DB record points to a missing object, retry without validators
       // so the remote sends the body and we can repair the stored file id.
       if (res.status === 304) {
         res.response.destroy();
+        await clearAvatarOriginFailures(avatarUrl);
         if (await this.storedAvatarExists(existingAvatarFileId)) {
           return {
             fileId: null,
@@ -1035,7 +1084,12 @@ class FederationService {
 
         logger.warn(`Remote avatar returned 304 but stored file is missing for ${avatarUrl}; retrying full download`);
         if (conditional?.etag || conditional?.lastModified) {
-          return this.downloadAndStoreAvatar(avatarUrl, existingAvatarFileId, undefined, ownerUserId);
+          return this.downloadAndStoreAvatarWithLease(
+            avatarUrl,
+            existingAvatarFileId,
+            undefined,
+            ownerUserId,
+          );
         }
 
         return {
@@ -1052,10 +1106,8 @@ class FederationService {
         return { fileId: null, notModified: false };
       }
 
-      const headerValue = (name: string): string | undefined => {
-        const value = res.headers[name];
-        return Array.isArray(value) ? value[0] : value || undefined;
-      };
+      await clearAvatarOriginFailures(avatarUrl);
+
       const etag = headerValue('etag');
       const lastModified = headerValue('last-modified');
 
