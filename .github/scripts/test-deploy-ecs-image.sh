@@ -153,6 +153,10 @@ aws() {
       printf '%s\n' "$service_json"
       ;;
     "ecs describe-task-definition")
+      if [[ "$*" == *"arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7"* ]]; then
+        printf '%s\n' "{\"containerDefinitions\":[{\"name\":\"deploy-test\",\"image\":\"${DEPLOY_TEST_BRIDGE_IMAGE}\"}]}"
+        return 0
+      fi
       printf '%s\n' '{
         "family": "deploy-test",
         "networkMode": "awsvpc",
@@ -417,7 +421,8 @@ aws() {
       fi
       if jq -e '.containerOverrides[0].command | index("packages/api/dist/db/migrate.js") != null' \
         <<<"$overrides" >/dev/null; then
-        printf 'migration\n' >>"$DEPLOY_TEST_LOG"
+        jq -r '.containerOverrides[0].command | "migration:" + join(" ")' \
+          <<<"$overrides" >>"$DEPLOY_TEST_LOG"
       elif jq -e '.containerOverrides[0].command | index("packages/api/scripts/verify-inference-routing-readiness.ts") != null' \
         <<<"$overrides" >/dev/null; then
         printf 'readiness\n' >>"$DEPLOY_TEST_LOG"
@@ -481,6 +486,8 @@ run_release() {
   local run_task_failure_reason="${16:-$FARGATE_VCPU_QUOTA_REASON}"
   local one_shot_start_max_wait_secs="${17:-3}"
   local retry_service_task_definition="${18:-}"
+  local migration_bridge="${19:-false}"
+  local bridge_task_image="${20:-example.invalid/deploy-test@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}"
   local case_directory="$test_directory/$case_name"
   local output_file="$case_directory/output.log"
   local smoke_script="$case_directory/smoke.sh"
@@ -517,6 +524,8 @@ run_release() {
   export DEPLOY_TEST_RETRY_SERVICE_TASK_DEFINITION
   export DEPLOY_TEST_DEPLOYMENT_ID
   export DEPLOY_TEST_ROLLBACK_DEPLOYMENT_ID
+  DEPLOY_TEST_BRIDGE_IMAGE="$bridge_task_image"
+  export DEPLOY_TEST_BRIDGE_IMAGE
 
   # The generated smoke fixture expands DEPLOY_TEST_LOG when it runs; its exit
   # code is the entire interface deploy-ecs-image.sh reads, so each case picks
@@ -564,6 +573,13 @@ run_release() {
   if [[ "$inject_task_secret" == "true" ]]; then
     release_environment+=(
       TASK_SECRET_OVERRIDES_JSON='{"EXTRA_TASK_SECRET":"arn:aws:ssm:test:123456789012:parameter/oxy/sample-app/EXTRA_TASK_SECRET"}'
+    )
+  fi
+  if [[ "$migration_bridge" == "true" ]]; then
+    release_environment+=(
+      MIGRATION_BRIDGE_TASK_DEFINITION=arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7
+      MIGRATION_BRIDGE_IMAGE_URI=example.invalid/deploy-test@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      MIGRATION_BRIDGE_REQUIRED_TAGS=0076_loud_strong_guy,0077_narrow_homiio_reputation_scope
     )
   fi
 
@@ -710,17 +726,28 @@ fi
 grep -F 'no longer has the deployed task definition active' \
   "$test_directory/post-task-service-superseded/output.log" >/dev/null
 
-run_release pre-task-capacity-retry true true false 0 false 1 healthy 0 '' '' '' '' 1
+run_release pre-task-capacity-retry true true false 0 false 1 healthy 0 '' '' '' '' 1 '' '' 3 '' true
 if [[ "$(<"$test_directory/pre-task-capacity-retry/aws.log.run-task-count")" != "4" ]]; then
   echo "The pre-deploy migration and reconciliation did not use the expected bounded retry path." >&2
   exit 1
 fi
 grep -F 'waiting 1s before the next bounded retry' \
   "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
-grep -F 'Running Live-image post-migration catch-up with arn:aws:ecs:test:task-definition/deploy-test:1' \
+grep -F 'Running Attested historical post-migration bridge with arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7' \
   "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
 grep -F 'Running Migration with arn:aws:ecs:test:task-definition/deploy-test:2' \
   "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
+grep -F 'migration:node packages/api/dist/db/migrate.js --phase=pre --require-applied=0076_loud_strong_guy,0077_narrow_homiio_reputation_scope' \
+  "$test_directory/pre-task-capacity-retry/aws.log" >/dev/null
+
+run_release bridge-image-mismatch false true false 0 false 1 healthy 0 '' '' '' '' 0 '' '' 3 '' true \
+  example.invalid/deploy-test@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+grep -F 'does not contain the attested image' \
+  "$test_directory/bridge-image-mismatch/output.log" >/dev/null
+if [[ -f "$test_directory/bridge-image-mismatch/aws.log.run-task-count" ]]; then
+  echo "An unattested bridge image reached RunTask." >&2
+  exit 1
+fi
 
 # A hyphen in the parameter path is its own case because it is its own bug: the
 # bracket expression validating this name once matched every character EXCEPT a
@@ -944,7 +971,7 @@ diff -u \
 
 run_release migration-failure false true false 1
 printf '%s\n' \
-  migration \
+  'migration:node packages/api/dist/db/migrate.js --phase=pre' \
   tasklogs \
   >"$test_directory/migration-failure/expected.log"
 diff -u \

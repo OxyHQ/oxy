@@ -147,6 +147,29 @@ function readRun(argv: readonly string[]): MigrationRun {
   return value as MigrationRun;
 }
 
+/** Exact migration tags a release bridge must prove before candidate pre-DDL. */
+function readRequiredAppliedTags(argv: readonly string[]): string[] {
+  const flags = argv.filter((argument) => argument.startsWith('--require-applied='));
+  if (flags.length > 1) {
+    throw new ConfigurationError(
+      `--require-applied was given ${flags.length} times: ${flags.join(' ')}.`
+    );
+  }
+  if (flags.length === 0) return [];
+
+  const tags = flags[0].slice('--require-applied='.length).split(',');
+  if (
+    tags.length === 0 ||
+    tags.some((tag) => !/^[0-9]{4}_[a-z0-9_]+$/.test(tag)) ||
+    new Set(tags).size !== tags.length
+  ) {
+    throw new ConfigurationError(
+      '--require-applied must be a comma-separated list of unique migration tags.'
+    );
+  }
+  return tags;
+}
+
 /** A stable signed 64-bit advisory-lock key for `name`. */
 function advisoryLockKey(name: string): bigint {
   return createHash('sha256').update(name).digest().readBigInt64BE(0);
@@ -200,6 +223,7 @@ async function main(): Promise<void> {
   // understands `--phase` without handing it a database
   // (`run-postgres-migrations.yml`, "Assert the image can actually migrate").
   const run = readRun(process.argv.slice(2));
+  const requiredAppliedTags = readRequiredAppliedTags(process.argv.slice(2));
 
   const url = process.env.DATABASE_URL;
   if (!url) {
@@ -224,6 +248,7 @@ async function main(): Promise<void> {
       run,
       // expectedDatabase intentionally omitted — see this file's header.
       dryRun: isDryRun(),
+      requiredAppliedTags,
       logger,
     });
   } finally {

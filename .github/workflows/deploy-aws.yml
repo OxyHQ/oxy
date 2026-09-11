@@ -240,6 +240,15 @@ jobs:
           # "skip when this push changed no migration file" would have skipped the
           # deploy AFTER the one that stranded 0013 and left production broken.
           RUN_MIGRATIONS: "true"
+          # One-release bridge for the post migrations in the journal at
+          # ea8c7a6532035595f8f91c26085b716790804ab7. ECS revision 396 pins the
+          # image built by that commit, whose journal ends at 0077 before the
+          # candidate-only pre migration 0078. The deploy script reads the task
+          # definition back and rejects any image mismatch, then the candidate
+          # proves both SQL hashes are in the ledger before planning its pre run.
+          MIGRATION_BRIDGE_TASK_DEFINITION: arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:396
+          MIGRATION_BRIDGE_IMAGE_URI: 237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:e906e2fc232a052e59c9af2385e25c36b0e984191ec66929e9c1e9289ab8c62c
+          MIGRATION_BRIDGE_REQUIRED_TAGS: 0076_loud_strong_guy,0077_narrow_homiio_reputation_scope
           POST_DEPLOY_TASKS_JSON: ${{ steps.post_deploy_tasks.outputs.tasks }}
           # Plain operational configuration, never provider credentials. The
           # Kaana hop is fully named here so an image deploy cannot silently

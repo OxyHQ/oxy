@@ -35,6 +35,8 @@
  *      but the failure would arrive as a red deploy nobody can place; with the
  *      WRONG phase it would apply destructive migrations against the image still
  *      serving, which is worse than the outage it replaced.
+ *      An explicitly configured historical bridge must run post first, attest
+ *      its immutable image and make the candidate verify named ledger identities.
  *   4. `deploy-aws.yml` decides whether it needs a post-rollout migration task by
  *      grepping for the pattern `@oxy.so/db`'s `migrate/phases.ts` exports. That grep
  *      is only sound because of (1); this pins the two together so the workflow cannot
@@ -143,7 +145,7 @@ for (const problem of phaseProblems) fail(problem);
 // ── 2/3. The deploy still applies migrations, on the right side ────────────
 const deployWorkflow = read(DEPLOY_WORKFLOW_PATH);
 const deployScript = read(DEPLOY_SCRIPT_PATH);
-const LIVE_POST_PHASE_COMMAND = '["node","packages/api/dist/db/migrate.js","--phase=post"]';
+const HISTORICAL_POST_PHASE_COMMAND = '["node","packages/api/dist/db/migrate.js","--phase=post"]';
 
 if (!/^\s+RUN_MIGRATIONS:\s*["']true["']\s*$/m.test(deployWorkflow)) {
   fail(
@@ -163,15 +165,29 @@ if (!deployScript.includes(PRE_PHASE_COMMAND)) {
   );
 }
 
-const livePostOffset = deployScript.indexOf(LIVE_POST_PHASE_COMMAND);
+const historicalPostOffset = deployScript.indexOf(HISTORICAL_POST_PHASE_COMMAND);
 const candidatePreOffset = deployScript.indexOf(PRE_PHASE_COMMAND);
-if (livePostOffset === -1 || livePostOffset > candidatePreOffset) {
+if (historicalPostOffset === -1 || historicalPostOffset > candidatePreOffset) {
   fail(
-    `${DEPLOY_SCRIPT_PATH} no longer runs the live image's ${LIVE_POST_PHASE_COMMAND} before ` +
+    `${DEPLOY_SCRIPT_PATH} no longer runs the attested historical image's ${HISTORICAL_POST_PHASE_COMMAND} before ` +
       `the candidate image's ${PRE_PHASE_COMMAND}. A pending post migration then blocks every ` +
-      `new pre migration behind it in the high-water-mark ledger. Run post from the exact live ` +
-      `task definition first; never bridge the boundary with phase=all.`,
+      `new pre migration behind it in the high-water-mark ledger. Use an immutable historical ` +
+      `task definition and verify the required ledger identities; never bridge with phase=all.`,
   );
+}
+
+const bridgeInputNames = [
+  "MIGRATION_BRIDGE_TASK_DEFINITION",
+  "MIGRATION_BRIDGE_IMAGE_URI",
+  "MIGRATION_BRIDGE_REQUIRED_TAGS",
+];
+const configuredBridgeInputs = bridgeInputNames.filter((name) =>
+  new RegExp(`^\\s+${name}:\\s*\\S+`, "m").test(deployWorkflow)
+);
+if (configuredBridgeInputs.length > 0 && configuredBridgeInputs.length !== bridgeInputNames.length) {
+  for (const name of bridgeInputNames.filter((item) => !configuredBridgeInputs.includes(item))) {
+    fail(`${DEPLOY_WORKFLOW_PATH} configures an incomplete bridge without ${name}.`);
+  }
 }
 
 // ── 4. The workflow's post-phase grep matches the real marker syntax ───────
