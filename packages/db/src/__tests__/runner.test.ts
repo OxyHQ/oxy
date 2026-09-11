@@ -175,6 +175,42 @@ describe('runMigrations — filesystem preconditions run before any connection i
   // rather than on the message asserted below — the two are not confusable.
   const unreachableUrl = 'postgres://unreachable.invalid/db';
 
+  it('refuses a bridge cutoff unless post is immediately followed by pre', async () => {
+    const folder = migrationsFixtureTracked([
+      { tag: '0000_a', when: 1000, sql: '-- oxy:deploy-phase=post\nselect 1;\n' },
+      { tag: '0001_b', when: 2000, sql: '-- oxy:deploy-phase=post\nselect 2;\n' },
+    ]);
+    await expect(
+      runMigrations({
+        databaseUrl: unreachableUrl,
+        migrationsFolder: folder,
+        extensions: [],
+        run: 'post',
+        bridgeThroughTag: '0000_a',
+        dryRun: false,
+        logger: noopLogger,
+      })
+    ).rejects.toThrow(/must be immediately followed by a pre migration/);
+  });
+
+  it('refuses a bridge cutoff on a pre migration', async () => {
+    const folder = migrationsFixtureTracked([
+      { tag: '0000_a', when: 1000, sql: '-- oxy:deploy-phase=pre\nselect 1;\n' },
+      { tag: '0001_b', when: 2000, sql: '-- oxy:deploy-phase=pre\nselect 2;\n' },
+    ]);
+    await expect(
+      runMigrations({
+        databaseUrl: unreachableUrl,
+        migrationsFolder: folder,
+        extensions: [],
+        run: 'post',
+        bridgeThroughTag: '0000_a',
+        dryRun: false,
+        logger: noopLogger,
+      })
+    ).rejects.toThrow(/is not a post migration/);
+  });
+
   it('refuses a migrations folder whose journal cannot be read', async () => {
     await expect(
       runMigrations({

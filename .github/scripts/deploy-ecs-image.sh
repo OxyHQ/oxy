@@ -881,17 +881,20 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
     # post-task outcome.
     rollback_task_definition="$MIGRATION_BRIDGE_TASK_DEFINITION"
 
-    # The historical journal ends after the stranded post entries and before
-    # the candidate's next pre entry. Candidate verification below then proves
-    # every named SQL identity reached the ledger; exit 0/no-op from this
-    # historical migrator is not accepted as evidence.
+    # Run the candidate migrator because it carries any forward data
+    # normalization needed by the stranded SQL. `--bridge-through` materializes
+    # a journal prefix ending at the attested bridge boundary, so candidate-only
+    # pre entries remain invisible to drizzle. Candidate verification below then
+    # proves every named SQL identity reached the ledger; exit 0/no-op is not
+    # accepted as evidence.
     if ! run_one_shot_command \
-      "Attested historical post-migration bridge" \
-      '["node","packages/api/dist/db/migrate.js","--phase=post"]' \
+      "Bounded candidate post-migration bridge" \
+      "$(jq -cn --arg through "${MIGRATION_BRIDGE_REQUIRED_TAGS##*,}" \
+        '["node","packages/api/dist/db/migrate.js","--phase=post","--bridge-through=" + $through]')" \
       true \
       "$MIGRATION_BRIDGE_TASK_DEFINITION" \
-      "$MIGRATION_BRIDGE_TASK_DEFINITION"; then
-      echo "::error::The attested historical image could not finish its post-deploy migrations; the candidate image was not migrated or deployed."
+      "$new_task_definition"; then
+      echo "::error::The bounded candidate could not finish the attested post-deploy prefix; the candidate image was not deployed."
       exit 1
     fi
   fi

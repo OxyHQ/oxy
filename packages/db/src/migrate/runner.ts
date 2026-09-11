@@ -121,6 +121,8 @@ export interface RunMigrationsOptions {
   readonly dryRun: boolean;
   /** Exact migration identities that must already be applied before planning. */
   readonly requiredAppliedTags?: readonly string[];
+  /** Final post entry an explicit cross-release bridge may apply. */
+  readonly bridgeThroughTag?: string;
   readonly logger: {
     info(message: string): void;
     debug(message: string): void;
@@ -188,9 +190,9 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<void
   // Pure filesystem reads, no connection opened yet — the cheapest possible
   // failure, and it must be reported before anything below could be mistaken
   // for a database problem instead of a migrations-folder one.
-  const entries = readJournal(options.migrationsFolder);
+  const fullEntries = readJournal(options.migrationsFolder);
   const { phases, problems } = readMigrationPhases(
-    entries.map((entry) => entry.tag),
+    fullEntries.map((entry) => entry.tag),
     options.migrationsFolder
   );
   if (problems.length > 0) {
@@ -198,6 +200,27 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<void
       `${problems.length} migration(s) do not declare which side of a deploy they belong on:
 ${problems.map((problem) => `  - ${problem}`).join('\n')}`
     );
+  }
+
+  let entries = fullEntries;
+  if (options.bridgeThroughTag) {
+    if (options.run !== 'post') {
+      throw new Error('bridgeThroughTag is only valid for a post migration run.');
+    }
+    const cutoff = fullEntries.findIndex((entry) => entry.tag === options.bridgeThroughTag);
+    if (cutoff === -1) {
+      throw new Error(`Bridge cutoff ${options.bridgeThroughTag} is not present in the journal.`);
+    }
+    if (phases.get(options.bridgeThroughTag) !== 'post') {
+      throw new Error(`Bridge cutoff ${options.bridgeThroughTag} is not a post migration.`);
+    }
+    const next = fullEntries[cutoff + 1];
+    if (!next || phases.get(next.tag) !== 'pre') {
+      throw new Error(
+        `Bridge cutoff ${options.bridgeThroughTag} must be immediately followed by a pre migration.`
+      );
+    }
+    entries = fullEntries.slice(0, cutoff + 1);
   }
 
   const client = postgres(options.databaseUrl, {
@@ -236,7 +259,7 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`
       throw new Error(plan.blocked);
     }
 
-    if (plan.deferred.length > 0) {
+    if (plan.deferred.length > 0 || options.bridgeThroughTag) {
       options.logger.info(
         `Leaving ${plan.deferred.length} migration(s) for a later phase (phase=${options.run}): ${plan.deferred.map((entry) => entry.tag).join(', ')}`
       );

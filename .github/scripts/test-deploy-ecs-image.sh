@@ -746,8 +746,10 @@ if [[ "$(<"$test_directory/pre-task-capacity-retry/aws.log.run-task-count")" != 
 fi
 grep -F 'waiting 1s before the next bounded retry' \
   "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
-grep -F 'Running Attested historical post-migration bridge with arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7' \
+grep -F 'Running Bounded candidate post-migration bridge with arn:aws:ecs:test:task-definition/deploy-test:2' \
   "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
+grep -F 'migration:node packages/api/dist/db/migrate.js --phase=post --bridge-through=0077_narrow_homiio_reputation_scope' \
+  "$test_directory/pre-task-capacity-retry/aws.log" >/dev/null
 grep -F 'Running Migration with arn:aws:ecs:test:task-definition/deploy-test:2' \
   "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
 grep -F 'migration:node packages/api/dist/db/migrate.js --phase=pre --require-applied=0076_loud_strong_guy,0077_narrow_homiio_reputation_scope' \
@@ -779,7 +781,7 @@ fi
 run_release ordered-migration-bridge true true false 0 false 1 healthy 0 '' '' '' '' 0 '' '' 3 '' true
 printf '%s\n' \
   'service:arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7:desired=1:surge=200' \
-  'migration:node packages/api/dist/db/migrate.js --phase=post' \
+  'migration:node packages/api/dist/db/migrate.js --phase=post --bridge-through=0077_narrow_homiio_reputation_scope' \
   'migration:node packages/api/dist/db/migrate.js --phase=pre --require-applied=0076_loud_strong_guy,0077_narrow_homiio_reputation_scope' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
   smoke \
@@ -794,7 +796,7 @@ diff -u \
 run_release bridge-post-failure false true false 1 false 1 healthy 0 '' '' '' '' 0 '' '' 3 '' true '' 1
 printf '%s\n' \
   'service:arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7:desired=1:surge=200' \
-  'migration:node packages/api/dist/db/migrate.js --phase=post' \
+  'migration:node packages/api/dist/db/migrate.js --phase=post --bridge-through=0077_narrow_homiio_reputation_scope' \
   tasklogs \
   >"$test_directory/bridge-post-failure/expected.log"
 diff -u \

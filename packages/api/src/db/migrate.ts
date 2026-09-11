@@ -170,6 +170,21 @@ function readRequiredAppliedTags(argv: readonly string[]): string[] {
   return tags;
 }
 
+/** Candidate-journal cutoff for an explicit cross-release post bridge. */
+function readBridgeThroughTag(argv: readonly string[], run: MigrationRun): string | undefined {
+  const flags = argv.filter((argument) => argument.startsWith('--bridge-through='));
+  if (flags.length > 1) {
+    throw new ConfigurationError(`--bridge-through was given ${flags.length} times.`);
+  }
+  if (flags.length === 0) return undefined;
+
+  const tag = flags[0].slice('--bridge-through='.length);
+  if (run !== 'post' || !/^[0-9]{4}_[a-z0-9_]+$/.test(tag)) {
+    throw new ConfigurationError('--bridge-through requires --phase=post and one migration tag.');
+  }
+  return tag;
+}
+
 /** A stable signed 64-bit advisory-lock key for `name`. */
 function advisoryLockKey(name: string): bigint {
   return createHash('sha256').update(name).digest().readBigInt64BE(0);
@@ -224,6 +239,7 @@ async function main(): Promise<void> {
   // (`run-postgres-migrations.yml`, "Assert the image can actually migrate").
   const run = readRun(process.argv.slice(2));
   const requiredAppliedTags = readRequiredAppliedTags(process.argv.slice(2));
+  const bridgeThroughTag = readBridgeThroughTag(process.argv.slice(2), run);
 
   const url = process.env.DATABASE_URL;
   if (!url) {
@@ -249,6 +265,7 @@ async function main(): Promise<void> {
       // expectedDatabase intentionally omitted — see this file's header.
       dryRun: isDryRun(),
       requiredAppliedTags,
+      bridgeThroughTag,
       logger,
     });
   } finally {

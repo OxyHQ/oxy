@@ -69,16 +69,19 @@ release applies its own `post` entries after rollout. If failed releases strand
 one of those entries and a later candidate has a `pre` entry behind it, the
 deployer may run an explicit historical bridge first. The deployer must roll
 that exact image out to the service and observe a healthy steady state before
-running any of its `post` SQL; a one-shot task alone does not make the older
+running any `post` SQL; a one-shot task alone does not make the older
 processes still serving traffic compatible with a destructive migration. All
 three bridge inputs
 are mandatory: an exact ECS task-definition revision, its immutable image
 digest, and the migration tags the candidate must verify. The deploy reads the
 task definition back and refuses an image mismatch. After the historical image
-is serving, it runs `--phase=post`, and the candidate proves every required tag against the
-ledger's timestamp and SQL hash before planning `--phase=pre`. A zero-exit/no-op
-bridge is therefore not evidence. The historical journal must end after the
-required post entries and before the blocking candidate pre entry. Remove the
+is serving, the candidate runs `--phase=post --bridge-through=<tag>` from a
+materialized journal prefix. This lets a forward fix normalize data without
+exposing the later candidate-only pre entries to drizzle. The candidate then
+proves every required tag against the ledger's timestamp and SQL hash before
+planning `--phase=pre`. A zero-exit/no-op bridge is therefore not evidence. The
+cutoff must be a post entry immediately followed by the blocking pre entry.
+Remove the
 one-release bridge inputs after a verified deployment. Never replace the two
 bounded runs with `--phase=all`: that would apply candidate-only destructive
 changes while the previous image still serves. A bridge rollout failure restores
