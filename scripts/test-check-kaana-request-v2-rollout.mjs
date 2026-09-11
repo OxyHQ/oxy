@@ -89,6 +89,22 @@ try {
   );
   verdict(missingTaskEnvironmentBlock, 1);
 
+  const commentOnlyExecutionSwitch = fixture();
+  roots.push(commentOnlyExecutionSwitch);
+  mutate(
+    commentOnlyExecutionSwitch,
+    '.github/workflows/deploy-aws.yml',
+    ',"INFERENCE_KAANA_EXECUTION":"disabled","OTEL_SERVICE_NAME"',
+    ',"OTEL_SERVICE_NAME"',
+  );
+  mutate(
+    commentOnlyExecutionSwitch,
+    '.github/workflows/deploy-aws.yml',
+    '"OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}\n          # Re-assert',
+    '"OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}\n          # "INFERENCE_KAANA_EXECUTION":"disabled"\n          # Re-assert',
+  );
+  verdict(commentOnlyExecutionSwitch, 1);
+
   const staleCanaryEvidence = fixture();
   roots.push(staleCanaryEvidence);
   mutate(
