@@ -54,6 +54,27 @@ for (const crashAfter of ["run-task", "prepare-commit", "package", "finalize"]) 
 
 assert.match(prepare, /status: rotateScopeMismatch \? "pending" : "active"/);
 assert.match(prepare, /reason: "abandoned_pending_handoff"/);
+function assertPendingDecisionHasNoDirectWrites(source) {
+	const start = source.indexOf("const pendingCredentials =");
+	const end = source.indexOf("const usableCredentials =", start);
+	assert.ok(start >= 0 && end > start);
+	const decision = source.slice(start, end);
+	const reconciliationCall = decision.indexOf("await reconcilePendingCredentials({");
+	assert.ok(reconciliationCall >= 0);
+	assert.doesNotMatch(
+		decision.slice(0, reconciliationCall),
+		/\.update\(|recordCredentialLifecycleEvent\(/,
+	);
+}
+assertPendingDecisionHasNoDirectWrites(prepare);
+assert.throws(() =>
+	assertPendingDecisionHasNoDirectWrites(
+		prepare.replace(
+			"await reconcilePendingCredentials({",
+			'await db.update(applicationCredentials);\n\t\tawait reconcilePendingCredentials({',
+		),
+	),
+);
 assert.ok(
 	pendingReconciliation.indexOf("if (dryRun) return") <
 		pendingReconciliation.indexOf("for (const credentialId"),
@@ -61,6 +82,25 @@ assert.ok(
 assert.doesNotMatch(prepare, /\.set\(\{ status: "deprecated"/);
 assert.match(finalize, /credential\.status !== "pending"/);
 assert.match(finalize, /refusing false idempotence/);
+function assertIdempotentFinalizeUsesCommittedState(source) {
+	const start = source.indexOf('if (credential.status === "active")');
+	const end = source.indexOf('if (credential.status !== "pending")', start);
+	assert.ok(start >= 0 && end > start);
+	const idempotent = source.slice(start, end);
+	assert.match(idempotent, /isValidFinalizedPredecessor/);
+	assert.match(idempotent, /applicationCredentialAuditEvents\.eventType, "created"/);
+	assert.match(idempotent, /applicationCredentialAuditEvents\.eventType, "rotated"/);
+	assert.doesNotMatch(idempotent, /isCredentialUsable/);
+}
+assertIdempotentFinalizeUsesCommittedState(finalize);
+assert.throws(() =>
+	assertIdempotentFinalizeUsesCommittedState(
+		finalize.replace(
+			"!isValidFinalizedPredecessor(predecessor, {",
+			"!isCredentialUsable(predecessor) || !isValidFinalizedPredecessor(predecessor, {",
+		),
+	),
+);
 assert.match(finalizedPredecessor, /predecessor\.status === "deprecated"/);
 assert.doesNotMatch(finalizedPredecessor, /isCredentialUsable|Date\.now/);
 assert.match(finalize, /\.set\(\{ status: "active" \}\)/);
