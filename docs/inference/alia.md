@@ -89,8 +89,9 @@ project to resolve an identity collision.
 
 Clarity's public sign-in application remains separate:
 `01a0646a-2382-74a3-a795-788924d55722`, with only `user:read`. Its agent is bound
-to the backend service application above, whose exact scopes are `user:read`
-and `inference:invoke`. Sindi's bound service credential has exactly
+to the backend service application above, whose exact scopes are `user:read`,
+`inference:invoke` and `capabilities:read`. Sindi's bound service credential has
+exactly
 `inference:invoke` and `acting-as:offline`. The products authenticate with those
 Oxy service credentials and delegate the verified human through
 `X-Oxy-User-Id`; a human bearer is never forwarded to Alia.
@@ -258,9 +259,21 @@ DRY_RUN=true      ← then false
 
 The plaintext secret is never logged: it is AES-256-GCM encrypted with
 `OUTPUT_ENCRYPTION_KEY` and emitted as `SERVICE_CRED_JSON=`, useless to anyone
-without the key. Decrypt out of band. Re-running against an environment that
-already has a usable credential REUSES it and emits no secret — the existing one
-is not recoverable, only its hash is stored, so a fresh secret means a rotation.
+without the key. Decrypt out of band. Production is operated through
+`provision-service-credential.yml`, whose exact application-ID registry fixes
+Alia's name, environment, scopes, SSM destinations and ECS consumer. None of
+those authority-bearing values is a dispatch input.
+
+Re-running against the exact named production lane with matching scopes reuses
+the credential and verifies both destination SecureStrings. If that lane is
+usable but carries an older scope set, the Alia registry arm explicitly enables
+a scope rotation: one transaction creates the replacement with the registered
+scopes, marks the previous row `deprecated` for the standard seven-day grace,
+and appends the `rotated` and `created` audit events. An ambiguous set still
+fails closed; the workflow never accepts a credential ID or name selector. An
+apply stores the once-only replacement secret, removes the ephemeral envelope
+key and task definition, then forces the exact `alia` ECS service to a stable,
+completed rollout. A dry run performs none of those writes.
 
 **`service`, not `machine`.** The `oxy_sk_*` machine lane exists so external
 developers can use a standard OpenAI SDK without implementing a token exchange;
