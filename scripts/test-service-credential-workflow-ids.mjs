@@ -218,6 +218,11 @@ assert.match(
 	provisionScript,
 	/ROTATE_SCOPE_MISMATCH requires ISOLATE_CREDENTIAL_NAME=true/,
 );
+assert.match(
+	provisionScript,
+	/ROTATE_SCOPE_MISMATCH is not registered for this exact application credential lane/,
+);
+assert.match(provisionScript, new RegExp(canonicalAliaApplicationId));
 assert.match(provisionScript, /rotatedFromCredentialId: rotatedFrom\?\.id/);
 assert.match(
 	provisionScript,

@@ -250,6 +250,21 @@ async function run(): Promise<void> {
 	}
 
 	const scopes = parseAndValidateScopes(process.env.SCOPES);
+	if (
+		rotateScopeMismatch &&
+		(requestedAppId !== "6a2f851751b784a86fd0e934" ||
+			environment !== "production" ||
+			credentialName !== "Oxy service (production)" ||
+			!hasExactScopeSet(scopes, [
+				"user:read",
+				"inference:invoke",
+				"capabilities:read",
+			]))
+	) {
+		throw new Error(
+			"ROTATE_SCOPE_MISMATCH is not registered for this exact application credential lane.",
+		);
+	}
 	logger.info("Validated requested scopes", { scopes, environment });
 
 	const result = await getDb().transaction(async (db): Promise<ResultRow> => {
