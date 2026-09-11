@@ -554,6 +554,13 @@
       "when": 1789100708716,
       "tag": "0079_faulty_tigra",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1789104969295,
+      "tag": "0080_real_thor",
+      "breakpoints": true
     }
   ]
 }

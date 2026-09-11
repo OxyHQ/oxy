@@ -161,6 +161,13 @@ describe('resolveApplicationIdFromClientId — what does not resolve', () => {
     await expect(resolveApplicationIdFromClientId(publicKey)).resolves.toBeNull();
   });
 
+  it('returns null for a PENDING credential before durable handoff finalization', async () => {
+    const applicationId = await seedApplication();
+    const publicKey = await seedCredential(applicationId, { status: 'pending' });
+
+    await expect(resolveApplicationIdFromClientId(publicKey)).resolves.toBeNull();
+  });
+
   it('returns null for an ACTIVE credential whose expiry has passed', async () => {
     const applicationId = await seedApplication();
     const publicKey = await seedCredential(applicationId, {

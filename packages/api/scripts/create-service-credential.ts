@@ -13,9 +13,13 @@
  *
  * Idempotency: a usable (`isCredentialUsable`) service credential is reused only
  * when its scope set EXACTLY matches the requested set. A usable credential with
- * broader, narrower or ambiguous authority makes the run fail closed; operators
- * must rotate/revoke it explicitly. The existing secret is NOT recoverable (only
- * its hash is stored), so `secretEnc` is `null` on reuse.
+ * broader, narrower or ambiguous authority makes the run fail closed unless the
+ * reviewed caller explicitly enables scope rotation for one isolated credential
+ * name. Phase one atomically prepares the requested authority as non-usable; the
+ * exact-id finalizer activates it and deprecates the old row only after durable
+ * secret handoff state exists. The
+ * existing secret is NOT recoverable (only its hash is stored), so `secretEnc` is
+ * `null` on reuse.
  *
  * ## One environment per invocation, on purpose
  *
@@ -41,23 +45,27 @@
  *   SCOPES                 required, comma-separated, e.g. "federation:write,user:read"
  *   ENVIRONMENT            development | staging | production (default 'production')
  *   CREDENTIAL_NAME        credential name (default 'Service (<environment>)')
+ *   ISOLATE_CREDENTIAL_NAME=true limits matching to the exact credential name
+ *   ROTATE_SCOPE_MISMATCH=true rotates one mismatched usable named credential
  *   OUTPUT_ENCRYPTION_KEY  required, 64 hex chars (32 bytes) — AES-256-GCM key
  *   DRY_RUN=true           plan only, no writes, no secret emitted
  */
 
-import crypto from "crypto";
+import crypto from "node:crypto";
 import { and, eq, ne } from "drizzle-orm";
 import { closePostgres, connectPostgres, getDb } from "../src/config/postgres";
 import {
-  APPLICATION_CREDENTIAL_ENVIRONMENTS,
-  applicationCredentials,
-  type ApplicationCredentialEnvironment,
+	APPLICATION_CREDENTIAL_ENVIRONMENTS,
+	type ApplicationCredentialEnvironment,
+	applicationCredentials,
 } from "../src/db/schema/applicationCredentials";
 import { applications } from "../src/db/schema/applications";
 import { users } from "../src/db/schema/users";
+import { recordCredentialLifecycleEvent } from "../src/services/applicationCredentialAudit.service";
 import { APPLICATION_SCOPES } from "../src/utils/applicationScopes";
 import { isCredentialUsable } from "../src/utils/credentialUsability";
 import { logger } from "../src/utils/logger";
+import { reconcilePendingCredentials } from "../src/utils/serviceCredentialPendingReconciliation";
 
 // ── Mirror routes/applications.ts credential generation EXACTLY ──────────────
 const CREDENTIAL_PUBLIC_KEY_PREFIX = "oxy_dk_";
@@ -66,25 +74,25 @@ const SECRET_RANDOM_BYTES = 32;
 
 /** Generate a fresh credential public key + plaintext secret + its hash. */
 function generateCredentialMaterial(): {
-  publicKey: string;
-  secret: string;
-  secretHash: string;
+	publicKey: string;
+	secret: string;
+	secretHash: string;
 } {
-  const publicKey =
-    CREDENTIAL_PUBLIC_KEY_PREFIX +
-    crypto.randomBytes(PUBLIC_KEY_RANDOM_BYTES).toString("hex");
-  const secret = crypto.randomBytes(SECRET_RANDOM_BYTES).toString("hex");
-  const secretHash = crypto.createHash("sha256").update(secret).digest("hex");
-  return { publicKey, secret, secretHash };
+	const publicKey =
+		CREDENTIAL_PUBLIC_KEY_PREFIX +
+		crypto.randomBytes(PUBLIC_KEY_RANDOM_BYTES).toString("hex");
+	const secret = crypto.randomBytes(SECRET_RANDOM_BYTES).toString("hex");
+	const secretHash = crypto.createHash("sha256").update(secret).digest("hex");
+	return { publicKey, secret, secretHash };
 }
 
 const ENCRYPTION_KEY_HEX_LENGTH = 64; // 32 bytes
 const GCM_IV_BYTES = 12;
 
 interface SecretEnvelope {
-  ivB64: string;
-  ciphertextB64: string;
-  tagB64: string;
+	ivB64: string;
+	ciphertextB64: string;
+	tagB64: string;
 }
 
 /**
@@ -93,54 +101,54 @@ interface SecretEnvelope {
  * envelope is useless without it.
  */
 function encryptSecret(secret: string, keyHex: string): SecretEnvelope {
-  const key = Buffer.from(keyHex, "hex");
-  const iv = crypto.randomBytes(GCM_IV_BYTES);
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([
-    cipher.update(secret, "utf8"),
-    cipher.final(),
-  ]);
-  const tag = cipher.getAuthTag();
-  return {
-    ivB64: iv.toString("base64"),
-    ciphertextB64: ciphertext.toString("base64"),
-    tagB64: tag.toString("base64"),
-  };
+	const key = Buffer.from(keyHex, "hex");
+	const iv = crypto.randomBytes(GCM_IV_BYTES);
+	const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+	const ciphertext = Buffer.concat([
+		cipher.update(secret, "utf8"),
+		cipher.final(),
+	]);
+	const tag = cipher.getAuthTag();
+	return {
+		ivB64: iv.toString("base64"),
+		ciphertextB64: ciphertext.toString("base64"),
+		tagB64: tag.toString("base64"),
+	};
 }
 
 /** Parse + validate the comma-separated SCOPES env against the allowlist. */
 function parseAndValidateScopes(raw: string | undefined): string[] {
-  const scopes = (raw ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+	const scopes = (raw ?? "")
+		.split(",")
+		.map((s) => s.trim())
+		.filter((s) => s.length > 0);
 
-  if (scopes.length === 0) {
-    throw new Error(
-      'SCOPES is required — provide a comma-separated list, e.g. "federation:write,user:read".',
-    );
-  }
+	if (scopes.length === 0) {
+		throw new Error(
+			'SCOPES is required — provide a comma-separated list, e.g. "federation:write,user:read".',
+		);
+	}
 
-  const allowed = new Set<string>(APPLICATION_SCOPES);
-  const invalid = scopes.filter((s) => !allowed.has(s));
-  if (invalid.length > 0) {
-    throw new Error(
-      `Invalid scope(s): ${invalid.join(", ")}. ` +
-        `Allowed scopes: ${APPLICATION_SCOPES.join(", ")}.`,
-    );
-  }
+	const allowed = new Set<string>(APPLICATION_SCOPES);
+	const invalid = scopes.filter((s) => !allowed.has(s));
+	if (invalid.length > 0) {
+		throw new Error(
+			`Invalid scope(s): ${invalid.join(", ")}. ` +
+				`Allowed scopes: ${APPLICATION_SCOPES.join(", ")}.`,
+		);
+	}
 
-  // De-duplicate while preserving order.
-  return Array.from(new Set(scopes));
+	// De-duplicate while preserving order.
+	return Array.from(new Set(scopes));
 }
 
 function hasExactScopeSet(
-  actual: readonly string[],
-  requested: readonly string[],
+	actual: readonly string[],
+	requested: readonly string[],
 ): boolean {
-  if (actual.length !== requested.length) return false;
-  const requestedScopes = new Set(requested);
-  return actual.every((scope) => requestedScopes.has(scope));
+	if (actual.length !== requested.length) return false;
+	const requestedScopes = new Set(requested);
+	return actual.every((scope) => requestedScopes.has(scope));
 }
 
 /**
@@ -152,321 +160,425 @@ function hasExactScopeSet(
  * authenticates with.
  */
 function parseAndValidateEnvironment(
-  raw: string | undefined,
+	raw: string | undefined,
 ): ApplicationCredentialEnvironment {
-  if (raw === undefined || raw.trim().length === 0) {
-    return "production";
-  }
-  const value = raw.trim();
-  const allowed: readonly string[] = APPLICATION_CREDENTIAL_ENVIRONMENTS;
-  if (!allowed.includes(value)) {
-    throw new Error(
-      `Invalid ENVIRONMENT "${value}". Allowed: ${APPLICATION_CREDENTIAL_ENVIRONMENTS.join(", ")}.`,
-    );
-  }
-  return value as ApplicationCredentialEnvironment;
+	if (raw === undefined || raw.trim().length === 0) {
+		return "production";
+	}
+	const value = raw.trim();
+	const allowed: readonly string[] = APPLICATION_CREDENTIAL_ENVIRONMENTS;
+	if (!allowed.includes(value)) {
+		throw new Error(
+			`Invalid ENVIRONMENT "${value}". Allowed: ${APPLICATION_CREDENTIAL_ENVIRONMENTS.join(", ")}.`,
+		);
+	}
+	return value as ApplicationCredentialEnvironment;
 }
 
 interface ResultRow {
-  app: string;
-  applicationId: string;
-  ownerUsername: string | null;
-  ownerId: string;
-  credentialId: string | null;
-  publicKey: string | null;
-  type: "service";
-  environment: ApplicationCredentialEnvironment;
-  scopes: string[];
-  reused: boolean;
-  secretEnc: SecretEnvelope | null;
+	app: string;
+	applicationId: string;
+	ownerUsername: string | null;
+	ownerId: string;
+	credentialId: string | null;
+	publicKey: string | null;
+	type: "service";
+	environment: ApplicationCredentialEnvironment;
+	scopes: string[];
+	action: "create" | "reuse" | "rotate";
+	reused: boolean;
+	rotatedFromCredentialId: string | null;
+	graceExpiresAt: string | null;
+	secretEnc: SecretEnvelope | null;
+	requiresFinalization: boolean;
 }
 
 function writeResult(row: ResultRow): void {
-  process.stdout.write(`SERVICE_CRED_JSON=${JSON.stringify(row)}\n`);
+	process.stdout.write(`SERVICE_CRED_JSON=${JSON.stringify(row)}\n`);
 }
 
 async function run(): Promise<void> {
-  const dryRun = process.env.DRY_RUN === "true";
-  // Application ids are opaque identities. A whitespace-modified value is a
-  // different (unknown) id; never repair it into somebody else's authority.
-  const requestedAppId = process.env.APP_ID;
-  const environment = parseAndValidateEnvironment(process.env.ENVIRONMENT);
-  // Defaulted from the environment so three credentials of one application are
-  // distinguishable in Console, where the only other thing telling them apart is
-  // a column an operator has to go looking for.
-  const credentialName =
-    process.env.CREDENTIAL_NAME || `Service (${environment})`;
-  const encryptionKeyHex = process.env.OUTPUT_ENCRYPTION_KEY;
+	const dryRun = process.env.DRY_RUN === "true";
+	// Application ids are opaque identities. A whitespace-modified value is a
+	// different (unknown) id; never repair it into somebody else's authority.
+	const requestedAppId = process.env.APP_ID;
+	const environment = parseAndValidateEnvironment(process.env.ENVIRONMENT);
+	// Defaulted from the environment so three credentials of one application are
+	// distinguishable in Console, where the only other thing telling them apart is
+	// a column an operator has to go looking for.
+	const credentialName =
+		process.env.CREDENTIAL_NAME || `Service (${environment})`;
+	if (
+		process.env.ISOLATE_CREDENTIAL_NAME !== undefined &&
+		process.env.ISOLATE_CREDENTIAL_NAME !== "true" &&
+		process.env.ISOLATE_CREDENTIAL_NAME !== "false"
+	) {
+		throw new Error("ISOLATE_CREDENTIAL_NAME must be true or false when set.");
+	}
+	if (
+		process.env.ROTATE_SCOPE_MISMATCH !== undefined &&
+		process.env.ROTATE_SCOPE_MISMATCH !== "true" &&
+		process.env.ROTATE_SCOPE_MISMATCH !== "false"
+	) {
+		throw new Error("ROTATE_SCOPE_MISMATCH must be true or false when set.");
+	}
+	const isolateCredentialName = process.env.ISOLATE_CREDENTIAL_NAME === "true";
+	const rotateScopeMismatch = process.env.ROTATE_SCOPE_MISMATCH === "true";
+	const encryptionKeyHex = process.env.OUTPUT_ENCRYPTION_KEY;
 
-  if (dryRun) {
-    logger.info(
-      "DRY RUN — no writes will be performed, no secret will be emitted",
-    );
-  }
+	if (rotateScopeMismatch && !isolateCredentialName) {
+		throw new Error(
+			"ROTATE_SCOPE_MISMATCH requires ISOLATE_CREDENTIAL_NAME=true so rotation cannot select an unnamed credential lane.",
+		);
+	}
 
-  if (requestedAppId === undefined || requestedAppId.length === 0) {
-    throw new Error("APP_ID is required.");
-  }
+	if (dryRun) {
+		logger.info(
+			"DRY RUN — no writes will be performed, no secret will be emitted",
+		);
+	}
 
-  // Validate the encryption key up-front (only required when we may emit a secret).
-  if (!dryRun) {
-    if (!encryptionKeyHex || !/^[0-9a-fA-F]{64}$/.test(encryptionKeyHex)) {
-      throw new Error(
-        "OUTPUT_ENCRYPTION_KEY is required and must be exactly " +
-          `${ENCRYPTION_KEY_HEX_LENGTH} hex characters (32 bytes for AES-256-GCM).`,
-      );
-    }
-  }
+	if (requestedAppId === undefined || requestedAppId.length === 0) {
+		throw new Error("APP_ID is required.");
+	}
 
-  const scopes = parseAndValidateScopes(process.env.SCOPES);
-  logger.info("Validated requested scopes", { scopes, environment });
+	// Validate the encryption key up-front (only required when we may emit a secret).
+	if (!dryRun) {
+		if (!encryptionKeyHex || !/^[0-9a-fA-F]{64}$/.test(encryptionKeyHex)) {
+			throw new Error(
+				`OUTPUT_ENCRYPTION_KEY is required and must be exactly ${ENCRYPTION_KEY_HEX_LENGTH} hex characters (32 bytes for AES-256-GCM).`,
+			);
+		}
+	}
 
-  await getDb().transaction(async (db) => {
-    // ── 1. Resolve the EXISTING Application by its exact immutable id. ──
-    const [application] = await db
-      .select({
-        id: applications.id,
-        name: applications.name,
-        status: applications.status,
-        ownerAccountId: applications.ownerAccountId,
-      })
-      .from(applications)
-      .where(
-        and(
-          eq(applications.id, requestedAppId),
-          ne(applications.status, "deleted"),
-        ),
-      )
-      .limit(1)
-      .for("update");
+	const scopes = parseAndValidateScopes(process.env.SCOPES);
+	if (
+		rotateScopeMismatch &&
+		(requestedAppId !== "6a2f851751b784a86fd0e934" ||
+			environment !== "production" ||
+			credentialName !== "Oxy service (production)" ||
+			!hasExactScopeSet(scopes, [
+				"user:read",
+				"inference:invoke",
+				"capabilities:read",
+			]))
+	) {
+		throw new Error(
+			"ROTATE_SCOPE_MISMATCH is not registered for this exact application credential lane.",
+		);
+	}
+	logger.info("Validated requested scopes", { scopes, environment });
 
-    if (!application) {
-      throw new Error(`Application id "${requestedAppId}" was not found.`);
-    }
-    const appName = application.name;
+	const result = await getDb().transaction(async (db): Promise<ResultRow> => {
+		// ── 1. Resolve the EXISTING Application by its exact immutable id. ──
+		const [application] = await db
+			.select({
+				id: applications.id,
+				name: applications.name,
+				status: applications.status,
+				ownerAccountId: applications.ownerAccountId,
+			})
+			.from(applications)
+			.where(
+				and(
+					eq(applications.id, requestedAppId),
+					ne(applications.status, "deleted"),
+				),
+			)
+			.limit(1)
+			.for("update");
 
-    // The owner comes from the exact application row. A username supplied by a
-    // workflow operator must never rebind credential authority.
-    const [owner] = await db
-      .select({ id: users.id, username: users.username })
-      .from(users)
-      .where(eq(users.id, application.ownerAccountId))
-      .limit(1);
-    if (!owner) {
-      throw new Error(
-        `Application id "${application.id}" has no resolvable owner account.`,
-      );
-    }
-    const ownerUsername = owner.username;
-    logger.info("Resolved exact application owner", {
-      applicationId: application.id,
-      ownerId: owner.id,
-    });
+		if (!application) {
+			throw new Error(`Application id "${requestedAppId}" was not found.`);
+		}
+		const appName = application.name;
 
-    if (application.status !== "active") {
-      logger.warn("Application is not active", {
-        app: appName,
-        applicationId: application.id,
-        status: application.status,
-      });
-      throw new Error(
-        `Application "${appName}" is not active ` +
-          `(status: ${application.status}). Refusing to provision a credential.`,
-      );
-    }
+		// The owner comes from the exact application row. A username supplied by a
+		// workflow operator must never rebind credential authority.
+		const [owner] = await db
+			.select({ id: users.id, username: users.username })
+			.from(users)
+			.where(eq(users.id, application.ownerAccountId))
+			.limit(1);
+		if (!owner) {
+			throw new Error(
+				`Application id "${application.id}" has no resolvable owner account.`,
+			);
+		}
+		const ownerUsername = owner.username;
+		logger.info("Resolved exact application owner", {
+			applicationId: application.id,
+			ownerId: owner.id,
+		});
 
-    logger.info("Resolved active Application", {
-      app: appName,
-      applicationId: application.id,
-    });
+		if (application.status !== "active") {
+			logger.warn("Application is not active", {
+				app: appName,
+				applicationId: application.id,
+				status: application.status,
+			});
+			throw new Error(
+				`Application "${appName}" is not active ` +
+					`(status: ${application.status}). Refusing to provision a credential.`,
+			);
+		}
 
-    // ── 2. Idempotency: reuse one exact-scope usable service credential ──
-    const existingRows = await db
-      .select({
-        id: applicationCredentials.id,
-        name: applicationCredentials.name,
-        publicKey: applicationCredentials.publicKey,
-        scopes: applicationCredentials.scopes,
-        status: applicationCredentials.status,
-        expiresAt: applicationCredentials.expiresAt,
-      })
-      .from(applicationCredentials)
-      .where(
-        and(
-          eq(applicationCredentials.applicationId, application.id),
-          eq(applicationCredentials.type, "service"),
-          eq(applicationCredentials.environment, environment),
-          ne(applicationCredentials.status, "revoked"),
-        ),
-      );
+		logger.info("Resolved active Application", {
+			app: appName,
+			applicationId: application.id,
+		});
 
-    const isolateCredentialName = process.env.ISOLATE_CREDENTIAL_NAME === "true";
-    const candidateRows = isolateCredentialName
-      ? existingRows.filter((row) => row.name === credentialName)
-      : existingRows;
-    const usableCredentials = candidateRows.filter(isCredentialUsable);
-    const exactScopeCredentials = usableCredentials.filter((credential) =>
-      hasExactScopeSet(credential.scopes, scopes),
-    );
-    if (exactScopeCredentials.length > 1) {
-      throw new Error(
-        `Application "${appName}" has multiple usable ${environment} service credentials ` +
-          `with the requested scopes (${exactScopeCredentials.map((credential) => credential.id).join(", ")}). ` +
-          "Refusing an ambiguous reuse; revoke or rotate them explicitly.",
-      );
-    }
-    const existing = exactScopeCredentials[0];
-    if (existing) {
-      logger.info(
-        "Reusing existing usable service credential — NOT minting a new one",
-        {
-          applicationId: application.id,
-          credentialId: existing.id,
-          publicKey: existing.publicKey,
-          environment,
-        },
-      );
-      logger.info(
-        "NOTE: the secret of an existing credential is not recoverable (only its hash is stored). " +
-          "Rotate the credential if a fresh secret is required.",
-      );
+		// ── 2. Idempotency: reuse one exact-scope usable service credential ──
+		const existingRows = await db
+			.select({
+				id: applicationCredentials.id,
+				name: applicationCredentials.name,
+				publicKey: applicationCredentials.publicKey,
+				scopes: applicationCredentials.scopes,
+				status: applicationCredentials.status,
+				expiresAt: applicationCredentials.expiresAt,
+			})
+			.from(applicationCredentials)
+			.where(
+				and(
+					eq(applicationCredentials.applicationId, application.id),
+					eq(applicationCredentials.type, "service"),
+					eq(applicationCredentials.environment, environment),
+					ne(applicationCredentials.status, "revoked"),
+				),
+			)
+			.for("update");
 
-      const reusedResult: ResultRow = {
-        app: appName,
-        applicationId: application.id,
-        ownerUsername,
-        ownerId: owner.id,
-        credentialId: existing.id,
-        publicKey: existing.publicKey,
-        type: "service",
-        environment,
-        scopes: existing.scopes,
-        reused: true,
-        secretEnc: null,
-      };
+		const candidateRows = isolateCredentialName
+			? existingRows.filter((row) => row.name === credentialName)
+			: existingRows;
+		const pendingCredentials = candidateRows.filter(
+			(row) => row.status === "pending",
+		);
+		await reconcilePendingCredentials({
+			dryRun,
+			rotateScopeMismatch,
+			pendingCredentialIds: pendingCredentials.map(({ id }) => id),
+			appName,
+			environment,
+			revokeCredential: async (credentialId) => {
+				await db
+					.update(applicationCredentials)
+					.set({ status: "revoked" })
+					.where(eq(applicationCredentials.id, credentialId));
+			},
+			recordRevocation: async (credentialId) => {
+				await recordCredentialLifecycleEvent(db, {
+					applicationId: application.id,
+					credentialId,
+					eventType: "revoked",
+					actorUserId: owner.id,
+					environment,
+					metadata: { reason: "abandoned_pending_handoff" },
+				});
+			},
+		});
+		const usableCredentials = candidateRows.filter(isCredentialUsable);
+		const exactScopeCredentials = usableCredentials.filter((credential) =>
+			hasExactScopeSet(credential.scopes, scopes),
+		);
+		if (exactScopeCredentials.length > 1) {
+			throw new Error(
+				`Application "${appName}" has multiple usable ${environment} service credentials with the requested scopes (${exactScopeCredentials.map((credential) => credential.id).join(", ")}). Refusing an ambiguous reuse; revoke or rotate them explicitly.`,
+			);
+		}
+		const existing = exactScopeCredentials[0];
+		if (existing) {
+			logger.info(
+				"Reusing existing usable service credential — NOT minting a new one",
+				{
+					applicationId: application.id,
+					credentialId: existing.id,
+					publicKey: existing.publicKey,
+					environment,
+				},
+			);
+			logger.info(
+				"NOTE: the secret of an existing credential is not recoverable (only its hash is stored). " +
+					"Rotate the credential if a fresh secret is required.",
+			);
 
-      writeResult(reusedResult);
-      return;
-    }
+			const reusedResult: ResultRow = {
+				app: appName,
+				applicationId: application.id,
+				ownerUsername,
+				ownerId: owner.id,
+				credentialId: existing.id,
+				publicKey: existing.publicKey,
+				type: "service",
+				environment,
+				scopes: existing.scopes,
+				action: "reuse",
+				reused: true,
+				rotatedFromCredentialId: null,
+				graceExpiresAt: null,
+				secretEnc: null,
+				requiresFinalization: false,
+			};
 
-    if (usableCredentials.length > 0) {
-      throw new Error(
-        `Application "${appName}" already has a usable ${environment} service credential, ` +
-          "but its scopes do not exactly match the requested set. Refusing to reuse broader or " +
-          "narrower authority and refusing to mint a parallel credential; rotate it explicitly.",
-      );
-    }
+			return reusedResult;
+		}
 
-    // ── 3. No usable service credential — plan (dry-run) or mint ──
-    if (dryRun) {
-      logger.info("DRY RUN — would mint a new service credential", {
-        app: appName,
-        applicationId: application.id,
-        credentialName,
-        scopes,
-        environment,
-      });
+		if (usableCredentials.length > 0 && !rotateScopeMismatch) {
+			throw new Error(
+				`Application "${appName}" already has a usable ${environment} service credential, but its scopes do not exactly match the requested set. Refusing to reuse broader or narrower authority and refusing to mint a parallel credential; rotate it explicitly.`,
+			);
+		}
 
-      const planResult: ResultRow = {
-        app: appName,
-        applicationId: application.id,
-        ownerUsername,
-        ownerId: owner.id,
-        credentialId: null,
-        publicKey: null,
-        type: "service",
-        environment,
-        scopes,
-        reused: false,
-        secretEnc: null,
-      };
+		if (usableCredentials.length > 1) {
+			throw new Error(
+				`Application "${appName}" has multiple usable ${environment} service credentials named "${credentialName}" (${usableCredentials.map((credential) => credential.id).join(", ")}). Refusing an ambiguous rotation.`,
+			);
+		}
 
-      writeResult(planResult);
-      return;
-    }
+		const rotatedFrom = usableCredentials[0];
 
-    if (!encryptionKeyHex) {
-      throw new Error(
-        "OUTPUT_ENCRYPTION_KEY passed validation but is unavailable",
-      );
-    }
+		// ── 3. No usable service credential — plan (dry-run) or mint ──
+		if (dryRun) {
+			logger.info(
+				rotatedFrom
+					? "DRY RUN — would rotate the mismatched named service credential"
+					: "DRY RUN — would mint a new service credential",
+				{
+					app: appName,
+					applicationId: application.id,
+					credentialName,
+					scopes,
+					environment,
+					rotatedFromCredentialId: rotatedFrom?.id ?? null,
+				},
+			);
 
-    const { publicKey, secret, secretHash } = generateCredentialMaterial();
+			const planResult: ResultRow = {
+				app: appName,
+				applicationId: application.id,
+				ownerUsername,
+				ownerId: owner.id,
+				credentialId: null,
+				publicKey: null,
+				type: "service",
+				environment,
+				scopes,
+				action: rotatedFrom ? "rotate" : "create",
+				reused: false,
+				rotatedFromCredentialId: rotatedFrom?.id ?? null,
+				graceExpiresAt: null,
+				secretEnc: null,
+				requiresFinalization: rotateScopeMismatch,
+			};
 
-    const [credential] = await db
-      .insert(applicationCredentials)
-      .values({
-        applicationId: application.id,
-        name: credentialName,
-        publicKey,
-        secretHash,
-        type: "service",
-        environment,
-        scopes,
-        status: "active",
-        createdByUserId: owner.id,
-      })
-      .returning({
-        id: applicationCredentials.id,
-        publicKey: applicationCredentials.publicKey,
-      });
+			return planResult;
+		}
 
-    if (!credential) {
-      throw new Error("Failed to insert service credential");
-    }
+		if (!encryptionKeyHex) {
+			throw new Error(
+				"OUTPUT_ENCRYPTION_KEY passed validation but is unavailable",
+			);
+		}
 
-    logger.info("Service credential created", {
-      app: appName,
-      applicationId: application.id,
-      credentialId: credential.id,
-      publicKey: credential.publicKey,
-      scopes,
-      environment,
-    });
+		const { publicKey, secret, secretHash } = generateCredentialMaterial();
+		const [credential] = await db
+			.insert(applicationCredentials)
+			.values({
+				applicationId: application.id,
+				name: credentialName,
+				publicKey,
+				secretHash,
+				type: "service",
+				environment,
+				scopes,
+				// The row cannot authenticate until the encrypted one-time secret has
+				// been durably handed off. A separate exact-id finalize transaction
+				// activates it and only then deprecates its predecessor.
+				status: rotateScopeMismatch ? "pending" : "active",
+				rotatedFromCredentialId: rotatedFrom?.id,
+				createdByUserId: owner.id,
+			})
+			.returning({
+				id: applicationCredentials.id,
+				publicKey: applicationCredentials.publicKey,
+			});
 
-    // Encrypt the plaintext secret — it is NEVER logged in plaintext anywhere.
-    const secretEnc = encryptSecret(secret, encryptionKeyHex);
+		if (!credential) {
+			throw new Error("Failed to insert service credential");
+		}
+		if (!rotateScopeMismatch) {
+			await recordCredentialLifecycleEvent(db, {
+				applicationId: application.id,
+				credentialId: credential.id,
+				eventType: "created",
+				actorUserId: owner.id,
+				environment,
+				metadata: { type: "service", scopes },
+			});
+		}
 
-    const result: ResultRow = {
-      app: appName,
-      applicationId: application.id,
-      ownerUsername,
-      ownerId: owner.id,
-      credentialId: credential.id,
-      publicKey: credential.publicKey,
-      type: "service",
-      environment,
-      scopes,
-      reused: false,
-      secretEnc,
-    };
+		logger.info("Service credential prepared for durable handoff", {
+			app: appName,
+			applicationId: application.id,
+			credentialId: credential.id,
+			publicKey: credential.publicKey,
+			scopes,
+			environment,
+		});
 
-    writeResult(result);
-  });
+		// Encrypt the plaintext secret — it is NEVER logged in plaintext anywhere.
+		const secretEnc = encryptSecret(secret, encryptionKeyHex);
+
+		const result: ResultRow = {
+			app: appName,
+			applicationId: application.id,
+			ownerUsername,
+			ownerId: owner.id,
+			credentialId: credential.id,
+			publicKey: credential.publicKey,
+			type: "service",
+			environment,
+			scopes,
+			action: rotatedFrom ? "rotate" : "create",
+			reused: false,
+			rotatedFromCredentialId: rotatedFrom?.id ?? null,
+			graceExpiresAt: null,
+			secretEnc,
+			requiresFinalization: rotateScopeMismatch,
+		};
+
+		return result;
+	});
+
+	// Emission after the transaction promise resolves is commit evidence. A log
+	// envelope from inside the callback could survive a failed COMMIT and make an
+	// operator install a credential row that does not exist.
+	writeResult(result);
 }
 
 async function main(): Promise<void> {
-  if (!process.env.DATABASE_URL) {
-    logger.error("DATABASE_URL is required");
-    process.exit(1);
-  }
+	if (!process.env.DATABASE_URL) {
+		logger.error("DATABASE_URL is required");
+		process.exit(1);
+	}
 
-  await connectPostgres();
-  logger.info("Connected to Postgres");
+	await connectPostgres();
+	logger.info("Connected to Postgres");
 
-  try {
-    await run();
-  } finally {
-    await closePostgres();
-    logger.info("Postgres connection closed");
-  }
+	try {
+		await run();
+	} finally {
+		await closePostgres();
+		logger.info("Postgres connection closed");
+	}
 }
 
 main().catch((error) => {
-  logger.error(
-    "Service credential provisioning failed",
-    error instanceof Error ? error : new Error(String(error)),
-    { component: "create-service-credential", method: "main" },
-  );
-  process.exit(1);
+	logger.error(
+		"Service credential provisioning failed",
+		error instanceof Error ? error : new Error(String(error)),
+		{ component: "create-service-credential", method: "main" },
+	);
+	process.exit(1);
 });

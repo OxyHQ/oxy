@@ -89,8 +89,9 @@ project to resolve an identity collision.
 
 Clarity's public sign-in application remains separate:
 `01a0646a-2382-74a3-a795-788924d55722`, with only `user:read`. Its agent is bound
-to the backend service application above, whose exact scopes are `user:read`
-and `inference:invoke`. Sindi's bound service credential has exactly
+to the backend service application above, whose exact scopes are `user:read`,
+`inference:invoke` and `capabilities:read`. Sindi's bound service credential has
+exactly
 `inference:invoke` and `acting-as:offline`. The products authenticate with those
 Oxy service credentials and delegate the verified human through
 `X-Oxy-User-Id`; a human bearer is never forwarded to Alia.
@@ -258,9 +259,46 @@ DRY_RUN=true      ← then false
 
 The plaintext secret is never logged: it is AES-256-GCM encrypted with
 `OUTPUT_ENCRYPTION_KEY` and emitted as `SERVICE_CRED_JSON=`, useless to anyone
-without the key. Decrypt out of band. Re-running against an environment that
-already has a usable credential REUSES it and emits no secret — the existing one
-is not recoverable, only its hash is stored, so a fresh secret means a rotation.
+without the key. Decrypt out of band. Production is operated through
+`provision-service-credential.yml`, whose exact application-ID registry fixes
+Alia's name, environment, scopes, SSM destinations and ECS consumer. None of
+those authority-bearing values is a dispatch input.
+
+Re-running against the exact named production lane with matching scopes reuses
+the credential and verifies both destination SecureStrings. If that lane is
+usable but carries an older scope set, the Alia registry arm explicitly enables
+a scope rotation that uses a two-phase handoff. The first transaction creates the
+replacement as `pending`, which cannot authenticate, and leaves the old row
+untouched. Only after the exact encrypted secret has become a durable recovery
+package does a second exact-ID transaction activate the replacement, mark the
+previous row `deprecated` for the standard seven-day grace, and append the
+`rotated` and `created` audit events. Thus neither a losing `stop-task` race nor
+a crash between database commit and SSM persistence can strand an active
+one-time secret. An ambiguous set still fails closed; the workflow never accepts
+a credential ID or name selector. The recovery package is bound to the exact
+application, credential, name, environment and scope set. A separate
+SecureString binds the exact ECS task ARN to the workflow run and attempt before
+the task is awaited; recovery never searches or orders an ECS task list. It
+finalizes, installs and authenticates the secret/key pair, deletes that package
+and the ephemeral task definition, and forces the exact `alia` ECS service to a
+stable, completed rollout. If either destination write or authentication fails,
+the package is deliberately retained and the service is not rolled out. A retry
+may name only that app-namespaced run parameter; it validates every binding and
+replays the same already-minted credential, repairing a partial pair without
+minting another database row. A dry run performs none of those writes and cannot
+consume a recovery package; it also leaves any abandoned `pending` row and its
+audit trail untouched. Finalization replay validates the exact committed
+replacement, predecessor binding and lifecycle events. An elapsed predecessor
+grace does not invalidate that replay: expiry means the deprecated key no longer
+authenticates, not that the already-committed rotation ceased to exist.
+
+Migration/deploy order is causal and reserved: #1237 owns `0076`–`0078`, and
+#1239 owns `0079`; both must be safely deployed first. This credential handoff
+owns `0080` and must deploy before Alia is rotated. The open economic-routing PR
+#1234 must not merge from its current journal: after this change reaches `main`,
+rebase #1234 and regenerate its two migrations as `0081`/`0082`. Reviewing those
+numbers independently of that rebase would silently accept duplicate migration
+indexes from open branches.
 
 **`service`, not `machine`.** The `oxy_sk_*` machine lane exists so external
 developers can use a standard OpenAI SDK without implementing a token exchange;
