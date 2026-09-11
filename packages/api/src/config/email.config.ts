@@ -103,6 +103,13 @@ export const AI_LABELING_CONFIG = {
   maxQueueSize: Math.max(0, getEnvNumber('AI_LABELING_MAX_QUEUE_SIZE', 100)),
 };
 
+/** Background structured-card extraction on stored email. */
+export const CARD_EXTRACTION_CONFIG = {
+  // Email receipt/import can be externally triggered. Keep metered inference
+  // closed until the reviewed Inbox routing profile is fully operational.
+  enabled: getEnvBoolean('CARD_EXTRACTION_ENABLED', false),
+};
+
 /** Encryption settings */
 export const ENCRYPTION_CONFIG = {
   /** Encrypt incoming messages at rest for users with a publicKey */

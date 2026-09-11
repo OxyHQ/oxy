@@ -96,6 +96,14 @@ the GitHub variable from source alone: require both the successful exact-PK
 readback and the real-principal audience proof. Until all nine steps pass, Inbox
 inference is intentionally unavailable rather than silently routed elsewhere.
 
+The two inbound background consumers remain independently opt-in during that
+period: `AI_LABELING_ENABLED=false` and `CARD_EXTRACTION_ENABLED=false` (both
+default to false when unset). Do not enable either until the exact-profile
+readback and real-principal audience proof pass. Interactive `/email/ai/*`
+requests continue to fail closed with `INBOX_INFERENCE_UNAVAILABLE`; stored and
+imported email must not generate one warning per message merely because the
+deliberately unavailable card extractor is disabled.
+
 The old Oxy-to-Alia `/alia/chat/completions` and `/v1/voice/*` proxies and their
 `ALIA_API_KEY` task binding are removed. Apps that use Alia chat, agents or voice
 as product capabilities continue to call Alia directly; this change only removes
