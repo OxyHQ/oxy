@@ -129,6 +129,31 @@ requireMatch(
 );
 requireMatch(
   workflow,
+  /candidate_task_arn:[\s\S]*?candidate_task_definition_arn:[\s\S]*?candidate_image_digest:[\s\S]*?candidate_private_ip:/,
+  'the canary must require the exact isolated candidate task receipt',
+);
+requireMatch(
+  workflow,
+  /\.lastStatus'[\s\S]*?CANDIDATE_TASK_DEFINITION_ARN[\s\S]*?\.imageDigest[\s\S]*?CANDIDATE_IMAGE_DIGEST[\s\S]*?privateIPv4Address[\s\S]*?CANDIDATE_PRIVATE_IP/,
+  'the canary must attest the running candidate task, definition, digest and private IP through ECS',
+);
+requireMatch(
+  workflow,
+  /networkInterfaceId[\s\S]*?ec2 describe-network-interfaces[\s\S]*?Association\.PublicIp[\s\S]*?\.subnets \| index\(\$subnet\)[\s\S]*?\.securityGroups \| sort/,
+  'the canary must reject a public ENI and bind candidate subnet and security groups to the Kaana service network',
+);
+requireMatch(
+  workflow,
+  /CANDIDATE_SOURCE_SECURITY_GROUP: sg-05da1736e1a5f0acc[\s\S]*?securityGroups = \[\$candidate_sg\][\s\S]*?securityGroups == \[\$candidate_sg\]/,
+  'the signer task must use only the audited Kaana ALB source security group for candidate reachability',
+);
+requireMatch(
+  canary,
+  /CANARY_KAANA_PRIVATE_ORIGIN[\s\S]*?candidate_kaana_origin_is_not_private[\s\S]*?baseUrl = candidate/,
+  'candidate transport must be exact RFC1918 HTTP port 8080 without changing the canonical external origin',
+);
+requireMatch(
+  workflow,
   /expected_snapshot_id:[\s\S]*?required: true[\s\S]*?deployment_id:[\s\S]*?required: true/,
   'the canary must require the exact signed readback snapshot and deployment id',
 );

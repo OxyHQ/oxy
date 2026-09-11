@@ -179,8 +179,18 @@ export function readKaanaSigningConfig(env = process.env) {
     fail('kaana_origin_is_not_canonical');
   }
 
+  let baseUrl = CANONICAL_KAANA_ORIGIN;
+  if (env.CANARY_KAANA_PRIVATE_ORIGIN !== undefined) {
+    const candidate = exactString(env, 'CANARY_KAANA_PRIVATE_ORIGIN', 64);
+    const match = /^http:\/\/(10\.(?:\d{1,3}\.){2}\d{1,3}|192\.168\.(?:\d{1,3})\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.(?:\d{1,3})\.\d{1,3}):8080$/.exec(candidate);
+    if (match === null || match[1].split('.').some((octet) => Number(octet) > 255)) {
+      fail('candidate_kaana_origin_is_not_private');
+    }
+    baseUrl = candidate;
+  }
+
   return {
-    baseUrl: CANONICAL_KAANA_ORIGIN,
+    baseUrl,
     keyId: exactString(env, 'KAANA_EDGE_SIGNING_KEY_ID', 128),
     privateKey: parsePrivateKey(secretString(env, 'KAANA_EDGE_SIGNING_PRIVATE_KEY', 16_384)),
     expectedContractVersion: exactString(env, 'CANARY_CONTRACT_VERSION', 32),
