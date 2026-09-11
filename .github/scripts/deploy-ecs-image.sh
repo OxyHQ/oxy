@@ -471,6 +471,7 @@ run_one_shot_command() {
   local command_json="$2"
   local retry_fargate_capacity="${3:-false}"
   local expected_service_task_definition="${4:-$new_task_definition}"
+  local one_shot_task_definition="${5:-$new_task_definition}"
   local overrides run_json task_json exit_code stopped_reason container_reason
   local start_wait_elapsed=0
   local retry_sleep service_retry_json service_retry_status
@@ -487,7 +488,9 @@ run_one_shot_command() {
     }')"
 
   while :; do
-    if ! run_json="$(aws "${one_shot_run_task_args[@]}" --overrides "$overrides")"; then
+    if ! run_json="$(aws "${one_shot_run_task_args[@]}" \
+      --task-definition "$one_shot_task_definition" \
+      --overrides "$overrides")"; then
       echo "::error::ECS failed to start the $label task."
       return 1
     fi
@@ -550,7 +553,7 @@ run_one_shot_command() {
   active_one_shot_label="$label"
   active_one_shot_task_stopped=false
 
-  echo "Running $label with $new_task_definition"
+  echo "Running $label with $one_shot_task_definition"
   if ! wait_for_task_stop "$active_one_shot_task_arn" "$label" "$MAX_WAIT_SECS"; then
     return 1
   fi
@@ -771,7 +774,6 @@ if [[ "$RUN_MIGRATIONS" == "true" ||
   one_shot_run_task_args=(
     ecs run-task
     --cluster "$CLUSTER"
-    --task-definition "$new_task_definition"
     --count 1
     --network-configuration "$network_configuration"
   )
@@ -790,6 +792,23 @@ if [[ "$RUN_MIGRATIONS" == "true" ||
 fi
 
 if [[ "$RUN_MIGRATIONS" == "true" ]]; then
+  # Finish post-deploy work already shipped by the image that is serving NOW.
+  # This closes the phase boundary between releases before the candidate image
+  # introduces newer pre migrations. Using the live task definition is the
+  # safety proof: its journal ends at the schema that image understands, so it
+  # cannot see (and therefore cannot be blocked by or accidentally apply) a pre
+  # migration from the candidate release. This is the safe bridge for a pending
+  # `post -> pre` journal sequence; `--phase=all` is never needed.
+  if ! run_one_shot_command \
+    "Live-image post-migration catch-up" \
+    '["node","packages/api/dist/db/migrate.js","--phase=post"]' \
+    true \
+    "$current_task_definition" \
+    "$current_task_definition"; then
+    echo "::error::The live image could not finish its own post-deploy migrations; the candidate image was not migrated or deployed."
+    exit 1
+  fi
+
   # --phase=pre, because at this point the PREVIOUS image is still serving every
   # request. The migrator applies additive migrations only and stops at the first
   # one that takes something away; the post-deploy slot below picks those up once

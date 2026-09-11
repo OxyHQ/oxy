@@ -143,6 +143,7 @@ for (const problem of phaseProblems) fail(problem);
 // ── 2/3. The deploy still applies migrations, on the right side ────────────
 const deployWorkflow = read(DEPLOY_WORKFLOW_PATH);
 const deployScript = read(DEPLOY_SCRIPT_PATH);
+const LIVE_POST_PHASE_COMMAND = '["node","packages/api/dist/db/migrate.js","--phase=post"]';
 
 if (!/^\s+RUN_MIGRATIONS:\s*["']true["']\s*$/m.test(deployWorkflow)) {
   fail(
@@ -159,6 +160,17 @@ if (!deployScript.includes(PRE_PHASE_COMMAND)) {
       "Without a phase the migrator refuses to run and the deploy fails for a reason nobody can " +
       "place; with the wrong phase it applies destructive migrations while the previous image is " +
       "still serving.",
+  );
+}
+
+const livePostOffset = deployScript.indexOf(LIVE_POST_PHASE_COMMAND);
+const candidatePreOffset = deployScript.indexOf(PRE_PHASE_COMMAND);
+if (livePostOffset === -1 || livePostOffset > candidatePreOffset) {
+  fail(
+    `${DEPLOY_SCRIPT_PATH} no longer runs the live image's ${LIVE_POST_PHASE_COMMAND} before ` +
+      `the candidate image's ${PRE_PHASE_COMMAND}. A pending post migration then blocks every ` +
+      `new pre migration behind it in the high-water-mark ledger. Run post from the exact live ` +
+      `task definition first; never bridge the boundary with phase=all.`,
   );
 }
 
