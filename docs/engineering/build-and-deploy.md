@@ -64,6 +64,14 @@ aws --profile oxy --region us-west-2 logs tail /oxy/ecs --log-stream-name-prefix
 
 ## Containers (oxy-api Docker / ECS one-shot tasks)
 
+Migration phases cross release boundaries explicitly. Before running the
+candidate image's `--phase=pre`, the deploy runs `--phase=post` from the exact
+task definition currently serving. The live image's own journal bounds that
+catch-up to destructive migrations whose compatible binary is already live;
+the candidate can then apply newer additive migrations without a high-water-mark
+hole. Do not replace these two bounded runs with `--phase=all`: that would apply
+candidate-only destructive changes while the previous image still serves.
+
 The `oxy-api` Dockerfile uses Bun 1.3's **isolated linker** (default). Dependencies do NOT live at `/app/node_modules/<pkg>` — they live at:
 
 ```

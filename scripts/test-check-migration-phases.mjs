@@ -237,6 +237,23 @@ expectVerdict(
   'no longer passes "--phase=pre"',
 );
 
+// A post migration intentionally deferred by one release must be completed by
+// that exact live image before a later release can apply a newer pre migration.
+// Removing the bridge recreates the 0076(post) -> 0078(pre) production deadlock.
+const noLivePostBridge = createFixture();
+edit(noLivePostBridge, DEPLOY_SCRIPT, "live-post-bridge-removed", (text) =>
+  text.replace(
+    /  if ! run_one_shot_command \\\n+    "Live-image post-migration catch-up"[\s\S]*?^  fi\n\n/m,
+    "",
+  ),
+);
+expectVerdict(
+  "live-post-bridge-removed",
+  noLivePostBridge,
+  1,
+  "no longer runs the live image's",
+);
+
 // The workflow decides whether to run a post-rollout migration task from a grep.
 // A pattern that no longer matches the marker syntax skips that task silently,
 // and the destructive migration is then applied by nothing at all.

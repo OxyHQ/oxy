@@ -711,11 +711,15 @@ grep -F 'no longer has the deployed task definition active' \
   "$test_directory/post-task-service-superseded/output.log" >/dev/null
 
 run_release pre-task-capacity-retry true true false 0 false 1 healthy 0 '' '' '' '' 1
-if [[ "$(<"$test_directory/pre-task-capacity-retry/aws.log.run-task-count")" != "3" ]]; then
+if [[ "$(<"$test_directory/pre-task-capacity-retry/aws.log.run-task-count")" != "4" ]]; then
   echo "The pre-deploy migration and reconciliation did not use the expected bounded retry path." >&2
   exit 1
 fi
 grep -F 'waiting 1s before the next bounded retry' \
+  "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
+grep -F 'Running Live-image post-migration catch-up with arn:aws:ecs:test:task-definition/deploy-test:1' \
+  "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
+grep -F 'Running Migration with arn:aws:ecs:test:task-definition/deploy-test:2' \
   "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
 
 # A hyphen in the parameter path is its own case because it is its own bug: the
