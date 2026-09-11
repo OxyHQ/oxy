@@ -161,6 +161,10 @@ assert.match(provision, /schemaVersion:1/);
 assert.match(provision, /preserve_temp_parameter="true"/);
 assert.match(provision, /handoff-service-credential-pair\.sh/);
 assert.match(provision, /aws ecs list-tasks/);
+assert.match(
+	provision,
+	/--started-by "gh-svc-cred-\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}"/,
+);
 assert.match(provision, /missing encrypted recovery secret/);
 assert.match(provision, /recovery package write failed/);
 assert.doesNotMatch(provision, /removed legacy stale credential envelope key/);

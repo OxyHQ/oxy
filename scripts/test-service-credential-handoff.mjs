@@ -21,8 +21,9 @@ while [ "$#" -gt 0 ]; do
 done
 value=$(</dev/stdin)
 file="$TEST_STATE/$(printf '%s' "$name" | tr '/' '_')"
-if [ "$name" = "/oxy/test/key" ] && [ ! -e "$TEST_STATE/failed-once" ]; then
-  touch "$TEST_STATE/failed-once"
+marker="$TEST_STATE/failed$(printf '%s' "$name" | tr '/' '_')"
+if [ "$name" = "$FAIL_PARAMETER" ] && [ ! -e "$marker" ]; then
+  touch "$marker"
   exit 42
 fi
 printf '%s' "$value" >"$file"
@@ -50,7 +51,12 @@ const newSecret = crypto.randomBytes(32).toString("hex");
 writeFileSync(join(fixture, "_oxy_test_key"), oldKey);
 writeFileSync(join(fixture, "_oxy_test_secret"), oldSecret);
 const recoveryPackage = JSON.stringify({ publicKey: newKey, secret: newSecret });
-const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, TEST_STATE: fixture };
+const env = {
+	...process.env,
+	PATH: `${bin}:${process.env.PATH}`,
+	TEST_STATE: fixture,
+	FAIL_PARAMETER: "/oxy/test/key",
+};
 
 const first = spawnSync(
   "bash",
@@ -69,5 +75,29 @@ const retry = spawnSync(
 assert.equal(retry.status, 0, retry.stderr);
 assert.equal(readFileSync(join(fixture, "_oxy_test_key"), "utf8"), newKey);
 assert.equal(readFileSync(join(fixture, "_oxy_test_secret"), "utf8"), newSecret);
+
+// A failed atomic SSM overwrite leaves the pre-existing envelope key durable.
+// The workflow's trap has already been switched to preserve this parameter, so
+// its exact task/log recovery path can reconstruct this same package.
+const recoveryParameter = "/oxy/_ops/service-credential-alia-34557117644-2";
+const recoveryFile = join(fixture, "_oxy__ops_service-credential-alia-34557117644-2");
+const encryptionKey = crypto.randomBytes(32).toString("hex");
+writeFileSync(recoveryFile, encryptionKey);
+const failedPersistence = spawnSync(
+	"bash",
+	[
+		".github/scripts/put-secure-parameter.sh",
+		recoveryParameter,
+		"overwrite",
+	],
+	{
+		cwd: process.cwd(),
+		env: { ...env, FAIL_PARAMETER: recoveryParameter },
+		input: recoveryPackage,
+		encoding: "utf8",
+	},
+);
+assert.notEqual(failedPersistence.status, 0);
+assert.equal(readFileSync(recoveryFile, "utf8"), encryptionKey);
 
 process.stdout.write("Partial service-credential handoff is repaired by exact package replay.\n");
