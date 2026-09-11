@@ -69,6 +69,20 @@ async function run(): Promise<void> {
 		}
 
 		if (credential.status === "active") {
+			if (credential.rotatedFromCredentialId) {
+				const [predecessor] = await db
+					.select({
+						status: applicationCredentials.status,
+						expiresAt: applicationCredentials.expiresAt,
+					})
+					.from(applicationCredentials)
+					.where(eq(applicationCredentials.id, credential.rotatedFromCredentialId))
+					.limit(1)
+					.for("update");
+				if (!predecessor || !isCredentialUsable(predecessor) || predecessor.status !== "deprecated") {
+					throw new Error("Active replacement has no usable deprecated predecessor; refusing false idempotence.");
+				}
+			}
 			return { credentialId, status: "already_finalized" as const };
 		}
 		if (credential.status !== "pending") {

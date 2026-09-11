@@ -288,6 +288,13 @@ replays the same already-minted credential, repairing a partial pair without
 minting another database row. A dry run performs none of those writes and cannot
 consume a recovery package.
 
+Migration/deploy order is causal and reserved: merge and safely deploy #1237
+(`0076`–`0078`) first; this credential handoff owns `0079` and must deploy before
+Alia is rotated. The open economic-routing PR #1234 must not merge from its
+current journal: after this change reaches `main`, rebase #1234 and regenerate
+its two migrations as `0080`/`0081`. Reviewing those numbers independently of
+that rebase would silently accept a duplicate `0079` from two open branches.
+
 **`service`, not `machine`.** The `oxy_sk_*` machine lane exists so external
 developers can use a standard OpenAI SDK without implementing a token exchange;
 it authenticates on no route today. Alia is a platform-trusted first-party

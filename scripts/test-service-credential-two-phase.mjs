@@ -47,6 +47,7 @@ for (const crashAfter of ["run-task", "prepare-commit", "package", "finalize"]) 
 assert.match(prepare, /status: "pending"/);
 assert.doesNotMatch(prepare, /\.set\(\{ status: "deprecated"/);
 assert.match(finalize, /credential\.status !== "pending"/);
+assert.match(finalize, /refusing false idempotence/);
 assert.match(finalize, /\.set\(\{ status: "active" \}\)/);
 assert.match(finalize, /\.set\(\{ status: "deprecated", expiresAt: graceExpiresAt \}\)/);
 
