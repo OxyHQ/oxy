@@ -2,7 +2,8 @@
 
 - Status: accepted
 - Date: 2026-08-17
-- Amended by contract v2: Oxy owns the exact priority-score-ID ordering; Kaana
+- Amended by contract v2 and the reviewed funding extension: Oxy owns the exact
+  priority-funding-score-ID ordering; Kaana
   executes and fails over only within that signed preference order.
 - Issue: #972 (workstreams 6 and 13)
 - Changes: [ADR 0006](0006-oxy-kaana-boundary.md) (what crosses the boundary, and
@@ -24,8 +25,8 @@ on the reasoning that since #1012 the control plane filters every candidate rout
 against every control it can express as a predicate over one candidate and
 refuses `policy_violation` when none qualifies. Contract v2 closes the remaining
 ordering ambiguity: Oxy ranks the qualified routes by explicit profile priority,
-reviewed score descending, then exact deployment ID by ECMAScript UTF-16 code
-units; Kaana executes that signed order.
+explicit BYOK preference, reviewed funding class, score descending, then exact
+deployment ID by ECMAScript UTF-16 code units; Kaana executes that signed order.
 
 That correction is right about the primary route and leaves a hole one step
 later. Its own words are that the data plane owns "failover within the
@@ -258,8 +259,8 @@ means.
   stands and is now complete: the reference is still provenance and still nothing
   downstream acts on, and the routes the policy authorized travel beside it.
 - The earlier sentence assigning RANKING to the data plane is superseded by the
-  v2 exact-order contract. Oxy signs explicit routing-profile priority, reviewed
-  score descending and exact deployment-ID UTF-16 code-unit order; Kaana may
+  v2 exact-order contract. Oxy signs explicit routing-profile priority, explicit
+  BYOK preference, reviewed funding class, score descending and exact deployment-ID UTF-16 code-unit order; Kaana may
   fail over only by walking that list.
 - Edge step 5, *"resolve the routing policy, pin its version, and SELECT the
   route"*, becomes: resolve the policy, pin its version, and select the ordered

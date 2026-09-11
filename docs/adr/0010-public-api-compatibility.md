@@ -172,9 +172,9 @@ Oxy also completes price qualification and the preference order before
 forwarding. The catalogue may prefilter the flat fee because Kaana emits
 `requests: 1`; the edge then quotes the complete request maximum from each
 candidate's pinned price version. At each explicit routing-profile priority it
-excludes cap and currency failures, then orders the survivors by the reviewed
-`optimiseFor` score descending and exact `deploymentId` by ECMAScript UTF-16 code
-units as the sole tie-break. If output is implicit, that first survivor fixes
+excludes cap and currency failures, then orders the survivors by explicit BYOK
+preference, reviewed funding class, the `optimiseFor` score descending and exact
+`deploymentId` by ECMAScript UTF-16 code units as the sole tie-break. If output is implicit, that first survivor fixes
 the output ceiling before lower priorities are resolved for capacity. No price
 survivor means `policy_violation` before reserve or execution. The data plane
 executes and fails over only within the signed order. It cannot re-rank by

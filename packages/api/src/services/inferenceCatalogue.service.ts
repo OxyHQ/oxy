@@ -1137,7 +1137,7 @@ async function loadPriceSnapshots(
  * guard — it strips anything unknown and fails loudly on anything malformed.
  *
  * No route is selected here. Runtime selection belongs to the edge and uses
- * profile priority, reviewed score and exact deployment id. The catalogue emits
+ * profile priority, reviewed funding class, score and exact deployment id. The catalogue emits
  * one price/scope/permission only when every visible route agrees; otherwise it
  * omits the singular field instead of inventing a representative by name or DB
  * order. Its data policy is the conservative guarantee across all visible routes.
@@ -1573,6 +1573,8 @@ export interface EdgeRoute {
   readonly deploymentId: string;
   /** Reviewed score for this request's explicit optimisation dimension. */
   readonly routingScore: number;
+  /** Reviewed economics order used only inside Oxy; it never crosses into Kaana. */
+  readonly fundingPriority: InferenceFundingPriority;
   /** `<publisher>/<model>@<revision>` — always revision-pinned. */
   readonly modelReference: string;
   readonly provider: string;
@@ -2125,10 +2127,12 @@ export async function resolveEdgeRoute(
     resolvedModelId: string,
     internalRouteId: string,
     priceVersionId: string,
-    routingScore: number
+    routingScore: number,
+    fundingPriority: InferenceFundingPriority
   ): EdgeRoute => ({
     deploymentId: internalRouteId,
     routingScore,
+    fundingPriority,
     modelReference: composeModelReference(resolvedModelId, row.revision),
     provider: row.providerSlug,
     regions: row.regions,
@@ -2164,7 +2168,7 @@ export async function resolveEdgeRoute(
   }
 
   const alternates: EdgeRoute[] = [];
-  for (const { candidate, score } of ranked.slice(1)) {
+  for (const { candidate, score, fundingRank } of ranked.slice(1)) {
     const { resolvedModelId, internalRouteId, priceVersionId } = candidate;
     if (resolvedModelId === null || internalRouteId === null || priceVersionId === null) {
       return {
@@ -2175,7 +2179,7 @@ export async function resolveEdgeRoute(
       };
     }
     alternates.push(
-      edgeRouteOf(candidate, resolvedModelId, internalRouteId, priceVersionId, score)
+      edgeRouteOf(candidate, resolvedModelId, internalRouteId, priceVersionId, score, fundingRank)
     );
   }
 
@@ -2186,7 +2190,8 @@ export async function resolveEdgeRoute(
       chosen.candidate.resolvedModelId,
       chosen.candidate.internalRouteId,
       chosen.candidate.priceVersionId,
-      chosen.score
+      chosen.score,
+      chosen.fundingRank
     ),
     alternates,
   };
@@ -2210,8 +2215,10 @@ const FUNDING_CLASS_RANK = {
   standard_payg: 4,
 } as const;
 
+export type InferenceFundingPriority = (typeof FUNDING_CLASS_RANK)[keyof typeof FUNDING_CLASS_RANK];
+
 type FundingPriorityResolution =
-  | { readonly status: 'available'; readonly rank: number }
+  | { readonly status: 'available'; readonly rank: InferenceFundingPriority }
   | { readonly status: 'unavailable' };
 
 /**

@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 ALTER TABLE "inference_deployment_routing_score_events" DROP CONSTRAINT "inference_deployment_routing_score_events_funding_evidence_check";--> statement-breakpoint
 ALTER TABLE "inference_deployment_routing_scores" DROP CONSTRAINT "inference_deployment_routing_scores_funding_evidence_check";--> statement-breakpoint
 ALTER TABLE "inference_deployment_routing_score_events" ADD COLUMN "funding_evidence_ref" text DEFAULT 'migration/standard-payg' NOT NULL;--> statement-breakpoint

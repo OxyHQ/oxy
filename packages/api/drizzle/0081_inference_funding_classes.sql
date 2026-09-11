@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 ALTER TABLE "inference_deployment_routing_score_events" ADD COLUMN "funding_class" text DEFAULT 'standard_payg' NOT NULL;--> statement-breakpoint
 ALTER TABLE "inference_deployment_routing_score_events" ADD COLUMN "funding_state" text DEFAULT 'available' NOT NULL;--> statement-breakpoint
 ALTER TABLE "inference_deployment_routing_score_events" ADD COLUMN "funding_remaining" numeric(30, 12);--> statement-breakpoint

@@ -517,9 +517,9 @@ no way to keep. Since #1012, ROUTE SELECTION IS COMPLETE BEFORE THE ENVELOPE IS
 BUILT: the control plane filters candidates against every control expressible as
 a predicate over one candidate and refuses with `policy_violation` when none
 qualifies. Contract v2 completes the order at Oxy as explicit routing-profile
-priority, reviewed score descending, then exact deployment ID by ECMAScript
-UTF-16 code units. The data plane executes and fails over only within that signed
-order.
+priority, explicit BYOK preference, reviewed funding class, reviewed score
+descending, then exact deployment ID by ECMAScript UTF-16 code units. The data
+plane executes and fails over only within that signed order.
 
 **Re-verified again 2026-08-17 ([ADR 0017](../adr/0017-authorized-routes-in-the-envelope.md)).**
 That last clause described a capability the envelope did not support: it named no
@@ -795,7 +795,7 @@ workstreams 0–12 may block on it.
 | Attribution documentation (account/application/credential) | Oxy | OxyHQServices `docs/inference/attribution.md` | exists |
 | Streaming, cancellation, retry documentation | Oxy | OxyHQServices `docs/inference/streaming.md` | exists — the source contract for all three; production proof still requires a real streamed provider request, upstream cancellation and exactly one settlement |
 | Model vs deployment vs routing profile documentation | Oxy | OxyHQServices `docs/inference/catalogue.md` | exists |
-| Routing controls and fallback semantics documentation | Oxy | OxyHQServices `docs/inference/routing.md` | v2 contract — qualification fails closed, explicit profile priority precedes score descending, exact deployment ID UTF-16 code units are the sole tie-break, and Kaana executes only the signed order |
+| Routing controls and fallback semantics documentation | Oxy | OxyHQServices `docs/inference/routing.md` | v2 contract — qualification fails closed, explicit profile priority and BYOK preference precede reviewed funding class, score descending and exact deployment ID UTF-16 tie-break; Kaana executes only the signed order |
 | Exact billing / reservations / usage-dashboard documentation | Oxy | OxyHQServices `docs/inference/billing.md` | exists — including why dashboard usage is eventually consistent while the billed amount comes from the ledger, and the `/inference/reporting` surface |
 | BYOK behaviour and limits documentation | Oxy | OxyHQServices `docs/inference/byok.md` | exists — Kaana PostgreSQL/KMS custody, 1–4096 visible ASCII input, zero credential-derived Oxy metadata, exact opaque IDs, same-operation recovery, validation authority and closure fencing |
 | Data retention and regional policy documentation | Oxy | OxyHQServices `docs/inference/data-policy.md` | exists — what Oxy retains and for how long (including that neither the 90-day telemetry sweep nor the reservation-expiry sweep is scheduled), the no-user-IP invariant, the per-route `dataPolicy` fields, and the residency/retention routing controls, which ARE enforced against the candidate routes since [#1012](https://github.com/OxyHQ/oxy/pull/1012) — subset-not-overlap for regions, actually-not-retaining for zero retention |

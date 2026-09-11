@@ -584,6 +584,21 @@ function compareExactDeploymentIds(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+/** Keep every same-priority ranking site on the one reviewed ordering contract. */
+function compareQualifiedRoutes(left: EdgeRoute, right: EdgeRoute, preferByok: boolean): number {
+  if (preferByok) {
+    const leftIsByok = left.availabilityScope === 'byok_only';
+    const rightIsByok = right.availabilityScope === 'byok_only';
+    if (leftIsByok !== rightIsByok) return leftIsByok ? -1 : 1;
+  }
+  const byFunding = left.fundingPriority - right.fundingPriority;
+  if (byFunding !== 0) return byFunding;
+  const byScore = right.routingScore - left.routingScore;
+  return byScore !== 0
+    ? byScore
+    : compareExactDeploymentIds(left.deploymentId, right.deploymentId);
+}
+
 function sameRegionSet(left: readonly string[], right: readonly string[]): boolean {
   const leftSet = new Set(left);
   const rightSet = new Set(right);
@@ -882,20 +897,13 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   ): Promise<Admission | undefined> => {
     const rankedAtPriority = resolutions
       .flatMap((resolution) => [resolution.route, ...resolution.alternates])
-      .sort((left, right) => {
-        if (routingConstraints.byokPreference === 'prefer') {
-          const leftIsByok = left.availabilityScope === 'byok_only';
-          const rightIsByok = right.availabilityScope === 'byok_only';
-          if (leftIsByok !== rightIsByok) return leftIsByok ? -1 : 1;
-        }
-        const byScore = right.routingScore - left.routingScore;
-        if (byScore !== 0) return byScore;
-        return compareExactDeploymentIds(left.deploymentId, right.deploymentId);
-      });
+      .sort((left, right) =>
+        compareQualifiedRoutes(left, right, routingConstraints.byokPreference === 'prefer')
+      );
 
     // Without a request ceiling there is no price qualification to perform at
     // this stage. Preserve the original rule: the first resolvable priority's
-    // score/ID winner fixes an omitted output ceiling before lower priorities
+    // funding/score/ID winner fixes an omitted output ceiling before lower priorities
     // are resolved, so a smaller fallback is rejected on capacity before its
     // route evidence can affect this request.
     if (maxPricePerRequest === undefined) {
@@ -1112,14 +1120,11 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   rankedCandidates.sort((left, right) => {
     const byPriority = left.priority - right.priority;
     if (byPriority !== 0) return byPriority;
-    if (routingConstraints.byokPreference === 'prefer') {
-      const leftIsByok = left.route.availabilityScope === 'byok_only';
-      const rightIsByok = right.route.availabilityScope === 'byok_only';
-      if (leftIsByok !== rightIsByok) return leftIsByok ? -1 : 1;
-    }
-    const byScore = right.route.routingScore - left.route.routingScore;
-    if (byScore !== 0) return byScore;
-    return compareExactDeploymentIds(left.route.deploymentId, right.route.deploymentId);
+    return compareQualifiedRoutes(
+      left.route,
+      right.route,
+      routingConstraints.byokPreference === 'prefer'
+    );
   });
 
   const uniqueCandidates: RankedCandidate[] = [];

@@ -111,9 +111,10 @@ dated empty readback as production evidence.
 ### Route selection — workstream 6
 
 After the qualification controls filter the set, Oxy ranks every surviving
-exact deployment by the reviewed score for `optimiseFor`. An explicit routing
-profile priority precedes that score; an equal-score tie is broken only by exact
-`deploymentId` ECMAScript UTF-16 code units. Provider/model/display names,
+exact deployment by explicit profile priority, an explicit BYOK preference,
+reviewed funding class, the score for `optimiseFor`, and finally exact
+`deploymentId` ECMAScript UTF-16 code units. Funding order is free entitlement,
+discounted pay-as-you-go, promotional credit, then standard paid. Provider/model/display names,
 insertion order and database return order never select a route. Missing, stale,
 mismatched or colliding identity/price/score evidence refuses the complete set
 before a hold or inference POST. The live exact-ID attestation may run before a
@@ -127,8 +128,8 @@ flat request fee that already exceeds `maxPricePerRequest`; every servable price
 version must state that fee explicitly, including an explicit zero. The edge
 then enforces the complete control: at each priority it quotes this request's
 maximum input/output partitions plus `requests: 1`, excludes cap or currency
-mismatches, and chooses the first survivor by score descending then exact
-deployment ID. With no explicit output ceiling, that winner fixes the implicit
+mismatches, and chooses the first survivor by BYOK preference, reviewed funding
+class, score descending and exact deployment ID. With no explicit output ceiling, that winner fixes the implicit
 output before lower priorities are capacity-checked. No price survivor means a
 403 before reservation or Kaana. Spending limits and the account balance remain
 separate aggregate and funding controls.

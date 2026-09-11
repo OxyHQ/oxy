@@ -3530,6 +3530,20 @@ describe('the envelope’s authorized routes', () => {
       outputPricePerMillion: '5.000000000000',
       routingScore: 100,
     });
+    await getDb()
+      .update(inferenceDeploymentRoutingScores)
+      .set({
+        fundingClass: 'free_entitlement',
+        fundingRemaining: '100.000000000000',
+        fundingRemainingUnit: 'requests',
+        fundingObservedAt: new Date(Date.now() - 60_000),
+        fundingValidUntil: new Date(Date.now() + 3_600_000),
+      })
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, fixture.deploymentId));
+    await getDb()
+      .update(inferenceDeploymentRoutingScores)
+      .set({ fundingClass: 'discounted_payg' })
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, affordable.deploymentId));
     await givenPolicy(fixture, {
       maxPricePerRequest: { amount: '0.010000000000', currency: 'USD' },
     });

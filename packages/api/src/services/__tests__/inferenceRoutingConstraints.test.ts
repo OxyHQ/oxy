@@ -231,6 +231,7 @@ interface DeploymentOptions {
     | 'standard_payg';
   readonly fundingState?: 'available' | 'exhausted' | 'rate_limited' | 'unknown';
   readonly fundingRemaining?: string;
+  readonly fundingObservedAt?: Date;
   readonly fundingValidUntil?: Date;
   readonly retainsPayloads?: boolean;
   readonly retentionDays?: number;
@@ -371,7 +372,7 @@ async function insertDeployment(
     ...((options.fundingClass === 'free_entitlement' ||
       options.fundingClass === 'promotional_credit')
       ? {
-          fundingObservedAt: new Date(now - 60_000),
+          fundingObservedAt: options.fundingObservedAt ?? new Date(now - 60_000),
           fundingValidUntil: options.fundingValidUntil ?? new Date(now + 3_600_000),
         }
       : {}),
@@ -1469,7 +1470,7 @@ describe('routing score order and exact Kaana identity', () => {
     ]);
   });
 
-  it('does not prioritize exhausted, rate-limited, zero-balance or expired funding', async () => {
+  it('does not prioritize unknown, exhausted, rate-limited, zero, future or expired funding', async () => {
     const model = await insertModel();
     const normal = await insertDeployment(model, {
       rank: 'a',
@@ -1490,6 +1491,12 @@ describe('routing score order and exact Kaana identity', () => {
     });
     await insertDeployment(model, {
       rank: 'z',
+      routingScore: 750,
+      fundingClass: 'free_entitlement',
+      fundingState: 'unknown',
+    });
+    await insertDeployment(model, {
+      rank: 'z',
       routingScore: 700,
       fundingClass: 'promotional_credit',
       fundingRemaining: '0.000000000000',
@@ -1500,6 +1507,14 @@ describe('routing score order and exact Kaana identity', () => {
       fundingClass: 'promotional_credit',
       fundingRemaining: '10.000000000000',
       fundingValidUntil: new Date(Date.now() - 1),
+    });
+    await insertDeployment(model, {
+      rank: 'z',
+      routingScore: 500,
+      fundingClass: 'free_entitlement',
+      fundingRemaining: '10.000000000000',
+      fundingObservedAt: new Date(Date.now() + 60_000),
+      fundingValidUntil: new Date(Date.now() + 120_000),
     });
 
     const resolution = await resolveEdgeRoute(
