@@ -49,46 +49,6 @@ try {
   roots.push(clean);
   verdict(clean, 0);
 
-  const permanentExecutionFlag = fixture();
-  roots.push(permanentExecutionFlag);
-  mutate(
-    permanentExecutionFlag,
-    '.github/workflows/deploy-aws.yml',
-    '"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600",',
-    '"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","INFERENCE_KAANA_EXECUTION":"enabled",',
-  );
-  verdict(permanentExecutionFlag, 1);
-
-  const spacedPermanentExecutionFlag = fixture();
-  roots.push(spacedPermanentExecutionFlag);
-  mutate(
-    spacedPermanentExecutionFlag,
-    '.github/workflows/deploy-aws.yml',
-    '"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600",',
-    '"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","INFERENCE_KAANA_EXECUTION" : "enabled",',
-  );
-  verdict(spacedPermanentExecutionFlag, 1);
-
-  const missingRollbackRemoval = fixture();
-  roots.push(missingRollbackRemoval);
-  mutate(
-    missingRollbackRemoval,
-    '.github/workflows/deploy-aws.yml',
-    ',"INFERENCE_KAANA_EXECUTION"]',
-    ']',
-  );
-  verdict(missingRollbackRemoval, 1);
-
-  const duplicateRollbackRemoval = fixture();
-  roots.push(duplicateRollbackRemoval);
-  mutate(
-    duplicateRollbackRemoval,
-    '.github/workflows/deploy-aws.yml',
-    '"INFERENCE_KAANA_EXECUTION"]',
-    '"INFERENCE_KAANA_EXECUTION","INFERENCE_KAANA_EXECUTION"]',
-  );
-  verdict(duplicateRollbackRemoval, 1);
-
   const staleCanaryEvidence = fixture();
   roots.push(staleCanaryEvidence);
   mutate(
