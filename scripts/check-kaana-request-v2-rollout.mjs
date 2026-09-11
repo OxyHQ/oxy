@@ -21,6 +21,31 @@ const forbid = (source, pattern, message) => {
   if (pattern.test(source)) failures.push(message);
 };
 
+const deployOverrideMatches = [
+  ...deploy.matchAll(/^ {10}TASK_ENV_OVERRIDES_JSON: >-\r?\n {12}(\{[^\r\n]+\})\r?$/gm),
+];
+let deployOverrides = null;
+if (deployOverrideMatches.length !== 1) {
+  failures.push('the Oxy deploy must contain one structurally identifiable task-environment JSON scalar');
+} else {
+  try {
+    deployOverrides = JSON.parse(deployOverrideMatches[0][1]);
+  } catch (error) {
+    failures.push(`the Oxy deploy task-environment scalar must be valid JSON: ${String(error)}`);
+  }
+}
+if (deployOverrides === null || Array.isArray(deployOverrides) || typeof deployOverrides !== 'object') {
+  failures.push('the Oxy deploy task-environment scalar must be a JSON object');
+} else if (deployOverrides.INFERENCE_KAANA_EXECUTION !== 'disabled') {
+  failures.push('the candidate readback and canary phase must deploy Oxy with Kaana execution explicitly disabled');
+}
+if (
+  deployOverrideMatches.length === 1 &&
+  (deployOverrideMatches[0][1].match(/"INFERENCE_KAANA_EXECUTION"\s*:/g) ?? []).length !== 1
+) {
+  failures.push('the Oxy task environment must contain exactly one Kaana execution binding');
+}
+
 requireMatch(
   request,
   /export const inferenceRequestSchema =[\s\S]*?schemaVersion: z\.literal\(2\)/,
@@ -50,11 +75,6 @@ requireMatch(
   /schemaVersion: 2,[\s\S]*?attribution:/,
   'Oxy buildEnvelope must emit inference request schemaVersion 2',
 );
-forbid(
-  deploy,
-  /"INFERENCE_KAANA_EXECUTION":/,
-  'the completed cutover must not retain a permanent Kaana execution environment flag',
-);
 requireMatch(
   evidence,
   /readback run: 34301660359[\s\S]*?canary run: 34302325992[\s\S]*?snapshot: snap_da7406fdfed50248[\s\S]*?task definition: arn:aws:ecs:us-west-2:237343248947:task-definition\/oxy-oxy-api:359[\s\S]*?image digest: sha256:5be97aa30dfac6b9e0d44d8767ace26017e4ebdb7b5c31da80d80ead7ad76b0b[\s\S]*?provider requests: 2[\s\S]*?Oxy ledger writes: 0/,
@@ -72,5 +92,5 @@ if (failures.length > 0) {
 }
 
 process.stdout.write(
-  'Kaana request-v2 producer is exact-ID only and enabled after the recorded signed canary.\n',
+  'Kaana request-v2 producer is exact-ID only; ambient execution is disabled for candidate readback and canary.\n',
 );

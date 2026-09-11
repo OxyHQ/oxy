@@ -20,14 +20,16 @@ every flag, its resolved state, and the reason for that state.
 |---|---|---|---|
 | `INFERENCE_EDGE_AUDIENCE` | `closed` · `internal` · `first_party` · `allowlist:<exactAppId>,…` · `public` | **closed — nobody** | Who may reach `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id` |
 | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `enabled` · `disabled` | **disabled** | Whether an `oxy_sk_…` machine credential authenticates at all |
-| `INFERENCE_KAANA_EXECUTION` | `enabled` · `disabled` | **enabled** | Emergency kill switch for the signed Kaana client; production omits it after cutover and sets only `disabled` for rollback |
+| `INFERENCE_KAANA_EXECUTION` | `enabled` · `disabled` | **enabled** | Emergency kill switch for the signed Kaana client; every candidate readback/canary deploy sets `disabled` explicitly, and a later reviewed deploy may enable it only after the new evidence is recorded |
 | `INFERENCE_CHARGING_AUTHORIZED` | `<reason>:<YYYY-MM-DD>` | **shadow metering — nobody is charged** | Whether the edge reserves, settles and moves money |
 | `INFERENCE_CATALOGUE_AUDIENCE` | `internal` · `public` | **internal** | Whether a public viewer is served the published catalogue |
 | `INFERENCE_PRIVACY_REVIEW` | `<reviewer>:<YYYY-MM-DD>` | **no review recorded — a public audience stays closed** | Whether the privacy and security review a public launch is gated on has been recorded |
 
 None is a secret. Deployment-state flags belong in the ECS task definition's
-plain environment when they override a default; the completed Kaana cutover
-deliberately omits its default-on kill switch.
+plain environment when they override a default. The 2026-09-09 cutover evidence
+records the prior successful release; it does not authorize ambient traffic to
+a later Kaana candidate. During a new candidate readback and canary the deploy
+workflow writes `INFERENCE_KAANA_EXECUTION=disabled` explicitly.
 
 ### Every default is the state that does nothing
 
@@ -36,10 +38,11 @@ API key, never publishes a catalogue and never charges anybody. That is the
 whole mechanism: a flag you can arm by forgetting a variable is worse than no
 flag, because it reads as a control while defaulting to the dangerous side.
 
-`packages/api/src/config/__tests__/rolloutFlags.test.ts` asserts each default
-with the environment explicitly cleared. Kaana execution is default-on after
-its reviewed cutover; the same suite asserts explicit `disabled` as its
-emergency rollback path.
+`packages/api/src/config/__tests__/rolloutFlags.test.ts` asserts each runtime
+default with the environment explicitly cleared. Kaana execution remains
+default-on in code after its reviewed cutover, but production candidate safety
+does not rely on that default: the deploy workflow and its mutation-tested gate
+require explicit `disabled` throughout readback and canary.
 
 ### An unreadable value resolves to the safe state, loudly
 

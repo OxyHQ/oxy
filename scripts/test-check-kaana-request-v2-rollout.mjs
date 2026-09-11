@@ -49,15 +49,61 @@ try {
   roots.push(clean);
   verdict(clean, 0);
 
-  const permanentExecutionFlag = fixture();
-  roots.push(permanentExecutionFlag);
+  const enabledExecution = fixture();
+  roots.push(enabledExecution);
   mutate(
-    permanentExecutionFlag,
+    enabledExecution,
     '.github/workflows/deploy-aws.yml',
-    '"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600",',
-    '"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","INFERENCE_KAANA_EXECUTION":"enabled",',
+    '"INFERENCE_KAANA_EXECUTION":"disabled"',
+    '"INFERENCE_KAANA_EXECUTION":"enabled"',
   );
-  verdict(permanentExecutionFlag, 1);
+  verdict(enabledExecution, 1);
+
+  const missingExecutionSwitch = fixture();
+  roots.push(missingExecutionSwitch);
+  mutate(
+    missingExecutionSwitch,
+    '.github/workflows/deploy-aws.yml',
+    ',"INFERENCE_KAANA_EXECUTION":"disabled"',
+    '',
+  );
+  verdict(missingExecutionSwitch, 1);
+
+  const duplicateExecutionSwitch = fixture();
+  roots.push(duplicateExecutionSwitch);
+  mutate(
+    duplicateExecutionSwitch,
+    '.github/workflows/deploy-aws.yml',
+    '"INFERENCE_KAANA_EXECUTION":"disabled"',
+    '"INFERENCE_KAANA_EXECUTION":"disabled","INFERENCE_KAANA_EXECUTION":"disabled"',
+  );
+  verdict(duplicateExecutionSwitch, 1);
+
+  const missingTaskEnvironmentBlock = fixture();
+  roots.push(missingTaskEnvironmentBlock);
+  mutate(
+    missingTaskEnvironmentBlock,
+    '.github/workflows/deploy-aws.yml',
+    'TASK_ENV_OVERRIDES_JSON: >-',
+    'TASK_ENVIRONMENT_OVERRIDES_JSON: >-',
+  );
+  verdict(missingTaskEnvironmentBlock, 1);
+
+  const commentOnlyExecutionSwitch = fixture();
+  roots.push(commentOnlyExecutionSwitch);
+  mutate(
+    commentOnlyExecutionSwitch,
+    '.github/workflows/deploy-aws.yml',
+    ',"INFERENCE_KAANA_EXECUTION":"disabled","OTEL_SERVICE_NAME"',
+    ',"OTEL_SERVICE_NAME"',
+  );
+  mutate(
+    commentOnlyExecutionSwitch,
+    '.github/workflows/deploy-aws.yml',
+    '"OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}\n          # Re-assert',
+    '"OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}\n          # "INFERENCE_KAANA_EXECUTION":"disabled"\n          # Re-assert',
+  );
+  verdict(commentOnlyExecutionSwitch, 1);
 
   const staleCanaryEvidence = fixture();
   roots.push(staleCanaryEvidence);

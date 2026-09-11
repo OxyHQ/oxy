@@ -45,11 +45,16 @@ This is a two-producer rolling cutover, not one deploy. Follow this order:
 6. After the Oxy rollout is complete, Kaana may remove v1 only in a later
    independently reviewed release after logs prove no v1 producer remains.
 
-The CI gate now requires explicit execution enablement together with the exact
-reviewed evidence in
-`docs/release-evidence/kaana-request-v2-cutover-2026-09-09.md`; it also fails if
-the request version regresses or a slug arm returns. The runtime flag remains
-the immediate rollback control.
+The historical evidence in
+`docs/release-evidence/kaana-request-v2-cutover-2026-09-09.md` proves only that
+the release named there completed its bounded canary. It does not authorize a
+new candidate. During every later candidate readback and canary, the CI gate
+requires the Oxy deploy workflow to write
+`INFERENCE_KAANA_EXECUTION=disabled` explicitly; it fails if the binding is
+missing or enabled, if the request version regresses, or if a slug arm returns.
+After fresh evidence is recorded, ambient execution requires a separate
+reviewed Oxy deployment. The runtime flag remains the immediate rollback
+control.
 
 Rollback order is Oxy first: restore
 `INFERENCE_KAANA_EXECUTION=disabled`, deploy and confirm admission is closed.
