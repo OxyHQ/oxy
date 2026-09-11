@@ -15,13 +15,13 @@
  * `/health` probe three times running — so the load balancer kills a task that
  * is merely starved, mid-upload, and the work is lost.
  *
- *   - **BullMQ path** (`REDIS_URL` set): the HTTP process owns only the Queue
+ *   - **BullMQ path** (`QUEUE_REDIS_URL` set in production): the HTTP process owns only the Queue
  *     producer. A standalone process owns the Worker with an explicit, small
  *     concurrency, so sharp/ffmpeg never competes with HTTP health checks.
  *     A failing job is a FAILED job — retried with backoff and visible in the
  *     queue — rather than a swallowed log line.
  *
- *   - **In-process fallback** (no `REDIS_URL`, e.g. local dev / tests): a deduped
+ *   - **In-process fallback** (no queue Redis URL, e.g. local dev / tests): a deduped
  *     pending set drained SEQUENTIALLY. This is deliberately not a fallback to
  *     the old inline call: running generation inline is the bug, so reproducing
  *     it whenever Redis is missing would reintroduce the outage in exactly the
@@ -38,8 +38,10 @@
 import { createHash } from 'node:crypto';
 import { Queue, Worker, type Job } from 'bullmq';
 import { logger } from '../utils/logger';
-import { getQueueConnectionOptions } from './connection';
-import { isQueueEnabled } from './queueManager';
+import {
+  getAssetVariantQueueConnectionOptions,
+  getAssetVariantQueueUrl,
+} from './connection';
 import { COMPLETED_JOBS_RETENTION, FAILED_JOBS_RETENTION } from './constants';
 import { VariantService } from '../services/variantService';
 import { s3Service } from '../services/s3ServiceSingleton';
@@ -74,6 +76,8 @@ function getVariantService(): VariantService {
 const ASSET_VARIANTS_QUEUE = 'asset-variants';
 /** Job name for a single file's rendition set. */
 const ASSET_VARIANTS_JOB = 'generate';
+const ASSET_VARIANT_METRIC_INTERVAL_MS = 60_000;
+const ASSET_VARIANT_METRIC_NAMESPACE = 'Oxy/Queues';
 
 /**
  * Jobs processed at once by ONE worker.
@@ -113,6 +117,68 @@ export function assetVariantsJobId(fileId: string): string {
 
 let queue: Queue<AssetVariantsJobData> | null = null;
 let worker: Worker<AssetVariantsJobData> | null = null;
+let metricInterval: NodeJS.Timeout | null = null;
+
+function isAssetVariantQueueEnabled(): boolean {
+  return Boolean(getAssetVariantQueueUrl());
+}
+
+async function publishAssetVariantQueueMetrics(): Promise<void> {
+  if (!queue) return;
+
+  try {
+    const [counts, oldestWaitingJobs] = await Promise.all([
+      queue.getJobCounts('waiting'),
+      queue.getJobs(['waiting'], 0, 0, true),
+    ]);
+    const oldestTimestamp = oldestWaitingJobs[0]?.timestamp;
+    const oldestWaitingJobAgeSeconds =
+      typeof oldestTimestamp === 'number'
+        ? Math.max(0, Math.floor((Date.now() - oldestTimestamp) / 1000))
+        : 0;
+
+    logger.info('Asset variant queue metrics', {
+      _aws: {
+        Timestamp: Date.now(),
+        CloudWatchMetrics: [
+          {
+            Namespace: ASSET_VARIANT_METRIC_NAMESPACE,
+            Dimensions: [['QueueName']],
+            Metrics: [
+              { Name: 'QueueDepth', Unit: 'Count' },
+              { Name: 'OldestWaitingJobAgeSeconds', Unit: 'Seconds' },
+            ],
+          },
+        ],
+      },
+      QueueName: ASSET_VARIANTS_QUEUE,
+      QueueDepth: counts.waiting ?? 0,
+      OldestWaitingJobAgeSeconds: oldestWaitingJobAgeSeconds,
+    });
+  } catch (err) {
+    logger.error(
+      'Failed to publish asset variant queue metrics',
+      err instanceof Error ? err : new Error(String(err)),
+    );
+  }
+}
+
+function publishAssetVariantPermanentFailure(): void {
+  logger.info('Asset variant permanent failure metric', {
+    _aws: {
+      Timestamp: Date.now(),
+      CloudWatchMetrics: [
+        {
+          Namespace: ASSET_VARIANT_METRIC_NAMESPACE,
+          Dimensions: [['QueueName']],
+          Metrics: [{ Name: 'PermanentJobFailures', Unit: 'Count' }],
+        },
+      ],
+    },
+    QueueName: ASSET_VARIANTS_QUEUE,
+    PermanentJobFailures: 1,
+  });
+}
 
 /* -------------------------------------------------------------------------- */
 /*  In-process fallback                                                       */
@@ -228,18 +294,18 @@ export function enqueueAssetVariantGeneration(fileId: string): void {
 export async function startAssetVariantProducer(): Promise<void> {
   stopped = false;
 
-  if (!isQueueEnabled()) {
+  if (!isAssetVariantQueueEnabled()) {
     if (process.env.NODE_ENV === 'production') {
       stopped = true;
-      throw new Error('REDIS_URL is required for the production asset-variant producer');
+      throw new Error('QUEUE_REDIS_URL is required for the production asset-variant producer');
     }
-    logger.info('Asset variant generation using in-process fallback (REDIS_URL unset)');
+    logger.info('Asset variant generation using in-process fallback (queue Redis URL unset)');
     return;
   }
 
   try {
     queue = new Queue<AssetVariantsJobData>(ASSET_VARIANTS_QUEUE, {
-      connection: getQueueConnectionOptions(),
+      connection: getAssetVariantQueueConnectionOptions(),
       defaultJobOptions: {
         removeOnComplete: COMPLETED_JOBS_RETENTION,
         removeOnFail: FAILED_JOBS_RETENTION,
@@ -270,12 +336,22 @@ export async function startAssetVariantProducer(): Promise<void> {
  * a false health signal while work accumulates nowhere.
  */
 export async function startAssetVariantWorker(): Promise<void> {
-  if (!isQueueEnabled()) {
-    throw new Error('REDIS_URL is required for the asset-variant worker');
+  if (!isAssetVariantQueueEnabled()) {
+    throw new Error('QUEUE_REDIS_URL is required for the asset-variant worker');
   }
   if (worker) return;
 
   try {
+    queue = new Queue<AssetVariantsJobData>(ASSET_VARIANTS_QUEUE, {
+      connection: getAssetVariantQueueConnectionOptions(),
+      defaultJobOptions: {
+        removeOnComplete: COMPLETED_JOBS_RETENTION,
+        removeOnFail: FAILED_JOBS_RETENTION,
+      },
+    });
+    queue.on('error', (err: Error) =>
+      logger.error('Asset variant queue metrics connection error', { error: err.message }),
+    );
     worker = new Worker<AssetVariantsJobData>(
       ASSET_VARIANTS_QUEUE,
       async (job: Job<AssetVariantsJobData>) => {
@@ -288,22 +364,30 @@ export async function startAssetVariantWorker(): Promise<void> {
         }
       },
       {
-        connection: getQueueConnectionOptions(),
+        connection: getAssetVariantQueueConnectionOptions(),
         concurrency: ASSET_VARIANT_WORKER_CONCURRENCY,
       },
     );
-    worker.on('failed', (job, err: Error) =>
+    worker.on('failed', (job, err: Error) => {
       logger.error('Asset variant job failed', {
         jobId: job?.id,
         fileId: job?.data?.fileId,
         attemptsMade: job?.attemptsMade,
         error: err.message,
-      }),
-    );
+      });
+      if (job && job.attemptsMade >= (job.opts.attempts ?? 1)) {
+        publishAssetVariantPermanentFailure();
+      }
+    });
     worker.on('error', (err: Error) =>
       logger.error('Asset variant worker error', { error: err.message }),
     );
-    await worker.waitUntilReady();
+    await Promise.all([queue.waitUntilReady(), worker.waitUntilReady()]);
+    await publishAssetVariantQueueMetrics();
+    metricInterval = setInterval(() => {
+      void publishAssetVariantQueueMetrics();
+    }, ASSET_VARIANT_METRIC_INTERVAL_MS);
+    metricInterval.unref();
 
     logger.info('Asset variant worker started via BullMQ', {
       concurrency: ASSET_VARIANT_WORKER_CONCURRENCY,
@@ -316,6 +400,10 @@ export async function startAssetVariantWorker(): Promise<void> {
 
 /** Close the BullMQ worker + queue (and the connections they own). */
 async function teardownQueue(): Promise<void> {
+  if (metricInterval) {
+    clearInterval(metricInterval);
+    metricInterval = null;
+  }
   const w = worker;
   const q = queue;
   worker = null;

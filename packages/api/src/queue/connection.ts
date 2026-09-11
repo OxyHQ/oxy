@@ -53,9 +53,39 @@ function parseRedisDb(pathname: string): number {
 }
 
 /**
- * Build the BullMQ connection OPTIONS from `REDIS_URL`.
+ * Build BullMQ connection options from one explicit Redis URL.
+ */
+function parseQueueConnectionOptions(url: string): ConnectionOptions {
+  const parsed = new URL(url);
+  const isTls = parsed.protocol === 'rediss:';
+
+  const options: RedisOptions = {
+    host: parsed.hostname,
+    port: parsed.port ? Number.parseInt(parsed.port, 10) : DEFAULT_REDIS_PORT,
+    db: parseRedisDb(parsed.pathname),
+    username: parsed.username ? decodeURIComponent(parsed.username) : undefined,
+    password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+    tls: isTls ? {} : undefined,
+    maxRetriesPerRequest: null,
+    lazyConnect: true,
+    enableReadyCheck: true,
+    keepAlive: KEEP_ALIVE_MS,
+    retryStrategy(times: number) {
+      if (times > MAX_RECONNECT_ATTEMPTS) return null;
+      return Math.min(times * RECONNECT_BACKOFF_STEP_MS, RECONNECT_BACKOFF_CAP_MS);
+    },
+    reconnectOnError(err: Error) {
+      return err.message.includes('READONLY');
+    },
+  };
+
+  return options;
+}
+
+/**
+ * Build the shared BullMQ connection OPTIONS from `REDIS_URL`.
  *
- * Parses `REDIS_URL` into an explicit host/port/username/password/db target
+ * Parses the URL into an explicit host/port/username/password/db target
  * rather than passing the raw URL string, so TLS and DB selection are applied
  * deterministically. `tls: {}` is set for `rediss://`, otherwise omitted.
  *
@@ -70,33 +100,20 @@ export function getQueueConnectionOptions(): ConnectionOptions {
   if (!url) {
     throw new Error('getQueueConnectionOptions called without REDIS_URL set');
   }
+  return parseQueueConnectionOptions(url);
+}
 
-  const parsed = new URL(url);
-  const isTls = parsed.protocol === 'rediss:';
+/** Production asset variants use the isolated noeviction Valkey instance. */
+export function getAssetVariantQueueUrl(): string | undefined {
+  return process.env.QUEUE_REDIS_URL ??
+    (process.env.NODE_ENV !== 'production' ? process.env.REDIS_URL : undefined);
+}
 
-  const options: RedisOptions = {
-    host: parsed.hostname,
-    port: parsed.port ? Number.parseInt(parsed.port, 10) : DEFAULT_REDIS_PORT,
-    db: parseRedisDb(parsed.pathname),
-    username: parsed.username ? decodeURIComponent(parsed.username) : undefined,
-    password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
-    tls: isTls ? {} : undefined,
-
-    // BullMQ requirement — must be null, never a finite number.
-    maxRetriesPerRequest: null,
-    lazyConnect: true,
-    enableReadyCheck: true,
-    keepAlive: KEEP_ALIVE_MS,
-
-    retryStrategy(times: number) {
-      if (times > MAX_RECONNECT_ATTEMPTS) return null;
-      return Math.min(times * RECONNECT_BACKOFF_STEP_MS, RECONNECT_BACKOFF_CAP_MS);
-    },
-
-    reconnectOnError(err: Error) {
-      return err.message.includes('READONLY');
-    },
-  };
-
-  return options;
+/** Production asset variants use the isolated noeviction Valkey instance. */
+export function getAssetVariantQueueConnectionOptions(): ConnectionOptions {
+  const url = getAssetVariantQueueUrl();
+  if (!url) {
+    throw new Error('getAssetVariantQueueConnectionOptions called without QUEUE_REDIS_URL set');
+  }
+  return parseQueueConnectionOptions(url);
 }

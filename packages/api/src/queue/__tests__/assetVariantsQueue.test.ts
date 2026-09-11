@@ -15,15 +15,24 @@ interface AddCall {
   attempts?: number;
 }
 
+type WorkerEventHandler = (job: {
+  id: string;
+  data: { fileId: string };
+  attemptsMade: number;
+  opts: { attempts?: number };
+}, error: Error) => void;
+
 // MockQueue records every `add` so the test can assert on the job id that BullMQ
 // dedupes by. MockWorker records its construction options.
 jest.mock('bullmq', () => {
   class MockWorker {
     static lastOptions: { concurrency?: number } | undefined;
+    static failedHandler: WorkerEventHandler | undefined;
     constructor(_name: unknown, _processor: unknown, options: { concurrency?: number }) {
       MockWorker.lastOptions = options;
     }
-    on(): this {
+    on(event: string, handler: WorkerEventHandler): this {
+      if (event === 'failed') MockWorker.failedHandler = handler;
       return this;
     }
     close(): Promise<void> {
@@ -35,6 +44,8 @@ jest.mock('bullmq', () => {
   }
   class MockQueue {
     static addCalls: AddCall[] = [];
+    static waiting = 0;
+    static oldestTimestamp: number | undefined;
     on(): this {
       return this;
     }
@@ -48,15 +59,26 @@ jest.mock('bullmq', () => {
       MockQueue.addCalls.push(options);
       return Promise.resolve();
     }
+    getJobCounts(): Promise<{ waiting: number }> {
+      return Promise.resolve({ waiting: MockQueue.waiting });
+    }
+    getJobs(): Promise<Array<{ timestamp: number }>> {
+      return Promise.resolve(
+        MockQueue.oldestTimestamp === undefined ? [] : [{ timestamp: MockQueue.oldestTimestamp }],
+      );
+    }
   }
   return { Queue: MockQueue, Worker: MockWorker };
 });
 
-const mockIsQueueEnabled = jest.fn(() => false);
 const mockGenerateVariants = jest.fn(() => Promise.resolve());
 
-jest.mock('../connection', () => ({ getQueueConnectionOptions: () => ({}) }));
-jest.mock('../queueManager', () => ({ isQueueEnabled: () => mockIsQueueEnabled() }));
+jest.mock('../connection', () => ({
+  getAssetVariantQueueConnectionOptions: () => ({}),
+  getAssetVariantQueueUrl: () =>
+    process.env.QUEUE_REDIS_URL ??
+    (process.env.NODE_ENV !== 'production' ? process.env.REDIS_URL : undefined),
+}));
 jest.mock('../../services/s3ServiceSingleton', () => ({ s3Service: {} }));
 jest.mock('../../services/variantService', () => ({
   VariantService: class {
@@ -68,6 +90,7 @@ jest.mock('../../services/variantService', () => ({
 }));
 
 import { Queue, Worker } from 'bullmq';
+import { logger } from '../../utils/logger';
 import {
   ASSET_VARIANT_WORKER_CONCURRENCY,
   assetVariantsJobId,
@@ -77,22 +100,34 @@ import {
   stopAssetVariantProducer,
 } from '../assetVariants.queue';
 
-const MockQueue = Queue as unknown as { addCalls: AddCall[] };
-const MockWorker = Worker as unknown as { lastOptions: { concurrency?: number } | undefined };
+const MockQueue = Queue as unknown as {
+  addCalls: AddCall[];
+  waiting: number;
+  oldestTimestamp: number | undefined;
+};
+const MockWorker = Worker as unknown as {
+  lastOptions: { concurrency?: number } | undefined;
+  failedHandler: WorkerEventHandler | undefined;
+};
 
 /** Let the fallback's `setImmediate` drain kick and settle. */
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 beforeEach(() => {
+  process.env.NODE_ENV = 'test';
+  delete process.env.REDIS_URL;
+  delete process.env.QUEUE_REDIS_URL;
   MockQueue.addCalls = [];
+  MockQueue.waiting = 0;
+  MockQueue.oldestTimestamp = undefined;
   MockWorker.lastOptions = undefined;
+  MockWorker.failedHandler = undefined;
   mockGenerateVariants.mockClear();
   mockGenerateVariants.mockImplementation(() => Promise.resolve());
 });
 
 afterEach(async () => {
   await stopAssetVariantProducer();
-  mockIsQueueEnabled.mockReturnValue(false);
 });
 
 describe('assetVariantsJobId', () => {
@@ -111,7 +146,7 @@ describe('assetVariantsJobId', () => {
 
 describe('dedup', () => {
   it('enqueues both requests for one file under the SAME job id (BullMQ then keeps one)', async () => {
-    mockIsQueueEnabled.mockReturnValue(true);
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
     await startAssetVariantProducer();
 
     enqueueAssetVariantGeneration('file-abc');
@@ -144,7 +179,7 @@ describe('dedup', () => {
   });
 
   it('carries retry attempts so a failed generation is retried, not lost', async () => {
-    mockIsQueueEnabled.mockReturnValue(true);
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
     await startAssetVariantProducer();
 
     enqueueAssetVariantGeneration('file-abc');
@@ -156,14 +191,14 @@ describe('dedup', () => {
 
 describe('producer/worker separation', () => {
   it('does not construct a worker in the HTTP producer', async () => {
-    mockIsQueueEnabled.mockReturnValue(true);
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
     await startAssetVariantProducer();
 
     expect(MockWorker.lastOptions).toBeUndefined();
   });
 
   it('is created with an explicit, small concurrency', async () => {
-    mockIsQueueEnabled.mockReturnValue(true);
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
     await startAssetVariantWorker();
 
     expect(MockWorker.lastOptions?.concurrency).toBe(ASSET_VARIANT_WORKER_CONCURRENCY);
@@ -172,8 +207,58 @@ describe('producer/worker separation', () => {
     expect(ASSET_VARIANT_WORKER_CONCURRENCY).toBeLessThanOrEqual(2);
   });
 
+  it('publishes queue depth and oldest-waiting age as CloudWatch embedded metrics', async () => {
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+    MockQueue.waiting = 7;
+    MockQueue.oldestTimestamp = Date.now() - 125_000;
+    const info = jest.spyOn(logger, 'info');
+
+    await startAssetVariantWorker();
+
+    expect(info).toHaveBeenCalledWith(
+      'Asset variant queue metrics',
+      expect.objectContaining({
+        QueueName: 'asset-variants',
+        QueueDepth: 7,
+        OldestWaitingJobAgeSeconds: expect.any(Number),
+        _aws: expect.objectContaining({ CloudWatchMetrics: expect.any(Array) }),
+      }),
+    );
+    const metricContext = info.mock.calls.find(([message]) => message === 'Asset variant queue metrics')?.[1];
+    expect(metricContext?.OldestWaitingJobAgeSeconds).toBeGreaterThanOrEqual(124);
+    info.mockRestore();
+  });
+
+  it('emits one permanent-failure metric only after the final retry', async () => {
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+    const info = jest.spyOn(logger, 'info');
+    await startAssetVariantWorker();
+
+    MockWorker.failedHandler?.(
+      { id: 'job-1', data: { fileId: 'file-1' }, attemptsMade: 2, opts: { attempts: 3 } },
+      new Error('retryable'),
+    );
+    expect(info).not.toHaveBeenCalledWith(
+      'Asset variant permanent failure metric',
+      expect.anything(),
+    );
+
+    MockWorker.failedHandler?.(
+      { id: 'job-1', data: { fileId: 'file-1' }, attemptsMade: 3, opts: { attempts: 3 } },
+      new Error('permanent'),
+    );
+    expect(info).toHaveBeenCalledWith(
+      'Asset variant permanent failure metric',
+      expect.objectContaining({
+        QueueName: 'asset-variants',
+        PermanentJobFailures: 1,
+      }),
+    );
+    info.mockRestore();
+  });
+
   it('refuses to run a worker without the durable queue', async () => {
-    await expect(startAssetVariantWorker()).rejects.toThrow('REDIS_URL is required');
+    await expect(startAssetVariantWorker()).rejects.toThrow('QUEUE_REDIS_URL is required');
     expect(MockWorker.lastOptions).toBeUndefined();
   });
 });
@@ -190,7 +275,7 @@ describe('production safety', () => {
     process.env.NODE_ENV = 'production';
 
     await expect(startAssetVariantProducer()).rejects.toThrow(
-      'REDIS_URL is required for the production asset-variant producer',
+      'QUEUE_REDIS_URL is required for the production asset-variant producer',
     );
     enqueueAssetVariantGeneration('must-not-transcode-in-http');
     await settle();
