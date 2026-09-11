@@ -64,6 +64,9 @@ async function loadService(): Promise<Loaded> {
   jest.doMock('../../utils/logger', () => ({
     logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   }));
+  jest.doMock('../../config/email.config', () => ({
+    CARD_EXTRACTION_CONFIG: { enabled: true },
+  }));
 
   const axiosPost = jest.fn();
   jest.doMock('../inboxInference.service', () => ({

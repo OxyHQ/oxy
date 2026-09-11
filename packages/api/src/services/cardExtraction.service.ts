@@ -34,6 +34,7 @@ import {
 } from '../db/schema/messages';
 import { messageAttachments } from '../db/schema/messageAttachments';
 import { logger } from '../utils/logger';
+import { CARD_EXTRACTION_CONFIG } from '../config/email.config';
 import { executeInboxPointInference, inboxCompletionText } from './inboxInference.service';
 
 /** Bytes of message body handed to the extractor. */
@@ -66,6 +67,8 @@ class CardExtractionService {
    * Fire-and-forget — failures are logged, never thrown.
    */
   async extractAndUpdate(userId: string, messageId: string): Promise<void> {
+    if (!CARD_EXTRACTION_CONFIG.enabled) return;
+
     try {
       const db = getDb();
       const [message] = await db
