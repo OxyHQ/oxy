@@ -191,6 +191,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "catalog:",
+    "@types/express": "catalog:",
     "@radix-ui/react-slot": "1.2.3",
     "@oxy.so/bloom": "catalog:",
     "markdown-it": "12.3.2",

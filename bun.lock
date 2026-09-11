@@ -943,6 +943,7 @@
   "overrides": {
     "@oxy.so/bloom": "catalog:",
     "@radix-ui/react-slot": "1.2.3",
+    "@types/express": "catalog:",
     "browserslist": "4.28.8",
     "ioredis": "5.11.1",
     "lightningcss": "1.30.1",
