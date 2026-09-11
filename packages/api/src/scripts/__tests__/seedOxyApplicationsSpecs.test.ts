@@ -189,29 +189,35 @@ describe('the canonical official-application registry', () => {
     ];
 
     /**
-     * The two staff-gated scopes Alia is authorised to hold, and the ONLY two.
+     * The three staff-gated scopes Alia is authorised to hold, and the ONLY three.
      *
      * Named as a constant because three assertions below need the same list and
-     * they ask different questions of it — that both are granted, that no THIRD
+     * they ask different questions of it — that all are granted, that no FOURTH
      * privileged scope has joined them, and that neither name is a typo. A
      * misspelling would be absent from `PRIVILEGED_APPLICATION_SCOPES`, absent
      * from the grant, and would read exactly like a deliberate decision.
      */
     const DELEGATION_SCOPES: readonly string[] = ['acting-as:offline', 'accounts:act-as-session'];
+    const PRIVILEGED_SCOPES: readonly string[] = ['capabilities:read', ...DELEGATION_SCOPES];
 
     it('declares the argued set and nothing else', () => {
       expect(specNamed('Alia').scopes).toEqual([...ALIA_APPLICATION_SCOPES]);
     });
 
-    it('carries the four inference scopes the integration is built on', () => {
+    it('carries the inference and capability read scopes the integration is built on', () => {
       expect(ALIA_APPLICATION_SCOPES).toEqual(
         expect.arrayContaining([
           'inference:invoke',
           'inference:models:read',
           'inference:usage:read',
           'inference:routing:read',
+          'capabilities:read',
         ])
       );
+    });
+
+    it('can read the capability registry used to build its service tools and context', () => {
+      expect(ALIA_APPLICATION_SCOPES).toContain('capabilities:read');
     });
 
     it('carries `inference:usage:read`, which the entitlement interface requires', () => {
@@ -232,7 +238,7 @@ describe('the canonical official-application registry', () => {
       expect(ALIA_APPLICATION_SCOPES).toEqual(expect.arrayContaining([...DELEGATION_SCOPES]));
     });
 
-    it('holds exactly those two staff-gated scopes and no others', () => {
+    it('holds exactly the three argued staff-gated scopes and no others', () => {
       // This REPLACES "holds no staff-gated scope of any family", which was a
       // real gate rather than a formality: the seed is the one path where a
       // staff-only scope reaches an application without a person reviewing a
@@ -242,7 +248,7 @@ describe('the canonical official-application registry', () => {
       // privileged scope added here lengthens the array and fails, and either
       // named one going missing shortens it and fails.
       const privileged = ALIA_APPLICATION_SCOPES.filter((scope) => isPrivilegedScope(scope));
-      expect(privileged).toEqual([...DELEGATION_SCOPES]);
+      expect(privileged).toEqual([...PRIVILEGED_SCOPES]);
     });
 
     it('both delegation names are REAL privileged scopes, so pinning them means something', () => {
@@ -278,12 +284,13 @@ describe('the canonical official-application registry', () => {
         (scope) =>
           scope !== 'user:read' &&
           !scope.startsWith('inference:') &&
+          scope !== 'capabilities:read' &&
           !DELEGATION_SCOPES.includes(scope)
       );
 
-    it('grants nothing outside inference, `user:read` and the two delegation scopes', () => {
+    it('grants nothing outside inference, `user:read`, capability read and delegation', () => {
       // This REPLACES "grants nothing outside the inference family except the
-      // `user:read` baseline". The exemption list grew by exactly the two scopes
+      // `user:read` baseline". The exemption list grew by exactly the three scopes
       // argued for above and by nothing else, which is the point: the sentence
       // this test enforces is still "and nothing else".
       expect(outsidersOf(ALIA_APPLICATION_SCOPES)).toEqual([]);
