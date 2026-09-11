@@ -14,7 +14,7 @@ fi
 
 key_parameter="$1"
 secret_parameter="$2"
-package=$(</dev/stdin)
+package=$(cat)
 public_key=$(jq -er '.publicKey' <<<"$package")
 secret=$(jq -er '.secret' <<<"$package")
 
