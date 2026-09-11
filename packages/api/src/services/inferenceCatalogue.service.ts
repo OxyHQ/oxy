@@ -2045,7 +2045,7 @@ export async function resolveEdgeRoute(
   const ranked: {
     readonly candidate: (typeof capacityCompatible)[number];
     readonly score: number;
-    readonly fundingRank: number;
+    readonly fundingRank: InferenceFundingPriority;
   }[] = [];
   for (const candidate of capacityCompatible) {
     if (candidate.priceVersionId === null) {
