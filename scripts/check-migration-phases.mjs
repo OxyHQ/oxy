@@ -35,8 +35,6 @@
  *      but the failure would arrive as a red deploy nobody can place; with the
  *      WRONG phase it would apply destructive migrations against the image still
  *      serving, which is worse than the outage it replaced.
- *      An explicitly configured historical bridge must run post first, attest
- *      its immutable image and make the candidate verify named ledger identities.
  *   4. `deploy-aws.yml` decides whether it needs a post-rollout migration task by
  *      grepping for the pattern `@oxy.so/db`'s `migrate/phases.ts` exports. That grep
  *      is only sound because of (1); this pins the two together so the workflow cannot
@@ -145,7 +143,6 @@ for (const problem of phaseProblems) fail(problem);
 // ── 2/3. The deploy still applies migrations, on the right side ────────────
 const deployWorkflow = read(DEPLOY_WORKFLOW_PATH);
 const deployScript = read(DEPLOY_SCRIPT_PATH);
-const HISTORICAL_POST_PHASE_COMMAND = '"--phase=post","--bridge-through="';
 
 if (!/^\s+RUN_MIGRATIONS:\s*["']true["']\s*$/m.test(deployWorkflow)) {
   fail(
@@ -165,46 +162,16 @@ if (!deployScript.includes(PRE_PHASE_COMMAND)) {
   );
 }
 
-const historicalPostOffset = deployScript.indexOf(HISTORICAL_POST_PHASE_COMMAND);
-const candidatePreOffset = deployScript.indexOf(PRE_PHASE_COMMAND);
-const bridgeServiceRolloutOffset = deployScript.indexOf(
-  '--task-definition "$MIGRATION_BRIDGE_TASK_DEFINITION"',
-);
-const bridgeStableWaitOffset = deployScript.indexOf(
-  'wait_for_service_rollout "$bridge_deployment_id" "migration bridge"',
-);
-if (
-  bridgeServiceRolloutOffset === -1 ||
-  bridgeStableWaitOffset === -1 ||
-  bridgeServiceRolloutOffset > bridgeStableWaitOffset ||
-  bridgeStableWaitOffset > historicalPostOffset
-) {
-  fail(
-    `${DEPLOY_SCRIPT_PATH} no longer rolls the attested bridge image out and waits for its healthy ` +
-      `service state before running ${HISTORICAL_POST_PHASE_COMMAND}. A one-shot bridge process does ` +
-      "not make the older processes still serving traffic compatible with destructive post SQL.",
-  );
-}
-if (historicalPostOffset === -1 || historicalPostOffset > candidatePreOffset) {
-  fail(
-    `${DEPLOY_SCRIPT_PATH} no longer runs the bounded candidate post bridge ${HISTORICAL_POST_PHASE_COMMAND} before ` +
-      `the candidate image's ${PRE_PHASE_COMMAND}. A pending post migration then blocks every ` +
-      `new pre migration behind it in the high-water-mark ledger. Use an immutable historical ` +
-      `task definition and verify the required ledger identities; never bridge with phase=all.`,
-  );
-}
-
-const bridgeInputNames = [
+for (const legacyBridgeToken of [
   "MIGRATION_BRIDGE_TASK_DEFINITION",
   "MIGRATION_BRIDGE_IMAGE_URI",
   "MIGRATION_BRIDGE_REQUIRED_TAGS",
-];
-const configuredBridgeInputs = bridgeInputNames.filter((name) =>
-  new RegExp(`^\\s+${name}:\\s*\\S+`, "m").test(deployWorkflow)
-);
-if (configuredBridgeInputs.length > 0 && configuredBridgeInputs.length !== bridgeInputNames.length) {
-  for (const name of bridgeInputNames.filter((item) => !configuredBridgeInputs.includes(item))) {
-    fail(`${DEPLOY_WORKFLOW_PATH} configures an incomplete bridge without ${name}.`);
+  "--bridge-through=",
+]) {
+  if (deployWorkflow.includes(legacyBridgeToken) || deployScript.includes(legacyBridgeToken)) {
+    fail(
+      `${legacyBridgeToken} belongs to an expired one-release migration bridge and must not be configured.`,
+    );
   }
 }
 

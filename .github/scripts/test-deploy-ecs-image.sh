@@ -154,10 +154,6 @@ aws() {
       printf '%s\n' "$service_json"
       ;;
     "ecs describe-task-definition")
-      if [[ "$*" == *"arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7"* ]]; then
-        printf '%s\n' "{\"containerDefinitions\":[{\"name\":\"deploy-test\",\"image\":\"${DEPLOY_TEST_BRIDGE_IMAGE}\"}]}"
-        return 0
-      fi
       printf '%s\n' '{
         "family": "deploy-test",
         "networkMode": "awsvpc",
@@ -496,9 +492,7 @@ run_release() {
   local run_task_failure_reason="${16:-$FARGATE_VCPU_QUOTA_REASON}"
   local one_shot_start_max_wait_secs="${17:-3}"
   local retry_service_task_definition="${18:-}"
-  local migration_bridge="${19:-false}"
-  local bridge_task_image="${20:-example.invalid/deploy-test@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}"
-  local task_failure_number="${21:-}"
+  local task_failure_number="${19:-}"
   local case_directory="$test_directory/$case_name"
   local output_file="$case_directory/output.log"
   local smoke_script="$case_directory/smoke.sh"
@@ -537,8 +531,6 @@ run_release() {
   export DEPLOY_TEST_RETRY_SERVICE_TASK_DEFINITION
   export DEPLOY_TEST_DEPLOYMENT_ID
   export DEPLOY_TEST_ROLLBACK_DEPLOYMENT_ID
-  DEPLOY_TEST_BRIDGE_IMAGE="$bridge_task_image"
-  export DEPLOY_TEST_BRIDGE_IMAGE
 
   # The generated smoke fixture expands DEPLOY_TEST_LOG when it runs; its exit
   # code is the entire interface deploy-ecs-image.sh reads, so each case picks
@@ -586,13 +578,6 @@ run_release() {
   if [[ "$inject_task_secret" == "true" ]]; then
     release_environment+=(
       TASK_SECRET_OVERRIDES_JSON='{"EXTRA_TASK_SECRET":"arn:aws:ssm:test:123456789012:parameter/oxy/sample-app/EXTRA_TASK_SECRET"}'
-    )
-  fi
-  if [[ "$migration_bridge" == "true" ]]; then
-    release_environment+=(
-      MIGRATION_BRIDGE_TASK_DEFINITION=arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7
-      MIGRATION_BRIDGE_IMAGE_URI=example.invalid/deploy-test@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-      MIGRATION_BRIDGE_REQUIRED_TAGS=0076_loud_strong_guy,0077_narrow_homiio_reputation_scope
     )
   fi
 
@@ -739,89 +724,17 @@ fi
 grep -F 'no longer has the deployed task definition active' \
   "$test_directory/post-task-service-superseded/output.log" >/dev/null
 
-run_release pre-task-capacity-retry true true false 0 false 1 healthy 0 '' '' '' '' 1 '' '' 3 '' true
-if [[ "$(<"$test_directory/pre-task-capacity-retry/aws.log.run-task-count")" != "4" ]]; then
+run_release pre-task-capacity-retry true true false 0 false 1 healthy 0 '' '' '' '' 1 '' '' 3
+if [[ "$(<"$test_directory/pre-task-capacity-retry/aws.log.run-task-count")" != "3" ]]; then
   echo "The pre-deploy migration and reconciliation did not use the expected bounded retry path." >&2
   exit 1
 fi
 grep -F 'waiting 1s before the next bounded retry' \
   "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
-grep -F 'Running Bounded candidate post-migration bridge with arn:aws:ecs:test:task-definition/deploy-test:2' \
-  "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
-grep -F 'migration:node packages/api/dist/db/migrate.js --phase=post --bridge-through=0077_narrow_homiio_reputation_scope' \
-  "$test_directory/pre-task-capacity-retry/aws.log" >/dev/null
 grep -F 'Running Migration with arn:aws:ecs:test:task-definition/deploy-test:2' \
   "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
-grep -F 'migration:node packages/api/dist/db/migrate.js --phase=pre --require-applied=0076_loud_strong_guy,0077_narrow_homiio_reputation_scope' \
+grep -F 'migration:node packages/api/dist/db/migrate.js --phase=pre' \
   "$test_directory/pre-task-capacity-retry/aws.log" >/dev/null
-
-run_release bridge-image-mismatch false true false 0 false 1 healthy 0 '' '' '' '' 0 '' '' 3 '' true \
-  example.invalid/deploy-test@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-grep -F 'does not contain the attested image' \
-  "$test_directory/bridge-image-mismatch/output.log" >/dev/null
-if [[ -f "$test_directory/bridge-image-mismatch/aws.log.run-task-count" ]]; then
-  echo "An unattested bridge image reached RunTask." >&2
-  exit 1
-fi
-
-# A bridge that never becomes the healthy primary cannot authorize post SQL.
-# The deployment restores the untouched original revision.
-run_release bridge-rollout-failure false true false 0 false 1 circuit-breaker-rollback 0 '' '' '' '' 0 '' '' 3 '' true
-grep -F 'service:arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7:' \
-  "$test_directory/bridge-rollout-failure/aws.log" >/dev/null
-grep -F 'service:arn:aws:ecs:test:task-definition/deploy-test:1:' \
-  "$test_directory/bridge-rollout-failure/aws.log" >/dev/null
-if [[ -f "$test_directory/bridge-rollout-failure/aws.log.run-task-count" ]]; then
-  echo "A failed bridge service rollout reached the post-migration task." >&2
-  exit 1
-fi
-
-# The post migration may run only after the attested bridge is the healthy
-# service revision. The candidate comes last, after both post and verified pre.
-run_release ordered-migration-bridge true true false 0 false 1 healthy 0 '' '' '' '' 0 '' '' 3 '' true
-printf '%s\n' \
-  'service:arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7:desired=1:surge=200' \
-  'migration:node packages/api/dist/db/migrate.js --phase=post --bridge-through=0077_narrow_homiio_reputation_scope' \
-  'migration:node packages/api/dist/db/migrate.js --phase=pre --require-applied=0076_loud_strong_guy,0077_narrow_homiio_reputation_scope' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
-  smoke \
-  reconcile \
-  >"$test_directory/ordered-migration-bridge/expected.log"
-diff -u \
-  "$test_directory/ordered-migration-bridge/expected.log" \
-  "$test_directory/ordered-migration-bridge/aws.log"
-
-# A failed post task has an ambiguous commit state because failure can happen in
-# post-apply verification. Keep the bridge serving and never restore :1.
-run_release bridge-post-failure false true false 1 false 1 healthy 0 '' '' '' '' 0 '' '' 3 '' true '' 1
-printf '%s\n' \
-  'service:arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7:desired=1:surge=200' \
-  'migration:node packages/api/dist/db/migrate.js --phase=post --bridge-through=0077_narrow_homiio_reputation_scope' \
-  tasklogs \
-  >"$test_directory/bridge-post-failure/expected.log"
-diff -u \
-  "$test_directory/bridge-post-failure/expected.log" \
-  "$test_directory/bridge-post-failure/aws.log"
-if grep -F 'service:arn:aws:ecs:test:task-definition/deploy-test:1:' \
-  "$test_directory/bridge-post-failure/aws.log" >/dev/null; then
-  echo "An ambiguous post-task failure restored the schema-incompatible original image." >&2
-  exit 1
-fi
-
-# Once post succeeded, the original image is no longer schema-compatible. A
-# candidate-pre failure must leave the bridge serving, never roll back to :1.
-run_release bridge-candidate-pre-failure false true false 1 false 1 healthy 0 '' '' '' '' 0 '' '' 3 '' true '' 2
-if grep -F 'service:arn:aws:ecs:test:task-definition/deploy-test:1:' \
-  "$test_directory/bridge-candidate-pre-failure/aws.log" >/dev/null; then
-  echo "A failure after bridge post rolled back to the schema-incompatible original image." >&2
-  exit 1
-fi
-grep -F 'service:arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7:' \
-  "$test_directory/bridge-candidate-pre-failure/aws.log" >/dev/null
-grep -F 'migration:node packages/api/dist/db/migrate.js --phase=post' \
-  "$test_directory/bridge-candidate-pre-failure/aws.log" >/dev/null
-grep -F 'migration:node packages/api/dist/db/migrate.js --phase=pre --require-applied=0076_loud_strong_guy,0077_narrow_homiio_reputation_scope' \
-  "$test_directory/bridge-candidate-pre-failure/aws.log" >/dev/null
 
 # A hyphen in the parameter path is its own case because it is its own bug: the
 # bracket expression validating this name once matched every character EXCEPT a
