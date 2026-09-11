@@ -229,6 +229,8 @@ jobs:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           WORKER_SERVICE: oxy-asset-variant-worker
           WORKER_CONTAINER: oxy-asset-variant-worker
+          WORKER_ROLLOUT_ATTEMPTS: "40"
+          WORKER_ROLLOUT_POLL_SECONDS: "15"
         run: |
           set -euo pipefail
           service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$WORKER_SERVICE")
@@ -267,14 +269,36 @@ jobs:
             --desired-count 1 \
             --deployment-configuration 'deploymentCircuitBreaker={enable=true,rollback=true},minimumHealthyPercent=100,maximumPercent=200' \
             >/dev/null
-          aws ecs wait services-stable --cluster "$CLUSTER" --services "$WORKER_SERVICE"
 
-          stable_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$WORKER_SERVICE")
-          if [ "$(jq -r '.services[0].taskDefinition' <<<"$stable_json")" != "$new_task_definition" ] || \
-             [ "$(jq -r '.services[0].desiredCount' <<<"$stable_json")" != "1" ] || \
-             [ "$(jq -r '.services[0].runningCount' <<<"$stable_json")" != "1" ] || \
-             [ "$(jq -r '[.services[0].deployments[] | select(.status == "PRIMARY" and .rolloutState == "COMPLETED")] | length' <<<"$stable_json")" != "1" ]; then
+          stable=false
+          for attempt in $(seq 1 "$WORKER_ROLLOUT_ATTEMPTS"); do
+            stable_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$WORKER_SERVICE")
+            if jq -e --arg task "$new_task_definition" '
+              .services[0] as $service
+              | $service.taskDefinition == $task
+                and $service.desiredCount == 1
+                and $service.runningCount == 1
+                and $service.pendingCount == 0
+                and ($service.deployments | length) == 1
+                and $service.deployments[0].status == "PRIMARY"
+                and $service.deployments[0].rolloutState == "COMPLETED"
+            ' <<<"$stable_json" >/dev/null; then
+              stable=true
+              break
+            fi
+            if jq -e --arg task "$new_task_definition" '
+              any(.services[0].deployments[]; .taskDefinition == $task and .rolloutState == "FAILED")
+            ' <<<"$stable_json" >/dev/null; then
+              echo "::error::asset-variant worker deployment failed"
+              jq '.services[0] | {deployments, events: .events[0:10]}' <<<"$stable_json"
+              exit 1
+            fi
+            echo "Worker rollout not yet exact (${attempt}/${WORKER_ROLLOUT_ATTEMPTS}); waiting."
+            sleep "$WORKER_ROLLOUT_POLL_SECONDS"
+          done
+          if [ "$stable" != "true" ]; then
             echo "::error::asset-variant worker did not reach the exact stable revision"
+            jq '.services[0] | {desiredCount, runningCount, pendingCount, deployments, events: .events[0:10]}' <<<"$stable_json"
             exit 1
           fi
           echo "Asset-variant worker is stable at $new_task_definition"
