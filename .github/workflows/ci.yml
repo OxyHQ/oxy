@@ -25,6 +25,8 @@ jobs:
           bash .github/scripts/test-run-native-product-agent-bootstrap.sh
           bash .github/scripts/test-report-native-product-agent-task-failure.sh
           bash .github/scripts/test-smoke-inbox-mcp.sh
+          node scripts/test-check-asset-worker-rollout.mjs
+          node scripts/check-asset-worker-rollout.mjs
           node scripts/test-check-kaana-dns-boundary.mjs
           node scripts/check-kaana-dns-boundary.mjs
           node scripts/test-check-kaana-identity.mjs
