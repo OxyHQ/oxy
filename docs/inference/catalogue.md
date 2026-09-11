@@ -201,11 +201,11 @@ route becomes public when somebody reviews the right to resell it, not when it
 starts answering.
 
 The catalogue never chooses a "primary" deployment to fill these singular
-fields. In particular, it never sorts by availability scope, provider slug,
+fields. In particular, it never sorts by availability scope, funding class, provider slug,
 display name or database order and then presents that row's commercial terms as
 the model's terms. Disagreement is represented conservatively by aggregation or
 by omitting the singular field. The execution route is selected later under the
-priority-score-exact-ID contract in [routing.md](./routing.md#ranking-after-qualification).
+priority-funding-score-exact-ID contract in [routing.md](./routing.md#ranking-after-qualification).
 
 ## A route that your policy forbids is a refusal
 
@@ -258,7 +258,8 @@ the edge quotes the complete maximum cost of this request against every
 candidate's pinned price version, including `requests: 1`, the input ceiling and
 the applicable maximum output partitions. It excludes totals above the cap and
 currencies that do not match. Within the first priority that retains a route,
-score descending and exact deployment ID choose the first survivor. If the
+BYOK preference, funding class, score descending and exact deployment ID choose
+the first survivor. If the
 caller omitted an output ceiling, that survivor's maximum fixes the implicit
 output ceiling before lower priorities are resolved for capacity. A priority
 whose routes all exceed the cap fixes nothing, so the next priority is evaluated
@@ -268,8 +269,8 @@ returns `policy_violation` (403) before reservation and before Kaana. Full rules
 
 `optimiseFor` is not a qualification predicate: after every applicable control
 has filtered the candidates, Oxy ranks them by explicit routing-profile
-priority, then the selected score descending, then exact deployment ID by
-ECMAScript UTF-16 code units. Kaana executes that signed order and does not
+priority, explicit BYOK preference, reviewed funding class, the selected score
+descending, then exact deployment ID by ECMAScript UTF-16 code units. Kaana executes that signed order and does not
 derive another from names or inventory order. Full rule:
 [routing.md](./routing.md#ranking-after-qualification).
 

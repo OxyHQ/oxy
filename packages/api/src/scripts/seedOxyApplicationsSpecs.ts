@@ -143,6 +143,10 @@ export function seedApplicationLookupIdentity(
  *    served a request when a user reports a slow or wrong answer. Describing
  *    where a request would go is not deciding it, and an app that cannot see the
  *    catalogue cannot debug its own latency.
+ *  - `capabilities:read` — Alia builds its tool catalogue and service context
+ *    from Oxy's capability registry before each agent run. Oxy authorises that
+ *    read from the effective credential/application scope intersection, so the
+ *    application itself must hold this scope as well as its credential.
  *
  * GRANTED — delegation. BOTH ARE STAFF-GATED
  * ({@link PRIVILEGED_APPLICATION_SCOPES}), so neither is self-grantable by the
@@ -216,6 +220,7 @@ export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
   'inference:models:read',
   'inference:usage:read',
   'inference:routing:read',
+  'capabilities:read',
   'acting-as:offline',
   'accounts:act-as-session',
 ];

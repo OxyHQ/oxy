@@ -213,6 +213,15 @@ function scorecardFor(priceVersionId: string, overrides: { balancedScore?: numbe
       formulaRef: 'scorecard/formula-v1',
       validUntil,
     },
+    economics: {
+      fundingClass: 'standard_payg' as const,
+      state: 'available' as const,
+      evidenceRef: 'funding-review/standard-payg',
+      remaining: null,
+      remainingUnit: null,
+      observedAt: null,
+      validUntil: null,
+    },
     reason: 'Reviewed routing evidence',
   };
 }
@@ -535,6 +544,62 @@ describe('review comes before approval', () => {
 });
 
 describe('routing-score authoring', () => {
+  it('has no economics defaults and refuses an event that omits reviewed economics', async () => {
+    const columns = await getDb().execute<{
+      table_name: string;
+      column_name: string;
+      column_default: string | null;
+    }>(sql`
+      select table_name, column_name, column_default
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name in (
+          'inference_deployment_routing_scores',
+          'inference_deployment_routing_score_events'
+        )
+        and column_name in ('funding_class', 'funding_state', 'funding_evidence_ref')
+      order by table_name, column_name
+    `);
+    expect(columns).toHaveLength(6);
+    expect(columns.every((column) => column.column_default === null)).toBe(true);
+
+    const staffUserId = await insertStaffUser();
+    const deployment = await insertProposedRoute();
+    await setDeploymentRoutingScores({
+      deploymentId: deployment.internalRouteId,
+      staffUserId,
+      scorecard: scorecardFor(deployment.priceVersionId),
+    });
+
+    await expect(
+      getDb().execute(sql`
+        insert into inference_deployment_routing_score_events (
+          deployment_id,
+          price_score, price_source, price_evidence_ref, price_version_id,
+          latency_score, latency_source, latency_evidence_ref,
+          latency_measurement_window_start, latency_measurement_window_end, latency_valid_until,
+          throughput_score, throughput_source, throughput_evidence_ref,
+          throughput_measurement_window_start, throughput_measurement_window_end,
+          throughput_valid_until,
+          balanced_score, balanced_source, balanced_evidence_ref, balanced_formula_ref,
+          balanced_valid_until, reason, changed_by_user_id
+        )
+        select
+          deployment_id,
+          price_score, price_source, price_evidence_ref, price_version_id,
+          latency_score, latency_source, latency_evidence_ref,
+          latency_measurement_window_start, latency_measurement_window_end, latency_valid_until,
+          throughput_score, throughput_source, throughput_evidence_ref,
+          throughput_measurement_window_start, throughput_measurement_window_end,
+          throughput_valid_until,
+          balanced_score, balanced_source, balanced_evidence_ref, balanced_formula_ref,
+          balanced_valid_until, reason, changed_by_user_id
+        from inference_deployment_routing_scores
+        where deployment_id = ${deployment.internalRouteId}
+      `)
+    ).rejects.toMatchObject({ cause: { code: '23502' } });
+  });
+
   it('replaces all four scores by exact Kaana deployment identity', async () => {
     const staffUserId = await insertStaffUser();
     const deployment = await insertProposedRoute();
@@ -566,6 +631,9 @@ describe('routing-score authoring', () => {
         priceEvidenceRef: inferenceDeploymentRoutingScores.priceEvidenceRef,
         priceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
         reason: inferenceDeploymentRoutingScores.reason,
+        fundingClass: inferenceDeploymentRoutingScores.fundingClass,
+        fundingState: inferenceDeploymentRoutingScores.fundingState,
+        fundingRemaining: inferenceDeploymentRoutingScores.fundingRemaining,
         changedByUserId: inferenceDeploymentRoutingScores.changedByUserId,
       })
       .from(inferenceDeploymentRoutingScores)
@@ -579,6 +647,9 @@ describe('routing-score authoring', () => {
       priceEvidenceRef: 'scorecard/route-2026-09/price',
       priceVersionId: deployment.priceVersionId,
       reason: 'Initial reviewed ordering',
+      fundingClass: 'standard_payg',
+      fundingState: 'available',
+      fundingRemaining: null,
       changedByUserId: staffUserId,
     });
 

@@ -15,8 +15,9 @@
  * `/health` probe three times running — so the load balancer kills a task that
  * is merely starved, mid-upload, and the work is lost.
  *
- *   - **BullMQ path** (`REDIS_URL` set): one job per file, deduped by a stable
- *     per-file jobId, drained by a worker with an explicit, small concurrency.
+ *   - **BullMQ path** (`REDIS_URL` set): the HTTP process owns only the Queue
+ *     producer. A standalone process owns the Worker with an explicit, small
+ *     concurrency, so sharp/ffmpeg never competes with HTTP health checks.
  *     A failing job is a FAILED job — retried with backoff and visible in the
  *     queue — rather than a swallowed log line.
  *
@@ -120,7 +121,7 @@ let worker: Worker<AssetVariantsJobData> | null = null;
 const pending = new Set<string>();
 const inFlight = new Set<string>();
 let draining = false;
-let stopped = false;
+let stopped = true;
 
 /**
  * Which start/stop cycle the current drain belongs to.
@@ -220,14 +221,18 @@ export function enqueueAssetVariantGeneration(fileId: string): void {
 }
 
 /**
- * Start the asset-variant subsystem. BullMQ (durable, fleet-wide dedup) when
- * queues are enabled, otherwise the sequential in-process fallback. Never throws
- * — a queue setup failure logs and falls back.
+ * Start the producer used by the HTTP process. Development without Redis keeps
+ * the sequential fallback; production requires a reachable durable queue and
+ * fails startup rather than moving CPU-heavy work back into the API fleet.
  */
-export async function startAssetVariantJobs(): Promise<void> {
+export async function startAssetVariantProducer(): Promise<void> {
   stopped = false;
 
   if (!isQueueEnabled()) {
+    if (process.env.NODE_ENV === 'production') {
+      stopped = true;
+      throw new Error('REDIS_URL is required for the production asset-variant producer');
+    }
     logger.info('Asset variant generation using in-process fallback (REDIS_URL unset)');
     return;
   }
@@ -243,7 +248,34 @@ export async function startAssetVariantJobs(): Promise<void> {
     queue.on('error', (err: Error) =>
       logger.error('Asset variant queue error', { error: err.message }),
     );
+    await queue.waitUntilReady();
 
+    logger.info('Asset variant producer started via BullMQ (durable, fleet-wide dedup)');
+  } catch (err) {
+    await teardownQueue();
+    if (process.env.NODE_ENV === 'production') {
+      stopped = true;
+      throw err;
+    }
+    logger.error(
+      'Asset variant BullMQ producer setup failed — falling back to in-process',
+      err instanceof Error ? err : new Error(String(err)),
+    );
+  }
+}
+
+/**
+ * Start the standalone BullMQ consumer. This has no in-process fallback: the
+ * worker process without Redis cannot receive jobs, so staying alive would be
+ * a false health signal while work accumulates nowhere.
+ */
+export async function startAssetVariantWorker(): Promise<void> {
+  if (!isQueueEnabled()) {
+    throw new Error('REDIS_URL is required for the asset-variant worker');
+  }
+  if (worker) return;
+
+  try {
     worker = new Worker<AssetVariantsJobData>(
       ASSET_VARIANTS_QUEUE,
       async (job: Job<AssetVariantsJobData>) => {
@@ -271,16 +303,14 @@ export async function startAssetVariantJobs(): Promise<void> {
     worker.on('error', (err: Error) =>
       logger.error('Asset variant worker error', { error: err.message }),
     );
+    await worker.waitUntilReady();
 
-    logger.info('Asset variant generation started via BullMQ (durable, fleet-wide dedup)', {
+    logger.info('Asset variant worker started via BullMQ', {
       concurrency: ASSET_VARIANT_WORKER_CONCURRENCY,
     });
   } catch (err) {
-    logger.error(
-      'Asset variant BullMQ setup failed — falling back to in-process',
-      err instanceof Error ? err : new Error(String(err)),
-    );
     await teardownQueue();
+    throw err;
   }
 }
 
@@ -311,7 +341,7 @@ async function teardownQueue(): Promise<void> {
  * fallback set. Safe to call regardless of which path ran. Intended for the
  * server's graceful-shutdown sequence (BEFORE the shared Redis client closes).
  */
-export async function stopAssetVariantJobs(): Promise<void> {
+export async function stopAssetVariantProducer(): Promise<void> {
   stopped = true;
   pending.clear();
   inFlight.clear();
@@ -319,5 +349,10 @@ export async function stopAssetVariantJobs(): Promise<void> {
   // generation — so a later start is not wedged by it.
   epoch += 1;
   draining = false;
+  await teardownQueue();
+}
+
+/** Stop the standalone consumer and close its BullMQ connection. */
+export async function stopAssetVariantWorker(): Promise<void> {
   await teardownQueue();
 }

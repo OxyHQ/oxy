@@ -49,7 +49,10 @@ jest.mock('../variantService', () => ({
 // time; nothing in these tests should reach real S3.
 jest.mock('../s3ServiceSingleton', () => ({ s3Service: {} }));
 
-import { startAssetVariantJobs, stopAssetVariantJobs } from '../../queue/assetVariants.queue';
+import {
+  startAssetVariantProducer,
+  stopAssetVariantProducer,
+} from '../../queue/assetVariants.queue';
 
 /** A real PNG magic prefix + random suffix, so the content guard accepts it and
  *  no two cases collide on the table-wide live-sha256 constraint. */
@@ -83,11 +86,11 @@ beforeAll(async () => {
 beforeEach(async () => {
   mockGenerateVariants.mockClear();
   mockGenerateVariants.mockImplementation(() => Promise.resolve());
-  await startAssetVariantJobs();
+  await startAssetVariantProducer();
 });
 
 afterEach(async () => {
-  await stopAssetVariantJobs();
+  await stopAssetVariantProducer();
   fileCache.clear();
 });
 

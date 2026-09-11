@@ -26,7 +26,12 @@ import {
   inferenceDeploymentRoutingScoreEvents,
   inferenceDeploymentRoutingScores,
 } from '../inferenceDeploymentRoutingScores';
-import { PROTECTED_COLUMNS, PROTECTED_COLUMNS_BY_TABLE } from '../protectedColumns';
+import {
+  INFERENCE_ROUTING_SCORE_EVENTS_PROTECTED_COLUMNS,
+  INFERENCE_ROUTING_SCORES_PROTECTED_COLUMNS,
+  PROTECTED_COLUMNS,
+  PROTECTED_COLUMNS_BY_TABLE,
+} from '../protectedColumns';
 import { users } from '../users';
 
 /**
@@ -116,6 +121,26 @@ describe('protected columns — the registry', () => {
   ] as const)('protects every column of the internal table %s', (tableName, table) => {
     expect([...PROTECTED_COLUMNS_BY_TABLE[tableName]].sort()).toEqual(
       Object.keys(getTableColumns(table)).sort()
+    );
+  });
+
+  it.each([
+    ['inference_deployment_routing_scores', INFERENCE_ROUTING_SCORES_PROTECTED_COLUMNS],
+    [
+      'inference_deployment_routing_score_events',
+      INFERENCE_ROUTING_SCORE_EVENTS_PROTECTED_COLUMNS,
+    ],
+  ] as const)('keeps funding evidence internal on %s', (_tableName, protectedColumns) => {
+    expect(protectedColumns).toEqual(
+      expect.arrayContaining([
+        'fundingClass',
+        'fundingState',
+        'fundingEvidenceRef',
+        'fundingRemaining',
+        'fundingRemainingUnit',
+        'fundingObservedAt',
+        'fundingValidUntil',
+      ])
     );
   });
 });

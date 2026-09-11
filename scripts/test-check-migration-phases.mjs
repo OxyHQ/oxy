@@ -237,52 +237,6 @@ expectVerdict(
   'no longer passes "--phase=pre"',
 );
 
-// A post migration intentionally deferred by one release must be completed by
-// an attested historical image before a later release applies a newer pre migration.
-// Removing the bridge recreates the 0076(post) -> 0078(pre) production deadlock.
-const noLivePostBridge = createFixture();
-edit(noLivePostBridge, DEPLOY_SCRIPT, "live-post-bridge-removed", (text) =>
-  text.replace(
-    '"--phase=post","--bridge-through="',
-    '"--phase=missing","--bridge-through="',
-  ),
-);
-expectVerdict(
-  "live-post-bridge-removed",
-  noLivePostBridge,
-  1,
-  "no longer runs the bounded candidate post bridge",
-);
-
-const bridgeServiceWaitRemoved = createFixture();
-edit(
-  bridgeServiceWaitRemoved,
-  DEPLOY_SCRIPT,
-  "bridge-service-wait-removed",
-  (text) =>
-    text.replace(
-      'wait_for_service_rollout "$bridge_deployment_id" "migration bridge"',
-      'wait_for_service_rollout "$bridge_deployment_id" "missing bridge"',
-    ),
-);
-expectVerdict(
-  "bridge-service-wait-removed",
-  bridgeServiceWaitRemoved,
-  1,
-  "no longer rolls the attested bridge image out",
-);
-
-const incompleteBridge = createFixture();
-edit(incompleteBridge, WORKFLOW, "bridge-digest-removed", (text) =>
-  text.replace(/^\s+MIGRATION_BRIDGE_IMAGE_URI:.*\n/m, ""),
-);
-expectVerdict(
-  "bridge-digest-removed",
-  incompleteBridge,
-  1,
-  "configures an incomplete bridge without MIGRATION_BRIDGE_IMAGE_URI",
-);
-
 // The workflow decides whether to run a post-rollout migration task from a grep.
 // A pattern that no longer matches the marker syntax skips that task silently,
 // and the destructive migration is then applied by nothing at all.
@@ -298,6 +252,20 @@ expectVerdict(
   driftedGrep,
   1,
   "does not grep for ^-- oxy:deploy-phase=post$",
+);
+
+const expiredBridge = createFixture();
+edit(expiredBridge, WORKFLOW, "expired-bridge-restored", (text) =>
+  text.replace(
+    '          RUN_MIGRATIONS: "true"',
+    '          RUN_MIGRATIONS: "true"\n          MIGRATION_BRIDGE_TASK_DEFINITION: expired',
+  ),
+);
+expectVerdict(
+  "expired-bridge-restored",
+  expiredBridge,
+  1,
+  "belongs to an expired one-release migration bridge",
 );
 
 // ── The gate's own guards, each with a case that goes GREEN without it ──────

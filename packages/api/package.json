@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/server.js",
+    "start:asset-variant-worker": "node dist/asset-variant-worker.js",
     "dev": "bun --watch src/server.ts",
     "build": "bun run --filter @oxy.so/telemetry build && bun run --filter @oxy.so/contracts build && bun run --filter @oxy.so/protocol build && bun run --filter @oxy.so/core build && bun run --filter @oxy.so/federation build && bun run --filter @oxy.so/db build && bun run --filter @oxy.so/mcp build && tsc",
     "clean": "rm -rf dist",

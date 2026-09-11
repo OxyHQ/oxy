@@ -224,6 +224,84 @@ jobs:
           fi
           echo "tasks=$tasks" >>"$GITHUB_OUTPUT"
 
+      - name: Deploy asset-variant worker before the API
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          WORKER_SERVICE: oxy-asset-variant-worker
+          WORKER_CONTAINER: oxy-asset-variant-worker
+          WORKER_ROLLOUT_ATTEMPTS: "40"
+          WORKER_ROLLOUT_POLL_SECONDS: "15"
+        run: |
+          set -euo pipefail
+          service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$WORKER_SERVICE")
+          if [ "$(jq '.failures | length' <<<"$service_json")" != "0" ] || \
+             [ "$(jq -r '.services[0].status // "NONE"' <<<"$service_json")" != "ACTIVE" ]; then
+            echo "::error::asset-variant worker service is not ACTIVE"
+            exit 1
+          fi
+
+          current_task_definition=$(jq -er '.services[0].taskDefinition' <<<"$service_json")
+          task_definition=$(aws ecs describe-task-definition \
+            --task-definition "$current_task_definition" \
+            --query taskDefinition)
+          if [ "$(jq --arg name "$WORKER_CONTAINER" '[.containerDefinitions[] | select(.name == $name)] | length' <<<"$task_definition")" != "1" ]; then
+            echo "::error::worker task definition must contain exactly one $WORKER_CONTAINER container"
+            exit 1
+          fi
+          if [ "$(jq -c --arg name "$WORKER_CONTAINER" '.containerDefinitions[] | select(.name == $name) | .command' <<<"$task_definition")" != '["node","packages/api/dist/asset-variant-worker.js"]' ]; then
+            echo "::error::worker task definition has an unexpected command"
+            exit 1
+          fi
+
+          rendered_task_definition=$(jq --arg name "$WORKER_CONTAINER" --arg image "$IMAGE_URI" '
+            del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+            | .containerDefinitions |= map(if .name == $name then .image = $image else . end)
+          ' <<<"$task_definition")
+          new_task_definition=$(aws ecs register-task-definition \
+            --cli-input-json "$rendered_task_definition" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$WORKER_SERVICE" \
+            --task-definition "$new_task_definition" \
+            --deployment-configuration 'deploymentCircuitBreaker={enable=true,rollback=true},minimumHealthyPercent=100,maximumPercent=200' \
+            >/dev/null
+
+          stable=false
+          for attempt in $(seq 1 "$WORKER_ROLLOUT_ATTEMPTS"); do
+            stable_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$WORKER_SERVICE")
+            if jq -e --arg task "$new_task_definition" '
+              .services[0] as $service
+              | $service.taskDefinition == $task
+                and $service.desiredCount > 0
+                and $service.runningCount == $service.desiredCount
+                and $service.pendingCount == 0
+                and ($service.deployments | length) == 1
+                and $service.deployments[0].status == "PRIMARY"
+                and $service.deployments[0].rolloutState == "COMPLETED"
+            ' <<<"$stable_json" >/dev/null; then
+              stable=true
+              break
+            fi
+            if jq -e --arg task "$new_task_definition" '
+              any(.services[0].deployments[]; .taskDefinition == $task and .rolloutState == "FAILED")
+            ' <<<"$stable_json" >/dev/null; then
+              echo "::error::asset-variant worker deployment failed"
+              jq '.services[0] | {deployments, events: .events[0:10]}' <<<"$stable_json"
+              exit 1
+            fi
+            echo "Worker rollout not yet exact (${attempt}/${WORKER_ROLLOUT_ATTEMPTS}); waiting."
+            sleep "$WORKER_ROLLOUT_POLL_SECONDS"
+          done
+          if [ "$stable" != "true" ]; then
+            echo "::error::asset-variant worker did not reach the exact stable revision"
+            jq '.services[0] | {desiredCount, runningCount, pendingCount, deployments, events: .events[0:10]}' <<<"$stable_json"
+            exit 1
+          fi
+          echo "Asset-variant worker is stable at $new_task_definition"
+
       - name: Register immutable task definition and deploy
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
@@ -240,15 +318,6 @@ jobs:
           # "skip when this push changed no migration file" would have skipped the
           # deploy AFTER the one that stranded 0013 and left production broken.
           RUN_MIGRATIONS: "true"
-          # One-release bridge for the post migrations in the journal at
-          # ea8c7a6532035595f8f91c26085b716790804ab7. ECS revision 396 pins the
-          # image built by that commit, whose journal ends at 0077 before the
-          # candidate-only pre migration 0078. The deploy script reads the task
-          # definition back and rejects any image mismatch, then the candidate
-          # proves both SQL hashes are in the ledger before planning its pre run.
-          MIGRATION_BRIDGE_TASK_DEFINITION: arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:396
-          MIGRATION_BRIDGE_IMAGE_URI: 237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:e906e2fc232a052e59c9af2385e25c36b0e984191ec66929e9c1e9289ab8c62c
-          MIGRATION_BRIDGE_REQUIRED_TAGS: 0076_loud_strong_guy,0077_narrow_homiio_reputation_scope
           POST_DEPLOY_TASKS_JSON: ${{ steps.post_deploy_tasks.outputs.tasks }}
           # Plain operational configuration, never provider credentials. The
           # Kaana hop is fully named here so an image deploy cannot silently

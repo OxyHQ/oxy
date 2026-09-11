@@ -285,8 +285,10 @@ The full request-cap decision is priority-aware:
 2. quote each candidate's complete maximum for this request from its pinned
    price version, using exact `amount × quantity / per` arithmetic;
 3. exclude any quote above `maxPricePerRequest` or in a different currency;
-4. among that priority's survivors, choose score descending and then exact
-   `deploymentId` UTF-16 code-unit order;
+4. among that priority's survivors, apply any explicit BYOK preference, then
+   funding class (`free_entitlement`, `discounted_payg`, `promotional_credit`,
+   `standard_payg`), score descending and exact `deploymentId` UTF-16 code-unit
+   order;
 5. if the caller omitted `maxOutputTokens`, let that first survivor fix the
    implicit output ceiling before resolving lower priorities for capacity.
 
@@ -313,8 +315,12 @@ policy value to reinterpret.
 The order is exact and deliberately independent of names:
 
 1. an explicit routing-profile candidate `priority` comes first;
-2. within one priority, the selected score is descending;
-3. lexicographic comparison of the exact `deploymentId` by ECMAScript UTF-16
+2. an explicit BYOK preference, when configured by the customer, comes next;
+3. within one priority and credential preference, eligible reviewed funding is
+   ordered `free_entitlement`, `discounted_payg`, `promotional_credit`, then
+   `standard_payg`;
+4. within one funding class, the selected score is descending;
+5. lexicographic comparison of the exact `deploymentId` by ECMAScript UTF-16
    code units is the only equal-score tie-break.
 
 Provider slug, provider display name, model name, insertion order, locale
@@ -322,9 +328,9 @@ collation and database return order never participate. The ID is an identity and
 the last-resort deterministic tie-break, not a proxy for quality.
 
 `maxPricePerRequest` qualification happens inside each priority before its
-score/ID winner is admitted. Priority never loses to a higher score from a lower
-priority, and a route excluded by the complete request quote cannot become the
-winner or enter `authorizedRoutes`.
+funding/score/ID winner is admitted. Priority never loses to cheaper funding or
+a higher score from a lower priority, and a route excluded by the complete
+request quote cannot become the winner or enter `authorizedRoutes`.
 
 Every otherwise eligible route must have one exact deployment ID, one price
 version and a current scorecard for that same ID and price version. A missing ID,

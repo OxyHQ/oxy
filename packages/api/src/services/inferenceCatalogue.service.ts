@@ -63,6 +63,7 @@ import { getDb } from '../config/postgres';
 import {
   inferenceDeployments,
   inferenceDeploymentRoutingScores,
+  type InferenceFundingClass,
   inferenceModelEvaluations,
   inferenceModelRevisions,
   inferenceModels,
@@ -1137,7 +1138,7 @@ async function loadPriceSnapshots(
  * guard — it strips anything unknown and fails loudly on anything malformed.
  *
  * No route is selected here. Runtime selection belongs to the edge and uses
- * profile priority, reviewed score and exact deployment id. The catalogue emits
+ * profile priority, reviewed funding class, score and exact deployment id. The catalogue emits
  * one price/scope/permission only when every visible route agrees; otherwise it
  * omits the singular field instead of inventing a representative by name or DB
  * order. Its data policy is the conservative guarantee across all visible routes.
@@ -1573,6 +1574,8 @@ export interface EdgeRoute {
   readonly deploymentId: string;
   /** Reviewed score for this request's explicit optimisation dimension. */
   readonly routingScore: number;
+  /** Reviewed economics order used only inside Oxy; it never crosses into Kaana. */
+  readonly fundingPriority: InferenceFundingPriority;
   /** `<publisher>/<model>@<revision>` — always revision-pinned. */
   readonly modelReference: string;
   readonly provider: string;
@@ -1731,7 +1734,8 @@ export type EdgeRouteResolution =
         | 'missing-score'
         | 'stale-score'
         | 'score-price-mismatch'
-        | 'unsupported-optimisation';
+        | 'unsupported-optimisation'
+        | 'funding-unavailable';
     }
   | {
       readonly status: 'policy-excluded';
@@ -1849,6 +1853,11 @@ export async function resolveEdgeRoute(
       throughputValidUntil: inferenceDeploymentRoutingScores.throughputValidUntil,
       balancedScore: inferenceDeploymentRoutingScores.balancedScore,
       balancedValidUntil: inferenceDeploymentRoutingScores.balancedValidUntil,
+      fundingClass: inferenceDeploymentRoutingScores.fundingClass,
+      fundingState: inferenceDeploymentRoutingScores.fundingState,
+      fundingRemaining: inferenceDeploymentRoutingScores.fundingRemaining,
+      fundingObservedAt: inferenceDeploymentRoutingScores.fundingObservedAt,
+      fundingValidUntil: inferenceDeploymentRoutingScores.fundingValidUntil,
       revision: inferenceModelRevisions.revision,
       isCurrent: inferenceModelRevisions.isCurrent,
       retiredAt: inferenceModelRevisions.retiredAt,
@@ -2036,6 +2045,7 @@ export async function resolveEdgeRoute(
   const ranked: {
     readonly candidate: (typeof capacityCompatible)[number];
     readonly score: number;
+    readonly fundingRank: InferenceFundingPriority;
   }[] = [];
   for (const candidate of capacityCompatible) {
     if (candidate.priceVersionId === null) {
@@ -2087,7 +2097,9 @@ export async function resolveEdgeRoute(
         reason: score.reason,
       };
     }
-    ranked.push({ candidate, score: score.value });
+    const funding = fundingPriorityFor(candidate, now);
+    if (funding.status === 'unavailable') continue;
+    ranked.push({ candidate, score: score.value, fundingRank: funding.rank });
   }
 
   ranked.sort((left, right) => {
@@ -2096,6 +2108,8 @@ export async function resolveEdgeRoute(
       const rightIsByok = right.candidate.availabilityScope === 'byok_only';
       if (leftIsByok !== rightIsByok) return leftIsByok ? -1 : 1;
     }
+    const byFunding = left.fundingRank - right.fundingRank;
+    if (byFunding !== 0) return byFunding;
     const byScore = right.score - left.score;
     if (byScore !== 0) return byScore;
     const leftId = left.candidate.internalRouteId;
@@ -2114,10 +2128,12 @@ export async function resolveEdgeRoute(
     resolvedModelId: string,
     internalRouteId: string,
     priceVersionId: string,
-    routingScore: number
+    routingScore: number,
+    fundingPriority: InferenceFundingPriority
   ): EdgeRoute => ({
     deploymentId: internalRouteId,
     routingScore,
+    fundingPriority,
     modelReference: composeModelReference(resolvedModelId, row.revision),
     provider: row.providerSlug,
     regions: row.regions,
@@ -2137,7 +2153,7 @@ export async function resolveEdgeRoute(
     return {
       status: 'routing-evidence-unavailable',
       modelReference,
-      reason: 'missing-score',
+      reason: 'funding-unavailable',
     };
   }
   if (chosen.candidate.resolvedModelId === null) {
@@ -2153,7 +2169,7 @@ export async function resolveEdgeRoute(
   }
 
   const alternates: EdgeRoute[] = [];
-  for (const { candidate, score } of ranked.slice(1)) {
+  for (const { candidate, score, fundingRank } of ranked.slice(1)) {
     const { resolvedModelId, internalRouteId, priceVersionId } = candidate;
     if (resolvedModelId === null || internalRouteId === null || priceVersionId === null) {
       return {
@@ -2164,7 +2180,7 @@ export async function resolveEdgeRoute(
       };
     }
     alternates.push(
-      edgeRouteOf(candidate, resolvedModelId, internalRouteId, priceVersionId, score)
+      edgeRouteOf(candidate, resolvedModelId, internalRouteId, priceVersionId, score, fundingRank)
     );
   }
 
@@ -2175,7 +2191,8 @@ export async function resolveEdgeRoute(
       chosen.candidate.resolvedModelId,
       chosen.candidate.internalRouteId,
       chosen.candidate.priceVersionId,
-      chosen.score
+      chosen.score,
+      chosen.fundingRank
     ),
     alternates,
   };
@@ -2191,6 +2208,68 @@ type RoutingScoreResolution =
         | 'score-price-mismatch'
         | 'unsupported-optimisation';
     };
+
+export type InferenceFundingPriority = 1 | 2 | 3 | 4;
+
+const FUNDING_CLASS_RANK: Readonly<
+  Record<InferenceFundingClass, InferenceFundingPriority>
+> = {
+  free_entitlement: 1,
+  discounted_payg: 2,
+  promotional_credit: 3,
+  standard_payg: 4,
+} as const;
+
+type FundingPriorityResolution =
+  | { readonly status: 'available'; readonly rank: InferenceFundingPriority }
+  | { readonly status: 'unavailable' };
+
+/**
+ * Translate reviewed, provider-agnostic economics into the user's four-level
+ * preference. Compatibility is filtered before this function, while Kaana's
+ * signed preflight and execution remain the authorities for live health and
+ * upstream rate limits. Expired/exhausted observations never retain priority.
+ */
+export function fundingPriorityFor(
+  candidate: {
+    readonly fundingClass: string | null;
+    readonly fundingState: string | null;
+    readonly fundingRemaining: string | null;
+    readonly fundingObservedAt: Date | null;
+    readonly fundingValidUntil: Date | null;
+  },
+  now: number
+): FundingPriorityResolution {
+  const rank =
+    candidate.fundingClass === null
+      ? undefined
+      : FUNDING_CLASS_RANK[candidate.fundingClass as keyof typeof FUNDING_CLASS_RANK];
+  if (rank === undefined || candidate.fundingState !== 'available') {
+    return { status: 'unavailable' };
+  }
+  if (
+    candidate.fundingRemaining !== null &&
+    /^0(?:\.0+)?$/.test(candidate.fundingRemaining)
+  ) {
+    return { status: 'unavailable' };
+  }
+  if (
+    candidate.fundingValidUntil !== null &&
+    (candidate.fundingObservedAt === null ||
+      candidate.fundingObservedAt.getTime() > now ||
+      candidate.fundingValidUntil.getTime() <= now)
+  ) {
+    return { status: 'unavailable' };
+  }
+  if (
+    (candidate.fundingClass === 'free_entitlement' ||
+      candidate.fundingClass === 'promotional_credit') &&
+    (candidate.fundingObservedAt === null || candidate.fundingValidUntil === null)
+  ) {
+    return { status: 'unavailable' };
+  }
+  return { status: 'available', rank };
+}
 
 function routingScoreFor(
   candidate: {

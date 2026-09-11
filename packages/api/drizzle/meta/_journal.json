@@ -561,6 +561,20 @@
       "when": 1789104969295,
       "tag": "0080_real_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1789108548761,
+      "tag": "0081_inference_funding_classes",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1789108562697,
+      "tag": "0082_inference_funding_evidence",
+      "breakpoints": true
     }
   ]
 }
