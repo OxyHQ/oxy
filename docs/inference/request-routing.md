@@ -206,8 +206,8 @@ PostgreSQL/KMS, bound to provider, owner account, connection, environment,
 handle and revision. The signed authorized route must carry that exact binding;
 no component may resolve BYOK by provider name or an Oxy/Vault locator. This is
 the accepted architecture in [ADR 0019](../adr/0019-kaana-byok-custody.md).
-Kaana and Oxy source support are implemented; Oxy execution remains disabled and
-the combined path is unverified in production.
+Kaana and Oxy source support are implemented; live readback and signed canaries
+remain the authority for production readiness.
 
 ## Provider and model discovery
 
@@ -245,8 +245,7 @@ verify all of the following against live state:
 Until those checks pass, documentation may describe the target architecture and
 the implementation, but must not call the production cutover complete.
 
-For the first Oxy enablement, keep ambient
-`INFERENCE_KAANA_EXECUTION=disabled`. Run the
+For a new isolated candidate, run the
 [`Kaana signed deployment readback`](../../.github/workflows/kaana-signed-deployment-readback.yml)
 against the exact live Oxy task definition and immutable image digest; it may
 project descriptors only and must record zero provider requests and zero Oxy
@@ -255,13 +254,13 @@ ledger writes. Then run the
 with one exact `deploymentId` and the exact `snapshotId` from that readback. It
 makes the two explicitly confirmed one-token provider requests against an
 isolated Kaana candidate task attested by exact task ARN, task-definition ARN,
-image digest and RFC1918 address while ambient execution remains disabled. The
+image digest and RFC1918 address without changing ambient production traffic. The
 signer runs in a separate Oxy task and reaches the candidate only through its
 private task address on port 8080; `https://kaana.ai` remains the sole external
 Kaana origin and no signing key enters the Kaana task. The Kaana workflow always
 stops the candidate and deregisters its temporary definition when the bounded
-canary window ends. Only a separate reviewed deploy change may enable
-the ambient flag after both runs pass; product consumers such as Alia are
-enabled after that Oxy rollout and readback, never before it. The complete
+canary window ends. Product consumers such as Alia remain on the established
+canonical Kaana path; candidate promotion happens only after the isolated
+rollout and readback pass. The complete
 inputs, negative probes and rollback order are in
 [`kaana-request-v2-cutover.md`](../runbooks/kaana-request-v2-cutover.md).

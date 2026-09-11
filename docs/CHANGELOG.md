@@ -50,9 +50,9 @@ credentials:
   Signed inference requests and routing-policy snapshots advance to
   `schemaVersion: 2` and carry only `routing_profile_id`; the deprecated public
   `routingProfile` slug is resolved inside Oxy and cannot cross to Kaana. The
-  first Oxy merge remains dark behind explicit
-  `INFERENCE_KAANA_EXECUTION=disabled`; Kaana must deploy dual v1-model/v2-ID
-  decoding before a separate Oxy enablement change. See the
+  first Oxy merge remained dark behind the then-current execution switch; that
+  switch was retired after Kaana became canonical infrastructure. Kaana had to
+  deploy dual v1-model/v2-ID decoding before Oxy enablement. See the
   [request-v2 cutover runbook](runbooks/kaana-request-v2-cutover.md).
 
 The package version records the contract cut. Publishing, consumer bumps and

@@ -1,8 +1,8 @@
 # The TypeScript SDK, and the OpenAI SDK in TypeScript and Python
 
 Two ways to authenticate, one set of endpoints at `https://api.oxy.so/v1`.
-Authentication alone does not establish that the live audience, catalogue and
-Kaana execution gates are open; see
+Authentication alone does not establish that the live audience and catalogue
+gates are open or that canonical Kaana is configured; see
 [Verify the deployed path](#verify-the-deployed-path) before planning around
 anything on this page.
 
@@ -74,7 +74,7 @@ life.
 [#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the merged Kaana
 runtime v2 source. It sends `stream: true`, propagates cancellation and
 validates the versioned SSE event union. That package publication does not prove
-that the live Oxy audience and Kaana execution gates are open. Embeddings and
+that the live Oxy audience is open and canonical Kaana is configured. Embeddings and
 images remain outside this client. See [streaming.md](./streaming.md).
 
 ```typescript
@@ -227,7 +227,7 @@ This document defines the client contract, not current availability. A live
 check must read the deployed rollout gates and catalogue, then send a real
 request through Oxy to `https://kaana.ai`. Depending on that state, a request may
 be refused because the audience is closed, the model is absent, routing evidence
-is incomplete or Kaana execution is disabled. Do not infer any of those facts
+or Kaana configuration is incomplete. Do not infer any of those facts
 from this page.
 
 Every refusal still settles safely: if a hold was created, the edge releases or
@@ -336,8 +336,8 @@ plane does not teach every client to retry forever
   refuses before reservation and before an inference POST. The signed read-only
   deployment attestation can precede the final hold quote while still producing
   no hold and no execution.
-- With `INFERENCE_KAANA_EXECUTION=disabled`, every invoke returns the typed,
-  non-retryable unconfigured-path refusal and keeps no charge.
+- With incomplete Kaana origin or signing configuration, every invoke returns
+  the typed, non-retryable unconfigured-path refusal and keeps no charge.
 - Streaming and cancellation require the same live end-to-end verification as a
   non-streamed request; source support alone is not production evidence.
 

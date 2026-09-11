@@ -86,8 +86,8 @@ which is SELECT-only and cannot create or repair a row. The required order is:
    are active and their effective scope intersection grants `inference:invoke`.
 8. Set the GitHub Actions variable `INBOX_INFERENCE_ROUTING_PROFILE_ID` to that
    exact ID.
-9. Deploy Oxy, enable the already-gated Kaana execution/charging rollout in its
-   documented order, and smoke one non-stream and one cancelled stream while
+9. Deploy Oxy, authorize charging in its documented rollout order, and smoke
+   one non-stream and one cancelled stream while
    checking reservation settlement and usage attribution.
 
 The permanent source-reviewed ID is an intended identity, not proof that its row

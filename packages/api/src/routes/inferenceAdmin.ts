@@ -321,10 +321,9 @@ router.get(
  * arrives.
  *
  * The reason names the MEASURED absence, not a cause — the edge streams both
- * dialects and forwards both figures when a report carries them. `dataPlane` and
- * `dataPlaneExecution` supply the cause: absent configuration or disabled
- * execution means nothing can have streamed; configured plus enabled makes the
- * same pending a reporting fault.
+ * dialects and forwards both figures when a report carries them. `dataPlane`
+ * supplies the cause: absent configuration means nothing can have streamed;
+ * configured makes the same pending a reporting fault.
  *
  * Staff-only, like everything on this router: request counts per application are
  * customer data, and a settlement-lag distribution is Oxy's own operational

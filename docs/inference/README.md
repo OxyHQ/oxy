@@ -43,7 +43,7 @@ renaming unrelated SMTP, ATProto, device, OAuth or MCP/TNP relay roles.
 
 | Capability | Where | Reachable by a caller? |
 |---|---|---|
-| The public inference edge | `packages/api/src/routes/inferenceEdge.ts` | Mounted — `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id`. Reachability is controlled independently by `INFERENCE_EDGE_AUDIENCE` and the Kaana execution gate; verify both live |
+| The public inference edge | `packages/api/src/routes/inferenceEdge.ts` | Mounted — `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id`. Reachability is controlled by `INFERENCE_EDGE_AUDIENCE`; configured Kaana is the canonical execution path |
 | `oxy_sk_*` machine credentials — create, rotate, revoke, audit | `packages/api/src/routes/applications.ts`, `.../utils/machineCredentialToken.ts` | Yes |
 | The `oxy_sk_*` bearer middleware | `packages/api/src/middleware/machineCredential.ts` | Mounted on the edge with its per-credential and per-application limiters, and **the lane is shut by default** (`INFERENCE_MACHINE_CREDENTIAL_AUTH`) |
 | Native service tokens (`clientId + clientSecret` → 1h JWT) | `POST /auth/service-token` | Yes |

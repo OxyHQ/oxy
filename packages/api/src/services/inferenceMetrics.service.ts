@@ -32,14 +32,11 @@
  * and forwards the data plane's own `timeToFirstTokenMs` and `routeSwitches` when
  * the usage report carries them (`inferenceEdge.service.ts`). Whether production
  * should already have such rows is answered live: `resolveKaanaDataPlane()`
- * reports the signed-client configuration and `resolveKaanaExecution()` reports
- * the independent kill switch.
+ * reports the canonical signed-client configuration.
  *
  * That distinction is worth fields rather than a comment. `dataPlane` reports
- * whether the signed client is configured; `dataPlaneExecution` reports the
- * independent kill switch. Only configured plus enabled means traffic can flow,
- * so a fully populated but deliberately disabled deployment is never described
- * as operational.
+ * whether the signed client is configured. Kaana has no second execution flag:
+ * a configured client is the production execution path.
  *
  * All discriminators are DERIVED — `rowsCarryingValue` is a `count()` over the
  * column and both data-plane fields are read from their environment resolvers —
@@ -88,7 +85,6 @@ import { sql } from 'drizzle-orm';
 import { executeRows } from '@oxy.so/db';
 import { getDb } from '../config/postgres';
 import { resolveKaanaDataPlane } from '../config/kaanaDataPlane';
-import { resolveKaanaExecution } from '../config/rolloutFlags';
 import {
   billingReconciliationDiscrepancies,
   billingReconciliationRuns,
@@ -355,11 +351,6 @@ export interface InferenceOperationalMetrics {
   readonly window: MetricsWindow;
   /** What `resolveKaanaDataPlane()` says — see {@link DataPlanePresence}. */
   readonly dataPlane: DataPlanePresence;
-  /** Independent execution kill switch; configuration alone never means traffic can flow. */
-  readonly dataPlaneExecution: {
-    readonly enabled: boolean;
-    readonly disabledReason: 'not_configured' | 'disabled' | 'unreadable' | null;
-  };
   /**
    * Telemetry is written outside the ledger transaction, so every count and
    * distribution here can lag a settlement or miss a request whose recorder
@@ -774,15 +765,10 @@ async function readReconciliationDrift(
 export async function readInferenceOperationalMetrics(
   scope: MetricsScope
 ): Promise<InferenceOperationalMetrics> {
-  const execution = resolveKaanaExecution();
   return {
     schemaVersion: 1,
     window: scope.window,
     dataPlane: resolveKaanaDataPlane().status,
-    dataPlaneExecution: {
-      enabled: execution.status === 'enabled',
-      disabledReason: execution.status === 'disabled' ? execution.reason : null,
-    },
     consistency: 'eventually-consistent',
     requests: await readRates(scope),
     totalLatencyMs: await readEventDistribution(scope, 'latency_ms', 'no_requests_recorded'),

@@ -56,7 +56,7 @@ import type {
   UsageQuantity,
   UsageUnit,
 } from '@oxy.so/contracts';
-import { admitToInferenceEdge, isKaanaExecutionEnabled } from '../config/rolloutFlags';
+import { admitToInferenceEdge } from '../config/rolloutFlags';
 import {
   machineApplicationLimiter,
   machineCredentialLimiter,
@@ -1249,7 +1249,7 @@ export function createInferenceEdgeRouter(
  * that constructs a router gets exactly the client it passed and never one the
  * ambient environment supplied.
  */
-const configuredKaanaClient = isKaanaExecutionEnabled() ? createHttpKaanaClient() : undefined;
+const configuredKaanaClient = createHttpKaanaClient();
 
 export default createInferenceEdgeRouter(
   configuredKaanaClient === undefined ? {} : { kaanaClient: configuredKaanaClient }
