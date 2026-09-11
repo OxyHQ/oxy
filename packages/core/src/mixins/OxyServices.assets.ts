@@ -1,8 +1,8 @@
-import type { AccountStorageUsageResponse, AssetUploadInput, AssetUrlResponse, AssetVariant, BatchFileAccessResponse, RNFileDescriptor, ServiceAssetMetadata, ServiceAssetMetadataBySha } from '../models/interfaces';
+import type { AccountStorageUsageResponse, AssetUploadInput, AssetUrlResponse, AssetVariant, BatchFileAccessResponse, RNFileDescriptor, ServiceAssetMetadata, ServiceAssetMetadataBySha, ServiceLinkedDownloadUrl } from '../models/interfaces';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { isReactNative } from '@oxy.so/protocol';
 import { logger } from '../logger';
-import { AssetUrlResolutionError, ServiceAssetMetadataError } from '../OxyServices.errors';
+import { AssetUrlResolutionError, ServiceAssetMetadataError, ServiceLinkedDownloadUrlError } from '../OxyServices.errors';
 import { extractErrorStatus } from '../utils/errorUtils';
 import { redactUrlQuery } from '../utils/redactUrl';
 
@@ -21,6 +21,14 @@ const SERVICE_ASSET_METADATA_CHUNK_SIZE = 100;
  * {@link SERVICE_ASSET_METADATA_CHUNK_SIZE} for the forward id lookup.
  */
 const SERVICE_ASSET_METADATA_BY_SHA_CHUNK_SIZE = 100;
+
+/**
+ * Maximum number of ids sent per `POST /assets/service/linked-url` request.
+ * Matches that route's own cap, which is a QUARTER of the metadata routes' —
+ * see `MAX_ASSETS_LINKED_URL` in the API for why minting download credentials is
+ * budgeted more tightly than projecting rows.
+ */
+const SERVICE_LINKED_DOWNLOAD_URL_CHUNK_SIZE = 25;
 
 /**
  * Lowercase hex SHA-256 digest matcher (exactly 64 hex chars). The reverse
@@ -421,6 +429,101 @@ export function OxyServicesAssetsMixin<T extends typeof OxyServicesBase>(Base: T
 
       if (unresolvedIds.length > 0 && options.partial !== true) {
         throw new ServiceAssetMetadataError(unresolvedIds, statuses, firstError);
+      }
+
+      return settled.flat();
+    }
+
+    /**
+     * Mint short-lived direct download URLs for files the calling application's
+     * own users attached to it, via `POST /assets/service/linked-url`.
+     *
+     * This is the ONLY path in this SDK by which a service token reaches file
+     * BYTES. {@link getServiceAssetMetadataByIds} is metadata-only, and every
+     * other download helper here — {@link getFileDownloadUrl},
+     * {@link getFileDownloadUrlAsync}, {@link getBatchFileAccess} — resolves a URL
+     * for the CURRENT USER through `makeRequest`, which is a different question: a
+     * relying service holds no user session, and the buyer whose entitlement it is
+     * enforcing is not a viewer Oxy knows anything about.
+     *
+     * **Service-token auth (required), plus the `files:linked:read` scope**, which
+     * is NOT implied by `files:read`. The calling client must be service-configured
+     * (`configureServiceAuth(apiKey, apiSecret)`); a user-session request is
+     * rejected by the route's service-auth guard.
+     *
+     * **What the server will and will not give you.** A URL comes back only for a
+     * file whose OWN OWNER linked it to this application (`file_links.created_by =
+     * files.owner_user_id`). Every other id is omitted: unknown, deleted,
+     * system-owned, linked by somebody else, or not linked here at all. So the
+     * result is routinely shorter than the input and must be mapped by `id`.
+     *
+     * ABSENCE IS A REFUSAL, NOT A FACT ABOUT THE FILE, and the caller is the only
+     * party that can tell the difference. The route deliberately cannot — it
+     * answers identically for "no such file" and "not yours" so it leaks nothing —
+     * which means a service must decide what to tell its user from its OWN
+     * entitlement record, never from this response. Do not surface "file not
+     * found" on the strength of an omission.
+     *
+     * FAILURE IS NOT ABSENCE EITHER, and here it cannot be opted out of: a failed
+     * chunk throws {@link ServiceLinkedDownloadUrlError} carrying its ids, with no
+     * `{ partial: true }` mode. Swallowing a 429 would tell a user who paid for a
+     * file that it is not there. An empty input resolves to `[]` with no network
+     * call.
+     *
+     * Never cached at the SDK layer, and that is a stronger statement than the
+     * sibling methods' "low hit rate": each entry is a live credential for the
+     * bytes, so caching one keeps it usable after the service has decided the
+     * caller's entitlement ended.
+     */
+    async getServiceLinkedDownloadUrls(ids: string[]): Promise<ServiceLinkedDownloadUrl[]> {
+      const uniqueIds = Array.from(
+        new Set(ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)),
+      );
+      if (uniqueIds.length === 0) {
+        return [];
+      }
+
+      const chunks: string[][] = [];
+      for (let i = 0; i < uniqueIds.length; i += SERVICE_LINKED_DOWNLOAD_URL_CHUNK_SIZE) {
+        chunks.push(uniqueIds.slice(i, i + SERVICE_LINKED_DOWNLOAD_URL_CHUNK_SIZE));
+      }
+
+      // Chunks stay independent so one failure never cancels work already in
+      // flight; the failures are collected and re-raised together below, exactly
+      // as in the metadata sibling.
+      const unresolvedIds: string[] = [];
+      const statuses: number[] = [];
+      let firstError: unknown;
+
+      const settled = await Promise.all(
+        chunks.map(async (chunk): Promise<ServiceLinkedDownloadUrl[]> => {
+          try {
+            const entries = await this.makeServiceRequest<ServiceLinkedDownloadUrl[]>(
+              'POST',
+              '/assets/service/linked-url',
+              { ids: chunk },
+            );
+            return Array.isArray(entries) ? entries : [];
+          } catch (error: unknown) {
+            const status = extractErrorStatus(error);
+            // `chunkSize` and `status`, never the ids and never a `url`: a minted
+            // URL in a log line is a credential in a log line.
+            logger.warn('getServiceLinkedDownloadUrls: chunk failed', {
+              method: 'getServiceLinkedDownloadUrls',
+              chunkSize: chunk.length,
+              status,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            unresolvedIds.push(...chunk);
+            if (typeof status === 'number') statuses.push(status);
+            firstError ??= error;
+            return [];
+          }
+        }),
+      );
+
+      if (unresolvedIds.length > 0) {
+        throw new ServiceLinkedDownloadUrlError(unresolvedIds, statuses, firstError);
       }
 
       return settled.flat();

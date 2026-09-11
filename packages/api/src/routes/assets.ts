@@ -11,7 +11,7 @@ import { logger } from '../utils/logger';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { ApiError, BadRequestError, NotFoundError, UnauthorizedError, ForbiddenError, ValidationError, ConflictError } from '../utils/error';
 import { z } from 'zod';
-import type { FileLinkRecord, FileVariantRecord, FileVisibility } from '../types/file.types';
+import type { FileLinkRecord, FileRecord, FileVariantRecord, FileVisibility } from '../types/file.types';
 import type { MediaAccessContext } from '../types/mediaPrivacy.types';
 import { validate } from '../middleware/validate';
 import {
@@ -21,6 +21,7 @@ import {
   updateVisibilitySchema,
   batchAccessSchema,
   assetsByIdsBodySchema,
+  assetsLinkedUrlBodySchema,
   assetsBySha256BodySchema,
   linkFileSchema,
   unlinkFileSchema,
@@ -1110,6 +1111,211 @@ router.post(
 
     logger.debug('POST /assets/service/by-ids', {
       appId: req.serviceApp?.appId,
+      requested: ids.length,
+      resolved: data.length,
+    });
+
+    sendSuccess(res, data);
+  })
+);
+
+/**
+ * TTL of a minted download URL.
+ *
+ * Short because a presigned S3 URL is BEARER AUTHORITY over the bytes with no
+ * further check: whoever holds the string is the reader, and nothing about the
+ * relying app's own entitlement is re-evaluated when it is used. Five minutes is
+ * the shortest window that still lets a client follow a redirect and begin the
+ * transfer, and it matches the lifetime of the entitlement grant on the other
+ * side of this call (Mercaria's download grant, also 300s) so neither outlives
+ * the other.
+ *
+ * It bounds when a transfer may START, not how long one may take — S3 evaluates
+ * `X-Amz-Expires` once, at request time — so an 8 GiB deliverable downloads
+ * fine on a slow link. What it does NOT survive is a RESUME: a client that
+ * drops at 4 GiB and retries with a `Range` header ten minutes later gets a
+ * 403 and must ask for a new URL. That is deliberate, and it is why the relying
+ * app's grant is redeemable more than once rather than this window being wide.
+ */
+const LINKED_URL_TTL_SECONDS = 300;
+
+/**
+ * Per-app rate limit for minting download URLs.
+ *
+ * Its own limiter rather than a share of {@link assetServiceLookupLimiter}, and a
+ * FIFTH of that ceiling, because the two bound different costs. That one bounds a
+ * projected read of rows by id; this one bounds how many live bearer credentials
+ * for file CONTENT an app can have outstanding — 120/min × 25 ids × 300s TTL, so
+ * at most ~15,000 valid URLs exist at any moment for a runaway caller, rather
+ * than the ~750,000 a shared 600/min budget would allow.
+ *
+ * Unique redis prefix per the rate-limiter convention: a duplicated prefix on a
+ * shared store makes one request increment the same counter twice
+ * (`ERR_ERL_DOUBLE_COUNT`) and silently halves the budget.
+ */
+const LINKED_URL_MAX_PER_MINUTE = 120;
+
+const assetLinkedUrlLimiter = rateLimit({
+  prefix: 'rl:asset-linked-url:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: LINKED_URL_MAX_PER_MINUTE,
+  message: 'Too many asset download URL requests. Please slow down.',
+  keyGenerator: (req: express.Request) => {
+    const serviceApp = (req as ServiceAuthRequest).serviceApp;
+    if (serviceApp?.appId) {
+      return `asset-linked-url:${serviceApp.appId}`;
+    }
+    return `asset-linked-url:ip:${hashedIpKey(req)}`;
+  },
+});
+
+/**
+ * True when `file` was attached to `appId` BY ITS OWN OWNER.
+ *
+ * This predicate is the whole authorization of the route below, so it is worth
+ * being explicit about what it is NOT. It is not "the app holds a service
+ * token" — every caller here does. It is not "a link for this app exists":
+ * `assetService.linkFile` performs no ownership check at all, so any
+ * authenticated user can link any file id they can name into any app, and a
+ * bare link test would make this route "read any file whose id you can guess,
+ * after one call you make yourself". And it is not the file's `visibility`,
+ * which says who may VIEW it in Oxy's own surfaces and has nothing to say about
+ * a third-party service.
+ *
+ * It is the conjunction, and the conjunction is not forgeable by anyone but the
+ * owner: `file_links.created_by` is always `req.user._id` at the one route that
+ * writes it, so a link satisfying `created_by = owner_user_id` can only have
+ * been created by someone holding the owner's own credentials. A user who
+ * attaches their own file to an application has performed the act a consent
+ * screen would have asked about, per file, revocably (they can unlink it).
+ *
+ * System-owned files (`owner_user_id is null`, the federation namespaces) can
+ * never satisfy it: `null === link.createdBy` is false for every link, because
+ * `created_by` is NOT NULL. That is the correct answer rather than an edge case
+ * to handle — nobody consented to a federation cache entry leaving the platform,
+ * and there is no owner who could.
+ */
+function isOwnerLinkedToApp(file: FileRecord, appId: string): boolean {
+  if (!file.ownerUserId) return false;
+  return file.links.some((link) => link.app === appId && link.createdBy === file.ownerUserId);
+}
+
+/**
+ * @openapi
+ * /assets/service/linked-url:
+ *   post:
+ *     tags:
+ *       - Files
+ *     summary: Mint short-lived download URLs for files linked to the calling app
+ *     description: >
+ *       Service-token-only. Given up to 25 file ids, returns a short-lived
+ *       direct download URL for each file that THE FILE'S OWN OWNER attached to
+ *       the calling application — i.e. a `file_links` row whose `app` is the
+ *       caller's and whose `created_by` is the file's `owner_user_id`. Any other
+ *       id is silently OMITTED from `data`: unknown, deleted, system-owned, not
+ *       linked to this app, or linked by somebody other than the owner. The
+ *       batch never 404s as a whole and never returns a placeholder or an empty
+ *       string for a refused id, so a caller cannot tell "no such file" from
+ *       "not yours" — and must treat absence as "no URL", never as an error to
+ *       retry.
+ *
+ *       Requires the `files:linked:read` scope, which is NOT implied by
+ *       `files:read`: that one is metadata-only and grants no authority over
+ *       file contents. The returned URL is bearer authority over the bytes for
+ *       `expiresIn` seconds with no further check, so it must not be logged,
+ *       cached or handed to anyone the caller has not itself authorized.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - ids
+ *             properties:
+ *               ids:
+ *                 type: array
+ *                 minItems: 1
+ *                 maxItems: 25
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: >
+ *           Minted download URLs (order not guaranteed, and SHORTER than `ids`
+ *           whenever any id was refused).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       url:
+ *                         type: string
+ *                         description: >
+ *                           Direct download URL. Expires in `expiresIn` seconds;
+ *                           the deadline applies to when the transfer STARTS, so
+ *                           a large file may take longer than that to finish but
+ *                           a resumed range request after expiry will fail.
+ *                       expiresIn:
+ *                         type: integer
+ *                       mime:
+ *                         type: string
+ *                       size:
+ *                         type: integer
+ *                       sha256:
+ *                         type: string
+ *       400:
+ *         description: Validation failed (empty array or more than 25 ids).
+ *       401:
+ *         description: Missing or expired service token.
+ *       403:
+ *         description: Not a service token, or missing the files:linked:read scope.
+ */
+router.post(
+  '/service/linked-url',
+  serviceAuthMiddleware,
+  assetLinkedUrlLimiter,
+  validate({ body: assetsLinkedUrlBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    requireServiceScope(req, 'files:linked:read');
+
+    const appId = req.serviceApp?.appId;
+    if (!appId) {
+      // `serviceAuthMiddleware` always populates this, so reaching here means the
+      // middleware changed shape. Refusing is the only safe answer: an absent
+      // appId would make the link predicate below compare against `undefined`
+      // and admit nothing — or, if the comparison were ever loosened, everything.
+      throw new ForbiddenError('Service token carries no application identity');
+    }
+
+    const { ids } = req.body as { ids: string[] };
+
+    const files = await assetService.getFilesByIds(ids);
+
+    const data = await Promise.all(
+      files
+        .filter((file) => file.status !== 'deleted' && isOwnerLinkedToApp(file, appId))
+        .map(async (file) => ({
+          id: file.id,
+          url: await s3Service.getPresignedDownloadUrl(file.storageKey, LINKED_URL_TTL_SECONDS),
+          expiresIn: LINKED_URL_TTL_SECONDS,
+          mime: file.mime,
+          size: file.size,
+          sha256: file.sha256,
+        })),
+    );
+
+    // `requested` and `resolved` but never the ids themselves, and never a URL: a
+    // minted URL in a log line is a credential in a log line.
+    logger.debug('POST /assets/service/linked-url', {
+      appId,
       requested: ids.length,
       resolved: data.length,
     });

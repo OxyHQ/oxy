@@ -2991,6 +2991,7 @@
                       "type": "string",
                       "enum": [
                         "files:read",
+                        "files:linked:read",
                         "files:write",
                         "files:delete",
                         "user:read",
@@ -3262,6 +3263,7 @@
                       "type": "string",
                       "enum": [
                         "files:read",
+                        "files:linked:read",
                         "files:write",
                         "files:delete",
                         "user:read",
@@ -3624,6 +3626,7 @@
                       "type": "string",
                       "enum": [
                         "files:read",
+                        "files:linked:read",
                         "files:write",
                         "files:delete",
                         "user:read",
@@ -5555,6 +5558,89 @@
           }
         ],
         "operationId": "postAssetsServiceFederation"
+      }
+    },
+    "/assets/service/linked-url": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Mint short-lived download URLs for files linked to the calling app",
+        "description": "Service-token-only. Given up to 25 file ids, returns a short-lived direct download URL for each file that THE FILE'S OWN OWNER attached to the calling application — i.e. a `file_links` row whose `app` is the caller's and whose `created_by` is the file's `owner_user_id`. Any other id is silently OMITTED from `data`: unknown, deleted, system-owned, not linked to this app, or linked by somebody other than the owner. The batch never 404s as a whole and never returns a placeholder or an empty string for a refused id, so a caller cannot tell \"no such file\" from \"not yours\" — and must treat absence as \"no URL\", never as an error to retry.\nRequires the `files:linked:read` scope, which is NOT implied by `files:read`: that one is metadata-only and grants no authority over file contents. The returned URL is bearer authority over the bytes for `expiresIn` seconds with no further check, so it must not be logged, cached or handed to anyone the caller has not itself authorized.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 25,
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Minted download URLs (order not guaranteed, and SHORTER than `ids` whenever any id was refused).\n",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string",
+                            "description": "Direct download URL. Expires in `expiresIn` seconds; the deadline applies to when the transfer STARTS, so a large file may take longer than that to finish but a resumed range request after expiry will fail.\n"
+                          },
+                          "expiresIn": {
+                            "type": "integer"
+                          },
+                          "mime": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "integer"
+                          },
+                          "sha256": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (empty array or more than 25 ids)."
+          },
+          "401": {
+            "description": "Missing or expired service token."
+          },
+          "403": {
+            "description": "Not a service token, or missing the files:linked:read scope."
+          }
+        },
+        "operationId": "postAssetsServiceLinkedUrl"
       }
     },
     "/assets/service/user-media": {
