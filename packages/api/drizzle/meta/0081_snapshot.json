@@ -1,5 +1,5 @@
 {
-  "id": "53f080f1-7daf-4f2a-bdf7-a3f8ef7ff223",
+  "id": "d277010e-d4a1-44c3-a9b7-f7de98e9339e",
   "prevId": "f2cca215-5af9-4ee1-9ec8-c365f314fea5",
   "version": "7",
   "dialect": "postgresql",
@@ -11713,15 +11713,13 @@
           "name": "funding_class",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'standard_payg'"
+          "notNull": true
         },
         "funding_state": {
           "name": "funding_state",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'available'"
+          "notNull": true
         },
         "funding_remaining": {
           "name": "funding_remaining",
@@ -11962,15 +11960,13 @@
           "name": "funding_class",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'standard_payg'"
+          "notNull": true
         },
         "funding_state": {
           "name": "funding_state",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'available'"
+          "notNull": true
         },
         "funding_remaining": {
           "name": "funding_remaining",

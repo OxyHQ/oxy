@@ -63,6 +63,7 @@ import { getDb } from '../config/postgres';
 import {
   inferenceDeployments,
   inferenceDeploymentRoutingScores,
+  type InferenceFundingClass,
   inferenceModelEvaluations,
   inferenceModelRevisions,
   inferenceModels,
@@ -2208,14 +2209,16 @@ type RoutingScoreResolution =
         | 'unsupported-optimisation';
     };
 
-const FUNDING_CLASS_RANK = {
+export type InferenceFundingPriority = 1 | 2 | 3 | 4;
+
+const FUNDING_CLASS_RANK: Readonly<
+  Record<InferenceFundingClass, InferenceFundingPriority>
+> = {
   free_entitlement: 1,
   discounted_payg: 2,
   promotional_credit: 3,
   standard_payg: 4,
 } as const;
-
-export type InferenceFundingPriority = (typeof FUNDING_CLASS_RANK)[keyof typeof FUNDING_CLASS_RANK];
 
 type FundingPriorityResolution =
   | { readonly status: 'available'; readonly rank: InferenceFundingPriority }

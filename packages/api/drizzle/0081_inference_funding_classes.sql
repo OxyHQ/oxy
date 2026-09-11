@@ -26,4 +26,8 @@ ALTER TABLE "inference_deployment_routing_scores" ADD CONSTRAINT "inference_depl
         and ("inference_deployment_routing_scores"."funding_remaining_unit" is null or length(btrim("inference_deployment_routing_scores"."funding_remaining_unit")) between 1 and 64)
         and ("inference_deployment_routing_scores"."funding_observed_at" is null) = ("inference_deployment_routing_scores"."funding_valid_until" is null)
         and ("inference_deployment_routing_scores"."funding_valid_until" is null or "inference_deployment_routing_scores"."funding_valid_until" > "inference_deployment_routing_scores"."funding_observed_at")
-        and ("inference_deployment_routing_scores"."funding_class" in ('discounted_payg', 'standard_payg') or ("inference_deployment_routing_scores"."funding_observed_at" is not null and "inference_deployment_routing_scores"."funding_valid_until" is not null)));
+        and ("inference_deployment_routing_scores"."funding_class" in ('discounted_payg', 'standard_payg') or ("inference_deployment_routing_scores"."funding_observed_at" is not null and "inference_deployment_routing_scores"."funding_valid_until" is not null)));--> statement-breakpoint
+ALTER TABLE "inference_deployment_routing_score_events" ALTER COLUMN "funding_class" DROP DEFAULT;--> statement-breakpoint
+ALTER TABLE "inference_deployment_routing_score_events" ALTER COLUMN "funding_state" DROP DEFAULT;--> statement-breakpoint
+ALTER TABLE "inference_deployment_routing_scores" ALTER COLUMN "funding_class" DROP DEFAULT;--> statement-breakpoint
+ALTER TABLE "inference_deployment_routing_scores" ALTER COLUMN "funding_state" DROP DEFAULT;

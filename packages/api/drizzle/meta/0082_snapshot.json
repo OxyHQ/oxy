@@ -1,6 +1,6 @@
 {
-  "id": "e2e6c6e9-7992-4abe-8f3a-414bd67575ad",
-  "prevId": "53f080f1-7daf-4f2a-bdf7-a3f8ef7ff223",
+  "id": "95f5096f-8c17-4fb6-92c1-7ae70293f8dc",
+  "prevId": "d277010e-d4a1-44c3-a9b7-f7de98e9339e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -11713,22 +11713,19 @@
           "name": "funding_class",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'standard_payg'"
+          "notNull": true
         },
         "funding_state": {
           "name": "funding_state",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'available'"
+          "notNull": true
         },
         "funding_evidence_ref": {
           "name": "funding_evidence_ref",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'migration/standard-payg'"
+          "notNull": true
         },
         "funding_remaining": {
           "name": "funding_remaining",
@@ -11969,22 +11966,19 @@
           "name": "funding_class",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'standard_payg'"
+          "notNull": true
         },
         "funding_state": {
           "name": "funding_state",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'available'"
+          "notNull": true
         },
         "funding_evidence_ref": {
           "name": "funding_evidence_ref",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'migration/standard-payg'"
+          "notNull": true
         },
         "funding_remaining": {
           "name": "funding_remaining",

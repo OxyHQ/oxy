@@ -84,6 +84,9 @@ observed allocation is `available`, `exhausted`, `rate_limited` or `unknown`;
 optional `fundingRemaining` is an exact non-negative decimal and is meaningful
 only together with its `fundingRemainingUnit`; `fundingEvidenceRef` identifies
 the provider statement, contract or reviewed measurement behind the observation.
+The database has no permanent default for class, state or evidence: migrations
+backfill pre-existing scorecards as standard paid and immediately drop those
+defaults, so every later scorecard and audit event must state reviewed economics.
 A zero balance, non-available
 state, future observation or expired observation removes the route from this
 economic preference set; it never falls through as though it were still free.
