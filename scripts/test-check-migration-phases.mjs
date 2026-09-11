@@ -254,6 +254,24 @@ expectVerdict(
   "no longer runs the attested historical image's",
 );
 
+const bridgeServiceWaitRemoved = createFixture();
+edit(
+  bridgeServiceWaitRemoved,
+  DEPLOY_SCRIPT,
+  "bridge-service-wait-removed",
+  (text) =>
+    text.replace(
+      'wait_for_service_rollout "$bridge_deployment_id" "migration bridge"',
+      'wait_for_service_rollout "$bridge_deployment_id" "missing bridge"',
+    ),
+);
+expectVerdict(
+  "bridge-service-wait-removed",
+  bridgeServiceWaitRemoved,
+  1,
+  "no longer rolls the attested bridge image out",
+);
+
 const incompleteBridge = createFixture();
 edit(incompleteBridge, WORKFLOW, "bridge-digest-removed", (text) =>
   text.replace(/^\s+MIGRATION_BRIDGE_IMAGE_URI:.*\n/m, ""),

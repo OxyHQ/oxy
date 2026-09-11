@@ -254,6 +254,7 @@ if [[ -z "$current_task_definition" ]]; then
   echo "::error::ECS service $APP has no task definition."
   exit 1
 fi
+rollback_task_definition="$current_task_definition"
 
 service_desired_count="$(jq -r '.services[0].desiredCount // empty' <<<"$service_json")"
 if ! [[ "$service_desired_count" =~ ^[0-9]+$ ]] ||
@@ -622,11 +623,11 @@ rollback_service() {
     return 1
   fi
 
-  echo "::warning::Rolling $APP back to $current_task_definition while preserving current desiredCount=$rollback_desired_count."
+  echo "::warning::Rolling $APP back to $rollback_task_definition while preserving current desiredCount=$rollback_desired_count."
   if ! rollback_json="$(aws ecs update-service \
     --cluster "$CLUSTER" \
     --service "$APP" \
-    --task-definition "$current_task_definition" \
+    --task-definition "$rollback_task_definition" \
     --desired-count "$rollback_desired_count" \
     --deployment-configuration "$(jq -nc \
       --argjson maxPercent "$(surge_percent_for_desired_count "$rollback_desired_count")" '{
@@ -635,7 +636,7 @@ rollback_service() {
         maximumPercent: $maxPercent
       }')" \
     --output json)"; then
-    echo "::error::ECS rejected the rollback to $current_task_definition."
+    echo "::error::ECS rejected the rollback to $rollback_task_definition."
     return 1
   fi
   if ! rollback_deployment_id="$(extract_primary_deployment_id "$rollback_json" "rollback")"; then
@@ -833,16 +834,62 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
       exit 1
     fi
 
-    # A stranded post migration must run from an historical journal that ends
-    # after that post entry and before the candidate's next pre entry. The exact
-    # task revision is checked against its immutable digest above. Candidate
-    # verification below then proves every named SQL identity reached the ledger;
-    # exit 0/no-op from the historical migrator is not accepted as evidence.
+    # A post migration is safe only after the image that stopped using the old
+    # schema is serving. Running that image as a one-shot is not enough: the
+    # previous service processes would still be handling requests against tables
+    # or constraints the post migration removes. Roll the exact attested revision
+    # out first and require a healthy steady state before its SQL can run.
+    bridge_update_json=""
+    if ! bridge_update_json="$(aws ecs update-service \
+      --cluster "$CLUSTER" \
+      --service "$APP" \
+      --task-definition "$MIGRATION_BRIDGE_TASK_DEFINITION" \
+      --desired-count "$service_desired_count" \
+      --deployment-configuration "$(jq -nc --argjson maxPercent "$deployment_surge_percent" '{
+        deploymentCircuitBreaker: {enable: true, rollback: true},
+        minimumHealthyPercent: 100,
+        maximumPercent: $maxPercent
+      }')" \
+      --output json)"; then
+      echo "::error::ECS rejected the migration bridge rollout; the original service revision remains the rollback target."
+      if ! rollback_service; then
+        echo "::error::The defensive rollback after bridge rejection also failed; manual intervention is required."
+      fi
+      exit 1
+    fi
+    bridge_deployment_id=""
+    if ! bridge_deployment_id="$(extract_primary_deployment_id "$bridge_update_json" "migration bridge")"; then
+      if ! rollback_service; then
+        echo "::error::The defensive rollback after an unidentifiable bridge rollout also failed; manual intervention is required."
+      fi
+      exit 1
+    fi
+    echo "Deploying attested migration bridge $MIGRATION_BRIDGE_TASK_DEFINITION (deployment $bridge_deployment_id)"
+    if ! wait_for_service_rollout "$bridge_deployment_id" "migration bridge"; then
+      if ! rollback_service; then
+        echo "::error::Migration bridge rollout and explicit rollback both failed; manual intervention is required."
+      fi
+      exit 1
+    fi
+    echo "Migration bridge reached a healthy steady state at $MIGRATION_BRIDGE_TASK_DEFINITION"
+
+    # Once the post task starts, its exit status cannot prove whether its SQL
+    # transaction committed: the process can fail after migrate() commits while
+    # performing its post-apply verification. The bridge is compatible on both
+    # sides of this schema boundary, so it becomes the rollback floor before the
+    # task starts. The original revision must never be restored from an ambiguous
+    # post-task outcome.
+    rollback_task_definition="$MIGRATION_BRIDGE_TASK_DEFINITION"
+
+    # The historical journal ends after the stranded post entries and before
+    # the candidate's next pre entry. Candidate verification below then proves
+    # every named SQL identity reached the ledger; exit 0/no-op from this
+    # historical migrator is not accepted as evidence.
     if ! run_one_shot_command \
       "Attested historical post-migration bridge" \
       '["node","packages/api/dist/db/migrate.js","--phase=post"]' \
       true \
-      "$current_task_definition" \
+      "$MIGRATION_BRIDGE_TASK_DEFINITION" \
       "$MIGRATION_BRIDGE_TASK_DEFINITION"; then
       echo "::error::The attested historical image could not finish its post-deploy migrations; the candidate image was not migrated or deployed."
       exit 1
@@ -864,7 +911,7 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
       (if $required == "" then [] else ["--require-applied=" + $required] end)
     ')" \
     true \
-    "$current_task_definition"; then
+    "$rollback_task_definition"; then
     exit 1
   fi
 fi

@@ -167,6 +167,24 @@ if (!deployScript.includes(PRE_PHASE_COMMAND)) {
 
 const historicalPostOffset = deployScript.indexOf(HISTORICAL_POST_PHASE_COMMAND);
 const candidatePreOffset = deployScript.indexOf(PRE_PHASE_COMMAND);
+const bridgeServiceRolloutOffset = deployScript.indexOf(
+  '--task-definition "$MIGRATION_BRIDGE_TASK_DEFINITION"',
+);
+const bridgeStableWaitOffset = deployScript.indexOf(
+  'wait_for_service_rollout "$bridge_deployment_id" "migration bridge"',
+);
+if (
+  bridgeServiceRolloutOffset === -1 ||
+  bridgeStableWaitOffset === -1 ||
+  bridgeServiceRolloutOffset > bridgeStableWaitOffset ||
+  bridgeStableWaitOffset > historicalPostOffset
+) {
+  fail(
+    `${DEPLOY_SCRIPT_PATH} no longer rolls the attested bridge image out and waits for its healthy ` +
+      `service state before running ${HISTORICAL_POST_PHASE_COMMAND}. A one-shot bridge process does ` +
+      "not make the older processes still serving traffic compatible with destructive post SQL.",
+  );
+}
 if (historicalPostOffset === -1 || historicalPostOffset > candidatePreOffset) {
   fail(
     `${DEPLOY_SCRIPT_PATH} no longer runs the attested historical image's ${HISTORICAL_POST_PHASE_COMMAND} before ` +
