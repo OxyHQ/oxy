@@ -148,8 +148,8 @@ assert.doesNotMatch(
 );
 assert.equal(
 	provision.match(/put-secure-parameter\.sh/g)?.length,
-	2,
-	"the envelope key and durable recovery package must use the stdin-only SSM writer",
+	3,
+	"the envelope key and both recovery-package write paths must use the stdin-only SSM writer",
 );
 assert.equal(
 	handoffScript.match(/put-secure-parameter\.sh/g)?.length,
@@ -160,6 +160,10 @@ assert.match(provision, /stale_temp_parameter recovery requires dry_run=false/);
 assert.match(provision, /schemaVersion:1/);
 assert.match(provision, /preserve_temp_parameter="true"/);
 assert.match(provision, /handoff-service-credential-pair\.sh/);
+assert.match(provision, /aws ecs list-tasks/);
+assert.match(provision, /missing encrypted recovery secret/);
+assert.match(provision, /recovery package write failed/);
+assert.doesNotMatch(provision, /removed legacy stale credential envelope key/);
 assert.doesNotMatch(
 	provision,
 	/aws ssm put-parameter|--value\s+"\$(?:OUTPUT_ENCRYPTION_KEY|public_key|secret)"/,
