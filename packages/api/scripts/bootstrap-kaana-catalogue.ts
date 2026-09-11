@@ -458,7 +458,8 @@ async function ensurePriceVersion(
     provider: provider.slug,
     currency: REVIEWED_CATALOGUE_FACTS.pricePolicy.currency,
     effectiveFrom: new Date(
-      REVIEWED_CATALOGUE_FACTS.pricePolicy.effectiveFrom,
+      provider.priceEffectiveFrom ??
+        REVIEWED_CATALOGUE_FACTS.pricePolicy.effectiveFrom,
     ),
     effectiveUntil: REVIEWED_CATALOGUE_FACTS.pricePolicy.effectiveUntil,
     supersedesPriceVersionId:
@@ -536,11 +537,14 @@ async function ensureDeployment(
     legalReviewStatus:
       REVIEWED_CATALOGUE_FACTS.deploymentPolicy.legalReviewStatus,
     legalReviewEvidenceRef: provider.legalEvidenceRef,
-    legalReviewedAt: new Date(KAANA_INITIAL_REVIEWED_AT),
+    legalReviewedAt: new Date(provider.reviewedAt ?? KAANA_INITIAL_REVIEWED_AT),
     legalReviewedByUserId: reviewerUserId,
-    permissionStateChangedAt: new Date(KAANA_INITIAL_REVIEWED_AT),
+    permissionStateChangedAt: new Date(
+      provider.reviewedAt ?? KAANA_INITIAL_REVIEWED_AT,
+    ),
     permissionStateChangedByUserId: reviewerUserId,
     permissionStateNote:
+      provider.permissionStateNote ??
       REVIEWED_CATALOGUE_FACTS.deploymentPolicy.permissionStateNote,
     status: REVIEWED_CATALOGUE_FACTS.deploymentPolicy.status,
     dedicatedCapacity:
@@ -585,8 +589,10 @@ async function ensureScorecard(
   priceVersionId: string,
   inserted: string[],
 ): Promise<void> {
-  const reviewedAt = new Date(KAANA_INITIAL_REVIEWED_AT);
-  const validUntil = new Date(KAANA_INITIAL_SCORE_VALID_UNTIL);
+  const reviewedAt = new Date(provider.reviewedAt ?? KAANA_INITIAL_REVIEWED_AT);
+  const validUntil = new Date(
+    provider.scoreValidUntil ?? KAANA_INITIAL_SCORE_VALID_UNTIL,
+  );
   if (validUntil < routingScoreValidityThreshold(new Date())) {
     throw new Error(
       `${provider.deploymentId} reviewed scorecard no longer covers the configured minimum validity horizon`,
@@ -615,7 +621,7 @@ async function ensureScorecard(
     balancedEvidenceRef: `${provider.priceEvidenceRef};${provider.performanceEvidenceRef}`,
     balancedFormulaRef: KAANA_INITIAL_BALANCED_FORMULA_REF,
     balancedValidUntil: validUntil,
-    reason: KAANA_INITIAL_SCORECARD_REASON,
+    reason: provider.scorecardReason ?? KAANA_INITIAL_SCORECARD_REASON,
     changedByUserId: reviewerUserId,
     changedAt: reviewedAt,
   };

@@ -29,6 +29,7 @@ describe("the reviewed initial Kaana catalogue", () => {
     expect(ids).toEqual([
       "dep_cerebras_gpt_oss_120b_observed_2026_09_01",
       "dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+      "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
     ]);
     for (const provider of KAANA_INITIAL_PROVIDERS) {
       expect(provider.deploymentId).not.toBe(provider.displayName);
@@ -67,6 +68,34 @@ describe("the reviewed initial Kaana catalogue", () => {
     expect(KAANA_INITIAL_MODEL.maxOutputTokens).toBe(40_960);
   });
 
+  it("adds only the live exact OpenRouter deployment for the existing revision", () => {
+    const openRouter = KAANA_INITIAL_PROVIDERS.find(
+      (provider) => provider.slug === "openrouter",
+    );
+
+    expect(openRouter).toMatchObject({
+      deploymentId:
+        "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      upstreamModelId: "openai/gpt-oss-120b",
+      retainsPayloads: false,
+      retentionDays: 0,
+      trainsOnCustomerData: false,
+      zeroDataRetentionAvailable: true,
+      scores: { price: 1_000, latency: 500, throughput: 500, balanced: 750 },
+    });
+    expect(openRouter?.unitPrices).toEqual([
+      { unit: "input_tokens", amount: "0.03", per: 1_000_000 },
+      { unit: "cached_input_tokens", amount: "0.03", per: 1_000_000 },
+      { unit: "output_tokens", amount: "0.17", per: 1_000_000 },
+      { unit: "reasoning_tokens", amount: "0.17", per: 1_000_000 },
+      { unit: "requests", amount: "0", per: 1 },
+    ]);
+    expect(openRouter?.legalEvidenceRef).toContain(
+      "scope=internal-alia-standard-application-use-not-api-resale",
+    );
+    expect(openRouter?.performanceEvidenceRef).toMatch(/^not-measured:/);
+  });
+
   it("keeps unsupported modality profiles absent instead of claiming capability", () => {
     const profiles = KAANA_INITIAL_ROUTING_PROFILES.map(
       (profile) => profile.slug,
@@ -89,7 +118,7 @@ describe("the reviewed initial Kaana catalogue", () => {
   it("does not let unmeasured latency introduce a provider preference", () => {
     expect(
       KAANA_INITIAL_PROVIDERS.map((provider) => provider.scores.latency),
-    ).toEqual([500, 500]);
+    ).toEqual([500, 500, 500]);
     expect(
       KAANA_INITIAL_ROUTING_PROFILES.map((profile) => profile.optimiseFor),
     ).not.toContain("latency");
