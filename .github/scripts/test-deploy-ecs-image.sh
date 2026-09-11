@@ -762,6 +762,18 @@ if [[ -f "$test_directory/bridge-image-mismatch/aws.log.run-task-count" ]]; then
   exit 1
 fi
 
+# A bridge that never becomes the healthy primary cannot authorize post SQL.
+# The deployment restores the untouched original revision.
+run_release bridge-rollout-failure false true false 0 false 1 circuit-breaker-rollback 0 '' '' '' '' 0 '' '' 3 '' true
+grep -F 'service:arn:aws:ecs:test:123456789012:task-definition/deploy-test-bridge:7:' \
+  "$test_directory/bridge-rollout-failure/aws.log" >/dev/null
+grep -F 'service:arn:aws:ecs:test:task-definition/deploy-test:1:' \
+  "$test_directory/bridge-rollout-failure/aws.log" >/dev/null
+if [[ -f "$test_directory/bridge-rollout-failure/aws.log.run-task-count" ]]; then
+  echo "A failed bridge service rollout reached the post-migration task." >&2
+  exit 1
+fi
+
 # The post migration may run only after the attested bridge is the healthy
 # service revision. The candidate comes last, after both post and verified pre.
 run_release ordered-migration-bridge true true false 0 false 1 healthy 0 '' '' '' '' 0 '' '' 3 '' true
