@@ -6,13 +6,15 @@
  * exact-id transaction activate the row and deprecate its predecessor.
  */
 
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { closePostgres, connectPostgres, getDb } from "../src/config/postgres";
+import { applicationCredentialAuditEvents } from "../src/db/schema/applicationCredentialAuditEvents";
 import { applicationCredentials } from "../src/db/schema/applicationCredentials";
 import { applications } from "../src/db/schema/applications";
 import { recordCredentialLifecycleEvent } from "../src/services/applicationCredentialAudit.service";
 import { isCredentialUsable } from "../src/utils/credentialUsability";
 import { logger } from "../src/utils/logger";
+import { isValidFinalizedPredecessor } from "../src/utils/serviceCredentialFinalization";
 
 const ALIA_APPLICATION_ID = "6a2f851751b784a86fd0e934";
 const ALIA_CREDENTIAL_NAME = "Oxy service (production)";
@@ -69,9 +71,29 @@ async function run(): Promise<void> {
 		}
 
 		if (credential.status === "active") {
+			const [createdEvent] = await db
+				.select({ id: applicationCredentialAuditEvents.id })
+				.from(applicationCredentialAuditEvents)
+				.where(
+					and(
+						eq(applicationCredentialAuditEvents.applicationId, appId),
+						eq(applicationCredentialAuditEvents.credentialId, credentialId),
+						eq(applicationCredentialAuditEvents.eventType, "created"),
+					),
+				)
+				.limit(1);
+			if (!createdEvent) {
+				throw new Error(
+					"Active replacement has no committed creation event; refusing false idempotence.",
+				);
+			}
 			if (credential.rotatedFromCredentialId) {
 				const [predecessor] = await db
 					.select({
+						applicationId: applicationCredentials.applicationId,
+						name: applicationCredentials.name,
+						type: applicationCredentials.type,
+						environment: applicationCredentials.environment,
 						status: applicationCredentials.status,
 						expiresAt: applicationCredentials.expiresAt,
 					})
@@ -79,8 +101,37 @@ async function run(): Promise<void> {
 					.where(eq(applicationCredentials.id, credential.rotatedFromCredentialId))
 					.limit(1)
 					.for("update");
-				if (!predecessor || !isCredentialUsable(predecessor) || predecessor.status !== "deprecated") {
-					throw new Error("Active replacement has no usable deprecated predecessor; refusing false idempotence.");
+				if (
+					!isValidFinalizedPredecessor(predecessor, {
+						applicationId: appId,
+						name: ALIA_CREDENTIAL_NAME,
+						type: "service",
+						environment: "production",
+					})
+				) {
+					throw new Error(
+						"Active replacement has no exact deprecated predecessor; refusing false idempotence.",
+					);
+				}
+				const [rotationEvent] = await db
+					.select({ id: applicationCredentialAuditEvents.id })
+					.from(applicationCredentialAuditEvents)
+					.where(
+						and(
+							eq(applicationCredentialAuditEvents.applicationId, appId),
+							eq(
+								applicationCredentialAuditEvents.credentialId,
+								credential.rotatedFromCredentialId,
+							),
+							eq(applicationCredentialAuditEvents.eventType, "rotated"),
+							sql`${applicationCredentialAuditEvents.metadata}->>'rotatedToCredentialId' = ${credentialId}`,
+						),
+					)
+					.limit(1);
+				if (!rotationEvent) {
+					throw new Error(
+						"Active replacement has no exact predecessor rotation event; refusing false idempotence.",
+					);
 				}
 			}
 			return { credentialId, status: "already_finalized" as const };

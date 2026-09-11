@@ -65,6 +65,7 @@ import { recordCredentialLifecycleEvent } from "../src/services/applicationCrede
 import { APPLICATION_SCOPES } from "../src/utils/applicationScopes";
 import { isCredentialUsable } from "../src/utils/credentialUsability";
 import { logger } from "../src/utils/logger";
+import { reconcilePendingCredentials } from "../src/utils/serviceCredentialPendingReconciliation";
 
 // ── Mirror routes/applications.ts credential generation EXACTLY ──────────────
 const CREDENTIAL_PUBLIC_KEY_PREFIX = "oxy_dk_";
@@ -354,25 +355,29 @@ async function run(): Promise<void> {
 		const pendingCredentials = candidateRows.filter(
 			(row) => row.status === "pending",
 		);
-		if (pendingCredentials.length > 0 && !rotateScopeMismatch) {
-			throw new Error(
-				`Application "${appName}" has an unfinished pending ${environment} service credential (${pendingCredentials.map((credential) => credential.id).join(", ")}). Recover or revoke it before preparing another secret.`,
-			);
-		}
-		for (const pending of pendingCredentials) {
-			await db
-				.update(applicationCredentials)
-				.set({ status: "revoked" })
-				.where(eq(applicationCredentials.id, pending.id));
-			await recordCredentialLifecycleEvent(db, {
-				applicationId: application.id,
-				credentialId: pending.id,
-				eventType: "revoked",
-				actorUserId: owner.id,
-				environment,
-				metadata: { reason: "abandoned_pending_handoff" },
-			});
-		}
+		await reconcilePendingCredentials({
+			dryRun,
+			rotateScopeMismatch,
+			pendingCredentialIds: pendingCredentials.map(({ id }) => id),
+			appName,
+			environment,
+			revokeCredential: async (credentialId) => {
+				await db
+					.update(applicationCredentials)
+					.set({ status: "revoked" })
+					.where(eq(applicationCredentials.id, credentialId));
+			},
+			recordRevocation: async (credentialId) => {
+				await recordCredentialLifecycleEvent(db, {
+					applicationId: application.id,
+					credentialId,
+					eventType: "revoked",
+					actorUserId: owner.id,
+					environment,
+					metadata: { reason: "abandoned_pending_handoff" },
+				});
+			},
+		});
 		const usableCredentials = candidateRows.filter(isCredentialUsable);
 		const exactScopeCredentials = usableCredentials.filter((credential) =>
 			hasExactScopeSet(credential.scopes, scopes),

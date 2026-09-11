@@ -11,6 +11,14 @@ const finalize = readFileSync(
 	"packages/api/scripts/finalize-service-credential.ts",
 	"utf8",
 );
+const pendingReconciliation = readFileSync(
+	"packages/api/src/utils/serviceCredentialPendingReconciliation.ts",
+	"utf8",
+);
+const finalizedPredecessor = readFileSync(
+	"packages/api/src/utils/serviceCredentialFinalization.ts",
+	"utf8",
+);
 const workflow = readFileSync(
 	".github/workflows/provision-service-credential.yml",
 	"utf8",
@@ -46,9 +54,15 @@ for (const crashAfter of ["run-task", "prepare-commit", "package", "finalize"]) 
 
 assert.match(prepare, /status: rotateScopeMismatch \? "pending" : "active"/);
 assert.match(prepare, /reason: "abandoned_pending_handoff"/);
+assert.ok(
+	pendingReconciliation.indexOf("if (dryRun) return") <
+		pendingReconciliation.indexOf("for (const credentialId"),
+);
 assert.doesNotMatch(prepare, /\.set\(\{ status: "deprecated"/);
 assert.match(finalize, /credential\.status !== "pending"/);
 assert.match(finalize, /refusing false idempotence/);
+assert.match(finalizedPredecessor, /predecessor\.status === "deprecated"/);
+assert.doesNotMatch(finalizedPredecessor, /isCredentialUsable|Date\.now/);
 assert.match(finalize, /\.set\(\{ status: "active" \}\)/);
 assert.match(finalize, /\.set\(\{ status: "deprecated", expiresAt: graceExpiresAt \}\)/);
 

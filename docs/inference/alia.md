@@ -286,7 +286,11 @@ the package is deliberately retained and the service is not rolled out. A retry
 may name only that app-namespaced run parameter; it validates every binding and
 replays the same already-minted credential, repairing a partial pair without
 minting another database row. A dry run performs none of those writes and cannot
-consume a recovery package.
+consume a recovery package; it also leaves any abandoned `pending` row and its
+audit trail untouched. Finalization replay validates the exact committed
+replacement, predecessor binding and lifecycle events. An elapsed predecessor
+grace does not invalidate that replay: expiry means the deprecated key no longer
+authenticates, not that the already-committed rotation ceased to exist.
 
 Migration/deploy order is causal and reserved: #1237 owns `0076`–`0078`, and
 #1239 owns `0079`; both must be safely deployed first. This credential handoff
