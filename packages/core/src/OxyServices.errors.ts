@@ -109,6 +109,42 @@ export class ServiceAssetMetadataError extends Error {
   }
 }
 
+/**
+ * A chunk of `POST /assets/service/linked-url` failed, so the SDK cannot say
+ * whether those ids have URLs.
+ *
+ * Its own class rather than a reuse of {@link ServiceAssetMetadataError}, and
+ * deliberately WITHOUT that one's `{ partial: true }` escape hatch, because the
+ * two mistakes cost different things. Reading a failed metadata lookup as
+ * "absent" embedded a media item with no hash. Reading a failed DOWNLOAD mint as
+ * "absent" tells a buyer who paid that the file they own is not there — and
+ * "not there" is already this route's answer for "not yours", so a best-effort
+ * mode would make a throttled request indistinguishable from a refusal. There is
+ * no download path that legitimately wants that, so there is no option to ask
+ * for it.
+ */
+export class ServiceLinkedDownloadUrlError extends Error {
+  public readonly code = 'SERVICE_LINKED_DOWNLOAD_URL_UNRESOLVED';
+  /** Every id belonging to a chunk whose request failed. */
+  public readonly unresolvedIds: string[];
+  /** HTTP statuses observed across the failed chunks (deduped, ascending). */
+  public readonly statuses: number[];
+  /** The first underlying transport/API failure — see the sibling class. */
+  public readonly cause?: unknown;
+
+  constructor(unresolvedIds: string[], statuses: number[], cause?: unknown) {
+    const uniqueStatuses = Array.from(new Set(statuses)).sort((a, b) => a - b);
+    const statusSuffix = uniqueStatuses.length > 0 ? ` — status ${uniqueStatuses.join(', ')}` : '';
+    super(
+      `Could not mint download URLs for ${unresolvedIds.length} id(s)${statusSuffix}. Treat this as unknown, never as "the caller holds no right".`,
+    );
+    this.name = 'ServiceLinkedDownloadUrlError';
+    this.unresolvedIds = unresolvedIds;
+    this.statuses = uniqueStatuses;
+    this.cause = cause;
+  }
+}
+
 export class OxyAuthenticationTimeoutError extends OxyAuthenticationError {
   constructor(operationName: string, timeoutMs: number) {
     super(

@@ -94,6 +94,7 @@ export function isFederationServiceToServicePath(path: string): boolean {
  *   - POST /assets/service/user-media (persist media for a local user; MCP)
  *   - POST /assets/service/by-ids     (resolve asset metadata for a batch of ids)
  *   - POST /assets/service/by-sha256  (reverse-resolve assets by content hash)
+ *   - POST /assets/service/linked-url (mint download URLs for owner-linked files)
  *   - POST /auth/mcp/oauth/introspect (live MCP resource-token validation)
  *
  * Because these share a prefix with genuine browser/user routes (`/users/*`,
@@ -118,6 +119,12 @@ const SERVICE_TO_SERVICE_BULK_PATHS: ReadonlySet<string> = new Set([
   // is what the MOUNT-ORDER INVARIANT below requires of every entry here.
   '/assets/service/by-ids',
   '/assets/service/by-sha256',
+  // The URL mint. Exempt for the same reason as the two above — a relying app's
+  // download traffic fans through one NAT egress IP — but it carries its OWN
+  // limiter (`assetLinkedUrlLimiter`, a fifth of the lookup ceiling) rather than
+  // sharing theirs, because what it bounds is outstanding bearer credentials for
+  // file contents, not a projected read of rows.
+  '/assets/service/linked-url',
   '/auth/mcp/oauth/introspect',
 ]);
 
@@ -133,7 +140,8 @@ const SERVICE_TO_SERVICE_BULK_PATHS: ReadonlySet<string> = new Set([
  * limiter at its route — `/users/resolve` → `userResolveServiceLimiter`
  * (routes/users.ts), `/assets/service/{cache,federation,user-media}` →
  * `cacheUploadLimiter`, `/assets/service/{by-ids,by-sha256}` →
- * `assetServiceLookupLimiter` (both routes/assets.ts). The path set here and
+ * `assetServiceLookupLimiter`, `/assets/service/linked-url` →
+ * `assetLinkedUrlLimiter` (all in routes/assets.ts). The path set here and
  * those route limiters must be kept in sync: an entry added here WITHOUT a route
  * limiter is not a smaller fix, it is a regression — it removes the only ceiling
  * that authenticated service traffic on that path has.

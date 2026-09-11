@@ -113,6 +113,37 @@
  *   `account:act_as` on the account graph, re-read from `account_members` on
  *   every mint and re-checked on every validate and refresh, so a member losing
  *   it kills the live session rather than merely refusing the next one.
+ * - `files:linked:read` permits a service credential to mint a short-lived,
+ *   direct download URL for a file THE FILE'S OWN OWNER attached to THIS
+ *   application. It is the only scope in this vocabulary that reaches BYTES
+ *   through a service token.
+ *
+ *   IT IS NOT A FLAVOUR OF `files:read`, AND THAT DISTANCE IS THE POINT.
+ *   `files:read` is metadata only and its own route's docblock says so in those
+ *   words — content hash, mime, size, status, never bytes, never a signed URL —
+ *   so an application holding it today holds no authority over file CONTENT at
+ *   all. Spelling this as a widening of `files:read` would have silently handed
+ *   byte access to every application already holding the smaller one, which is
+ *   the mistake `accounts:act-as-session` is named apart from `acting-as:offline`
+ *   to avoid. The two are independent: holding this one does not imply the
+ *   other, and an application needing both asks for both.
+ *
+ *   Not privileged, and the bound that makes it self-grantable is the LINK, not
+ *   the token. `file_links` records `created_by` and `files` records
+ *   `owner_user_id`; the route admits a file only when some link for the calling
+ *   app was created BY THE FILE'S OWNER. `assetService.linkFile` performs no
+ *   ownership check — any authenticated user may link any file id into any app —
+ *   so "a link for my app exists" is an attacker-supplied fact and would have
+ *   made this scope "read any file whose id you can guess". `created_by =
+ *   owner_user_id` is not attacker-supplied: forging it requires the owner's own
+ *   credentials, and a user who attaches their own file to an application has
+ *   done the thing consent would have asked them about. The authority is
+ *   therefore bounded to the subject user's own content under that user's own
+ *   explicit act, which is exactly `podcasts:write`'s shape.
+ *
+ *   It is deliberately ABSENT from {@link USER_CONSENT_REQUIRED_SCOPES}, for the
+ *   reason recorded on that constant — the decision it would ask for has already
+ *   been made, per file, on a different lane.
  * - `podcasts:write` permits a delegated service request to create and update
  *   podcast episodes belonging to the SUBJECT USER in the app that owns them.
  *   Not privileged: it is the user's own content in the user's own account, the
@@ -128,6 +159,7 @@
  */
 export const APPLICATION_SCOPES = [
   'files:read',
+  'files:linked:read',
   'files:write',
   'files:delete',
   'user:read',
@@ -396,6 +428,22 @@ export function isFollowScope(scope: string): boolean {
  * every mint and re-read on every validate and refresh. Revocation is reachable
  * two ways, both of which the endpoint consults: withdraw that membership, or
  * revoke the application outright (`service_acting_as_revocations`).
+ *
+ * `files:linked:read` is deliberately NOT here, and the absence rests on the
+ * same "buys nothing" argument as `accounts:act-as-session` rather than on a
+ * judgement that file contents are not the user's data. They are. But this set
+ * only has teeth on the OAuth authorize lane, and that lane never meets this
+ * scope: `POST /assets/service/linked-url` reads it off a SERVICE TOKEN, with no
+ * user in the request to consent to anything, and it reads no `app_grants` row.
+ *
+ * It costs a lie for a different reason than that scope's, and a sharper one:
+ * the consent screen would ask the wrong QUESTION, not merely the wrong person.
+ * A screen naming this scope could only ask "may this app read files you link to
+ * it?" — one standing answer covering every file, forever. The decision already
+ * being taken is per FILE: attaching one's own file to an application, revocable
+ * one at a time by unlinking it. A blanket screen would be strictly coarser than
+ * the control the user already has, and answering it would not be how they
+ * actually decide.
  *
  * NO `inference:*` scope belongs here, and the reason is the attribution rule
  * rather than a judgement about how sensitive inference is. The financially

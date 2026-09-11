@@ -72,6 +72,15 @@ jest.mock('../../services/assetServiceSingleton', () => ({
 import assetsRouter from '../assets';
 
 const LOOKUP_PREFIX = 'rl:asset-lookup:';
+/**
+ * The URL mint's own prefix. It is a SEPARATE entry rather than a third member
+ * of the `it.each` below, because what this file guards is "every exempt path
+ * carries ITS dedicated limiter" — and asserting all three against one prefix
+ * would go green the day somebody shares the lookup budget with the mint, which
+ * is the specific mistake the mount-order invariant names. A fifth of the lookup
+ * ceiling: see `assetLinkedUrlLimiter` for the arithmetic.
+ */
+const LINKED_URL_PREFIX = 'rl:asset-linked-url:';
 
 /** Redis prefixes of every `rateLimit()` middleware mounted on `path`. */
 function limiterPrefixesFor(path: string): string[] {
@@ -112,6 +121,21 @@ describe('bulk service lookup routes carry their dedicated limiter', () => {
     // Proves the helper cannot silently return [] for a renamed route, which
     // would make a missing limiter indistinguishable from a missing route.
     expect(() => limiterPrefixesFor('/service/no-such-route')).toThrow(/No route mounted/);
+  });
+
+  it('/service/linked-url mounts the linked-url limiter, not the lookup one', () => {
+    const prefixes = limiterPrefixesFor('/service/linked-url');
+    expect(prefixes).toContain(LINKED_URL_PREFIX);
+    // The negative half is the point. Sharing `rl:asset-lookup:` would give the
+    // mint the lookups' 600/min, five times the ceiling it was sized for, and
+    // every assertion above would still pass.
+    expect(prefixes).not.toContain(LOOKUP_PREFIX);
+  });
+
+  it('does not mount the linked-url limiter on a metadata lookup either', () => {
+    // The converse: a metadata backfill throttled at the mint's 120/min is the
+    // 24,423-429s incident again, in a quieter form.
+    expect(limiterPrefixesFor('/service/by-ids')).not.toContain(LINKED_URL_PREFIX);
   });
 
   it('does not mount the cache-upload limiter on a read lookup', () => {

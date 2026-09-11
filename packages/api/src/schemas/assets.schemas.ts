@@ -66,6 +66,28 @@ export const assetsByIdsBodySchema = z.object({
     .max(MAX_ASSETS_BY_IDS, `Cannot request more than ${MAX_ASSETS_BY_IDS} assets at once`),
 });
 
+// Maximum number of ids accepted by POST /assets/service/linked-url.
+//
+// A QUARTER of MAX_ASSETS_BY_IDS, and the asymmetry is the point: that route
+// returns a few hundred bytes of metadata per id, this one returns a bearer
+// credential for the file's CONTENT. The workload it is sized for is "every file
+// of one deliverable" — an asset version is a handful of files (a mesh, a couple
+// of previews, a licence PDF), not a page of search results — so a caller that
+// wants 26 URLs at once is not doing that, and the cheaper metadata route
+// already answers any question about a larger set.
+export const MAX_ASSETS_LINKED_URL = 25;
+
+// POST /assets/service/linked-url
+export const assetsLinkedUrlBodySchema = z.object({
+  ids: z
+    .array(z.string().trim().min(1))
+    .min(1, 'ids must not be empty')
+    .max(
+      MAX_ASSETS_LINKED_URL,
+      `Cannot request more than ${MAX_ASSETS_LINKED_URL} download URLs at once`,
+    ),
+});
+
 // Maximum number of content hashes accepted by POST /assets/service/by-sha256
 // in a single request. Mirrors MAX_ASSETS_BY_IDS so the reverse content-address
 // lookup has the same per-call fan-out ceiling as the forward id lookup.

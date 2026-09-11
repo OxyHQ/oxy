@@ -596,6 +596,33 @@ export interface AssetUpdateVisibilityResponse {
  * deleted ids are omitted from the response (never error the whole batch),
  * so the result may be shorter than the requested id list.
  */
+/**
+ * A short-lived direct download URL for a file the calling application's own
+ * user attached to it, from `POST /assets/service/linked-url`.
+ *
+ * `url` is BEARER AUTHORITY over the bytes for `expiresIn` seconds: whoever
+ * holds the string is the reader, and nothing about the calling service's
+ * entitlement is re-evaluated when it is used. Hand it only to a caller the
+ * service has itself authorized, and never log it.
+ *
+ * `expiresIn` bounds when a transfer may START, not how long one may take. A
+ * large file downloads fine on a slow link; a RESUMED range request after the
+ * deadline does not, and needs a fresh URL.
+ *
+ * Unlike {@link ServiceAssetMetadata}, the absence of an id from the response is
+ * an AUTHORIZATION answer as often as an existence one — see
+ * `getServiceLinkedDownloadUrls`.
+ */
+export interface ServiceLinkedDownloadUrl {
+  id: string;
+  url: string;
+  /** Seconds from issue until `url` stops being accepted. */
+  expiresIn: number;
+  mime: string;
+  size: number;
+  sha256: string;
+}
+
 export interface ServiceAssetMetadata {
   id: string;
   sha256: string;

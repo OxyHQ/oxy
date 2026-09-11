@@ -32,6 +32,7 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 | [0018](0018-native-alia-agency-and-app-capability-catalogs.md) | — | Alia uses native current Oxy authority, created agents are separate zero-grant bot accounts, apps own one capability catalog, internal execution uses live-revalidated capability tickets, and external MCP access uses account- and resource-bound central OAuth. |
 | [0019](0019-kaana-byok-custody.md) | #972 | Every provider credential, including BYOK, lives as KMS ciphertext in Kaana PostgreSQL; Oxy stores only customer-facing metadata plus an opaque handle and revision. Source support is implemented while execution stays disabled pending production gates. |
 | [0020](0020-mcp-connections-hold-several-accounts.md) | — | An external MCP connection covers several accounts: Oxy groups grants under the connection, each account approves its own membership through a single-use link on the IdP, and introspection reports the set plus the selected member. Changes 0018. |
+| [0021](0021-service-read-of-owner-linked-files.md) | — | A relying service reaches file BYTES only where the file's own owner linked it to that application (`file_links.created_by = files.owner_user_id`), through `POST /assets/service/linked-url` and the new, non-implied `files:linked:read` scope; a refused id is omitted rather than distinguished, and Oxy holds none of the entitlement that motivated the call. |
 
 ## Related
 

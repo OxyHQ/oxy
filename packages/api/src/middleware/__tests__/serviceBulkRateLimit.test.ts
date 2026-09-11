@@ -10,6 +10,7 @@
  *   - POST /assets/service/user-media (persist media for a local user; MCP)
  *   - POST /assets/service/by-ids     (resolve asset metadata for a batch of ids)
  *   - POST /assets/service/by-sha256  (reverse-resolve assets by content hash)
+ *   - POST /assets/service/linked-url (mint download URLs for owner-linked files)
  *   - POST /auth/mcp/oauth/introspect (live MCP resource-token validation)
  *
  * Like `/federation/*` (#604), these must NOT share the per-IP browser budget
@@ -110,6 +111,10 @@ describe('isServiceToServiceBulkRequest', () => {
       // metadata backfill drew 24,423 429s off the browser budget.
       '/assets/service/by-ids',
       '/assets/service/by-sha256',
+      // The URL mint — exempt for the same NAT-egress reason, but throttled by
+      // its OWN limiter rather than the lookups', because it bounds outstanding
+      // bearer credentials for file contents.
+      '/assets/service/linked-url',
       '/auth/mcp/oauth/introspect',
     ]) {
       expect(isServiceToServiceBulkRequest(makeReq(path, `Bearer ${serviceToken()}`))).toBe(true);
@@ -198,7 +203,11 @@ describe('general limiter (rl:general) honours the token-gated exemption', () =>
   });
 
   it('SKIPS the /assets/service/* LOOKUP paths with a valid service token', async () => {
-    for (const path of ['/assets/service/by-ids', '/assets/service/by-sha256']) {
+    for (const path of [
+      '/assets/service/by-ids',
+      '/assets/service/by-sha256',
+      '/assets/service/linked-url',
+    ]) {
       const res = await request(server, { method: 'POST', path, authorization: `Bearer ${serviceToken()}` });
       expect(res.status).toBe(200);
       expect(hasRateLimitHeaders(res.headers)).toBe(false);
