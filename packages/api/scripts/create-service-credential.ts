@@ -252,7 +252,7 @@ async function run(): Promise<void> {
 	const scopes = parseAndValidateScopes(process.env.SCOPES);
 	logger.info("Validated requested scopes", { scopes, environment });
 
-	await getDb().transaction(async (db) => {
+	const result = await getDb().transaction(async (db): Promise<ResultRow> => {
 		// ── 1. Resolve the EXISTING Application by its exact immutable id. ──
 		const [application] = await db
 			.select({
@@ -377,8 +377,7 @@ async function run(): Promise<void> {
 				secretEnc: null,
 			};
 
-			writeResult(reusedResult);
-			return;
+			return reusedResult;
 		}
 
 		if (usableCredentials.length > 0 && !rotateScopeMismatch) {
@@ -428,8 +427,7 @@ async function run(): Promise<void> {
 				secretEnc: null,
 			};
 
-			writeResult(planResult);
-			return;
+			return planResult;
 		}
 
 		if (!encryptionKeyHex) {
@@ -526,8 +524,13 @@ async function run(): Promise<void> {
 			secretEnc,
 		};
 
-		writeResult(result);
+		return result;
 	});
+
+	// Emission after the transaction promise resolves is commit evidence. A log
+	// envelope from inside the callback could survive a failed COMMIT and make an
+	// operator install a credential row that does not exist.
+	writeResult(result);
 }
 
 async function main(): Promise<void> {

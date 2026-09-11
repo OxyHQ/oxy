@@ -226,6 +226,9 @@ assert.match(
 assert.match(provisionScript, /eventType: "rotated"/);
 assert.match(provisionScript, /eventType: "created"/);
 assert.match(provisionScript, /effectiveUntil: graceExpiresAt/);
+assert.match(provisionScript, /const result = await getDb\(\)\.transaction/);
+assert.match(provisionScript, /writeResult\(result\);/);
+assert.match(provision, /after emitting commit evidence; continuing recoverably/);
 
 process.stdout.write(
 	"Service credential workflows bind exact app/credential IDs, scopes, and SSM destinations.\n",
