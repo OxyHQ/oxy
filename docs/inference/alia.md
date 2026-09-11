@@ -271,9 +271,16 @@ a scope rotation: one transaction creates the replacement with the registered
 scopes, marks the previous row `deprecated` for the standard seven-day grace,
 and appends the `rotated` and `created` audit events. An ambiguous set still
 fails closed; the workflow never accepts a credential ID or name selector. An
-apply stores the once-only replacement secret, removes the ephemeral envelope
-key and task definition, then forces the exact `alia` ECS service to a stable,
-completed rollout. A dry run performs none of those writes.
+apply first replaces the ephemeral envelope key with a versioned recovery
+package bound to the exact application, credential, name, environment and scope
+set. It then installs and authenticates the secret/key pair, deletes that package
+and the ephemeral task definition, and forces the exact `alia` ECS service to a
+stable, completed rollout. If either destination write or authentication fails,
+the package is deliberately retained and the service is not rolled out. A retry
+may name only that app-namespaced run parameter; it validates every binding and
+replays the same already-minted credential, repairing a partial pair without
+minting another database row. A dry run performs none of those writes and cannot
+consume a recovery package.
 
 **`service`, not `machine`.** The `oxy_sk_*` machine lane exists so external
 developers can use a standard OpenAI SDK without implementing a token exchange;

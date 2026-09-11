@@ -30,6 +30,10 @@ const secureParameterScript = readFileSync(
 	".github/scripts/put-secure-parameter.sh",
 	"utf8",
 );
+const handoffScript = readFileSync(
+	".github/scripts/handoff-service-credential-pair.sh",
+	"utf8",
+);
 
 function registryArm(workflow, applicationId) {
 	const match = workflow.match(
@@ -144,9 +148,18 @@ assert.doesNotMatch(
 );
 assert.equal(
 	provision.match(/put-secure-parameter\.sh/g)?.length,
-	3,
-	"all three credential values must use the stdin-only SSM writer",
+	2,
+	"the envelope key and durable recovery package must use the stdin-only SSM writer",
 );
+assert.equal(
+	handoffScript.match(/put-secure-parameter\.sh/g)?.length,
+	2,
+	"both destination values must use the stdin-only SSM writer",
+);
+assert.match(provision, /stale_temp_parameter recovery requires dry_run=false/);
+assert.match(provision, /schemaVersion:1/);
+assert.match(provision, /preserve_temp_parameter="true"/);
+assert.match(provision, /handoff-service-credential-pair\.sh/);
 assert.doesNotMatch(
 	provision,
 	/aws ssm put-parameter|--value\s+"\$(?:OUTPUT_ENCRYPTION_KEY|public_key|secret)"/,
