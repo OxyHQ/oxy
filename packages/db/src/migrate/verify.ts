@@ -84,6 +84,40 @@ export interface LedgerHashMismatch {
 }
 
 /**
+ * Assert that named journal entries exist in the ledger with the exact hashes
+ * derived from their SQL files.
+ *
+ * This is intentionally narrower than {@link compareLedger}: a deploy bridge
+ * may need to prove an older subset before the candidate applies later entries.
+ * Requiring the whole candidate journal to be current would make that proof
+ * impossible by definition.
+ */
+export function assertAppliedMigrations(
+  entries: readonly JournalEntryWithHash[],
+  rows: readonly AppliedMigrationRow[],
+  requiredTags: readonly string[]
+): void {
+  const entriesByTag = new Map(entries.map((entry) => [entry.tag, entry]));
+  const rowsByWhen = new Map(rows.map((row) => [row.whenMillis, row]));
+
+  for (const tag of requiredTags) {
+    const entry = entriesByTag.get(tag);
+    if (!entry) {
+      throw new Error(`Required applied migration ${tag} is not present in this image's journal.`);
+    }
+    const row = rowsByWhen.get(entry.when);
+    if (!row) {
+      throw new Error(`Required migration ${tag} is not recorded in the database ledger.`);
+    }
+    if (row.hash !== entry.hash) {
+      throw new Error(
+        `Required migration ${tag} is recorded with a different SQL hash than this image.`
+      );
+    }
+  }
+}
+
+/**
  * The full answer, with both residuals ALWAYS present — empty arrays rather
  * than omitted keys.
  *

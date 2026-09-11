@@ -14,6 +14,7 @@ import { readMigrationFiles } from 'drizzle-orm/migrator';
 import {
   type AppliedMigrationRow,
   type JournalEntryWithHash,
+  assertAppliedMigrations,
   compareLedger,
   formatLedgerComparison,
   readJournalWithHashes,
@@ -184,6 +185,41 @@ describe('compareLedger', () => {
 
   it('reports every journal entry as unapplied against a database never migrated', () => {
     expect(compareLedger(entries, []).unapplied).toHaveLength(2);
+  });
+});
+
+describe('assertAppliedMigrations', () => {
+  const entries: JournalEntryWithHash[] = [
+    { tag: '0000_first', when: 100, hash: 'aaa' },
+    { tag: '0001_second', when: 200, hash: 'bbb' },
+  ];
+  const rows: AppliedMigrationRow[] = [
+    { whenMillis: 100, hash: 'aaa' },
+    { whenMillis: 200, hash: 'bbb' },
+  ];
+
+  it('accepts an exact applied subset while later entries remain irrelevant', () => {
+    expect(() => assertAppliedMigrations(entries, rows, ['0000_first'])).not.toThrow();
+  });
+
+  it('refuses a required tag absent from the candidate journal', () => {
+    expect(() => assertAppliedMigrations(entries, rows, ['0002_absent'])).toThrow(
+      /not present in this image's journal/
+    );
+  });
+
+  it('refuses a required tag absent from the ledger', () => {
+    expect(() => assertAppliedMigrations(entries, rows.slice(0, 1), ['0001_second'])).toThrow(
+      /not recorded in the database ledger/
+    );
+  });
+
+  it('refuses a required tag whose recorded SQL hash differs', () => {
+    expect(() =>
+      assertAppliedMigrations(entries, [rows[0], { whenMillis: 200, hash: 'changed' }], [
+        '0001_second',
+      ])
+    ).toThrow(/different SQL hash/);
   });
 });
 

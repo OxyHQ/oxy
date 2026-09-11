@@ -64,13 +64,28 @@ aws --profile oxy --region us-west-2 logs tail /oxy/ecs --log-stream-name-prefix
 
 ## Containers (oxy-api Docker / ECS one-shot tasks)
 
-Migration phases cross release boundaries explicitly. Before running the
-candidate image's `--phase=pre`, the deploy runs `--phase=post` from the exact
-task definition currently serving. The live image's own journal bounds that
-catch-up to destructive migrations whose compatible binary is already live;
-the candidate can then apply newer additive migrations without a high-water-mark
-hole. Do not replace these two bounded runs with `--phase=all`: that would apply
-candidate-only destructive changes while the previous image still serves.
+Migration phases cross release boundaries explicitly. A normally completed
+release applies its own `post` entries after rollout. If failed releases strand
+one of those entries and a later candidate has a `pre` entry behind it, the
+deployer may run an explicit historical bridge first. The deployer must roll
+that exact image out to the service and observe a healthy steady state before
+running any of its `post` SQL; a one-shot task alone does not make the older
+processes still serving traffic compatible with a destructive migration. All
+three bridge inputs
+are mandatory: an exact ECS task-definition revision, its immutable image
+digest, and the migration tags the candidate must verify. The deploy reads the
+task definition back and refuses an image mismatch. After the historical image
+is serving, it runs `--phase=post`, and the candidate proves every required tag against the
+ledger's timestamp and SQL hash before planning `--phase=pre`. A zero-exit/no-op
+bridge is therefore not evidence. The historical journal must end after the
+required post entries and before the blocking candidate pre entry. Remove the
+one-release bridge inputs after a verified deployment. Never replace the two
+bounded runs with `--phase=all`: that would apply candidate-only destructive
+changes while the previous image still serves. A bridge rollout failure restores
+the original revision. Once the `post` task starts, the bridge becomes the
+rollback floor because a task failure cannot prove whether its SQL committed;
+restoring the original image after that point could put code that expects the
+removed schema back into production.
 
 The `oxy-api` Dockerfile uses Bun 1.3's **isolated linker** (default). Dependencies do NOT live at `/app/node_modules/<pkg>` — they live at:
 

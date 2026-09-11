@@ -228,7 +228,7 @@ expectVerdict(
 // still serving.
 const noPhaseFlag = createFixture();
 edit(noPhaseFlag, DEPLOY_SCRIPT, "pre-phase-flag-removed", (text) =>
-  text.replace(',"--phase=pre"', ""),
+  text.replace('"--phase=pre"', '"--phase=missing"'),
 );
 expectVerdict(
   "pre-phase-flag-removed",
@@ -238,20 +238,49 @@ expectVerdict(
 );
 
 // A post migration intentionally deferred by one release must be completed by
-// that exact live image before a later release can apply a newer pre migration.
+// an attested historical image before a later release applies a newer pre migration.
 // Removing the bridge recreates the 0076(post) -> 0078(pre) production deadlock.
 const noLivePostBridge = createFixture();
 edit(noLivePostBridge, DEPLOY_SCRIPT, "live-post-bridge-removed", (text) =>
   text.replace(
-    /  if ! run_one_shot_command \\\n+    "Live-image post-migration catch-up"[\s\S]*?^  fi\n\n/m,
-    "",
+    '["node","packages/api/dist/db/migrate.js","--phase=post"]',
+    '["node","packages/api/dist/db/migrate.js","--phase=missing"]',
   ),
 );
 expectVerdict(
   "live-post-bridge-removed",
   noLivePostBridge,
   1,
-  "no longer runs the live image's",
+  "no longer runs the attested historical image's",
+);
+
+const bridgeServiceWaitRemoved = createFixture();
+edit(
+  bridgeServiceWaitRemoved,
+  DEPLOY_SCRIPT,
+  "bridge-service-wait-removed",
+  (text) =>
+    text.replace(
+      'wait_for_service_rollout "$bridge_deployment_id" "migration bridge"',
+      'wait_for_service_rollout "$bridge_deployment_id" "missing bridge"',
+    ),
+);
+expectVerdict(
+  "bridge-service-wait-removed",
+  bridgeServiceWaitRemoved,
+  1,
+  "no longer rolls the attested bridge image out",
+);
+
+const incompleteBridge = createFixture();
+edit(incompleteBridge, WORKFLOW, "bridge-digest-removed", (text) =>
+  text.replace(/^\s+MIGRATION_BRIDGE_IMAGE_URI:.*\n/m, ""),
+);
+expectVerdict(
+  "bridge-digest-removed",
+  incompleteBridge,
+  1,
+  "configures an incomplete bridge without MIGRATION_BRIDGE_IMAGE_URI",
 );
 
 // The workflow decides whether to run a post-rollout migration task from a grep.

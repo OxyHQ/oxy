@@ -76,6 +76,7 @@ import {
 } from './ledger';
 import { type MigrationRun, planMigrationRun, readMigrationPhases } from './phases';
 import { assertMigrationTarget } from './targetDatabase';
+import { assertAppliedMigrations, readAppliedRows, readJournalWithHashes } from './verify';
 
 /** Seconds to wait for in-flight queries before forcing the socket shut. */
 const CLOSE_TIMEOUT_SECONDS = 5;
@@ -118,6 +119,8 @@ export interface RunMigrationsOptions {
    * flag); this function only acts on the resolved boolean.
    */
   readonly dryRun: boolean;
+  /** Exact migration identities that must already be applied before planning. */
+  readonly requiredAppliedTags?: readonly string[];
   readonly logger: {
     info(message: string): void;
     debug(message: string): void;
@@ -215,7 +218,18 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`
 
     // Refuses outright rather than reporting a clean run over a migration the
     // apply rule can never reach.
-    const pending = planLedgerRun(entries, await readAppliedMillis(client));
+    const appliedMillis = await readAppliedMillis(client);
+    if (options.requiredAppliedTags && options.requiredAppliedTags.length > 0) {
+      assertAppliedMigrations(
+        readJournalWithHashes(options.migrationsFolder),
+        await readAppliedRows(client),
+        options.requiredAppliedTags
+      );
+      options.logger.info(
+        `Verified required applied migrations: ${options.requiredAppliedTags.join(', ')}`
+      );
+    }
+    const pending = planLedgerRun(entries, appliedMillis);
 
     const plan = planMigrationRun(pending, phases, options.run);
     if (plan.blocked) {

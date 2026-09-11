@@ -18,6 +18,7 @@ export {
   type JournalEntryWithHash,
   type LedgerComparison,
   type LedgerHashMismatch,
+  assertAppliedMigrations,
   compareLedger,
   formatLedgerComparison,
   readAppliedRows,
