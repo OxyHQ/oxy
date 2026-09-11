@@ -331,12 +331,11 @@ jobs:
           # rendered from the currently-running task revision.
           TASK_EXTRA_CONTAINERS_JSON: >-
             [{"name":"aws-otel-collector","image":"public.ecr.aws/aws-observability/aws-otel-collector:v0.49.0","essential":false,"cpu":128,"memoryReservation":256,"command":["--config=/etc/ecs/ecs-default-config.yaml"],"healthCheck":{"command":["CMD","/healthcheck"],"interval":30,"timeout":5,"retries":3,"startPeriod":10},"logConfiguration":{"logDriver":"awslogs","options":{"awslogs-group":"/oxy/ecs","awslogs-region":"us-west-2","awslogs-stream-prefix":"oxy-api-otel"}}}]
-          # Exact legacy inference bindings and the consumed Kaana rollback
-          # override inherited from previous task definitions. The deployer
-          # removes only these named entries; ordinary SMTP/device uses of the
-          # word relay remain untouched.
+          # Exact legacy inference bindings inherited from previous task
+          # definitions. The deployer removes only these named entries;
+          # ordinary SMTP/device uses of the word relay remain untouched.
           TASK_REMOVE_NAMES_JSON: >-
-            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INFERENCE_KAANA_EXECUTION"]
+            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL"]
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-inbox-mcp.sh
           # The deploy script renders from the task definition the service is
           # currently running, not from Terraform's latest registered revision.

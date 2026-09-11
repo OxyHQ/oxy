@@ -79,16 +79,10 @@ const textExtensions = new Set([
 
 const oldBindings =
 	'["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL"]';
-const inheritedBindingCleanup =
-	'["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INFERENCE_KAANA_EXECUTION"]';
 const approvedRelayLines = new Map([
 	[
 		".github/scripts/test-deploy-ecs-image.sh",
-		new Set([`grep -F '${inheritedBindingCleanup}' \\`]),
-	],
-	[
-		".github/workflows/deploy-aws.yml",
-		new Set([inheritedBindingCleanup]),
+		new Set([`grep -F '${oldBindings}' \\`]),
 	],
 	[
 		"docs/architecture/inference-responsibility-matrix.md",

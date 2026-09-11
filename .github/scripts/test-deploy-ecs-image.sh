@@ -932,11 +932,11 @@ grep -F 'TASK_EXTRA_CONTAINERS_JSON: >-' "$workflow_file" >/dev/null
 grep -F '"name":"aws-otel-collector","image":"public.ecr.aws/aws-observability/aws-otel-collector:v0.49.0","essential":false' \
   "$workflow_file" >/dev/null
 grep -F 'TASK_REMOVE_NAMES_JSON: >-' "$workflow_file" >/dev/null
-grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INFERENCE_KAANA_EXECUTION"]' \
+grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL"]' \
   "$workflow_file" >/dev/null
 # Historical removal receipt only: the exact list above deletes the old
-# inference bindings and the consumed rollback override. Their presence there
-# does not make them accepted aliases or active configuration.
+# inference bindings. Their presence there does not make them accepted aliases
+# or active configuration.
 grep -F 'TASK_SECRET_OVERRIDES_JSON: >-' "$workflow_file" >/dev/null
 grep -F '"KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY"' \
   "$workflow_file" >/dev/null
