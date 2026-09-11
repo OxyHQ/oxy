@@ -18093,6 +18093,72 @@
                                 "validUntil"
                               ]
                             },
+                            "economics": {
+                              "type": "object",
+                              "properties": {
+                                "fundingClass": {
+                                  "type": "string",
+                                  "enum": [
+                                    "free_entitlement",
+                                    "discounted_payg",
+                                    "promotional_credit",
+                                    "standard_payg"
+                                  ]
+                                },
+                                "state": {
+                                  "type": "string",
+                                  "enum": [
+                                    "available",
+                                    "exhausted",
+                                    "rate_limited",
+                                    "unknown"
+                                  ]
+                                },
+                                "evidenceRef": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "remaining": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "pattern": "^\\d+(?:\\.\\d{1,12})?$"
+                                },
+                                "remainingUnit": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "observedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "format": "date-time"
+                                },
+                                "validUntil": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": [
+                                "fundingClass",
+                                "state",
+                                "evidenceRef",
+                                "remaining",
+                                "remainingUnit",
+                                "observedAt",
+                                "validUntil"
+                              ]
+                            },
                             "reason": {
                               "type": "string",
                               "minLength": 1,
@@ -18104,6 +18170,7 @@
                             "latency",
                             "throughput",
                             "balanced",
+                            "economics",
                             "reason"
                           ]
                         }
@@ -18372,6 +18439,72 @@
                       "validUntil"
                     ]
                   },
+                  "economics": {
+                    "type": "object",
+                    "properties": {
+                      "fundingClass": {
+                        "type": "string",
+                        "enum": [
+                          "free_entitlement",
+                          "discounted_payg",
+                          "promotional_credit",
+                          "standard_payg"
+                        ]
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "available",
+                          "exhausted",
+                          "rate_limited",
+                          "unknown"
+                        ]
+                      },
+                      "evidenceRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "remaining": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "pattern": "^\\d+(?:\\.\\d{1,12})?$"
+                      },
+                      "remainingUnit": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "observedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "validUntil": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "fundingClass",
+                      "state",
+                      "evidenceRef",
+                      "remaining",
+                      "remainingUnit",
+                      "observedAt",
+                      "validUntil"
+                    ]
+                  },
                   "reason": {
                     "type": "string",
                     "minLength": 1,
@@ -18383,6 +18516,7 @@
                   "latency",
                   "throughput",
                   "balanced",
+                  "economics",
                   "reason"
                 ]
               }

@@ -213,6 +213,15 @@ function scorecardFor(priceVersionId: string, overrides: { balancedScore?: numbe
       formulaRef: 'scorecard/formula-v1',
       validUntil,
     },
+    economics: {
+      fundingClass: 'standard_payg' as const,
+      state: 'available' as const,
+      evidenceRef: 'funding-review/standard-payg',
+      remaining: null,
+      remainingUnit: null,
+      observedAt: null,
+      validUntil: null,
+    },
     reason: 'Reviewed routing evidence',
   };
 }
@@ -566,6 +575,9 @@ describe('routing-score authoring', () => {
         priceEvidenceRef: inferenceDeploymentRoutingScores.priceEvidenceRef,
         priceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
         reason: inferenceDeploymentRoutingScores.reason,
+        fundingClass: inferenceDeploymentRoutingScores.fundingClass,
+        fundingState: inferenceDeploymentRoutingScores.fundingState,
+        fundingRemaining: inferenceDeploymentRoutingScores.fundingRemaining,
         changedByUserId: inferenceDeploymentRoutingScores.changedByUserId,
       })
       .from(inferenceDeploymentRoutingScores)
@@ -579,6 +591,9 @@ describe('routing-score authoring', () => {
       priceEvidenceRef: 'scorecard/route-2026-09/price',
       priceVersionId: deployment.priceVersionId,
       reason: 'Initial reviewed ordering',
+      fundingClass: 'standard_payg',
+      fundingState: 'available',
+      fundingRemaining: null,
       changedByUserId: staffUserId,
     });
 

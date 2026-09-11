@@ -63,6 +63,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   inferenceDeployments,
   inferenceDeploymentRoutingScores,
+  INFERENCE_FUNDING_CLASSES,
   inferenceModelRevisions,
   inferenceModels,
   inferenceProviders,
@@ -99,6 +100,15 @@ function suffix(): string {
 
 const INTERNAL_VIEWER = resolveCatalogueViewer({ type: 'internal', isInternal: true });
 const TEST_OPTIMISE_FOR = 'balanced' as const;
+
+test('the funding vocabulary keeps the canonical economic priority order', () => {
+  expect(INFERENCE_FUNDING_CLASSES).toEqual([
+    'free_entitlement',
+    'discounted_payg',
+    'promotional_credit',
+    'standard_payg',
+  ]);
+});
 
 /** Test-only explicit profile dimension; production callers may not omit it. */
 function resolveEdgeRoute(
@@ -214,6 +224,14 @@ interface DeploymentOptions {
   readonly internalRouteId?: string;
   /** Higher wins. Defaults preserve the mutation-guard shape (`a` > `z`). */
   readonly routingScore?: number;
+  readonly fundingClass?:
+    | 'free_entitlement'
+    | 'discounted_payg'
+    | 'promotional_credit'
+    | 'standard_payg';
+  readonly fundingState?: 'available' | 'exhausted' | 'rate_limited' | 'unknown';
+  readonly fundingRemaining?: string;
+  readonly fundingValidUntil?: Date;
   readonly retainsPayloads?: boolean;
   readonly retentionDays?: number;
   readonly trainsOnCustomerData?: boolean;
@@ -345,6 +363,18 @@ async function insertDeployment(
     balancedEvidenceRef: `balanced-score/${suffix()}`,
     balancedFormulaRef: 'test-fixture/v1',
     balancedValidUntil: new Date(now + 3_600_000),
+    fundingClass: options.fundingClass ?? 'standard_payg',
+    fundingState: options.fundingState ?? 'available',
+    ...(options.fundingRemaining === undefined
+      ? {}
+      : { fundingRemaining: options.fundingRemaining, fundingRemainingUnit: 'requests' }),
+    ...((options.fundingClass === 'free_entitlement' ||
+      options.fundingClass === 'promotional_credit')
+      ? {
+          fundingObservedAt: new Date(now - 60_000),
+          fundingValidUntil: options.fundingValidUntil ?? new Date(now + 3_600_000),
+        }
+      : {}),
     reason: 'routing constraint test fixture',
     changedByUserId: 'test-suite',
     changedAt: new Date(now),
@@ -1395,6 +1425,94 @@ describe('routing score order and exact Kaana identity', () => {
     if (resolution.status !== 'resolved') return;
     expect(resolution.route.provider).toBe(scoredHigher.providerSlug);
     expect(resolution.route.deploymentId).toBe(scoredHigher.deploymentId);
+  });
+
+  it('orders eligible routes by the reviewed funding hierarchy before score', async () => {
+    const model = await insertModel();
+    const normal = await insertDeployment(model, {
+      rank: 'a',
+      routingScore: 900,
+      fundingClass: 'standard_payg',
+    });
+    const promotional = await insertDeployment(model, {
+      rank: 'z',
+      routingScore: 800,
+      fundingClass: 'promotional_credit',
+      fundingRemaining: '50.000000000000',
+    });
+    const cheap = await insertDeployment(model, {
+      rank: 'z',
+      routingScore: 100,
+      fundingClass: 'discounted_payg',
+    });
+    const free = await insertDeployment(model, {
+      rank: 'z',
+      routingScore: 1,
+      fundingClass: 'free_entitlement',
+      fundingRemaining: '10.000000000000',
+    });
+
+    const resolution = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY
+    );
+
+    expect(resolution.status).toBe('resolved');
+    if (resolution.status !== 'resolved') return;
+    expect([resolution.route, ...resolution.alternates].map((route) => route.deploymentId)).toEqual([
+      free.deploymentId,
+      cheap.deploymentId,
+      promotional.deploymentId,
+      normal.deploymentId,
+    ]);
+  });
+
+  it('does not prioritize exhausted, rate-limited, zero-balance or expired funding', async () => {
+    const model = await insertModel();
+    const normal = await insertDeployment(model, {
+      rank: 'a',
+      routingScore: 10,
+      fundingClass: 'standard_payg',
+    });
+    await insertDeployment(model, {
+      rank: 'z',
+      routingScore: 900,
+      fundingClass: 'free_entitlement',
+      fundingState: 'exhausted',
+    });
+    await insertDeployment(model, {
+      rank: 'z',
+      routingScore: 800,
+      fundingClass: 'free_entitlement',
+      fundingState: 'rate_limited',
+    });
+    await insertDeployment(model, {
+      rank: 'z',
+      routingScore: 700,
+      fundingClass: 'promotional_credit',
+      fundingRemaining: '0.000000000000',
+    });
+    await insertDeployment(model, {
+      rank: 'z',
+      routingScore: 600,
+      fundingClass: 'promotional_credit',
+      fundingRemaining: '10.000000000000',
+      fundingValidUntil: new Date(Date.now() - 1),
+    });
+
+    const resolution = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY
+    );
+
+    expect(resolution.status).toBe('resolved');
+    if (resolution.status !== 'resolved') return;
+    expect(resolution.route.deploymentId).toBe(normal.deploymentId);
+    expect(resolution.alternates).toEqual([]);
   });
 
   it('breaks an equal-score tie by exact deployment id code units, not provider name', async () => {

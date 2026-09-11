@@ -1731,7 +1731,8 @@ export type EdgeRouteResolution =
         | 'missing-score'
         | 'stale-score'
         | 'score-price-mismatch'
-        | 'unsupported-optimisation';
+        | 'unsupported-optimisation'
+        | 'funding-unavailable';
     }
   | {
       readonly status: 'policy-excluded';
@@ -1849,6 +1850,11 @@ export async function resolveEdgeRoute(
       throughputValidUntil: inferenceDeploymentRoutingScores.throughputValidUntil,
       balancedScore: inferenceDeploymentRoutingScores.balancedScore,
       balancedValidUntil: inferenceDeploymentRoutingScores.balancedValidUntil,
+      fundingClass: inferenceDeploymentRoutingScores.fundingClass,
+      fundingState: inferenceDeploymentRoutingScores.fundingState,
+      fundingRemaining: inferenceDeploymentRoutingScores.fundingRemaining,
+      fundingObservedAt: inferenceDeploymentRoutingScores.fundingObservedAt,
+      fundingValidUntil: inferenceDeploymentRoutingScores.fundingValidUntil,
       revision: inferenceModelRevisions.revision,
       isCurrent: inferenceModelRevisions.isCurrent,
       retiredAt: inferenceModelRevisions.retiredAt,
@@ -2036,6 +2042,7 @@ export async function resolveEdgeRoute(
   const ranked: {
     readonly candidate: (typeof capacityCompatible)[number];
     readonly score: number;
+    readonly fundingRank: number;
   }[] = [];
   for (const candidate of capacityCompatible) {
     if (candidate.priceVersionId === null) {
@@ -2087,7 +2094,9 @@ export async function resolveEdgeRoute(
         reason: score.reason,
       };
     }
-    ranked.push({ candidate, score: score.value });
+    const funding = fundingPriorityFor(candidate, now);
+    if (funding.status === 'unavailable') continue;
+    ranked.push({ candidate, score: score.value, fundingRank: funding.rank });
   }
 
   ranked.sort((left, right) => {
@@ -2096,6 +2105,8 @@ export async function resolveEdgeRoute(
       const rightIsByok = right.candidate.availabilityScope === 'byok_only';
       if (leftIsByok !== rightIsByok) return leftIsByok ? -1 : 1;
     }
+    const byFunding = left.fundingRank - right.fundingRank;
+    if (byFunding !== 0) return byFunding;
     const byScore = right.score - left.score;
     if (byScore !== 0) return byScore;
     const leftId = left.candidate.internalRouteId;
@@ -2137,7 +2148,7 @@ export async function resolveEdgeRoute(
     return {
       status: 'routing-evidence-unavailable',
       modelReference,
-      reason: 'missing-score',
+      reason: 'funding-unavailable',
     };
   }
   if (chosen.candidate.resolvedModelId === null) {
@@ -2191,6 +2202,64 @@ type RoutingScoreResolution =
         | 'score-price-mismatch'
         | 'unsupported-optimisation';
     };
+
+const FUNDING_CLASS_RANK = {
+  free_entitlement: 1,
+  discounted_payg: 2,
+  promotional_credit: 3,
+  standard_payg: 4,
+} as const;
+
+type FundingPriorityResolution =
+  | { readonly status: 'available'; readonly rank: number }
+  | { readonly status: 'unavailable' };
+
+/**
+ * Translate reviewed, provider-agnostic economics into the user's four-level
+ * preference. Compatibility is filtered before this function, while Kaana's
+ * signed preflight and execution remain the authorities for live health and
+ * upstream rate limits. Expired/exhausted observations never retain priority.
+ */
+export function fundingPriorityFor(
+  candidate: {
+    readonly fundingClass: string | null;
+    readonly fundingState: string | null;
+    readonly fundingRemaining: string | null;
+    readonly fundingObservedAt: Date | null;
+    readonly fundingValidUntil: Date | null;
+  },
+  now: number
+): FundingPriorityResolution {
+  const rank =
+    candidate.fundingClass === null
+      ? undefined
+      : FUNDING_CLASS_RANK[candidate.fundingClass as keyof typeof FUNDING_CLASS_RANK];
+  if (rank === undefined || candidate.fundingState !== 'available') {
+    return { status: 'unavailable' };
+  }
+  if (
+    candidate.fundingRemaining !== null &&
+    /^0(?:\.0+)?$/.test(candidate.fundingRemaining)
+  ) {
+    return { status: 'unavailable' };
+  }
+  if (
+    candidate.fundingValidUntil !== null &&
+    (candidate.fundingObservedAt === null ||
+      candidate.fundingObservedAt.getTime() > now ||
+      candidate.fundingValidUntil.getTime() <= now)
+  ) {
+    return { status: 'unavailable' };
+  }
+  if (
+    (candidate.fundingClass === 'free_entitlement' ||
+      candidate.fundingClass === 'promotional_credit') &&
+    (candidate.fundingObservedAt === null || candidate.fundingValidUntil === null)
+  ) {
+    return { status: 'unavailable' };
+  }
+  return { status: 'available', rank };
+}
 
 function routingScoreFor(
   candidate: {

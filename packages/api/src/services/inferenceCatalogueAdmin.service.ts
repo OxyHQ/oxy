@@ -34,6 +34,8 @@ import {
   type BalancedRoutingScoreSource,
   type MeasuredRoutingScoreSource,
   type PriceRoutingScoreSource,
+  type InferenceFundingClass,
+  type InferenceFundingState,
   APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX,
   inferenceDeploymentRoutingScoreEvents,
   inferenceDeploymentRoutingScores,
@@ -140,6 +142,15 @@ export interface DeploymentRoutingScorecard {
   readonly latency: MeasuredRoutingScore;
   readonly throughput: MeasuredRoutingScore;
   readonly balanced: BalancedRoutingScore;
+  readonly economics: {
+    readonly fundingClass: InferenceFundingClass;
+    readonly state: InferenceFundingState;
+    readonly evidenceRef: string;
+    readonly remaining: string | null;
+    readonly remainingUnit: string | null;
+    readonly observedAt: string | null;
+    readonly validUntil: string | null;
+  };
   readonly reason: string;
 }
 
@@ -238,6 +249,11 @@ export async function setDeploymentRoutingScores(input: {
       evidenceRef: input.scorecard.balanced.evidenceRef.trim(),
       formulaRef: input.scorecard.balanced.formulaRef.trim(),
     },
+    economics: {
+      ...input.scorecard.economics,
+      evidenceRef: input.scorecard.economics.evidenceRef.trim(),
+      remainingUnit: input.scorecard.economics.remainingUnit?.trim() ?? null,
+    },
     reason: input.scorecard.reason.trim(),
   };
 
@@ -279,6 +295,14 @@ export async function setDeploymentRoutingScores(input: {
       Date.parse(scorecard.balanced.validUntil) <= changedAt.getTime()
     ) {
       throw new DeploymentPermissionRefused('Routing evidence must still be valid when it is written.');
+    }
+    if (
+      scorecard.economics.validUntil !== null &&
+      Date.parse(scorecard.economics.validUntil) <= changedAt.getTime()
+    ) {
+      throw new DeploymentPermissionRefused(
+        'Funding evidence must still be valid when it is written.'
+      );
     }
     const approvedServing = mapped.filter(
       (deployment) =>
@@ -325,6 +349,19 @@ export async function setDeploymentRoutingScores(input: {
       balancedEvidenceRef: scorecard.balanced.evidenceRef,
       balancedFormulaRef: scorecard.balanced.formulaRef,
       balancedValidUntil: new Date(scorecard.balanced.validUntil),
+      fundingClass: scorecard.economics.fundingClass,
+      fundingState: scorecard.economics.state,
+      fundingEvidenceRef: scorecard.economics.evidenceRef,
+      fundingRemaining: scorecard.economics.remaining,
+      fundingRemainingUnit: scorecard.economics.remainingUnit,
+      fundingObservedAt:
+        scorecard.economics.observedAt === null
+          ? null
+          : new Date(scorecard.economics.observedAt),
+      fundingValidUntil:
+        scorecard.economics.validUntil === null
+          ? null
+          : new Date(scorecard.economics.validUntil),
       reason: scorecard.reason,
       changedByUserId: input.staffUserId,
     };
