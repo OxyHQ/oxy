@@ -82,6 +82,9 @@ jest.mock('../s3Service', () => ({
 // DNS-pinned safeFetch. Mock it so tests drive the response (and assert the
 // SSRF guard rejects private/non-https targets) without real network I/O.
 const mockSafeFetch = jest.fn();
+const mockAcquireAvatarOriginLease = jest.fn(() => Promise.resolve(0));
+const mockClearAvatarOriginFailures = jest.fn(() => Promise.resolve());
+const mockRecordAvatarOriginRateLimit = jest.fn(() => Promise.resolve(30_000));
 class FakeSsrfRejection extends Error {
   constructor(reason: string) {
     super(reason);
@@ -92,6 +95,11 @@ jest.mock('@oxy.so/core/server', () => ({
   __esModule: true,
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
   SsrfRejection: FakeSsrfRejection,
+}));
+jest.mock('../federation/avatarFetchBackpressure', () => ({
+  acquireAvatarOriginLease: (...args: unknown[]) => mockAcquireAvatarOriginLease(...args),
+  clearAvatarOriginFailures: (...args: unknown[]) => mockClearAvatarOriginFailures(...args),
+  recordAvatarOriginRateLimit: (...args: unknown[]) => mockRecordAvatarOriginRateLimit(...args),
 }));
 
 import { Readable } from 'stream';
@@ -264,6 +272,8 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     resetAssetMocks();
+    mockAcquireAvatarOriginLease.mockResolvedValue(0);
+    mockRecordAvatarOriginRateLimit.mockResolvedValue(30_000);
     webfingerSpy = jest.spyOn(federationService, 'resolveWebFingerResource');
     actorSpy = jest.spyOn(federationService, 'fetchActorProfile');
     avatarSpy = jest.spyOn(federationService, 'downloadAndStoreAvatar')
@@ -943,6 +953,8 @@ describe('FederationService SSRF guards', () => {
     jest.clearAllMocks();
     mockSafeFetch.mockReset();
     resetAssetMocks();
+    mockAcquireAvatarOriginLease.mockResolvedValue(0);
+    mockRecordAvatarOriginRateLimit.mockResolvedValue(30_000);
   });
 
   it('enforces https-only: an http avatar URL is rejected before reaching safeFetch', async () => {
@@ -960,6 +972,29 @@ describe('FederationService SSRF guards', () => {
 
     expect(result).toEqual({ fileId: null, notModified: false });
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+    expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
+  });
+
+  it('records a 429 cooldown from Retry-After and does not upload the response', async () => {
+    const avatarUrl = 'https://limited.example/avatar.png';
+    mockSafeFetch.mockResolvedValue(makeSafeFetchResult(429, { 'retry-after': '120' }));
+
+    const result = await federationService.downloadAndStoreAvatar(avatarUrl);
+
+    expect(result).toEqual({ fileId: null, notModified: false });
+    expect(mockRecordAvatarOriginRateLimit).toHaveBeenCalledWith(avatarUrl, '120');
+    expect(mockClearAvatarOriginFailures).not.toHaveBeenCalled();
+    expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
+  });
+
+  it('defers a fetch while its remote origin is cooling down', async () => {
+    const avatarUrl = 'https://limited.example/deferred.png';
+    mockAcquireAvatarOriginLease.mockResolvedValue(45_000);
+
+    const result = await federationService.downloadAndStoreAvatar(avatarUrl);
+
+    expect(result).toEqual({ fileId: null, notModified: false });
+    expect(mockSafeFetch).not.toHaveBeenCalled();
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
 
