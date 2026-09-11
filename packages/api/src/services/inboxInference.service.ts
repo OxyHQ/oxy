@@ -5,7 +5,6 @@ import {
   type ResponseFormat,
 } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
-import { isKaanaExecutionEnabled } from '../config/rolloutFlags';
 import { INBOX_APPLICATION_ID } from '../config/inboxInference';
 import { applications } from '../db/schema/applications';
 import { inferenceRoutingProfiles } from '../db/schema/inferenceRoutingProfiles';
@@ -33,6 +32,8 @@ export type InboxPointInferenceFeature =
   | 'thread_summary'
   | 'automatic_labeling'
   | 'card_extraction';
+
+const configuredKaanaClient = createHttpKaanaClient();
 
 export interface InboxPointInferenceInput {
   readonly userId: string;
@@ -143,7 +144,6 @@ async function contextFor(input: InboxPointInferenceInput): Promise<EdgeExecutio
     ...(input.responseFormat === undefined ? {} : { responseFormat: input.responseFormat }),
     labels: { product: 'inbox', feature: input.feature },
   };
-  const kaanaClient = isKaanaExecutionEnabled() ? createHttpKaanaClient() : undefined;
   return {
     requestId: allocateRequestId(),
     receivedAt: performance.now(),
@@ -153,7 +153,7 @@ async function contextFor(input: InboxPointInferenceInput): Promise<EdgeExecutio
     apiFormat: 'responses',
     endpoint: `/email/ai/${input.feature}`,
     signal: input.signal,
-    ...(kaanaClient === undefined ? {} : { kaanaClient }),
+    ...(configuredKaanaClient === undefined ? {} : { kaanaClient: configuredKaanaClient }),
   };
 }
 

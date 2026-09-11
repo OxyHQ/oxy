@@ -108,8 +108,8 @@ and Oxy stores no locator that can resolve it to provider material.
 - **Oxy → Kaana**, on a BYOK control mutation: the signed exact connection
   identity, opaque handle/revision precondition and customer-supplied credential
   bytes. Kaana encrypts those bytes with KMS before storing ciphertext; Oxy does
-  not persist them. The control path is implemented, but normal inference
-  execution remains disabled until the production rollout gates pass.
+  not persist them. The control path and normal inference both use the canonical
+  signed Kaana boundary.
 - **Kaana → Oxy**, per request: `requestId`, `generationId` where applicable, the
   resolved route in customer-safe form, normalized unit counts, a terminal
   status, and a typed error with a retryability classification.

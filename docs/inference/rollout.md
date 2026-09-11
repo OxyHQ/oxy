@@ -20,16 +20,14 @@ every flag, its resolved state, and the reason for that state.
 |---|---|---|---|
 | `INFERENCE_EDGE_AUDIENCE` | `closed` · `internal` · `first_party` · `allowlist:<exactAppId>,…` · `public` | **closed — nobody** | Who may reach `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id` |
 | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `enabled` · `disabled` | **disabled** | Whether an `oxy_sk_…` machine credential authenticates at all |
-| `INFERENCE_KAANA_EXECUTION` | `enabled` · `disabled` | **enabled** | Emergency kill switch for the signed Kaana client; every candidate readback/canary deploy sets `disabled` explicitly, and a later reviewed deploy may enable it only after the new evidence is recorded |
 | `INFERENCE_CHARGING_AUTHORIZED` | `<reason>:<YYYY-MM-DD>` | **shadow metering — nobody is charged** | Whether the edge reserves, settles and moves money |
 | `INFERENCE_CATALOGUE_AUDIENCE` | `internal` · `public` | **internal** | Whether a public viewer is served the published catalogue |
 | `INFERENCE_PRIVACY_REVIEW` | `<reviewer>:<YYYY-MM-DD>` | **no review recorded — a public audience stays closed** | Whether the privacy and security review a public launch is gated on has been recorded |
 
 None is a secret. Deployment-state flags belong in the ECS task definition's
-plain environment when they override a default. The 2026-09-09 cutover evidence
-records the prior successful release; it does not authorize ambient traffic to
-a later Kaana candidate. During a new candidate readback and canary the deploy
-workflow writes `INFERENCE_KAANA_EXECUTION=disabled` explicitly.
+plain environment when they override a default; the completed Kaana cutover
+does not carry a separate execution switch. New candidates are validated in
+isolated, time-bounded tasks and never require disabling the production lane.
 
 ### Every default is the state that does nothing
 
@@ -38,11 +36,9 @@ API key, never publishes a catalogue and never charges anybody. That is the
 whole mechanism: a flag you can arm by forgetting a variable is worse than no
 flag, because it reads as a control while defaulting to the dangerous side.
 
-`packages/api/src/config/__tests__/rolloutFlags.test.ts` asserts each runtime
-default with the environment explicitly cleared. Kaana execution remains
-default-on in code after its reviewed cutover, but production candidate safety
-does not rely on that default: the deploy workflow and its mutation-tested gate
-require explicit `disabled` throughout readback and canary.
+`packages/api/src/config/__tests__/rolloutFlags.test.ts` asserts each default
+with the environment explicitly cleared. Kaana is canonical infrastructure,
+not an independently gated rollout lane.
 
 ### An unreadable value resolves to the safe state, loudly
 
@@ -303,14 +299,14 @@ with.
 These are operational states. The code does not decide when to enter one; it
 decides that each is expressible, enforceable, and answerable from one endpoint.
 
-| Stage | `INFERENCE_EDGE_AUDIENCE` | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `INFERENCE_KAANA_EXECUTION` | `INFERENCE_CHARGING_AUTHORIZED` | `INFERENCE_CATALOGUE_AUDIENCE` | `INFERENCE_PRIVACY_REVIEW` |
-|---|---|---|---|---|---|---|
-| Parked deployment | unset | unset | unset | unset | unset | unset |
-| Exact Alia canary | `allowlist:<Alia applicationId>` | unset | `enabled` | unset | unset | unset |
-| Internal tier canary | `internal` | unset | `enabled` | unset | unset | unset |
-| Oxy first-party canary | `first_party` | `enabled` | `enabled` | unset | unset | unset |
-| Closed external beta | `allowlist:<exact appId>,…` | `enabled` | `enabled` | unset | `public` | unset |
-| Prepaid public launch | `public` | `enabled` | `enabled` | `<reason>:<date>` | `public` | `<reviewer>:<date>` |
+| Stage | `INFERENCE_EDGE_AUDIENCE` | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `INFERENCE_CHARGING_AUTHORIZED` | `INFERENCE_CATALOGUE_AUDIENCE` | `INFERENCE_PRIVACY_REVIEW` |
+|---|---|---|---|---|---|
+| Parked deployment | unset | unset | unset | unset | unset |
+| Exact Alia canary | `allowlist:<Alia applicationId>` | unset | unset | unset | unset |
+| Internal tier canary | `internal` | unset | unset | unset | unset |
+| Oxy first-party canary | `first_party` | `enabled` | unset | unset | unset |
+| Closed external beta | `allowlist:<exact appId>,…` | `enabled` | unset | `public` | unset |
+| Prepaid public launch | `public` | `enabled` | `<reason>:<date>` | `public` | `<reviewer>:<date>` |
 
 The review is required only for `public`, exactly as charging is: a bounded,
 named audience runs without either.
@@ -501,7 +497,7 @@ rest on the rollback being done carefully:
 
 ### What to check after a rollback
 
-1. `GET /inference/admin/rollout` — the resolved state of all six flags, with
+1. `GET /inference/admin/rollout` — the resolved state of all five flags, with
    the reason for each. `charging.shadowMetering: true` is the assertion that the
    flow has stopped.
 2. `inference.edge.shadow_metered` log lines appearing again, which is what

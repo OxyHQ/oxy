@@ -13,12 +13,9 @@ slug cannot enter a policy snapshot, cache, signed envelope or Kaana.
 
 This is a two-producer rolling cutover, not one deploy. Follow this order:
 
-1. Merge and publish `@oxy.so/contracts` 0.40.0. The Oxy auto-deploy is safe only
-   while `.github/workflows/deploy-aws.yml` explicitly writes
-   `INFERENCE_KAANA_EXECUTION=disabled`. Confirm the new Oxy task definition has
-   that exact value and `GET /inference/admin/rollout` reports Kaana execution
-   disabled. With no Kaana client, admission refuses before reservation and
-   before `buildEnvelope`; this image cannot emit request v2 in production.
+1. Merge and publish `@oxy.so/contracts` 0.40.0. Keep the public audience closed
+   while the two producers roll. With incomplete canonical Kaana configuration,
+   admission refuses before reservation and before `buildEnvelope`.
 2. In a separate Kaana PR, consume the published 0.40.0 package, regenerate the
    descriptor and implement a rolling decoder that accepts old
    `schemaVersion: 1` **only for the concrete model arm** and new
@@ -31,12 +28,10 @@ This is a two-producer rolling cutover, not one deploy. Follow this order:
    whitespace-modified deployment id fails closed, and either-version slug
    targets are rejected. Do not infer readiness from the health string alone or
    treat this direct probe as evidence that the Oxy-owned profile row exists.
-4. Only after step 3, open a second Oxy PR that deliberately changes the deploy
-   kill switch (initially by setting `enabled`, then removing the redundant
-   default-on binding after cutover) and updates the temporary
-   phase gate `scripts/check-kaana-request-v2-rollout.mjs` with the reviewed
-   Kaana image/canary evidence. That change must not alter the contract or
-   routing target again.
+4. Only after step 3, open a second Oxy PR that updates the temporary phase gate
+   `scripts/check-kaana-request-v2-rollout.mjs` with the reviewed Kaana
+   image/canary evidence. That change must not alter the contract or routing
+   target again.
 5. Deploy Oxy, watch the rolling task set until every task is healthy, then
    smoke one direct-model request, one exact profile-ID request, one deprecated
    public slug request (the captured Kaana envelope must contain only the PK),
@@ -45,21 +40,16 @@ This is a two-producer rolling cutover, not one deploy. Follow this order:
 6. After the Oxy rollout is complete, Kaana may remove v1 only in a later
    independently reviewed release after logs prove no v1 producer remains.
 
-The historical evidence in
-`docs/release-evidence/kaana-request-v2-cutover-2026-09-09.md` proves only that
-the release named there completed its bounded canary. It does not authorize a
-new candidate. During every later candidate readback and canary, the CI gate
-requires the Oxy deploy workflow to write
-`INFERENCE_KAANA_EXECUTION=disabled` explicitly; it fails if the binding is
-missing or enabled, if the request version regresses, or if a slug arm returns.
-After fresh evidence is recorded, ambient execution requires a separate
-reviewed Oxy deployment. The runtime flag remains the immediate rollback
-control.
+The CI gate requires the exact reviewed evidence in
+`docs/release-evidence/kaana-request-v2-cutover-2026-09-09.md`; it
+also fails if the request version regresses or a slug arm returns. Later Kaana
+candidates are validated in isolated, time-bounded tasks before promotion, so
+their lifecycle does not disable the already-reviewed production lane. The
+production service configuration remains independent of those tasks.
 
-Rollback order is Oxy first: restore
-`INFERENCE_KAANA_EXECUTION=disabled`, deploy and confirm admission is closed.
-Keep Kaana dual-version and keep 0.40.0 published. Do not roll Kaana back to a
-v1-only image while any Oxy v2 task may still be running.
+Rollback order is Oxy first: close `INFERENCE_EDGE_AUDIENCE`, deploy and confirm
+admission is closed. Keep Kaana dual-version and keep 0.40.0 published. Do not
+roll Kaana back to a v1-only image while any Oxy v2 task may still be running.
 
 ## Signed data-plane canary
 
@@ -99,12 +89,12 @@ temporary task definition; the Oxy workflow only attests and calls that task
 and must not take over cleanup ownership.
 
 The workflow refuses unless the Oxy service is at one steady deployment with
-`INFERENCE_KAANA_EXECUTION=disabled`, `KAANA_BASE_URL=https://kaana.ai`, the
+`KAANA_BASE_URL=https://kaana.ai`, the
 reviewed task definition and the reviewed image digest. It derives a throwaway
 one-shot task from that live image, retains only the single `oxy-api` container
 (live observability sidecars are deliberately excluded), removes any container
 dependency inherited from the service task, and removes every environment binding and
-secret except the three non-secret Kaana settings plus the ECS-injected Ed25519
+secret except the two non-secret Kaana settings plus the ECS-injected Ed25519
 private key, and never exposes or decrypts that key on the GitHub runner. In
 particular, the task has no `DATABASE_URL`, Redis credential, Oxy signing key or
 credential-control authority. Its network configuration retains the live

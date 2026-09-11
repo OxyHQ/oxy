@@ -21,29 +21,46 @@ const forbid = (source, pattern, message) => {
   if (pattern.test(source)) failures.push(message);
 };
 
-const deployOverrideMatches = [
+const removalMatches = [
+  ...deploy.matchAll(/^ {10}TASK_REMOVE_NAMES_JSON: >-\r?\n {12}(\[[^\r\n]+\])\r?$/gm),
+];
+let removals = null;
+if (removalMatches.length !== 1) {
+  failures.push('the Oxy deploy must contain one structurally identifiable task-removal JSON scalar');
+} else {
+  try {
+    removals = JSON.parse(removalMatches[0][1]);
+  } catch (error) {
+    failures.push(`the Oxy deploy task-removal scalar must be valid JSON: ${String(error)}`);
+  }
+}
+if (!Array.isArray(removals)) {
+  failures.push('the Oxy deploy task-removal scalar must be a JSON array');
+} else if (removals.filter((name) => name === 'INFERENCE_KAANA_EXECUTION').length !== 1) {
+  failures.push('the deploy must remove exactly one inherited Kaana execution rollback binding');
+}
+
+const environmentMatches = [
   ...deploy.matchAll(/^ {10}TASK_ENV_OVERRIDES_JSON: >-\r?\n {12}(\{[^\r\n]+\})\r?$/gm),
 ];
-let deployOverrides = null;
-if (deployOverrideMatches.length !== 1) {
+let environmentOverrides = null;
+if (environmentMatches.length !== 1) {
   failures.push('the Oxy deploy must contain one structurally identifiable task-environment JSON scalar');
 } else {
   try {
-    deployOverrides = JSON.parse(deployOverrideMatches[0][1]);
+    environmentOverrides = JSON.parse(environmentMatches[0][1]);
   } catch (error) {
     failures.push(`the Oxy deploy task-environment scalar must be valid JSON: ${String(error)}`);
   }
 }
-if (deployOverrides === null || Array.isArray(deployOverrides) || typeof deployOverrides !== 'object') {
-  failures.push('the Oxy deploy task-environment scalar must be a JSON object');
-} else if (deployOverrides.INFERENCE_KAANA_EXECUTION !== 'disabled') {
-  failures.push('the candidate readback and canary phase must deploy Oxy with Kaana execution explicitly disabled');
-}
 if (
-  deployOverrideMatches.length === 1 &&
-  (deployOverrideMatches[0][1].match(/"INFERENCE_KAANA_EXECUTION"\s*:/g) ?? []).length !== 1
+  environmentOverrides === null ||
+  Array.isArray(environmentOverrides) ||
+  typeof environmentOverrides !== 'object'
 ) {
-  failures.push('the Oxy task environment must contain exactly one Kaana execution binding');
+  failures.push('the Oxy deploy task-environment scalar must be a JSON object');
+} else if (Object.hasOwn(environmentOverrides, 'INFERENCE_KAANA_EXECUTION')) {
+  failures.push('the completed cutover must not retain a Kaana execution environment override');
 }
 
 requireMatch(
@@ -80,10 +97,10 @@ requireMatch(
   /readback run: 34301660359[\s\S]*?canary run: 34302325992[\s\S]*?snapshot: snap_da7406fdfed50248[\s\S]*?task definition: arn:aws:ecs:us-west-2:237343248947:task-definition\/oxy-oxy-api:359[\s\S]*?image digest: sha256:5be97aa30dfac6b9e0d44d8767ace26017e4ebdb7b5c31da80d80ead7ad76b0b[\s\S]*?provider requests: 2[\s\S]*?Oxy ledger writes: 0/,
   'execution enablement must retain the exact reviewed signed-canary evidence',
 );
-requireMatch(
+forbid(
   rollout,
-  /if \(configured === undefined \|\| configured\.length === 0\) \{\s*return \{ status: 'enabled' \};/,
-  'Kaana execution must default on after cutover while retaining the explicit kill switch',
+  /INFERENCE_KAANA_EXECUTION|KaanaExecution|kaanaExecution/,
+  'canonical Kaana execution must not regain an independent runtime switch',
 );
 
 if (failures.length > 0) {
@@ -92,5 +109,5 @@ if (failures.length > 0) {
 }
 
 process.stdout.write(
-  'Kaana request-v2 producer is exact-ID only; ambient execution is disabled for candidate readback and canary.\n',
+  'Kaana request-v2 producer is exact-ID only and enabled after the recorded signed canary.\n',
 );

@@ -189,13 +189,13 @@ requireMatch(
 );
 requireMatch(
   workflow,
-  /execution" != disabled[\s\S]*?kaana_origin" != 'https:\/\/kaana\.ai'/,
-  'ambient execution must remain disabled and the signed origin must be exactly kaana.ai',
+  /kaana_origin" != 'https:\/\/kaana\.ai'/,
+  'the signed origin must be exactly kaana.ai',
 );
 requireMatch(
   workflow,
-  /\.environment = \[[\s\S]*?INFERENCE_KAANA_EXECUTION[\s\S]*?KAANA_BASE_URL[\s\S]*?KAANA_EDGE_SIGNING_KEY_ID[\s\S]*?\.secrets = \[\$signing_secret\]/,
-  'the throwaway task must retain only the three non-secret bindings and one ECS-injected signing secret',
+  /\.environment = \[[\s\S]*?KAANA_BASE_URL[\s\S]*?KAANA_EDGE_SIGNING_KEY_ID[\s\S]*?\.secrets = \[\$signing_secret\]/,
+  'the throwaway task must retain only the two non-secret bindings and one ECS-injected signing secret',
 );
 requireMatch(
   workflow,
@@ -280,8 +280,8 @@ requireMatch(
 );
 requireMatch(
   readbackWorkflow,
-  /execution" != disabled[\s\S]*?kaana_origin" != 'https:\/\/kaana\.ai'/,
-  'signed readback must preserve disabled execution and the canonical origin',
+  /kaana_origin" != 'https:\/\/kaana\.ai'/,
+  'signed readback must preserve the canonical origin',
 );
 requireMatch(
   readbackWorkflow,
@@ -295,8 +295,8 @@ requireMatch(
 );
 requireMatch(
   readbackWorkflow,
-  /\.environment = \[[\s\S]*?INFERENCE_KAANA_EXECUTION[\s\S]*?KAANA_BASE_URL[\s\S]*?KAANA_EDGE_SIGNING_KEY_ID[\s\S]*?\.secrets = \[\$signing_secret\]/,
-  'signed readback must retain only the three non-secret bindings and one ECS-injected signing secret',
+  /\.environment = \[[\s\S]*?KAANA_BASE_URL[\s\S]*?KAANA_EDGE_SIGNING_KEY_ID[\s\S]*?\.secrets = \[\$signing_secret\]/,
+  'signed readback must retain only the two non-secret bindings and one ECS-injected signing secret',
 );
 requireMatch(
   readbackWorkflow,
@@ -337,11 +337,6 @@ forbid(
   canary,
   /CANARY_MODEL_REFERENCE/,
   'the script must derive modelReference exclusively from the signed descriptor',
-);
-requireMatch(
-  canary,
-  /env\.INFERENCE_KAANA_EXECUTION !== 'disabled'/,
-  'the script must independently refuse ambient execution that is not disabled',
 );
 requireMatch(
   canary,
@@ -458,5 +453,5 @@ if (failures.length > 0) {
 }
 
 process.stdout.write(
-  'Kaana signed readback and canary stay live-snapshot-bound, exact-ID, secret-minimized and ambient-disabled.\n',
+  'Kaana signed readback and canary stay live-snapshot-bound, exact-ID, isolated and secret-minimized.\n',
 );

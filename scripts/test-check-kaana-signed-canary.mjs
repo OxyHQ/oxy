@@ -59,16 +59,6 @@ try {
   );
   verdict(wrongOrigin, 1);
 
-  const enabled = fixture();
-  roots.push(enabled);
-  mutate(
-    enabled,
-    'packages/api/scripts/run-kaana-signed-canary.mjs',
-    "env.INFERENCE_KAANA_EXECUTION !== 'disabled'",
-    "env.INFERENCE_KAANA_EXECUTION !== 'enabled'",
-  );
-  verdict(enabled, 1);
-
   const widerProbe = fixture();
   roots.push(widerProbe);
   mutate(

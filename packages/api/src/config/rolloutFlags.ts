@@ -1,10 +1,10 @@
 /**
  * The inference platform's rollout flags (issue #972 workstream 16, "Rollout").
  *
- * SIX switches, declared here and nowhere else: the new authentication lane,
- * the public API edge, the Kaana execution hop, the ledger, the catalogue, and the privacy/security
+ * Five switches, declared here and nowhere else: the new authentication lane,
+ * the public API edge, the ledger, the catalogue, and the privacy/security
  * review a public launch is gated on. {@link describeRolloutFlags} renders all
- * six at once, so "what is on in production" is one call rather than a grep —
+ * five at once, so "what is on in production" is one call rather than a grep —
  * and `GET /inference/admin/rollout` is that call over HTTP.
  *
  * ## Exposure and money switches default to the state that does nothing
@@ -13,10 +13,9 @@
  * key, never publishes a catalogue and — most of all — never charges anybody.
  * That is not a stylistic preference: a flag you can arm by forgetting a
  * variable is worse than no flag, because it looks like a control while
- * defaulting to the dangerous side. Kaana execution is the exception after its
- * completed cutover: configured signing/origin bindings are ordinary runtime
- * wiring, while an explicit `disabled` remains the emergency kill switch. Each default is asserted in
- * `__tests__/rolloutFlags.test.ts` with the environment explicitly cleared, so
+ * defaulting to the dangerous side. Kaana is canonical infrastructure rather
+ * than a rollout lane; its required origin and signing bindings are ordinary
+ * runtime wiring. Each default is asserted in `__tests__/rolloutFlags.test.ts` with the environment explicitly cleared, so
  * the assertion fails if a default is ever flipped.
  *
  * An unset variable also never asserts that a review HAPPENED — see
@@ -320,39 +319,7 @@ export function isMachineCredentialLaneEnabled(): boolean {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  3. The Kaana execution hop                                                */
-/* -------------------------------------------------------------------------- */
-
-/**
- * `INFERENCE_KAANA_EXECUTION` is an emergency kill switch for constructing the
- * production Kaana client. Unset and `enabled` both permit normal configured
- * runtime wiring; only explicit `disabled` closes it. Malformed values fail
- * closed and are reported.
- */
-export const KAANA_EXECUTION_VARIABLE = 'INFERENCE_KAANA_EXECUTION';
-
-export type KaanaExecutionState =
-  | { readonly status: 'enabled' }
-  | { readonly status: 'disabled'; readonly reason: 'disabled' | 'unreadable' };
-
-export function resolveKaanaExecution(): KaanaExecutionState {
-  const configured = process.env[KAANA_EXECUTION_VARIABLE]?.trim();
-  if (configured === undefined || configured.length === 0) {
-    return { status: 'enabled' };
-  }
-  if (configured === 'enabled') return { status: 'enabled' };
-  if (configured === 'disabled') return { status: 'disabled', reason: 'disabled' };
-
-  reportUnreadable(KAANA_EXECUTION_VARIABLE, configured, 'enabled | disabled');
-  return { status: 'disabled', reason: 'unreadable' };
-}
-
-export function isKaanaExecutionEnabled(): boolean {
-  return resolveKaanaExecution().status === 'enabled';
-}
-
-/* -------------------------------------------------------------------------- */
-/*  4. The ledger — charging, and the shadow metering that precedes it        */
+/*  3. The ledger — charging, and the shadow metering that precedes it        */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -655,11 +622,6 @@ export interface RolloutFlagReport {
     readonly enabled: boolean;
     readonly disabledReason: 'not_configured' | 'disabled' | 'unreadable' | null;
   };
-  readonly kaanaExecution: {
-    readonly variable: string;
-    readonly enabled: boolean;
-    readonly disabledReason: 'disabled' | 'unreadable' | null;
-  };
   readonly charging: {
     readonly variable: string;
     readonly authorized: boolean;
@@ -702,7 +664,6 @@ export interface RolloutFlagReport {
 export function describeRolloutFlags(): RolloutFlagReport {
   const edge = resolveEdgeAudience();
   const lane = resolveMachineCredentialLane();
-  const kaanaExecution = resolveKaanaExecution();
   const charging = resolveInferenceCharging();
   const catalogue = resolveCatalogueAudience();
   const privacyReview = resolveInferencePrivacyReview();
@@ -719,11 +680,6 @@ export function describeRolloutFlags(): RolloutFlagReport {
       variable: MACHINE_CREDENTIAL_AUTH_VARIABLE,
       enabled: lane.status === 'enabled',
       disabledReason: lane.status === 'disabled' ? lane.reason : null,
-    },
-    kaanaExecution: {
-      variable: KAANA_EXECUTION_VARIABLE,
-      enabled: kaanaExecution.status === 'enabled',
-      disabledReason: kaanaExecution.status === 'disabled' ? kaanaExecution.reason : null,
     },
     charging: {
       variable: CHARGING_AUTHORIZED_VARIABLE,

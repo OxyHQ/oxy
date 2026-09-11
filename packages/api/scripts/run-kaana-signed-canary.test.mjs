@@ -20,7 +20,6 @@ function runtime() {
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
   const pem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
   const env = {
-    INFERENCE_KAANA_EXECUTION: 'disabled',
     KAANA_BASE_URL: 'https://kaana.ai',
     KAANA_EDGE_SIGNING_KEY_ID: 'oxy-edge-test',
     KAANA_EDGE_SIGNING_PRIVATE_KEY: pem,
@@ -44,7 +43,6 @@ function runtime() {
 test('candidate origin accepts only an exact RFC1918 HTTP endpoint on port 8080', () => {
   const base = runtime();
   const privateEnv = {
-    INFERENCE_KAANA_EXECUTION: 'disabled',
     KAANA_BASE_URL: 'https://kaana.ai',
     KAANA_EDGE_SIGNING_KEY_ID: base.config.keyId,
     KAANA_EDGE_SIGNING_PRIVATE_KEY: base.config.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
@@ -321,10 +319,9 @@ test('stops before either provider probe if a slug arm is unexpectedly accepted'
   assert.equal(calls, 3);
 });
 
-test('refuses noncanonical origins, enabled ambient execution and fuzzy exact IDs before fetch', () => {
+test('refuses noncanonical origins and fuzzy exact IDs before fetch', () => {
   const { privateKey } = generateKeyPairSync('ed25519');
   const base = {
-    INFERENCE_KAANA_EXECUTION: 'disabled',
     KAANA_BASE_URL: 'https://kaana.ai',
     KAANA_EDGE_SIGNING_KEY_ID: 'oxy-edge-test',
     KAANA_EDGE_SIGNING_PRIVATE_KEY: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
@@ -341,7 +338,6 @@ test('refuses noncanonical origins, enabled ambient execution and fuzzy exact ID
 
   for (const changed of [
     { KAANA_BASE_URL: 'https://kaana.oxy.so' },
-    { INFERENCE_KAANA_EXECUTION: 'enabled' },
     { CANARY_EXPECTED_SNAPSHOT_ID: ' snap-live-exact' },
     { CANARY_DEPLOYMENT_ID: ` ${DEPLOYMENT_ID}` },
     { CANARY_ROUTING_PROFILE_ID: `${ROUTING_PROFILE_ID} ` },

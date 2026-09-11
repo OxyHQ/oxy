@@ -20,8 +20,7 @@ proven.** Those are different facts and the difference decides what you do:
   envelope it would itself accept.
 - The deployment workflow declares `KAANA_BASE_URL`,
   `KAANA_EDGE_SIGNING_KEY_ID` and the SSM-backed
-  `KAANA_EDGE_SIGNING_PRIVATE_KEY`, but `INFERENCE_KAANA_EXECUTION` remains
-  explicitly disabled. A repository declaration is not evidence that a running
+  `KAANA_EDGE_SIGNING_PRIVATE_KEY`. A repository declaration is not evidence that a running
   task loaded the values or that Kaana trusts the matching public key.
 - **A running task that has not loaded all three of `KAANA_BASE_URL`,
   `KAANA_EDGE_SIGNING_KEY_ID` and `KAANA_EDGE_SIGNING_PRIVATE_KEY` has no data
@@ -37,7 +36,6 @@ levers are the **rollout flags**, not key material:
 
 | Flag | Default | Effect |
 |---|---|---|
-| `INFERENCE_KAANA_EXECUTION` | disabled | whether Oxy constructs and invokes the signed Kaana client |
 | `INFERENCE_EDGE_AUDIENCE` | closed | who may reach the public inference edge at all |
 | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | off | whether an `oxy_sk_…` key authenticates the edge |
 | `INFERENCE_CHARGING_AUTHORIZED` | unauthorized | whether spend may be charged |

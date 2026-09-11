@@ -1,7 +1,7 @@
 name: Kaana signed production canary
 
 # This is a bounded direct wire probe, not an Oxy edge rollout. It runs the
-# exact live oxy-api image with ambient Kaana execution still disabled, strips
+# exact live oxy-api image, strips
 # every Oxy/database secret, injects only the existing Ed25519 key through the
 # ECS secret binding, and makes exactly two one-token provider requests after
 # every fail-closed case passes. Merging this workflow does not run it.
@@ -222,13 +222,8 @@ jobs:
               if length == 1 then .[0].value else error("expected one env binding") end
             ' <<<"$live_task_json"
           }
-          execution=$(read_env INFERENCE_KAANA_EXECUTION)
           kaana_origin=$(read_env KAANA_BASE_URL)
           signing_key_id=$(read_env KAANA_EDGE_SIGNING_KEY_ID)
-          if [ "$execution" != disabled ]; then
-            echo '::error::ambient Kaana execution must remain disabled during this canary'
-            exit 1
-          fi
           if [ "$kaana_origin" != 'https://kaana.ai' ]; then
             echo '::error::the only accepted signed Kaana origin is https://kaana.ai'
             exit 1
@@ -271,7 +266,6 @@ jobs:
               .containerDefinitions = [
                 .containerDefinitions[] | select(.name == $container) |
                   .environment = [
-                    {name:"INFERENCE_KAANA_EXECUTION", value:"disabled"},
                     {name:"KAANA_BASE_URL", value:$origin},
                     {name:"KAANA_EDGE_SIGNING_KEY_ID", value:$key_id}
                   ]
@@ -289,7 +283,7 @@ jobs:
                   .deregisteredAt
                 )
             ' <<<"$live_task_json")
-          if [ "$(jq -c '[.containerDefinitions[0].environment[].name] | sort' <<<"$canary_task_json")" != '["INFERENCE_KAANA_EXECUTION","KAANA_BASE_URL","KAANA_EDGE_SIGNING_KEY_ID"]' ] || \
+          if [ "$(jq -c '[.containerDefinitions[0].environment[].name] | sort' <<<"$canary_task_json")" != '["KAANA_BASE_URL","KAANA_EDGE_SIGNING_KEY_ID"]' ] || \
              [ "$(jq -r '.containerDefinitions[0].secrets | length' <<<"$canary_task_json")" != 1 ]; then
             echo '::error::canary task secret/environment minimization failed'
             exit 1
@@ -462,5 +456,4 @@ jobs:
             echo '- Negative route/slug cases: passed before provider access'
             echo '- Positive provider requests: 2, each capped at one output token'
             echo '- Oxy ledger writes: 0 (task has no DATABASE_URL)'
-            echo '- Ambient Oxy Kaana execution: disabled'
           } >> "$GITHUB_STEP_SUMMARY"

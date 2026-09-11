@@ -49,61 +49,45 @@ try {
   roots.push(clean);
   verdict(clean, 0);
 
-  const enabledExecution = fixture();
-  roots.push(enabledExecution);
+  const permanentExecutionFlag = fixture();
+  roots.push(permanentExecutionFlag);
   mutate(
-    enabledExecution,
+    permanentExecutionFlag,
     '.github/workflows/deploy-aws.yml',
-    '"INFERENCE_KAANA_EXECUTION":"disabled"',
-    '"INFERENCE_KAANA_EXECUTION":"enabled"',
+    '"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600",',
+    '"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","INFERENCE_KAANA_EXECUTION":"enabled",',
   );
-  verdict(enabledExecution, 1);
+  verdict(permanentExecutionFlag, 1);
 
-  const missingExecutionSwitch = fixture();
-  roots.push(missingExecutionSwitch);
+  const spacedPermanentExecutionFlag = fixture();
+  roots.push(spacedPermanentExecutionFlag);
   mutate(
-    missingExecutionSwitch,
+    spacedPermanentExecutionFlag,
     '.github/workflows/deploy-aws.yml',
-    ',"INFERENCE_KAANA_EXECUTION":"disabled"',
-    '',
+    '"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600",',
+    '"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","INFERENCE_KAANA_EXECUTION" : "enabled",',
   );
-  verdict(missingExecutionSwitch, 1);
+  verdict(spacedPermanentExecutionFlag, 1);
 
-  const duplicateExecutionSwitch = fixture();
-  roots.push(duplicateExecutionSwitch);
+  const missingRollbackRemoval = fixture();
+  roots.push(missingRollbackRemoval);
   mutate(
-    duplicateExecutionSwitch,
+    missingRollbackRemoval,
     '.github/workflows/deploy-aws.yml',
-    '"INFERENCE_KAANA_EXECUTION":"disabled"',
-    '"INFERENCE_KAANA_EXECUTION":"disabled","INFERENCE_KAANA_EXECUTION":"disabled"',
+    ',"INFERENCE_KAANA_EXECUTION"]',
+    ']',
   );
-  verdict(duplicateExecutionSwitch, 1);
+  verdict(missingRollbackRemoval, 1);
 
-  const missingTaskEnvironmentBlock = fixture();
-  roots.push(missingTaskEnvironmentBlock);
+  const duplicateRollbackRemoval = fixture();
+  roots.push(duplicateRollbackRemoval);
   mutate(
-    missingTaskEnvironmentBlock,
+    duplicateRollbackRemoval,
     '.github/workflows/deploy-aws.yml',
-    'TASK_ENV_OVERRIDES_JSON: >-',
-    'TASK_ENVIRONMENT_OVERRIDES_JSON: >-',
+    '"INFERENCE_KAANA_EXECUTION"]',
+    '"INFERENCE_KAANA_EXECUTION","INFERENCE_KAANA_EXECUTION"]',
   );
-  verdict(missingTaskEnvironmentBlock, 1);
-
-  const commentOnlyExecutionSwitch = fixture();
-  roots.push(commentOnlyExecutionSwitch);
-  mutate(
-    commentOnlyExecutionSwitch,
-    '.github/workflows/deploy-aws.yml',
-    ',"INFERENCE_KAANA_EXECUTION":"disabled","OTEL_SERVICE_NAME"',
-    ',"OTEL_SERVICE_NAME"',
-  );
-  mutate(
-    commentOnlyExecutionSwitch,
-    '.github/workflows/deploy-aws.yml',
-    '"OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}\n          # Re-assert',
-    '"OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}\n          # "INFERENCE_KAANA_EXECUTION":"disabled"\n          # Re-assert',
-  );
-  verdict(commentOnlyExecutionSwitch, 1);
+  verdict(duplicateRollbackRemoval, 1);
 
   const staleCanaryEvidence = fixture();
   roots.push(staleCanaryEvidence);

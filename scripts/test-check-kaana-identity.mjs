@@ -12,6 +12,8 @@ const fixtures = [];
 const failures = [];
 const oldBindings =
 	'["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL"]';
+const inheritedBindingCleanup =
+	'["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INFERENCE_KAANA_EXECUTION"]';
 
 const canonicalFiles = {
 	"docs/adr/0011-inference-data-plane-name.md": [
@@ -92,9 +94,9 @@ verdict(
 verdict(
 	"approved removal receipts",
 	fixture({
-		".github/workflows/deploy-aws.yml": `TASK_REMOVE_NAMES_JSON: >-\n  ${oldBindings}\n`,
+		".github/workflows/deploy-aws.yml": `TASK_REMOVE_NAMES_JSON: >-\n  ${inheritedBindingCleanup}\n`,
 		".github/scripts/test-deploy-ecs-image.sh": [
-			`grep -F '${oldBindings}' \\`,
+			`grep -F '${inheritedBindingCleanup}' \\`,
 			'  "$workflow_file" >/dev/null',
 		].join("\n"),
 	}),

@@ -78,7 +78,7 @@ before anything is forwarded ([billing.md](./billing.md)), which is what makes
 the credential safe to accept at all.
 
 The credential authenticates only this lane; it does not prove the audience is
-open, the requested model is published or Kaana execution is enabled. Read the
+open, the requested model is published or canonical Kaana is configured. Read the
 live rollout state and run the signed end-to-end check in
 [sdk.md](./sdk.md#verify-the-deployed-path) before claiming reachability.
 

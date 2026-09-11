@@ -677,8 +677,8 @@ function streamingKaana(
 
 /**
  * The four rollout controls this suite depends on default closed, so every
- * assertion here would otherwise pass for the wrong reason. The independent
- * Kaana-execution switch is irrelevant because the client is injected. The two dated attestations are
+ * assertion here would otherwise pass for the wrong reason. The Kaana client is
+ * injected directly. The two dated attestations are
  * comfortably in the past because the flags refuse a FUTURE date, and midnight UTC
  * on a runner an hour behind local time is one.
  *
