@@ -29,6 +29,9 @@ jest.mock('bullmq', () => {
     close(): Promise<void> {
       return Promise.resolve();
     }
+    waitUntilReady(): Promise<this> {
+      return Promise.resolve(this);
+    }
   }
   class MockQueue {
     static addCalls: AddCall[] = [];
@@ -37,6 +40,9 @@ jest.mock('bullmq', () => {
     }
     close(): Promise<void> {
       return Promise.resolve();
+    }
+    waitUntilReady(): Promise<this> {
+      return Promise.resolve(this);
     }
     add(_name: unknown, _data: unknown, options: AddCall): Promise<void> {
       MockQueue.addCalls.push(options);
@@ -66,8 +72,9 @@ import {
   ASSET_VARIANT_WORKER_CONCURRENCY,
   assetVariantsJobId,
   enqueueAssetVariantGeneration,
-  startAssetVariantJobs,
-  stopAssetVariantJobs,
+  startAssetVariantProducer,
+  startAssetVariantWorker,
+  stopAssetVariantProducer,
 } from '../assetVariants.queue';
 
 const MockQueue = Queue as unknown as { addCalls: AddCall[] };
@@ -84,7 +91,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await stopAssetVariantJobs();
+  await stopAssetVariantProducer();
   mockIsQueueEnabled.mockReturnValue(false);
 });
 
@@ -105,7 +112,7 @@ describe('assetVariantsJobId', () => {
 describe('dedup', () => {
   it('enqueues both requests for one file under the SAME job id (BullMQ then keeps one)', async () => {
     mockIsQueueEnabled.mockReturnValue(true);
-    await startAssetVariantJobs();
+    await startAssetVariantProducer();
 
     enqueueAssetVariantGeneration('file-abc');
     enqueueAssetVariantGeneration('file-abc');
@@ -125,7 +132,7 @@ describe('dedup', () => {
   });
 
   it('runs generation ONCE for two fallback enqueues of the same file', async () => {
-    await startAssetVariantJobs(); // queues disabled -> in-process fallback
+    await startAssetVariantProducer(); // queues disabled -> in-process fallback
 
     enqueueAssetVariantGeneration('file-abc');
     enqueueAssetVariantGeneration('file-abc');
@@ -138,7 +145,7 @@ describe('dedup', () => {
 
   it('carries retry attempts so a failed generation is retried, not lost', async () => {
     mockIsQueueEnabled.mockReturnValue(true);
-    await startAssetVariantJobs();
+    await startAssetVariantProducer();
 
     enqueueAssetVariantGeneration('file-abc');
     await settle();
@@ -147,21 +154,53 @@ describe('dedup', () => {
   });
 });
 
-describe('worker', () => {
+describe('producer/worker separation', () => {
+  it('does not construct a worker in the HTTP producer', async () => {
+    mockIsQueueEnabled.mockReturnValue(true);
+    await startAssetVariantProducer();
+
+    expect(MockWorker.lastOptions).toBeUndefined();
+  });
+
   it('is created with an explicit, small concurrency', async () => {
     mockIsQueueEnabled.mockReturnValue(true);
-    await startAssetVariantJobs();
+    await startAssetVariantWorker();
 
     expect(MockWorker.lastOptions?.concurrency).toBe(ASSET_VARIANT_WORKER_CONCURRENCY);
     // The whole point of the queue is that this stays bounded and low. A large
     // value here re-creates the CPU contention on a fractional-vCPU task.
     expect(ASSET_VARIANT_WORKER_CONCURRENCY).toBeLessThanOrEqual(2);
   });
+
+  it('refuses to run a worker without the durable queue', async () => {
+    await expect(startAssetVariantWorker()).rejects.toThrow('REDIS_URL is required');
+    expect(MockWorker.lastOptions).toBeUndefined();
+  });
+});
+
+describe('production safety', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it('refuses an in-process fallback in production', async () => {
+    process.env.NODE_ENV = 'production';
+
+    await expect(startAssetVariantProducer()).rejects.toThrow(
+      'REDIS_URL is required for the production asset-variant producer',
+    );
+    enqueueAssetVariantGeneration('must-not-transcode-in-http');
+    await settle();
+    expect(mockGenerateVariants).not.toHaveBeenCalled();
+  });
 });
 
 describe('no-Redis fallback', () => {
   it('is SEQUENTIAL — never runs two generations at once', async () => {
-    await startAssetVariantJobs();
+    await startAssetVariantProducer();
 
     let concurrent = 0;
     let peak = 0;
@@ -194,8 +233,8 @@ describe('no-Redis fallback', () => {
   });
 
   it('does not enqueue into a dead subsystem after stop', async () => {
-    await startAssetVariantJobs();
-    await stopAssetVariantJobs();
+    await startAssetVariantProducer();
+    await stopAssetVariantProducer();
 
     enqueueAssetVariantGeneration('file-after-stop');
     await settle();
@@ -204,7 +243,7 @@ describe('no-Redis fallback', () => {
   });
 
   it('keeps draining after one file fails', async () => {
-    await startAssetVariantJobs();
+    await startAssetVariantProducer();
 
     mockGenerateVariants
       .mockImplementationOnce(() => Promise.reject(new Error('ffmpeg exploded')))

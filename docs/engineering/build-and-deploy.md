@@ -64,6 +64,30 @@ aws --profile oxy --region us-west-2 logs tail /oxy/ecs --log-stream-name-prefix
 
 ## Containers (oxy-api Docker / ECS one-shot tasks)
 
+### Asset-variant producer and worker
+
+Asset rendition generation has two runtime roles built from the same image:
+
+- `node packages/api/dist/server.js` runs the HTTP API and only produces jobs
+  on the BullMQ `asset-variants` queue.
+- `node packages/api/dist/asset-variant-worker.js` consumes that queue with
+  concurrency 1 and performs the sharp/ffmpeg work. The package shortcut is
+  `bun run --filter @oxy.so/api start:asset-variant-worker`.
+
+The worker command requires `DATABASE_URL`, `REDIS_URL`, `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY` and `AWS_S3_BUCKET`. It also reads `AWS_REGION`
+(`us-east-1` default) and optional `AWS_ENDPOINT_URL`. Production API startup
+fails when Redis is absent, and the worker fails when any required value is
+absent; neither condition may silently move transcoding back into an HTTP
+process. Development without Redis retains a single-file-at-a-time in-process
+fallback so local uploads remain usable.
+
+Deploy the worker as an independently scalable ECS service with no load
+balancer. API tasks and worker tasks have separate CPU target-tracking policies;
+the worker remains at one task when idle and can grow to four under sustained
+sharp/ffmpeg load. API replica count must never determine transcoding
+concurrency.
+
 Migration phases cross release boundaries explicitly. Every deployment runs
 the candidate's additive `pre` entries before rollout and its `post` entries
 only after the new image reaches a healthy steady state. Never replace those

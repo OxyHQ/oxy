@@ -224,6 +224,61 @@ jobs:
           fi
           echo "tasks=$tasks" >>"$GITHUB_OUTPUT"
 
+      - name: Deploy asset-variant worker before the API
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          WORKER_SERVICE: oxy-asset-variant-worker
+          WORKER_CONTAINER: oxy-asset-variant-worker
+        run: |
+          set -euo pipefail
+          service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$WORKER_SERVICE")
+          if [ "$(jq '.failures | length' <<<"$service_json")" != "0" ] || \
+             [ "$(jq -r '.services[0].status // "NONE"' <<<"$service_json")" != "ACTIVE" ]; then
+            echo "::error::asset-variant worker service is not ACTIVE"
+            exit 1
+          fi
+
+          current_task_definition=$(jq -er '.services[0].taskDefinition' <<<"$service_json")
+          task_definition=$(aws ecs describe-task-definition \
+            --task-definition "$current_task_definition" \
+            --query taskDefinition)
+          if [ "$(jq --arg name "$WORKER_CONTAINER" '[.containerDefinitions[] | select(.name == $name)] | length' <<<"$task_definition")" != "1" ]; then
+            echo "::error::worker task definition must contain exactly one $WORKER_CONTAINER container"
+            exit 1
+          fi
+          if [ "$(jq -c --arg name "$WORKER_CONTAINER" '.containerDefinitions[] | select(.name == $name) | .command' <<<"$task_definition")" != '["node","packages/api/dist/asset-variant-worker.js"]' ]; then
+            echo "::error::worker task definition has an unexpected command"
+            exit 1
+          fi
+
+          rendered_task_definition=$(jq --arg name "$WORKER_CONTAINER" --arg image "$IMAGE_URI" '
+            del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+            | .containerDefinitions |= map(if .name == $name then .image = $image else . end)
+          ' <<<"$task_definition")
+          new_task_definition=$(aws ecs register-task-definition \
+            --cli-input-json "$rendered_task_definition" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$WORKER_SERVICE" \
+            --task-definition "$new_task_definition" \
+            --desired-count 1 \
+            --deployment-configuration 'deploymentCircuitBreaker={enable=true,rollback=true},minimumHealthyPercent=100,maximumPercent=200' \
+            >/dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$WORKER_SERVICE"
+
+          stable_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$WORKER_SERVICE")
+          if [ "$(jq -r '.services[0].taskDefinition' <<<"$stable_json")" != "$new_task_definition" ] || \
+             [ "$(jq -r '.services[0].desiredCount' <<<"$stable_json")" != "1" ] || \
+             [ "$(jq -r '.services[0].runningCount' <<<"$stable_json")" != "1" ] || \
+             [ "$(jq -r '[.services[0].deployments[] | select(.status == "PRIMARY" and .rolloutState == "COMPLETED")] | length' <<<"$stable_json")" != "1" ]; then
+            echo "::error::asset-variant worker did not reach the exact stable revision"
+            exit 1
+          fi
+          echo "Asset-variant worker is stable at $new_task_definition"
+
       - name: Register immutable task definition and deploy
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
