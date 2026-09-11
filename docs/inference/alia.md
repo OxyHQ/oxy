@@ -267,7 +267,7 @@ those authority-bearing values is a dispatch input.
 Re-running against the exact named production lane with matching scopes reuses
 the credential and verifies both destination SecureStrings. If that lane is
 usable but carries an older scope set, the Alia registry arm explicitly enables
-a scope rotation uses a two-phase handoff. The first transaction creates the
+a scope rotation that uses a two-phase handoff. The first transaction creates the
 replacement as `pending`, which cannot authenticate, and leaves the old row
 untouched. Only after the exact encrypted secret has become a durable recovery
 package does a second exact-ID transaction activate the replacement, mark the
@@ -288,12 +288,13 @@ replays the same already-minted credential, repairing a partial pair without
 minting another database row. A dry run performs none of those writes and cannot
 consume a recovery package.
 
-Migration/deploy order is causal and reserved: merge and safely deploy #1237
-(`0076`–`0078`) first; this credential handoff owns `0079` and must deploy before
-Alia is rotated. The open economic-routing PR #1234 must not merge from its
-current journal: after this change reaches `main`, rebase #1234 and regenerate
-its two migrations as `0080`/`0081`. Reviewing those numbers independently of
-that rebase would silently accept a duplicate `0079` from two open branches.
+Migration/deploy order is causal and reserved: #1237 owns `0076`–`0078`, and
+#1239 owns `0079`; both must be safely deployed first. This credential handoff
+owns `0080` and must deploy before Alia is rotated. The open economic-routing PR
+#1234 must not merge from its current journal: after this change reaches `main`,
+rebase #1234 and regenerate its two migrations as `0081`/`0082`. Reviewing those
+numbers independently of that rebase would silently accept duplicate migration
+indexes from open branches.
 
 **`service`, not `machine`.** The `oxy_sk_*` machine lane exists so external
 developers can use a standard OpenAI SDK without implementing a token exchange;
