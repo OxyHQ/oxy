@@ -139,6 +139,11 @@ requireMatch(
 );
 requireMatch(
   workflow,
+  /networkInterfaceId[\s\S]*?ec2 describe-network-interfaces[\s\S]*?Association\.PublicIp[\s\S]*?\.subnets \| index\(\$subnet\)[\s\S]*?\.securityGroups \| sort/,
+  'the canary must reject a public ENI and bind candidate subnet and security groups to the Kaana service network',
+);
+requireMatch(
+  workflow,
   /securityGroups \+= \["sg-05da1736e1a5f0acc"\]/,
   'the signer task must use only the audited Kaana ALB source security group for candidate reachability',
 );
