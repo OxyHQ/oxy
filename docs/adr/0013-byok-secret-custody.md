@@ -15,8 +15,8 @@
 > Historical record. Present-tense statements below describe the fail-closed
 > design at the time of this decision, not the current implementation. ADR 0019
 > moves every provider credential, including BYOK, to Kaana PostgreSQL encrypted
-> by KMS and leaves Oxy with an opaque handle only. Oxy source support is now
-> implemented; production execution remains explicitly disabled and unverified.
+> by KMS and leaves Oxy with an opaque handle only. Production readiness is
+> established by live readback and signed canaries, not by this historical ADR.
 
 ## Context
 

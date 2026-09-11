@@ -12,7 +12,7 @@
  *
  * ## The environment is cleared, not assumed
  *
- * `beforeEach` deletes all six variables rather than trusting them to be
+ * `beforeEach` deletes all five variables rather than trusting them to be
  * absent. A sibling suite in the same worker sets several of them
  * (`routes/__tests__/inferenceEdge.test.ts`), and `process.env` is shared across
  * every file a worker runs — so an assumed-empty environment is exactly how a
@@ -32,17 +32,14 @@ import {
   forgetReportedMisconfigurations,
   isCataloguePublished,
   isChargingAuthorized,
-  isKaanaExecutionEnabled,
   isMachineCredentialLaneEnabled,
   isPrivacyReviewRecorded,
   MACHINE_CREDENTIAL_AUTH_VARIABLE,
-  KAANA_EXECUTION_VARIABLE,
   PRIVACY_REVIEW_VARIABLE,
   resolveCatalogueAudience,
   resolveEdgeAudience,
   resolveInferenceCharging,
   resolveInferencePrivacyReview,
-  resolveKaanaExecution,
   resolveMachineCredentialLane,
   type EdgeAdmissionPrincipal,
 } from '../rolloutFlags';
@@ -53,7 +50,6 @@ const mockedLogger = logger as jest.Mocked<typeof logger>;
 const FLAG_VARIABLES = [
   EDGE_AUDIENCE_VARIABLE,
   MACHINE_CREDENTIAL_AUTH_VARIABLE,
-  KAANA_EXECUTION_VARIABLE,
   CHARGING_AUTHORIZED_VARIABLE,
   CATALOGUE_AUDIENCE_VARIABLE,
   PRIVACY_REVIEW_VARIABLE,
@@ -112,7 +108,6 @@ describe('the safe default', () => {
   it('serves nobody, authenticates no machine key, charges nobody and publishes nothing', () => {
     expect(resolveEdgeAudience()).toEqual({ status: 'closed', reason: 'not_configured' });
     expect(isMachineCredentialLaneEnabled()).toBe(false);
-    expect(isKaanaExecutionEnabled()).toBe(true);
     expect(isChargingAuthorized()).toBe(false);
     expect(isCataloguePublished()).toBe(false);
     // And claims no review has happened. An unset variable must never be read as
@@ -139,7 +134,6 @@ describe('the safe default', () => {
   it('and every one of them opens when the deployment says so — the positive control', () => {
     process.env[EDGE_AUDIENCE_VARIABLE] = 'public';
     process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE] = 'enabled';
-    process.env[KAANA_EXECUTION_VARIABLE] = 'enabled';
     process.env[CHARGING_AUTHORIZED_VARIABLE] = ARMED_CHARGING;
     process.env[CATALOGUE_AUDIENCE_VARIABLE] = 'public';
     process.env[PRIVACY_REVIEW_VARIABLE] = ARMED_PRIVACY_REVIEW;
@@ -149,27 +143,10 @@ describe('the safe default', () => {
       audience: { name: 'public', allowedApplicationIds: [] },
     });
     expect(isMachineCredentialLaneEnabled()).toBe(true);
-    expect(isKaanaExecutionEnabled()).toBe(true);
     expect(isChargingAuthorized()).toBe(true);
     expect(isCataloguePublished()).toBe(true);
     expect(isPrivacyReviewRecorded()).toBe(true);
     expect(admitToInferenceEdge(THIRD_PARTY)).toEqual({ status: 'admitted', audience: 'public' });
-  });
-});
-
-describe('the Kaana execution switch', () => {
-  it('is enabled by default and retains an explicit emergency kill switch', () => {
-    expect(resolveKaanaExecution()).toEqual({ status: 'enabled' });
-
-    process.env[KAANA_EXECUTION_VARIABLE] = 'disabled';
-    expect(resolveKaanaExecution()).toEqual({ status: 'disabled', reason: 'disabled' });
-  });
-
-  it('fails closed for an unreadable value and reports why', () => {
-    process.env[KAANA_EXECUTION_VARIABLE] = 'yes';
-
-    expect(resolveKaanaExecution()).toEqual({ status: 'disabled', reason: 'unreadable' });
-    expect(mockedLogger.error).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -598,11 +575,6 @@ describe('describeRolloutFlags answers "what is on here"', () => {
         variable: MACHINE_CREDENTIAL_AUTH_VARIABLE,
         enabled: false,
         disabledReason: 'not_configured',
-      },
-      kaanaExecution: {
-        variable: KAANA_EXECUTION_VARIABLE,
-        enabled: true,
-        disabledReason: null,
       },
       charging: {
         variable: CHARGING_AUTHORIZED_VARIABLE,

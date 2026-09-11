@@ -342,7 +342,7 @@ never register a GitHub secret with a placeholder value.
   credentials nobody has asked for.
 - **Alia actually invoking Oxy inference.** The edge, Kaana runtime and reviewed
   bootstrap exist in merged source, but bootstrap application, live
-  audience/execution gates and a real signed canary still require production
+  audience gates, canonical Kaana configuration and a real signed canary still require production
   evidence (see [README.md](./README.md)). The
   registration, scopes, credentials, cost centres and entitlement interface do
   not prove that Alia has made that production call.

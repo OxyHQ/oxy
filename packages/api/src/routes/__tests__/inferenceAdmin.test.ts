@@ -1286,10 +1286,6 @@ describe('GET /inference/admin/metrics', () => {
     // The cause a reader needs to interpret the two pending metrics below. This
     // process configures no data plane, so nothing can have streamed.
     expect(data.dataPlane).toBe('absent');
-    expect(data.dataPlaneExecution).toEqual({
-      enabled: true,
-      disabledReason: null,
-    });
 
     // The two metrics with no data yet. `pending` plus a reason, and NO percentile
     // field at all — because a consumer that found `p50Ms: 0` beside

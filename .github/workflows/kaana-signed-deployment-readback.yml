@@ -114,13 +114,8 @@ jobs:
               if length == 1 then .[0].value else error("expected one env binding") end
             ' <<<"$live_task_json"
           }
-          execution=$(read_env INFERENCE_KAANA_EXECUTION)
           kaana_origin=$(read_env KAANA_BASE_URL)
           signing_key_id=$(read_env KAANA_EDGE_SIGNING_KEY_ID)
-          if [ "$execution" != disabled ]; then
-            echo '::error::ambient Kaana execution must remain disabled during readback'
-            exit 1
-          fi
           if [ "$kaana_origin" != 'https://kaana.ai' ]; then
             echo '::error::the only accepted signed Kaana origin is https://kaana.ai'
             exit 1
@@ -159,7 +154,6 @@ jobs:
               .containerDefinitions = [
                 .containerDefinitions[] | select(.name == $container) |
                   .environment = [
-                    {name:"INFERENCE_KAANA_EXECUTION", value:"disabled"},
                     {name:"KAANA_BASE_URL", value:$origin},
                     {name:"KAANA_EDGE_SIGNING_KEY_ID", value:$key_id}
                   ]
@@ -177,7 +171,7 @@ jobs:
                   .deregisteredAt
                 )
             ' <<<"$live_task_json")
-          if [ "$(jq -c '[.containerDefinitions[0].environment[].name] | sort' <<<"$readback_task_json")" != '["INFERENCE_KAANA_EXECUTION","KAANA_BASE_URL","KAANA_EDGE_SIGNING_KEY_ID"]' ] || \
+          if [ "$(jq -c '[.containerDefinitions[0].environment[].name] | sort' <<<"$readback_task_json")" != '["KAANA_BASE_URL","KAANA_EDGE_SIGNING_KEY_ID"]' ] || \
              [ "$(jq -r '.containerDefinitions[0].secrets | length' <<<"$readback_task_json")" != 1 ]; then
             echo '::error::readback task secret/environment minimization failed'
             exit 1
@@ -294,7 +288,6 @@ jobs:
             echo "- Exact deployment descriptors: $(jq -r '.deploymentCount' <<<"$result")"
             echo '- Provider requests: 0'
             echo '- Oxy ledger writes: 0 (task has no DATABASE_URL)'
-            echo '- Ambient Oxy Kaana execution: disabled'
             echo
             echo 'Copy one exact deploymentId and this exact snapshotId into the canary.'
             echo 'The canary derives modelReference from a fresh signed exact-id lookup.'

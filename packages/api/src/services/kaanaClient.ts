@@ -18,7 +18,7 @@
  * The distinction matters because this header is what a reader consults to
  * understand a refusal. "Nothing is built" and "nothing is configured" have
  * different fixes — the first is a project, the second is the complete signed
- * deployment binding plus its independent execution gate.
+ * deployment binding.
  *
  * ## What crosses the boundary
  *

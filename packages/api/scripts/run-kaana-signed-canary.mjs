@@ -172,9 +172,6 @@ function parsePrivateKey(raw) {
 
 /** Read the common signed-operator boundary before making a network request. */
 export function readKaanaSigningConfig(env = process.env) {
-  if (env.INFERENCE_KAANA_EXECUTION !== 'disabled') {
-    fail('ambient_kaana_execution_is_not_disabled');
-  }
   if (env.KAANA_BASE_URL !== CANONICAL_KAANA_ORIGIN) {
     fail('kaana_origin_is_not_canonical');
   }

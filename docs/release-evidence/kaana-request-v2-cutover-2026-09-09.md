@@ -1,7 +1,9 @@
 # Kaana request-v2 production cutover — 2026-09-09
 
 The signed readback and bounded production canary ran from the exact live Oxy
-image while ambient Kaana execution remained disabled.
+image under the rollout control used at that time. That control was retired
+after Kaana became canonical infrastructure; this remains immutable evidence,
+not current operational guidance.
 
 - readback run: 34301660359
 - canary run: 34302325992

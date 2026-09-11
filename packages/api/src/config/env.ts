@@ -68,11 +68,11 @@ export interface RequiredEnvVars {
   // deletions. Defaults to disabled; read per request in `routes/federation.ts`.
   FEDERATION_DOMAIN_PURGE_ENABLED?: string;
 
-  // The inference platform's six rollout flags (issue #972 workstreams 16 and
+  // The inference platform's five rollout flags (issue #972 workstreams 16 and
   // 12). Declared, parsed and reported in ONE place — `config/rolloutFlags.ts` —
   // and readable at `GET /inference/admin/rollout`. None is a secret: each names
-  // a deployment STATE, so all six belong in the ECS task definition's plain
-  // environment and never in SSM, and all six are absent from the `required`
+  // a deployment STATE, so all five belong in the ECS task definition's plain
+  // environment and never in SSM, and all five are absent from the `required`
   // list below on purpose. Unset means the surface is closed, which is why an
   // absent variable can never open one.
   //
@@ -86,9 +86,6 @@ export interface RequiredEnvVars {
   //  - whether an `oxy_sk_…` machine credential authenticates: `enabled` |
   //    `disabled` (unset = disabled)
   INFERENCE_MACHINE_CREDENTIAL_AUTH?: string;
-  // Independent production kill switch for constructing the signed Kaana hop.
-  // Unset and unreadable values are disabled.
-  INFERENCE_KAANA_EXECUTION?: string;
   // Exact primary key of the Inbox product routing profile. Empty/unset keeps
   // every Inbox point-inference operation fail-closed.
   INBOX_INFERENCE_ROUTING_PROFILE_ID?: string;

@@ -193,12 +193,10 @@ landed the edge streams both public dialects, forwards the data plane's own
 surfaces `route_switch` frames on both dialects. What may still be absent is an
 **enabled, live data-plane lane**. `resolveKaanaDataPlane()` answers `absent` unless `KAANA_BASE_URL`,
 `KAANA_EDGE_SIGNING_KEY_ID` and `KAANA_EDGE_SIGNING_PRIVATE_KEY` are all set.
-The deployment workflow wires those exact values and explicitly sets the
-execution kill switch to `disabled` while a new Kaana candidate is read back and
-canaried. The earlier completed cutover does not authorize a later candidate;
-only a separate reviewed deployment may re-enable ambient execution after fresh
-evidence is recorded. Source and configuration still do not prove that anything
-has streamed or switched; only live probes and telemetry establish that.
+The deployment workflow wires those exact values. Candidate validation runs in
+an isolated, time-bounded task and does not change the production service.
+Source and configuration still do not prove that
+anything has streamed or switched; only live probes and telemetry establish that.
 
 That distinction gets a **field, not a comment**, because it is the one that will
 matter the day Kaana is deployed: `dataPlane` on the payload reports
