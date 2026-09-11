@@ -87,6 +87,7 @@ env:
   CLUSTER: oxy-cluster
   SERVICE: oxy-api
   CONTAINER: oxy-api
+  CANDIDATE_SOURCE_SECURITY_GROUP: sg-05da1736e1a5f0acc
 
 jobs:
   canary:
@@ -193,7 +194,11 @@ jobs:
             exit 1
           fi
           network=$(jq -ec '.networkConfiguration' <<<"$service_json")
-          network=$(jq -c '.awsvpcConfiguration.securityGroups += ["sg-05da1736e1a5f0acc"] | .awsvpcConfiguration.securityGroups |= unique' <<<"$network")
+          network=$(jq -c --arg candidate_sg "$CANDIDATE_SOURCE_SECURITY_GROUP" '.awsvpcConfiguration.securityGroups = [$candidate_sg]' <<<"$network")
+          if ! jq -e --arg candidate_sg "$CANDIDATE_SOURCE_SECURITY_GROUP" '.awsvpcConfiguration.securityGroups == [$candidate_sg]' <<<"$network" >/dev/null; then
+            echo '::error::signer task must use only the audited Kaana candidate source security group'
+            exit 1
+          fi
           live_task_json=$(aws ecs describe-task-definition \
             --task-definition "$live_task_definition" \
             --query taskDefinition --output json)

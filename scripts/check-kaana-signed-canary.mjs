@@ -144,7 +144,7 @@ requireMatch(
 );
 requireMatch(
   workflow,
-  /securityGroups \+= \["sg-05da1736e1a5f0acc"\]/,
+  /CANDIDATE_SOURCE_SECURITY_GROUP: sg-05da1736e1a5f0acc[\s\S]*?securityGroups = \[\$candidate_sg\][\s\S]*?securityGroups == \[\$candidate_sg\]/,
   'the signer task must use only the audited Kaana ALB source security group for candidate reachability',
 );
 requireMatch(

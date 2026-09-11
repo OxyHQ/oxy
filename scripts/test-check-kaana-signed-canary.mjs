@@ -119,6 +119,16 @@ try {
   );
   verdict(retainedReadbackSidecar, 1);
 
+  const inheritedSignerSecurityGroups = fixture();
+  roots.push(inheritedSignerSecurityGroups);
+  mutate(
+    inheritedSignerSecurityGroups,
+    '.github/workflows/kaana-signed-canary.yml',
+    '.awsvpcConfiguration.securityGroups = [$candidate_sg]',
+    '.awsvpcConfiguration.securityGroups += [$candidate_sg]',
+  );
+  verdict(inheritedSignerSecurityGroups, 1);
+
   const weakenedSteadyState = fixture();
   roots.push(weakenedSteadyState);
   mutate(

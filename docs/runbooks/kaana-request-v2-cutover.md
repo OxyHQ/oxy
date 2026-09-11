@@ -80,6 +80,19 @@ inference credential. Never copy a provider-credential UUID into
 `deployment_id`: Kaana deployment identities are opaque strings, and only the
 live signed lookup establishes what one means.
 
+Before dispatching the Oxy canary, run Kaana's isolated candidate workflow from
+the reviewed Kaana commit. Its successful handoff supplies four values that
+must be copied exactly into the Oxy workflow invocation:
+`candidate_task_arn`, `candidate_task_definition_arn`,
+`candidate_image_digest` and `candidate_private_ip`. Dispatch the Oxy canary
+while that candidate is still running and before the bounded Kaana workflow
+cleanup window expires. Do not reconstruct any value from a tag, service name,
+provider name or current task list. If the candidate stops, its ENI changes or
+the window expires, start a new candidate and use only its new complete receipt.
+The Kaana workflow owns stopping the isolated task and deregistering its
+temporary task definition; the Oxy workflow only attests and calls that task
+and must not take over cleanup ownership.
+
 The workflow refuses unless the Oxy service is at one steady deployment with
 `INFERENCE_KAANA_EXECUTION=disabled`, `KAANA_BASE_URL=https://kaana.ai`, the
 reviewed task definition and the reviewed image digest. It derives a throwaway
@@ -89,7 +102,11 @@ dependency inherited from the service task, and removes every environment bindin
 secret except the three non-secret Kaana settings plus the ECS-injected Ed25519
 private key, and never exposes or decrypts that key on the GitHub runner. In
 particular, the task has no `DATABASE_URL`, Redis credential, Oxy signing key or
-credential-control authority.
+credential-control authority. Its network configuration retains the live
+subnets and public-IP setting needed to launch in the same VPC, but replaces the
+live API security-group list with exactly the audited Kaana candidate source
+security group. It therefore has no network reachability merely inherited from
+the production API task.
 
 All four negative probes run before either provider call: v1 and v2 slug arms
 must return `invalid_request`; an unknown exact deployment id and a
