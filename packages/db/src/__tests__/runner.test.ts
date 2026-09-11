@@ -175,42 +175,6 @@ describe('runMigrations — filesystem preconditions run before any connection i
   // rather than on the message asserted below — the two are not confusable.
   const unreachableUrl = 'postgres://unreachable.invalid/db';
 
-  it('refuses a bridge cutoff unless post is immediately followed by pre', async () => {
-    const folder = migrationsFixtureTracked([
-      { tag: '0000_a', when: 1000, sql: '-- oxy:deploy-phase=post\nselect 1;\n' },
-      { tag: '0001_b', when: 2000, sql: '-- oxy:deploy-phase=post\nselect 2;\n' },
-    ]);
-    await expect(
-      runMigrations({
-        databaseUrl: unreachableUrl,
-        migrationsFolder: folder,
-        extensions: [],
-        run: 'post',
-        bridgeThroughTag: '0000_a',
-        dryRun: false,
-        logger: noopLogger,
-      })
-    ).rejects.toThrow(/must be immediately followed by a pre migration/);
-  });
-
-  it('refuses a bridge cutoff on a pre migration', async () => {
-    const folder = migrationsFixtureTracked([
-      { tag: '0000_a', when: 1000, sql: '-- oxy:deploy-phase=pre\nselect 1;\n' },
-      { tag: '0001_b', when: 2000, sql: '-- oxy:deploy-phase=pre\nselect 2;\n' },
-    ]);
-    await expect(
-      runMigrations({
-        databaseUrl: unreachableUrl,
-        migrationsFolder: folder,
-        extensions: [],
-        run: 'post',
-        bridgeThroughTag: '0000_a',
-        dryRun: false,
-        logger: noopLogger,
-      })
-    ).rejects.toThrow(/is not a post migration/);
-  });
-
   it('refuses a migrations folder whose journal cannot be read', async () => {
     await expect(
       runMigrations({
@@ -363,62 +327,4 @@ describe('runMigrations — cleans up the materialized prefix folder even when m
     expect(readdirSync(scratchRoot)).toEqual([]);
   });
 
-  it('passes only the bounded post prefix to drizzle even when the plan defers nothing', async () => {
-    jest.resetModules();
-    jest.doMock('node:os', () => {
-      const actual = jest.requireActual('node:os');
-      return { ...actual, tmpdir: () => scratchRoot };
-    });
-    jest.doMock('postgres', () => {
-      const client = Object.assign(
-        jest.fn((strings: TemplateStringsArray) => {
-          const query = strings.join('');
-          if (query.includes('current_database')) {
-            return Promise.resolve([{ current_database: EXPECTED_DATABASE }]);
-          }
-          if (query.includes('to_regclass')) return Promise.resolve([{ present: false }]);
-          return Promise.resolve([]);
-        }),
-        { end: jest.fn(() => Promise.resolve(undefined)) }
-      );
-      return { __esModule: true, default: jest.fn(() => client) };
-    });
-    jest.doMock('drizzle-orm/postgres-js', () => ({ drizzle: jest.fn(() => ({})) }));
-
-    let receivedTags: string[] = [];
-    jest.doMock('drizzle-orm/postgres-js/migrator', () => ({
-      migrate: jest.fn((_database: unknown, options: { migrationsFolder: string }) => {
-        receivedTags = JSON.parse(
-          readFileSync(join(options.migrationsFolder, 'meta', '_journal.json'), 'utf8')
-        ).entries.map((entry: JournalEntry) => entry.tag);
-        expect(existsSync(join(options.migrationsFolder, '0076_post.sql'))).toBe(true);
-        expect(existsSync(join(options.migrationsFolder, '0077_post.sql'))).toBe(true);
-        expect(existsSync(join(options.migrationsFolder, '0078_pre.sql'))).toBe(false);
-        return Promise.reject(new Error('captured bounded folder'));
-      }),
-    }));
-
-    const { runMigrations: runMigrationsUnderMock } = await import('../migrate/runner');
-    const folder = migrationsFixtureTracked([
-      { tag: '0076_post', when: 7600, sql: '-- oxy:deploy-phase=post\nselect 76;\n' },
-      { tag: '0077_post', when: 7700, sql: '-- oxy:deploy-phase=post\nselect 77;\n' },
-      { tag: '0078_pre', when: 7800, sql: '-- oxy:deploy-phase=pre\nselect 78;\n' },
-    ]);
-
-    await expect(
-      runMigrationsUnderMock({
-        databaseUrl: 'postgres://mocked/db',
-        migrationsFolder: folder,
-        extensions: [],
-        run: 'post',
-        expectedDatabase: EXPECTED_DATABASE,
-        bridgeThroughTag: '0077_post',
-        dryRun: false,
-        logger: noopLogger,
-      })
-    ).rejects.toThrow('captured bounded folder');
-
-    expect(receivedTags).toEqual(['0076_post', '0077_post']);
-    expect(readdirSync(scratchRoot)).toEqual([]);
-  });
 });

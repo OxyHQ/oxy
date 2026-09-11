@@ -33,9 +33,6 @@ POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
 PRE_DEPLOY_TASK_COMMAND_JSON="${PRE_DEPLOY_TASK_COMMAND_JSON:-}"
 POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
 POST_DEPLOY_TASKS_JSON="${POST_DEPLOY_TASKS_JSON:-}"
-MIGRATION_BRIDGE_TASK_DEFINITION="${MIGRATION_BRIDGE_TASK_DEFINITION:-}"
-MIGRATION_BRIDGE_IMAGE_URI="${MIGRATION_BRIDGE_IMAGE_URI:-}"
-MIGRATION_BRIDGE_REQUIRED_TAGS="${MIGRATION_BRIDGE_REQUIRED_TAGS:-}"
 # Exit code a smoke script uses to say "this failed, and rolling back cannot fix
 # it" — a check that crosses a boundary this deploy does not own (a CDN in front
 # of the origin, another service the route consults). Reverting the image for one
@@ -64,32 +61,6 @@ fi
 if [[ "$RUN_MIGRATIONS" != "true" && "$RUN_MIGRATIONS" != "false" ]]; then
   echo "::error::RUN_MIGRATIONS must be either 'true' or 'false'."
   exit 1
-fi
-bridge_values=0
-[[ -n "$MIGRATION_BRIDGE_TASK_DEFINITION" ]] && bridge_values=$((bridge_values + 1))
-[[ -n "$MIGRATION_BRIDGE_IMAGE_URI" ]] && bridge_values=$((bridge_values + 1))
-[[ -n "$MIGRATION_BRIDGE_REQUIRED_TAGS" ]] && bridge_values=$((bridge_values + 1))
-if (( bridge_values != 0 && bridge_values != 3 )); then
-  echo "::error::MIGRATION_BRIDGE_TASK_DEFINITION, MIGRATION_BRIDGE_IMAGE_URI and MIGRATION_BRIDGE_REQUIRED_TAGS must be supplied together."
-  exit 1
-fi
-if (( bridge_values == 3 )); then
-  if [[ "$RUN_MIGRATIONS" != "true" ]]; then
-    echo "::error::A migration bridge requires RUN_MIGRATIONS=true."
-    exit 1
-  fi
-  if [[ ! "$MIGRATION_BRIDGE_TASK_DEFINITION" =~ ^arn:aws(-[a-z]+)?:ecs:[a-z0-9-]+:[0-9]{12}:task-definition/[A-Za-z0-9_-]+:[1-9][0-9]*$ ]]; then
-    echo "::error::MIGRATION_BRIDGE_TASK_DEFINITION must be an exact ECS task-definition revision ARN."
-    exit 1
-  fi
-  if [[ ! "$MIGRATION_BRIDGE_IMAGE_URI" =~ ^.+@sha256:[0-9a-fA-F]{64}$ ]]; then
-    echo "::error::MIGRATION_BRIDGE_IMAGE_URI must pin an immutable OCI digest."
-    exit 1
-  fi
-  if [[ ! "$MIGRATION_BRIDGE_REQUIRED_TAGS" =~ ^[0-9]{4}_[a-z0-9_]+(,[0-9]{4}_[a-z0-9_]+)*$ ]]; then
-    echo "::error::MIGRATION_BRIDGE_REQUIRED_TAGS must be a comma-separated list of migration tags."
-    exit 1
-  fi
 fi
 if [[ -n "$POST_DEPLOY_SMOKE_SCRIPT" && ! -f "$POST_DEPLOY_SMOKE_SCRIPT" ]]; then
   echo "::error::POST_DEPLOY_SMOKE_SCRIPT does not exist: $POST_DEPLOY_SMOKE_SCRIPT"
@@ -822,83 +793,6 @@ if [[ "$RUN_MIGRATIONS" == "true" ||
 fi
 
 if [[ "$RUN_MIGRATIONS" == "true" ]]; then
-  if (( bridge_values == 3 )); then
-    bridge_task_definition_json="$(aws ecs describe-task-definition \
-      --task-definition "$MIGRATION_BRIDGE_TASK_DEFINITION" \
-      --query taskDefinition)"
-    bridge_images="$(jq -c --arg name "$CONTAINER_NAME" \
-      '[.containerDefinitions[] | select(.name == $name) | .image]' \
-      <<<"$bridge_task_definition_json")"
-    if [[ "$bridge_images" != "$(jq -cn --arg image "$MIGRATION_BRIDGE_IMAGE_URI" '[$image]')" ]]; then
-      echo "::error::The migration bridge task definition does not contain the attested image for $CONTAINER_NAME."
-      exit 1
-    fi
-
-    # A post migration is safe only after the image that stopped using the old
-    # schema is serving. Running that image as a one-shot is not enough: the
-    # previous service processes would still be handling requests against tables
-    # or constraints the post migration removes. Roll the exact attested revision
-    # out first and require a healthy steady state before its SQL can run.
-    bridge_update_json=""
-    if ! bridge_update_json="$(aws ecs update-service \
-      --cluster "$CLUSTER" \
-      --service "$APP" \
-      --task-definition "$MIGRATION_BRIDGE_TASK_DEFINITION" \
-      --desired-count "$service_desired_count" \
-      --deployment-configuration "$(jq -nc --argjson maxPercent "$deployment_surge_percent" '{
-        deploymentCircuitBreaker: {enable: true, rollback: true},
-        minimumHealthyPercent: 100,
-        maximumPercent: $maxPercent
-      }')" \
-      --output json)"; then
-      echo "::error::ECS rejected the migration bridge rollout; the original service revision remains the rollback target."
-      if ! rollback_service; then
-        echo "::error::The defensive rollback after bridge rejection also failed; manual intervention is required."
-      fi
-      exit 1
-    fi
-    bridge_deployment_id=""
-    if ! bridge_deployment_id="$(extract_primary_deployment_id "$bridge_update_json" "migration bridge")"; then
-      if ! rollback_service; then
-        echo "::error::The defensive rollback after an unidentifiable bridge rollout also failed; manual intervention is required."
-      fi
-      exit 1
-    fi
-    echo "Deploying attested migration bridge $MIGRATION_BRIDGE_TASK_DEFINITION (deployment $bridge_deployment_id)"
-    if ! wait_for_service_rollout "$bridge_deployment_id" "migration bridge"; then
-      if ! rollback_service; then
-        echo "::error::Migration bridge rollout and explicit rollback both failed; manual intervention is required."
-      fi
-      exit 1
-    fi
-    echo "Migration bridge reached a healthy steady state at $MIGRATION_BRIDGE_TASK_DEFINITION"
-
-    # Once the post task starts, its exit status cannot prove whether its SQL
-    # transaction committed: the process can fail after migrate() commits while
-    # performing its post-apply verification. The bridge is compatible on both
-    # sides of this schema boundary, so it becomes the rollback floor before the
-    # task starts. The original revision must never be restored from an ambiguous
-    # post-task outcome.
-    rollback_task_definition="$MIGRATION_BRIDGE_TASK_DEFINITION"
-
-    # Run the candidate migrator because it carries any forward data
-    # normalization needed by the stranded SQL. `--bridge-through` materializes
-    # a journal prefix ending at the attested bridge boundary, so candidate-only
-    # pre entries remain invisible to drizzle. Candidate verification below then
-    # proves every named SQL identity reached the ledger; exit 0/no-op is not
-    # accepted as evidence.
-    if ! run_one_shot_command \
-      "Bounded candidate post-migration bridge" \
-      "$(jq -cn --arg through "${MIGRATION_BRIDGE_REQUIRED_TAGS##*,}" \
-        '["node","packages/api/dist/db/migrate.js","--phase=post","--bridge-through=" + $through]')" \
-      true \
-      "$MIGRATION_BRIDGE_TASK_DEFINITION" \
-      "$new_task_definition"; then
-      echo "::error::The bounded candidate could not finish the attested post-deploy prefix; the candidate image was not deployed."
-      exit 1
-    fi
-  fi
-
   # --phase=pre, because at this point the PREVIOUS image is still serving every
   # request. The migrator applies additive migrations only and stops at the first
   # one that takes something away; the post-deploy slot below picks those up once
@@ -909,10 +803,7 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
   # nothing. A migration that never runs is the outage this whole path exists for.
   if ! run_one_shot_command \
     "Migration" \
-    "$(jq -cn --arg required "$MIGRATION_BRIDGE_REQUIRED_TAGS" '
-      ["node", "packages/api/dist/db/migrate.js", "--phase=pre"] +
-      (if $required == "" then [] else ["--require-applied=" + $required] end)
-    ')" \
+    '["node", "packages/api/dist/db/migrate.js", "--phase=pre"]' \
     true \
     "$rollback_task_definition"; then
     exit 1
