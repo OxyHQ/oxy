@@ -243,15 +243,15 @@ expectVerdict(
 const noLivePostBridge = createFixture();
 edit(noLivePostBridge, DEPLOY_SCRIPT, "live-post-bridge-removed", (text) =>
   text.replace(
-    '["node","packages/api/dist/db/migrate.js","--phase=post"]',
-    '["node","packages/api/dist/db/migrate.js","--phase=missing"]',
+    '"--phase=post","--bridge-through="',
+    '"--phase=missing","--bridge-through="',
   ),
 );
 expectVerdict(
   "live-post-bridge-removed",
   noLivePostBridge,
   1,
-  "no longer runs the attested historical image's",
+  "no longer runs the bounded candidate post bridge",
 );
 
 const bridgeServiceWaitRemoved = createFixture();

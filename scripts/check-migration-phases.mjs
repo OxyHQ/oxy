@@ -145,7 +145,7 @@ for (const problem of phaseProblems) fail(problem);
 // ── 2/3. The deploy still applies migrations, on the right side ────────────
 const deployWorkflow = read(DEPLOY_WORKFLOW_PATH);
 const deployScript = read(DEPLOY_SCRIPT_PATH);
-const HISTORICAL_POST_PHASE_COMMAND = '["node","packages/api/dist/db/migrate.js","--phase=post"]';
+const HISTORICAL_POST_PHASE_COMMAND = '"--phase=post","--bridge-through="';
 
 if (!/^\s+RUN_MIGRATIONS:\s*["']true["']\s*$/m.test(deployWorkflow)) {
   fail(
@@ -187,7 +187,7 @@ if (
 }
 if (historicalPostOffset === -1 || historicalPostOffset > candidatePreOffset) {
   fail(
-    `${DEPLOY_SCRIPT_PATH} no longer runs the attested historical image's ${HISTORICAL_POST_PHASE_COMMAND} before ` +
+    `${DEPLOY_SCRIPT_PATH} no longer runs the bounded candidate post bridge ${HISTORICAL_POST_PHASE_COMMAND} before ` +
       `the candidate image's ${PRE_PHASE_COMMAND}. A pending post migration then blocks every ` +
       `new pre migration behind it in the high-water-mark ledger. Use an immutable historical ` +
       `task definition and verify the required ledger identities; never bridge with phase=all.`,
