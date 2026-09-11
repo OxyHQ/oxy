@@ -16,7 +16,7 @@ export const KAANA_INITIAL_SCORE_VALID_UNTIL = "2026-10-02T00:00:00.000Z";
 export const KAANA_INITIAL_MODEL_ID = "openai/gpt-oss-120b";
 export const KAANA_INITIAL_MODEL_REFERENCE = `${KAANA_INITIAL_MODEL_ID}@observed-2026-09-01`;
 /** Routing-content hash of the exact live inventory reviewed on 2026-09-02. */
-export const KAANA_INITIAL_INVENTORY_SNAPSHOT_ID = "snap_da7406fdfed50248";
+export const KAANA_INITIAL_INVENTORY_SNAPSHOT_ID = "snap_dfd6904a99d6313b";
 
 export const KAANA_INITIAL_PUBLISHER = {
   slug: "openai",
@@ -76,7 +76,7 @@ export interface KaanaInitialUnitPrice {
 }
 
 export interface KaanaInitialProvider {
-  readonly slug: "groq" | "cerebras";
+  readonly slug: "groq" | "cerebras" | "openrouter";
   readonly displayName: string;
   readonly websiteUrl: string;
   readonly statusPageUrl?: string;
@@ -90,6 +90,11 @@ export interface KaanaInitialProvider {
   readonly legalEvidenceRef: string;
   readonly priceEvidenceRef: string;
   readonly performanceEvidenceRef: string;
+  readonly reviewedAt?: string;
+  readonly scoreValidUntil?: string;
+  readonly priceEffectiveFrom?: string;
+  readonly scorecardReason?: string;
+  readonly permissionStateNote?: string;
   readonly unitPrices: readonly KaanaInitialUnitPrice[];
   readonly scores: {
     readonly price: number;
@@ -156,6 +161,45 @@ export const KAANA_INITIAL_PROVIDERS: readonly KaanaInitialProvider[] = [
       { unit: "requests", amount: "0", per: 1 },
     ],
     scores: { price: 1_000, latency: 500, throughput: 600, balanced: 800 },
+  },
+  {
+    slug: "openrouter",
+    displayName: "OpenRouter",
+    websiteUrl: "https://openrouter.ai/",
+    statusPageUrl: "https://status.openrouter.ai/",
+    // Kaana binds every OpenRouter request to `zdr: true` and
+    // `data_collection: deny`; those controls can only narrow the account
+    // policy and OpenRouter refuses the request when no compliant endpoint is
+    // available. This metadata describes that exact adapter-enforced route,
+    // not OpenRouter's unconstrained default router.
+    retainsPayloads: false,
+    retentionDays: 0,
+    trainsOnCustomerData: false,
+    zeroDataRetentionAvailable: true,
+    policyUrl: "https://openrouter.ai/docs/guides/privacy/provider-logging",
+    deploymentId:
+      "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+    upstreamModelId: "openai/gpt-oss-120b",
+    legalEvidenceRef:
+      "owner-review-2026-09-11:https://openrouter.ai/terms;https://openai.com/index/gpt-oss-model-card/;scope=internal-alia-standard-application-use-not-api-resale",
+    priceEvidenceRef: "https://openrouter.ai/openai/gpt-oss-120b",
+    performanceEvidenceRef:
+      "not-measured:openrouter-exact-deployment-2026-09-11",
+    reviewedAt: "2026-09-11T00:00:00.000Z",
+    scoreValidUntil: "2026-10-11T00:00:00.000Z",
+    priceEffectiveFrom: "2026-09-11T00:00:00.000Z",
+    scorecardReason:
+      "Primary-source OpenRouter price review with neutral unmeasured exact-route latency and throughput; recovery ordering uses no provider performance claim.",
+    permissionStateNote:
+      "Owner-approved internal Alia route; primary-source review 2026-09-11; not approved for API resale.",
+    unitPrices: [
+      { unit: "input_tokens", amount: "0.03", per: 1_000_000 },
+      { unit: "cached_input_tokens", amount: "0.03", per: 1_000_000 },
+      { unit: "output_tokens", amount: "0.17", per: 1_000_000 },
+      { unit: "reasoning_tokens", amount: "0.17", per: 1_000_000 },
+      { unit: "requests", amount: "0", per: 1 },
+    ],
+    scores: { price: 1_000, latency: 500, throughput: 500, balanced: 750 },
   },
 ] as const;
 

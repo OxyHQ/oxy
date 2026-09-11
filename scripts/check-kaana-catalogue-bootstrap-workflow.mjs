@@ -91,16 +91,27 @@ requireMatch(
 );
 requireMatch(
 	workflow,
+	/OPENROUTER_DEPLOYMENT_ID: dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01/,
+	"the workflow environment must pin the exact reviewed OpenRouter deployment ID",
+);
+requireMatch(
+	workflow,
+	/"provider:openrouter"[\s\S]*?"price:" \+ \$revision \+ ":openrouter"[\s\S]*?"deployment:dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01"[\s\S]*?"scorecard:dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01"[\s\S]*?\.providers == \["cerebras","groq","openrouter"\][\s\S]*?\.deployments == \[\$cerebras,\$groq,\$openrouter\]/,
+	"the result validator must allow and require the complete reviewed OpenRouter deployment",
+);
+requireMatch(
+	workflow,
 	/REVIEWER_USER_ID_EXPECTED: 6981c9178fcdefaf81988ffb[\s\S]*?REVIEWER_USER_ID" != "\$REVIEWER_USER_ID_EXPECTED"/,
 	"the workflow must accept only the exact source-reviewed reviewer primary key",
 );
 
 for (const exact of [
-	"snap_da7406fdfed50248",
+	"snap_dfd6904a99d6313b",
 	"openai/gpt-oss-120b",
 	"openai/gpt-oss-120b@observed-2026-09-01",
 	"dep_cerebras_gpt_oss_120b_observed_2026_09_01",
 	"dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+	"dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
 	"01a06477-94f5-74f0-bc25-4a1ff59d6945",
 	"01a06477-94f5-74f0-bc25-4c5c13b93ccd",
 	"01a06477-94f5-74f0-bc25-52437e0c724d",

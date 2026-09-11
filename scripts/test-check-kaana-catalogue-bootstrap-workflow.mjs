@@ -102,6 +102,16 @@ try {
 		},
 		{
 			file: ".github/workflows/bootstrap-kaana-catalogue.yml",
+			from: "OPENROUTER_DEPLOYMENT_ID: dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+			to: "OPENROUTER_DEPLOYMENT_ID: dep_openrouter_selected_by_name",
+		},
+		{
+			file: ".github/workflows/bootstrap-kaana-catalogue.yml",
+			from: '.providers == ["cerebras","groq","openrouter"]',
+			to: '.providers == ["cerebras","groq"]',
+		},
+		{
+			file: ".github/workflows/bootstrap-kaana-catalogue.yml",
 			from: 'REVIEWER_USER_ID" != "$REVIEWER_USER_ID_EXPECTED"',
 			to: 'REVIEWER_USER_ID" != ""',
 		},

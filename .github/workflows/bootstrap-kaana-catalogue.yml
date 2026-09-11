@@ -56,11 +56,12 @@ env:
   NETWORK_SERVICE: kaana-publisher
   LIVE_CONTAINER: oxy-api
   BOOTSTRAP_CONTAINER: kaana-catalogue-bootstrap
-  INVENTORY_SNAPSHOT_ID: snap_da7406fdfed50248
+  INVENTORY_SNAPSHOT_ID: snap_dfd6904a99d6313b
   MODEL_ID: openai/gpt-oss-120b
   MODEL_REFERENCE: openai/gpt-oss-120b@observed-2026-09-01
   CEREBRAS_DEPLOYMENT_ID: dep_cerebras_gpt_oss_120b_observed_2026_09_01
   GROQ_DEPLOYMENT_ID: dep_groq_openai_gpt_oss_120b_observed_2026_09_01
+  OPENROUTER_DEPLOYMENT_ID: dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01
   REVIEWER_USER_ID_EXPECTED: 6981c9178fcdefaf81988ffb
   PROFILE_LITE_ID: 01a06477-94f5-74f0-bc25-4a1ff59d6945
   PROFILE_DEFAULT_ID: 01a06477-94f5-74f0-bc25-4c5c13b93ccd
@@ -139,11 +140,12 @@ jobs:
 
           # Independent exact-value assertions keep a changed env entry from
           # silently widening the reviewed catalogue in a manual workflow.
-          [ "$INVENTORY_SNAPSHOT_ID" = 'snap_da7406fdfed50248' ]
+          [ "$INVENTORY_SNAPSHOT_ID" = 'snap_dfd6904a99d6313b' ]
           [ "$MODEL_ID" = 'openai/gpt-oss-120b' ]
           [ "$MODEL_REFERENCE" = 'openai/gpt-oss-120b@observed-2026-09-01' ]
           [ "$CEREBRAS_DEPLOYMENT_ID" = 'dep_cerebras_gpt_oss_120b_observed_2026_09_01' ]
           [ "$GROQ_DEPLOYMENT_ID" = 'dep_groq_openai_gpt_oss_120b_observed_2026_09_01' ]
+          [ "$OPENROUTER_DEPLOYMENT_ID" = 'dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01' ]
           [ "$REVIEWER_USER_ID_EXPECTED" = '6981c9178fcdefaf81988ffb' ]
           [ "$PROFILE_DEFAULT_ID" = '01a06477-94f5-74f0-bc25-4c5c13b93ccd' ]
 
@@ -310,6 +312,10 @@ jobs:
             ("price:" + $revision + ":groq"),
             "deployment:dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
             "scorecard:dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+            "provider:openrouter",
+            ("price:" + $revision + ":openrouter"),
+            "deployment:dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+            "scorecard:dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
             "profile:kaana-lite", ("profile-candidate:kaana-lite:" + $revision),
             "profile:kaana-v1", ("profile-candidate:kaana-v1:" + $revision),
             "profile:kaana-v1-codea", ("profile-candidate:kaana-v1-codea:" + $revision),
@@ -330,6 +336,7 @@ jobs:
               --arg revision "$MODEL_REFERENCE" \
               --arg cerebras "$CEREBRAS_DEPLOYMENT_ID" \
               --arg groq "$GROQ_DEPLOYMENT_ID" \
+              --arg openrouter "$OPENROUTER_DEPLOYMENT_ID" \
               --arg lite "$PROFILE_LITE_ID" \
               --arg default "$PROFILE_DEFAULT_ID" \
               --arg code "$PROFILE_CODE_ID" \
@@ -356,8 +363,8 @@ jobs:
                 .model == $model and
                 .revision == $revision and
                 .candidate == {modelReference:$revision,priority:100} and
-                .providers == ["cerebras","groq"] and
-                .deployments == [$cerebras,$groq] and
+                .providers == ["cerebras","groq","openrouter"] and
+                .deployments == [$cerebras,$groq,$openrouter] and
                 .routingProfileIds == [$lite,$default,$code,$cowork,$browser,$pro,$thinking,$proMax] and
                 (.planSha256 | test("^[a-f0-9]{64}$")) and
                 (.inserted | type == "array") and
