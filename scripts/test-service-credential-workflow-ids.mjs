@@ -76,7 +76,7 @@ assert.match(aliaProvision, /DESTINATION_SECRET_NAME="OXY_SERVICE_API_SECRET"/);
 assert.match(aliaProvision, /ISOLATE_CREDENTIAL_NAME="true"/);
 assert.match(
   aliaProvision,
-  /SCOPES="user:read,inference:invoke"/,
+  /SCOPES="user:read,inference:invoke,capabilities:read"/,
 );
 assert.doesNotMatch(
   aliaProvision,

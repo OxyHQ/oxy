@@ -136,6 +136,9 @@ async function signedInOnDevice(): Promise<{ userId: string; deviceId: string; s
     sessionId: session.sessionId,
   });
   await deviceSessionService.bindSessionToContext(deviceId, session.sessionId);
+  // A completed sign-in hands out the post-binding mint, not the token that
+  // createSession produced before the device context existed.
+  expect(await sessionService.getAccessToken(session.sessionId)).not.toBeNull();
   return { userId: user.id, deviceId, sessionId: session.sessionId };
 }
 

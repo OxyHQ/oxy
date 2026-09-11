@@ -51,6 +51,7 @@ process.env.ACCESS_TOKEN_SECRET = 'test-access-token-secret';
 
 const mockExchangeAuthCode = jest.fn();
 const mockCreateSession = jest.fn();
+const mockGetAccessToken = jest.fn();
 const mockFinalizeDeviceLogin = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({
@@ -81,7 +82,7 @@ jest.mock('../../services/session.service', () => ({
   __esModule: true,
   default: {
     createSession: (...args: unknown[]) => mockCreateSession(...args),
-    getAccessToken: jest.fn(),
+    getAccessToken: (...args: unknown[]) => mockGetAccessToken(...args),
   },
 }));
 jest.mock('../../services/deviceLogin.service', () => ({
@@ -249,6 +250,10 @@ beforeEach(() => {
     deviceId: 'device-1',
     accessToken: 'access-token-1',
   });
+  mockGetAccessToken.mockResolvedValue({
+    accessToken: 'access-token-1',
+    expiresAt: new Date('2030-01-01T00:00:00.000Z'),
+  });
   mockFinalizeDeviceLogin.mockResolvedValue({ deviceSecret: 'device-secret-1' });
 });
 
@@ -415,6 +420,7 @@ describe('lane 2 — POST /auth/oauth/token', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.access_token).toBe('access-token-1');
+    expect(mockGetAccessToken).toHaveBeenCalledWith('sess-1');
     // The exchange WAS reached this time — which is what proves the rejections
     // above were the secret check and not an unrelated failure earlier on.
     expect(mockExchangeAuthCode).toHaveBeenCalledTimes(1);
