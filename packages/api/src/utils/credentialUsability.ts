@@ -7,7 +7,7 @@ import type { ApplicationCredentialStatus } from '../db/schema/applicationCreden
  *  - it is `active` and has no `expiresAt` or a future `expiresAt`; OR
  *  - it is `deprecated` and has a future `expiresAt` (rotation grace window).
  *
- * `revoked` credentials are NEVER usable. `deprecated` credentials MUST have
+ * `pending` and `revoked` credentials are NEVER usable. `deprecated` credentials MUST have
  * an explicit future grace `expiresAt` (set during rotation); a deprecated
  * credential without an expiry is treated as disabled. This is the
  * single source of truth shared by every credential-resolution site (OAuth

@@ -99,8 +99,16 @@ export const APPLICATION_CREDENTIAL_ENVIRONMENTS = [
 export type ApplicationCredentialEnvironment =
   (typeof APPLICATION_CREDENTIAL_ENVIRONMENTS)[number];
 
-/** Lifecycle. `deprecated` is the 7-day rotation grace; `revoked` is immediate. */
-export const APPLICATION_CREDENTIAL_STATUSES = ['active', 'deprecated', 'revoked'] as const;
+/**
+ * Lifecycle. `pending` is an unauthenticatable two-phase handoff state;
+ * `deprecated` is the 7-day rotation grace; `revoked` is immediate.
+ */
+export const APPLICATION_CREDENTIAL_STATUSES = [
+  'pending',
+  'active',
+  'deprecated',
+  'revoked',
+] as const;
 
 export type ApplicationCredentialStatus = (typeof APPLICATION_CREDENTIAL_STATUSES)[number];
 

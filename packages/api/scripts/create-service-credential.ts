@@ -15,8 +15,9 @@
  * when its scope set EXACTLY matches the requested set. A usable credential with
  * broader, narrower or ambiguous authority makes the run fail closed unless the
  * reviewed caller explicitly enables scope rotation for one isolated credential
- * name. That rotation atomically mints the requested authority, deprecates the old
- * row for the standard seven-day grace and records both lifecycle events. The
+ * name. Phase one atomically prepares the requested authority as non-usable; the
+ * exact-id finalizer activates it and deprecates the old row only after durable
+ * secret handoff state exists. The
  * existing secret is NOT recoverable (only its hash is stored), so `secretEnc` is
  * `null` on reuse.
  *
@@ -60,7 +61,6 @@ import {
 } from "../src/db/schema/applicationCredentials";
 import { applications } from "../src/db/schema/applications";
 import { users } from "../src/db/schema/users";
-import { recordCredentialLifecycleEvent } from "../src/services/applicationCredentialAudit.service";
 import { APPLICATION_SCOPES } from "../src/utils/applicationScopes";
 import { isCredentialUsable } from "../src/utils/credentialUsability";
 import { logger } from "../src/utils/logger";
@@ -69,7 +69,6 @@ import { logger } from "../src/utils/logger";
 const CREDENTIAL_PUBLIC_KEY_PREFIX = "oxy_dk_";
 const PUBLIC_KEY_RANDOM_BYTES = 24;
 const SECRET_RANDOM_BYTES = 32;
-const CREDENTIAL_ROTATION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Generate a fresh credential public key + plaintext secret + its hash. */
 function generateCredentialMaterial(): {
@@ -350,6 +349,14 @@ async function run(): Promise<void> {
 		const candidateRows = isolateCredentialName
 			? existingRows.filter((row) => row.name === credentialName)
 			: existingRows;
+		const pendingCredentials = candidateRows.filter(
+			(row) => row.status === "pending",
+		);
+		if (pendingCredentials.length > 0) {
+			throw new Error(
+				`Application "${appName}" has an unfinished pending ${environment} service credential (${pendingCredentials.map((credential) => credential.id).join(", ")}). Recover or revoke it before preparing another secret.`,
+			);
+		}
 		const usableCredentials = candidateRows.filter(isCredentialUsable);
 		const exactScopeCredentials = usableCredentials.filter((credential) =>
 			hasExactScopeSet(credential.scopes, scopes),
@@ -452,10 +459,6 @@ async function run(): Promise<void> {
 		}
 
 		const { publicKey, secret, secretHash } = generateCredentialMaterial();
-		const graceExpiresAt = rotatedFrom
-			? new Date(Date.now() + CREDENTIAL_ROTATION_GRACE_MS)
-			: null;
-
 		const [credential] = await db
 			.insert(applicationCredentials)
 			.values({
@@ -466,7 +469,10 @@ async function run(): Promise<void> {
 				type: "service",
 				environment,
 				scopes,
-				status: "active",
+				// The row cannot authenticate until the encrypted one-time secret has
+				// been durably handed off. A separate exact-id finalize transaction
+				// activates it and only then deprecates its predecessor.
+				status: "pending",
 				rotatedFromCredentialId: rotatedFrom?.id,
 				createdByUserId: owner.id,
 			})
@@ -479,38 +485,7 @@ async function run(): Promise<void> {
 			throw new Error("Failed to insert service credential");
 		}
 
-		if (rotatedFrom) {
-			await db
-				.update(applicationCredentials)
-				.set({ status: "deprecated", expiresAt: graceExpiresAt })
-				.where(eq(applicationCredentials.id, rotatedFrom.id));
-			await recordCredentialLifecycleEvent(db, {
-				applicationId: application.id,
-				credentialId: rotatedFrom.id,
-				eventType: "rotated",
-				actorUserId: owner.id,
-				environment,
-				metadata: {
-					rotatedToCredentialId: credential.id,
-					graceConfigured: true,
-				},
-				effectiveUntil: graceExpiresAt,
-			});
-		}
-		await recordCredentialLifecycleEvent(db, {
-			applicationId: application.id,
-			credentialId: credential.id,
-			eventType: "created",
-			actorUserId: owner.id,
-			environment,
-			metadata: {
-				type: "service",
-				scopes,
-				...(rotatedFrom ? { rotatedFromCredentialId: rotatedFrom.id } : {}),
-			},
-		});
-
-		logger.info("Service credential created", {
+		logger.info("Service credential prepared for durable handoff", {
 			app: appName,
 			applicationId: application.id,
 			credentialId: credential.id,
@@ -535,7 +510,7 @@ async function run(): Promise<void> {
 			action: rotatedFrom ? "rotate" : "create",
 			reused: false,
 			rotatedFromCredentialId: rotatedFrom?.id ?? null,
-			graceExpiresAt: graceExpiresAt?.toISOString() ?? null,
+			graceExpiresAt: null,
 			secretEnc,
 		};
 

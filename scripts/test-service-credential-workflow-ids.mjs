@@ -26,6 +26,10 @@ const provisionScript = readFileSync(
 	"packages/api/scripts/create-service-credential.ts",
 	"utf8",
 );
+const finalizeScript = readFileSync(
+	"packages/api/scripts/finalize-service-credential.ts",
+	"utf8",
+);
 const secureParameterScript = readFileSync(
 	".github/scripts/put-secure-parameter.sh",
 	"utf8",
@@ -224,16 +228,23 @@ assert.match(
 );
 assert.match(provisionScript, new RegExp(canonicalAliaApplicationId));
 assert.match(provisionScript, /rotatedFromCredentialId: rotatedFrom\?\.id/);
-assert.match(
-	provisionScript,
-	/status: "deprecated", expiresAt: graceExpiresAt/,
-);
-assert.match(provisionScript, /eventType: "rotated"/);
-assert.match(provisionScript, /eventType: "created"/);
-assert.match(provisionScript, /effectiveUntil: graceExpiresAt/);
+assert.match(provisionScript, /status: "pending"/);
+assert.doesNotMatch(provisionScript, /status: "deprecated"/);
+assert.match(finalizeScript, /status: "deprecated", expiresAt: graceExpiresAt/);
+assert.match(finalizeScript, /status: "active"/);
+assert.match(finalizeScript, /eventType: "rotated"/);
+assert.match(finalizeScript, /eventType: "created"/);
+assert.match(finalizeScript, /effectiveUntil: graceExpiresAt/);
+assert.match(finalizeScript, new RegExp(canonicalAliaApplicationId));
+assert.match(finalizeScript, /FINALIZE_CREDENTIAL_ID/);
 assert.match(provisionScript, /const result = await getDb\(\)\.transaction/);
 assert.match(provisionScript, /writeResult\(result\);/);
 assert.match(provision, /after emitting commit evidence; continuing recoverably/);
+const packageWrite = provision.indexOf('"$temp_parameter" overwrite');
+const finalizeCall = provision.lastIndexOf('finalize_credential "$(jq -er');
+const destinationHandoff = provision.lastIndexOf("handoff-service-credential-pair.sh");
+assert.ok(packageWrite >= 0 && finalizeCall > packageWrite);
+assert.ok(destinationHandoff > finalizeCall);
 
 process.stdout.write(
 	"Service credential workflows bind exact app/credential IDs, scopes, and SSM destinations.\n",

@@ -267,15 +267,19 @@ those authority-bearing values is a dispatch input.
 Re-running against the exact named production lane with matching scopes reuses
 the credential and verifies both destination SecureStrings. If that lane is
 usable but carries an older scope set, the Alia registry arm explicitly enables
-a scope rotation: one transaction creates the replacement with the registered
-scopes, marks the previous row `deprecated` for the standard seven-day grace,
-and appends the `rotated` and `created` audit events. An ambiguous set still
-fails closed; the workflow never accepts a credential ID or name selector. An
-apply first replaces the ephemeral envelope key with a versioned recovery
-package bound to the exact application, credential, name, environment and scope
-set. A separate SecureString binds the exact ECS task ARN to the workflow run
-and attempt before the task is awaited; recovery never searches or orders an ECS
-task list. It then installs and authenticates the secret/key pair, deletes that package
+a scope rotation uses a two-phase handoff. The first transaction creates the
+replacement as `pending`, which cannot authenticate, and leaves the old row
+untouched. Only after the exact encrypted secret has become a durable recovery
+package does a second exact-ID transaction activate the replacement, mark the
+previous row `deprecated` for the standard seven-day grace, and append the
+`rotated` and `created` audit events. Thus neither a losing `stop-task` race nor
+a crash between database commit and SSM persistence can strand an active
+one-time secret. An ambiguous set still fails closed; the workflow never accepts
+a credential ID or name selector. The recovery package is bound to the exact
+application, credential, name, environment and scope set. A separate
+SecureString binds the exact ECS task ARN to the workflow run and attempt before
+the task is awaited; recovery never searches or orders an ECS task list. It
+finalizes, installs and authenticates the secret/key pair, deletes that package
 and the ephemeral task definition, and forces the exact `alia` ECS service to a
 stable, completed rollout. If either destination write or authentication fails,
 the package is deliberately retained and the service is not rolled out. A retry
