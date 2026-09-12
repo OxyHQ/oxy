@@ -3,6 +3,7 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 test_root=$(mktemp -d)
 trap 'rm -rf -- "$test_root"' EXIT
+export GITHUB_REF_PROTECTED=true GITHUB_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 export GITHUB_REF=refs/heads/main EXPECTED_SOURCE_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa DRY_RUN=true AFTER_CURSOR=''
 export TEST_DIGEST="sha256:$(printf 'b%.0s' {1..64})" TEST_MODE=success TEST_EXIT=0
 export TEST_LOG="$test_root/aws.log"
@@ -10,16 +11,16 @@ aws() {
   printf '%s\n' "$*" >> "$TEST_LOG"
   case "$1 $2" in
     'ecs describe-services') printf '%s\n' '{"failures":[],"services":[{"status":"ACTIVE","desiredCount":1,"runningCount":1,"pendingCount":0,"taskDefinition":"arn:aws:ecs:r:a:task-definition/api:1","deployments":[{"rolloutState":"COMPLETED"}],"networkConfiguration":{"awsvpcConfiguration":{"subnets":["subnet-a"],"securityGroups":["sg-a"],"assignPublicIp":"ENABLED"}}}]}' ;;
-    'ecs describe-task-definition') printf '%s\n' '{"taskDefinitionArn":"arn:aws:ecs:r:a:task-definition/api:1","family":"api","taskRoleArn":"preserved-role","containerDefinitions":[{"name":"api","image":"237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api:latest","secrets":[{"name":"DATABASE_URL","valueFrom":"preserved-secret-arn"}],"logConfiguration":{"options":{"awslogs-group":"logs","awslogs-stream-prefix":"ecs"}}}]}' ;;
-    'ecr describe-images') echo "$TEST_DIGEST" ;;
+    'ecs describe-task-definition') printf '%s\n' '{"taskDefinitionArn":"arn:aws:ecs:r:a:task-definition/api:1","family":"api","taskRoleArn":"preserved-role","containerDefinitions":[{"name":"aws-otel-collector","image":"otel-image","essential":false},{"name":"oxy-api","image":"237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api:latest","secrets":[{"name":"DATABASE_URL","valueFrom":"preserved-secret-arn"}],"logConfiguration":{"options":{"awslogs-group":"logs","awslogs-stream-prefix":"ecs"}}}]}' ;;
+    'ecr batch-get-image') echo "$TEST_DIGEST" ;;
     'ecs list-tasks') echo '{"taskArns":["arn:aws:ecs:r:a:task/live"]}' ;;
     'ecs describe-tasks')
       if [[ "$*" == *task/live* ]]; then
         local digest="$TEST_DIGEST"
         [[ "$TEST_MODE" != mismatch ]] || digest="sha256:$(printf 'c%.0s' {1..64})"
-        jq -nc --arg digest "$digest" '{failures:[],tasks:[{taskDefinitionArn:"arn:aws:ecs:r:a:task-definition/api:1",lastStatus:"RUNNING",containers:[{name:"api",imageDigest:$digest}]}]}'
+        jq -nc --arg digest "$digest" '{failures:[],tasks:[{taskDefinitionArn:"arn:aws:ecs:r:a:task-definition/api:1",lastStatus:"RUNNING",containers:[{name:"oxy-api",imageDigest:$digest}]}]}'
       else
-        jq -nc --argjson code "$TEST_EXIT" '{failures:[],tasks:[{taskArn:"arn:aws:ecs:r:a:task/run",lastStatus:"STOPPED",containers:[{name:"api",exitCode:$code}]}]}'
+        jq -nc --argjson code "$TEST_EXIT" '{failures:[],tasks:[{taskArn:"arn:aws:ecs:r:a:task/run",lastStatus:"STOPPED",containers:[{name:"oxy-api",exitCode:$code}]}]}'
       fi ;;
     'ecs register-task-definition')
       local next=false file=''
@@ -27,7 +28,7 @@ aws() {
         if $next; then file="${arg#file://}"; break; fi
         [[ "$arg" != --cli-input-json ]] || next=true
       done
-      jq -e --arg image "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@$TEST_DIGEST" '.taskRoleArn == "preserved-role" and .containerDefinitions[0].image == $image and .containerDefinitions[0].secrets[0].valueFrom == "preserved-secret-arn" and (has("taskDefinitionArn") | not)' "$file" >/dev/null || return 1
+      jq -e --arg image "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@$TEST_DIGEST" '.taskRoleArn == "preserved-role" and ([.containerDefinitions[] | select(.name == "oxy-api" and .image == $image and .secrets[0].valueFrom == "preserved-secret-arn")] | length == 1) and .containerDefinitions[0].image == "otel-image" and (has("taskDefinitionArn") | not)' "$file" >/dev/null || return 1
       echo 'arn:aws:ecs:r:a:task-definition/api:2' ;;
     'ecs run-task')
       local next=false override=''
@@ -35,7 +36,7 @@ aws() {
         if $next; then override="$arg"; break; fi
         [[ "$arg" != --overrides ]] || next=true
       done
-      jq -e --arg dry "$DRY_RUN" --arg cursor "$AFTER_CURSOR" '.containerOverrides | length == 1 and .[0].command == (["bun","run","packages/api/scripts/reconcile-external-identities.ts"] + (if $dry == "false" then ["--apply"] else [] end) + (if $cursor != "" then ["--after="+$cursor] else [] end)) and (.[0] | has("environment") | not)' <<< "$override" >/dev/null || return 1
+      jq -e --arg dry "$DRY_RUN" --arg cursor "$AFTER_CURSOR" '.containerOverrides | length == 1 and .[0].command == (["busybox","timeout","-s","TERM","-k","30","5400","bun","run","packages/api/scripts/reconcile-external-identities.ts"] + (if $dry == "false" then ["--apply"] else [] end) + (if $cursor != "" then ["--after="+$cursor] else [] end)) and (.[0] | has("environment") | not)' <<< "$override" >/dev/null || return 1
       if [[ "$TEST_MODE" == capacity && ! -f "$TEST_LOG.capacity" ]]; then
         touch "$TEST_LOG.capacity"
         echo '{"tasks":[],"failures":[{"reason":"RESOURCE:CPU"}]}'
@@ -55,9 +56,11 @@ run_case() {
   mkdir -p "$test_root/$1"
   (cd "$test_root/$1"; bash "$root/.github/scripts/run-external-identity-reconciliation.sh")
 }
-for invalid in branch sha dry cursor; do
+for invalid in branch protection coherence sha dry cursor; do
   : > "$TEST_LOG"
   case "$invalid" in
+    protection) if GITHUB_REF_PROTECTED=false run_case "$invalid"; then exit 1; fi ;;
+    coherence) if GITHUB_SHA=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb run_case "$invalid"; then exit 1; fi ;;
     branch) if GITHUB_REF=refs/heads/evil run_case "$invalid"; then exit 1; fi ;;
     sha) if EXPECTED_SOURCE_SHA='latest' run_case "$invalid"; then exit 1; fi ;;
     dry) if DRY_RUN='false; touch /tmp/no' run_case "$invalid"; then exit 1; fi ;;
@@ -84,4 +87,9 @@ grep -q 'deregister-task-definition' "$TEST_LOG"
 if TEST_MODE=cancel run_case canceled; then exit 1; fi
 grep -q 'stop-task' "$TEST_LOG"
 grep -q 'deregister-task-definition' "$TEST_LOG"
-echo 'Identity ECS reconciliation guards and lifecycle: passed' 
+: > "$TEST_LOG"
+if TEST_EXIT=124 run_case timedout; then exit 1; fi
+grep -q 'stop-task' "$TEST_LOG"
+grep -q 'deregister-task-definition' "$TEST_LOG"
+! grep -q 'describe-images' "$TEST_LOG"
+echo 'Identity ECS reconciliation guards and lifecycle: passed'

@@ -23,13 +23,14 @@ concurrency:
   cancel-in-progress: false
 jobs:
   reconcile:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.ref_protected
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: main
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy

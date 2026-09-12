@@ -2,7 +2,9 @@
 # Run only the already-deployed identity reconciler, never build or deploy an image.
 set -euo pipefail
 [[ "${GITHUB_REF:-}" == refs/heads/main ]] || { echo 'Protected main required' >&2; exit 1; }
+[[ "${GITHUB_REF_PROTECTED:-}" == true ]] || { echo 'Protected ref required' >&2; exit 1; }
 [[ "${EXPECTED_SOURCE_SHA:-}" =~ ^[0-9a-f]{40}$ ]] || { echo 'Expected full source SHA required' >&2; exit 1; }
+[[ "$EXPECTED_SOURCE_SHA" == "${GITHUB_SHA:-}" ]] || { echo 'Workflow source must match deployed source' >&2; exit 1; }
 [[ "${DRY_RUN:-true}" == true || "${DRY_RUN:-true}" == false ]] || exit 1
 cursor="${AFTER_CURSOR:-}"
 if [[ -n "$cursor" ]] && { [[ ${#cursor} -gt 2048 ]] || ! [[ "$cursor" =~ ^(https://|did:)[a-zA-Z0-9:/._%@+-]+$ ]]; }; then
@@ -53,11 +55,11 @@ jq -e '.failures | length == 0' "$scratch/service.json" >/dev/null
 jq -e '.services | length == 1 and .[0].status == "ACTIVE" and .[0].desiredCount > 0 and .[0].runningCount == .[0].desiredCount and .[0].pendingCount == 0 and (.[0].deployments | length == 1 and .[0].rolloutState == "COMPLETED")' "$scratch/service.json" >/dev/null
 live_definition=$(jq -r '.services[0].taskDefinition' "$scratch/service.json")
 aws ecs describe-task-definition --task-definition "$live_definition" --query taskDefinition --output json > "$scratch/live.json"
-jq -e '.containerDefinitions | length == 1' "$scratch/live.json" >/dev/null
-container=$(jq -r '.containerDefinitions[0].name' "$scratch/live.json")
-image=$(jq -r '.containerDefinitions[0].image' "$scratch/live.json")
+readonly container=oxy-api
+jq -e --arg name "$container" '[.containerDefinitions[] | select(.name == $name and .essential != false)] | length == 1' "$scratch/live.json" >/dev/null
+image=$(jq -r --arg name "$container" '.containerDefinitions[] | select(.name == $name) | .image' "$scratch/live.json")
 [[ "$image" == "$registry/$repository:"* || "$image" == "$registry/$repository@sha256:"* ]] || { echo 'Unexpected deployed repository' >&2; exit 1; }
-digest=$(aws ecr describe-images --repository-name "$repository" --image-ids "imageTag=$EXPECTED_SOURCE_SHA" --query 'imageDetails[0].imageDigest' --output text)
+digest=$(aws ecr batch-get-image --repository-name "$repository" --image-ids "imageTag=$EXPECTED_SOURCE_SHA" --query 'images[0].imageId.imageDigest' --output text)
 [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || exit 1
 aws ecs list-tasks --cluster "$cluster" --service-name "$service" --desired-status RUNNING --output json > "$scratch/task-list.json"
 mapfile -t live_tasks < <(jq -r '.taskArns[]' "$scratch/task-list.json")
@@ -67,10 +69,12 @@ aws ecs describe-tasks --cluster "$cluster" --tasks "${live_tasks[@]}" --output 
 jq -e --arg definition "$live_definition" --arg digest "$digest" --arg name "$container" --argjson count "${#live_tasks[@]}" '.failures | length == 0' "$scratch/live-tasks.json" >/dev/null
 jq -e --arg definition "$live_definition" --arg digest "$digest" --arg name "$container" --argjson count "${#live_tasks[@]}" '.tasks | length == $count and all(.[]; .taskDefinitionArn == $definition and .lastStatus == "RUNNING" and ([.containers[] | select(.name == $name and .imageDigest == $digest)] | length == 1))' "$scratch/live-tasks.json" >/dev/null
 # Pin the live image digest; a mutable deployment tag cannot swap the task's code.
-jq --arg image "$registry/$repository@$digest" '.containerDefinitions[0].image = $image | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt)' "$scratch/live.json" > "$scratch/run.json"
+jq --arg name "$container" --arg image "$registry/$repository@$digest" '(.containerDefinitions[] | select(.name == $name) | .image) = $image | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt)' "$scratch/live.json" > "$scratch/run.json"
 transient_definition=$(aws ecs register-task-definition --cli-input-json "file://$scratch/run.json" --query taskDefinition.taskDefinitionArn --output text)
 [[ "$transient_definition" == arn:aws:ecs:*:task-definition/* ]] || exit 1
-command=$(jq -nc --arg dry "${DRY_RUN:-true}" --arg cursor "$cursor" '["bun","run","packages/api/scripts/reconcile-external-identities.ts"] + (if $dry == "false" then ["--apply"] else [] end) + (if $cursor != "" then ["--after=" + $cursor] else [] end)')
+# BusyBox and GNU timeout share these short flags. Even without StopTask IAM,
+# termination is enforced inside the essential container after 90 minutes plus 30 seconds.
+command=$(jq -nc --arg dry "${DRY_RUN:-true}" --arg cursor "$cursor" '["busybox","timeout","-s","TERM","-k","30","5400","bun","run","packages/api/scripts/reconcile-external-identities.ts"] + (if $dry == "false" then ["--apply"] else [] end) + (if $cursor != "" then ["--after=" + $cursor] else [] end)')
 overrides=$(jq -nc --arg name "$container" --argjson command "$command" '{containerOverrides:[{name:$name,command:$command}]}')
 network=$(jq -c '.services[0].networkConfiguration' "$scratch/service.json")
 for attempt in $(seq 1 31); do
@@ -81,8 +85,8 @@ for attempt in $(seq 1 31); do
   [[ "$attempt" -lt 31 ]] || { echo 'Fargate capacity timeout' >&2; exit 1; }
   sleep 20
 done
-log_group=$(jq -r '.containerDefinitions[0].logConfiguration.options["awslogs-group"] // empty' "$scratch/live.json")
-log_prefix=$(jq -r '.containerDefinitions[0].logConfiguration.options["awslogs-stream-prefix"] // empty' "$scratch/live.json")
+log_group=$(jq -r --arg name "$container" '.containerDefinitions[] | select(.name == $name) | .logConfiguration.options["awslogs-group"] // empty' "$scratch/live.json")
+log_prefix=$(jq -r --arg name "$container" '.containerDefinitions[] | select(.name == $name) | .logConfiguration.options["awslogs-stream-prefix"] // empty' "$scratch/live.json")
 log_stream="$log_prefix/$container/${task_arn##*/}"
 jq -n --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" --arg task "$task_arn" --argjson dry "${DRY_RUN:-true}" '{expectedSourceSha:$sha,imageDigest:$digest,taskArn:$task,dryRun:$dry}' > "$report_dir/run.json"
 # ECS waiter is deliberately bounded (~100 minutes total).
