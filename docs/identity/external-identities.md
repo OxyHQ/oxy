@@ -103,6 +103,7 @@ used by every healthy live API task. It does not rebuild or deploy the API.
 Dispatch from `main` with `dry_run=true`, review the `task.log` and `summary.json`
 artifacts, then dispatch `dry_run=false` against that same deployed source.
 The optional `after` input accepts a cursor from a previous report. The workflow
-retains run metadata and logs and stops/deregisters its one-shot task on exit
-or cancellation. A missing summary or refused source produces a failed run;
+retains run metadata and logs and attempts task cleanup on exit or cancellation.
+The fixed container command enforces a 90-minute timeout with a 30-second kill
+grace even when the deploy role cannot stop the task directly. A missing summary or refused source produces a failed run;
 the report still explains what needs attention.

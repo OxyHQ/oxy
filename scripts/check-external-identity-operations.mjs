@@ -9,7 +9,7 @@ function requireText(path, fragments) {
   for (const fragment of fragments) if (!source.includes(fragment)) failures.push(`${path}: missing invariant ${fragment}`);
 }
 requireText('.github/workflows/release-external-identity-packages.yml', [
-  "if: github.ref == 'refs/heads/main'", 'default: true', 'expected_source_sha:',
+  "if: github.ref == 'refs/heads/main' && github.ref_protected", 'default: true', 'expected_source_sha:',
   'persist-credentials: false', 'cancel-in-progress: false', 'NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}',
   'node .github/scripts/release-external-identity-packages.mjs prepare',
   'node .github/scripts/release-external-identity-packages.mjs publish',
@@ -21,12 +21,13 @@ requireText('.github/scripts/release-external-identity-packages.mjs', [
   "run('git', ['ls-remote', 'origin', 'refs/heads/main'])",
 ]);
 requireText('.github/workflows/reconcile-external-identities.yml', [
-  "if: github.ref == 'refs/heads/main'", 'default: true', 'expected_source_sha:',
+  "if: github.ref == 'refs/heads/main' && github.ref_protected", 'default: true', 'expected_source_sha:',
   'cancel-in-progress: false', '.github/scripts/run-external-identity-reconciliation.sh',
 ]);
 requireText('.github/scripts/run-external-identity-reconciliation.sh', [
   'packages/api/scripts/reconcile-external-identities.ts', 'stop-task', 'deregister-task-definition',
   'imageDigest', 'get-log-events', 'EXPECTED_SOURCE_SHA', 'DRY_RUN',
+  'GITHUB_REF_PROTECTED', 'GITHUB_SHA', 'batch-get-image', 'busybox', 'timeout', '5400',
 ]);
 requireText('.github/workflows/ci.yml', [
   'node --test .github/scripts/release-external-identity-packages.test.mjs',

@@ -14,14 +14,14 @@ const artifacts = join(root, 'release-artifacts');
 function run(command, args, cwd = root) {
   return execFileSync(command, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim();
 }
-export function validateSource(expected, actual, reference, dryRun) {
-  if (!/^[a-f0-9]{40}$/.test(expected ?? '') || expected !== actual || reference !== 'refs/heads/main') {
+export function validateSource(expected, actual, reference, dryRun, protectedRef) {
+  if (!/^[a-f0-9]{40}$/.test(expected ?? '') || expected !== actual || reference !== 'refs/heads/main' || protectedRef !== 'true') {
     throw new Error('Release requires the exact protected main source SHA');
   }
   if (!['true', 'false'].includes(dryRun)) throw new Error('dry_run must be an explicit boolean');
 }
 function assertSource() {
-  validateSource(process.env.EXPECTED_SOURCE_SHA, run('git', ['rev-parse', 'HEAD']), process.env.GITHUB_REF, process.env.DRY_RUN);
+  validateSource(process.env.EXPECTED_SOURCE_SHA, run('git', ['rev-parse', 'HEAD']), process.env.GITHUB_REF, process.env.DRY_RUN, process.env.GITHUB_REF_PROTECTED);
   const currentMain = run('git', ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
   if (currentMain !== process.env.EXPECTED_SOURCE_SHA) throw new Error('Protected main advanced; review and dispatch the current source SHA');
   if (run('git', ['status', '--porcelain', '--untracked-files=no'])) throw new Error('Tracked release source has changed');

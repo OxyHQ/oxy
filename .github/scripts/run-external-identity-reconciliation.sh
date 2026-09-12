@@ -97,9 +97,10 @@ done
 aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" --output json > "$scratch/completed.json"
 jq --arg name "$container" '{failures, tasks:[.tasks[] | {taskArn,lastStatus,stopCode,stoppedReason,containers:[.containers[] | select(.name == $name) | {name,exitCode,reason}]}]}' "$scratch/completed.json" > "$report_dir/result.json"
 jq -e --arg name "$container" '.failures | length == 0' "$scratch/completed.json" >/dev/null
-jq -e --arg name "$container" '.tasks | length == 1 and .[0].lastStatus == "STOPPED" and ([.[0].containers[] | select(.name == $name and .exitCode == 0)] | length == 1)' "$scratch/completed.json" >/dev/null
 
 collect_logs
 logs_collected=true
 jq -Rsc '[split("\n")[] | fromjson? | select(has("visited") and has("refused"))] | last' "$report_dir/task.log" > "$report_dir/summary.json"
 jq -e 'type == "object"' "$report_dir/summary.json" >/dev/null || { echo 'Missing reconciliation summary in task logs' >&2; exit 1; }
+
+jq -e --arg name "$container" '.tasks | length == 1 and .[0].lastStatus == "STOPPED" and ([.[0].containers[] | select(.name == $name and .exitCode == 0)] | length == 1)' "$scratch/completed.json" >/dev/null

@@ -7,10 +7,11 @@ test('release scope is the exact dependency-ordered pair', () => {
 });
 test('source guard rejects branch execution, stale SHA and unspecified write mode', () => {
   const sha = 'a'.repeat(40);
-  validateSource(sha, sha, 'refs/heads/main', 'true');
-  validateSource(sha, sha, 'refs/heads/main', 'false');
+  validateSource(sha, sha, 'refs/heads/main', 'true', 'true');
+  validateSource(sha, sha, 'refs/heads/main', 'false', 'true');
+  assert.throws(() => validateSource(sha, sha, 'refs/heads/main', 'false', 'false'));
   for (const args of [[sha, sha, 'refs/heads/feature', 'false'], [sha, 'b'.repeat(40), 'refs/heads/main', 'false'], ['main', 'main', 'refs/heads/main', 'false'], [sha, sha, 'refs/heads/main', undefined]]) {
-    assert.throws(() => validateSource(...args));
+    assert.throws(() => validateSource(...args, 'true'));
   }
 });
 test('immutable publication is idempotent only for identical artifact bytes', () => {
