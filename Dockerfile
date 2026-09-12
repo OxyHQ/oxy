@@ -105,10 +105,12 @@ RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Install the frozen production closure. Optional mobile peers are omitted;
-# API runtime dependencies remain direct dependencies and are still installed.
+# Required peers belong to the runtime closure too. Omitting every peer leaves
+# @oxy.so/db unable to resolve postgres/drizzle-orm from its own workspace even
+# though the API declares both: Bun's isolated layout does not hoist API-local
+# dependencies into sibling packages. Preserve the frozen peer graph.
 COPY --from=workspace-manifests /app/ ./
-RUN bun install --production --frozen-lockfile --omit peer --filter @oxy.so/api \
+RUN bun install --production --frozen-lockfile --filter @oxy.so/api \
     && rm -rf node_modules/ffmpeg-static node_modules/ffprobe-static \
               node_modules/.bun/ffmpeg-static@* node_modules/.bun/ffprobe-static@* \
     && rm -rf node_modules/.bun/@img+sharp-linux-*@* \
@@ -169,6 +171,7 @@ RUN command -v ffmpeg >/dev/null \
     && command -v ffprobe >/dev/null \
     && command -v bun >/dev/null \
     && node -e "const p=require.resolve('sharp',{paths:['/app/packages/api']}); require(p)" \
+    && node -e "const r=require('node:module').createRequire('/app/packages/api/package.json'); r('@oxy.so/db/migrate')" \
     && test ! -d node_modules/ffmpeg-static \
     && test ! -d node_modules/ffprobe-static \
     && test ! -e packages/api/drizzle/meta/0000_snapshot.json \
