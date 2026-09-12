@@ -32,6 +32,7 @@
     "release": "rm -rf dist && bun run build && release-it",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/db/migrate.ts --phase=all",
+    "reconcile:external-identities": "bun run scripts/reconcile-external-identities.ts",
     "seed:store-categories": "bun run scripts/seed-store-categories.ts"
   },
   "release-it": {

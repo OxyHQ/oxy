@@ -51,7 +51,7 @@ SELECT lower(ltrim(btrim(username), '@')), id, coalesce(federation_domain, '')
 FROM users WHERE type = 'federated' AND federation_actor_uri IS NOT NULL AND username IS NOT NULL
 ON CONFLICT DO NOTHING;
 --> statement-breakpoint
-INSERT INTO external_identity_actors (actor_uri, canonical_acct, transport_acct, protocol)
-SELECT federation_actor_uri, lower(ltrim(btrim(username), '@')), lower(ltrim(btrim(username), '@')), 'activitypub'
+INSERT INTO external_identity_actors (actor_uri, canonical_acct, transport_acct, protocol, updated_at)
+SELECT federation_actor_uri, lower(ltrim(btrim(username), '@')), lower(ltrim(btrim(username), '@')), case when federation_actor_uri like 'did:%' then 'atproto' else 'activitypub' end, 'epoch'::timestamptz
 FROM users WHERE type = 'federated' AND federation_actor_uri IS NOT NULL AND username IS NOT NULL
 ON CONFLICT DO NOTHING;

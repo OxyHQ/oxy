@@ -10,10 +10,7 @@
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
-import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
-import { canonicalFederationHost, isSameFederationHost } from '@oxy.so/federation';
-import { readBoundedBody } from '../utils/boundedBody';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { identityBackups } from '../db/schema/identityBackups';
 import { users } from '../db/schema/users';
@@ -99,8 +96,7 @@ const getUserIdsFromRequestBody = (body: unknown): unknown => {
 
 import { PAGINATION } from '../utils/constants';
 import { MAX_MUTUAL_IDS, MAX_FOLLOWS_OF_FOLLOWS_IDS } from '../utils/recommendationWeights';
-import { bridgeVouchesForNetwork } from '../config/federationBridgeTrust';
-import { federationService, isOwnFederationDomain } from '../services/federation.service';
+import { federationService } from '../services/federation.service';
 import { isPublicGraphTarget } from '../utils/profileQuery';
 
 // Initialize router and controller
@@ -854,7 +850,7 @@ router.get(
     }
 
     logger.debug('GET /users/:userId', { userId });
-    sendSuccess(res, response);
+    sendSuccess(res, await userService.withExternalIdentities(response));
   })
 );
 
@@ -1657,41 +1653,11 @@ router.delete(
 );
 
 /**
- * PUT /users/resolve
- *
- * Find or create a non-local user (federated, agent, or automated).
- * Called by Oxy ecosystem services when they encounter an external user
- * that needs an Oxy identity. Requires a valid service token whose
- * Application has been granted the `federation:write` scope.
- *
- * Hardening (C4):
- *  - Scope check: rejects service tokens that lack `federation:write`.
- *  - Actor URI binding (http(s) ActivityPub actors only): `actorUri.hostname`
- *    must match the asserted `domain` (so a malicious service can't claim to
- *    vouch for a user on a host they don't actually own). AT Protocol (Bluesky)
- *    actors are identified by a hostless DID (`did:plc:`/`did:web:`); the DID is
- *    stored verbatim and the host-binding check is skipped for it.
- *  - Username squatting: for `agent` / `automated`, refuse to upsert when
- *    a `local` (or other-type) user already owns the username.
- *  - Type immutability: never let `type` change on an existing user — a
- *    federated user cannot be silently upgraded to an `agent`, etc.
- *
- * @body {'federated' | 'agent' | 'automated'} type
- * @body {string} username      - Unique username (e.g. "user@mastodon.social")
- * @body {string} [actorUri]    - Actor identifier (required for federated): an
- *                                http(s) ActivityPub actor URI, or an AT Protocol
- *                                DID (`did:plc:…` / `did:web:…`) for Bluesky actors
- * @body {string} [domain]      - Origin domain (required for federated): the
- *                                handle host (e.g. `bsky.social`) for atproto
- * @body {string} [displayName] - Display name
- * @body {string} [avatar]      - Avatar URL or asset ID
- * @body {string} [bio]         - Profile bio
- * @body {string} [ownerId]     - Owner user ID (for agent/automated)
- * @body {boolean} [refresh]            - When true, force re-downloading an http
- *                                        avatar even if a stored file id already
- *                                        exists (eventually-fresh refresh).
- * @body {boolean} [forceAvatarRefresh] - Alias for `refresh`; either truthy forces it.
- * @returns {User} The resolved user document
+ * PUT /users/resolve — compatibility for service connectors and automation.
+ * Federated actors are fetched and adjudicated by the same Oxy-owned identity
+ * resolver as public profiles. Only actorUri, a transport hint, and avatar
+ * refresh flags are consumed from a federated caller. Agent/automated profiles
+ * retain their existing scope, owner, username collision, and type guards.
  */
 interface ResolveUserBody {
   type?: unknown;
@@ -1704,96 +1670,6 @@ interface ResolveUserBody {
   ownerId?: unknown;
   refresh?: unknown;
   forceAvatarRefresh?: unknown;
-}
-
-function normalizeFederatedResolveUsername(username: string): string | null {
-  const cleaned = username.trim().replace(/^acct:/i, '').replace(/^@/, '');
-  const atIndex = cleaned.indexOf('@');
-  if (atIndex <= 0 || atIndex === cleaned.length - 1) return null;
-
-  const localPart = cleaned.substring(0, atIndex).toLowerCase();
-  const domain = canonicalFederationHost(cleaned.substring(atIndex + 1));
-  if (!localPart || !domain) return null;
-
-  return `${localPart}@${domain}`;
-}
-
-/**
- * AT Protocol (Bluesky) external actors are identified by a DID, not an http(s)
- * ActivityPub actor URL. atproto uses exactly two DID methods — `did:plc:` and
- * `did:web:` — and the DID is an opaque, globally-unique identifier with no host
- * to parse. The URL/hostname binding that guards http(s) AP actors is therefore
- * meaningless (and impossible) for a DID, so a DID actorUri is accepted and
- * stored verbatim as the federation dedup key. The `did:` scheme and method
- * name are lower-case per the DID spec; require a non-empty method-specific
- * identifier after the prefix.
- */
-const ATPROTO_DID_ACTOR_URI = /^did:(?:plc|web):\S+$/;
-function isAtprotoDidActorUri(actorUri: string): boolean {
-  return ATPROTO_DID_ACTOR_URI.test(actorUri);
-}
-
-const WEBFINGER_MAX_BYTES = 64 * 1024;
-
-async function verifyFederatedWebFingerBinding(username: string, actorUri: string): Promise<boolean> {
-  const atIndex = username.indexOf('@');
-  if (atIndex === -1 || atIndex === username.length - 1) return false;
-
-  const domain = username.substring(atIndex + 1);
-  const resource = `acct:${username}`;
-  const url = `https://${domain}/.well-known/webfinger?resource=${encodeURIComponent(resource)}`;
-
-  try {
-    const result = await safeFetch(url, {
-      headers: { Accept: 'application/jrd+json, application/json' },
-      headersTimeoutMs: 10_000,
-      signal: AbortSignal.timeout(10_000),
-    });
-
-    const { response, status } = result;
-    try {
-      if (status < 200 || status >= 300) return false;
-
-      const body = await readBoundedBody(response, { maxBytes: WEBFINGER_MAX_BYTES });
-      const data = JSON.parse(body) as {
-        subject?: unknown;
-        links?: Array<{ rel?: unknown; type?: unknown; href?: unknown }>;
-      };
-      const normalizedSubject = typeof data.subject === 'string'
-        ? normalizeFederatedResolveUsername(data.subject.replace(/^acct:/, ''))
-        : null;
-      if (normalizedSubject !== username) return false;
-
-      const selfLink = data.links?.find((link) => (
-        link.rel === 'self'
-        && typeof link.href === 'string'
-        && (
-          link.type === 'application/activity+json'
-          || link.type === 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-        )
-      ));
-
-      return selfLink?.href === actorUri;
-    } finally {
-      response.destroy();
-    }
-  } catch (error) {
-    if (error instanceof SsrfRejection) {
-      logger.warn('Blocked federated WebFinger binding fetch', {
-        username,
-        actorUri,
-        reason: error.message,
-      });
-      return false;
-    }
-
-    logger.warn('Failed to verify federated WebFinger binding', {
-      username,
-      actorUri,
-      reason: error instanceof Error ? error.message : String(error),
-    });
-    return false;
-  }
 }
 
 /**
@@ -1835,7 +1711,7 @@ router.put(
     }
 
     const body = req.body as ResolveUserBody;
-    const { type, username, actorUri, domain, displayName, avatar, bio, ownerId } = body;
+    const { type, username, actorUri, displayName, avatar, bio, ownerId } = body;
     // Either flag (truthy) forces an http avatar to be re-downloaded, replacing
     // any existing stored file id. Mention passes `refresh: true` on its
     // scheduled federated-actor refresh.
@@ -1848,10 +1724,16 @@ router.put(
     if (!isResolveUserType(type)) {
       throw new BadRequestError('type must be "federated", "agent", or "automated"');
     }
+    if (type === 'federated') {
+      if (typeof actorUri !== 'string' || !actorUri) throw new BadRequestError('actorUri is required');
+      const result = await federationService.resolveExternalActorIdentity(actorUri, typeof username === 'string' ? username : undefined, { forceAvatarRefresh });
+      if (!result) throw new BadRequestError('External actor could not be verified');
+      return sendSuccess(res, result.user);
+    }
     if (!username || typeof username !== 'string') {
       throw new BadRequestError('username is required');
     }
-    if (type !== 'federated' && ownerId !== undefined && ownerId !== null) {
+    if (ownerId !== undefined && ownerId !== null) {
       if (typeof ownerId !== 'string' || !isAccountIdFormat(ownerId)) {
         throw new BadRequestError('ownerId must be a valid user id');
       }
@@ -1860,126 +1742,34 @@ router.put(
     // Build the row predicate and the column payload — never touch auth fields.
     // `existingPredicate` is what Mongo expressed as an upsert FILTER; it stays a
     // predicate because the two branches key on different unique indexes.
-    let existingPredicate: SQL;
     const setFields: Record<string, unknown> = { username };
 
-    if (type === 'federated') {
-      if (!actorUri || typeof actorUri !== 'string') {
-        throw new BadRequestError('actorUri is required for federated users');
-      }
-      if (!domain || typeof domain !== 'string') {
-        throw new BadRequestError('domain is required for federated users');
-      }
-
-      // AT Protocol (Bluesky) external actors are keyed by a DID
-      // (`did:plc:…` / `did:web:…`) rather than an http(s) ActivityPub actor
-      // URL. A DID carries no host, so the URL parse + hostname/WebFinger
-      // binding below are AP-only and are skipped for it — the DID is stored
-      // verbatim as the dedup key. The `domain` carried alongside is the handle
-      // host (e.g. `bsky.social`) or the did:web host; it is stored as given and
-      // we never try to parse a host out of the DID itself.
-      const isDidActor = isAtprotoDidActorUri(actorUri);
-
-      // Bind the actor URI hostname to the asserted domain so a service
-      // can't claim "alice@mastodon.social" actually lives at
-      // attacker.example. http(s) AP actors only — a DID has no host to bind.
-      let actorHostname: string | null = null;
-      if (!isDidActor) {
-        try {
-          actorHostname = new URL(actorUri).hostname.toLowerCase();
-        } catch {
-          throw new BadRequestError('actorUri must be a valid http(s) URL or a did: URI');
-        }
-      }
-      const normalisedDomain = canonicalFederationHost(domain);
-      const normalisedUsername = normalizeFederatedResolveUsername(username);
-      if (!normalisedUsername) {
-        throw new BadRequestError('username must be a valid federated handle');
-      }
-      const usernameDomain = normalisedUsername.substring(normalisedUsername.indexOf('@') + 1);
-      if (!isSameFederationHost(usernameDomain, normalisedDomain)) {
-        throw new BadRequestError('username domain does not match domain');
-      }
-
-      // Own-domain guard: a handle like `nate@oxy.so` is a NON-ENTITY. On Oxy's
-      // own apex the only valid identity is the bare local handle (`nate`); the
-      // domain-qualified form must never be created or returned through the
-      // federated resolve path, so it can't masquerade as a second
-      // representation of the local user. Reject — never mint a
-      // `type:'federated'` shadow row and never resolve to the local user.
-      if (isOwnFederationDomain(normalisedDomain)) {
-        throw new BadRequestError('Cannot resolve a user on an own federation domain');
-      }
-
-      // http(s) AP host binding: the actor's host must match the asserted
-      // domain (or the domain must vouch for the handle via WebFinger). DID
-      // actors carry no host and are not WebFinger-resolvable, so this AP-only
-      // check is skipped for them — the `federation:write` scope plus the
-      // username↔domain binding above are the trust anchor for atproto actors.
-      //
-      // A BRIDGED identity is the one case where the two legitimately differ.
-      // `@wired@bird.makeup` is not a person on bird.makeup; it is WIRED on X,
-      // republished — so the actor URI's host is the bridge while the identity
-      // belongs to `x.com`. WebFinger cannot settle that: X publishes none, and
-      // no amount of asking bird.makeup would make it authoritative for x.com.
-      //
-      // So the question is answered from THIS service's own reviewed trust list
-      // (`config/federationBridgeTrust`) — a decision the API makes, never one the
-      // caller asserts, which is the entire point of the binding. The calling
-      // connector keeps its own list; the two are deliberately separate and NOT
-      // duplication — drift between them fails CLOSED in both directions, and
-      // consolidating them would delete that. See the note in
-      // `config/federationBridgeTrust` before "tidying" it.
-      // `bridgeVouchesForNetwork` requires BOTH
-      // halves to match, so a listed bridge can only ever claim the single
-      // network it mirrors, and an unlisted host still cannot claim anything.
-      // It is checked before the WebFinger probe purely because it is a local
-      // lookup and that is a network round trip.
-      if (
-        actorHostname !== null
-        && !isSameFederationHost(actorHostname, normalisedDomain)
-        && !bridgeVouchesForNetwork(actorHostname, normalisedDomain)
-        && !(await verifyFederatedWebFingerBinding(normalisedUsername, actorUri))
-      ) {
-        throw new BadRequestError('actorUri hostname does not match domain');
-      }
-      existingPredicate = eq(users.federationActorUri, actorUri);
-      setFields.username = normalisedUsername;
-      setFields.federationActorUri = actorUri;
-      setFields.federationDomain = normalisedDomain;
-      setFields.federationLastResolvedAt = new Date();
-      // A successful resolve clears the tombstone. NULL is what "available"
-      // means on these columns, so the Mongo `$unset` is a write of NULL.
-      setFields.federationUnavailableAt = null;
-      setFields.federationUnavailableReason = null;
-    } else {
-      // For agent / automated, refuse to clobber a username already taken
-      // by a local user — that would be account takeover via the
-      // federation pipeline.
-      // Written against the EXPRESSION the unique index is built on
-      // (`lower(btrim(username))`, `db/schema/users.ts`); a plain `username = $1`
-      // is correct-looking, case-sensitive, and would miss a collision the
-      // index would then reject as a 500.
-      const [localCollision] = await getDb()
-        .select({ id: users.id })
-        .from(users)
-        .where(
-          and(
-            sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
-            sql`${users.type} not in ('agent', 'automated')`
-          )
+    // For agent / automated, refuse to clobber a username already taken
+    // by a local user — that would be account takeover via the
+    // federation pipeline.
+    // Written against the EXPRESSION the unique index is built on
+    // (`lower(btrim(username))`, `db/schema/users.ts`); a plain `username = $1`
+    // is correct-looking, case-sensitive, and would miss a collision the
+    // index would then reject as a 500.
+    const [localCollision] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
+          sql`${users.type} not in ('agent', 'automated')`
         )
-        .limit(1);
-      if (localCollision) {
-        throw new ConflictError('Username is already taken by a non-automated user');
-      }
-      existingPredicate = and(
-        sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
-        inArray(users.type, ['agent', 'automated'])
-      ) ?? sql`false`;
-      if (typeof ownerId === 'string') {
-        setFields.automationOwnerId = ownerId;
-      }
+      )
+      .limit(1);
+    if (localCollision) {
+      throw new ConflictError('Username is already taken by a non-automated user');
+    }
+    const existingPredicate = and(
+      sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
+      inArray(users.type, ['agent', 'automated'])
+    ) ?? sql`false`;
+    if (typeof ownerId === 'string') {
+      setFields.automationOwnerId = ownerId;
     }
 
     // Type immutability check: if a user already exists, its `type` must

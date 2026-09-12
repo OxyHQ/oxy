@@ -1,5 +1,5 @@
 import { ConflictError } from '../utils/error';
-import { and, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { canonicalUserRedirects, externalIdentities, externalIdentityActors, externalIdentityClaims } from '../db/schema/externalIdentities';
 import { users } from '../db/schema/users';
@@ -47,11 +47,10 @@ export async function lookupExternalIdentity(value: string): Promise<string | nu
   return actor ? resolveCanonicalUserId(actor.userId, db) : null;
 }
 
-export async function getEquivalentUserGroups(userIds: string[], db: DatabaseOrTransaction = getDb()): Promise<Record<string, string[]>> {
-  if (!userIds.length) return {};
-  const seeds = sql.join([...new Set(userIds)].map(id => sql`(${id}::text)`), sql`, `);
-  const rows = await db.execute<{ root_id: string; user_id: string }>(sql`
-    with recursive roots(root_id) as (values ${seeds}), linked(a, b) as (
+/** One SQL identity graph for hydration, graph checks, search, and pagination. */
+function externalIdentityGroupCtes(seedQuery: SQL): SQL {
+  return sql`
+    with recursive roots(root_id) as (${seedQuery}), linked(a, b) as (
       select source.user_id, target.user_id from external_identity_claims claim
       join external_identity_actors actor on actor.actor_uri = claim.actor_uri
       join external_identities source on source.canonical_acct = actor.canonical_acct
@@ -66,7 +65,29 @@ export async function getEquivalentUserGroups(userIds: string[], db: DatabaseOrT
       from roots left join canonical_user_redirects redirect on redirect.user_id = roots.root_id union
       select members.root_id, case when linked.a = members.user_id then linked.b else linked.a end
       from members join linked on linked.a = members.user_id or linked.b = members.user_id
-    ) select root_id, user_id from members
+    )`;
+}
+
+/** Canonicalize an entire candidate set before ranking, OFFSET and LIMIT. */
+export function canonicalExternalUserIdsQuery(seedQuery: SQL): SQL {
+  return sql`(select distinct user_id from (${canonicalExternalUserMapQuery(seedQuery)}) canonical_users)`;
+}
+
+export function canonicalExternalUserMapQuery(seedQuery: SQL): SQL {
+  return sql`${externalIdentityGroupCtes(seedQuery)}
+    select members.root_id as source_user_id, coalesce(min(identity.user_id), min(members.user_id)) as user_id
+    from members left join external_identities identity on identity.user_id = members.user_id
+    join users visible_member on visible_member.id = members.user_id
+    group by members.root_id
+    having bool_and(visible_member.account_status <> 'archived' and visible_member.reputation_tier <> 'restricted' and visible_member.privacy_is_private_account = false)`;
+}
+
+export async function getEquivalentUserGroups(userIds: string[], db: DatabaseOrTransaction = getDb()): Promise<Record<string, string[]>> {
+  if (!userIds.length) return {};
+  const seeds = sql.join([...new Set(userIds)].map(id => sql`(${id}::text)`), sql`, `);
+  const rows = await db.execute<{ root_id: string; user_id: string }>(sql`
+    ${externalIdentityGroupCtes(sql`values ${seeds}`)}
+    select root_id, user_id from members
     union select members.root_id, redirect.user_id from canonical_user_redirects redirect
     join members on members.user_id = redirect.canonical_user_id
   `);
@@ -188,7 +209,7 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
       let userId = sameSubject?.userId ?? named?.id ?? legacy?.id;
       if (!userId) {
         const [user] = await tx.insert(users).values({ username: canonicalAcct, type: 'federated', federationActorUri: input.actorUri,
-          federationDomain: network, nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null }).returning();
+          federationDomain: network, nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null }).returning();
         userId = user.id;
       }
       [identity] = await tx.insert(externalIdentities).values({ canonicalAcct, userId, network, stableId: input.stableId, evidenceLinks: input.evidenceLinks ?? [] }).returning();
@@ -200,7 +221,7 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
     }
     if (legacy) await mergeUsers(tx, await resolvePhysicalUserId(legacy.id, tx), identity.userId);
     await tx.update(users).set({ username: canonicalAcct, federationDomain: network,
-      nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null,
+      nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null,
       federationLastResolvedAt: new Date(), federationUnavailableAt: null, federationUnavailableReason: null }).where(eq(users.id, identity.userId));
     const actorValues = { canonicalAcct, transportAcct: normalizeExternalAcct(input.transportAcct), protocol: input.protocol, evidenceLinks: input.evidenceLinks ?? [] };
     await tx.insert(externalIdentityActors).values({ actorUri: input.actorUri, ...actorValues })
