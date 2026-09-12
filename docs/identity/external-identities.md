@@ -82,3 +82,28 @@ before adding another transport. Legacy native DID rows are checked against thei
 stored DID before adopting a newly resolved bridge; an unverified legacy bridge
 must first be reconciled from its own actor document. A federated username with
 no source binding is refused rather than silently adopted.
+
+## Protected operations
+
+`.github/workflows/release-external-identity-packages.yml` releases only
+`@oxy.so/contracts@1.1.0`, followed by `@oxy.so/federation@1.0.1`. Dispatch from
+protected `main` with its full `expected_source_sha` and `dry_run=true` first.
+The job builds and packs each package in one command, runs its tests, validates
+all packed export targets, checks the existing npm credential, and records
+SHA-512 integrity. A later `dry_run=false` dispatch publishes only missing
+versions. An existing version must have exactly the prepared integrity;
+a mismatch is a failed run, never an overwrite. Both versions are checked
+before either is published, and published integrity is read back after each
+write. The existing organization `NPM_TOKEN` is available only to the release
+step. The artifact contains tarballs and public integrity reports, never a token.
+
+`.github/workflows/reconcile-external-identities.yml` runs the fixed reconciler
+inside ECS. Its full `expected_source_sha` must identify the immutable ECR digest
+used by every healthy live API task. It does not rebuild or deploy the API.
+Dispatch from `main` with `dry_run=true`, review the `task.log` and `summary.json`
+artifacts, then dispatch `dry_run=false` against that same deployed source.
+The optional `after` input accepts a cursor from a previous report. The workflow
+retains run metadata and logs and attempts task cleanup on exit or cancellation.
+The fixed container command enforces a 90-minute timeout with a 30-second kill
+grace even when the deploy role cannot stop the task directly. A missing summary or refused source produces a failed run;
+the report still explains what needs attention.
