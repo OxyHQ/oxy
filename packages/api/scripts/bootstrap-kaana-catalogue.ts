@@ -74,6 +74,7 @@ import {
 } from "../src/db/schema";
 import {
   createKaanaCatalogueBootstrapPlan,
+  kaanaBootstrapExistingFundingEvidence,
   createKaanaCatalogueReviewedFactsSha256,
   requireKaanaCatalogueBootstrapApplyAuthorization,
 } from "../src/scripts/kaanaCatalogueBootstrapPlan";
@@ -657,6 +658,11 @@ async function ensureScorecard(
     });
     inserted.push(`scorecard:${provider.deploymentId}`);
   }
+  expected.fundingEvidenceRef = kaanaBootstrapExistingFundingEvidence(
+    provider.deploymentId,
+    provider.priceEvidenceRef,
+    row.fundingEvidenceRef,
+  );
   assertFields(`scorecard:${provider.deploymentId}`, row, expected);
 
   // A current row without its immutable provenance event is not "close

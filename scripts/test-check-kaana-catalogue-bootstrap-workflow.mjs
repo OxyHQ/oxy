@@ -55,6 +55,55 @@ function verdict(root, expected, label = "clean fixture") {
 
 const roots = [];
 try {
+	const workflow = readFileSync(join(repo, files[0]), "utf8");
+	const networkProjection = workflow.match(
+		/network=\$\(jq -ec '([\s\S]*?)' <<<"\$network_service_json"\)/,
+	)?.[1];
+	assert.ok(networkProjection, "live publisher network projection must exist");
+	for (const assignPublicIp of ["ENABLED", "DISABLED"]) {
+		const network = {
+			assignPublicIp,
+			subnets: ["subnet-test"],
+			securityGroups: ["sg-test"],
+		};
+		const result = spawnSync("jq", ["-ec", networkProjection], {
+			input: JSON.stringify({
+				networkConfiguration: { awsvpcConfiguration: network },
+			}),
+			encoding: "utf8",
+		});
+		assert.equal(result.status, 0, `${assignPublicIp}: ${result.stderr}`);
+		assert.deepEqual(JSON.parse(result.stdout), {
+			awsvpcConfiguration: network,
+		});
+	}
+	for (const network of [
+		{
+			assignPublicIp: "UNKNOWN",
+			subnets: ["subnet-test"],
+			securityGroups: ["sg-test"],
+		},
+		{ subnets: ["subnet-test"], securityGroups: ["sg-test"] },
+		{ assignPublicIp: "DISABLED", subnets: [], securityGroups: ["sg-test"] },
+		{
+			assignPublicIp: "DISABLED",
+			subnets: ["subnet-test"],
+			securityGroups: [],
+		},
+		{
+			assignPublicIp: "DISABLED",
+			subnets: ["subnet-test"],
+			securityGroups: ["sg-one", "sg-two"],
+		},
+	]) {
+		const result = spawnSync("jq", ["-ec", networkProjection], {
+			input: JSON.stringify({
+				networkConfiguration: { awsvpcConfiguration: network },
+			}),
+			encoding: "utf8",
+		});
+		assert.notEqual(result.status, 0, "invalid network must be refused");
+	}
 	const clean = fixture();
 	roots.push(clean);
 	verdict(clean, 0);
@@ -120,11 +169,11 @@ try {
 			from: "sql`select pg_advisory_xact_lock",
 			to: "sql`select now() from (select 1) as ignored where 1 = 0 or ",
 		},
-			{
-				file: "packages/api/scripts/bootstrap-kaana-catalogue.ts",
-				from: '.where(eq(users.id, reviewerUserId))\n    .for("update");',
-				to: ".where(eq(users.id, reviewerUserId));",
-			},
+		{
+			file: "packages/api/scripts/bootstrap-kaana-catalogue.ts",
+			from: '.where(eq(users.id, reviewerUserId))\n    .for("update");',
+			to: ".where(eq(users.id, reviewerUserId));",
+		},
 		{
 			file: "packages/api/scripts/bootstrap-kaana-catalogue.ts",
 			from: ".where(eq(inferenceModels.modelId, KAANA_INITIAL_MODEL_ID))",
@@ -148,7 +197,7 @@ try {
 		{
 			file: "packages/api/scripts/bootstrap-kaana-catalogue.ts",
 			from: "reviewedFactsSha256: summaryWithoutPlan.reviewedFactsSha256,",
-			to: "reviewedFactsSha256: \"0\".repeat(64),",
+			to: 'reviewedFactsSha256: "0".repeat(64),',
 		},
 		{
 			file: "packages/api/src/scripts/kaanaCatalogueBootstrapPlan.ts",

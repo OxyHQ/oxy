@@ -113,3 +113,22 @@ export function requireKaanaCatalogueBootstrapApplyAuthorization(
 		);
 	}
 }
+
+/** Migration 0082 stamped existing score rows and their immutable events with
+ * this exact provenance marker before dropping the SQL default. Preserve that
+ * history for the two original deployments; new scorecards use reviewed URLs.
+ * The caller still checks every other field and requires the event to match
+ * the same chosen evidence, so this cannot reconcile arbitrary drift.
+ */
+export function kaanaBootstrapExistingFundingEvidence(
+	deploymentId: string,
+	reviewedEvidenceRef: string,
+	existingEvidenceRef: string | undefined,
+): string {
+	const migratedDeployment =
+		deploymentId === "dep_cerebras_gpt_oss_120b_observed_2026_09_01" ||
+		deploymentId === "dep_groq_openai_gpt_oss_120b_observed_2026_09_01";
+	return migratedDeployment && existingEvidenceRef === "migration/standard-payg"
+		? "migration/standard-payg"
+		: reviewedEvidenceRef;
+}

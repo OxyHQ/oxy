@@ -1,6 +1,7 @@
 import {
 	type KaanaCatalogueBootstrapPlanInput,
 	createKaanaCatalogueBootstrapPlan,
+	kaanaBootstrapExistingFundingEvidence,
 	createKaanaCatalogueReviewedFactsSha256,
 	requireKaanaCatalogueBootstrapApplyAuthorization,
 } from "../kaanaCatalogueBootstrapPlan";
@@ -118,5 +119,30 @@ describe("Kaana catalogue bootstrap plan authorization", () => {
 				}),
 			).toThrow();
 		}
+	});
+});
+
+describe("migration 0082 scorecard provenance", () => {
+	const url = "https://example.test/reviewed-price";
+	it.each([
+		"dep_cerebras_gpt_oss_120b_observed_2026_09_01",
+		"dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+	])("preserves the historical marker only for existing %s rows", (id) => {
+		expect(
+			kaanaBootstrapExistingFundingEvidence(id, url, "migration/standard-payg"),
+		).toBe("migration/standard-payg");
+		expect(kaanaBootstrapExistingFundingEvidence(id, url, undefined)).toBe(url);
+		expect(kaanaBootstrapExistingFundingEvidence(id, url, url)).toBe(url);
+		expect(kaanaBootstrapExistingFundingEvidence(id, url, "unreviewed")).toBe(
+			url,
+		);
+	});
+	it.each([
+		"dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+		"dep_other",
+	])("does not accept migrated provenance for %s", (id) => {
+		expect(
+			kaanaBootstrapExistingFundingEvidence(id, url, "migration/standard-payg"),
+		).toBe(url);
 	});
 });

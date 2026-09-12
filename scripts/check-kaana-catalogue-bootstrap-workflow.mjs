@@ -81,8 +81,8 @@ requireMatch(
 );
 requireMatch(
 	workflow,
-	/NETWORK_SERVICE: kaana-publisher[\s\S]*?assignPublicIp == "ENABLED"/,
-	"the network must be copied from the live Kaana publisher and keep public egress",
+	/NETWORK_SERVICE: kaana-publisher[\s\S]*?\(\.assignPublicIp == "ENABLED" or \.assignPublicIp == "DISABLED"\)[\s\S]*?then \{awsvpcConfiguration:\.\}/,
+	"the network must preserve the live Kaana publisher's public-IP setting",
 );
 requireMatch(
 	workflow,
