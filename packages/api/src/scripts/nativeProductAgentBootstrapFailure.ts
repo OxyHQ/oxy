@@ -20,7 +20,7 @@ type NativeProductAgentBootstrapGenericFailureCode =
   | 'live_state_drift'
   | 'bootstrap_failed';
 
-export type NativeProductAgentUsernameCollisionHolder = Pick<
+export type NativeProductAgentAccountProjection = Pick<
   typeof users.$inferSelect,
   | 'id'
   | 'kind'
@@ -111,12 +111,12 @@ export class NativeProductAgentStateDriftError extends Error {
 
 export class NativeProductAgentUsernameCollisionError extends Error {
   readonly expectedAccountId: string;
-  readonly holder: NativeProductAgentUsernameCollisionHolder;
+  readonly holder: NativeProductAgentAccountProjection;
   readonly boundApplication: NativeProductAgentBoundApplication | null;
 
   constructor(
     expectedAccountId: string,
-    holder: NativeProductAgentUsernameCollisionHolder,
+    holder: NativeProductAgentAccountProjection,
     boundApplication: NativeProductAgentBoundApplication | null = null,
   ) {
     super('native product-agent username collision');
@@ -146,12 +146,64 @@ export class NativeProductAgentUsernameCollisionError extends Error {
   }
 }
 
+export class NativeProductAgentAccountAdoptionReviewError extends Error {
+  readonly expectedAccountId: string;
+  readonly account: NativeProductAgentAccountProjection;
+  readonly canonicalPresentationMatches: boolean;
+  readonly ancestryMatches: boolean;
+  readonly boundApplication: NativeProductAgentBoundApplication | null;
+
+  constructor(
+    expectedAccountId: string,
+    account: NativeProductAgentAccountProjection,
+    canonicalPresentationMatches: boolean,
+    ancestryMatches: boolean,
+    boundApplication: NativeProductAgentBoundApplication | null,
+  ) {
+    super('native product-agent account adoption requires review');
+    this.name = 'NativeProductAgentAccountAdoptionReviewError';
+    this.expectedAccountId = expectedAccountId;
+    this.account = {
+      id: account.id,
+      kind: account.kind,
+      type: account.type,
+      parentAccountId: account.parentAccountId,
+      rootAccountId: account.rootAccountId,
+      accountStatus: account.accountStatus,
+      privacyIsPrivateAccount: account.privacyIsPrivateAccount,
+    };
+    this.canonicalPresentationMatches = canonicalPresentationMatches;
+    this.ancestryMatches = ancestryMatches;
+    this.boundApplication =
+      boundApplication === null
+        ? null
+        : {
+            id: boundApplication.id,
+            ownerAccountId: boundApplication.ownerAccountId,
+            type: boundApplication.type,
+            status: boundApplication.status,
+            isOfficial: boundApplication.isOfficial,
+            isInternal: boundApplication.isInternal,
+            createdByUserId: boundApplication.createdByUserId,
+          };
+  }
+}
+
 export type NativeProductAgentBootstrapFailureResult =
   | Readonly<{
       status: 'failed';
       code: 'username_collision';
       expectedAccountId: string;
-      holder: NativeProductAgentUsernameCollisionHolder;
+      holder: NativeProductAgentAccountProjection;
+      boundApplication: NativeProductAgentBoundApplication | null;
+    }>
+  | Readonly<{
+      status: 'failed';
+      code: 'account_adoption_review';
+      expectedAccountId: string;
+      account: NativeProductAgentAccountProjection;
+      canonicalPresentationMatches: boolean;
+      ancestryMatches: boolean;
       boundApplication: NativeProductAgentBoundApplication | null;
     }>
   | Readonly<{
@@ -209,6 +261,17 @@ function nativeProductAgentBootstrapGenericFailureCode(
 export function nativeProductAgentBootstrapFailureResult(
   error: unknown,
 ): NativeProductAgentBootstrapFailureResult {
+  if (error instanceof NativeProductAgentAccountAdoptionReviewError) {
+    return {
+      status: 'failed',
+      code: 'account_adoption_review',
+      expectedAccountId: error.expectedAccountId,
+      account: error.account,
+      canonicalPresentationMatches: error.canonicalPresentationMatches,
+      ancestryMatches: error.ancestryMatches,
+      boundApplication: error.boundApplication,
+    };
+  }
   if (error instanceof NativeProductAgentUsernameCollisionError) {
     return {
       status: 'failed',
