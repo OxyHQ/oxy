@@ -217,6 +217,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile --minimum-release-age=0
+      - name: Verify API image production dependency closure
+        timeout-minutes: 10
+        run: node scripts/test-api-runtime-dependencies.mjs
       # Before the builds and the suite, and needing neither: it reads the tracked
       # file listing. The backfill, 82 Mongoose models and the mongoose dependency
       # were removed on 2026-08-08 and `oxy-prod` is gone, so a Mongo reference is
