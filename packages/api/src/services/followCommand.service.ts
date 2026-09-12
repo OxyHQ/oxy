@@ -1,3 +1,4 @@
+import { getEquivalentUserIds } from './externalIdentityRegistry.service';
 /**
  * The ONE place a follow relationship changes.
  *
@@ -32,7 +33,7 @@
  * the insert, not a guess made before it.
  */
 
-import { and, eq, isNotNull, lte } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { followApplicationOverrides } from '../db/schema/followApplicationOverrides';
 import { followEvents, type FollowEventCause, type FollowEventType } from '../db/schema/followEvents';
@@ -126,47 +127,26 @@ export function deriveFollowEffectiveState(
   return effectiveState(globalState, mode);
 }
 
-async function readStatus(
-  tx: Tx | Db,
-  userId: string,
-  applicationId: string,
-  targetId: string
-): Promise<FollowStatus> {
-  const [relationship] = await tx
-    .select({
-      id: followRelationships.id,
-      state: followRelationships.state,
-      expiresAt: followRelationships.expiresAt,
-    })
-    .from(followRelationships)
-    .where(
-      and(
-        eq(followRelationships.followerUserId, userId),
-        eq(followRelationships.followTargetId, targetId)
-      )
-    )
-    .limit(1);
+async function equivalentTargetIds(db: Tx | Db, targetId: string): Promise<string[]> {
+  const [target] = await db.select({ localUserId: followTargets.localUserId }).from(followTargets).where(eq(followTargets.id, targetId));
+  if (!target?.localUserId) return [targetId];
+  return (await db.select({ id: followTargets.id }).from(followTargets)
+    .where(inArray(followTargets.localUserId, await getEquivalentUserIds(target.localUserId, db)))).map(row => row.id);
+}
 
-  if (!relationship) {
-    return { globalState: 'none', applicationMode: 'inherit', effectiveState: 'not_following' };
-  }
-
-  const [override] = await tx
-    .select({ mode: followApplicationOverrides.mode })
-    .from(followApplicationOverrides)
-    .where(
-      and(
-        eq(followApplicationOverrides.relationshipId, relationship.id),
-        eq(followApplicationOverrides.applicationId, applicationId)
-      )
-    )
-    .limit(1);
-
-  const mode = override?.mode ?? 'inherit';
-  return {
-    relationshipId: relationship.id,
-    globalState: relationship.state,
-    applicationMode: mode,
+async function readStatus(tx: Tx | Db, userId: string, applicationId: string, targetId: string): Promise<FollowStatus> {
+  const relationships = await tx.select().from(followRelationships).where(and(
+    inArray(followRelationships.followerUserId, await getEquivalentUserIds(userId, tx)),
+    inArray(followRelationships.followTargetId, await equivalentTargetIds(tx, targetId)),
+  ));
+  const relationship = relationships.find(row => row.state === 'active') ?? relationships.find(row => row.state === 'requested') ?? relationships[0];
+  if (!relationship) return { globalState: 'none', applicationMode: 'inherit', effectiveState: 'not_following' };
+  const overrides = await tx.select().from(followApplicationOverrides).where(and(
+    inArray(followApplicationOverrides.relationshipId, relationships.map(row => row.id)),
+    eq(followApplicationOverrides.applicationId, applicationId),
+  ));
+  const mode = overrides.some(row => row.mode === 'disabled') ? 'disabled' : overrides.some(row => row.mode === 'enabled') ? 'enabled' : 'inherit';
+  return { relationshipId: relationship.id, globalState: relationship.state, applicationMode: mode,
     effectiveState: effectiveState(relationship.state, mode),
     ...(relationship.expiresAt ? { expiresAt: relationship.expiresAt.toISOString() } : {}),
   };
@@ -240,6 +220,9 @@ export async function followTarget(input: {
   }
 
   const result = await getDb().transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'follow:' + capability.userId}))`);
+    const existingStatus = await readStatus(tx, capability.userId, capability.applicationId, target.id);
+    if (existingStatus.relationshipId) return { relationshipId: existingStatus.relationshipId, created: false, status: existingStatus };
     const inserted = await tx
       .insert(followRelationships)
       .values({
@@ -349,20 +332,15 @@ export async function unfollowEverywhere(input: {
       .where(eq(followTargets.id, relationship.targetId))
       .limit(1);
 
-    // The event is written BEFORE the delete, in the same transaction, because
-    // it reads the row it is about. `follow_events.relationship_id` carries no
-    // foreign key precisely so the event outlives this delete.
-    await emit(tx, {
-      type: 'follow.removed',
-      cause: input.cause ?? 'user_action',
-      capability,
-      relationshipId,
-      targetUri: target?.canonicalUri ?? '',
-      targetKind: target?.kind ?? '',
-      at,
-    });
-
-    await tx.delete(followRelationships).where(eq(followRelationships.id, relationshipId));
+    const related = await tx.select({ id: followRelationships.id, canonicalUri: followTargets.canonicalUri, kind: followTargets.kind })
+      .from(followRelationships).innerJoin(followTargets, eq(followTargets.id, followRelationships.followTargetId))
+      .where(and(eq(followRelationships.followerUserId, capability.userId),
+        input.cause && input.cause !== 'user_action' ? eq(followRelationships.id, relationshipId) : inArray(followRelationships.followTargetId, await equivalentTargetIds(tx, relationship.targetId))));
+    for (const edge of related) {
+      await emit(tx, { type: 'follow.removed', cause: input.cause ?? 'user_action', capability,
+        relationshipId: edge.id, targetUri: edge.canonicalUri, targetKind: edge.kind, at });
+      await tx.delete(followRelationships).where(eq(followRelationships.id, edge.id));
+    }
 
     if (target?.localUserId) {
       await tx
@@ -370,7 +348,7 @@ export async function unfollowEverywhere(input: {
         .where(
           and(
             eq(userFollows.followerId, capability.userId),
-            eq(userFollows.followedId, target.localUserId)
+            input.cause && input.cause !== 'user_action' ? eq(userFollows.followedId, target.localUserId) : inArray(userFollows.followedId, await getEquivalentUserIds(target.localUserId, tx))
           )
         );
     }

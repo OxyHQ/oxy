@@ -1,3 +1,6 @@
+import { connectPostgres, closePostgres } from '../../config/postgres';
+beforeAll(connectPostgres);
+afterAll(closePostgres);
 /**
  * Viewer-Graph Cache tests.
  *

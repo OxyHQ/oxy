@@ -575,6 +575,20 @@
       "when": 1789108562697,
       "tag": "0082_inference_funding_evidence",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1789248912424,
+      "tag": "0083_external_identity_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1789249033215,
+      "tag": "0084_external_identity_claim_pins",
+      "breakpoints": true
     }
   ]
 }
