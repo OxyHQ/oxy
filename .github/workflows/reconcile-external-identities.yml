@@ -2,6 +2,24 @@ name: Reconcile deployed external identities
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: Fixed operation (inspection never discovers or writes)
+        required: true
+        type: choice
+        options: [reconcile, inspect_cache]
+        default: reconcile
+      actor_uri:
+        description: inspect_cache only - exact HTTPS source actor URI
+        required: false
+        type: string
+      canonical_acct:
+        description: inspect_cache only - canonical user@network account
+        required: false
+        type: string
+      transport_acct:
+        description: inspect_cache only - transport user@host account
+        required: false
+        type: string
       expected_source_sha:
         description: Full source SHA of the healthy deployed image
         required: true
@@ -37,6 +55,10 @@ jobs:
           aws-region: us-west-2
       - name: Run fixed reconciler from the verified deployed digest
         env:
+          OPERATION_MODE: ${{ inputs.mode }}
+          ACTOR_URI: ${{ inputs.actor_uri }}
+          CANONICAL_ACCT: ${{ inputs.canonical_acct }}
+          TRANSPORT_ACCT: ${{ inputs.transport_acct }}
           EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
           DRY_RUN: ${{ inputs.dry_run }}
           AFTER_CURSOR: ${{ inputs.after }}

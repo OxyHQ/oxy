@@ -36,7 +36,11 @@ aws() {
         if $next; then override="$arg"; break; fi
         [[ "$arg" != --overrides ]] || next=true
       done
+      if [[ "${OPERATION_MODE:-reconcile}" == inspect_cache ]]; then
+        jq -e --arg actor "$ACTOR_URI" --arg canonical "$CANONICAL_ACCT" --arg transport "$TRANSPORT_ACCT" --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$TEST_DIGEST" '.containerOverrides | length == 1 and .[0].command == ["busybox","timeout","-s","TERM","-k","30","120","bun","run","packages/api/scripts/inspect-external-identity-cache.ts","--actor-uri="+$actor,"--canonical-acct="+$canonical,"--transport-acct="+$transport,"--source-sha="+$sha,"--image-digest="+$digest] and (.[0] | has("environment") | not)' <<< "$override" >/dev/null || return 1
+      else
       jq -e --arg dry "$DRY_RUN" --arg cursor "$AFTER_CURSOR" '.containerOverrides | length == 1 and .[0].command == (["busybox","timeout","-s","TERM","-k","30","5400","bun","run","packages/api/scripts/reconcile-external-identities.ts"] + (if $dry == "false" then ["--apply"] else [] end) + (if $cursor != "" then ["--after="+$cursor] else [] end)) and (.[0] | has("environment") | not)' <<< "$override" >/dev/null || return 1
+      fi
       if [[ "$TEST_MODE" == capacity && ! -f "$TEST_LOG.capacity" ]]; then
         touch "$TEST_LOG.capacity"
         echo '{"tasks":[],"failures":[{"reason":"RESOURCE:CPU"}]}'
@@ -46,6 +50,8 @@ aws() {
     'ecs stop-task'|'ecs deregister-task-definition') echo '{}' ;;
     'logs get-log-events')
       if [[ "$*" == *--next-token* ]]; then echo '{"events":[],"nextForwardToken":"end"}'
+      elif [[ "${OPERATION_MODE:-reconcile}" == inspect_cache && "$TEST_MODE" != wrong_summary ]]; then
+        jq -nc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$TEST_DIGEST" '{events:[{message:({operation:"inspect_cache",sourceSha:$sha,imageDigest:$digest,observedAt:"2026-09-13T00:00:00.000Z",counts:{users:0,registryActors:0,registryIdentities:0},absent:true}|tojson)}],nextForwardToken:"end"}'
       else echo '{"events":[{"message":"{\"visited\":1,\"refused\":0}"}],"nextForwardToken":"end"}'; fi ;;
     *) echo "Unexpected AWS call: $*" >&2; return 1 ;;
   esac
@@ -92,4 +98,21 @@ if TEST_EXIT=124 run_case timedout; then exit 1; fi
 grep -q 'stop-task' "$TEST_LOG"
 grep -q 'deregister-task-definition' "$TEST_LOG"
 ! grep -q 'describe-images' "$TEST_LOG"
+export ACTOR_URI=https://bird.makeup/users/example CANONICAL_ACCT=example@x.com TRANSPORT_ACCT=example@bird.makeup OPERATION_MODE=inspect_cache
+: > "$TEST_LOG"
+run_case inspected
+grep -q 'inspect-external-identity-cache.ts' "$TEST_LOG"
+! grep -q 'reconcile-external-identities.ts' "$TEST_LOG"
+jq -e '.operation == "inspect_cache" and .absent == true' "$test_root/inspected/identity-reconciliation-report/summary.json" >/dev/null
+for invalid in apply mixed unknown injection; do
+  : > "$TEST_LOG"
+  case "$invalid" in
+    apply) if DRY_RUN=false run_case inspect-apply; then exit 1; fi ;;
+    mixed) if AFTER_CURSOR=https://bird.makeup/users/a run_case inspect-mixed; then exit 1; fi ;;
+    unknown) if OPERATION_MODE=arbitrary run_case inspect-unknown; then exit 1; fi ;;
+    injection) if ACTOR_URI='https://evil/$(touch x)' run_case inspect-injection; then exit 1; fi ;;
+  esac
+  [[ ! -s "$TEST_LOG" ]]
+done
+if TEST_MODE=wrong_summary run_case wrong-summary; then exit 1; fi
 echo 'Identity ECS reconciliation guards and lifecycle: passed'

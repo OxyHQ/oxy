@@ -10,6 +10,17 @@ cursor="${AFTER_CURSOR:-}"
 if [[ -n "$cursor" ]] && { [[ ${#cursor} -gt 2048 ]] || ! [[ "$cursor" =~ ^(https://|did:)[a-zA-Z0-9:/._%@+-]+$ ]]; }; then
   echo 'Invalid source cursor' >&2; exit 1
 fi
+mode="${OPERATION_MODE:-reconcile}"
+[[ "$mode" == reconcile || "$mode" == inspect_cache ]] || { echo 'Unknown fixed operation' >&2; exit 1; }
+if [[ "$mode" == inspect_cache ]]; then
+  [[ "${DRY_RUN:-true}" == true && -z "$cursor" ]] || { echo 'Inspection cannot apply or use a reconciliation cursor' >&2; exit 1; }
+  [[ "${ACTOR_URI:-}" =~ ^https://[a-zA-Z0-9.-]+/[a-zA-Z0-9/._%+-]*$ && ${#ACTOR_URI} -le 2048 ]] || { echo 'Invalid inspection actor URI' >&2; exit 1; }
+  for acct in "${CANONICAL_ACCT:-}" "${TRANSPORT_ACCT:-}"; do
+    [[ "$acct" =~ ^[a-z0-9_][a-z0-9_.-]{0,127}@[a-z0-9][a-z0-9.-]{0,251}[a-z0-9]$ && "${acct#*@}" == *.* ]] || { echo 'Invalid inspection account' >&2; exit 1; }
+  done
+else
+  [[ -z "${ACTOR_URI:-}${CANONICAL_ACCT:-}${TRANSPORT_ACCT:-}" ]] || { echo 'Inspection identifiers require inspect_cache' >&2; exit 1; }
+fi
 readonly cluster=oxy-cluster service=oxy-api repository=oxy/oxy-api
 readonly registry=237343248947.dkr.ecr.us-west-2.amazonaws.com
 export AWS_DEFAULT_REGION=us-west-2
@@ -75,6 +86,9 @@ transient_definition=$(aws ecs register-task-definition --cli-input-json "file:/
 # BusyBox and GNU timeout share these short flags. Even without StopTask IAM,
 # termination is enforced inside the essential container after 90 minutes plus 30 seconds.
 command=$(jq -nc --arg dry "${DRY_RUN:-true}" --arg cursor "$cursor" '["busybox","timeout","-s","TERM","-k","30","5400","bun","run","packages/api/scripts/reconcile-external-identities.ts"] + (if $dry == "false" then ["--apply"] else [] end) + (if $cursor != "" then ["--after=" + $cursor] else [] end)')
+if [[ "$mode" == inspect_cache ]]; then
+  command=$(jq -nc --arg actor "$ACTOR_URI" --arg canonical "$CANONICAL_ACCT" --arg transport "$TRANSPORT_ACCT" --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" '["busybox","timeout","-s","TERM","-k","30","120","bun","run","packages/api/scripts/inspect-external-identity-cache.ts","--actor-uri="+$actor,"--canonical-acct="+$canonical,"--transport-acct="+$transport,"--source-sha="+$sha,"--image-digest="+$digest]')
+fi
 overrides=$(jq -nc --arg name "$container" --argjson command "$command" '{containerOverrides:[{name:$name,command:$command}]}')
 network=$(jq -c '.services[0].networkConfiguration' "$scratch/service.json")
 for attempt in $(seq 1 31); do
@@ -88,7 +102,11 @@ done
 log_group=$(jq -r --arg name "$container" '.containerDefinitions[] | select(.name == $name) | .logConfiguration.options["awslogs-group"] // empty' "$scratch/live.json")
 log_prefix=$(jq -r --arg name "$container" '.containerDefinitions[] | select(.name == $name) | .logConfiguration.options["awslogs-stream-prefix"] // empty' "$scratch/live.json")
 log_stream="$log_prefix/$container/${task_arn##*/}"
-jq -n --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" --arg task "$task_arn" --argjson dry "${DRY_RUN:-true}" '{expectedSourceSha:$sha,imageDigest:$digest,taskArn:$task,dryRun:$dry}' > "$report_dir/run.json"
+jq -n --arg operation "$mode" --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" --arg task "$task_arn" --argjson dry "${DRY_RUN:-true}" '{operation:$operation,expectedSourceSha:$sha,imageDigest:$digest,taskArn:$task,dryRun:$dry}' > "$report_dir/run.json"
+if [[ "$mode" == inspect_cache ]]; then
+  jq --arg actor "$ACTOR_URI" --arg canonical "$CANONICAL_ACCT" --arg transport "$TRANSPORT_ACCT" '. + {identifiers:{actorUri:$actor,canonicalAcct:$canonical,transportAcct:$transport}}' "$report_dir/run.json" > "$scratch/run-report.json"
+  cp "$scratch/run-report.json" "$report_dir/run.json"
+fi
 # ECS waiter is deliberately bounded (~100 minutes total).
 for attempt in $(seq 1 10); do
   aws ecs wait tasks-stopped --cluster "$cluster" --tasks "$task_arn" && break
@@ -100,7 +118,11 @@ jq -e --arg name "$container" '.failures | length == 0' "$scratch/completed.json
 
 collect_logs
 logs_collected=true
-jq -Rsc '[split("\n")[] | fromjson? | select(has("visited") and has("refused"))] | last' "$report_dir/task.log" > "$report_dir/summary.json"
+if [[ "$mode" == inspect_cache ]]; then
+  jq -Rsc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" '[split("\n")[] | fromjson? | select(.operation == "inspect_cache" and .sourceSha == $sha and .imageDigest == $digest and (.absent | type == "boolean") and (.counts | type == "object"))] | last' "$report_dir/task.log" > "$report_dir/summary.json"
+else
+  jq -Rsc '[split("\n")[] | fromjson? | select(has("visited") and has("refused") and .operation != "inspect_cache")] | last' "$report_dir/task.log" > "$report_dir/summary.json"
+fi
 jq -e 'type == "object"' "$report_dir/summary.json" >/dev/null || { echo 'Missing reconciliation summary in task logs' >&2; exit 1; }
 
 jq -e --arg name "$container" '.tasks | length == 1 and .[0].lastStatus == "STOPPED" and ([.[0].containers[] | select(.name == $name and .exitCode == 0)] | length == 1)' "$scratch/completed.json" >/dev/null
