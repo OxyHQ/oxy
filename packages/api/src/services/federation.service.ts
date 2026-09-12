@@ -1024,10 +1024,15 @@ class FederationService {
       profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
     });
     userCache.invalidate(result.userId);
+    userCache.invalidate(result.identity.userId);
     const user = await userService.readAccountDocument(result.userId);
     if (!user) return null;
-    if (profile.avatarUrl && (opts.forceAvatarRefresh || !user.avatar || user.avatar.startsWith('http'))) {
-      this.scheduleAvatarRefresh(result.userId, profile.avatarUrl, user.avatar, { force: opts.forceAvatarRefresh === true });
+    if (profile.avatarUrl) {
+      const [source] = await getDb().select({ avatar: users.avatar }).from(users).where(eq(users.id, result.identity.userId));
+      const avatar = source?.avatar ?? undefined;
+      if (opts.forceAvatarRefresh || !avatar || avatar.startsWith('http')) {
+        this.scheduleAvatarRefresh(result.identity.userId, profile.avatarUrl, avatar, { force: opts.forceAvatarRefresh === true });
+      }
     }
     const [externalIdentities, redirectedUserIds] = await Promise.all([
       getExternalIdentitiesForUser(result.userId), getCanonicalUserRedirects(result.userId),
@@ -1542,7 +1547,8 @@ class FederationService {
         protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
         profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio },
       });
-      userId = registered.userId;
+      userId = registered.identity.userId;
+      userCache.invalidate(registered.userId);
 
       // COLUMN PROPERTIES, never Mongo dot paths — see the note in
       // `resolveAndUpsert`. `name.first` here would silently write nothing.
@@ -1564,7 +1570,6 @@ class FederationService {
       // because the remote fetch failed. On 304 we keep the existing file but
       // still advance the fetch clock so we don't re-attempt every request.
       if (profile.avatarUrl) {
-        const existingAvatar = typeof existing.avatar === 'string' ? existing.avatar : undefined;
         // The conditional-request validators are read from the ROW, not from
         // the account document this worker was handed. `AccountDocument`'s
         // `federation` key carries only `actorUri`/`domain` (it is the wire
@@ -1574,13 +1579,14 @@ class FederationService {
         // unconditional re-download of an unchanged image.
         const [validators] = await getDb()
           .select({
+            avatar: users.avatar,
             etag: users.federationAvatarETag,
             lastModified: users.federationAvatarLastModified,
           })
           .from(users)
           .where(eq(users.id, userId))
           .limit(1);
-        const stored = await this.downloadAndStoreAvatar(profile.avatarUrl, existingAvatar, {
+        const stored = await this.downloadAndStoreAvatar(profile.avatarUrl, validators?.avatar ?? undefined, {
           etag: validators?.etag ?? undefined,
           lastModified: validators?.lastModified ?? undefined,
         }, userId);
