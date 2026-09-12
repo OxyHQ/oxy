@@ -25,10 +25,12 @@ the live `oxy-api` task.
 3. The GitHub OIDC role must have `ecs:RunTask` and exact `iam:PassRole` for both
    `oxy-ecs-execution` and `oxy-kaana-catalogue-bootstrap`. Keep the latter exact;
    do not widen it to a path or wildcard.
-4. Keep `kaana-publisher` healthy. Its live network configuration is the source
-   for the one-shot task because the cluster needs its public-egress setting.
+4. Keep `kaana-publisher` healthy. Copy its complete live network configuration
+   to the one-shot, including `assignPublicIp`. Both public-subnet `ENABLED`
+   and private-subnet `DISABLED` are valid; never force a public IP after the
+   publisher moves behind NAT.
 5. Verify the current Kaana inventory content snapshot remains
-   `snap_da7406fdfed50248`. The task role can read only the versioned
+   `snap_dfd6904a99d6313b`. The task role can read only the versioned
    `inventory/current.json` object and the writer refuses stale or mismatched
    content.
 
@@ -67,7 +69,7 @@ state and obtain a new dry-run plan before any later apply.
 
 ## Identity is not audience eligibility
 
-This bootstrap's two exact deployments are intentionally
+This bootstrap's three exact deployments are intentionally
 `availability_scope = internal_alia`. The Inbox application is `first_party`
 with `is_internal = false`; that audience sees only `public_payg` and
 `oxy_hosted`. Therefore a successful bootstrap and exact-PK readback prove the
@@ -80,3 +82,13 @@ enabling execution, publish a separately reviewed deployment whose commercial
 permission and availability scope legitimately include the Inbox audience, then
 prove the exact profile resolves to at least one route for the real Inbox
 principal.
+
+### Existing scorecards after migration 0082
+
+The two original Cerebras/Groq scorecards may carry
+`funding_evidence_ref = migration/standard-payg`: migration 0082 backfilled that
+exact value into both current rows and immutable events, then removed the SQL
+default. Bootstrap preserves that historical marker for those exact deployment
+IDs only. It still checks every other reviewed field and requires the matching
+immutable event to carry the same marker; it never rewrites either row. Newly
+created scorecards, including OpenRouter, require the reviewed price URL.

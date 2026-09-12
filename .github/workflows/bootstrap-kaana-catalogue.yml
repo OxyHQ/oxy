@@ -233,7 +233,7 @@ jobs:
           fi
           network=$(jq -ec '
             .networkConfiguration.awsvpcConfiguration |
-            if .assignPublicIp == "ENABLED" and
+            if (.assignPublicIp == "ENABLED" or .assignPublicIp == "DISABLED") and
                (.subnets | type == "array" and length > 0) and
                (.securityGroups | type == "array" and length == 1)
             then {awsvpcConfiguration:.}
