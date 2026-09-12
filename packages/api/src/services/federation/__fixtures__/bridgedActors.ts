@@ -14,17 +14,21 @@
  * is the intended alarm: the entry needs re-verifying against the live actor, not
  * a looser pattern.
  *
- * They live beside Mention's bridge ENTRIES rather than in the shared package:
+ * They live beside Oxy's bridge policy rather than in the shared package:
  * each one asserts that a specific domain mirrors a specific network, which is
- * the reviewed judgement this app makes and answers for, not a protocol fact.
+ * the reviewed judgement Oxy owns, not a protocol fact.
  *
- * Do not hand-edit. Re-capture from production if a bridge changes shape.
+ * Missing proxyOf fields normalize to an empty declaration list. This adds no
+ * source assertion to the captured evidence.
+ *
+ * Do not hand-edit source evidence. Re-capture if a bridge changes shape.
  */
 
 import type { NetworkIdentityCandidate } from '@oxy.so/federation';
 
 export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
   {
+    "proxyOf": [],
     "host": "bird.makeup",
     "acct": "typecache@bird.makeup",
     "preferredUsername": "typecache",
@@ -48,6 +52,7 @@ export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
     "bio": "TypeCache is an online index for type foundries, sellers, and showcases their collections of type. We’ll keep posting new font releases, font lists & sale info.\nThis account is a replica from Twitter. Its author can't see your replies. If you find this service useful, please consider supporting us via our Patreon."
   },
   {
+    "proxyOf": [],
     "host": "bird.makeup",
     "acct": "gorskon@bird.makeup",
     "preferredUsername": "gorskon",
@@ -71,6 +76,7 @@ export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
     "bio": "Surgeon/scientist promoting science-based medicine and deconstructing quackery. Editor, Science-Based Medicine blog. Also: @gorskon.bsky.social. (He/him.)\nThis account is a replica from Twitter. Its author can't see your replies. If you find this service useful, please consider supporting us via our Patreon."
   },
   {
+    "proxyOf": [],
     "host": "bird.makeup",
     "acct": "giswqs@bird.makeup",
     "preferredUsername": "giswqs",
@@ -98,6 +104,7 @@ export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
     "bio": "Associate Professor @utkgeography | @amazon Scholar | Talk about #opensource #geospatial #dataviz #GeoAI\nThis account is a replica from Twitter. Its author can't see your replies. If you find this service useful, please consider supporting us via our Patreon."
   },
   {
+    "proxyOf": [],
     "host": "kilogram.makeup",
     "acct": "robert.habeck@kilogram.makeup",
     "preferredUsername": "robert.habeck",
@@ -125,6 +132,7 @@ export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
     "bio": "„There is a crack in everything. That's how the light gets in.“ ~ Leonard Cohen\nThis account is a replica from Instagram. Its author can't see your replies. If you find this service useful, please consider supporting us via our Patreon."
   },
   {
+    "proxyOf": [],
     "host": "kilogram.makeup",
     "acct": "umwelthilfe@kilogram.makeup",
     "preferredUsername": "umwelthilfe",
@@ -152,6 +160,7 @@ export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
     "bio": "Lass uns gemeinsam für Umwelt, Klima und Natur kämpfen. Dafür machen wir uns stark. Unterstütze uns dabei! 💚🌍\nThis account is a replica from Instagram. Its author can't see your replies. If you find this service useful, please consider supporting us via our Patreon."
   },
   {
+    "proxyOf": [],
     "host": "kilogram.makeup",
     "acct": "plex@kilogram.makeup",
     "preferredUsername": "plex",
@@ -175,6 +184,7 @@ export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
     "bio": "💬\nThis account is a replica from Instagram. Its author can't see your replies. If you find this service useful, please consider supporting us via our Patreon."
   },
   {
+    "proxyOf": [],
     "host": "mastox.eu",
     "acct": "mehdirhasan@mastox.eu",
     "preferredUsername": "mehdirhasan",
@@ -190,6 +200,7 @@ export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
     "bio": "British-American journalist. Editor-in-chief and CEO of new media company @zeteo_news. Subscribe here: https://t.co/sEC1ETzeiV.\n\n(bot from x to mastodon managed by mastox.eu, contact @admin for any information)"
   },
   {
+    "proxyOf": [],
     "host": "mastox.eu",
     "acct": "franceskalbs@mastox.eu",
     "preferredUsername": "FranceskAlbs",
@@ -205,6 +216,7 @@ export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
     "bio": "Int'l Lawyer | Scholar | Former UN Official | Sen.Adviser @ARDD @ar_renaissance\n\n#Ahimsa: non-violence toward all beings.\n\n(bot from x to mastodon managed by mastox.eu, contact @admin for any information)"
   },
   {
+    "proxyOf": [],
     "host": "mastox.eu",
     "acct": "gbsumudflotilla@mastox.eu",
     "preferredUsername": "gbsumudflotilla",
@@ -220,6 +232,7 @@ export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
     "bio": "The World’s Biggest Maritime Mission to Break the Illegal Israeli Siege on Gaza. This is our only official account. Registrations open ↓\n\n(bot from x to mastodon managed by mastox.eu, contact @admin for any information)"
   },
   {
+    "proxyOf": [],
     "host": "bsky.brid.gy",
     "acct": "thistleandmoss.com@bsky.brid.gy",
     "preferredUsername": "thistleandmoss.com",
@@ -241,6 +254,7 @@ export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
     "bio": "Trans woman, Druid priestess, polyam queer kin 🌾\nTending a hearth for the burned-out and the becoming. Earth magic, queer joy, dispatches from the edges.\n📜 http://thistleandmoss.com\n#Trans #LGBTQIA #Pagan #Druid #Witch #Polyam #Progressive\n\n🌉 https://fed.brid.gy/bsky/thistleandmoss.com from 🦋 https://bsky.app/profile/thistleandmoss.com, follow https://bsky.brid.gy/bsky.brid.gy to interact"
   },
   {
+    "proxyOf": [],
     "host": "bsky.brid.gy",
     "acct": "georgemonbiot.bsky.social@bsky.brid.gy",
     "preferredUsername": "georgemonbiot.bsky.social",
@@ -258,6 +272,7 @@ export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
     "bio": "Ungainly on land\n\n🌉 https://fed.brid.gy/bsky/georgemonbiot.bsky.social from 🦋 https://bsky.app/profile/georgemonbiot.bsky.social, follow @bsky.brid.gy to interact"
   },
   {
+    "proxyOf": [],
     "host": "bsky.brid.gy",
     "acct": "assignedmale.bsky.social@bsky.brid.gy",
     "preferredUsername": "assignedmale.bsky.social",
