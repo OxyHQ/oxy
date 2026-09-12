@@ -42,7 +42,10 @@ safe_result=$(jq -cer '
   def valid_code:
     type == "string" and test("^[a-z][a-z0-9_]{0,63}$");
   def valid_generic_code:
-    valid_code and . != "username_collision";
+    valid_code and
+    . != "account_adoption_review" and
+    . != "live_state_drift" and
+    . != "username_collision";
   def valid_drift_target:
     . == "oxy_organization" or
     . == "homiio_project_account" or
@@ -97,7 +100,7 @@ safe_result=$(jq -cer '
     );
   def valid_nullable_account_id:
     . == null or valid_account_id;
-  def valid_username_collision_holder:
+  def valid_account_projection:
     type == "object" and
     (keys | sort) == [
       "accountStatus",
@@ -176,11 +179,47 @@ safe_result=$(jq -cer '
   then
     {code,target,field}
   elif
+    (keys | sort) == [
+      "account",
+      "ancestryMatches",
+      "boundApplication",
+      "canonicalPresentationMatches",
+      "code",
+      "expectedAccountId",
+      "status"
+    ] and
+    .status == "failed" and
+    .code == "account_adoption_review" and
+    .expectedAccountId == "6a50444ce8026582b949089d" and
+    (.account | valid_account_projection) and
+    .account.id == .expectedAccountId and
+    (.canonicalPresentationMatches | type == "boolean") and
+    (.ancestryMatches | type == "boolean") and
+    (.boundApplication | valid_bound_application) and
+    (.boundApplication == null or .boundApplication.id == "6a2f851751b784a86fd0e922")
+  then
+    {
+      code,
+      expectedAccountId,
+      account: {
+        id: .account.id,
+        kind: .account.kind,
+        type: .account.type,
+        parentAccountId: .account.parentAccountId,
+        rootAccountId: .account.rootAccountId,
+        accountStatus: .account.accountStatus,
+        privacyIsPrivateAccount: .account.privacyIsPrivateAccount
+      },
+      canonicalPresentationMatches,
+      ancestryMatches,
+      boundApplication
+    }
+  elif
     (keys | sort) == ["boundApplication","code","expectedAccountId","holder","status"] and
     .status == "failed" and
     .code == "username_collision" and
     (.expectedAccountId | valid_account_id) and
-    (.holder | valid_username_collision_holder) and
+    (.holder | valid_account_projection) and
     (.boundApplication | valid_bound_application) and
     .holder.id != .expectedAccountId
   then

@@ -1,5 +1,6 @@
 import {
   NativeProductAgentStateDriftError,
+  NativeProductAgentAccountAdoptionReviewError,
   NativeProductAgentUsernameCollisionError,
   nativeProductAgentBootstrapFailureResult,
 } from '../nativeProductAgentBootstrapFailure';
@@ -76,6 +77,51 @@ describe('native product-agent bootstrap failure projection', () => {
       code: 'live_state_drift',
       target: 'homiio_project_ancestry',
       field: 'path',
+    });
+    expect(JSON.stringify(result)).not.toContain(unsafeMarker);
+  });
+
+  it('returns only the fixed Homiio adoption authority projection', () => {
+    const homiioProjectId = '6a50444ce8026582b949089d';
+    const account = { ...holder, id: homiioProjectId };
+    const application = {
+      ...boundApplication,
+      ownerAccountId: homiioProjectId,
+    };
+    const result = nativeProductAgentBootstrapFailureResult(
+      new NativeProductAgentAccountAdoptionReviewError(
+        homiioProjectId,
+        account,
+        false,
+        true,
+        application,
+      ),
+    );
+
+    expect(result).toEqual({
+      status: 'failed',
+      code: 'account_adoption_review',
+      expectedAccountId: homiioProjectId,
+      account: {
+        id: homiioProjectId,
+        kind: 'project',
+        type: 'local',
+        parentAccountId: '69b2d3df5d12f58c9800d651',
+        rootAccountId: '69b2d3df5d12f58c9800d651',
+        accountStatus: 'active',
+        privacyIsPrivateAccount: false,
+      },
+      canonicalPresentationMatches: false,
+      ancestryMatches: true,
+      boundApplication: {
+        id: '6a2f851751b784a86fd0e922',
+        ownerAccountId: homiioProjectId,
+        type: 'first_party',
+        status: 'active',
+        isOfficial: true,
+        isInternal: false,
+        createdByUserId: '69b2d3df5d12f58c9800d651',
+      },
     });
     expect(JSON.stringify(result)).not.toContain(unsafeMarker);
   });
