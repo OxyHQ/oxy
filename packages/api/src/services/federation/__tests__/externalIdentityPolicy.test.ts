@@ -1,6 +1,6 @@
 import { deriveExternalActorProfile, identityLinks, normalizeExternalBio } from '../externalIdentityPolicy';
 import { federationBridges } from '../../../config/federationBridgePolicy';
-import { BRIDGED_ACTOR_FIXTURES } from './fixtures/bridgedActors';
+import { BRIDGED_ACTOR_FIXTURES } from '../__fixtures__/bridgedActors';
 
 const notice = "This account is a replica from Twitter. Its author can't see your replies. If you find this service useful, please consider supporting us via our Patreon.";
 const actorUri = 'https://bird.makeup/users/jordievole';
