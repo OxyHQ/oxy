@@ -1,3 +1,4 @@
+import { externalIdentities, externalIdentityClaims } from './externalIdentities';
 /**
  * Foreign Keys This Schema Cannot Declare Yet
  *
@@ -103,6 +104,10 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  { table: externalIdentities, column: externalIdentities.stableId, reason: 'Source-network immutable subject, not an Oxy row id.' },
+  { table: externalIdentityClaims, column: externalIdentityClaims.sourceStableId, reason: 'Verified source-network subject snapshot; retained as claim evidence.' },
+  { table: externalIdentityClaims, column: externalIdentityClaims.targetStableId, reason: 'Verified counterpart source-network subject snapshot; retained as claim evidence.' },
+
   {
     table: normalizedAppEventOutbox,
     column: normalizedAppEventOutbox.eventId,
