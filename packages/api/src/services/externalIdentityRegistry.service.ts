@@ -46,10 +46,11 @@ export async function lookupExternalIdentity(value: string): Promise<string | nu
   return actor ? resolveCanonicalUserId(actor.userId, db) : null;
 }
 
-export async function getEquivalentUserIds(userId: string, db: DatabaseOrTransaction = getDb()): Promise<string[]> {
-  const physical = await resolvePhysicalUserId(userId, db);
-  const rows = await db.execute<{ user_id: string }>(sql`
-    with recursive linked(a, b) as (
+export async function getEquivalentUserGroups(userIds: string[], db: DatabaseOrTransaction = getDb()): Promise<Record<string, string[]>> {
+  if (!userIds.length) return {};
+  const seeds = sql.join([...new Set(userIds)].map(id => sql`(${id}::text)`), sql`, `);
+  const rows = await db.execute<{ root_id: string; user_id: string }>(sql`
+    with recursive roots(root_id) as (values ${seeds}), linked(a, b) as (
       select source.user_id, target.user_id from external_identity_claims claim
       join external_identity_actors actor on actor.actor_uri = claim.actor_uri
       join external_identities source on source.canonical_acct = actor.canonical_acct
@@ -58,16 +59,27 @@ export async function getEquivalentUserIds(userId: string, db: DatabaseOrTransac
       and exists (select 1 from external_identity_claims reverse
         join external_identity_actors reverse_actor on reverse_actor.actor_uri = reverse.actor_uri
         where reverse_actor.canonical_acct = claim.target_acct and reverse.target_acct = actor.canonical_acct
-        and reverse.state = 'linked' and reverse_actor.updated_at > now() - interval '7 days')
-    ), members(user_id) as (
-      select ${physical}::text union
-      select case when linked.a = members.user_id then linked.b else linked.a end
+        and reverse.source_stable_id = target.stable_id and reverse.target_stable_id = source.stable_id and reverse.state = 'linked' and reverse_actor.updated_at > now() - interval '7 days')
+    ) , members(root_id, user_id) as (
+      select roots.root_id, coalesce(redirect.canonical_user_id, roots.root_id)
+      from roots left join canonical_user_redirects redirect on redirect.user_id = roots.root_id union
+      select members.root_id, case when linked.a = members.user_id then linked.b else linked.a end
       from members join linked on linked.a = members.user_id or linked.b = members.user_id
-    ) select user_id from members
-    union select redirect.user_id from canonical_user_redirects redirect
+    ) select root_id, user_id from members
+    union select members.root_id, redirect.user_id from canonical_user_redirects redirect
     join members on members.user_id = redirect.canonical_user_id
   `);
-  return rows.map(row => row.user_id);
+  const groups: Record<string, string[]> = {};
+  for (const row of rows) (groups[row.root_id] ??= []).push(row.user_id);
+  return groups;
+}
+
+export async function getEquivalentUserIds(userId: string, db: DatabaseOrTransaction = getDb()): Promise<string[]> {
+  return (await getEquivalentUserGroups([userId], db))[userId] ?? [userId];
+}
+
+export async function expandEquivalentUserIds(userIds: string[], db: DatabaseOrTransaction = getDb()): Promise<string[]> {
+  return [...new Set(Object.values(await getEquivalentUserGroups(userIds, db)).flat())];
 }
 
 export async function resolveCanonicalUserId(id: string, db: DatabaseOrTransaction = getDb()): Promise<string> {
@@ -174,7 +186,7 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
       let userId = sameSubject?.userId ?? named?.id ?? legacy?.id;
       if (!userId) {
         const [user] = await tx.insert(users).values({ username: canonicalAcct, type: 'federated', federationActorUri: input.actorUri,
-          federationDomain: network, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null }).returning();
+          federationDomain: network, nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null }).returning();
         userId = user.id;
       }
       [identity] = await tx.insert(externalIdentities).values({ canonicalAcct, userId, network, stableId: input.stableId, evidenceLinks: input.evidenceLinks ?? [] }).returning();
@@ -186,8 +198,8 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
     }
     if (legacy) await mergeUsers(tx, await resolvePhysicalUserId(legacy.id, tx), identity.userId);
     await tx.update(users).set({ username: canonicalAcct, federationDomain: network,
-      nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null,
-      federationLastResolvedAt: new Date() }).where(eq(users.id, identity.userId));
+      nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null,
+      federationLastResolvedAt: new Date(), federationUnavailableAt: null, federationUnavailableReason: null }).where(eq(users.id, identity.userId));
     const actorValues = { canonicalAcct, transportAcct: normalizeExternalAcct(input.transportAcct), protocol: input.protocol, evidenceLinks: input.evidenceLinks ?? [] };
     await tx.insert(externalIdentityActors).values({ actorUri: input.actorUri, ...actorValues })
       .onConflictDoUpdate({ target: externalIdentityActors.actorUri, set: actorValues });
@@ -209,15 +221,15 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
     if (['instagram.com', 'threads.net'].includes(network)) {
       for (const linked of claimed) {
         const [targetIdentity] = await tx.select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, linked));
-        const reverse = await tx.select({ actorUri: externalIdentityClaims.actorUri }).from(externalIdentityClaims)
+        const reverse = await tx.select({ actorUri: externalIdentityClaims.actorUri, sourceStableId: externalIdentityClaims.sourceStableId }).from(externalIdentityClaims)
           .innerJoin(externalIdentityActors, eq(externalIdentityActors.actorUri, externalIdentityClaims.actorUri))
           .where(and(eq(externalIdentityActors.canonicalAcct, linked), eq(externalIdentityClaims.targetAcct, canonicalAcct),
             sql`${externalIdentityClaims.state} <> 'revoked'`, sql`${externalIdentityActors.updatedAt} > now() - interval '7 days'`));
-        const state = reverse.length && identity.stableId && targetIdentity?.stableId ? 'linked' : 'pending';
-        const pins = { sourceStableId: identity.stableId, targetStableId: targetIdentity?.stableId ?? null };
+        const state = input.stableId && targetIdentity?.stableId && reverse.some(claim => claim.sourceStableId === targetIdentity.stableId) ? 'linked' : 'pending';
+        const pins = { sourceStableId: input.stableId ?? null, targetStableId: targetIdentity?.stableId ?? null };
         await tx.insert(externalIdentityClaims).values({ actorUri: input.actorUri, targetAcct: linked, state, ...pins })
           .onConflictDoUpdate({ target: [externalIdentityClaims.actorUri, externalIdentityClaims.targetAcct], set: { state, ...pins } });
-        for (const claim of reverse) await tx.update(externalIdentityClaims).set({ state, sourceStableId: targetIdentity?.stableId ?? null, targetStableId: identity.stableId })
+        for (const claim of reverse) await tx.update(externalIdentityClaims).set({ state: claim.sourceStableId === targetIdentity?.stableId ? state : 'pending', targetStableId: input.stableId ?? null })
           .where(and(eq(externalIdentityClaims.actorUri, claim.actorUri), eq(externalIdentityClaims.targetAcct, canonicalAcct)));
       }
     }
@@ -231,4 +243,23 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
     }
     throw error;
   });
+}
+
+/** One group query and one actor query regardless of a profile page's size. */
+export async function resolveExternalIdentityUsers(userIds: string[]) {
+  const groups = await getEquivalentUserGroups(userIds);
+  const members = [...new Set(Object.values(groups).flat())];
+  const result = new Map<string, { userId: string; externalIdentities: Awaited<ReturnType<typeof getExternalIdentitiesForUser>>; redirectedUserIds: string[] }>();
+  if (!members.length) return result;
+  const identities = await getDb().select({ sourceUserId: externalIdentities.userId, canonicalAcct: externalIdentities.canonicalAcct, network: externalIdentities.network,
+    protocol: externalIdentityActors.protocol, actorUri: externalIdentityActors.actorUri, transportAcct: externalIdentityActors.transportAcct })
+    .from(externalIdentities).innerJoin(externalIdentityActors, eq(externalIdentityActors.canonicalAcct, externalIdentities.canonicalAcct))
+    .where(inArray(externalIdentities.userId, members));
+  for (const requested of userIds) {
+    const ids = groups[requested] ?? [requested];
+    const matched = identities.filter(identity => ids.includes(identity.sourceUserId));
+    const userId = matched.map(identity => identity.sourceUserId).sort()[0] ?? requested;
+    result.set(requested, { userId, externalIdentities: matched, redirectedUserIds: ids.filter(id => id !== userId) });
+  }
+  return result;
 }

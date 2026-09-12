@@ -75,3 +75,16 @@ it('rejects lookalike domains and arbitrary text as source links', () => {
   expect(linkedSourceAcct('hello @person@instagram.com')).toBeNull();
   expect(linkedSourceAcct('https://instagram.com@evil.example/person')).toBeNull();
 });
+
+it('a fresh source losing immutable proof cannot renew historical equivalence', async () => {
+  const handle = name();
+  const a = { ...input(`${handle}@instagram.com`), stableId: `ig:${name()}`, evidenceLinks: [`https://threads.net/@${handle}`] };
+  const b = { ...input(`${handle}@threads.net`), stableId: `th:${name()}`, evidenceLinks: [`https://instagram.com/${handle}`] };
+  const first = await registerExternalIdentity(a);
+  await registerExternalIdentity(b);
+  expect(await getEquivalentUserIds(first.userId)).toHaveLength(2);
+  await registerExternalIdentity({ ...a, stableId: undefined });
+  expect(await getEquivalentUserIds(first.userId)).toEqual([first.userId]);
+  await registerExternalIdentity(b);
+  expect(await getEquivalentUserIds(first.userId)).toEqual([first.userId]);
+});
