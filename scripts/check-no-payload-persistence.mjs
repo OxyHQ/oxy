@@ -158,6 +158,9 @@ const BANNED_NAME_PATTERNS = [
  * completions Oxy would be storing on its own initiative.
  */
 const DECLARED_FREE_SHAPED_COLUMNS = [
+  // ---- external account identity evidence ------------------------------------
+  { table: 'external_identities', column: 'evidenceLinks', holds: 'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings, each at most 2048 characters; no actor document, biography, inference request or response' },
+  { table: 'external_identity_actors', column: 'evidenceLinks', holds: 'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings for this transport, each at most 2048 characters; no source payload or inference content' },
   // ---- OTA updates ------------------------------------------------------------
   { table: 'app_updates', column: 'extra', holds: 'the Expo manifest `extra` block, embedded verbatim in the signed manifest' },
   { table: 'app_updates', column: 'metadata', holds: 'the string->string Expo manifest metadata dictionary' },
