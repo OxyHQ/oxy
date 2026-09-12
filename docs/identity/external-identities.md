@@ -72,3 +72,13 @@ and migrate only references confirmed by Oxy. Do not rewrite every historical
 row by a former group ID: that prevents safe revocation. Legacy user-id-only
 actor deletion/archival is refused for identities with multiple source actors,
 so one dead transport cannot remove another network's person or graph.
+
+
+Transport convergence refuses contradictory nonempty display names for recyclable
+handles. Matching names are only a conservative conflict check, not immutable
+ownership proof: an upstream service recycling a handle without a profile change
+remains a residual risk. Stable sources require matching immutable identity proof
+before adding another transport. Legacy native DID rows are checked against their
+stored DID before adopting a newly resolved bridge; an unverified legacy bridge
+must first be reconciled from its own actor document. A federated username with
+no source binding is refused rather than silently adopted.
