@@ -1,3 +1,4 @@
+import { ConflictError } from '../utils/error';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { canonicalUserRedirects, externalIdentities, externalIdentityActors, externalIdentityClaims } from '../db/schema/externalIdentities';
@@ -179,9 +180,10 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
       if (!sameSubject && actor.canonicalAcct !== normalizeExternalAcct(input.transportAcct)) throw new Error('Actor already belongs to another external identity');
     }
     const [legacy] = await tx.select().from(users).where(eq(users.federationActorUri, input.actorUri));
+    if (legacy && legacy.type !== 'federated') throw new ConflictError('External actor belongs to a non-federated account');
     if (!identity) {
       const [named] = await tx.select().from(users).where(sql`lower(btrim(${users.username})) = ${canonicalAcct}`);
-      if (named && named.type !== 'federated') throw new Error('External identity conflicts with local user');
+      if (named && named.type !== 'federated') throw new ConflictError('External identity conflicts with local user');
       const [sameSubject] = input.stableId ? await tx.select().from(externalIdentities).where(and(eq(externalIdentities.stableId, input.stableId), eq(externalIdentities.network, network))).limit(1) : [];
       let userId = sameSubject?.userId ?? named?.id ?? legacy?.id;
       if (!userId) {

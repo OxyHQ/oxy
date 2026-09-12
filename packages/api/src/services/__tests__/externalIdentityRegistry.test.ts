@@ -88,3 +88,12 @@ it('a fresh source losing immutable proof cannot renew historical equivalence', 
   await registerExternalIdentity(b);
   expect(await getEquivalentUserIds(first.userId)).toEqual([first.userId]);
 });
+
+it('cannot claim or rewrite a non-federated account through an actor collision', async () => {
+  const actorUri = `https://source.example/actor/${name()}`;
+  const [local] = await getDb().insert(users).values({ username: name(), federationActorUri: actorUri, nameFirst: 'Local person' }).returning();
+  await expect(registerExternalIdentity(input(`${name()}@instagram.com`, actorUri))).rejects.toMatchObject({ statusCode: 409 });
+  const [unchanged] = await getDb().select().from(users).where(eq(users.id, local.id));
+  expect(unchanged.type).toBe('local');
+  expect(unchanged.nameFirst).toBe('Local person');
+});
