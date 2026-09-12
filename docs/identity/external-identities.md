@@ -107,3 +107,22 @@ retains run metadata and logs and attempts task cleanup on exit or cancellation.
 The fixed container command enforces a 90-minute timeout with a 30-second kill
 grace even when the deploy role cannot stop the task directly. A missing summary or refused source produces a failed run;
 the report still explains what needs attention.
+
+### Read-only cold-discovery precheck
+
+The deployed reconciliation workflow also accepts `mode=inspect_cache`, with
+`dry_run=true`, an empty `after`, and exact `actor_uri`, `canonical_acct`, and
+`transport_acct` inputs. The expected source SHA must equal the protected workflow
+commit and the live image digest. This fixed operation runs only parameterized
+Postgres reads in a read-only transaction; it does not fetch an actor, resolve an
+identity, or change cache rows.
+
+The artifact records the inputs and deployed SHA/digest in `run.json` and an
+`operation: inspect_cache` summary containing observation time and counts for
+users, identity actors and identities. User counts include private, archived and
+legacy users without registry entries. All three counts must be zero before
+calling a candidate Oxy-cold; Mention needs its own cache precheck too. This is
+an observation at that timestamp, so concurrent discovery can change the result.
+An inspection report does not authorize reconciliation apply. After deployment,
+run this precheck before opening the candidate's public Mention search/profile;
+public Oxy profile lookup routes themselves can trigger discovery.
