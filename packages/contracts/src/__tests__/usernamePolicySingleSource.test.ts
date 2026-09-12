@@ -92,6 +92,10 @@ const SUBJECT_WINDOW = 6;
  */
 const ALLOWED: ReadonlyMap<string, string> = new Map([
   [
+    'packages/api/src/services/externalIdentityCacheInspection.service.ts',
+    'Read-only selectors for remote canonical/transport accounts (user@domain) and HTTPS actor URIs; these identify existing external network records and never validate or allocate local Oxy usernames.',
+  ],
+  [
     'packages/api/src/services/externalIdentityRegistry.service.ts',
     'Remote Instagram/Threads profile URL handles used to bind source identity claims; these are upstream network namespaces, never local Oxy username validation.',
   ],
