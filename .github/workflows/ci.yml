@@ -26,6 +26,7 @@ jobs:
           bash .github/scripts/test-report-native-product-agent-task-failure.sh
           bash .github/scripts/test-smoke-inbox-mcp.sh
           node --test .github/scripts/release-external-identity-packages.test.mjs
+          node --test .github/scripts/release-external-identity-publication.test.mjs
           bash .github/scripts/test-run-external-identity-reconciliation.sh
           node scripts/test-check-external-identity-operations.mjs
           node scripts/check-external-identity-operations.mjs

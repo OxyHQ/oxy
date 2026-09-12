@@ -31,6 +31,7 @@ requireText('.github/scripts/run-external-identity-reconciliation.sh', [
 ]);
 requireText('.github/workflows/ci.yml', [
   'node --test .github/scripts/release-external-identity-packages.test.mjs',
+  'node --test .github/scripts/release-external-identity-publication.test.mjs',
   'bash .github/scripts/test-run-external-identity-reconciliation.sh',
   'node scripts/test-check-external-identity-operations.mjs',
   'node scripts/check-external-identity-operations.mjs',
