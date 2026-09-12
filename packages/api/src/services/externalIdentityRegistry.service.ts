@@ -184,7 +184,31 @@ async function mergeUsers(tx: Transaction, from: string, to: string) {
   await tx.insert(canonicalUserRedirects).values({ userId: from, canonicalUserId: to }).onConflictDoNothing();
 }
 
+/** Refuse irreversible transport convergence when historical ownership conflicts. */
+function assertCompatibleSource(existing: typeof users.$inferSelect, input: RegisterExternalIdentityInput, storedStableId?: string | null) {
+  if (!existing.federationActorUri) throw new ConflictError('Existing external account has no verifiable source binding');
+  if (existing.federationActorUri === input.actorUri) return;
+  const historicalStableId = storedStableId ?? (existing.federationActorUri.startsWith('did:') ? existing.federationActorUri : undefined);
+  if (historicalStableId || input.stableId) {
+    if (!historicalStableId || historicalStableId !== input.stableId) {
+      throw new ConflictError('External source ownership is not proven to match the existing account');
+    }
+    return;
+  }
+  // Recyclable handles retain a documented residual risk. A contradictory
+  // nonempty profile is nevertheless a refusal, never a last-writer merge.
+  const normalizeName = (value: string | null | undefined) => (value ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  const previousName = normalizeName(existing.nameDisplay || [existing.nameFirst, existing.nameLast].filter(Boolean).join(' '));
+  const incomingName = normalizeName(input.profile.displayName);
+  if (previousName && incomingName && previousName !== incomingName) {
+    throw new ConflictError('External source profile contradicts the existing account');
+  }
+}
+
 export async function registerExternalIdentity(input: RegisterExternalIdentityInput) {
+  // Persist bounded source claims only; immutable identity proof has its own field.
+  input = { ...input, evidenceLinks: [...new Set((input.evidenceLinks ?? [])
+    .filter(link => typeof link === 'string' && link.length <= 2048 && linkedSourceAcct(link) !== null))].slice(0, 32) };
   const canonicalAcct = normalizeExternalAcct(input.canonicalAcct);
   const network = canonicalAcct.slice(canonicalAcct.lastIndexOf('@') + 1);
   if (!canonicalAcct.includes('@') || !input.actorUri || !network) throw new Error('Invalid external identity');
@@ -194,6 +218,10 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
     let [identity] = await tx.select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, canonicalAcct));
     if (identity?.stableId && input.stableId && identity.stableId !== input.stableId) throw new Error('External stable identity changed; explicit ownership reconciliation required');
     const [actor] = await tx.select().from(externalIdentityActors).where(eq(externalIdentityActors.actorUri, input.actorUri));
+    if (identity && (!actor || actor.canonicalAcct !== canonicalAcct)) {
+      const [existing] = await tx.select().from(users).where(eq(users.id, identity.userId));
+      if (existing) assertCompatibleSource(existing, input, identity.stableId);
+    }
     if (actor && actor.canonicalAcct !== canonicalAcct) {
       // Only a migration transport key may be promoted to its source account.
       const [previous] = await tx.select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, actor.canonicalAcct));
@@ -205,6 +233,7 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
     if (!identity) {
       const [named] = await tx.select().from(users).where(sql`lower(btrim(${users.username})) = ${canonicalAcct}`);
       if (named && named.type !== 'federated') throw new ConflictError('External identity conflicts with local user');
+      if (named) assertCompatibleSource(named, input);
       const [sameSubject] = input.stableId ? await tx.select().from(externalIdentities).where(and(eq(externalIdentities.stableId, input.stableId), eq(externalIdentities.network, network))).limit(1) : [];
       let userId = sameSubject?.userId ?? named?.id ?? legacy?.id;
       if (!userId) {

@@ -97,3 +97,51 @@ it('cannot claim or rewrite a non-federated account through an actor collision',
   expect(unchanged.type).toBe('local');
   expect(unchanged.nameFirst).toBe('Local person');
 });
+
+
+it('refuses a recycled handle with a contradictory source profile before merging history', async () => {
+  const first = input(`${name()}@instagram.com`);
+  const original = await registerExternalIdentity(first);
+  const second = { ...input(first.canonicalAcct, `https://other.example/users/${name()}`), profile: { displayName: 'Different owner' } };
+  await expect(registerExternalIdentity(second)).rejects.toMatchObject({ statusCode: 409 });
+  expect(await lookupExternalIdentity(second.actorUri)).toBeNull();
+  expect(await getExternalIdentitiesForUser(original.userId)).toHaveLength(1);
+});
+
+it('does not adopt a migrated native DID from its recycled handle', async () => {
+  const acct = `${name()}@bsky.social`;
+  const did = `did:plc:${name()}`;
+  const [original] = await getDb().insert(users).values({ username: acct, type: 'federated', federationActorUri: did }).returning();
+  const incoming = { ...input(acct, `https://bsky.brid.gy/ap/${name()}`), stableId: `did:plc:${name()}` };
+  await expect(registerExternalIdentity(incoming)).rejects.toMatchObject({ statusCode: 409 });
+  expect(await lookupExternalIdentity(incoming.actorUri)).toBeNull();
+  const verified = await registerExternalIdentity({ ...incoming, stableId: did });
+  expect(verified.userId).toBe(original.id);
+});
+
+it('requires immutable ownership when attaching a new transport to a stable identity', async () => {
+  const first = { ...input(`${name()}@bsky.social`), stableId: `did:plc:${name()}` };
+  const original = await registerExternalIdentity(first);
+  const next = input(first.canonicalAcct, `https://other.example/users/${name()}`);
+  await expect(registerExternalIdentity(next)).rejects.toMatchObject({ statusCode: 409 });
+  expect((await registerExternalIdentity({ ...next, stableId: first.stableId })).userId).toBe(original.userId);
+});
+
+
+it('refuses contradictory named legacy profiles before creating a registry entry', async () => {
+  const acct = `${name()}@x.com`;
+  await getDb().insert(users).values({ username: acct, type: 'federated', federationActorUri: `https://old.example/${name()}`, nameFirst: 'Previous owner' });
+  const next = input(acct);
+  await expect(registerExternalIdentity(next)).rejects.toMatchObject({ statusCode: 409 });
+  expect(await lookupExternalIdentity(acct)).toBeNull();
+});
+
+
+it('bounds persisted source claims and excludes unrelated or unsafe source URLs', async () => {
+  const links = Array.from({ length: 40 }, (_, i) => `https://threads.net/@person${i}`);
+  const registered = await registerExternalIdentity({ ...input(`${name()}@instagram.com`), evidenceLinks: [
+    'https://user:secret@threads.net/@person', 'https://unrelated.example/person',
+    `https://threads.net/@${'x'.repeat(2100)}`, ...links, ...links,
+  ] });
+  expect(registered.identity.evidenceLinks).toEqual(links.slice(0, 32));
+});

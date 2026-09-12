@@ -60,8 +60,8 @@ export function deriveExternalActorProfile(actor: Record<string, unknown>, actor
   const links = fields.flatMap((field) => identityLinks(field.value));
   const aliases = Array.isArray(actor.alsoKnownAs) ? actor.alsoKnownAs.filter((value): value is string => typeof value === 'string') : [];
   const bio = sanitizePlainText(typeof actor.summary === 'string' ? actor.summary.replace(/<br\s*\/?\s*>|<\/p>/gi, '\n') : '');
-  let domain = host;
-  let username = transport;
+  let domain = host === 'threads.com' ? 'threads.net' : host;
+  let username = `${local}@${domain}`;
   let normalizedBio = bio;
   let stableId: string | undefined;
   if (['threads.net', 'threads.com'].includes(host) && /^\/ap\/users\/[0-9]+\/?$/.test(actorUrl.pathname)) {

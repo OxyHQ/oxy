@@ -218,6 +218,26 @@ function serveActor(uri: string, overrides: Record<string, unknown> = {}) {
 }
 
 describe('PUT /users/resolve — Oxy identity authority', () => {
+  it('keeps another linked source profile and avatar separate from the canonical representative', async () => {
+    const handle = `sources${token()}`;
+    const uri = `https://threads.net/ap/users/${Date.now()}`;
+    const primary = await registerExternalIdentity({ canonicalAcct: `${handle}@instagram.com`,
+      actorUri: `https://instagram.example/actor/${handle}`, transportAcct: `${handle}@instagram.example`,
+      protocol: 'activitypub', stableId: `instagram:test:${handle}`, profile: { displayName: 'Instagram source', bio: 'Instagram biography' },
+      evidenceLinks: [`https://threads.net/@${handle}`] });
+    await getDb().update(users).set({ avatar: 'instagram-file' }).where(eq(users.id, primary.userId));
+    serveActor(uri, { preferredUsername: handle, name: 'Threads source', summary: 'Threads biography',
+      alsoKnownAs: [`https://instagram.com/${handle}`], icon: { url: 'https://threads.net/avatar.jpg' } });
+    const resolved = await federationService.resolveExternalActorIdentity(uri);
+    expect(resolved?.user.id).toBe(primary.userId);
+    expect(resolved?.externalIdentity.sourceUserId).not.toBe(primary.userId);
+    expect(scheduleAvatarRefreshSpy).toHaveBeenCalledWith(resolved?.externalIdentity.sourceUserId,
+      'https://threads.net/avatar.jpg', undefined, { force: false });
+    const [row] = await getDb().select().from(users).where(eq(users.id, primary.userId));
+    expect(row.bio).toBe('Instagram biography');
+    expect(row.avatar).toBe('instagram-file');
+  });
+
   it('canonicalizes an unverified migrated bridge row before a public profile response', async () => {
     const handle = `migrated${token()}`;
     const uri = `https://bird.makeup/users/${handle}`;

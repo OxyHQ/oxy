@@ -50,6 +50,13 @@ describe('Oxy external identity policy', () => {
       .toBe('This account is a replica from Twitter. My own commentary.');
   });
 
+  it('canonicalizes native Threads domains while retaining immutable actor provenance', () => {
+    const uri = 'https://www.threads.com/ap/users/123456789';
+    expect(deriveExternalActorProfile({ id: uri, preferredUsername: 'alice', summary: 'Hello @bob' }, uri))
+      .toMatchObject({ username: 'alice@threads.net', domain: 'threads.net',
+        transportAcct: 'alice@threads.com', actorUri: uri, stableId: uri, bio: 'Hello @bob@threads.net' });
+  });
+
   it('reads explicit rel=me claims, never ordinary links', () => {
     expect(identityLinks("<a href='https://instagram.com/alice' rel='nofollow me'>one</a><a href='https://threads.net/@bob'>two</a>"))
       .toEqual(['https://instagram.com/alice']);
