@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const canonicalKaanaApplicationId = "68b7c4e19f2a6d0e3c8b5174";
@@ -72,6 +73,85 @@ for (const [name, workflow] of [
 		`${name} must not select authority through names or caller-defined authority`,
 	);
 }
+
+// Execute the actual closed shell registry: a swapped destination or an
+// accepted unknown ID must fail, including when scopes and names look valid.
+const activityDestinations = [
+	["6a2f851751b784a86fd0e94f", "website-api", "OXY_SERVICE_API"],
+	["6a2f851751b784a86fd0e92b", "allo", "ALLO_OXY_SERVICE_API"],
+	["6a2f851751b784a86fd0e958", "peable", "OXY_SERVICE_API"],
+	["6a6947b30fe72510b411252f", "crowdsource", "OXY_SERVICE_API"],
+	["6a396f5c2ccd7e7831cb6a31", "moovo", "OXY_SERVICE_API"],
+	["6a2f851751b784a86fd0e93d", "syra", "OXY_SERVICE_API"],
+	["6a2f851751b784a86fd0e946", "tnp", "OXY_SERVICE_API"],
+];
+const registryStart = provision.indexOf('case "$APP_ID" in');
+const registryEnd = provision.indexOf("esac", registryStart) + 4;
+assert.ok(registryStart >= 0 && registryEnd > registryStart);
+const registryShell = provision.slice(registryStart, registryEnd);
+for (const [appId, namespace, prefix] of activityDestinations) {
+	const execution = spawnSync(
+		"bash",
+		[
+			"-c",
+			`${registryShell}\nprintf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$DESTINATION_KEY_NAME" "$DESTINATION_SECRET_NAME" "$CREDENTIAL_NAME" "$ISOLATE_CREDENTIAL_NAME"`,
+		],
+		{
+			env: { ...process.env, APP_ID: appId },
+			encoding: "utf8",
+		},
+	);
+	assert.equal(execution.status, 0, execution.stderr);
+	assert.deepEqual(execution.stdout.trim().split("\n"), [
+		namespace,
+		"user:read",
+		`${prefix}_KEY`,
+		`${prefix}_SECRET`,
+		"Ecosystem activity (production)",
+		"true",
+	]);
+}
+for (const appId of [
+	"website-api",
+	"6a2f851751b784a86fd0e94f-extra",
+	"ffffffffffffffffffffffff",
+]) {
+	const execution = spawnSync("bash", ["-c", registryShell], {
+		env: { ...process.env, APP_ID: appId },
+		encoding: "utf8",
+	});
+	assert.notEqual(
+		execution.status,
+		0,
+		`unregistered application accepted: ${appId}`,
+	);
+}
+
+const homiioActivity = spawnSync(
+	"bash",
+	[
+		"-c",
+		`${registryShell}
+printf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$CREDENTIAL_NAME" "$ISOLATE_CREDENTIAL_NAME" "$DESTINATION_KEY_NAME" "$DESTINATION_SECRET_NAME"`,
+	],
+	{
+		env: {
+			...process.env,
+			APP_ID: canonicalHomiioApplicationId,
+			CREDENTIAL_LANE: "activity",
+		},
+		encoding: "utf8",
+	},
+);
+assert.equal(homiioActivity.status, 0, homiioActivity.stderr);
+assert.deepEqual(homiioActivity.stdout.trim().split("\n"), [
+	"homiio",
+	"user:read",
+	"Ecosystem activity (production)",
+	"true",
+	"OXY_ACTIVITY_API_KEY",
+	"OXY_ACTIVITY_API_SECRET",
+]);
 
 const kaanaProvision = registryArm(provision, canonicalKaanaApplicationId);
 const homiioProvision = registryArm(provision, canonicalHomiioApplicationId);
@@ -164,7 +244,10 @@ assert.match(provision, /stale_temp_parameter recovery requires dry_run=false/);
 assert.match(provision, /schemaVersion:1/);
 assert.match(provision, /preserve_temp_parameter="true"/);
 assert.match(provision, /handoff-service-credential-pair\.sh/);
-assert.doesNotMatch(provision, /aws ecs list-tasks|taskArns\[-1\]|--desired-status/);
+assert.doesNotMatch(
+	provision,
+	/aws ecs list-tasks|taskArns\[-1\]|--desired-status/,
+);
 assert.match(provision, /binding_parameter="\$temp_parameter-binding"/);
 assert.match(provision, /\.runAttempt == \$run_attempt/);
 assert.match(
@@ -228,7 +311,10 @@ assert.match(
 );
 assert.match(provisionScript, new RegExp(canonicalAliaApplicationId));
 assert.match(provisionScript, /rotatedFromCredentialId: rotatedFrom\?\.id/);
-assert.match(provisionScript, /status: rotateScopeMismatch \? "pending" : "active"/);
+assert.match(
+	provisionScript,
+	/status: rotateScopeMismatch \? "pending" : "active"/,
+);
 assert.doesNotMatch(provisionScript, /status: "deprecated"/);
 assert.match(finalizeScript, /status: "deprecated", expiresAt: graceExpiresAt/);
 assert.match(finalizeScript, /status: "active"/);
@@ -239,10 +325,15 @@ assert.match(finalizeScript, new RegExp(canonicalAliaApplicationId));
 assert.match(finalizeScript, /FINALIZE_CREDENTIAL_ID/);
 assert.match(provisionScript, /const result = await getDb\(\)\.transaction/);
 assert.match(provisionScript, /writeResult\(result\);/);
-assert.match(provision, /after emitting commit evidence; continuing recoverably/);
+assert.match(
+	provision,
+	/after emitting commit evidence; continuing recoverably/,
+);
 const packageWrite = provision.indexOf('"$temp_parameter" overwrite');
 const finalizeCall = provision.lastIndexOf('finalize_credential "$(jq -er');
-const destinationHandoff = provision.lastIndexOf("handoff-service-credential-pair.sh");
+const destinationHandoff = provision.lastIndexOf(
+	"handoff-service-credential-pair.sh",
+);
 assert.ok(packageWrite >= 0 && finalizeCall > packageWrite);
 assert.ok(destinationHandoff > finalizeCall);
 
