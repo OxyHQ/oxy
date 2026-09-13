@@ -1,5 +1,5 @@
 {
-  "id": "fa872e31-5eaf-4a9d-8a29-da25a29e5dfe",
+  "id": "56a386bb-2f50-48ce-9e8e-5f629bfa4a6e",
   "prevId": "0bc6dc34-9d8e-462b-b35d-6f51ee23786d",
   "version": "7",
   "dialect": "postgresql",
@@ -30235,6 +30235,19 @@
           ],
           "columnsTo": [
             "actor_uri"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "external_identity_instagram_pins_source_user_id_users_id_fk": {
+          "name": "external_identity_instagram_pins_source_user_id_users_id_fk",
+          "tableFrom": "external_identity_instagram_pins",
+          "tableTo": "users",
+          "columnsFrom": [
+            "source_user_id"
+          ],
+          "columnsTo": [
+            "id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"

@@ -19,4 +19,5 @@ CREATE TABLE "external_identity_instagram_pins" (
     and "external_identity_instagram_pins"."verified_at" >= "external_identity_instagram_pins"."first_verified_at")
 );
 --> statement-breakpoint
-ALTER TABLE "external_identity_instagram_pins" ADD CONSTRAINT "external_identity_instagram_pins_actor_uri_external_identity_actors_actor_uri_fk" FOREIGN KEY ("actor_uri") REFERENCES "public"."external_identity_actors"("actor_uri") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "external_identity_instagram_pins" ADD CONSTRAINT "external_identity_instagram_pins_actor_uri_external_identity_actors_actor_uri_fk" FOREIGN KEY ("actor_uri") REFERENCES "public"."external_identity_actors"("actor_uri") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "external_identity_instagram_pins" ADD CONSTRAINT "external_identity_instagram_pins_source_user_id_users_id_fk" FOREIGN KEY ("source_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;

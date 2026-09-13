@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+import { users } from './users';
 import { externalIdentityActors } from './externalIdentities';
 
 /** Minimal first-party account proof, never HTML or browser/session metadata. */
@@ -44,7 +45,7 @@ export const externalIdentityInstagramPins = pgTable('external_identity_instagra
   state: text({ enum: ['pending', 'pinned'] }).notNull(),
   actorUri: text().primaryKey().references(() => externalIdentityActors.actorUri, { onDelete: 'cascade' }),
   canonicalAcct: text().notNull(),
-  sourceUserId: text().notNull(),
+  sourceUserId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
   instagramPk: text().notNull(),
   instagramGraphId: text().notNull(),
   profileUrl: text().notNull(),
