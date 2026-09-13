@@ -19,6 +19,9 @@
       ],
       "socket": [
         "dist/types/socket.d.ts"
+      ],
+      "edge": [
+        "dist/types/edge.d.ts"
       ]
     }
   },
@@ -87,6 +90,16 @@
       "require": {
         "types": "./dist/types/socket.d.ts",
         "default": "./dist/cjs/socket.js"
+      }
+    },
+    "./edge": {
+      "import": {
+        "types": "./dist/types/edge.d.ts",
+        "default": "./dist/esm/edge.js"
+      },
+      "require": {
+        "types": "./dist/types/edge.d.ts",
+        "default": "./dist/cjs/edge.js"
       }
     }
   },
