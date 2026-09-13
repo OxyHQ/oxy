@@ -151,7 +151,7 @@ export function linkedSourceAcct(link: string): string | null {
 
 async function mergeUsers(tx: Transaction, from: string, to: string) {
   if (from === to) return;
-  const candidates = await tx.select().from(users).where(or(eq(users.id, from), eq(users.id, to))).for('update');
+  const candidates = await tx.select({ type: users.type }).from(users).where(or(eq(users.id, from), eq(users.id, to))).for('update');
   if (candidates.length !== 2 || candidates.some(user => user.type !== 'federated')) throw new Error('Only external users may converge');
   // Keep originals for historical references; copy moderation to the canonical account first.
   for (const row of await tx.select().from(blocks).where(or(eq(blocks.userId, from), eq(blocks.blockedId, from)))) {
@@ -199,7 +199,7 @@ async function mergeUsers(tx: Transaction, from: string, to: string) {
 }
 
 /** Refuse irreversible transport convergence when historical ownership conflicts. */
-function assertCompatibleSource(existing: typeof users.$inferSelect, input: RegisterExternalIdentityInput, storedStableId?: string | null) {
+function assertCompatibleSource(existing: Pick<typeof users.$inferSelect, 'federationActorUri' | 'nameDisplay' | 'nameFirst' | 'nameLast'>, input: RegisterExternalIdentityInput, storedStableId?: string | null) {
   if (!existing.federationActorUri) throw new ConflictError('Existing external account has no verifiable source binding');
   if (existing.federationActorUri === input.actorUri) return;
   const historicalStableId = storedStableId ?? (existing.federationActorUri.startsWith('did:') ? existing.federationActorUri : undefined);
@@ -234,7 +234,8 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
     if (identity?.stableId && input.stableId && identity.stableId !== input.stableId) throw new Error('External stable identity changed; explicit ownership reconciliation required');
     const [actor] = await tx.select().from(externalIdentityActors).where(eq(externalIdentityActors.actorUri, input.actorUri));
     if (identity && (!actor || actor.canonicalAcct !== canonicalAcct)) {
-      const [existing] = await tx.select().from(users).where(eq(users.id, identity.userId));
+      const [existing] = await tx.select({ federationActorUri: users.federationActorUri, nameDisplay: users.nameDisplay,
+        nameFirst: users.nameFirst, nameLast: users.nameLast }).from(users).where(eq(users.id, identity.userId));
       if (existing) assertCompatibleSource(existing, input, identity.stableId);
     }
     if (actor && actor.canonicalAcct !== canonicalAcct) {
@@ -243,10 +244,12 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
       const sameSubject = !!input.stableId && previous?.stableId === input.stableId && previous.network === network;
       if (!sameSubject && actor.canonicalAcct !== normalizeExternalAcct(input.transportAcct)) throw new Error('Actor already belongs to another external identity');
     }
-    const [legacy] = await tx.select().from(users).where(eq(users.federationActorUri, input.actorUri));
+    const [legacy] = await tx.select({ id: users.id, type: users.type }).from(users).where(eq(users.federationActorUri, input.actorUri));
     if (legacy && legacy.type !== 'federated') throw new ConflictError('External actor belongs to a non-federated account');
     if (!identity) {
-      const [named] = await tx.select().from(users).where(sql`lower(btrim(${users.username})) = ${canonicalAcct}`);
+      const [named] = await tx.select({ id: users.id, type: users.type, federationActorUri: users.federationActorUri,
+        nameDisplay: users.nameDisplay, nameFirst: users.nameFirst, nameLast: users.nameLast })
+        .from(users).where(sql`lower(btrim(${users.username})) = ${canonicalAcct}`);
       if (named && named.type !== 'federated') throw new ConflictError('External identity conflicts with local user');
       if (named) assertCompatibleSource(named, input);
       const [sameSubject] = input.stableId ? await tx.select().from(externalIdentities).where(and(eq(externalIdentities.stableId, input.stableId), eq(externalIdentities.network, network))).limit(1) : [];
