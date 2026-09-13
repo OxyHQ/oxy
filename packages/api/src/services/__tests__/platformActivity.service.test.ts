@@ -19,7 +19,7 @@ describe('platform activity', () => {
     jest.useRealTimers();
   });
 
-  it('emits only thresholded, route-grouped inbound buckets with an edge origin', () => {
+  it('emits aggregate incoming requests and observed outgoing responses with an edge origin', () => {
     const namespace = { emit: jest.fn() } as unknown as Namespace;
     initializePlatformActivity(namespace);
 
@@ -48,13 +48,16 @@ describe('platform activity', () => {
         targetRegion: 'us-west-2',
         requests: 5,
         activeClients: 0,
-        service: 'messages',
+        service: 'oxy-api',
+        activityType: 'communication',
+        scope: 'external',
       }),
     );
+    expect(namespace.emit).toHaveBeenCalledWith(PLATFORM_ACTIVITY_EVENT, expect.objectContaining({ direction: 'outbound', sourceRegion: 'us-west-2', targetRegion: 'edge-cdg', requests: 5 }));
     expect(JSON.stringify((namespace.emit as jest.Mock).mock.calls)).not.toContain('private-id');
   });
 
-  it('does not emit unsuccessful requests', () => {
+  it('includes failed HTTP responses because they are real network activity', () => {
     const namespace = { emit: jest.fn() } as unknown as Namespace;
     initializePlatformActivity(namespace);
     const response = new EventEmitter() as unknown as Response;
@@ -68,7 +71,8 @@ describe('platform activity', () => {
 
     jest.advanceTimersByTime(2_000);
 
-    expect(namespace.emit).not.toHaveBeenCalled();
+    expect(namespace.emit).toHaveBeenCalledWith(PLATFORM_ACTIVITY_EVENT, expect.objectContaining({ direction: 'inbound', requests: 1, activityType: 'media' }));
+    expect(namespace.emit).toHaveBeenCalledWith(PLATFORM_ACTIVITY_EVENT, expect.objectContaining({ direction: 'outbound', requests: 1, activityType: 'media' }));
   });
 
   it('uses the validated SDK edge region when the API is not behind Cloudflare', () => {
@@ -146,7 +150,7 @@ describe('platform activity', () => {
     jest.advanceTimersByTime(2_000);
     expect(namespace.emit).toHaveBeenCalledWith(
       PLATFORM_ACTIVITY_EVENT,
-      expect.not.objectContaining({ sourceRegion: expect.anything() }),
+      expect.objectContaining({ sourceRegion: undefined, direction: 'inbound' }),
     );
   });
 });

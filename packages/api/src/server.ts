@@ -1,3 +1,4 @@
+import { initializePlatformInfrastructure, refreshInfrastructure, stopPlatformInfrastructure } from './services/platformInfrastructure.service';
 import { shutdownTelemetry } from './telemetry';
 import express from "express";
 import http from "http";
@@ -303,6 +304,7 @@ initializeIO(io);
 // fans buckets out across API tasks.
 const platformActivityNamespace = io.of('/platform-activity');
 initializePlatformActivity(platformActivityNamespace);
+initializePlatformInfrastructure(platformActivityNamespace, () => server.listening);
 
 // Attach Redis adapter for multi-instance broadcast (if Redis available)
 const redis = getRedisClient();
@@ -505,6 +507,7 @@ async function gracefulShutdown(signal: string) {
   });
 
   stopPlatformActivity();
+  await stopPlatformInfrastructure();
   stopFollowOutboxWorker();
   stopNormalizedEventOutboxWorker();
   await stopBackgroundJobs();
@@ -798,6 +801,10 @@ app.use('/inference/provider-connections', inferenceProviderConnectionRoutes);
 // whole workstream exists to keep.
 app.use('/inference/reporting', inferenceReportingRoutes);
 app.use('/platform-stats', platformStatsRoutes);
+app.get('/platform-infrastructure', async (_req, res) => {
+  try { res.set('Cache-Control', 'no-store').json(await refreshInfrastructure()); }
+  catch { res.status(503).json({ error: 'Infrastructure snapshot unavailable' }); }
+});
 app.use('/topics', topicsRoutes);
 // The follow graph. `/v2` because these are new operations rather than a new
 // spelling of the legacy toggle — the two coexist while applications migrate.

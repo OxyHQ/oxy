@@ -13,6 +13,9 @@
       ],
       "server": [
         "dist/types/server.d.ts"
+      ],
+      "collector": [
+        "dist/types/collector.d.ts"
       ]
     }
   },
@@ -62,7 +65,17 @@
         "default": "./dist/cjs/server.js"
       }
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./collector": {
+      "import": {
+        "types": "./dist/types/collector.d.ts",
+        "default": "./dist/esm/collector.js"
+      },
+      "require": {
+        "types": "./dist/types/collector.d.ts",
+        "default": "./dist/cjs/collector.js"
+      }
+    }
   },
   "files": [
     "dist",
