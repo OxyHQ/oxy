@@ -200,3 +200,24 @@ returning a response. Missing status/hash means unavailable evidence, not succes
 A refused proof is a successful diagnostic observation, not an apply preview.
 Neither this report nor successful current badges authorize adoption of historical
 unpinned identities; the registry's existing lineage requirements still apply.
+
+### Inspect residual biography differences without applying
+
+Use `mode=inspect_profile`, `dry_run=true`, an exact
+`actor_uri=https://bird.makeup/users/handle`, and empty account/cursor inputs.
+This deliberately covers only the reviewed enabled Bird bridge. The fixed CLI
+uses one call to Oxy's existing signed actor fetch, retaining its bounded redirects,
+public fallback and verification behavior. It requires an existing instance signing
+key; it cannot bootstrap one or resolve/register a user. The task has a 120-second
+watchdog and PostgreSQL snapshot queries have a 15-second statement deadline.
+
+The report includes independent read-only snapshots before/after that observation:
+registry/source user IDs, exact and normalized username lookup IDs, binding equality,
+source counts and at most ten associated public actor URIs with update times.
+Biographies are represented only by length, empty status and SHA-256 of
+`JSON.stringify(bio || null)`; names and raw biographies are never emitted.
+`remoteMatchesStored`, `storedBioStable` and `sourceBindingStable` distinguish a
+current upstream difference from binding mismatch or a concurrent database writer.
+A failed observation contains only a typed refusal. This report cannot serve as
+an apply preview or authorize `stop_completed`. It cannot retrospectively prove
+what an earlier apply fetched when that run did not retain observation hashes.

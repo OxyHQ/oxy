@@ -12,13 +12,16 @@ if [[ -n "$cursor" ]] && { [[ ${#cursor} -gt 2048 ]] || ! [[ "$cursor" =~ ^(http
   echo 'Invalid source cursor' >&2; exit 1
 fi
 mode="${OPERATION_MODE:-reconcile}"
-[[ "$mode" == reconcile || "$mode" == inspect_cache || "$mode" == inspect_meta ]] || { echo 'Unknown fixed operation' >&2; exit 1; }
+[[ "$mode" == reconcile || "$mode" == inspect_cache || "$mode" == inspect_meta || "$mode" == inspect_profile ]] || { echo 'Unknown fixed operation' >&2; exit 1; }
 if [[ "$mode" == inspect_cache ]]; then
   [[ "${DRY_RUN:-true}" == true && -z "$cursor" ]] || { echo 'Inspection cannot apply or use a reconciliation cursor' >&2; exit 1; }
   [[ "${ACTOR_URI:-}" =~ ^https://[a-zA-Z0-9.-]+/[a-zA-Z0-9/._%+-]*$ && ${#ACTOR_URI} -le 2048 ]] || { echo 'Invalid inspection actor URI' >&2; exit 1; }
   for acct in "${CANONICAL_ACCT:-}" "${TRANSPORT_ACCT:-}"; do
     [[ "$acct" =~ ^[a-z0-9_][a-z0-9_.-]{0,127}@[a-z0-9][a-z0-9.-]{0,251}[a-z0-9]$ && "${acct#*@}" == *.* ]] || { echo 'Invalid inspection account' >&2; exit 1; }
   done
+elif [[ "$mode" == inspect_profile ]]; then
+  [[ "${DRY_RUN:-true}" == true && -z "$cursor" && -z "${CANONICAL_ACCT:-}${TRANSPORT_ACCT:-}" ]] || { echo 'Profile inspection cannot apply, resume or override accounts' >&2; exit 1; }
+  [[ "${ACTOR_URI:-}" =~ ^https://bird\.makeup/users/[a-zA-Z0-9_]+$ && ${#ACTOR_URI} -le 2048 ]] || { echo 'Invalid reviewed profile actor' >&2; exit 1; }
 elif [[ "$mode" == inspect_meta ]]; then
   [[ "${DRY_RUN:-true}" == true && -z "$cursor" && -z "${ACTOR_URI:-}${TRANSPORT_ACCT:-}" ]] || { echo 'Meta inspection cannot apply, resume or override source URLs' >&2; exit 1; }
   [[ "${CANONICAL_ACCT:-}" =~ ^[a-z0-9_][a-z0-9._]{0,63}@(instagram\.com|threads\.net)$ ]] || { echo 'Invalid Meta account' >&2; exit 1; }
@@ -94,6 +97,8 @@ transient_definition=$(aws ecs register-task-definition --cli-input-json "file:/
 command=$(jq -nc --arg dry "${DRY_RUN:-true}" --arg cursor "$cursor" '["busybox","timeout","-s","TERM","-k","30","5400","bun","run","packages/api/scripts/reconcile-external-identities.ts"] + (if $dry == "false" then ["--apply"] else [] end) + (if $cursor != "" then ["--after=" + $cursor] else [] end)')
 if [[ "$mode" == inspect_cache ]]; then
   command=$(jq -nc --arg actor "$ACTOR_URI" --arg canonical "$CANONICAL_ACCT" --arg transport "$TRANSPORT_ACCT" --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" '["busybox","timeout","-s","TERM","-k","30","120","bun","run","packages/api/scripts/inspect-external-identity-cache.ts","--actor-uri="+$actor,"--canonical-acct="+$canonical,"--transport-acct="+$transport,"--source-sha="+$sha,"--image-digest="+$digest]')
+elif [[ "$mode" == inspect_profile ]]; then
+  command=$(jq -nc --arg actor "$ACTOR_URI" --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" '["busybox","timeout","-s","TERM","-k","30","120","bun","run","packages/api/scripts/inspect-external-profile.ts","--actor-uri="+$actor,"--source-sha="+$sha,"--image-digest="+$digest]')
 elif [[ "$mode" == inspect_meta ]]; then
   command=$(jq -nc --arg acct "$CANONICAL_ACCT" --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" '["busybox","timeout","-s","TERM","-k","30","60","bun","run","packages/api/scripts/inspect-meta-profile-proof.ts","--canonical-acct="+$acct,"--source-sha="+$sha,"--image-digest="+$digest]')
 fi
@@ -113,6 +118,9 @@ log_stream="$log_prefix/$container/${task_arn##*/}"
 jq -n --arg operation "$mode" --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" --arg task "$task_arn" --arg definition "$transient_definition" --argjson dry "${DRY_RUN:-true}" '{operation:$operation,expectedSourceSha:$sha,imageDigest:$digest,taskArn:$task,taskDefinitionArn:$definition,dryRun:$dry}' > "$report_dir/run.json"
 if [[ "$mode" == inspect_cache ]]; then
   jq --arg actor "$ACTOR_URI" --arg canonical "$CANONICAL_ACCT" --arg transport "$TRANSPORT_ACCT" '. + {identifiers:{actorUri:$actor,canonicalAcct:$canonical,transportAcct:$transport}}' "$report_dir/run.json" > "$scratch/run-report.json"
+  cp "$scratch/run-report.json" "$report_dir/run.json"
+elif [[ "$mode" == inspect_profile ]]; then
+  jq --arg actor "$ACTOR_URI" '. + {identifiers:{actorUri:$actor}}' "$report_dir/run.json" > "$scratch/run-report.json"
   cp "$scratch/run-report.json" "$report_dir/run.json"
 elif [[ "$mode" == inspect_meta ]]; then
   jq --arg canonical "$CANONICAL_ACCT" '. + {identifiers:{canonicalAcct:$canonical}}' "$report_dir/run.json" > "$scratch/run-report.json"
@@ -138,6 +146,8 @@ collect_logs
 logs_collected=true
 if [[ "$mode" == inspect_cache ]]; then
   jq -Rsc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" '[split("\n")[] | fromjson? | select(.operation == "inspect_cache" and .sourceSha == $sha and .imageDigest == $digest and (.absent | type == "boolean") and (.counts | type == "object"))] | last' "$report_dir/task.log" > "$report_dir/summary.json"
+elif [[ "$mode" == inspect_profile ]]; then
+  jq -Rsc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" --arg actor "$ACTOR_URI" '[split("\n")[] | fromjson? | select(.operation == "inspect_profile" and .readOnly == true and .actorUri == $actor and .sourceSha == $sha and .imageDigest == $digest and (.before | type == "object") and (.after | type == "object"))] | last' "$report_dir/task.log" > "$report_dir/summary.json"
 elif [[ "$mode" == inspect_meta ]]; then
   jq -Rsc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" --arg acct "$CANONICAL_ACCT" '[split("\n")[] | fromjson? | select(.operation == "inspect_meta" and .readOnly == true and .canonicalAcct == $acct and .sourceSha == $sha and .imageDigest == $digest and (.status == "verified" or .status == "refused") and (.observations | type == "array" and length <= 2))] | last' "$report_dir/task.log" > "$report_dir/summary.json"
 else
