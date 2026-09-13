@@ -15,10 +15,18 @@ import urllib.request
 REGISTRY = Path(__file__).resolve().parents[1] / 'config/edge-activity-targets.json'
 
 
+class DeliveryError(RuntimeError):
+    """Only fixed operator-safe messages may use this exception type."""
+
+
+def safe_error_message(error):
+    return str(error) if isinstance(error, DeliveryError) else type(error).__name__
+
+
 def targets(app_id):
     entry = json.loads(REGISTRY.read_text()).get(app_id)
     if not entry:
-        raise ValueError('Application is not registered for edge activity')
+        raise DeliveryError('Application is not registered for edge activity')
     return entry
 
 
@@ -36,9 +44,9 @@ def api(method, path, payload=None):
         # Response bodies may echo submitted secrets. Never log them.
         if error.code == 404 and method == 'GET':
             return None
-        raise RuntimeError(f'Cloudflare {method} failed (HTTP {error.code})') from None
+        raise DeliveryError(f'Cloudflare {method} failed (HTTP {error.code})') from None
     if not result.get('success'):
-        raise RuntimeError(f'Cloudflare {method} failed')
+        raise DeliveryError(f'Cloudflare {method} failed')
     return result.get('result')
 
 
@@ -57,10 +65,10 @@ def secret(namespace, name):
         ['aws', 'ssm', 'get-parameter', '--name', f'/oxy/{namespace}/{name}',
          '--with-decryption', '--output', 'json'], capture_output=True, text=True)
     if result.returncode:
-        raise RuntimeError('Required activity credential is unavailable')
+        raise DeliveryError('Required activity credential is unavailable')
     parameter = json.loads(result.stdout)['Parameter']
     if parameter.get('Type') != 'SecureString' or not parameter.get('Value'):
-        raise RuntimeError('Activity credential must be a nonempty SecureString')
+        raise DeliveryError('Activity credential must be a nonempty SecureString')
     return parameter['Value']
 
 
@@ -73,7 +81,7 @@ def deliver(app_id, dry_run=True, enabled=False):
         if exists:
             live.append((kind, name))
     if not live:
-        raise RuntimeError('No existing deployed target; refusing credential delivery')
+        raise DeliveryError('No existing deployed target; refusing credential delivery')
     if dry_run:
         return
     values = {name: secret(entry['namespace'], name) for name in
@@ -97,6 +105,6 @@ if __name__ == '__main__':
                 os.environ.get('EDGE_ACTIVITY_ENABLED', 'false') == 'true')
     except Exception as error:
         # Only our fixed messages are safe; unknown exceptions can include bodies.
-        message = str(error) if isinstance(error, (RuntimeError, ValueError)) else type(error).__name__
+        message = safe_error_message(error)
         print(f'::error::{message}', file=sys.stderr)
         sys.exit(1)

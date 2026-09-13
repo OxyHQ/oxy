@@ -20,7 +20,7 @@ class DeliveryTests(unittest.TestCase):
     def test_unknown_principal_never_reads_or_writes(self):
         with patch.object(edge, 'api') as api, patch.object(edge, 'secret') as secret:
             for app in ('Kaana', '68b7c4e19f2a6d0e3c8b5174', 'nilo', '6a2f851751b784a86fd0e8f6'):
-                with self.assertRaises(ValueError):
+                with self.assertRaises(edge.DeliveryError):
                     edge.deliver(app, False, True)
             api.assert_not_called()
             secret.assert_not_called()
@@ -68,6 +68,12 @@ class DeliveryTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 edge.deliver('6a2f851751b784a86fd0e92b', False, True)
             api.assert_not_called()
+
+    def test_unexpected_exception_text_is_never_logged(self):
+        for error in (ValueError('Invalid header: Bearer private-token'),
+                      RuntimeError('response contains private-secret')):
+            self.assertNotIn('private', edge.safe_error_message(error))
+        self.assertEqual(edge.safe_error_message(edge.DeliveryError('fixed status')), 'fixed status')
 
     def test_preview_is_not_production(self):
         with patch.object(edge, 'api', return_value={'canonical_deployment': {'environment': 'preview', 'latest_stage': {'status': 'success'}}}):
