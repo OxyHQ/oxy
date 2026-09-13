@@ -84,6 +84,10 @@ for mode in success capacity; do
   grep -q 'deregister-task-definition' "$TEST_LOG"
   grep -q '"visited":1' "$test_root/$mode/identity-reconciliation-report/task.log"
 done
+: > "$TEST_LOG"
+LAUNCH_ONLY=true run_case launch
+jq -e '.taskDefinitionArn == "arn:aws:ecs:r:a:task-definition/api:2"' "$test_root/launch/identity-reconciliation-report/run.json" >/dev/null
+! grep -Eq 'ecs wait|stop-task|deregister-task-definition|logs get-log-events' "$TEST_LOG"
 DRY_RUN=false AFTER_CURSOR='https://bridge.example/users/person' run_case apply
 : > "$TEST_LOG"
 if TEST_EXIT=2 run_case refused; then exit 1; fi

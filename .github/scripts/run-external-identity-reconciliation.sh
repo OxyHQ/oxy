@@ -6,6 +6,7 @@ set -euo pipefail
 [[ "${EXPECTED_SOURCE_SHA:-}" =~ ^[0-9a-f]{40}$ ]] || { echo 'Expected full source SHA required' >&2; exit 1; }
 [[ "$EXPECTED_SOURCE_SHA" == "${GITHUB_SHA:-}" ]] || { echo 'Workflow source must match deployed source' >&2; exit 1; }
 [[ "${DRY_RUN:-true}" == true || "${DRY_RUN:-true}" == false ]] || exit 1
+[[ "${LAUNCH_ONLY:-false}" == true || "${LAUNCH_ONLY:-false}" == false ]] || exit 1
 cursor="${AFTER_CURSOR:-}"
 if [[ -n "$cursor" ]] && { [[ ${#cursor} -gt 2048 ]] || ! [[ "$cursor" =~ ^(https://|did:)[a-zA-Z0-9:/._%@+-]+$ ]]; }; then
   echo 'Invalid source cursor' >&2; exit 1
@@ -102,10 +103,17 @@ done
 log_group=$(jq -r --arg name "$container" '.containerDefinitions[] | select(.name == $name) | .logConfiguration.options["awslogs-group"] // empty' "$scratch/live.json")
 log_prefix=$(jq -r --arg name "$container" '.containerDefinitions[] | select(.name == $name) | .logConfiguration.options["awslogs-stream-prefix"] // empty' "$scratch/live.json")
 log_stream="$log_prefix/$container/${task_arn##*/}"
-jq -n --arg operation "$mode" --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" --arg task "$task_arn" --argjson dry "${DRY_RUN:-true}" '{operation:$operation,expectedSourceSha:$sha,imageDigest:$digest,taskArn:$task,dryRun:$dry}' > "$report_dir/run.json"
+jq -n --arg operation "$mode" --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$digest" --arg task "$task_arn" --arg definition "$transient_definition" --argjson dry "${DRY_RUN:-true}" '{operation:$operation,expectedSourceSha:$sha,imageDigest:$digest,taskArn:$task,taskDefinitionArn:$definition,dryRun:$dry}' > "$report_dir/run.json"
 if [[ "$mode" == inspect_cache ]]; then
   jq --arg actor "$ACTOR_URI" --arg canonical "$CANONICAL_ACCT" --arg transport "$TRANSPORT_ACCT" '. + {identifiers:{actorUri:$actor,canonicalAcct:$canonical,transportAcct:$transport}}' "$report_dir/run.json" > "$scratch/run-report.json"
   cp "$scratch/run-report.json" "$report_dir/run.json"
+fi
+# Hand ownership to the workflow before the first credential expires. The run
+# artifact contains only source/image/task selectors, never inherited secrets.
+if [[ "${LAUNCH_ONLY:-false}" == true ]]; then
+  trap - EXIT INT TERM
+  rm -rf -- "$scratch"
+  exit 0
 fi
 # ECS waiter is deliberately bounded (~100 minutes total).
 for attempt in $(seq 1 10); do

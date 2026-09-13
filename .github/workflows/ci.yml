@@ -28,6 +28,7 @@ jobs:
           node --test .github/scripts/release-external-identity-packages.test.mjs
           node --test .github/scripts/release-external-identity-publication.test.mjs
           bash .github/scripts/test-run-external-identity-reconciliation.sh
+          bash .github/scripts/test-collect-external-identity-task.sh
           node scripts/test-check-external-identity-operations.mjs
           node scripts/check-external-identity-operations.mjs
           node scripts/test-check-asset-worker-rollout.mjs
