@@ -9,10 +9,21 @@ export const RELEASES = Object.freeze([
   { directory: 'federation', name: '@oxy.so/federation', version: '1.0.1' },
 ]);
 const registry = 'https://registry.npmjs.org';
-const root = process.cwd();
+function validateAbsolutePath(value, label) {
+  if (typeof value !== 'string' || value.length === 0 || value.includes('\0')) throw new Error(`${label} must be a valid path`);
+  const absolute = resolve(value);
+  if (absolute !== value) throw new Error(`${label} must be absolute`);
+  return absolute;
+}
+function normalizeCwd(cwd) {
+  const candidate = validateAbsolutePath(cwd, 'cwd');
+  if (candidate !== root && !candidate.startsWith(`${root}/`)) throw new Error('cwd must stay within repository root');
+  return candidate;
+}
+const root = validateAbsolutePath(process.cwd(), 'process.cwd()');
 const artifacts = join(root, 'release-artifacts');
 function run(command, args, cwd = root) {
-  return execFileSync(command, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim();
+  return execFileSync(command, args, { cwd: normalizeCwd(cwd), encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim();
 }
 export function validateSource(expected, actual, reference, dryRun, protectedRef) {
   if (!/^[a-f0-9]{40}$/.test(expected ?? '') || expected !== actual || reference !== 'refs/heads/main' || protectedRef !== 'true') {
