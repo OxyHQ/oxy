@@ -1,38 +1,29 @@
 import type { NextFunction, Request, Response } from 'express';
-import type { Namespace } from 'socket.io';
+import type { Namespace, Socket } from 'socket.io';
+import { observeNodeHttp, withoutNodeHttpObservation } from '@oxy.so/core/server';
+import { observeTrafficSocket } from '@oxy.so/telemetry/socket';
 import { getRedisClient } from '../config/redis';
 import {
-  activityFlow,
   metadataFromHeaders,
   presenceKeys,
-  serviceFromPath,
 } from '@oxy.so/telemetry/server';
+
+import { createTrafficCollector, instrumentTrafficFetch, resolveOxyServiceEndpoint, trafficMiddleware, type TrafficAggregate } from '@oxy.so/telemetry/collector';
 
 export const PLATFORM_ACTIVITY_EVENT = 'platform_activity';
 
-export interface PlatformActivityBucket {
-  region: string;
-  sourceRegion?: string;
-  targetRegion: string;
-  requests: number;
-  activeClients: number;
-  windowStartedAt: string;
-  emittedAt: string;
-  direction: 'inbound';
-  service: string;
-}
+export type PlatformActivityBucket = TrafficAggregate & { activeClients: number };
 
 const EMIT_INTERVAL_MS = 2_000;
 const ACTIVE_CLIENT_WINDOW_MS = 60_000;
-const MINIMUM_BUCKET_SIZE = 1;
-const EXCLUDED_PATHS = new Set(['/health', '/platform-stats', '/platform-stats/stream']);
-
-const pendingRequestsByFlow = new Map<string, number>();
-const windowStartedAtByFlow = new Map<string, number>();
 const localClientsByOrigin = new Map<string, Map<string, number>>();
 const activeClientCountByOrigin = new Map<string, number>();
 let activityNamespace: Namespace | null = null;
 let emitTimer: ReturnType<typeof setInterval> | null = null;
+let originalFetch: typeof fetch | null = null;
+let observedFetch: typeof fetch | null = null;
+let stopHttp: (() => void) | null = null;
+const socketCleanups = new Set<() => void>();
 
 function processingRegion(): string {
   return process.env.AWS_REGION || 'unknown';
@@ -65,38 +56,38 @@ function observeActiveClient(sourceRegion: string | undefined, clientId: string 
     });
 }
 
-function emitBucket(): void {
-  if (!activityNamespace) return;
-
-  const emittedAt = new Date().toISOString();
-  for (const [flow, requests] of pendingRequestsByFlow) {
-    // Each process emits one aggregate per service and edge for the window.
-    // The event contains no IP, session, account, path or user-derived
-    // coordinate, so a low-volume service remains anonymous without hiding
-    // the real activity the dashboard exists to display.
-    if (requests < MINIMUM_BUCKET_SIZE) continue;
-    const [sourceRegion = '', service = 'platform'] = flow.split('|');
-    const targetRegion = processingRegion();
-    const bucket: PlatformActivityBucket = {
-      region: targetRegion,
-      ...(sourceRegion ? { sourceRegion } : {}),
-      targetRegion,
-      requests,
-      activeClients: activeClientCountByOrigin.get(sourceRegion) ?? 0,
-      windowStartedAt: new Date(windowStartedAtByFlow.get(flow) ?? Date.now()).toISOString(),
-      emittedAt,
-      direction: 'inbound',
-      service,
-    };
-    activityNamespace.emit(PLATFORM_ACTIVITY_EVENT, bucket);
-    pendingRequestsByFlow.delete(flow);
-    windowStartedAtByFlow.delete(flow);
+export function publishPlatformActivity(events: TrafficAggregate[]): void {
+  for (const event of events) {
+    const origin = event.sourceRegion?.startsWith('edge-') ? event.sourceRegion : event.targetRegion;
+    activityNamespace?.emit(PLATFORM_ACTIVITY_EVENT, {
+      ...event,
+      activeClients: origin ? activeClientCountByOrigin.get(origin) ?? 0 : 0,
+    } satisfies PlatformActivityBucket);
   }
+}
+
+let collector = createTrafficCollector(async events => { publishPlatformActivity(events); });
+
+function emitBucket(): void {
+  const now = Date.now();
+  for (const [origin, clients] of localClientsByOrigin) {
+    for (const [id, lastSeen] of clients) if (now - lastSeen >= ACTIVE_CLIENT_WINDOW_MS) clients.delete(id);
+    if (clients.size === 0) {
+      localClientsByOrigin.delete(origin);
+      activeClientCountByOrigin.delete(origin);
+    }
+  }
+  void collector.flush();
 }
 
 export function initializePlatformActivity(namespace: Namespace): void {
   activityNamespace = namespace;
   if (emitTimer) return;
+  originalFetch = globalThis.fetch;
+  const wrapped = instrumentTrafficFetch(originalFetch, collector, 'oxy-api', processingRegion(), resolveOxyServiceEndpoint);
+  observedFetch = Object.assign((...args: Parameters<typeof fetch>) => withoutNodeHttpObservation(() => wrapped(...args)), originalFetch) as typeof fetch;
+  stopHttp = observeNodeHttp(collector, 'oxy-api', processingRegion(), resolveOxyServiceEndpoint);
+  globalThis.fetch = observedFetch;
   emitTimer = setInterval(emitBucket, EMIT_INTERVAL_MS);
   emitTimer.unref?.();
 }
@@ -106,26 +97,30 @@ export function platformActivityMiddleware(
   res: Response,
   next: NextFunction,
 ): void {
-  res.once('finish', () => {
-    if (res.statusCode < 400 && !EXCLUDED_PATHS.has(req.path)) {
-      const service = serviceFromPath(req.path);
-      const metadata = metadataFromHeaders(req.headers);
-      const sourceRegion = metadata.edgePop ? `edge-${metadata.edgePop}` : undefined;
-      observeActiveClient(sourceRegion, metadata.activityId);
-      const flow = activityFlow(sourceRegion, service).key;
-      if (!pendingRequestsByFlow.has(flow)) windowStartedAtByFlow.set(flow, Date.now());
-      pendingRequestsByFlow.set(flow, (pendingRequestsByFlow.get(flow) ?? 0) + 1);
-    }
-  });
-  next();
+  const metadata = metadataFromHeaders(req.headers);
+  observeActiveClient(metadata.edgePop ? `edge-${metadata.edgePop}` : undefined, metadata.activityId);
+  trafficMiddleware(collector, 'oxy-api', processingRegion())(req, res, next);
+}
+
+export function observePlatformSocket(socket: Socket): void {
+  const unobserve = observeTrafficSocket(socket, collector, 'oxy-api', processingRegion());
+  const cleanup = () => { unobserve(); socket.off('disconnect', cleanup); socketCleanups.delete(cleanup); };
+  socket.once('disconnect', cleanup);
+  socketCleanups.add(cleanup);
 }
 
 export function stopPlatformActivity(): void {
+  stopHttp?.();
+  stopHttp = null;
+  socketCleanups.forEach(cleanup => cleanup());
+  socketCleanups.clear();
   if (emitTimer) clearInterval(emitTimer);
   emitTimer = null;
+  if (originalFetch && globalThis.fetch === observedFetch) globalThis.fetch = originalFetch;
+  originalFetch = null;
+  observedFetch = null;
   activityNamespace = null;
-  pendingRequestsByFlow.clear();
-  windowStartedAtByFlow.clear();
+  collector = createTrafficCollector(async events => { publishPlatformActivity(events); });
   localClientsByOrigin.clear();
   activeClientCountByOrigin.clear();
 }

@@ -1,3 +1,4 @@
+import { initializePlatformInfrastructure, refreshInfrastructure, stopPlatformInfrastructure } from './services/platformInfrastructure.service';
 import { shutdownTelemetry } from './telemetry';
 import express from "express";
 import http from "http";
@@ -66,6 +67,7 @@ import inferenceReportingRoutes from './routes/inferenceReporting';
 import platformStatsRoutes from './routes/platform-stats';
 import {
   initializePlatformActivity,
+  observePlatformSocket,
   platformActivityMiddleware,
   stopPlatformActivity,
 } from './services/platformActivity.service';
@@ -303,6 +305,7 @@ initializeIO(io);
 // fans buckets out across API tasks.
 const platformActivityNamespace = io.of('/platform-activity');
 initializePlatformActivity(platformActivityNamespace);
+initializePlatformInfrastructure(platformActivityNamespace, () => server.listening);
 
 // Attach Redis adapter for multi-instance broadcast (if Redis available)
 const redis = getRedisClient();
@@ -360,6 +363,7 @@ io.use((socket: AuthenticatedSocket, next) => {
 
 // Socket connection handling — authenticated users and device-scoped listeners.
 io.on('connection', (socket: AuthenticatedSocket) => {
+  observePlatformSocket(socket);
   logger.debug('Socket connected', { socketId: socket.id });
 
   const rooms = socket.user
@@ -399,6 +403,7 @@ initAuthSessionNamespace(authSessionNamespace);
 
 // No authentication required for this namespace
 authSessionNamespace.on('connection', (socket) => {
+  observePlatformSocket(socket);
   logger.debug('Auth session socket connected', { socketId: socket.id });
   
   // Client joins a room for their session token
@@ -437,6 +442,7 @@ devicePairNamespace.use(createSocketRateLimiter(20, 10_000)); // Stricter: 20 ev
 initDevicePairNamespace(devicePairNamespace);
 
 devicePairNamespace.on('connection', (socket) => {
+  observePlatformSocket(socket);
   logger.debug('Device-pair socket connected', { socketId: socket.id });
 
   socket.on('join', (pairingId: string) => {
@@ -505,6 +511,7 @@ async function gracefulShutdown(signal: string) {
   });
 
   stopPlatformActivity();
+  await stopPlatformInfrastructure();
   stopFollowOutboxWorker();
   stopNormalizedEventOutboxWorker();
   await stopBackgroundJobs();
@@ -798,6 +805,10 @@ app.use('/inference/provider-connections', inferenceProviderConnectionRoutes);
 // whole workstream exists to keep.
 app.use('/inference/reporting', inferenceReportingRoutes);
 app.use('/platform-stats', platformStatsRoutes);
+app.get('/platform-infrastructure', async (_req, res) => {
+  try { res.set('Cache-Control', 'no-store').json(await refreshInfrastructure()); }
+  catch { res.status(503).json({ error: 'Infrastructure snapshot unavailable' }); }
+});
 app.use('/topics', topicsRoutes);
 // The follow graph. `/v2` because these are new operations rather than a new
 // spelling of the legacy toggle — the two coexist while applications migrate.

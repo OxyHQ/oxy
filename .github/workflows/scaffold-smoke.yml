@@ -14,6 +14,7 @@ on:
       - 'packages/app-preset/**'
       - 'packages/contracts/**'
       - 'packages/core/**'
+      - 'packages/telemetry/**'
       - 'packages/db/**'
       - 'packages/services/**'
 
@@ -89,7 +90,7 @@ jobs:
           # services needs its publishable lib output before packing.
           bun run --cwd packages/db build
           bun run --cwd packages/services build
-          for package in contracts core db services app-preset; do
+          for package in contracts telemetry core db services app-preset; do
             bun pm pack --cwd "packages/$package" --destination "$RUNNER_TEMP"
           done
 
@@ -139,6 +140,7 @@ jobs:
             const dir = process.env.RUNNER_TEMP;
             const packed = [
               ["@oxy.so/contracts", /^oxy\.so-contracts-.*\.tgz$/],
+              ["@oxy.so/telemetry", /^oxy\.so-telemetry-.*\.tgz$/],
               ["@oxy.so/core", /^oxy\.so-core-.*\.tgz$/],
               ["@oxy.so/db", /^oxy\.so-db-.*\.tgz$/],
               ["@oxy.so/services", /^oxy\.so-services-.*\.tgz$/],

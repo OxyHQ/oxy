@@ -17,16 +17,18 @@
 # flags an invented top-level key as "Unexpected fields" and rejects an invented
 # key inside `[[routes]]` outright. Recognised, not ignored.
 name = "oxy-console"
+main = "worker/index.js"
 compatibility_date = "2026-09-09"
 
 workers_dev = false
 
-# Static assets with no `main`: no Worker script runs, every request is served
-# from the uploaded directory.
+# The Worker observes every request before streaming the asset response.
 #
 # 411 files, 21 MB, largest 9.4 MiB (the Vite entry chunk): inside the
 # 20,000-file and 25 MiB-per-file limits.
 [assets]
+binding = "ASSETS"
+run_worker_first = true
 directory = "./dist"
 
 # A REAL single-page app, unlike accounts next door: `vite build` emits ONE
