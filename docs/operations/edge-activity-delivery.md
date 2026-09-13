@@ -9,7 +9,8 @@ Run with `dry_run=true` first. Cloudflare inventory uses organization Actions
 secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; no token is recovered
 from an existing deployment. Missing/parked targets are reported and skipped.
 The workflow refuses delivery if no destination has a production deployment.
-Nilo and Schedio have no verified application mapping and cannot be provisioned.
+Nilo requires its exact-ID application seed before credential delivery. Schedio
+has no verified application mapping and cannot be provisioned.
 
 The encrypted existing handoff stores `OXY_EDGE_ACTIVITY_API_KEY` and
 `OXY_EDGE_ACTIVITY_API_SECRET` in the application's exact SSM namespace. A

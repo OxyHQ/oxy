@@ -70,5 +70,21 @@
 	"01a0646a-2382-74a3-a795-788924d55722": {
 		"namespace": "clarity",
 		"targets": [["workers", "clarity"]]
+	},
+	"ed143b1b58d60eab417f7d5c": {
+		"namespace": "nilo",
+		"targets": [["workers", "nilo"]]
+	},
+	"6a2f851651b784a86fd0e8d1": {
+		"namespace": "accounts",
+		"targets": [["workers", "oxy-accounts"]]
+	},
+	"6a2f851751b784a86fd0e905": {
+		"namespace": "auth",
+		"targets": [["pages", "oxy-auth"]]
+	},
+	"6a2f851751b784a86fd0e8e3": {
+		"namespace": "console",
+		"targets": [["workers", "oxy-console"]]
 	}
 }
