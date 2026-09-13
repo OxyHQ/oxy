@@ -1,0 +1,77 @@
+name: Read existing external identity API logs
+on:
+  workflow_dispatch:
+    inputs:
+      expected_source_sha:
+        description: Exact source SHA of the currently deployed Oxy API image
+        required: true
+        type: string
+      expected_image_digest:
+        description: Exact reviewed deployed sha256 digest
+        required: true
+        type: string
+      actor_uri:
+        description: Exact public Bird or Kilogram /users/ actor URI
+        required: true
+        type: string
+      transport_acct:
+        description: Exact matching public user@bridge account
+        required: true
+        type: string
+      window_start:
+        description: UTC start YYYY-MM-DDTHH:MM:SSZ within last 24 hours
+        required: true
+        type: string
+      window_end:
+        description: UTC end at most 15 minutes after start and no later than now
+        required: true
+        type: string
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: external-identity-api-log-readback
+  cancel-in-progress: false
+jobs:
+  readback:
+    if: github.ref == 'refs/heads/main' && github.ref_protected && github.triggering_actor == github.actor
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    env:
+      EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+      ACTOR_URI: ${{ inputs.actor_uri }}
+      TRANSPORT_ACCT: ${{ inputs.transport_acct }}
+      WINDOW_START: ${{ inputs.window_start }}
+      WINDOW_END: ${{ inputs.window_end }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate exact public selector and bounded historical window
+        run: |
+          python3 - <<'PY'
+          import datetime, importlib.util, os
+          spec = importlib.util.spec_from_file_location('readback', '.github/scripts/read-external-identity-api-logs.py')
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          module.configuration(os.environ, int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000))
+          PY
+      - name: Obtain read-only AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: us-west-2
+          unset-current-credentials: true
+          inline-session-policy: >-
+            {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ecs:DescribeServices","ecs:ListTasks","ecs:DescribeTasks","ecs:DescribeTaskDefinition","ecr:BatchGetImage"],"Resource":"*"},{"Effect":"Allow","Action":"logs:GetLogEvents","Resource":"arn:aws:logs:us-west-2:237343248947:log-group:/oxy/ecs:log-stream:oxy-api/oxy-api/*"}]}
+      - name: Read and classify matching existing identity events
+        run: python3 .github/scripts/read-external-identity-api-logs.py
+      - name: Retain only sanitized complete readback
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-api-log-readback-${{ github.run_id }}
+          path: identity-api-log-readback/report.json
+          retention-days: 14
+          if-no-files-found: error
