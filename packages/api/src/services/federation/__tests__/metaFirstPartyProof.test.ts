@@ -71,8 +71,13 @@ it('rejects multiple owned badges', () => {
 it('rejects missing, unrelated, and conflicting root owners', () => {
   expect(() => parseMetaFirstPartyProfile(ig.replace('PolarisLoggedOutDesktopWWWProfileRootContentQuery', 'UnrelatedPostAuthorQuery'), 'zuck@instagram.com')).toThrow('missing_profile_owner');
   expect(() => parseMetaFirstPartyProfile(ig.replace('"username":"zuck"', '"username":"other"'), 'zuck@instagram.com')).toThrow('profile_mismatch');
-  const script = ig.match(/<script[\s\S]*?<\/script>/i)?.[0];
-  if (!script) throw new Error('Fixture source payload missing');
+  // These are literal boundaries of the checked-in JSON fixture, not an HTML filter.
+  const opening = '<script type="application/json" data-sjs>';
+  const closing = '</script>';
+  const start = ig.indexOf(opening);
+  const end = ig.indexOf(closing, start);
+  if (start < 0 || end < 0) throw new Error('Fixture source payload missing');
+  const script = ig.slice(start, end + closing.length);
   expect(() => parseMetaFirstPartyProfile(ig.replace('</body>', script.replace('"pk":"314216"', '"pk":"999"') + '</body>'), 'zuck@instagram.com')).toThrow('ambiguous_profile_owner');
 });
 it('rejects login walls, deceptive canonical URLs and private profiles', () => {
