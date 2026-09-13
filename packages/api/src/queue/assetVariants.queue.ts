@@ -36,6 +36,8 @@
  */
 
 import { createHash } from 'node:crypto';
+import { normalizeInfrastructureRegion } from '@oxy.so/telemetry/collector';
+import { observeAssetJob } from '../services/workerActivity.service';
 import { Queue, Worker, type Job } from 'bullmq';
 import { logger } from '../utils/logger';
 import {
@@ -96,6 +98,7 @@ const ASSET_VARIANT_BACKOFF_MS = 30_000;
 
 interface AssetVariantsJobData {
   fileId: string;
+  activitySourceRegion?: string;
 }
 
 /**
@@ -256,10 +259,11 @@ async function drainInProcess(): Promise<void> {
  */
 export function enqueueAssetVariantGeneration(fileId: string): void {
   if (queue) {
+    const activitySourceRegion = normalizeInfrastructureRegion(process.env.AWS_REGION);
     void queue
       .add(
         ASSET_VARIANTS_JOB,
-        { fileId },
+        { fileId, ...(activitySourceRegion ? { activitySourceRegion } : {}) },
         {
           jobId: assetVariantsJobId(fileId),
           attempts: ASSET_VARIANT_JOB_ATTEMPTS,
@@ -357,6 +361,7 @@ export async function startAssetVariantWorker(): Promise<void> {
       async (job: Job<AssetVariantsJobData>) => {
         const fileId = job.data.fileId;
         if (fileId) {
+          observeAssetJob(job.data.activitySourceRegion);
           // Deliberately NOT wrapped in a try/catch: a throw is what marks the
           // job failed, so a total generation loss is observable in the queue
           // and retried, instead of looking identical to a healthy upload.
