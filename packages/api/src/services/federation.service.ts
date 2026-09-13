@@ -25,7 +25,9 @@ import { composeDisplayName } from '../utils/displayName';
 import { cleanDisplayName } from '../utils/displayNameSanitize';
 import { sanitizePlainText } from '../utils/sanitize';
 import { deriveExternalActorProfile, type ExternalActorProfile } from './federation/externalIdentityPolicy';
-import { getExternalIdentitiesForUser, getCanonicalUserRedirects, lookupExternalIdentity, registerExternalIdentity } from './externalIdentityRegistry.service';
+import { fetchMetaFirstPartyProfilePair } from './federation/metaFirstPartyProof.service';
+import { recordMetaIdentityProof, revokeMetaIdentityProof, type MetaIdentityProofOutcome } from './federation/metaIdentityProofRegistry.service';
+import { getExternalIdentitiesForUser, getCanonicalUserRedirects, lookupExternalIdentity, registerExternalIdentity, resolveCanonicalUserId } from './externalIdentityRegistry.service';
 import {
   acquireAvatarOriginLease,
   clearAvatarOriginFailures,
@@ -983,6 +985,67 @@ class FederationService {
     return !actor || actor.verifiedAt.getTime() === 0;
   }
 
+  private transportHandleForExternalAccount(handle: string): string {
+    const at = handle.lastIndexOf('@');
+    const local = handle.slice(0, at);
+    const domain = handle.slice(at + 1);
+    return domain === 'x.com' ? `${local}@bird.makeup`
+      : domain === 'instagram.com' ? `${local}@kilogram.makeup` : handle;
+  }
+
+  /** First-party badges are an additional proof; they never rewrite legacy ownership. */
+  private async refreshMetaIdentityProof(source: ExternalActorProfile, registered: Awaited<ReturnType<typeof registerExternalIdentity>>): Promise<MetaIdentityProofOutcome | undefined> {
+    if (!['instagram.com', 'threads.net'].includes(source.domain)) return undefined;
+    const startedAt = new Date();
+    const refuse = async (reason: string): Promise<MetaIdentityProofOutcome> => {
+      await revokeMetaIdentityProof(source.username, reason, startedAt);
+      return { state: 'refused', reason };
+    };
+    const evidence = await fetchMetaFirstPartyProfilePair({ sourceAcct: source.username });
+    if (evidence.status !== 'verified') return refuse(evidence.reason);
+    const { pair } = evidence;
+    const binding = await this.resolveWebFingerResource(pair.threads.canonicalAcct);
+    if (!binding || binding.subjectAcct !== pair.threads.canonicalAcct) return refuse('threads_webfinger_binding_missing');
+    const threads = source.domain === 'threads.net' ? source : await this.fetchActorProfile(binding.actorUri, pair.threads.canonicalAcct);
+    // AP and public-web numeric IDs inhabit different namespaces. The official
+    // WebFinger subject and signed actor bind them; numeric equality is irrelevant.
+    if (!threads || threads.actorUri !== binding.actorUri || threads.username !== pair.threads.canonicalAcct
+      || threads.stableId !== threads.actorUri || threads.domain !== 'threads.net') return refuse('threads_actor_binding_missing');
+    let instagram = source.domain === 'instagram.com' ? source : null;
+    if (!instagram) {
+      const transport = this.transportHandleForExternalAccount(pair.instagram.canonicalAcct);
+      const discovered = await this.resolveWebFingerResource(transport);
+      if (discovered?.subjectAcct) {
+        const verified = await this.verifiedAccountForResolution(transport, discovered);
+        if (verified === discovered.subjectAcct) instagram = await this.fetchActorProfile(discovered.actorUri, verified);
+      }
+    }
+    if (!instagram || instagram.username !== pair.instagram.canonicalAcct || instagram.domain !== 'instagram.com') {
+      return refuse('instagram_actor_binding_missing');
+    }
+    const normalizeName = (value: string) => cleanDisplayName(value).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+    for (const [profile, document] of [[instagram, pair.instagram], [threads, pair.threads]] as const) {
+      const sourceName = normalizeName(profile.displayName);
+      const firstPartyName = normalizeName(document.displayName);
+      if (sourceName && firstPartyName && sourceName !== firstPartyName) return refuse('source_profile_contradiction');
+    }
+    const persist = (profile: ExternalActorProfile) => registerExternalIdentity({
+      canonicalAcct: profile.username, actorUri: profile.actorUri, transportAcct: profile.transportAcct,
+      protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
+      profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
+    });
+    const instagramRegistration = source.domain === 'instagram.com' ? registered : await persist(instagram);
+    if (source.domain !== 'threads.net') await persist(threads);
+    return recordMetaIdentityProof({
+      instagramActorUri: instagram.actorUri, threadsActorUri: threads.actorUri,
+      instagramAcct: pair.instagram.canonicalAcct, threadsAcct: pair.threads.canonicalAcct,
+      instagramPk: pair.instagram.pk, instagramGraphId: pair.instagram.graphId, threadsWebPk: pair.threads.webPk,
+      instagramProfileUrl: pair.instagram.profileUrl, threadsProfileUrl: pair.threads.profileUrl,
+      policyVersion: pair.policyVersion, instagramDocumentHash: pair.instagram.documentHash, threadsDocumentHash: pair.threads.documentHash,
+      evidenceDigest: pair.evidenceHash, verifiedAt: new Date(pair.fetchedAt),
+    }, { createdInstagramUserId: instagramRegistration.createdUser ? instagramRegistration.identity.userId : undefined });
+  }
+
   async resolveExternalIdentity(input: { actorUri?: string; handle?: string; transportAcct?: string }) {
     if (input.actorUri) return this.resolveExternalActorIdentity(input.actorUri, input.transportAcct);
     const handle = input.handle ? this.normalizeExternalHandle(input.handle) : null;
@@ -994,13 +1057,11 @@ class FederationService {
       if (source) return this.resolveExternalActorIdentity(source.actorUri, source.transportAcct);
     }
     const at = handle.lastIndexOf('@');
-    const local = handle.slice(0, at);
     const domain = handle.slice(at + 1);
     if (isOwnFederationDomain(domain)) return null;
     // Reverse transport routing is also Oxy policy. The fetched actor must still
     // publish the reviewed per-account assertion before the identity is accepted.
-    const transport = domain === 'x.com' ? `${local}@bird.makeup`
-      : domain === 'instagram.com' ? `${local}@kilogram.makeup` : handle;
+    const transport = this.transportHandleForExternalAccount(handle);
     const webfinger = await this.resolveWebFingerResource(transport);
     if (!webfinger) return null;
     const verifiedAcct = await this.verifiedAccountForResolution(transport, webfinger);
@@ -1014,18 +1075,26 @@ class FederationService {
     if (!actorUri.startsWith('did:')) {
       try { if (isOwnFederationDomain(new URL(actorUri).hostname)) return null; } catch { return null; }
     }
+    const startedAt = new Date();
     const profile = actorUri.startsWith('did:')
       ? await this.fetchAtprotoProfile(actorUri)
       : await this.fetchActorProfile(actorUri, transportAcct);
-    if (!profile || isOwnFederationDomain(profile.domain)) return null;
+    if (!profile) {
+      await revokeMetaIdentityProof(actorUri, 'source_actor_unavailable', startedAt);
+      return null;
+    }
+    if (isOwnFederationDomain(profile.domain)) return null;
     const result = await registerExternalIdentity({
       canonicalAcct: profile.username, actorUri: profile.actorUri, transportAcct: profile.transportAcct,
       protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
       profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
     });
+    const identityProof = await this.refreshMetaIdentityProof(profile, result);
+    const canonicalUserId = await resolveCanonicalUserId(result.identity.userId);
+    userCache.invalidate(canonicalUserId);
     userCache.invalidate(result.userId);
     userCache.invalidate(result.identity.userId);
-    const user = await userService.readAccountDocument(result.userId);
+    const user = await userService.readAccountDocument(canonicalUserId);
     if (!user) return null;
     if (profile.avatarUrl) {
       const [source] = await getDb().select({ avatar: users.avatar }).from(users).where(eq(users.id, result.identity.userId));
@@ -1035,14 +1104,14 @@ class FederationService {
       }
     }
     const [externalIdentities, redirectedUserIds] = await Promise.all([
-      getExternalIdentitiesForUser(result.userId), getCanonicalUserRedirects(result.userId),
+      getExternalIdentitiesForUser(canonicalUserId), getCanonicalUserRedirects(canonicalUserId),
     ]);
     const sourceUserId = externalIdentities.find(identity => identity.actorUri === profile.actorUri)?.sourceUserId ?? result.userId;
     return {
       user: { ...userService.formatUserResponse(user), externalIdentities, redirectedUserIds },
       externalIdentity: { canonicalAcct: profile.username, network: profile.domain, protocol: profile.protocol,
-        actorUri: profile.actorUri, transportAcct: profile.transportAcct, userId: result.userId, sourceUserId },
-      externalIdentities, redirectedUserIds,
+        actorUri: profile.actorUri, transportAcct: profile.transportAcct, userId: canonicalUserId, sourceUserId },
+      externalIdentities, redirectedUserIds, identityProof,
     };
   }
 
@@ -1536,8 +1605,10 @@ class FederationService {
         return;
       }
 
+      const proofObservationStartedAt = new Date();
       const profile = await this.fetchActorProfile(actorUri, handle);
       if (!profile) {
+        await revokeMetaIdentityProof(actorUri, 'source_actor_unavailable', proofObservationStartedAt);
         logger.warn(`Background refresh: actor profile fetch returned null for ${actorUri}`);
         return;
       }
@@ -1547,6 +1618,7 @@ class FederationService {
         protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
         profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio },
       });
+      await this.refreshMetaIdentityProof(profile, registered);
       userId = registered.identity.userId;
       userCache.invalidate(registered.userId);
 

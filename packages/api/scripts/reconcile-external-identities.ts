@@ -15,6 +15,7 @@ async function main() {
   let visited = 0;
   let changed = 0;
   let refused = 0;
+  let pending = 0;
   await connectPostgres();
   try {
     while (true) {
@@ -25,7 +26,7 @@ async function main() {
         cursor = source.actorUri;
         let host: string;
         try { host = new URL(source.actorUri).hostname.replace(/^www\./, ''); } catch { continue; }
-        if (!reviewed.has(host)) continue;
+        if (!reviewed.has(host) && host !== 'threads.net' && host !== 'threads.com') continue;
         visited++;
         try {
           const profile = await federationService.fetchActorProfile(source.actorUri);
@@ -36,15 +37,19 @@ async function main() {
           }
           const [stored] = await getDb().select({ bio: users.bio }).from(users).where(eq(users.username, source.canonicalAcct)).limit(1);
           const changes = profile.username !== source.canonicalAcct || profile.bio !== stored?.bio;
+          let identityProof: { state: string; reason?: string } | undefined;
           if (apply) {
             // Refetching at commit time avoids persisting a dry-run document if
             // the source changed between inspection and application.
             const result = await federationService.resolveExternalActorIdentity(source.actorUri);
             if (!result) throw new Error('source changed or became unavailable');
+            identityProof = result.identityProof;
+            if (identityProof?.state === 'pending') pending++;
+            if (identityProof?.state === 'refused') refused++;
           }
           if (changes) changed++;
           console.log(JSON.stringify({ actorUri: source.actorUri, previousAcct: source.canonicalAcct,
-            canonicalAcct: profile.username, changes, applied: apply,
+            canonicalAcct: profile.username, changes, applied: apply, identityProof,
             state: profile.domain === host ? 'transport_identity_retained' : 'canonicalized' }));
         } catch (error) {
           refused++;
@@ -52,7 +57,7 @@ async function main() {
         }
       }
     }
-    console.log(JSON.stringify({ apply, visited, changed, refused, after: cursor }));
+    console.log(JSON.stringify({ apply, visited, changed, refused, pending, after: cursor }));
     if (refused) process.exitCode = 2;
   } finally { await closePostgres(); }
 }

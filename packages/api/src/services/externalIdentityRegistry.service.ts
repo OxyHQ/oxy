@@ -3,6 +3,7 @@ import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { canonicalUserRedirects, externalIdentities, externalIdentityActors, externalIdentityClaims } from '../db/schema/externalIdentities';
 import { users } from '../db/schema/users';
+import { revokeMetaIdentityProof } from './federation/metaIdentityProofRegistry.service';
 import { blocks } from '../db/schema/blocks';
 import { restrictions } from '../db/schema/restrictions';
 import { userFollows } from '../db/schema/userFollows';
@@ -60,6 +61,19 @@ function externalIdentityGroupCtes(seedQuery: SQL): SQL {
         join external_identity_actors reverse_actor on reverse_actor.actor_uri = reverse.actor_uri
         where reverse_actor.canonical_acct = claim.target_acct and reverse.target_acct = actor.canonical_acct
         and reverse.source_stable_id = target.stable_id and reverse.target_stable_id = source.stable_id and reverse.state = 'linked' and reverse_actor.updated_at > now() - interval '7 days')
+      union
+      select instagram.user_id, threads.user_id from external_identity_meta_proofs proof
+      join external_identity_actors ig_actor on ig_actor.actor_uri = proof.instagram_actor_uri and ig_actor.canonical_acct = proof.instagram_acct
+      join external_identity_actors th_actor on th_actor.actor_uri = proof.threads_actor_uri and th_actor.canonical_acct = proof.threads_acct
+      join external_identities instagram on instagram.canonical_acct = proof.instagram_acct
+      join external_identities threads on threads.canonical_acct = proof.threads_acct
+      where proof.state = 'verified' and proof.revoked_at is null and proof.expires_at > now()
+        and proof.verified_at <= now() and proof.method = 'meta-public-profile-v1'
+        and proof.policy_version = 'meta-profile-badges-2026-09-13-v1'
+        and (instagram.meta_proof_revoked_at is null or proof.verified_at > instagram.meta_proof_revoked_at)
+        and (threads.meta_proof_revoked_at is null or proof.verified_at > threads.meta_proof_revoked_at)
+        and instagram.stable_id = 'instagram:pk:' || proof.instagram_pk
+        and threads.stable_id = proof.threads_actor_uri
     ) , members(root_id, user_id) as (
       select roots.root_id, coalesce(redirect.canonical_user_id, roots.root_id)
       from roots left join canonical_user_redirects redirect on redirect.user_id = roots.root_id union
@@ -137,7 +151,7 @@ export function linkedSourceAcct(link: string): string | null {
 
 async function mergeUsers(tx: Transaction, from: string, to: string) {
   if (from === to) return;
-  const candidates = await tx.select().from(users).where(or(eq(users.id, from), eq(users.id, to))).for('update');
+  const candidates = await tx.select({ type: users.type }).from(users).where(or(eq(users.id, from), eq(users.id, to))).for('update');
   if (candidates.length !== 2 || candidates.some(user => user.type !== 'federated')) throw new Error('Only external users may converge');
   // Keep originals for historical references; copy moderation to the canonical account first.
   for (const row of await tx.select().from(blocks).where(or(eq(blocks.userId, from), eq(blocks.blockedId, from)))) {
@@ -185,7 +199,7 @@ async function mergeUsers(tx: Transaction, from: string, to: string) {
 }
 
 /** Refuse irreversible transport convergence when historical ownership conflicts. */
-function assertCompatibleSource(existing: typeof users.$inferSelect, input: RegisterExternalIdentityInput, storedStableId?: string | null) {
+function assertCompatibleSource(existing: Pick<typeof users.$inferSelect, 'federationActorUri' | 'nameDisplay' | 'nameFirst' | 'nameLast'>, input: RegisterExternalIdentityInput, storedStableId?: string | null) {
   if (!existing.federationActorUri) throw new ConflictError('Existing external account has no verifiable source binding');
   if (existing.federationActorUri === input.actorUri) return;
   const historicalStableId = storedStableId ?? (existing.federationActorUri.startsWith('did:') ? existing.federationActorUri : undefined);
@@ -215,11 +229,13 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
   return getDb().transaction(async tx => {
     // Serializes convergence across networks as well as concurrent bridge discovery.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
+    let createdUser = false;
     let [identity] = await tx.select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, canonicalAcct));
     if (identity?.stableId && input.stableId && identity.stableId !== input.stableId) throw new Error('External stable identity changed; explicit ownership reconciliation required');
     const [actor] = await tx.select().from(externalIdentityActors).where(eq(externalIdentityActors.actorUri, input.actorUri));
     if (identity && (!actor || actor.canonicalAcct !== canonicalAcct)) {
-      const [existing] = await tx.select().from(users).where(eq(users.id, identity.userId));
+      const [existing] = await tx.select({ federationActorUri: users.federationActorUri, nameDisplay: users.nameDisplay,
+        nameFirst: users.nameFirst, nameLast: users.nameLast }).from(users).where(eq(users.id, identity.userId));
       if (existing) assertCompatibleSource(existing, input, identity.stableId);
     }
     if (actor && actor.canonicalAcct !== canonicalAcct) {
@@ -228,10 +244,12 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
       const sameSubject = !!input.stableId && previous?.stableId === input.stableId && previous.network === network;
       if (!sameSubject && actor.canonicalAcct !== normalizeExternalAcct(input.transportAcct)) throw new Error('Actor already belongs to another external identity');
     }
-    const [legacy] = await tx.select().from(users).where(eq(users.federationActorUri, input.actorUri));
+    const [legacy] = await tx.select({ id: users.id, type: users.type }).from(users).where(eq(users.federationActorUri, input.actorUri));
     if (legacy && legacy.type !== 'federated') throw new ConflictError('External actor belongs to a non-federated account');
     if (!identity) {
-      const [named] = await tx.select().from(users).where(sql`lower(btrim(${users.username})) = ${canonicalAcct}`);
+      const [named] = await tx.select({ id: users.id, type: users.type, federationActorUri: users.federationActorUri,
+        nameDisplay: users.nameDisplay, nameFirst: users.nameFirst, nameLast: users.nameLast })
+        .from(users).where(sql`lower(btrim(${users.username})) = ${canonicalAcct}`);
       if (named && named.type !== 'federated') throw new ConflictError('External identity conflicts with local user');
       if (named) assertCompatibleSource(named, input);
       const [sameSubject] = input.stableId ? await tx.select().from(externalIdentities).where(and(eq(externalIdentities.stableId, input.stableId), eq(externalIdentities.network, network))).limit(1) : [];
@@ -240,6 +258,7 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
         const [user] = await tx.insert(users).values({ username: canonicalAcct, type: 'federated', federationActorUri: input.actorUri,
           federationDomain: network, nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null }).returning();
         userId = user.id;
+        createdUser = true;
       }
       [identity] = await tx.insert(externalIdentities).values({ canonicalAcct, userId, network, stableId: input.stableId, evidenceLinks: input.evidenceLinks ?? [] }).returning();
     } else {
@@ -285,9 +304,10 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
           .where(and(eq(externalIdentityClaims.actorUri, claim.actorUri), eq(externalIdentityClaims.targetAcct, canonicalAcct)));
       }
     }
-    return { userId: await resolveCanonicalUserId(identity.userId, tx), identity };
+    return { userId: await resolveCanonicalUserId(identity.userId, tx), identity, createdUser };
   }).catch(async (error: unknown) => {
     if (error instanceof Error && error.message.startsWith('External stable identity changed')) {
+      await revokeMetaIdentityProof(canonicalAcct, 'stable_identity_changed');
       // A contradictory source owner must immediately invalidate earlier equivalence.
       await getDb().execute(sql`update external_identity_claims set state = 'revoked', updated_at = now()
         where target_acct = ${canonicalAcct} or actor_uri in

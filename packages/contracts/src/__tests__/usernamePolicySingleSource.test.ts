@@ -92,6 +92,10 @@ const SUBJECT_WINDOW = 6;
  */
 const ALLOWED: ReadonlyMap<string, string> = new Map([
   [
+    'packages/api/src/services/federation/metaFirstPartyProof.service.ts',
+    'First-party Instagram and Threads profile URL handles bind official page owners and reciprocal platform badges; these external source namespaces never allocate or validate local Oxy usernames.',
+  ],
+  [
     'packages/api/src/services/externalIdentityCacheInspection.service.ts',
     'Read-only selectors for remote canonical/transport accounts (user@domain) and HTTPS actor URIs; these identify existing external network records and never validate or allocate local Oxy usernames.',
   ],
