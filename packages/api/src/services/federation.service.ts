@@ -26,7 +26,7 @@ import { cleanDisplayName } from '../utils/displayNameSanitize';
 import { sanitizePlainText } from '../utils/sanitize';
 import { deriveExternalActorProfile, type ExternalActorProfile } from './federation/externalIdentityPolicy';
 import { fetchMetaFirstPartyProfilePair } from './federation/metaFirstPartyProof.service';
-import { recordMetaIdentityProof, revokeMetaIdentityProof, type MetaIdentityProofOutcome } from './federation/metaIdentityProofRegistry.service';
+import { recordInstagramSourcePin, recordMetaIdentityProof, revokeMetaIdentityProof, type MetaIdentityProofOutcome } from './federation/metaIdentityProofRegistry.service';
 import { getExternalIdentitiesForUser, getCanonicalUserRedirects, lookupExternalIdentity, registerExternalIdentity, resolveCanonicalUserId } from './externalIdentityRegistry.service';
 import {
   acquireAvatarOriginLease,
@@ -997,11 +997,30 @@ class FederationService {
   private async refreshMetaIdentityProof(source: ExternalActorProfile, registered: Awaited<ReturnType<typeof registerExternalIdentity>>): Promise<MetaIdentityProofOutcome | undefined> {
     if (!['instagram.com', 'threads.net'].includes(source.domain)) return undefined;
     const startedAt = new Date();
+    let sourceOwnerVerified = !registered.deferredInstagramOwnerRefresh;
     const refuse = async (reason: string): Promise<MetaIdentityProofOutcome> => {
-      await revokeMetaIdentityProof(source.username, reason, startedAt);
-      return { state: 'refused', reason };
+      await revokeMetaIdentityProof(source.username, reason, startedAt, ['source_binding_changed', 'source_profile_contradiction'].includes(reason));
+      return { state: 'refused', reason, sourceOwnerVerified };
     };
+    const persistVerifiedOwner = (profile: ExternalActorProfile, own: NonNullable<Awaited<ReturnType<typeof fetchMetaFirstPartyProfilePair>>['instagramProfile']>) =>
+      registerExternalIdentity({ canonicalAcct: profile.username, actorUri: profile.actorUri, transportAcct: profile.transportAcct,
+        protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
+        profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
+        verifiedInstagramPin: { documentHash: own.documentHash, verifiedAt: own.fetchedAt } });
     const evidence = await fetchMetaFirstPartyProfilePair({ sourceAcct: source.username });
+    const normalizeName = (value: string) => cleanDisplayName(value).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (source.domain === 'instagram.com' && evidence.instagramProfile) {
+      const own = evidence.instagramProfile;
+      if (own.canonicalAcct !== source.username || (normalizeName(source.displayName) && normalizeName(own.displayName)
+        && normalizeName(source.displayName) !== normalizeName(own.displayName))) return refuse('source_profile_contradiction');
+      const pin = await recordInstagramSourcePin(source.actorUri, own,
+        { createdInstagramUserId: registered.createdUser ? registered.identity.userId : undefined });
+      if (pin.state === 'refused') return refuse(pin.reason ?? 'source_binding_changed');
+      if (pin.state === 'verified') {
+        sourceOwnerVerified = !(await persistVerifiedOwner(source, own)).deferredInstagramOwnerRefresh;
+        if (!sourceOwnerVerified) return refuse('proof_predates_revocation');
+      }
+    }
     if (evidence.status !== 'verified') return refuse(evidence.reason);
     const { pair } = evidence;
     const binding = await this.resolveWebFingerResource(pair.threads.canonicalAcct);
@@ -1023,7 +1042,6 @@ class FederationService {
     if (!instagram || instagram.username !== pair.instagram.canonicalAcct || instagram.domain !== 'instagram.com') {
       return refuse('instagram_actor_binding_missing');
     }
-    const normalizeName = (value: string) => cleanDisplayName(value).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
     for (const [profile, document] of [[instagram, pair.instagram], [threads, pair.threads]] as const) {
       const sourceName = normalizeName(profile.displayName);
       const firstPartyName = normalizeName(document.displayName);
@@ -1035,8 +1053,14 @@ class FederationService {
       profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
     });
     const instagramRegistration = source.domain === 'instagram.com' ? registered : await persist(instagram);
+    if (source.domain !== 'instagram.com' && evidence.instagramProfile) {
+      const pin = await recordInstagramSourcePin(instagram.actorUri, evidence.instagramProfile,
+        { createdInstagramUserId: instagramRegistration.createdUser ? instagramRegistration.identity.userId : undefined });
+      if (pin.state === 'refused') return refuse(pin.reason ?? 'source_binding_changed');
+      if (pin.state === 'verified' && (await persistVerifiedOwner(instagram, evidence.instagramProfile)).deferredInstagramOwnerRefresh) return refuse('proof_predates_revocation');
+    }
     if (source.domain !== 'threads.net') await persist(threads);
-    return recordMetaIdentityProof({
+    const outcome = await recordMetaIdentityProof({
       instagramActorUri: instagram.actorUri, threadsActorUri: threads.actorUri,
       instagramAcct: pair.instagram.canonicalAcct, threadsAcct: pair.threads.canonicalAcct,
       instagramPk: pair.instagram.pk, instagramGraphId: pair.instagram.graphId, threadsWebPk: pair.threads.webPk,
@@ -1044,6 +1068,7 @@ class FederationService {
       policyVersion: pair.policyVersion, instagramDocumentHash: pair.instagram.documentHash, threadsDocumentHash: pair.threads.documentHash,
       evidenceDigest: pair.evidenceHash, verifiedAt: new Date(pair.fetchedAt),
     }, { createdInstagramUserId: instagramRegistration.createdUser ? instagramRegistration.identity.userId : undefined });
+    return { ...outcome, sourceOwnerVerified };
   }
 
   async resolveExternalIdentity(input: { actorUri?: string; handle?: string; transportAcct?: string }) {
@@ -1089,11 +1114,15 @@ class FederationService {
       protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
       profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
     });
-    const identityProof = await this.refreshMetaIdentityProof(profile, result);
+    const identityCheck = await this.refreshMetaIdentityProof(profile, result);
+    const sourceOwnerVerified = identityCheck?.sourceOwnerVerified;
+    const identityProof = identityCheck ? { state: identityCheck.state, ...(identityCheck.reason ? { reason: identityCheck.reason } : {}) } : undefined;
     const canonicalUserId = await resolveCanonicalUserId(result.identity.userId);
     userCache.invalidate(canonicalUserId);
     userCache.invalidate(result.userId);
     userCache.invalidate(result.identity.userId);
+    if (result.deferredInstagramOwnerRefresh && !sourceOwnerVerified) return null;
+    if (profile.domain === 'instagram.com' && ['source_binding_changed', 'source_profile_contradiction', 'proof_predates_revocation'].includes(identityProof?.reason ?? '')) return null;
     const user = await userService.readAccountDocument(canonicalUserId);
     if (!user) return null;
     if (profile.avatarUrl) {
@@ -1618,9 +1647,12 @@ class FederationService {
         protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
         profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio },
       });
-      await this.refreshMetaIdentityProof(profile, registered);
+      const identityProof = await this.refreshMetaIdentityProof(profile, registered);
       userId = registered.identity.userId;
       userCache.invalidate(registered.userId);
+      userCache.invalidate(registered.identity.userId);
+      if (profile.domain === 'instagram.com' && (registered.deferredInstagramOwnerRefresh && !identityProof?.sourceOwnerVerified
+        || ['source_binding_changed', 'source_profile_contradiction', 'proof_predates_revocation'].includes(identityProof?.reason ?? ''))) return;
 
       // COLUMN PROPERTIES, never Mongo dot paths — see the note in
       // `resolveAndUpsert`. `name.first` here would silently write nothing.
