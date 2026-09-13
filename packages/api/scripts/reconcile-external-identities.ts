@@ -1,5 +1,6 @@
 /** Revalidate legacy bridge identity through the same Oxy discovery authority. */
 import 'dotenv/config';
+import { closeRedis } from '../src/config/redis';
 import { asc, eq, gt } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
 import { externalIdentityActors } from '../src/db/schema/externalIdentities';
@@ -9,11 +10,16 @@ import { revokeMetaIdentityProof } from '../src/services/federation/metaIdentity
 import { FEDERATION_BRIDGE_POLICY } from '../src/config/federationBridgePolicy';
 
 /** Failed apply observations revoke stale proof; previews never mutate identity. */
-export async function inspectReconciliationActor(actorUri: string, apply: boolean) {
+export async function inspectReconciliationActorResult(actorUri: string, apply: boolean) {
   const observedAt = new Date();
-  const profile = await federationService.fetchActorProfile(actorUri);
-  if (!profile && apply) await revokeMetaIdentityProof(actorUri, 'source_actor_unavailable', observedAt);
-  return profile;
+  const result = await federationService.fetchActorProfileResult(actorUri);
+  if (!result.ok && apply) await revokeMetaIdentityProof(actorUri, 'source_actor_unavailable', observedAt);
+  return result;
+}
+
+export async function inspectReconciliationActor(actorUri: string, apply: boolean) {
+  const result = await inspectReconciliationActorResult(actorUri, apply);
+  return result.ok ? result.profile : null;
 }
 
 async function main() {
@@ -38,12 +44,13 @@ async function main() {
         if (!reviewed.has(host) && host !== 'threads.net' && host !== 'threads.com') continue;
         visited++;
         try {
-          const profile = await inspectReconciliationActor(source.actorUri, apply);
-          if (!profile) {
+          const inspected = await inspectReconciliationActorResult(source.actorUri, apply);
+          if (!inspected.ok) {
             refused++;
-            console.log(JSON.stringify({ actorUri: source.actorUri, state: 'refused', reason: 'source_fetch_or_identity_proof_failed' }));
+            console.log(JSON.stringify({ actorUri: source.actorUri, state: 'refused', reason: inspected.failure.reason, phase: inspected.failure.phase, httpStatus: inspected.failure.httpStatus }));
             continue;
           }
+          const profile = inspected.profile;
           const [stored] = await getDb().select({ bio: users.bio }).from(users).where(eq(users.username, source.canonicalAcct)).limit(1);
           const changes = profile.username !== source.canonicalAcct || profile.bio !== stored?.bio;
           let identityProof: { state: string; reason?: string } | undefined;
@@ -60,17 +67,27 @@ async function main() {
           console.log(JSON.stringify({ actorUri: source.actorUri, previousAcct: source.canonicalAcct,
             canonicalAcct: profile.username, changes, applied: apply, identityProof,
             state: profile.domain === host ? 'transport_identity_retained' : 'canonicalized' }));
-        } catch (error) {
+        } catch {
           refused++;
-          console.log(JSON.stringify({ actorUri: source.actorUri, state: 'refused', reason: error instanceof Error ? error.message : 'unknown' }));
+          console.log(JSON.stringify({ actorUri: source.actorUri, state: 'refused', reason: 'unexpected_failure' }));
         }
       }
     }
     console.log(JSON.stringify({ apply, visited, changed, refused, pending, after: cursor }));
     if (refused) process.exitCode = 2;
-  } finally { await closePostgres(); }
+  } finally {
+    // Resolution invalidates user caches, opening a persistent Redis socket.
+    // Closing only PostgreSQL leaves completed apply tasks alive indefinitely.
+    try { await closePostgres(); } finally { await closeRedis(); }
+  }
 }
 
 if (require.main === module) {
-  void main().catch(error => { console.error(error instanceof Error ? error.message : 'Reconciliation failed'); process.exitCode = 1; });
+  void main().catch(() => { console.error('Reconciliation failed'); process.exitCode = 1; }).then(async () => {
+    // Detached avatar work belongs to the server lifecycle. A completed one-shot
+    // must terminate, but only after its report and cleanup output are flushed.
+    await Promise.all([process.stdout, process.stderr].map(stream =>
+      new Promise<void>(resolve => { stream.write('', () => resolve()); })));
+    process.exit(process.exitCode ?? 0);
+  });
 }

@@ -2,6 +2,11 @@ name: Recover external identity task evidence
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Read evidence, or stop only a verified completed standalone task
+        type: choice
+        default: snapshot
+        options: [snapshot, stop_completed]
       prior_run_id:
         description: Completed reconciliation workflow whose exact task will be read
         required: true
@@ -35,21 +40,32 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Authenticate exact prior workflow and artifact
+        id: prior
         env:
           GH_TOKEN: ${{ github.token }}
+          RECOVERY_OPERATION: ${{ inputs.operation }}
           RECOVERY_RUN_ID: ${{ inputs.prior_run_id }}
         run: bash .github/scripts/prepare-external-identity-recovery.sh
       - name: Obtain read-only AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6
         with:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: us-west-2
           unset-current-credentials: true
           inline-session-policy: >-
             {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ecs:DescribeTasks","ecs:DescribeTaskDefinition","logs:GetLogEvents"],"Resource":"*"}]}
+      - name: Obtain permission to stop only the authenticated completed task
+        if: inputs.operation == 'stop_completed'
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: us-west-2
+          unset-current-credentials: true
+          inline-session-policy: >-
+            {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ecs:DescribeTasks","ecs:DescribeTaskDefinition","ecs:DescribeServices","logs:GetLogEvents"],"Resource":"*"},{"Effect":"Allow","Action":"ecs:StopTask","Resource":"${{ steps.prior.outputs.task_arn }}"}]}
       - name: Read exact task status and all CloudWatch pages
         env:
-          COLLECTION_MODE: snapshot
+          COLLECTION_MODE: ${{ inputs.operation }}
         run: bash .github/scripts/collect-external-identity-task.sh
       - name: Retain recovered evidence even for failed or incomplete tasks
         if: always()

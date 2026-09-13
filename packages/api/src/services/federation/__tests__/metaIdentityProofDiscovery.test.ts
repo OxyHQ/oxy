@@ -9,7 +9,7 @@ jest.mock('../../assetServiceSingleton', () => ({ assetService: { ensureOwnedAss
 jest.mock('../../../utils/logger', () => ({ logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() } }));
 import { eq } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../../config/postgres';
-import { inspectReconciliationActor } from '../../../../scripts/reconcile-external-identities';
+import { inspectReconciliationActor, inspectReconciliationActorResult } from '../../../../scripts/reconcile-external-identities';
 import { externalIdentities, externalIdentityInstagramPins, externalIdentityMetaProofs, externalIdentityActors, externalIdentityClaims, users } from '../../../db/schema';
 import { userService } from '../../user.service';
 import { federationService } from '../../federation.service';
@@ -232,4 +232,14 @@ it('pinned source resolution withholds its ID during an own-page outage but reco
   expect(recovered?.identityProof?.state).toBe('refused');
   expect(recovered?.identityProof).not.toHaveProperty('sourceOwnerVerified');
   expect(await getEquivalentUserIds(first.externalIdentity.sourceUserId)).toEqual([first.externalIdentity.sourceUserId]);
+});
+
+
+test('reconciliation reports the same source failure without an additional fetch', async () => {
+  mockSafeFetch.mockReset();
+  mockSafeFetch.mockResolvedValue({ ...response('https://bird.makeup/users/missing', {}), status: 404 });
+  expect(await inspectReconciliationActorResult('https://bird.makeup/users/missing', false)).toMatchObject({
+    ok: false, failure: { phase: 'actor_fetch', reason: 'http_status', httpStatus: 404 },
+  });
+  expect(mockSafeFetch).toHaveBeenCalledTimes(1);
 });
