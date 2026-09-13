@@ -109,6 +109,7 @@
     "mailparser": "^3.9.23",
     "multer": "^2.3.0",
     "nodemailer": "^10.0.1",
+    "parse5": "7.3.0",
     "pino": "catalog:",
     "postgres": "catalog:",
     "rate-limit-redis": "^6.0.0",
