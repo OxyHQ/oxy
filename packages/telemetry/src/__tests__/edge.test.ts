@@ -77,3 +77,34 @@ test('unknown colo stays unknown even when caller spoofs geo headers', async () 
   expect(calls).toHaveLength(1);
   expect(JSON.parse(String(calls[0][1].body))[0].region).toBe('unknown');
 });
+
+test('reuses only a token value on later requests and refreshes after credential rotation', async () => {
+  const state = setup();
+  for (let i=0;i<2;i++) { await observeEdgeRequest({...state,next:()=>new Response(null)}); await Promise.all(state.tasks); }
+  expect(state.fetcher.mock.calls).toHaveLength(3);
+  state.env.OXY_EDGE_ACTIVITY_API_SECRET = 'rotated';
+  await observeEdgeRequest({...state,next:()=>new Response(null)}); await Promise.all(state.tasks);
+  expect(state.fetcher.mock.calls).toHaveLength(5);
+});
+
+test('bounds an injected credential that never resolves without delaying the response', async () => {
+  jest.useFakeTimers();
+  try {
+    const state = setup(); const response = new Response(null);
+    expect(await observeEdgeRequest({...state,credential:()=>new Promise(()=>{}),next:()=>response})).toBe(response);
+    await jest.advanceTimersByTimeAsync(4_000);
+    await Promise.all(state.tasks);
+    expect(state.onError).toHaveBeenCalledTimes(1);
+    expect(state.fetcher).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(0);
+  } finally { jest.useRealTimers(); }
+});
+
+test('bounds token response size and never publishes credentials in diagnostics', async () => {
+  const state = setup();
+  const fetcher = jest.fn(async()=>new Response('secret'.repeat(4000)));
+  await observeEdgeRequest({...state,fetcher,next:()=>new Response(null)});
+  await Promise.all(state.tasks);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(state.onError).toHaveBeenCalledWith('Edge activity publication failed');
+});
