@@ -10,7 +10,7 @@ export AWS_DEFAULT_REGION=us-west-2 AWS_PAGER='' AWS_MAX_ATTEMPTS=2
 report_dir=identity-reconciliation-report
 jq -e --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$EXPECTED_IMAGE_DIGEST" '
   .expectedSourceSha == $sha and .imageDigest == $digest
-  and (.operation == "reconcile" or .operation == "inspect_cache")
+  and (.operation == "reconcile" or .operation == "inspect_cache" or (.operation == "inspect_meta" and .dryRun == true))
   and (.dryRun | type == "boolean")
   and (.taskArn | test("^arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/[0-9a-f]{32}$"))
 ' "$report_dir/run.json" >/dev/null
@@ -72,8 +72,11 @@ for attempt in 1 2 3 4 5; do
   [[ "$page" -lt 1000 ]] || { echo 'CloudWatch paging bound exceeded; logs incomplete' >&2; exit 1; }
   if [[ "$mode" == inspect_cache ]]; then
     jq -Rsc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$EXPECTED_IMAGE_DIGEST" '[split("\n")[] | fromjson? | select(.operation == "inspect_cache" and .sourceSha == $sha and .imageDigest == $digest and (.absent | type == "boolean") and (.counts | type == "object"))] | last' "$report_dir/task.log" > "$report_dir/summary.json"
+  elif [[ "$mode" == inspect_meta ]]; then
+    acct=$(jq -er '.identifiers.canonicalAcct' "$report_dir/run.json")
+    jq -Rsc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$EXPECTED_IMAGE_DIGEST" --arg acct "$acct" '[split("\n")[] | fromjson? | select(.operation == "inspect_meta" and .readOnly == true and .canonicalAcct == $acct and .sourceSha == $sha and .imageDigest == $digest and (.status == "verified" or .status == "refused") and (.observations | type == "array" and length <= 2))] | last' "$report_dir/task.log" > "$report_dir/summary.json"
   else
-    jq -Rsc '[split("\n")[] | fromjson? | select(has("visited") and has("refused") and .operation != "inspect_cache")] | last' "$report_dir/task.log" > "$report_dir/summary.json"
+    jq -Rsc '[split("\n")[] | fromjson? | select(has("visited") and has("refused") and .operation == null)] | last' "$report_dir/task.log" > "$report_dir/summary.json"
   fi
   jq -e 'type == "object"' "$report_dir/summary.json" >/dev/null && break
   [[ "$stopped" == true && "$attempt" -lt 5 ]] || break

@@ -179,3 +179,24 @@ can terminate the command; a PID-namespace init cannot be forcibly killed by its
 own children. The CLI closes PostgreSQL and Redis, flushes both output streams,
 and exits with its result code (including 2 for refused observations). Server
 container configuration and normal server lifecycle remain unchanged.
+
+### Inspect first-party Meta proof availability without identity writes
+
+Use `mode=inspect_meta`, `dry_run=true`, `canonical_acct=user@instagram.com`
+(or `user@threads.net`), and empty actor URI, transport account and cursor inputs
+on the existing reconciliation workflow. The protected workflow source must match
+the healthy deployed image. The fixed diagnostic calls the same first-party pair
+provider as live resolution, with the same headers, default User-Agent, redirect
+policy and deadlines. It reads at most two public profile pages and never imports
+the identity registry or opens a database connection.
+
+The `inspect_meta` report contains source/image provenance, observation time,
+per-page phase, HTTP status when available, a classified refusal reason, and a
+SHA-256 hash only for a completely read bounded document. Verified results include
+only reviewed public account/owner IDs and badge targets. It excludes HTML,
+biographies, names, cookies, headers and raw exception strings. A blocked redirect
+may have no HTTP status because the shared safe-fetch helper rejects it before
+returning a response. Missing status/hash means unavailable evidence, not success.
+A refused proof is a successful diagnostic observation, not an apply preview.
+Neither this report nor successful current badges authorize adoption of historical
+unpinned identities; the registry's existing lineage requirements still apply.
