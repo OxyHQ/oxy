@@ -7,7 +7,7 @@
 > types are in `@oxy.so/contracts`.
 >
 > Related: [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
-> [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
+> [External identities and aliases](external-identities.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
 
 ---
 

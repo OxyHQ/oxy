@@ -106,6 +106,7 @@ import { Readable } from 'stream';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
+import { externalIdentities, externalIdentityActors } from '../../db/schema/externalIdentities';
 import { federationService, isOwnFederationDomain } from '../federation.service';
 
 /**
@@ -180,6 +181,10 @@ async function seedFederatedUser(
       ...over,
     })
     .returning({ id: users.id });
+  if ((!over.username || over.username.toLowerCase() === fx.handle.toLowerCase()) && !over.federationDomain) {
+    await getDb().insert(externalIdentities).values({ canonicalAcct: fx.handle.toLowerCase(), userId: row.id, network: fx.domain });
+    await getDb().insert(externalIdentityActors).values({ actorUri: fx.actorUri, canonicalAcct: fx.handle.toLowerCase(), transportAcct: `${fx.handle.split('@')[0].toLowerCase()}@${new URL(fx.actorUri).hostname.replace(/^www\./, '')}`, protocol: 'activitypub' });
+  }
   return row.id;
 }
 
@@ -326,6 +331,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
+      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Updated',
@@ -367,6 +373,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
+      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Updated',
@@ -389,6 +396,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
+      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Back',
@@ -417,6 +425,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
+      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Repaired',
@@ -447,6 +456,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
+      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Conditional',
@@ -481,6 +491,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
+      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice',
@@ -512,6 +523,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
+      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice',
@@ -524,13 +536,15 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
 
     expect(webfingerSpy).toHaveBeenCalledWith(fx.handle);
     expect(actorSpy).toHaveBeenCalledWith(fx.actorUri, fx.handle);
-    expect(avatarSpy).toHaveBeenCalledWith(NEW_AVATAR_URL, undefined, undefined, userId);
+    await waitForRow(userId, row => row.avatar === 'new-file-id');
+    expect(avatarSpy).toHaveBeenCalledWith(NEW_AVATAR_URL, undefined, { etag: undefined, lastModified: undefined }, userId);
 
     const row = await storedUser(userId);
     expect(row).toMatchObject({
       type: 'federated',
       username: fx.handle,
       actorUri: fx.actorUri,
+
       domain: fx.domain,
       nameFirst: 'Alice',
       bio: 'bio',
@@ -542,10 +556,8 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     expect(row?.lastResolvedAt).toBeInstanceOf(Date);
     expect(mockCacheInvalidate).toHaveBeenCalledWith(userId);
 
-    // The RETURNED document reflects the avatar the upsert wrote AFTERWARDS.
-    // Mongo hand-patched its in-memory copy field by field, which is how a
-    // returned document and its row drift apart.
-    expect(result?.avatar).toBe('new-file-id');
+    // Identity returns promptly; the shared avatar worker fills media later.
+    expect((await storedUser(userId))?.avatar).toBe('new-file-id');
   });
 
   it('upserts onto the EXISTING row when the actor URI is already known', async () => {
@@ -561,6 +573,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
+      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Moved',
@@ -590,12 +603,13 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       actorUri,
       domain: 'threads.net',
       username: handle,
+      transportAcct: handle, protocol: 'activitypub', evidenceLinks: [],
       displayName: 'Adam Mosseri',
       avatarUrl: undefined,
       bio: 'Threads profile',
     });
 
-    const result = await federationService.resolveAndUpsert(`@${handle}`);
+    await federationService.resolveAndUpsert(`@${handle}`);
 
     expect(webfingerSpy).toHaveBeenCalledWith(handle);
     expect(actorSpy).toHaveBeenCalledWith(actorUri, handle);
@@ -626,12 +640,13 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       actorUri,
       domain: 'evil.example',
       username: requestedHandle,
+      transportAcct: requestedHandle, protocol: 'activitypub', evidenceLinks: [],
       displayName: 'Evil Attacker',
       avatarUrl: undefined,
       bio: 'not a trusted.example user',
     });
 
-    const result = await federationService.resolveAndUpsert(requestedHandle);
+    await federationService.resolveAndUpsert(requestedHandle);
 
     expect(webfingerSpy).toHaveBeenCalledWith(requestedHandle);
     expect(webfingerSpy).toHaveBeenCalledWith(spoofedHandle);
@@ -639,6 +654,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     // The stored row keeps the REQUESTED identity, never the spoofed subject.
     expect(await storedByActorUri(actorUri)).toMatchObject({
       username: requestedHandle,
+
       domain: 'evil.example',
     });
   });
@@ -654,18 +670,20 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       actorUri,
       domain: 'threads.net',
       username: canonicalHandle,
+      transportAcct: canonicalHandle, protocol: 'activitypub', evidenceLinks: [],
       displayName: 'Adam Mosseri',
       avatarUrl: undefined,
       bio: 'Threads profile',
     });
 
-    const result = await federationService.resolveAndUpsert(`@${requestedHandle}`);
+    await federationService.resolveAndUpsert(`@${requestedHandle}`);
 
     expect(webfingerSpy).toHaveBeenCalledWith(requestedHandle);
     expect(actorSpy).toHaveBeenCalledWith(actorUri, canonicalHandle);
     expect(await storedByActorUri(actorUri)).toMatchObject({
       type: 'federated',
       username: canonicalHandle,
+
       actorUri,
       domain: 'threads.net',
     });
@@ -718,6 +736,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       actorUri,
       domain: bridgeDomain,
       username: bridgeHandle,
+      transportAcct: bridgeHandle, protocol: 'activitypub', evidenceLinks: [],
       displayName: 'Wired',
       bio: 'bridge bio',
     });
@@ -1124,13 +1143,13 @@ describe('FederationService.fetchActorProfile — the stored handle needs a vouc
     expect(profile?.domain).toBe('mastodon.social');
   });
 
-  it('honours a bridge hint the actor host vouches for', async () => {
+  it('derives a bridge identity from the actor Official assertion', async () => {
     // The case the hint exists for: `bird.makeup` republishes X accounts, and
     // `FEDERATION_BRIDGE_TRUST` records that this API accepts it as vouching
     // for `x.com`. The derived identity must survive, not collapse back to the
     // bridge copy.
     const actorUri = 'https://bird.makeup/users/nasa';
-    serveActor(actorUri, 'nasa');
+    serveActor(actorUri, 'nasa', { attachment: [{ name: 'Official', value: '<a href="https://x.com/nasa" rel="me">Official</a>' }] });
 
     const profile = await federationService.fetchActorProfile(actorUri, 'nasa@x.com');
 

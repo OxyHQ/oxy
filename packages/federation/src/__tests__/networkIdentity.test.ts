@@ -61,6 +61,32 @@ function candidate(overrides: Partial<NetworkIdentityCandidate> = {}): NetworkId
 }
 
 describe('createBridgeRelabeller', () => {
+  it('refuses contradictory accepted profile assertions regardless of their order', () => {
+    const derive = upstreamHandleFromProfileField({ fieldName: 'Official', hosts: ['x.com'], requireRelMe: true });
+    const fields = ['alice', 'bob'].map(handle => ({ name: 'Official', value: `<a href="https://x.com/${handle}" rel="me">Official</a>` }));
+    expect(derive(candidate({ fields }))).toBeUndefined();
+    expect(derive(candidate({ fields: [...fields].reverse() }))).toBeUndefined();
+    expect(derive(candidate({ fields: [fields[0], fields[0]] }))).toBe('alice');
+    expect(derive(candidate({ fields: [{ name: 'Official', value: '<a href="https://x.com/alice">Official</a>' }] }))).toBeUndefined();
+  });
+  it('repairs the observed double-HTTPS Official assertion only with the reviewed opt-in', () => {
+    const actor = candidate({ fields: [{ name: 'Official', value: '<a href="https://https://twitter.com/jordievole" rel="me">Official</a>' }] });
+    expect(upstreamHandleFromProfileField({ fieldName: 'Official', hosts: ['twitter.com'] })(actor)).toBeUndefined();
+    expect(upstreamHandleFromProfileField({ fieldName: 'Official', hosts: ['twitter.com'], repairRepeatedHttpsScheme: true })(actor)).toBe('jordievole');
+  });
+
+  it.each([
+    'https://https://attacker.example/jordievole',
+    'https://https://twitter.com@attacker.example/jordievole',
+    'https://https://attacker@twitter.com/jordievole',
+    'https://https://twitter.com:444/jordievole',
+    'https://https://https://twitter.com/jordievole',
+    'http://https://twitter.com/jordievole',
+    'https://https://twitter.com/i/status/123',
+  ])('does not widen the repair into an attribution for %s', href => {
+    const actor = candidate({ fields: [{ name: 'Official', value: `<a href="${href}" rel="me">Official</a>` }] });
+    expect(upstreamHandleFromProfileField({ fieldName: 'Official', hosts: ['twitter.com'], repairRepeatedHttpsScheme: true })(actor)).toBeUndefined();
+  });
   it('re-labels an actor onto the network its bridge mirrors', () => {
     const identity = createBridgeRelabeller([entry()]).deriveNetworkIdentity(candidate());
     expect(identity?.federatedUsername).toBe('wired@x.com');

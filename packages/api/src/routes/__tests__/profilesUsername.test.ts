@@ -219,6 +219,8 @@ describe('GET /profiles/username/:username — wire shape', () => {
       kind: 'personal',
       isFederated: false,
       fediverseSharing: true,
+      externalIdentities: [],
+      redirectedUserIds: [],
       _count: { followers: 1, following: 1 },
     });
     expect(safeParseContract(userResponseSchema, res.body.data)).not.toBeNull();

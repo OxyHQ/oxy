@@ -27,6 +27,7 @@ import {
   UnauthorizedError,
 } from '../utils/error';
 import { userService } from '../services/user.service';
+import { canonicalExternalUserIdsQuery, canonicalExternalUserMapQuery, expandEquivalentUserIds, getEquivalentUserGroups, lookupExternalIdentity, resolveCanonicalUserId, resolveExternalIdentityUsers } from '../services/externalIdentityRegistry.service';
 import { federationService, isFediverseHandle } from '../services/federation.service';
 import { validate } from '../middleware/validate';
 import { usernameParams, profileSearchQuerySchema } from '../schemas/profiles.schemas';
@@ -50,7 +51,6 @@ import { accountService } from '../services/account.service';
 import { getRedisClient } from '../config/redis';
 import {
   resolveWeightProfile,
-  normalizeRepWeight,
   MUTUAL_COUNT_WINDOW,
   MAX_FOLLOWING_FOR_MUTUALS,
   MAX_APP_SIGNAL_CANDIDATES,
@@ -102,7 +102,7 @@ const MAX_USERNAME_LENGTH = 30;
 // Extra follower-ranked candidates fetched before the private/excludeTypes
 // filter on the public recommendations path, so post-lookup filtering can't
 // shrink the page below the requested limit.
-const PUBLIC_FILTER_HEADROOM = 20;
+
 // Bound the unauthenticated popularity fallback so a public request cannot
 // aggregate the entire social graph. The sorted prefix is supported by
 // Follow's { followType, createdAt, _id } index and keeps work independent of the
@@ -365,9 +365,18 @@ router.get(
     // the unique index is built on (`lower(btrim(username))`). Mongo indexed
     // `username` case-SENSITIVELY while this lookup ran an anchored `/i` regex,
     // so every profile fetch was a collection scan; the index serves it here.
-    let profile = await loadProfileByPredicate(
-      sql`lower(btrim(${users.username})) = lower(btrim(${username}))`
-    );
+    const aliasId = isFedHandle ? await lookupExternalIdentity(username) : null;
+    let profile = await loadProfileByPredicate(aliasId ? eq(users.id, aliasId)
+      : sql`lower(btrim(${users.username})) = lower(btrim(${username}))`);
+    if (profile) {
+      const canonicalId = await resolveCanonicalUserId(profile.view._id);
+      if (canonicalId !== profile.view._id) profile = await loadProfileByPredicate(eq(users.id, canonicalId));
+    }
+    const legacyActor = profile?.view.federation?.actorUri;
+    if (legacyActor && profile?.view.accountStatus !== 'archived' && await federationService.needsBridgeCanonicalization(legacyActor)) {
+      const verified = await federationService.resolveExternalActorIdentity(legacyActor);
+      profile = verified ? await loadProfileByPredicate(eq(users.id, verified.externalIdentity.userId)) : null;
+    }
 
     // If not found and it's a fediverse handle, resolve via WebFinger
     if (!profile && isFedHandle) {
@@ -403,7 +412,7 @@ router.get(
     }
 
     logger.debug('GET /profiles/username/:username', { username });
-    sendSuccess(res, response);
+    sendSuccess(res, await userService.withExternalIdentities(response));
   })
 );
 
@@ -466,7 +475,9 @@ router.get(
           total: sql<number>`count(*) over ()::int`,
         })
         .from(users)
-        .where(and(peopleSearchPredicate(), peopleSearchMatch(sanitizedQuery)))
+        .where(and(peopleSearchPredicate(), inArray(users.id, canonicalExternalUserIdsQuery(
+          sql`select ${users.id} from ${users} where ${and(peopleSearchPredicate(), peopleSearchMatch(sanitizedQuery))}`
+        ))))
         .orderBy(...peopleSearchOrder())
         .offset(parsedOffset)
         .limit(parsedLimit),
@@ -563,12 +574,25 @@ router.get(
 
     // Federated handles are stored lowercased; normalize before the local lookup
     // so mixed-case queries hit the local-first fast path (same as /username/:username).
-    const handle = isFediverseHandle(rawHandle) ? rawHandle.toLowerCase() : rawHandle;
+    const handle = federationService.normalizeExternalHandle(rawHandle) ?? rawHandle;
 
     // Local-first: resolve an already-known user by exact username.
-    const localProfile = await loadProfileByPredicate(
-      sql`lower(btrim(${users.username})) = lower(btrim(${handle}))`
-    );
+    const aliasId = await lookupExternalIdentity(handle);
+    let localProfile = await loadProfileByPredicate(aliasId ? eq(users.id, aliasId) : sql`lower(btrim(${users.username})) = lower(btrim(${handle}))`);
+    if (localProfile) {
+      const canonicalId = await resolveCanonicalUserId(localProfile.view._id);
+      if (canonicalId !== localProfile.view._id) localProfile = await loadProfileByPredicate(eq(users.id, canonicalId));
+    }
+    const legacyActorUri = localProfile?.view.federation?.actorUri;
+    if (legacyActorUri && localProfile?.view.accountStatus !== 'archived'
+      && await federationService.needsBridgeCanonicalization(legacyActorUri)) {
+      const verified = await federationService.resolveExternalActorIdentity(legacyActorUri);
+      // A transport identity may be shown after the source declined upstream
+      // proof (e.g. bridge admin), but never before an unverified migration row
+      // has gone through the same first-discovery authority.
+      if (!verified) return sendSuccess(res, null);
+      localProfile = await loadProfileByPredicate(eq(users.id, verified.externalIdentity.userId));
+    }
 
     if (localProfile) {
       const localUser = localProfile.view;
@@ -596,7 +620,7 @@ router.get(
       }
 
       logger.debug('GET /profiles/resolve (local)', { handle });
-      return sendSuccess(res, response);
+      return sendSuccess(res, await userService.withExternalIdentities(response));
     }
 
     // No local user → genuine discovery of an unknown handle. Enforce the strict
@@ -632,7 +656,7 @@ router.get(
     }
 
     logger.debug('GET /profiles/resolve', { handle });
-    sendSuccess(res, response);
+    sendSuccess(res, await userService.withExternalIdentities(response));
   })
 );
 
@@ -674,51 +698,43 @@ router.get(
     const minFederatedResolvedAt = new Date(Date.now() - FEDERATED_RECOMMENDATION_MAX_AGE_MS);
 
     const db = getDb();
+    const groups = await getEquivalentUserGroups([targetUserId, currentUserId]);
     const [targetFollowers, currentFollowing] = await Promise.all([
       db
         .select({ followerId: userFollows.followerId })
         .from(userFollows)
-        .where(eq(userFollows.followedId, targetUserId))
+        .where(inArray(userFollows.followedId, groups[targetUserId] ?? [targetUserId]))
         .orderBy(userFollows.id)
         .limit(SIMILAR_PROFILE_MAX_TARGET_FOLLOWERS),
       db
         .select({ followedId: userFollows.followedId })
         .from(userFollows)
-        .where(eq(userFollows.followerId, currentUserId)),
+        .where(inArray(userFollows.followerId, groups[currentUserId] ?? [currentUserId])),
     ]);
 
-    const targetFollowerIds = targetFollowers.map((edge) => edge.followerId);
-    const excludeIds = [
+    const targetFollowerIds = await expandEquivalentUserIds(targetFollowers.map((edge) => edge.followerId));
+    const excludeIds = await expandEquivalentUserIds([
       currentUserId,
       targetUserId,
       ...currentFollowing.map((edge) => edge.followedId),
-    ];
+    ]);
 
     let similar: RecommendationRow[] = [];
 
     if (targetFollowerIds.length > 0) {
-      // The overlap page, then the profiles. Paged BEFORE the eligibility join,
-      // exactly as the Mongo pipeline was: `$skip`/`$limit` preceded its
-      // `$lookup`, so a page can come back shorter than `limit` when a candidate
-      // fails the bar. `id` is added as the sort tiebreaker Mongo lacked —
-      // `mutualCount` alone is not unique, and without a strict total order an
-      // offset page can repeat a row while skipping another.
-      const overlap = await db
-        .select({
-          id: userFollows.followedId,
-          mutualCount: sql<number>`count(*)::int`,
-        })
-        .from(userFollows)
-        .where(
-          and(
-            inArray(userFollows.followerId, targetFollowerIds),
-            notInArray(userFollows.followedId, excludeIds)
-          )
-        )
-        .groupBy(userFollows.followedId)
-        .orderBy(sql`count(*) desc`, sql`${userFollows.followedId} asc`)
-        .offset(parsedOffset)
-        .limit(parsedLimit);
+      // Group proven source identities and apply eligibility before pagination.
+      const sourceCandidates = sql`select distinct ${userFollows.followedId} from ${userFollows}
+        where ${inArray(userFollows.followerId, targetFollowerIds)} and ${notInArray(userFollows.followedId, excludeIds)}`;
+      const canonicalCandidates = canonicalExternalUserMapQuery(sourceCandidates);
+      const overlap = await db.execute<{ id: string; mutualCount: number }>(sql`
+        select canonical.user_id as id, count(distinct ${userFollows.followerId})::int as "mutualCount"
+        from ${userFollows} join (${canonicalCandidates}) canonical on canonical.source_user_id = ${userFollows.followedId}
+        join ${users} on ${users.id} = canonical.user_id
+        where ${inArray(userFollows.followerId, targetFollowerIds)} and ${notInArray(users.id, excludeIds)}
+          and ${eq(users.privacyIsPrivateAccount, false)} and ${eligibleUserPredicate(minFederatedResolvedAt)}
+        group by canonical.user_id order by count(distinct ${userFollows.followerId}) desc, canonical.user_id asc
+        offset ${parsedOffset} limit ${parsedLimit}
+      `);
 
       if (overlap.length > 0) {
         const overlapIds = overlap.map((row) => row.id);
@@ -892,23 +908,22 @@ async function buildPopularFallback(
   // sort tiebreaker in BOTH sorts, so the window and the ranking are each a
   // strict total order and the paged result is stable.
   const recentWindow = db
-    .select({ followedId: userFollows.followedId })
+    .select({ followedId: userFollows.followedId, followerId: userFollows.followerId })
     .from(userFollows)
     .where(excludeIds.length > 0 ? notInArray(userFollows.followedId, [...excludeIds]) : undefined)
     .orderBy(sql`${userFollows.createdAt} desc`, sql`${userFollows.id} asc`)
     .limit(PUBLIC_POPULAR_FOLLOW_WINDOW)
     .as('recent_window');
 
-  const ranked = await db
-    .select({
-      id: recentWindow.followedId,
-      followersCount: sql<number>`count(*)::int`,
-    })
-    .from(recentWindow)
-    .groupBy(recentWindow.followedId)
-    .orderBy(sql`count(*) desc`, sql`${recentWindow.followedId} asc`)
-    .offset(parsedOffset)
-    .limit(parsedLimit + PUBLIC_FILTER_HEADROOM);
+  const candidateMap = canonicalExternalUserMapQuery(sql`select distinct ${recentWindow.followedId} from ${recentWindow}`);
+  const ranked = await db.execute<{ id: string; followersCount: number }>(sql`
+    select canonical.user_id as id, count(distinct ${recentWindow.followerId})::int as "followersCount"
+    from ${recentWindow} join (${candidateMap}) canonical on canonical.source_user_id = ${recentWindow.followedId}
+    join ${users} on ${users.id} = canonical.user_id
+    where ${eligibility()} ${excludeIds.length ? sql`and ${notInArray(users.id, [...excludeIds])}` : sql``}
+    group by canonical.user_id order by count(distinct ${recentWindow.followerId}) desc, canonical.user_id asc
+    offset ${parsedOffset} limit ${parsedLimit}
+  `);
 
   let profiles: RecommendationRow[] = [];
   if (ranked.length > 0) {
@@ -941,7 +956,8 @@ async function buildPopularFallback(
     const randomUsers = await db
       .select({ ...recommendationColumns, ...publicUserFollowCounts })
       .from(users)
-      .where(and(notInArray(users.id, [...excludeIds, ...alreadyIncluded]), eligibility()))
+      .where(and(notInArray(users.id, [...excludeIds, ...alreadyIncluded]), eligibility(), inArray(users.id,
+        canonicalExternalUserIdsQuery(sql`select ${users.id} from ${users} where ${eligibility()}`))))
       .orderBy(sql`random()`)
       .limit(fillLimit);
 
@@ -1082,7 +1098,27 @@ async function buildRecommendationsScored(
   for (const key of boostMap.keys()) candidateKeys.add(key);
   for (const key of excluded) candidateKeys.delete(key);
 
-  const candidateIds = Array.from(candidateKeys);
+  // Fold source signals into canonical people before scoring and pagination.
+  // Taking the strongest source contribution avoids rewarding a duplicate
+  // transport twice while preserving a person's existing recommendation signal.
+  const identityUsers = await resolveExternalIdentityUsers([...candidateKeys, ...excluded]);
+  const canonicalId = (id: string) => identityUsers.get(id)?.userId ?? id;
+  const canonicalExcluded = new Set([...excluded].map(canonicalId));
+  function foldSignals<T>(values: Map<string, T>, combine: (left: T, right: T) => T) {
+    const folded = new Map<string, T>();
+    for (const [id, value] of values) {
+      const canonical = canonicalId(id);
+      const previous = folded.get(canonical);
+      folded.set(canonical, previous === undefined ? value : combine(previous, value));
+    }
+    values.clear();
+    for (const [id, value] of folded) values.set(id, value);
+  }
+  foldSignals(mutualMap, Math.max);
+  foldSignals(affinityMap, Math.max);
+  foldSignals(boostMap, Math.max);
+  foldSignals(appSignalMap, (left, right) => ({ endorsementScore: Math.max(left.endorsementScore, right.endorsementScore), interestScore: Math.max(left.interestScore, right.interestScore) }));
+  const candidateIds = [...new Set([...candidateKeys].map(canonicalId))].filter(id => !canonicalExcluded.has(id));
 
   // When the personalized candidate union is empty (anonymous caller, or a
   // cold-start viewer with no mutual overlap / app signals / boosts), fall back
@@ -1092,7 +1128,7 @@ async function buildRecommendationsScored(
   // the uniform scored-row shape.
   if (candidateIds.length === 0) {
     const fallbackRows = await buildPopularFallback(
-      Array.from(excluded),
+      Array.from(canonicalExcluded),
       excludeTypes,
       parsedLimit,
       parsedOffset,
@@ -1260,7 +1296,10 @@ async function buildRecommendations(
     try {
       const cached = await redis.get(cacheKey);
       if (cached) {
-        return JSON.parse(cached) as ReturnType<typeof formatProfileResult>[];
+        const profiles = JSON.parse(cached) as ReturnType<typeof formatProfileResult>[];
+        // External groups are revocable; cached person mappings cannot outlive
+        // source evidence or a moderation change. Local-only pages stay cached.
+        if (profiles.every(profile => !profile.isFederated)) return profiles;
       }
     } catch (error) {
       logger.warn('recommendations: cache read failed', {
@@ -1271,7 +1310,7 @@ async function buildRecommendations(
 
   const result = await buildRecommendationsScored(viewerId, opts);
 
-  if (redis && cacheKey) {
+  if (redis && cacheKey && result.every(profile => !profile.isFederated)) {
     try {
       await redis.set(cacheKey, JSON.stringify(result), 'EX', REC_CACHE_TTL_SECONDS);
     } catch (error) {
