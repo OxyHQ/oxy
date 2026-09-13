@@ -23,11 +23,13 @@ export interface TrafficAggregate extends TrafficFlow {
 const TYPES: Record<string, TrafficType> = {
   auth: 'identity', session: 'identity', users: 'identity', profiles: 'identity', accounts: 'identity',
   ai: 'ai', inference: 'ai', models: 'ai', chat: 'ai', completions: 'ai',
+  stream: 'media', tracks: 'media', episodes: 'media', recordings: 'media', rooms: 'media',
   messages: 'communication', notifications: 'communication', mail: 'communication',
   media: 'media', files: 'media', assets: 'media', upload: 'media', uploads: 'media', cdn: 'media', storage: 'media', images: 'media', audio: 'media', videos: 'media',
 };
 export function trafficType(path: string): TrafficType {
   const parts = path.split('?')[0].split('/').filter(Boolean);
+  if (parts[0] === 'alia') parts.shift();
   if (parts[0] === 'api') parts.shift();
   if (/^v\d+$/.test(parts[0] ?? '')) parts.shift();
   return TYPES[parts[0] ?? ''] ?? 'platform';
@@ -142,6 +144,10 @@ const OXY_API_SERVICES: Record<string, string> = {
   'website-api.oxy.so': 'website', 'api.mention.earth': 'mention',
   'api.mercaria.co': 'mercaria', 'api.alia.onl': 'alia', 'kaana.ai': 'kaana',
   'api.homiio.com': 'homiio', 'api.syra.fm': 'syra',
+  'mention.earth': 'mention', 'mcp.mention.earth': 'mention-mcp',
+  'api.clarity.surf': 'clarity', 'api.peable.to': 'peable',
+  'api.crowdsource.oxy.so': 'crowdsource', 'api.moovo.now': 'moovo',
+  'api.allo.you': 'allo', 'api.noted.oxy.so': 'noted', 'api.schedio.app': 'schedio', 'api.tnp.network': 'tnp-api',
 };
 export function resolveOxyServiceEndpoint(url: URL): ServiceEndpoint | undefined {
   const service = OXY_API_SERVICES[url.hostname];

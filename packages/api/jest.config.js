@@ -18,6 +18,9 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   moduleNameMapper: {
+    '^@oxy.so/telemetry/collector$': '<rootDir>/../telemetry/src/collector.ts',
+    '^@oxy.so/telemetry/socket$': '<rootDir>/../telemetry/src/socket.ts',
+    '^@oxy.so/telemetry/server$': '<rootDir>/../telemetry/src/server.ts',
     // Resolve @oxy.so/contracts from its TypeScript SOURCE so api tests do not
     // depend on the contracts package being built first (its dist is absent in
     // the CI `api-test` job). ts-jest transforms the source via the transform

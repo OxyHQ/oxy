@@ -137,3 +137,5 @@ export { isOfficialWebOrigin } from '../utils/officialOrigins';
 
 export { createEcosystemTraffic } from './traffic';
 export type { EcosystemTrafficOptions } from './traffic';
+
+export { observeNodeHttp, withoutNodeHttpObservation } from './trafficNodeHttp';

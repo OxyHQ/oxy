@@ -67,6 +67,7 @@ import inferenceReportingRoutes from './routes/inferenceReporting';
 import platformStatsRoutes from './routes/platform-stats';
 import {
   initializePlatformActivity,
+  observePlatformSocket,
   platformActivityMiddleware,
   stopPlatformActivity,
 } from './services/platformActivity.service';
@@ -362,6 +363,7 @@ io.use((socket: AuthenticatedSocket, next) => {
 
 // Socket connection handling — authenticated users and device-scoped listeners.
 io.on('connection', (socket: AuthenticatedSocket) => {
+  observePlatformSocket(socket);
   logger.debug('Socket connected', { socketId: socket.id });
 
   const rooms = socket.user
@@ -401,6 +403,7 @@ initAuthSessionNamespace(authSessionNamespace);
 
 // No authentication required for this namespace
 authSessionNamespace.on('connection', (socket) => {
+  observePlatformSocket(socket);
   logger.debug('Auth session socket connected', { socketId: socket.id });
   
   // Client joins a room for their session token
@@ -439,6 +442,7 @@ devicePairNamespace.use(createSocketRateLimiter(20, 10_000)); // Stricter: 20 ev
 initDevicePairNamespace(devicePairNamespace);
 
 devicePairNamespace.on('connection', (socket) => {
+  observePlatformSocket(socket);
   logger.debug('Device-pair socket connected', { socketId: socket.id });
 
   socket.on('join', (pairingId: string) => {

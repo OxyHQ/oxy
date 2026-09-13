@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
-import type { Namespace } from 'socket.io';
+import type { Namespace, Socket } from 'socket.io';
+import { observeNodeHttp, withoutNodeHttpObservation } from '@oxy.so/core/server';
+import { observeTrafficSocket } from '@oxy.so/telemetry/socket';
 import { getRedisClient } from '../config/redis';
 import {
   metadataFromHeaders,
@@ -20,6 +22,8 @@ let activityNamespace: Namespace | null = null;
 let emitTimer: ReturnType<typeof setInterval> | null = null;
 let originalFetch: typeof fetch | null = null;
 let observedFetch: typeof fetch | null = null;
+let stopHttp: (() => void) | null = null;
+const socketCleanups = new Set<() => void>();
 
 function processingRegion(): string {
   return process.env.AWS_REGION || 'unknown';
@@ -80,7 +84,9 @@ export function initializePlatformActivity(namespace: Namespace): void {
   activityNamespace = namespace;
   if (emitTimer) return;
   originalFetch = globalThis.fetch;
-  observedFetch = instrumentTrafficFetch(originalFetch, collector, 'oxy-api', processingRegion(), resolveOxyServiceEndpoint);
+  const wrapped = instrumentTrafficFetch(originalFetch, collector, 'oxy-api', processingRegion(), resolveOxyServiceEndpoint);
+  observedFetch = Object.assign((...args: Parameters<typeof fetch>) => withoutNodeHttpObservation(() => wrapped(...args)), originalFetch) as typeof fetch;
+  stopHttp = observeNodeHttp(collector, 'oxy-api', processingRegion(), resolveOxyServiceEndpoint);
   globalThis.fetch = observedFetch;
   emitTimer = setInterval(emitBucket, EMIT_INTERVAL_MS);
   emitTimer.unref?.();
@@ -96,7 +102,18 @@ export function platformActivityMiddleware(
   trafficMiddleware(collector, 'oxy-api', processingRegion())(req, res, next);
 }
 
+export function observePlatformSocket(socket: Socket): void {
+  const unobserve = observeTrafficSocket(socket, collector, 'oxy-api', processingRegion());
+  const cleanup = () => { unobserve(); socket.off('disconnect', cleanup); socketCleanups.delete(cleanup); };
+  socket.once('disconnect', cleanup);
+  socketCleanups.add(cleanup);
+}
+
 export function stopPlatformActivity(): void {
+  stopHttp?.();
+  stopHttp = null;
+  socketCleanups.forEach(cleanup => cleanup());
+  socketCleanups.clear();
   if (emitTimer) clearInterval(emitTimer);
   emitTimer = null;
   if (originalFetch && globalThis.fetch === observedFetch) globalThis.fetch = originalFetch;

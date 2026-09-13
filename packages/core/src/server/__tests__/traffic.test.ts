@@ -34,3 +34,16 @@ it('publishes independently of viewers and waits for registration before removin
     globalThis.fetch = originalFetch;
   }
 });
+
+it('rejects a partial activity credential instead of mixing it with service credentials', () => {
+  const previous = { ...process.env };
+  try {
+    process.env.OXY_ACTIVITY_API_KEY = 'activity-key';
+    delete process.env.OXY_ACTIVITY_API_SECRET;
+    process.env.OXY_SERVICE_API_KEY = 'service-key';
+    process.env.OXY_SERVICE_API_SECRET = 'service-secret';
+    expect(() => createEcosystemTraffic({ service: 'homiio', region: 'us-west-2' })).toThrow('complete OXY_ACTIVITY');
+  } finally {
+    process.env = previous;
+  }
+});
