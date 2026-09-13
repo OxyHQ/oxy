@@ -30,12 +30,32 @@ the source identities; graph checks expand the currently valid group instead
 of permanently copying cross-network ownership. There is no equal-username
 shortcut.
 
-The reviewed kilogram.makeup actor documents currently expose an Instagram
-handle, but no stable upstream Instagram identifier. Consequently an
-Instagram/Threads pair such as `zuck` remains pending despite matching handles
-or reciprocal handle links. Oxy does not invent a Meta identifier to enable a
-merge. Native Threads numeric actor URIs supply a stable Threads identity;
-Instagram still needs equivalent source evidence.
+An additional Meta proof uses fresh public Instagram and Threads profile pages,
+with reciprocal platform-control badges from a reviewed DOM layout. Links in
+biographies, posts or navigation do not count. The provider preserves distinct
+Instagram `pk` and graph-ID namespaces, Threads web `pk`, and the separately
+verified Threads ActivityPub URI. Official Threads WebFinger and the normal
+signed actor fetch bind that URI to the first-party account; matching numeric
+suffixes never bind identities. Display-name disagreements can reject a binding,
+but matching names cannot establish one.
+
+The proof stores only bounded account identifiers, source URLs, individual
+source hashes, a combined digest, parser policy version and observation times.
+It expires after 24 hours. Fresh missing, unavailable or contradictory evidence
+revokes that additional edge immediately; observation watermarks prevent an older
+in-flight result from restoring it. The existing reciprocal immutable machine
+assertion pathway remains independent.
+
+Kilogram actors generally lack a stable Instagram identifier. Only an Instagram
+source user atomically created in the current discovery may initially acquire
+`instagram:pk:<pk>` from a fully bound first-party proof. An existing matching pin
+can renew. Existing unpinned bridge users remain `pending` with reason
+`legacy_source_lineage_unproven`, retaining their graph and historical ownership.
+Raw preexisting numeric IDs are not silently reinterpreted as Instagram `pk`.
+This limitation applies even when current badges demonstrate the web accounts'
+relationship: those badges cannot establish an old bridge handle's lineage.
+The reconciliation report includes these pending or refused proof outcomes;
+public service responses continue to use the shared identity contract.
 
 The reviewed dotmakeup policy opts into an exact repair for the observed
 `https://https://twitter.com/jordievole` Official-link serialization defect.

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, jsonb, pgTable, primaryKey, text } from 'drizzle-orm/pg-core';
+import { check, index, jsonb, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
 import { createdAt, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
@@ -9,6 +9,7 @@ export const externalIdentities = pgTable('external_identities', {
   userId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
   network: text().notNull(),
   stableId: text(),
+  metaProofRevokedAt: timestamp({ withTimezone: true }),
   evidenceLinks: jsonb().$type<string[]>().notNull().default([]),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
