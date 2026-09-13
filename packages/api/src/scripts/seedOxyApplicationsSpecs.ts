@@ -234,11 +234,11 @@ export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
  */
 export const ALIA_OWNER_ACCOUNT_USERNAME = 'alia-production-chat';
 
-/** Exact opaque identity of the Kaana control/data-plane application. */
-// New registration: seed this exact identity before provisioning its activity lanes.
+/** New identities: seed these exact entries before provisioning their activity lanes. */
 export const NILO_APPLICATION_ID = 'ed143b1b58d60eab417f7d5c';
 export const MEDIA_WORKER_APPLICATION_ID = '71ea45cf97451563762ead13';
 
+/** Exact opaque identity of the Kaana control/data-plane application. */
 export const KAANA_APPLICATION_ID = '68b7c4e19f2a6d0e3c8b5174';
 
 /** Exact opaque identity verified against the active production Alia row. */
