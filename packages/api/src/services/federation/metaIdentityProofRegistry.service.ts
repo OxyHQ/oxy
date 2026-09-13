@@ -79,6 +79,7 @@ export async function recordMetaIdentityProof(proof: BoundMetaIdentityProof, enr
     // Platform badges assert one current counterpart. A changed badge invalidates
     // the old edge without moving either source's history into the new group.
     for (const prior of related) {
+      if (prior.state === 'revoked') continue;
       if (prior.instagramActorUri === proof.instagramActorUri && prior.threadsActorUri === proof.threadsActorUri) continue;
       await tx.update(externalIdentityMetaProofs).set({ state: 'revoked', revokedAt: proof.verifiedAt, revocationReason: 'counterpart_changed' })
         .where(and(eq(externalIdentityMetaProofs.instagramActorUri, prior.instagramActorUri), eq(externalIdentityMetaProofs.threadsActorUri, prior.threadsActorUri)));

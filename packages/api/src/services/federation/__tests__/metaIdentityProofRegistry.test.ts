@@ -114,3 +114,19 @@ it('a changed reciprocal counterpart revokes the old pair and prevents stale res
   expect(await getEquivalentUserIds(first.b.identity.userId)).toEqual([first.b.identity.userId]);
   expect(await recordMetaIdentityProof(old, {})).toEqual({ state: 'refused', reason: 'proof_older_than_recorded_observation' });
 });
+
+it('renewing a replacement pair does not revoke the former counterpart’s independent group', async () => {
+  const first = await sourcePair();
+  const second = await sourcePair();
+  const time = Date.now() - 5000;
+  await recordMetaIdentityProof({ ...first.proof, verifiedAt: new Date(time) }, { createdInstagramUserId: first.a.identity.userId });
+  const replacement = { ...first.proof, threadsActorUri: second.proof.threadsActorUri, threadsAcct: second.proof.threadsAcct,
+    threadsWebPk: second.proof.threadsWebPk, threadsProfileUrl: second.proof.threadsProfileUrl, verifiedAt: new Date(time + 1000) };
+  await recordMetaIdentityProof(replacement, {});
+  const independent = { ...second.proof, threadsActorUri: first.proof.threadsActorUri, threadsAcct: first.proof.threadsAcct,
+    threadsWebPk: first.proof.threadsWebPk, threadsProfileUrl: first.proof.threadsProfileUrl, verifiedAt: new Date(time + 2000) };
+  expect(await recordMetaIdentityProof(independent, { createdInstagramUserId: second.a.identity.userId })).toEqual({ state: 'verified' });
+  expect(await recordMetaIdentityProof({ ...replacement, verifiedAt: new Date(time + 3000) }, {})).toEqual({ state: 'verified' });
+  expect(await getEquivalentUserIds(first.b.identity.userId)).toEqual(expect.arrayContaining([first.b.identity.userId, second.a.identity.userId]));
+  expect(await getEquivalentUserIds(first.a.identity.userId)).not.toContain(second.a.identity.userId);
+});
