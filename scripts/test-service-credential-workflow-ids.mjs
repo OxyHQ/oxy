@@ -127,6 +127,30 @@ for (const appId of [
 	);
 }
 
+const homiioActivity = spawnSync(
+	"bash",
+	[
+		"-c",
+		`${registryShell}
+printf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$CREDENTIAL_NAME" "$ISOLATE_CREDENTIAL_NAME"`,
+	],
+	{
+		env: {
+			...process.env,
+			APP_ID: canonicalHomiioApplicationId,
+			CREDENTIAL_LANE: "activity",
+		},
+		encoding: "utf8",
+	},
+);
+assert.equal(homiioActivity.status, 0, homiioActivity.stderr);
+assert.deepEqual(homiioActivity.stdout.trim().split("\n"), [
+	"homiio",
+	"user:read",
+	"Ecosystem activity (production)",
+	"true",
+]);
+
 const kaanaProvision = registryArm(provision, canonicalKaanaApplicationId);
 const homiioProvision = registryArm(provision, canonicalHomiioApplicationId);
 const aliaProvision = registryArm(provision, canonicalAliaApplicationId);
