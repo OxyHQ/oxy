@@ -132,7 +132,7 @@ const homiioActivity = spawnSync(
 	[
 		"-c",
 		`${registryShell}
-printf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$CREDENTIAL_NAME" "$ISOLATE_CREDENTIAL_NAME"`,
+printf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$CREDENTIAL_NAME" "$ISOLATE_CREDENTIAL_NAME" "$DESTINATION_KEY_NAME" "$DESTINATION_SECRET_NAME"`,
 	],
 	{
 		env: {
@@ -149,6 +149,8 @@ assert.deepEqual(homiioActivity.stdout.trim().split("\n"), [
 	"user:read",
 	"Ecosystem activity (production)",
 	"true",
+	"OXY_ACTIVITY_API_KEY",
+	"OXY_ACTIVITY_API_SECRET",
 ]);
 
 const kaanaProvision = registryArm(provision, canonicalKaanaApplicationId);
