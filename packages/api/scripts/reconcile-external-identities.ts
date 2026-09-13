@@ -1,7 +1,7 @@
 /** Revalidate legacy bridge identity through the same Oxy discovery authority. */
 import 'dotenv/config';
 import { closeRedis } from '../src/config/redis';
-import { asc, eq, gt } from 'drizzle-orm';
+import { asc, gt, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
 import { externalIdentityActors } from '../src/db/schema/externalIdentities';
 import { users } from '../src/db/schema/users';
@@ -25,7 +25,7 @@ export async function inspectReconciliationActor(actorUri: string, apply: boolea
 
 /** Compare the representation persisted by registerExternalIdentity, not wire emptiness. */
 export async function inspectReconciliationChanges(profile: Pick<ExternalActorProfile, 'username' | 'bio'>, canonicalAcct: string): Promise<boolean> {
-  const [stored] = await getDb().select({ bio: users.bio }).from(users).where(eq(users.username, canonicalAcct)).limit(1);
+  const [stored] = await getDb().select({ bio: users.bio }).from(users).where(sql`lower(btrim(${users.username})) = ${canonicalAcct}`).limit(1);
   // Registry persistence uses `bio || null`. Historical empty strings and NULL
   // both mean no biography; otherwise every empty profile changes on every run.
   return !stored || profile.username !== canonicalAcct || (profile.bio || null) !== (stored.bio || null);
