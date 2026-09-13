@@ -52,6 +52,17 @@ function imagesCeiling(body: unknown): Partial<Record<string, number>> {
 }
 
 describe('POST /v1/audio/speech — the characters ceiling', () => {
+  it('preserves the exact profile, voice, format and speed', () => {
+    const request = normalizeSpeechRequest(speechRequestSchema.parse({
+      routingProfileId: 'opaque-reviewed-voice-id', input: 'Hola 👋', voice: 'female', response_format: 'mp3', speed: 1.15,
+    }));
+    expect(request.target).toEqual({ kind: 'routing_profile_id', routingProfileId: 'opaque-reviewed-voice-id' });
+    expect(request.speech).toEqual({ voice: 'female', responseFormat: 'mp3', speed: 1.15 });
+    expect(request.operation).toEqual({ kind: 'speech', characters: 7 });
+  });
+  it.each([{}, { model: 'pub/mdl', routingProfileId: 'opaque-id' }, { routingProfile: 'voice' }])('refuses ambiguous or absent speech targets', (target) => {
+    expect(speechRequestSchema.safeParse({ ...target, input: 'Hola', voice: 'female' }).success).toBe(false);
+  });
   it('holds EXACTLY the characters of the string the provider will receive', () => {
     // The disagreement case. `input.length` is 9 — two leading spaces, two
     // trailing, and an accented character. An implementation that trimmed, or that

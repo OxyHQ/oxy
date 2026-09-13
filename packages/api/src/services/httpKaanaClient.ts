@@ -419,6 +419,8 @@ async function foldStream(
   frames: AsyncIterable<KaanaStreamFrame>
 ): Promise<KaanaCompletion> {
   const texts = new Map<number, string>();
+  const audio = new Map<number, { mediaType: string; chunks: Buffer[] }>();
+  let audioBytes = 0;
   const toolCalls = new Map<string, { name: string; args: string }>();
   let generationId: string | undefined;
   let finishReason: InferenceFinishReason | undefined;
@@ -461,6 +463,19 @@ async function foldStream(
             texts.set(event.outputIndex, (texts.get(event.outputIndex) ?? '') + event.text);
           }
           break;
+        case 'audio': {
+          const chunk = Buffer.from(event.data, 'base64');
+          const existing = audio.get(event.outputIndex);
+          audioBytes += chunk.length;
+          if (chunk.toString('base64') !== event.data || audioBytes > 20 * 1024 * 1024 ||
+              (existing !== undefined && existing.mediaType !== event.mediaType)) {
+            throw new KaanaProtocolError('The inference data plane sent invalid or oversized audio.');
+          }
+          const output = existing ?? { mediaType: event.mediaType, chunks: [] };
+          output.chunks.push(chunk);
+          audio.set(event.outputIndex, output);
+          break;
+        }
         case 'tool_call': {
           const existing = toolCalls.get(event.toolCallId) ?? { name: '', args: '' };
           toolCalls.set(event.toolCallId, {
@@ -547,7 +562,7 @@ async function foldStream(
 
   return {
     ...(generationId === undefined ? {} : { generationId }),
-    output: foldedOutput(texts, toolCalls),
+    output: foldedOutput(texts, toolCalls, audio),
     finishReason,
     usage: report,
     routeSwitchEvents,
@@ -583,7 +598,8 @@ function usageEvidence(
  */
 function foldedOutput(
   texts: ReadonlyMap<number, string>,
-  toolCalls: ReadonlyMap<string, { name: string; args: string }>
+  toolCalls: ReadonlyMap<string, { name: string; args: string }>,
+  audio: ReadonlyMap<number, { mediaType: string; chunks: Buffer[] }>
 ): InferenceMessage[] {
   const calls: InferenceToolCall[] = [...toolCalls.entries()].map(([id, call]) => ({
     id,
@@ -591,7 +607,7 @@ function foldedOutput(
     arguments: call.args,
   }));
 
-  const indexes = [...texts.keys()].sort((left, right) => left - right);
+  const indexes = [...new Set([...texts.keys(), ...audio.keys()])].sort((left, right) => left - right);
   if (indexes.length === 0) {
     if (calls.length === 0) return [];
     return [{ role: 'assistant', content: [], toolCalls: calls }];
@@ -599,7 +615,14 @@ function foldedOutput(
 
   return indexes.map((index, position) => ({
     role: 'assistant' as const,
-    content: [{ type: 'text' as const, text: texts.get(index) ?? '' }],
+    content: [
+      ...(texts.has(index) ? [{ type: 'text' as const, text: texts.get(index) ?? '' }] : []),
+      ...(audio.has(index) ? [{ type: 'audio' as const, source: {
+        kind: 'inline' as const,
+        mediaType: audio.get(index)!.mediaType,
+        data: Buffer.concat(audio.get(index)!.chunks).toString('base64'),
+      } }] : []),
+    ],
     ...(position === 0 && calls.length > 0 ? { toolCalls: calls } : {}),
   }));
 }
