@@ -56,6 +56,13 @@ class DeliveryTests(unittest.TestCase):
             self.assertEqual(set(config['production']), {'env_vars'})
             self.assertEqual(len(config['production']['env_vars']), 3)
 
+    def test_inventory_failure_never_decrypts_or_mutates(self):
+        with patch.object(edge, 'deployed', side_effect=RuntimeError('inventory unavailable')), patch.object(edge, 'secret') as secret, patch.object(edge, 'api') as api:
+            with self.assertRaises(RuntimeError):
+                edge.deliver('6a2f851751b784a86fd0e92b', False, True)
+            secret.assert_not_called()
+            api.assert_not_called()
+
     def test_incomplete_pair_never_mutates(self):
         with patch.object(edge, 'deployed', return_value=True), patch.object(edge, 'secret', side_effect=['key', RuntimeError('missing')]), patch.object(edge, 'api') as api:
             with self.assertRaises(RuntimeError):
