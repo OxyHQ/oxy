@@ -869,6 +869,8 @@ export type {
     OxyInferenceResponse,
     OxyGenerationReceipt,
     OxyResponsesRequest,
+    OxySpeechRequest,
+    OxySpeechResponse,
 } from './inference/OxyInferenceClient';
 
 export { runSessionColdBoot } from './boot/sessionColdBoot';

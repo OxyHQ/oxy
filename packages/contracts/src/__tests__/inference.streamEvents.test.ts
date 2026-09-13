@@ -272,3 +272,19 @@ describe('inferenceStreamUsageEventSchema', () => {
     expect(inferenceStreamUsageEventSchema.safeParse(withoutDeployment).success).toBe(false);
   });
 });
+
+
+describe('audio stream events', () => {
+  const audio = { schemaVersion: 1, type: 'audio', requestId: 'req_audio', sequence: 1,
+    outputIndex: 0, mediaType: 'audio/mpeg', data: 'SUQz' };
+  it('preserves binary chunks including padded base64', () => {
+    expect(inferenceStreamEventSchema.parse(audio)).toEqual(audio);
+    expect(inferenceStreamEventSchema.safeParse({ ...audio, data: 'YQ==' }).success).toBe(true);
+  });
+  it.each(['', 'hello', 'YQ=', 'YQ==YQ==', 'a'.repeat(65540)])('rejects malformed or oversized chunks', (data) => {
+    expect(inferenceStreamEventSchema.safeParse({ ...audio, data }).success).toBe(false);
+  });
+  it.each([{ mediaType: 'text/html' }, { sequence: -1 }, { outputIndex: -1 }])('rejects invalid audio metadata', (patch) => {
+    expect(inferenceStreamEventSchema.safeParse({ ...audio, ...patch }).success).toBe(false);
+  });
+});

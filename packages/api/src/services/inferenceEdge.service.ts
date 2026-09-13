@@ -1382,8 +1382,10 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     const reservation = await reserve({
       idempotencyKey: ledgerKey,
       attribution: ledgerAttribution,
-      knownUnits: { input_tokens: estimatedInputTokens },
-      maxOutputTokens,
+      knownUnits: request.operation.kind === 'speech'
+        ? { characters: request.operation.characters }
+        : { input_tokens: estimatedInputTokens },
+      ...(maxOutputTokens > 0 ? { maxOutputTokens } : {}),
       ceilingPriceVersionId,
       maxAmount,
       currency: quote.currency,
@@ -2717,11 +2719,12 @@ function buildEnvelope(
       routingTarget.kind === 'routing_profile_id' || authorizesCrossModel
         ? routingTarget
         : { kind: 'model', modelReference: route.modelReference },
-    modality: 'text',
+    modality: request.operation.kind === 'speech' ? 'audio' : 'text',
     input: request.input,
     stream,
-    maxOutputTokens,
+    ...(maxOutputTokens > 0 ? { maxOutputTokens } : {}),
     sampling: request.sampling,
+    ...(request.speech === undefined ? {} : { speech: request.speech }),
     tools: request.tools,
     ...(request.toolChoice === undefined ? {} : { toolChoice: request.toolChoice }),
     ...(request.responseFormat === undefined
