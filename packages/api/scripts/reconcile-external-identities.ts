@@ -7,6 +7,7 @@ import { externalIdentityActors } from '../src/db/schema/externalIdentities';
 import { users } from '../src/db/schema/users';
 import { federationService } from '../src/services/federation.service';
 import { revokeMetaIdentityProof } from '../src/services/federation/metaIdentityProofRegistry.service';
+import type { ExternalActorProfile } from '../src/services/federation/externalIdentityPolicy';
 import { FEDERATION_BRIDGE_POLICY } from '../src/config/federationBridgePolicy';
 
 /** Failed apply observations revoke stale proof; previews never mutate identity. */
@@ -20,6 +21,14 @@ export async function inspectReconciliationActorResult(actorUri: string, apply: 
 export async function inspectReconciliationActor(actorUri: string, apply: boolean) {
   const result = await inspectReconciliationActorResult(actorUri, apply);
   return result.ok ? result.profile : null;
+}
+
+/** Compare the representation persisted by registerExternalIdentity, not wire emptiness. */
+export async function inspectReconciliationChanges(profile: Pick<ExternalActorProfile, 'username' | 'bio'>, canonicalAcct: string): Promise<boolean> {
+  const [stored] = await getDb().select({ bio: users.bio }).from(users).where(eq(users.username, canonicalAcct)).limit(1);
+  // Registry persistence uses `bio || null`. Historical empty strings and NULL
+  // both mean no biography; otherwise every empty profile changes on every run.
+  return !stored || profile.username !== canonicalAcct || (profile.bio || null) !== (stored.bio || null);
 }
 
 async function main() {
@@ -51,8 +60,7 @@ async function main() {
             continue;
           }
           const profile = inspected.profile;
-          const [stored] = await getDb().select({ bio: users.bio }).from(users).where(eq(users.username, source.canonicalAcct)).limit(1);
-          const changes = profile.username !== source.canonicalAcct || profile.bio !== stored?.bio;
+          const changes = await inspectReconciliationChanges(profile, source.canonicalAcct);
           let identityProof: { state: string; reason?: string } | undefined;
           if (apply) {
             // Refetching at commit time avoids persisting a dry-run document if
