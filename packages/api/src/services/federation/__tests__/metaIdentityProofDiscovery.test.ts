@@ -9,7 +9,8 @@ jest.mock('../../assetServiceSingleton', () => ({ assetService: { ensureOwnedAss
 jest.mock('../../../utils/logger', () => ({ logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() } }));
 import { eq } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../../config/postgres';
-import { externalIdentities } from '../../../db/schema';
+import { inspectReconciliationActor } from '../../../../scripts/reconcile-external-identities';
+import { externalIdentities, externalIdentityMetaProofs } from '../../../db/schema';
 import { federationService } from '../../federation.service';
 import { getEquivalentUserIds, registerExternalIdentity } from '../../externalIdentityRegistry.service';
 beforeAll(connectPostgres);
@@ -83,4 +84,23 @@ it('refuses a WebFinger actor whose source username contradicts the first-party 
   expect(result?.identityProof).toEqual({ state: 'refused', reason: 'threads_actor_binding_missing' });
   if (!result) throw new Error('Missing discovery result');
   expect(await getEquivalentUserIds(result.externalIdentity.sourceUserId)).toEqual([result.externalIdentity.sourceUserId]);
+});
+
+it('reconciliation preserves active proof in dryrun but revokes unavailable actors in apply', async () => {
+  const source = setup();
+  const resolved = await federationService.resolveExternalActorIdentity(source.igUri);
+  if (!resolved) throw new Error('Expected fixture discovery');
+  const sourceId = resolved.externalIdentity.sourceUserId;
+  const [before] = await getDb().select().from(externalIdentityMetaProofs).where(eq(externalIdentityMetaProofs.instagramActorUri, source.igUri));
+  expect(before.state).toBe('verified');
+  expect(await getEquivalentUserIds(sourceId)).toHaveLength(2);
+  mockSafeFetch.mockRejectedValue(new Error('Source unavailable'));
+  expect(await inspectReconciliationActor(source.igUri, false)).toBeNull();
+  const [preview] = await getDb().select().from(externalIdentityMetaProofs).where(eq(externalIdentityMetaProofs.instagramActorUri, source.igUri));
+  expect(preview).toEqual(before);
+  expect(await getEquivalentUserIds(sourceId)).toHaveLength(2);
+  expect(await inspectReconciliationActor(source.igUri, true)).toBeNull();
+  const [applied] = await getDb().select().from(externalIdentityMetaProofs).where(eq(externalIdentityMetaProofs.instagramActorUri, source.igUri));
+  expect(applied).toMatchObject({ state: 'revoked', revocationReason: 'source_actor_unavailable' });
+  expect(await getEquivalentUserIds(sourceId)).toEqual([sourceId]);
 });

@@ -5,7 +5,16 @@ import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
 import { externalIdentityActors } from '../src/db/schema/externalIdentities';
 import { users } from '../src/db/schema/users';
 import { federationService } from '../src/services/federation.service';
+import { revokeMetaIdentityProof } from '../src/services/federation/metaIdentityProofRegistry.service';
 import { FEDERATION_BRIDGE_POLICY } from '../src/config/federationBridgePolicy';
+
+/** Failed apply observations revoke stale proof; previews never mutate identity. */
+export async function inspectReconciliationActor(actorUri: string, apply: boolean) {
+  const observedAt = new Date();
+  const profile = await federationService.fetchActorProfile(actorUri);
+  if (!profile && apply) await revokeMetaIdentityProof(actorUri, 'source_actor_unavailable', observedAt);
+  return profile;
+}
 
 async function main() {
   const apply = process.argv.includes('--apply');
@@ -29,7 +38,7 @@ async function main() {
         if (!reviewed.has(host) && host !== 'threads.net' && host !== 'threads.com') continue;
         visited++;
         try {
-          const profile = await federationService.fetchActorProfile(source.actorUri);
+          const profile = await inspectReconciliationActor(source.actorUri, apply);
           if (!profile) {
             refused++;
             console.log(JSON.stringify({ actorUri: source.actorUri, state: 'refused', reason: 'source_fetch_or_identity_proof_failed' }));
@@ -62,4 +71,6 @@ async function main() {
   } finally { await closePostgres(); }
 }
 
-void main().catch(error => { console.error(error instanceof Error ? error.message : 'Reconciliation failed'); process.exitCode = 1; });
+if (require.main === module) {
+  void main().catch(error => { console.error(error instanceof Error ? error.message : 'Reconciliation failed'); process.exitCode = 1; });
+}
