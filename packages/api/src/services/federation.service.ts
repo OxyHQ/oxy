@@ -473,8 +473,8 @@ export async function signWithKeyId(keyId: string, signingString: string): Promi
 const SIGNED_FETCH_MAX_REDIRECTS = 3;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 
-async function signedFetch(url: string, accept: string): Promise<SafeFetchResult | null> {
-  const keyPair = await getInstanceKeyPair();
+async function signedFetch(url: string, accept: string, existingKey?: KeyPairDoc): Promise<SafeFetchResult | null> {
+  const keyPair = existingKey ?? await getInstanceKeyPair();
   const signWithInstanceKey = async (_keyId: string, signingString: string): Promise<string> => {
     const signer = crypto.createSign('sha256');
     signer.update(signingString);
@@ -914,9 +914,11 @@ class FederationService {
   }
 
   /** Internal diagnostics preserve the public nullable profile contract. */
-  async fetchActorProfileResult(actorUri: string, acctHint?: string): Promise<ActorProfileResult<ExternalActorProfile>> {
+  async fetchActorProfileResult(actorUri: string, acctHint?: string, options: { readonlySigningKey?: boolean } = {}): Promise<ActorProfileResult<ExternalActorProfile>> {
     try {
-      const res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0]);
+      const existingKey = options.readonlySigningKey ? await findKeyPair(composeInstanceKeyId(AP_DOMAIN)) : undefined;
+      if (options.readonlySigningKey && !existingKey) return resolutionFailure('actor_fetch', 'signing_key_unavailable', { actorUri });
+      const res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0], existingKey ?? undefined);
       if (!res || res.status < 200 || res.status >= 300) {
         res?.response.destroy();
         return resolutionFailure('actor_fetch', res ? 'http_status' : 'transport_unavailable', { actorUri }, res?.status);
