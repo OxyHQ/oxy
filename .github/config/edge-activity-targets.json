@@ -1,0 +1,54 @@
+{
+	"6a2f851751b784a86fd0e94f": {
+		"namespace": "website-api",
+		"targets": [["pages", "oxy-website"]]
+	},
+	"6a2f851751b784a86fd0e92b": {
+		"namespace": "allo",
+		"targets": [["workers", "allo-frontend"]]
+	},
+	"6a2f851751b784a86fd0e958": {
+		"namespace": "peable",
+		"targets": [["pages", "peable-frontend"], ["pages", "peable-checkout"]]
+	},
+	"6a6947b30fe72510b411252f": {
+		"namespace": "crowdsource",
+		"targets": [
+			["workers", "crowdsource-frontend"],
+			["workers", "crowdsource-console"]
+		]
+	},
+	"6a396f5c2ccd7e7831cb6a31": {
+		"namespace": "moovo",
+		"targets": [
+			["pages", "moovo"],
+			["pages", "moovo-go"],
+			["pages", "moovo-hub"],
+			["pages", "moovo-tracker"]
+		]
+	},
+	"6a37d0cc5d4b5f15482a9340": {
+		"namespace": "mercaria",
+		"targets": [
+			["workers", "mercaria"],
+			["workers", "mercaria-dashboard"],
+			["workers", "mercaria-pos"]
+		]
+	},
+	"6a37b3e71ddfd195b65681d2": {
+		"namespace": "noted",
+		"targets": [["workers", "noted"]]
+	},
+	"019fe305-3543-750c-997f-650db85b2dec": {
+		"namespace": "atlas",
+		"targets": [["pages", "atlas"]]
+	},
+	"6a2f851751b784a86fd0e946": {
+		"namespace": "tnp",
+		"targets": [["pages", "tnp"]]
+	},
+	"6a37b3e61ddfd195b656819b": {
+		"namespace": "inbox",
+		"targets": [["workers", "oxy-inbox"]]
+	}
+}

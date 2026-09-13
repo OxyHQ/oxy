@@ -340,3 +340,39 @@ assert.ok(destinationHandoff > finalizeCall);
 process.stdout.write(
 	"Service credential workflows bind exact app/credential IDs, scopes, and SSM destinations.\n",
 );
+
+// Keep Cloudflare credential delivery regression tests on the deploy-script gate.
+const edgeDelivery = spawnSync(
+	"python3",
+	["scripts/test-edge-activity-delivery.py"],
+	{
+		encoding: "utf8",
+	},
+);
+assert.equal(edgeDelivery.status, 0, edgeDelivery.stderr);
+const edgeRegistryEnd = provision.indexOf(
+	'          CREDENTIAL_NAME="${CREDENTIAL_NAME:-Service (production)}"',
+);
+const edgeRegistryShell = provision.slice(registryStart, edgeRegistryEnd);
+for (const [appId, entry] of Object.entries(
+	JSON.parse(readFileSync(".github/config/edge-activity-targets.json", "utf8")),
+)) {
+	const execution = spawnSync(
+		"bash",
+		[
+			"-c",
+			`${edgeRegistryShell}\nprintf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$DESTINATION_KEY_NAME" "$DESTINATION_SECRET_NAME" "$ROLLOUT_SERVICE"`,
+		],
+		{
+			env: { ...process.env, APP_ID: appId, CREDENTIAL_LANE: "edge" },
+			encoding: "utf8",
+		},
+	);
+	assert.equal(execution.status, 0, execution.stderr);
+	assert.deepEqual(execution.stdout.trim().split("\n"), [
+		entry.namespace,
+		"user:read",
+		"OXY_EDGE_ACTIVITY_API_KEY",
+		"OXY_EDGE_ACTIVITY_API_SECRET",
+	]);
+}
