@@ -170,3 +170,4 @@ export * from './webauthnCredentials';
 export * from './externalIdentities';
 
 export * from './externalIdentityMetaProofs';
+export * from './families';
