@@ -344,6 +344,15 @@ const modelLineOf = (reference: string): string => {
  * must not silently substitute a model reads that discriminant rather than
  * inferring intent from a string.
  */
+/** Parameters for text-to-speech, preserved in the signed request. */
+export const inferenceSpeechParametersSchema = z.object({
+  voice: z.string().min(1).max(64),
+  responseFormat: z.enum(["mp3", "opus", "aac", "flac", "wav", "pcm"]),
+  speed: z.number().min(0.25).max(4).optional(),
+}).strict();
+
+export type InferenceSpeechParameters = z.infer<typeof inferenceSpeechParametersSchema>;
+
 export const inferenceRequestSchema = z
   .object({
     /** See `version.ts`: this is the Oxy→data-plane request envelope. */
@@ -355,6 +364,7 @@ export const inferenceRequestSchema = z
     stream: z.boolean(),
     maxOutputTokens: z.number().int().positive().safe().optional(),
     sampling: samplingParametersSchema,
+    speech: inferenceSpeechParametersSchema.optional(),
     tools: z.array(toolDefinitionSchema).default([]),
     toolChoice: toolChoiceSchema.optional(),
     responseFormat: responseFormatSchema.optional(),
@@ -397,6 +407,13 @@ export const inferenceRequestSchema = z
     authorizedRoutes: z.array(authorizedRouteSchema).min(1).optional(),
   })
   .superRefine((request, ctx) => {
+    const isSpeech = request.client.apiFormat === "audio_speech";
+    if (isSpeech && request.speech !== undefined && (request.modality !== "audio" || request.input.format !== "text" || request.stream)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["speech"], message: "speech requires audio modality, text input, parameters and non-streaming output" });
+    }
+    if (!isSpeech && request.speech !== undefined) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["speech"], message: "speech parameters require the audio_speech API format" });
+    }
     if (request.toolChoice !== undefined && request.tools.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
