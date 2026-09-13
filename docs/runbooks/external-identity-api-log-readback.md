@@ -42,3 +42,15 @@ Offline controls:
 ```bash
 python3 .github/scripts/test-read-external-identity-api-logs.py
 ```
+
+Identity resolution emits a structured `Federation identity resolution failed`
+event for an unsuccessful WebFinger or actor-document observation. Its phase,
+classified reason, and HTTP status (when known) describe that one attempt;
+`transport_unavailable` does not claim a particular DNS, timeout, or SSRF cause.
+Only public selectors are retained; URL credentials, query strings, fragments,
+response bodies, and raw exception text are excluded from these events.
+
+The reconciler uses the same actor observation to report `reason`, `phase`, and
+optional `httpStatus` for a refused source, without fetching it again for logging.
+These internal diagnostics do not change discovery's nullable public response or
+permit a source rejected by the existing identity checks.

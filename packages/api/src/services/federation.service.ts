@@ -6,6 +6,7 @@
  * Signs outgoing requests with HTTP Signatures for servers that enforce authorized fetch.
  */
 
+import { resolutionFailure, safeActorSelector, type ActorProfileResult } from './federation/resolutionFailure';
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
 import { eq } from 'drizzle-orm';
@@ -136,11 +137,11 @@ async function safeFederationFetch(
   try {
     protocol = new URL(rawUrl).protocol;
   } catch {
-    logger.warn(`Federation URL rejected: malformed ${rawUrl}`);
+    logger.warn('Federation URL rejected', { reason: 'malformed' });
     return null;
   }
   if (protocol !== 'https:') {
-    logger.warn(`Federation URL rejected: non-https protocol for ${rawUrl}`);
+    logger.warn('Federation URL rejected', { reason: 'non_https' });
     return null;
   }
 
@@ -154,10 +155,10 @@ async function safeFederationFetch(
     });
   } catch (err) {
     if (err instanceof SsrfRejection) {
-      logger.warn(`Federation URL rejected by SSRF guard (${err.message}): ${rawUrl}`);
+      logger.warn('Federation URL rejected', { reason: 'ssrf_rejected', actorUri: safeActorSelector(rawUrl) });
       return null;
     }
-    logger.warn(`Federation fetch failed for ${rawUrl}: ${err instanceof Error ? err.message : String(err)}`);
+    logger.warn('Federation fetch failed', { reason: 'transport_unavailable', actorUri: safeActorSelector(rawUrl) });
     return null;
   }
 }
@@ -520,14 +521,14 @@ async function signedFetch(url: string, accept: string): Promise<SafeFetchResult
   // Remote 5xx with a signature often means the server could not verify our keyId;
   // retry unsigned for public resources (same fallback as @oxy.so/federation/node).
   if (res.status >= 500) {
-    logger.info(`[Federation] signedFetch got ${res.status} for ${url}, retrying unsigned`);
+    logger.info(`[Federation] signedFetch got ${res.status} for ${safeActorSelector(url) ?? '[invalid selector]'}, retrying unsigned`);
     res.response.destroy();
     return fetchFollowingRedirects(url, false);
   }
 
   if (res.status === 401 || res.status === 403) {
     logger.warn(
-      `[Federation] signedFetch got ${res.status} for ${url} — remote rejected our HTTP signature`,
+      `[Federation] signedFetch got ${res.status} for ${safeActorSelector(url) ?? '[invalid selector]'} — remote rejected our HTTP signature`,
     );
   }
 
@@ -812,10 +813,10 @@ class FederationService {
    */
   async resolveWebFingerResource(acct: string): Promise<WebFingerResolution | null> {
     const normalizedAcct = normalizeFediverseHandle(acct);
-    if (!normalizedAcct) return null;
+    if (!normalizedAcct) { resolutionFailure('webfinger_fetch', 'invalid_selector', {}); return null; }
 
     const domain = domainFromHandle(normalizedAcct);
-    if (!domain) return null;
+    if (!domain) { resolutionFailure('webfinger_fetch', 'invalid_selector', {}); return null; }
 
     const resource = `acct:${normalizedAcct}`;
     const url = `https://${domain}/.well-known/webfinger?resource=${encodeURIComponent(resource)}`;
@@ -826,6 +827,7 @@ class FederationService {
         timeoutMs: FEDERATION_FETCH_TIMEOUT_MS,
       });
       if (!res || res.status < 200 || res.status >= 300) {
+        resolutionFailure('webfinger_fetch', res ? 'http_status' : 'transport_unavailable', { acct: normalizedAcct }, res?.status);
         res?.response.destroy();
         return null;
       }
@@ -834,12 +836,12 @@ class FederationService {
         subject?: string;
         links?: Array<{ rel?: string; type?: string; href?: string }>;
       }>(res.response);
-      if (!data) return null;
+      if (!data) { resolutionFailure('webfinger_document', 'unreadable_document', { acct: normalizedAcct }, res.status); return null; }
 
       const link = data.links?.find(
         (l) => l.rel === 'self' && l.type && AP_ACCEPT_TYPES.includes(l.type),
       );
-      if (!link?.href) return null;
+      if (!link?.href) { resolutionFailure('webfinger_document', 'missing_self_link', { acct: normalizedAcct }, res.status); return null; }
 
       const subjectAcct = typeof data.subject === 'string'
         ? normalizeFediverseHandle(data.subject) || undefined
@@ -849,8 +851,8 @@ class FederationService {
         actorUri: link.href,
         subjectAcct,
       };
-    } catch (err) {
-      logger.warn(`WebFinger resolution failed for ${acct}: ${err}`);
+    } catch {
+      resolutionFailure('webfinger_document', 'unexpected_failure', { acct: normalizedAcct });
       return null;
     }
   }
@@ -907,18 +909,25 @@ class FederationService {
    * Uses HTTP Signature for servers that enforce authorized fetch.
    */
   async fetchActorProfile(actorUri: string, acctHint?: string): Promise<ExternalActorProfile | null> {
+    const result = await this.fetchActorProfileResult(actorUri, acctHint);
+    return result.ok ? result.profile : null;
+  }
+
+  /** Internal diagnostics preserve the public nullable profile contract. */
+  async fetchActorProfileResult(actorUri: string, acctHint?: string): Promise<ActorProfileResult<ExternalActorProfile>> {
     try {
       const res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0]);
       if (!res || res.status < 200 || res.status >= 300) {
         res?.response.destroy();
-        return null;
+        return resolutionFailure('actor_fetch', res ? 'http_status' : 'transport_unavailable', { actorUri }, res?.status);
       }
       const actor = await readJsonLimited<Record<string, unknown>>(res.response);
-      if (!actor || typeof actor.id !== 'string' || !actor.inbox) return null;
+      if (!actor) return resolutionFailure('actor_document', 'unreadable_document', { actorUri }, res.status);
+      if (typeof actor.id !== 'string' || !actor.inbox) return resolutionFailure('actor_document', 'missing_actor_fields', { actorUri }, res.status);
       // The fetch's final URL, rather than a caller assertion, binds the actor.
-      if (actor.id !== actorUri && actor.id !== res.finalUrl) return null;
+      if (actor.id !== actorUri && actor.id !== res.finalUrl) return resolutionFailure('actor_document', 'actor_id_mismatch', { actorUri }, res.status);
       const profile = deriveExternalActorProfile(actor, actor.id, acctHint);
-      if (!profile) return null;
+      if (!profile) return resolutionFailure('identity_policy', 'identity_policy_rejected', { actorUri }, res.status);
       const actorHost = canonicalFederationHost(new URL(actor.id).hostname);
       // Split account/actor hosts are legitimate only when the account host's
       // WebFinger names this exact actor. Neither caller hints nor actor fields
@@ -934,10 +943,9 @@ class FederationService {
           profile.transportAcct = candidate.toLowerCase();
         }
       }
-      return profile;
-    } catch (err) {
-      logger.warn(`Failed to fetch actor profile ${actorUri}: ${err}`);
-      return null;
+      return { ok: true, profile };
+    } catch {
+      return resolutionFailure('actor_fetch', 'unexpected_failure', { actorUri });
     }
   }
 
