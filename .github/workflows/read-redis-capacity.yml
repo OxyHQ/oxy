@@ -45,7 +45,7 @@ jobs:
       FAILURE_START: ${{ inputs.failure_start }}
       FAILURE_END: ${{ inputs.failure_end }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -59,7 +59,7 @@ jobs:
           module.validate(os.environ, datetime.datetime.now(datetime.timezone.utc))
           PY
       - name: Obtain only diagnostic AWS permissions
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6
         with:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: us-west-2
@@ -68,7 +68,7 @@ jobs:
             {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ecs:DescribeServices","ecs:DescribeTaskDefinition","ecs:ListTasks","ecs:DescribeTasks","ecr:BatchGetImage","elasticache:DescribeReplicationGroups","elasticache:DescribeCacheClusters","elasticache:DescribeCacheParameters","cloudwatch:GetMetricData"],"Resource":"*"},{"Effect":"Allow","Action":"ssm:GetParameter","Resource":["arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/REDIS_URL","arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/REDIS_URL","arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/REDIS_URL"]},{"Effect":"Allow","Action":"kms:Decrypt","Resource":"*","Condition":{"StringEquals":{"kms:ViaService":"ssm.us-west-2.amazonaws.com"}}}]}
       - name: Read deployed routing, cache policy and fixed capacity metrics
         run: python3 .github/scripts/read-redis-capacity.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: redis-capacity-readback-${{ github.run_id }}
           path: redis-capacity-readback/report.json
