@@ -57,6 +57,31 @@ describe('Oxy external identity policy', () => {
         transportAcct: 'alice@threads.com', actorUri: uri, stableId: uri, bio: 'Hello @bob@threads.net' });
   });
 
+
+  it.each(['https://www.threads.net/ap/users/mosseri/', 'https://threads.com/ap/users/name.with_1/'])('retains the exact native AP URI %s as its source ID', uri => {
+    expect(deriveExternalActorProfile({ id: uri, preferredUsername: 'mosseri' }, uri))
+      .toMatchObject({ actorUri: uri, stableId: uri, domain: 'threads.net' });
+  });
+
+  it.each([
+    'https://threads.net.evil.test/ap/users/mosseri/',
+    'https://threads.net/@mosseri', 'https://threads.net/ap/users/mosseri/extra',
+    'https://threads.net/ap/users/mosseri%2Fother',
+    'https://threads.net/ap/users/mosseri/?owner=1', 'https://threads.net/ap/users/mosseri/#owner',
+    'https://threads.net:8443/ap/users/mosseri/',
+  ])('does not assign native lineage to an unreviewed URI %s', uri => {
+    expect(deriveExternalActorProfile({ id: uri, preferredUsername: 'mosseri' }, uri)?.stableId).toBeUndefined();
+  });
+
+  it.each(['http://threads.net/ap/users/mosseri/', 'https://user:pass@threads.net/ap/users/mosseri/'])('rejects an unsafe actor URI %s', uri => {
+    expect(deriveExternalActorProfile({ id: uri, preferredUsername: 'mosseri' }, uri)).toBeNull();
+  });
+
+  it('rejects actor ID mismatch instead of promoting a requested native handle URI', () => {
+    expect(deriveExternalActorProfile({ id: 'https://www.threads.net/ap/users/other/', preferredUsername: 'mosseri' },
+      'https://www.threads.net/ap/users/mosseri/')).toBeNull();
+  });
+
   it('reads explicit rel=me claims, never ordinary links', () => {
     expect(identityLinks("<a href='https://instagram.com/alice' rel='nofollow me'>one</a><a href='https://threads.net/@bob'>two</a>"))
       .toEqual(['https://instagram.com/alice']);
