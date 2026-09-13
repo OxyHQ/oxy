@@ -30,6 +30,7 @@ jobs:
           bash .github/scripts/test-run-external-identity-reconciliation.sh
           bash .github/scripts/test-collect-external-identity-task.sh
           python3 .github/scripts/test-read-external-identity-api-logs.py
+          PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/test-read-redis-capacity.py
           node scripts/test-check-external-identity-operations.mjs
           node scripts/check-external-identity-operations.mjs
           node scripts/test-check-asset-worker-rollout.mjs

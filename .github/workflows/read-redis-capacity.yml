@@ -1,0 +1,76 @@
+name: Read shared Redis capacity and routing
+on:
+  workflow_dispatch:
+    inputs:
+      oxy_source_sha:
+        description: Exact currently deployed Oxy source SHA
+        required: true
+        type: string
+      oxy_image_digest:
+        description: Exact currently deployed Oxy sha256 digest
+        required: true
+        type: string
+      mention_source_sha:
+        description: Exact currently deployed Mention source SHA
+        required: true
+        type: string
+      mention_image_digest:
+        description: Exact currently deployed Mention sha256 digest
+        required: true
+        type: string
+      failure_start:
+        description: Past UTC start YYYY-MM-DDTHH:MM:SSZ within 24 hours
+        required: true
+        type: string
+      failure_end:
+        description: Past UTC end no more than 15 minutes after start
+        required: true
+        type: string
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: redis-capacity-readback
+  cancel-in-progress: false
+jobs:
+  readback:
+    if: github.ref == 'refs/heads/main' && github.ref_protected && github.triggering_actor == github.actor
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    env:
+      OXY_SOURCE_SHA: ${{ inputs.oxy_source_sha }}
+      OXY_IMAGE_DIGEST: ${{ inputs.oxy_image_digest }}
+      MENTION_SOURCE_SHA: ${{ inputs.mention_source_sha }}
+      MENTION_IMAGE_DIGEST: ${{ inputs.mention_image_digest }}
+      FAILURE_START: ${{ inputs.failure_start }}
+      FAILURE_END: ${{ inputs.failure_end }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate immutable selectors and bounded window
+        run: |
+          python3 - <<'PY'
+          import datetime, importlib.util, os
+          spec = importlib.util.spec_from_file_location('readback', '.github/scripts/read-redis-capacity.py')
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          module.validate(os.environ, datetime.datetime.now(datetime.timezone.utc))
+          PY
+      - name: Obtain only diagnostic AWS permissions
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: us-west-2
+          unset-current-credentials: true
+          inline-session-policy: >-
+            {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ecs:DescribeServices","ecs:DescribeTaskDefinition","ecs:ListTasks","ecs:DescribeTasks","ecr:BatchGetImage","elasticache:DescribeReplicationGroups","elasticache:DescribeCacheClusters","elasticache:DescribeCacheParameters","cloudwatch:GetMetricData"],"Resource":"*"},{"Effect":"Allow","Action":"ssm:GetParameter","Resource":["arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/REDIS_URL","arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/REDIS_URL","arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/REDIS_URL"]},{"Effect":"Allow","Action":"kms:Decrypt","Resource":"*","Condition":{"StringEquals":{"kms:ViaService":"ssm.us-west-2.amazonaws.com"}}}]}
+      - name: Read deployed routing, cache policy and fixed capacity metrics
+        run: python3 .github/scripts/read-redis-capacity.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: redis-capacity-readback-${{ github.run_id }}
+          path: redis-capacity-readback/report.json
+          retention-days: 14
+          if-no-files-found: error
