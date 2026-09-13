@@ -81,9 +81,11 @@ aws ecs describe-tasks --cluster "$cluster" --tasks "${live_tasks[@]}" --output 
 jq -e --arg definition "$live_definition" --arg digest "$digest" --arg name "$container" --argjson count "${#live_tasks[@]}" '.failures | length == 0' "$scratch/live-tasks.json" >/dev/null
 jq -e --arg definition "$live_definition" --arg digest "$digest" --arg name "$container" --argjson count "${#live_tasks[@]}" '.tasks | length == $count and all(.[]; .taskDefinitionArn == $definition and .lastStatus == "RUNNING" and ([.containers[] | select(.name == $name and .imageDigest == $digest)] | length == 1))' "$scratch/live-tasks.json" >/dev/null
 # Pin the live image digest; a mutable deployment tag cannot swap the task's code.
-jq --arg name "$container" --arg image "$registry/$repository@$digest" '(.containerDefinitions[] | select(.name == $name) | .image) = $image | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt)' "$scratch/live.json" > "$scratch/run.json"
+jq --arg name "$container" --arg image "$registry/$repository@$digest" '(.containerDefinitions[] | select(.name == $name) | .image) = $image | (.containerDefinitions[] | select(.name == $name) | .linuxParameters.initProcessEnabled) = true | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt)' "$scratch/live.json" > "$scratch/run.json"
 transient_definition=$(aws ecs register-task-definition --cli-input-json "file://$scratch/run.json" --query taskDefinition.taskDefinitionArn --output text)
 [[ "$transient_definition" == arn:aws:ecs:*:task-definition/* ]] || exit 1
+# The transient task uses an init process: BusyBox execs its target in-place,
+# and a child watchdog cannot SIGKILL its own PID-namespace init.
 # BusyBox and GNU timeout share these short flags. Even without StopTask IAM,
 # termination is enforced inside the essential container after 90 minutes plus 30 seconds.
 command=$(jq -nc --arg dry "${DRY_RUN:-true}" --arg cursor "$cursor" '["busybox","timeout","-s","TERM","-k","30","5400","bun","run","packages/api/scripts/reconcile-external-identities.ts"] + (if $dry == "false" then ["--apply"] else [] end) + (if $cursor != "" then ["--after=" + $cursor] else [] end)')

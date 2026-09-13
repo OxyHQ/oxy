@@ -1,5 +1,6 @@
 /** Revalidate legacy bridge identity through the same Oxy discovery authority. */
 import 'dotenv/config';
+import { closeRedis } from '../src/config/redis';
 import { asc, eq, gt } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
 import { externalIdentityActors } from '../src/db/schema/externalIdentities';
@@ -74,9 +75,19 @@ async function main() {
     }
     console.log(JSON.stringify({ apply, visited, changed, refused, pending, after: cursor }));
     if (refused) process.exitCode = 2;
-  } finally { await closePostgres(); }
+  } finally {
+    // Resolution invalidates user caches, opening a persistent Redis socket.
+    // Closing only PostgreSQL leaves completed apply tasks alive indefinitely.
+    try { await closePostgres(); } finally { await closeRedis(); }
+  }
 }
 
 if (require.main === module) {
-  void main().catch(error => { console.error(error instanceof Error ? error.message : 'Reconciliation failed'); process.exitCode = 1; });
+  void main().catch(() => { console.error('Reconciliation failed'); process.exitCode = 1; }).then(async () => {
+    // Detached avatar work belongs to the server lifecycle. A completed one-shot
+    // must terminate, but only after its report and cleanup output are flushed.
+    await Promise.all([process.stdout, process.stderr].map(stream =>
+      new Promise<void>(resolve => { stream.write('', () => resolve()); })));
+    process.exit(process.exitCode ?? 0);
+  });
 }

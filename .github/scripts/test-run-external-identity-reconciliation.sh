@@ -28,7 +28,7 @@ aws() {
         if $next; then file="${arg#file://}"; break; fi
         [[ "$arg" != --cli-input-json ]] || next=true
       done
-      jq -e --arg image "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@$TEST_DIGEST" '.taskRoleArn == "preserved-role" and ([.containerDefinitions[] | select(.name == "oxy-api" and .image == $image and .secrets[0].valueFrom == "preserved-secret-arn")] | length == 1) and .containerDefinitions[0].image == "otel-image" and (has("taskDefinitionArn") | not)' "$file" >/dev/null || return 1
+      jq -e --arg image "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@$TEST_DIGEST" '.taskRoleArn == "preserved-role" and ([.containerDefinitions[] | select(.name == "oxy-api" and .image == $image and .secrets[0].valueFrom == "preserved-secret-arn" and .linuxParameters.initProcessEnabled == true)] | length == 1) and .containerDefinitions[0].image == "otel-image" and (has("taskDefinitionArn") | not)' "$file" >/dev/null || return 1
       echo 'arn:aws:ecs:r:a:task-definition/api:2' ;;
     'ecs run-task')
       local next=false override=''

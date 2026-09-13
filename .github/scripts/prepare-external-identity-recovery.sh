@@ -23,8 +23,14 @@ jq -e --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$EXPECTED_IMAGE_DIGEST" '
   and (.dryRun | type == "boolean")
   and (.taskArn | test("^arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/[0-9a-f]{32}$"))
 ' "$scratch/artifact/run.json" >/dev/null
+[[ "${RECOVERY_OPERATION:-snapshot}" == snapshot || "${RECOVERY_OPERATION:-snapshot}" == stop_completed ]] || exit 1
+if [[ "${RECOVERY_OPERATION:-snapshot}" == stop_completed ]]; then
+  jq -e ' .operation == "reconcile" and (.afterCursor // "") == "" ' "$scratch/artifact/run.json" >/dev/null
+fi
 mkdir -p identity-reconciliation-report
 # Copy only known report fields, never execute or source anything in the artifact.
 jq '{operation,expectedSourceSha,imageDigest,taskArn,dryRun} + (if has("identifiers") then {identifiers:{actorUri:.identifiers.actorUri,canonicalAcct:.identifiers.canonicalAcct,transportAcct:.identifiers.transportAcct}} else {} end)' \
   "$scratch/artifact/run.json" > identity-reconciliation-report/run.json
 jq '{id,head_sha,head_branch,event,path,actor:{login:.actor.login},triggering_actor:{login:.triggering_actor.login}}' "$scratch/prior.json" > identity-reconciliation-report/prior-run.json
+
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then jq -r '"task_arn=" + .taskArn' identity-reconciliation-report/run.json >> "$GITHUB_OUTPUT"; fi

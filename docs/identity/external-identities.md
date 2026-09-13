@@ -159,3 +159,23 @@ an observation at that timestamp, so concurrent discovery can change the result.
 An inspection report does not authorize reconciliation apply. After deployment,
 run this precheck before opening the candidate's public Mention search/profile;
 public Oxy profile lookup routes themselves can trigger discovery.
+
+
+### Stop a completed reconciliation whose process remains alive
+
+Recovery defaults to `operation=snapshot` and remains read-only. If the recovered
+report proves the complete scan finished but ECS still reports `RUNNING`, select
+`operation=stop_completed` on the same recovery workflow, with the original run
+ID, source SHA, and image digest. This does not rerun reconciliation. It grants
+StopTask only for the task ARN authenticated from that run's artifact, then
+rechecks its standalone identity, fixed full-scan command (no resume cursor),
+image, current service definitions, and complete CloudWatch report before issuing
+one stop request. `stop.json` records the request; the operation polls for up to
+two minutes and succeeds only after ECS reaches `STOPPED`. If that bound expires,
+collect another snapshot. A stop request alone is not completion evidence.
+
+New transient tasks enable a separate init process so BusyBox's child watchdog
+can terminate the command; a PID-namespace init cannot be forcibly killed by its
+own children. The CLI closes PostgreSQL and Redis, flushes both output streams,
+and exits with its result code (including 2 for refused observations). Server
+container configuration and normal server lifecycle remain unchanged.
