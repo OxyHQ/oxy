@@ -52,6 +52,7 @@ import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import { federationService } from '../../services/federation.service';
 import profilesRouter from '../profiles';
+import { registerExternalIdentity } from '../../services/externalIdentityRegistry.service';
 
 interface SearchResponse {
   status: number;
@@ -526,5 +527,31 @@ describe('GET /profiles/search — wire shape', () => {
       },
     ]);
     expect(safeParseContract(userResponseSchema, res.body.data?.[0])).not.toBeNull();
+  });
+});
+
+
+describe('GET /profiles/search — canonical identity pagination', () => {
+  it('counts one proven person before pagination and restores separate sources after revocation', async () => {
+    const term = token();
+    const source = (network: string, other: string) => ({ canonicalAcct: `${term}@${network}`,
+      actorUri: `https://${network}/ap/users/${term}`, transportAcct: `${term}@${network}`,
+      protocol: 'activitypub', stableId: `${network}:${term}`, profile: { displayName: term },
+      evidenceLinks: [`https://${other}/${other === 'threads.net' ? '@' : ''}${term}`] });
+    const instagram = source('instagram.com', 'threads.net');
+    const first = await registerExternalIdentity(instagram);
+    const linked = await registerExternalIdentity(source('threads.net', 'instagram.com'));
+    const local = await account({ username: `local${term}` });
+    const page1 = await search(term, { limit: '1' });
+    const page2 = await search(term, { limit: '1', offset: '1' });
+    expect(ids(page1)).toEqual([local]);
+    expect(ids(page2)).toEqual([linked.userId]);
+    expect(page1.body.pagination?.total).toBe(2);
+    expect(page2.body.pagination?.total).toBe(2);
+    await getDb().update(users).set({ reputationTier: 'restricted' }).where(eq(users.id, first.userId));
+    expect(ids(await search(term))).toEqual([local]);
+    await getDb().update(users).set({ reputationTier: 'new' }).where(eq(users.id, first.userId));
+    await registerExternalIdentity({ ...instagram, evidenceLinks: [] });
+    expect((await search(term)).body.pagination?.total).toBe(3);
   });
 });

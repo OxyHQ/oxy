@@ -25,6 +25,11 @@ jobs:
           bash .github/scripts/test-run-native-product-agent-bootstrap.sh
           bash .github/scripts/test-report-native-product-agent-task-failure.sh
           bash .github/scripts/test-smoke-inbox-mcp.sh
+          node --test .github/scripts/release-external-identity-packages.test.mjs
+          node --test .github/scripts/release-external-identity-publication.test.mjs
+          bash .github/scripts/test-run-external-identity-reconciliation.sh
+          node scripts/test-check-external-identity-operations.mjs
+          node scripts/check-external-identity-operations.mjs
           node scripts/test-check-asset-worker-rollout.mjs
           node scripts/check-asset-worker-rollout.mjs
           node scripts/test-check-kaana-dns-boundary.mjs
@@ -53,7 +58,7 @@ jobs:
     permissions:
       contents: read
     # A BACKSTOP, not a budget: the two steps that can actually run long carry
-    # their own caps (16m for the ffmpeg install, 45m for the serial shards),
+    # their own caps (16m for the ffmpeg install, 60m for the serial shards),
     # and this is their sum plus the ~5m the fixed steps cost at their observed maxima
     # (containers 35s, checkout/bun/node/node-gyp 19s, install 30s, guards 10s,
     # build 50s, lint 20s, coverage merge/artifact 8s). So a step cap always fires
@@ -69,7 +74,7 @@ jobs:
     # Measured over 118 recent runs (109 passing): p50 20m57s, p95 23m44s, max
     # on a passing run 26m29s, sd 2m23s. The old 30m cap sat 1.13x that max, so
     # the ffmpeg step's heavy tail alone was enough to blow it.
-    timeout-minutes: 66
+    timeout-minutes: 81
 
     services:
       # Postgres target of the Mongo->Postgres port. Mirrors
@@ -217,6 +222,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile --minimum-release-age=0
+      - name: Verify API image production dependency closure
+        timeout-minutes: 10
+        run: node scripts/test-api-runtime-dependencies.mjs
       # Before the builds and the suite, and needing neither: it reads the tracked
       # file listing. The backfill, 82 Mongoose models and the mongoose dependency
       # were removed on 2026-08-08 and `oxy-prod` is gone, so a Mongo reference is
@@ -309,11 +317,13 @@ jobs:
       # and merges all three. The historical unsharded suite max was 20m57s; two extra
       # global setups do not fit the historical unsharded 30-minute cap: run
       # 33584690054 reached the third shard with every completed test passing,
-      # then GitHub stopped the step at exactly 30 minutes. Forty-five minutes
-      # keeps a finite hang backstop while giving the measured serial process a
-      # 1.5x margin; it does not increase a heap or run heaps concurrently.
+      # then GitHub stopped the step at exactly 30 minutes. On 2026-09-13 the
+      # completed serial coverage workload reached 43m54s (previous run ~41m),
+      # leaving the 45-minute cap no practical runner-variance margin. Sixty
+      # minutes remains a finite step backstop; all three shards, per-test
+      # limits, coverage floors and heap limits remain unchanged.
       - name: Run tests with coverage
-        timeout-minutes: 45
+        timeout-minutes: 60
         run: |
           for shard_index in 1 2 3; do
             echo "Running API coverage shard ${shard_index}/3"

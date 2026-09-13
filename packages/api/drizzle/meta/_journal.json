@@ -575,6 +575,34 @@
       "when": 1789108562697,
       "tag": "0082_inference_funding_evidence",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1789248912424,
+      "tag": "0083_external_identity_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1789249033215,
+      "tag": "0084_external_identity_claim_pins",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1789258626916,
+      "tag": "0085_external_identity_meta_proofs",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1789262664960,
+      "tag": "0086_external_identity_instagram_pins",
+      "breakpoints": true
     }
   ]
 }

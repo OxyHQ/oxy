@@ -1,0 +1,73 @@
+name: Reconcile deployed external identities
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Fixed operation (inspection never discovers or writes)
+        required: true
+        type: choice
+        options: [reconcile, inspect_cache]
+        default: reconcile
+      actor_uri:
+        description: inspect_cache only - exact HTTPS source actor URI
+        required: false
+        type: string
+      canonical_acct:
+        description: inspect_cache only - canonical user@network account
+        required: false
+        type: string
+      transport_acct:
+        description: inspect_cache only - transport user@host account
+        required: false
+        type: string
+      expected_source_sha:
+        description: Full source SHA of the healthy deployed image
+        required: true
+        type: string
+      dry_run:
+        description: Report only (run this before applying)
+        required: true
+        type: boolean
+        default: true
+      after:
+        description: Optional actor URI cursor from a previous report
+        required: false
+        type: string
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: external-identity-reconciliation
+  cancel-in-progress: false
+jobs:
+  reconcile:
+    if: github.ref == 'refs/heads/main' && github.ref_protected
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: us-west-2
+      - name: Run fixed reconciler from the verified deployed digest
+        env:
+          OPERATION_MODE: ${{ inputs.mode }}
+          ACTOR_URI: ${{ inputs.actor_uri }}
+          CANONICAL_ACCT: ${{ inputs.canonical_acct }}
+          TRANSPORT_ACCT: ${{ inputs.transport_acct }}
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          AFTER_CURSOR: ${{ inputs.after }}
+        run: bash .github/scripts/run-external-identity-reconciliation.sh
+      - name: Retain reconciliation report and task logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-identity-reconciliation-${{ github.run_id }}
+          path: identity-reconciliation-report/
+          retention-days: 14
+          if-no-files-found: warn

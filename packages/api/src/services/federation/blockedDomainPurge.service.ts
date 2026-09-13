@@ -62,6 +62,7 @@
  * under-delete — recoverable — and never over-delete.
  */
 
+import { getExternalIdentitiesForUser } from '../externalIdentityRegistry.service';
 import { and, asc, count, eq, gt, inArray, ne } from 'drizzle-orm';
 import { canonicalFederationHost, isSameFederationHost } from '@oxy.so/federation';
 import { getDb } from '../../config/postgres';
@@ -380,6 +381,12 @@ export async function purgeBlockedDomain(
     }
 
     const oxyUserId = candidate.id;
+    if ((await getExternalIdentitiesForUser(oxyUserId)).length > 1) {
+      // A caller blocking one transport cannot remove another source's shared
+      // identity, avatar, or graph. Source cache retirement belongs to that app.
+      result.candidatesRejected += 1;
+      continue;
+    }
     const username = candidate.username ?? '';
     result.actorsProcessed += 1;
 

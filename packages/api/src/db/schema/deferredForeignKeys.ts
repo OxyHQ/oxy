@@ -1,3 +1,5 @@
+import { externalIdentities, externalIdentityClaims } from './externalIdentities';
+import { externalIdentityInstagramPins, externalIdentityMetaProofs } from './externalIdentityMetaProofs';
 /**
  * Foreign Keys This Schema Cannot Declare Yet
  *
@@ -103,6 +105,14 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  { table: externalIdentityMetaProofs, column: externalIdentityMetaProofs.instagramGraphId,
+    reason: 'Instagram first-party profile graph-ID namespace, retained with source hashes and parser provenance; distinct from Instagram pk, Threads web pk and ActivityPub actor URI, not an Oxy row reference.' },
+  { table: externalIdentityInstagramPins, column: externalIdentityInstagramPins.instagramGraphId,
+    reason: 'Instagram first-party profile graph-ID observed with the immutable Instagram pk and source document provenance; an upstream owner identifier, not an Oxy row reference.' },
+  { table: externalIdentities, column: externalIdentities.stableId, reason: 'Source-network immutable subject, not an Oxy row id.' },
+  { table: externalIdentityClaims, column: externalIdentityClaims.sourceStableId, reason: 'Verified source-network subject snapshot; retained as claim evidence.' },
+  { table: externalIdentityClaims, column: externalIdentityClaims.targetStableId, reason: 'Verified counterpart source-network subject snapshot; retained as claim evidence.' },
+
   {
     table: normalizedAppEventOutbox,
     column: normalizedAppEventOutbox.eventId,

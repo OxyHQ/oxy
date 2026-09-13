@@ -1,3 +1,4 @@
+import { externalIdentities, externalIdentityActors } from '../db/schema/externalIdentities';
 /**
  * User Service
  *
@@ -21,7 +22,7 @@
 
 import { and, eq, inArray, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { publicColumns } from '@oxy.so/db/assert';
-import { getDb, type Database } from '../config/postgres';
+import { getDb, type Database, type DatabaseOrTransaction } from '../config/postgres';
 import { blocks } from '../db/schema/blocks';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { restrictions } from '../db/schema/restrictions';
@@ -33,6 +34,7 @@ import { ACCOUNT_KINDS, ACCOUNT_STATUSES, USER_TYPES, users } from '../db/schema
 import { userVerifiedDomains } from '../db/schema/userVerifiedDomains';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
+import { getEquivalentUserIds, getEquivalentUserGroups, expandEquivalentUserIds, resolveCanonicalUserId, resolveExternalIdentityUsers } from './externalIdentityRegistry.service';
 import securityActivityService from './securityActivityService';
 import { sanitizeProfileUpdate } from '../utils/sanitize';
 import {
@@ -42,7 +44,7 @@ import {
   normalizeProfileName,
 } from '../utils/profileTextNormalization';
 import { normalizeUsername } from '../utils/username';
-import { BadRequestError } from '../utils/error';
+import { BadRequestError, ConflictError } from '../utils/error';
 import { Request } from 'express';
 import {
   PaginatedResponse,
@@ -636,6 +638,7 @@ export class UserService {
    * constant, not per-row.
    */
   async readAccountDocument(userId: string): Promise<AccountDocument | null> {
+    userId = await resolveCanonicalUserId(userId);
     const db = getDb();
 
     const [rows, ancestorRows, locationRows, linkRows, domainRows] = await Promise.all([
@@ -811,6 +814,7 @@ export class UserService {
    * Load a single public profile row by id — inclusion-only projection.
    */
   async getPublicUserById(userId: string): Promise<PublicUserView | null> {
+    userId = await resolveCanonicalUserId(userId);
     const [row] = await getDb()
       .select(publicUserColumns)
       .from(users)
@@ -1147,7 +1151,7 @@ export class UserService {
 
     const { userIds: followerIds, total } = await paginateActiveFollowUserIds(
       db,
-      eq(userFollows.followedId, userId),
+      inArray(userFollows.followedId, await getEquivalentUserIds(userId)),
       'followerId',
       limit,
       offset,
@@ -1181,7 +1185,7 @@ export class UserService {
 
     const { userIds: followingIds, total } = await paginateActiveFollowUserIds(
       db,
-      eq(userFollows.followerId, userId),
+      inArray(userFollows.followerId, await getEquivalentUserIds(userId)),
       'followedId',
       limit,
       offset,
@@ -1321,10 +1325,10 @@ export class UserService {
     const viewerFollowing = await db
       .select({ followedId: userFollows.followedId })
       .from(userFollows)
-      .where(eq(userFollows.followerId, viewerId))
+      .where(inArray(userFollows.followerId, await getEquivalentUserIds(viewerId)))
       .limit(MAX_MUTUAL_IDS);
 
-    const followingIds = viewerFollowing.map((follow) => follow.followedId);
+    const followingIds = await expandEquivalentUserIds(viewerFollowing.map((follow) => follow.followedId));
     if (followingIds.length === 0) {
       return [];
     }
@@ -1336,7 +1340,7 @@ export class UserService {
       .from(userFollows)
       .where(
         and(
-          eq(userFollows.followedId, viewerId),
+          inArray(userFollows.followedId, await getEquivalentUserIds(viewerId)),
           inArray(userFollows.followerId, followingIds)
         )
       )
@@ -1385,6 +1389,7 @@ export class UserService {
     }
 
     const db = getDb();
+    const viewerIds = await getEquivalentUserIds(viewerId);
     const followingLimit = Math.min(
       opts.followingLimit && opts.followingLimit > 0
         ? opts.followingLimit
@@ -1402,7 +1407,7 @@ export class UserService {
       // Following — same eligibility filter as getUserFollowing, ids-only.
       paginateActiveFollowUserIds(
         db,
-        eq(userFollows.followerId, viewerId),
+        inArray(userFollows.followerId, viewerIds),
         'followedId',
         followingLimit,
         0,
@@ -1416,7 +1421,7 @@ export class UserService {
       db
         .select({ blockedId: blocks.blockedId })
         .from(blocks)
-        .where(eq(blocks.userId, viewerId))
+        .where(inArray(blocks.userId, viewerIds))
         .limit(blockedLimit)
         .then((rows) => rows.map((row) => row.blockedId)),
 
@@ -1427,12 +1432,14 @@ export class UserService {
       db
         .select({ restrictedId: restrictions.restrictedId })
         .from(restrictions)
-        .where(eq(restrictions.userId, viewerId))
+        .where(inArray(restrictions.userId, viewerIds))
         .limit(blockedLimit)
         .then((rows) => rows.map((row) => row.restrictedId)),
     ]);
 
-    return { followingIds: followingPage, mutualIds, blockedIds, restrictedIds };
+    const groups = await getEquivalentUserGroups([...followingPage, ...mutualIds, ...blockedIds, ...restrictedIds]);
+    const expand = (ids: string[]) => [...new Set(ids.flatMap(id => groups[id] ?? [id]))];
+    return { followingIds: expand(followingPage), mutualIds: expand(mutualIds), blockedIds: expand(blockedIds), restrictedIds: expand(restrictedIds) };
   }
 
   /**
@@ -1531,11 +1538,11 @@ export class UserService {
       db
         .select({ n: sql<number>`count(*)::int` })
         .from(userFollows)
-        .where(eq(userFollows.followedId, targetId)),
+        .where(inArray(userFollows.followedId, await getEquivalentUserIds(targetId))),
       db
         .select({ n: sql<number>`count(*)::int` })
         .from(userFollows)
-        .where(eq(userFollows.followerId, followerId)),
+        .where(inArray(userFollows.followerId, await getEquivalentUserIds(followerId))),
     ]);
 
     return {
@@ -1573,6 +1580,7 @@ export class UserService {
       throw new Error('User not found');
     }
 
+    if (await this.isFollowing(followerId, targetId)) return { created: false, counts: await this.readFollowCounts(targetId, followerId) };
     const inserted = await getDb()
       .insert(userFollows)
       .values({ followerId, followedId: targetId })
@@ -1625,13 +1633,13 @@ export class UserService {
       .delete(userFollows)
       .where(
         and(
-          eq(userFollows.followerId, followerId),
-          eq(userFollows.followedId, targetId)
+          inArray(userFollows.followerId, await getEquivalentUserIds(followerId)),
+          inArray(userFollows.followedId, await getEquivalentUserIds(targetId))
         )
       )
       .returning({ id: userFollows.id });
 
-    const removed = deleted.length === 1;
+    const removed = deleted.length > 0;
 
     if (removed) {
       // Symmetric to followUser: removing the edge changed the follower's
@@ -1703,11 +1711,11 @@ export class UserService {
       .from(userFollows)
       .where(
         and(
-          eq(userFollows.followerId, currentUserId),
-          inArray(userFollows.followedId, candidateIds)
+          inArray(userFollows.followerId, await getEquivalentUserIds(currentUserId)),
+          inArray(userFollows.followedId, await expandEquivalentUserIds(candidateIds))
         )
       );
-    const alreadyFollowedIds = new Set(existingFollows.map((row) => row.followedId));
+    const alreadyFollowedIds = new Set(await expandEquivalentUserIds(existingFollows.map((row) => row.followedId)));
 
     // ONE batched query to verify which candidates correspond to real users.
     const existingUsers = await db
@@ -1805,8 +1813,8 @@ export class UserService {
       .delete(userFollows)
       .where(
         and(
-          eq(userFollows.followerId, currentUserId),
-          inArray(userFollows.followedId, candidateIds)
+          inArray(userFollows.followerId, await getEquivalentUserIds(currentUserId)),
+          inArray(userFollows.followedId, await expandEquivalentUserIds(candidateIds))
         )
       )
       .returning({ followedId: userFollows.followedId });
@@ -1827,14 +1835,14 @@ export class UserService {
       }
     }
 
-    const removedSet = new Set(actuallyRemovedIds);
+    const removedSet = new Set(await expandEquivalentUserIds(actuallyRemovedIds));
     const results: BulkUnfollowEntry[] = candidateIds.map((userId) => ({
       userId,
       success: true,
       wasFollowing: removedSet.has(userId),
     }));
 
-    return { results, unfollowedCount: actuallyRemovedIds.length };
+    return { results, unfollowedCount: results.filter(result => result.wasFollowing).length };
   }
 
   /**
@@ -1849,9 +1857,9 @@ export class UserService {
    * name — a cascade tells nobody whose graph just changed.
    */
   async purgeUserSocialGraph(
-    userId: string
+    userId: string,
+    db: DatabaseOrTransaction = getDb()
   ): Promise<{ followEdgesRemoved: number }> {
-    const db = getDb();
 
     const removedEdges = await db
       .delete(userFollows)
@@ -1912,13 +1920,19 @@ export class UserService {
   async deleteFederatedActor(
     oxyUserId: string
   ): Promise<{ followEdgesRemoved: number }> {
-    const { followEdgesRemoved } = await this.purgeUserSocialGraph(oxyUserId);
-
-    await getDb()
-      .delete(users)
-      .where(and(eq(users.id, oxyUserId), eq(users.type, 'federated')));
-
-    return { followEdgesRemoved };
+    return getDb().transaction(async tx => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
+      const [subject] = await tx.select({ type: users.type }).from(users).where(eq(users.id, oxyUserId)).for('update');
+      if (!subject || subject.type !== 'federated') throw new BadRequestError('Federated user not found');
+      const members = await getEquivalentUserIds(oxyUserId, tx);
+      const actors = await tx.select({ uri: externalIdentityActors.actorUri }).from(externalIdentityActors)
+        .innerJoin(externalIdentities, eq(externalIdentities.canonicalAcct, externalIdentityActors.canonicalAcct))
+        .where(eq(externalIdentities.userId, oxyUserId)).limit(2);
+      if (members.length > 1 || actors.length > 1) throw new ConflictError('Cannot delete an identity with surviving aliases');
+      const { followEdgesRemoved } = await this.purgeUserSocialGraph(oxyUserId, tx);
+      await tx.delete(users).where(and(eq(users.id, oxyUserId), eq(users.type, 'federated')));
+      return { followEdgesRemoved };
+    });
   }
 
   /**
@@ -1933,8 +1947,8 @@ export class UserService {
       .from(userFollows)
       .where(
         and(
-          eq(userFollows.followerId, currentUserId),
-          eq(userFollows.followedId, targetUserId)
+          inArray(userFollows.followerId, await getEquivalentUserIds(currentUserId)),
+          inArray(userFollows.followedId, await getEquivalentUserIds(targetUserId))
         )
       )
       .limit(1);
@@ -1963,6 +1977,9 @@ export class UserService {
     viewerId: string,
     targetId: string
   ): Promise<UserRelationship> {
+    const groups = await getEquivalentUserGroups([viewerId, targetId]);
+    const viewerIds = groups[viewerId];
+    const targetIds = groups[targetId];
     const edges = await getDb()
       .select({
         followerId: userFollows.followerId,
@@ -1972,12 +1989,12 @@ export class UserService {
       .where(
         or(
           and(
-            eq(userFollows.followerId, viewerId),
-            eq(userFollows.followedId, targetId)
+            inArray(userFollows.followerId, viewerIds),
+            inArray(userFollows.followedId, targetIds)
           ),
           and(
-            eq(userFollows.followerId, targetId),
-            eq(userFollows.followedId, viewerId)
+            inArray(userFollows.followerId, targetIds),
+            inArray(userFollows.followedId, viewerIds)
           )
         )
       );
@@ -1985,10 +2002,10 @@ export class UserService {
     let isFollowing = false;
     let followsYou = false;
     for (const edge of edges) {
-      if (edge.followerId === viewerId && edge.followedId === targetId) {
+      if (viewerIds.includes(edge.followerId) && targetIds.includes(edge.followedId)) {
         isFollowing = true;
       }
-      if (edge.followerId === targetId && edge.followedId === viewerId) {
+      if (targetIds.includes(edge.followerId) && viewerIds.includes(edge.followedId)) {
         followsYou = true;
       }
     }
@@ -2038,18 +2055,20 @@ export class UserService {
       return statuses;
     }
 
+    const groups = await getEquivalentUserGroups(requestedIds);
+    const expanded = [...new Set(Object.values(groups).flat())];
     const follows = await getDb()
       .select({ followedId: userFollows.followedId })
       .from(userFollows)
       .where(
         and(
-          eq(userFollows.followerId, currentUserId),
-          inArray(userFollows.followedId, requestedIds)
+          inArray(userFollows.followerId, await getEquivalentUserIds(currentUserId)),
+          inArray(userFollows.followedId, expanded)
         )
       );
 
     for (const follow of follows) {
-      statuses[follow.followedId] = true;
+      for (const id of requestedIds) if (groups[id]?.includes(follow.followedId)) statuses[id] = true;
     }
 
     return statuses;
@@ -2075,7 +2094,8 @@ export class UserService {
    * @returns Array of public user DTOs, each with `_count`.
    */
   async getUsersByIds(ids: string[]): Promise<PublicUserProfile[]> {
-    const candidateIds = ids.filter((id) => typeof id === 'string' && id.length > 0);
+    const identityUsers = await resolveExternalIdentityUsers(ids.filter(id => typeof id === 'string' && id.length > 0));
+    const candidateIds = [...new Set([...identityUsers.values()].map(identity => identity.userId))];
     if (candidateIds.length === 0) {
       return [];
     }
@@ -2085,12 +2105,17 @@ export class UserService {
       .from(users)
       .where(and(inArray(users.id, candidateIds), discoverableUserPredicate()));
 
-    return rows.map((row) =>
-      this.formatUserResponse(toPublicUserView(row), {
-        followers: row.followersCount,
-        following: row.followingCount,
-      })
-    );
+    const identityByCanonical = new Map([...identityUsers.values()].map(identity => [identity.userId, identity]));
+    return rows.map(row => {
+      const identity = identityByCanonical.get(row.id);
+      return { ...this.formatUserResponse(toPublicUserView(row), { followers: row.followersCount, following: row.followingCount }),
+        externalIdentities: identity?.externalIdentities ?? [], redirectedUserIds: identity?.redirectedUserIds ?? [] };
+    });
+  }
+
+  async withExternalIdentities<T extends PublicUserProfile>(profile: T) {
+    const identity = (await resolveExternalIdentityUsers([profile.id ?? ''])).get(profile.id ?? '');
+    return { ...profile, externalIdentities: identity?.externalIdentities ?? [], redirectedUserIds: identity?.redirectedUserIds ?? [] };
   }
 
   /**

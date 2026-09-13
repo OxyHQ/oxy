@@ -92,6 +92,22 @@ const SUBJECT_WINDOW = 6;
  */
 const ALLOWED: ReadonlyMap<string, string> = new Map([
   [
+    'packages/api/src/services/federation/metaFirstPartyProof.service.ts',
+    'First-party Instagram and Threads profile URL handles bind official page owners and reciprocal platform badges; these external source namespaces never allocate or validate local Oxy usernames.',
+  ],
+  [
+    'packages/api/src/services/externalIdentityCacheInspection.service.ts',
+    'Read-only selectors for remote canonical/transport accounts (user@domain) and HTTPS actor URIs; these identify existing external network records and never validate or allocate local Oxy usernames.',
+  ],
+  [
+    'packages/api/src/services/externalIdentityRegistry.service.ts',
+    'Remote Instagram/Threads profile URL handles used to bind source identity claims; these are upstream network namespaces, never local Oxy username validation.',
+  ],
+  [
+    'packages/api/src/services/federation/externalIdentityPolicy.ts',
+    'Mentions in remote source biographies are qualified with their originating external network; the handle grammar belongs to that remote namespace, not local Oxy account creation.',
+  ],
+  [
     'packages/api/src/services/federation.service.ts',
     "A REMOTE fediverse handle (`user@domain`) — another server's namespace. 73,146 of the ~73,189 rows in `users` are remote actors stored in that form, and not one of them is a name claimed here.",
   ],

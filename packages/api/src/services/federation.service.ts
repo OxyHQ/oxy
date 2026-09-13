@@ -8,12 +8,14 @@
 
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
-import { and, eq, sql } from 'drizzle-orm';
-import { signRequest, canonicalFederationHost, isSameFederationHost } from '@oxy.so/federation';
+import { eq } from 'drizzle-orm';
+import { signRequest, canonicalFederationHost, federatedUsernameFromUpstreamUrl } from '@oxy.so/federation';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
 import { federationKeyPairs } from '../db/schema/federationKeyPairs';
 import { ACCOUNT_KINDS, users } from '../db/schema/users';
+import { externalIdentityActors } from '../db/schema/externalIdentities';
+import { FEDERATION_BRIDGE_POLICY } from '../config/federationBridgePolicy';
 import { userService, type AccountDocument } from './user.service';
 import { AssetService } from './assetService';
 import { createS3Service } from './s3Service';
@@ -21,8 +23,11 @@ import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 import { composeDisplayName } from '../utils/displayName';
 import { cleanDisplayName } from '../utils/displayNameSanitize';
-import { sanitizePlainText, decodeHtmlEntities } from '../utils/sanitize';
-import { bridgeVouchesForNetwork } from '../config/federationBridgeTrust';
+import { sanitizePlainText } from '../utils/sanitize';
+import { deriveExternalActorProfile, type ExternalActorProfile } from './federation/externalIdentityPolicy';
+import { fetchMetaFirstPartyProfilePair } from './federation/metaFirstPartyProof.service';
+import { recordInstagramSourcePin, recordMetaIdentityProof, revokeMetaIdentityProof, type MetaIdentityProofOutcome } from './federation/metaIdentityProofRegistry.service';
+import { getExternalIdentitiesForUser, getCanonicalUserRedirects, lookupExternalIdentity, registerExternalIdentity, resolveCanonicalUserId } from './externalIdentityRegistry.service';
 import {
   acquireAvatarOriginLease,
   clearAvatarOriginFailures,
@@ -901,86 +906,242 @@ class FederationService {
    * Fetch an ActivityPub actor by URI and extract user-profile fields.
    * Uses HTTP Signature for servers that enforce authorized fetch.
    */
-  async fetchActorProfile(actorUri: string, acctHint?: string): Promise<{
-    actorUri: string;
-    domain: string;
-    username: string;
-    displayName: string;
-    avatarUrl?: string;
-    bio?: string;
-  } | null> {
+  async fetchActorProfile(actorUri: string, acctHint?: string): Promise<ExternalActorProfile | null> {
     try {
       const res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0]);
       if (!res || res.status < 200 || res.status >= 300) {
         res?.response.destroy();
         return null;
       }
-
       const actor = await readJsonLimited<Record<string, unknown>>(res.response);
       if (!actor || typeof actor.id !== 'string' || !actor.inbox) return null;
-
-      // The actor's `id` is attacker-controlled by the actor host; it must be a
-      // public https URL before we trust its host as the canonical domain.
-      let actorHost: string;
-      try {
-        const actorIdUrl = new URL(actor.id);
-        if (actorIdUrl.protocol !== 'https:') return null;
-        actorHost = actorIdUrl.hostname.toLowerCase();
-      } catch {
-        return null;
+      // The fetch's final URL, rather than a caller assertion, binds the actor.
+      if (actor.id !== actorUri && actor.id !== res.finalUrl) return null;
+      const profile = deriveExternalActorProfile(actor, actor.id, acctHint);
+      if (!profile) return null;
+      const actorHost = canonicalFederationHost(new URL(actor.id).hostname);
+      // Split account/actor hosts are legitimate only when the account host's
+      // WebFinger names this exact actor. Neither caller hints nor actor fields
+      // may claim an unrelated remote account without that reverse binding.
+      const candidate = typeof actor.webfinger === 'string' ? normalizeFediverseHandle(actor.webfinger)
+        : acctHint ? normalizeFediverseHandle(acctHint) : null;
+      const candidateHost = candidate ? domainFromHandle(candidate) : null;
+      if (candidate && candidateHost && candidateHost !== actorHost && profile.domain === actorHost) {
+        const binding = await this.resolveWebFingerResource(candidate);
+        if (binding?.actorUri === actor.id) {
+          profile.username = candidate.toLowerCase();
+          profile.domain = candidateHost;
+          profile.transportAcct = candidate.toLowerCase();
+        }
       }
-      const username = (actor.preferredUsername as string) || (actor.name as string) || 'unknown';
-      const actorWebfinger = typeof actor.webfinger === 'string'
-        ? normalizeFediverseHandle(actor.webfinger)
-        : null;
-      const hintedAcct = acctHint ? normalizeFediverseHandle(acctHint) : null;
-      // The hint comes from the WebFinger resource we resolved, and
-      // `verifiedAccountForResolution` only VERIFIES it when the resource's
-      // subject disagrees with the requested handle — when they agree it returns
-      // the requested handle unchecked. Anyone who can host a WebFinger endpoint
-      // controls both, so the hint alone proves nothing about who the actor is.
-      //
-      // That matters because the upsert keys on `federationActorUri`: a handle
-      // `victim@evil.com` whose self link names an EXISTING actor URI would
-      // otherwise rewrite that actor's stored username and domain in place,
-      // relabelling somebody else's federated identity onto the attacker's
-      // domain without ever controlling the actor.
-      //
-      // So the hint is only trusted when its domain is the actor's own host, or
-      // when a bridge vouches for the pair — which is the relabelled-bridge case
-      // (`nasa@x.com` on a bird.makeup actor) this hint exists to preserve.
-      // Otherwise fall through to the actor document's own `webfinger` field and
-      // then to the host-derived handle, exactly as an absent hint already does.
-      const hintedHost = hintedAcct ? domainFromHandle(hintedAcct) : null;
-      const hintIsTrusted =
-        hintedHost !== null
-        && (isSameFederationHost(hintedHost, actorHost)
-          || bridgeVouchesForNetwork(actorHost, hintedHost));
-      if (hintedAcct && !hintIsTrusted) {
-        logger.warn('Ignoring WebFinger hint from a host the actor does not vouch for', {
-          hintedAcct,
-          actorHost,
-          actorUri: actor.id,
-        });
-      }
-      const acct =
-        (hintIsTrusted ? hintedAcct : null)
-        || actorWebfinger
-        || `${username.toLowerCase()}@${actorHost}`;
-      const domain = domainFromHandle(acct) || actorHost;
-
-      return {
-        actorUri: actor.id,
-        domain,
-        username: acct,
-        displayName: decodeHtmlEntities((actor.name as string) || username),
-        avatarUrl: (actor.icon as Record<string, unknown>)?.url as string | undefined,
-        bio: decodeHtmlEntities((actor.summary as string)?.replace(/<[^>]*>/g, '') || ''),
-      };
+      return profile;
     } catch (err) {
       logger.warn(`Failed to fetch actor profile ${actorUri}: ${err}`);
       return null;
     }
+  }
+
+  async fetchAtprotoProfile(did: string): Promise<ExternalActorProfile | null> {
+    if (!/^did:(plc|web):[^\s/?#]+$/.test(did)) return null;
+    const response = await safeFetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(did)}`, {
+      headers: { Accept: 'application/json' }, headersTimeoutMs: 10_000, signal: AbortSignal.timeout(10_000),
+    });
+    if (response.status < 200 || response.status >= 300) {
+      response.response.destroy();
+      return null;
+    }
+    const profile = await readJsonLimited<Record<string, unknown>>(response.response);
+    if (profile?.did !== did || typeof profile.handle !== 'string' || !/^[a-z0-9.-]+$/i.test(profile.handle)) return null;
+    const handle = profile.handle.toLowerCase();
+    const local = handle.endsWith('.bsky.social') ? handle.slice(0, -12) : handle;
+    return {
+      actorUri: did, protocol: 'atproto', domain: 'bsky.social', username: `${local}@bsky.social`,
+      transportAcct: handle, stableId: did, evidenceLinks: [],
+      displayName: typeof profile.displayName === 'string' ? profile.displayName : handle,
+      bio: sanitizePlainText(typeof profile.description === 'string' ? profile.description : ''),
+      avatarUrl: typeof profile.avatar === 'string' ? profile.avatar : undefined,
+    };
+  }
+
+  normalizeExternalHandle(value: string): string | null {
+    const upstream = federatedUsernameFromUpstreamUrl(value);
+    if (upstream) return upstream;
+    try {
+      const url = new URL(value);
+      if (['threads.net', 'threads.com', 'www.threads.net', 'www.threads.com'].includes(url.hostname)) {
+        const match = url.pathname.match(/^\/@?([a-z0-9._]+)\/?$/i);
+        if (match) return `${match[1].toLowerCase()}@threads.net`;
+      }
+    } catch { /* A handle is not a URL. */ }
+    return normalizeFediverseHandle(value);
+  }
+
+  async needsBridgeCanonicalization(actorUri: string): Promise<boolean> {
+    let host: string;
+    try { host = canonicalFederationHost(new URL(actorUri).hostname); } catch { return false; }
+    if (!FEDERATION_BRIDGE_POLICY.some(entry => entry.host === host && entry.relabel === 'enabled')) return false;
+    const [actor] = await getDb().select({ verifiedAt: externalIdentityActors.updatedAt }).from(externalIdentityActors)
+      .where(eq(externalIdentityActors.actorUri, actorUri)).limit(1);
+    return !actor || actor.verifiedAt.getTime() === 0;
+  }
+
+  private transportHandleForExternalAccount(handle: string): string {
+    const at = handle.lastIndexOf('@');
+    const local = handle.slice(0, at);
+    const domain = handle.slice(at + 1);
+    return domain === 'x.com' ? `${local}@bird.makeup`
+      : domain === 'instagram.com' ? `${local}@kilogram.makeup` : handle;
+  }
+
+  /** First-party badges are an additional proof; they never rewrite legacy ownership. */
+  private async refreshMetaIdentityProof(source: ExternalActorProfile, registered: Awaited<ReturnType<typeof registerExternalIdentity>>): Promise<MetaIdentityProofOutcome | undefined> {
+    if (!['instagram.com', 'threads.net'].includes(source.domain)) return undefined;
+    const startedAt = new Date();
+    let sourceOwnerVerified = !registered.deferredInstagramOwnerRefresh;
+    const refuse = async (reason: string): Promise<MetaIdentityProofOutcome> => {
+      await revokeMetaIdentityProof(source.username, reason, startedAt, ['source_binding_changed', 'source_profile_contradiction'].includes(reason));
+      return { state: 'refused', reason, sourceOwnerVerified };
+    };
+    const persistVerifiedOwner = (profile: ExternalActorProfile, own: NonNullable<Awaited<ReturnType<typeof fetchMetaFirstPartyProfilePair>>['instagramProfile']>) =>
+      registerExternalIdentity({ canonicalAcct: profile.username, actorUri: profile.actorUri, transportAcct: profile.transportAcct,
+        protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
+        profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
+        verifiedInstagramPin: { documentHash: own.documentHash, verifiedAt: own.fetchedAt } });
+    const evidence = await fetchMetaFirstPartyProfilePair({ sourceAcct: source.username });
+    const normalizeName = (value: string) => cleanDisplayName(value).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (source.domain === 'instagram.com' && evidence.instagramProfile) {
+      const own = evidence.instagramProfile;
+      if (own.canonicalAcct !== source.username || (normalizeName(source.displayName) && normalizeName(own.displayName)
+        && normalizeName(source.displayName) !== normalizeName(own.displayName))) return refuse('source_profile_contradiction');
+      const pin = await recordInstagramSourcePin(source.actorUri, own,
+        { createdInstagramUserId: registered.createdUser ? registered.identity.userId : undefined });
+      if (pin.state === 'refused') return refuse(pin.reason ?? 'source_binding_changed');
+      if (pin.state === 'verified') {
+        sourceOwnerVerified = !(await persistVerifiedOwner(source, own)).deferredInstagramOwnerRefresh;
+        if (!sourceOwnerVerified) return refuse('proof_predates_revocation');
+      }
+    }
+    if (evidence.status !== 'verified') return refuse(evidence.reason);
+    const { pair } = evidence;
+    const binding = await this.resolveWebFingerResource(pair.threads.canonicalAcct);
+    if (!binding || binding.subjectAcct !== pair.threads.canonicalAcct) return refuse('threads_webfinger_binding_missing');
+    const threads = source.domain === 'threads.net' ? source : await this.fetchActorProfile(binding.actorUri, pair.threads.canonicalAcct);
+    // AP and public-web numeric IDs inhabit different namespaces. The official
+    // WebFinger subject and signed actor bind them; numeric equality is irrelevant.
+    if (!threads || threads.actorUri !== binding.actorUri || threads.username !== pair.threads.canonicalAcct
+      || threads.stableId !== threads.actorUri || threads.domain !== 'threads.net') return refuse('threads_actor_binding_missing');
+    let instagram = source.domain === 'instagram.com' ? source : null;
+    if (!instagram) {
+      const transport = this.transportHandleForExternalAccount(pair.instagram.canonicalAcct);
+      const discovered = await this.resolveWebFingerResource(transport);
+      if (discovered?.subjectAcct) {
+        const verified = await this.verifiedAccountForResolution(transport, discovered);
+        if (verified === discovered.subjectAcct) instagram = await this.fetchActorProfile(discovered.actorUri, verified);
+      }
+    }
+    if (!instagram || instagram.username !== pair.instagram.canonicalAcct || instagram.domain !== 'instagram.com') {
+      return refuse('instagram_actor_binding_missing');
+    }
+    for (const [profile, document] of [[instagram, pair.instagram], [threads, pair.threads]] as const) {
+      const sourceName = normalizeName(profile.displayName);
+      const firstPartyName = normalizeName(document.displayName);
+      if (sourceName && firstPartyName && sourceName !== firstPartyName) return refuse('source_profile_contradiction');
+    }
+    const persist = (profile: ExternalActorProfile) => registerExternalIdentity({
+      canonicalAcct: profile.username, actorUri: profile.actorUri, transportAcct: profile.transportAcct,
+      protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
+      profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
+    });
+    const instagramRegistration = source.domain === 'instagram.com' ? registered : await persist(instagram);
+    if (source.domain !== 'instagram.com' && evidence.instagramProfile) {
+      const pin = await recordInstagramSourcePin(instagram.actorUri, evidence.instagramProfile,
+        { createdInstagramUserId: instagramRegistration.createdUser ? instagramRegistration.identity.userId : undefined });
+      if (pin.state === 'refused') return refuse(pin.reason ?? 'source_binding_changed');
+      if (pin.state === 'verified' && (await persistVerifiedOwner(instagram, evidence.instagramProfile)).deferredInstagramOwnerRefresh) return refuse('proof_predates_revocation');
+    }
+    if (source.domain !== 'threads.net') await persist(threads);
+    const outcome = await recordMetaIdentityProof({
+      instagramActorUri: instagram.actorUri, threadsActorUri: threads.actorUri,
+      instagramAcct: pair.instagram.canonicalAcct, threadsAcct: pair.threads.canonicalAcct,
+      instagramPk: pair.instagram.pk, instagramGraphId: pair.instagram.graphId, threadsWebPk: pair.threads.webPk,
+      instagramProfileUrl: pair.instagram.profileUrl, threadsProfileUrl: pair.threads.profileUrl,
+      policyVersion: pair.policyVersion, instagramDocumentHash: pair.instagram.documentHash, threadsDocumentHash: pair.threads.documentHash,
+      evidenceDigest: pair.evidenceHash, verifiedAt: new Date(pair.fetchedAt),
+    }, { createdInstagramUserId: instagramRegistration.createdUser ? instagramRegistration.identity.userId : undefined });
+    return { ...outcome, sourceOwnerVerified };
+  }
+
+  async resolveExternalIdentity(input: { actorUri?: string; handle?: string; transportAcct?: string }) {
+    if (input.actorUri) return this.resolveExternalActorIdentity(input.actorUri, input.transportAcct);
+    const handle = input.handle ? this.normalizeExternalHandle(input.handle) : null;
+    if (!handle) return null;
+    const userId = await lookupExternalIdentity(handle);
+    if (userId) {
+      const identities = await getExternalIdentitiesForUser(userId);
+      const source = identities.find(identity => identity.canonicalAcct === handle || identity.transportAcct === handle);
+      if (source) return this.resolveExternalActorIdentity(source.actorUri, source.transportAcct);
+    }
+    const at = handle.lastIndexOf('@');
+    const domain = handle.slice(at + 1);
+    if (isOwnFederationDomain(domain)) return null;
+    // Reverse transport routing is also Oxy policy. The fetched actor must still
+    // publish the reviewed per-account assertion before the identity is accepted.
+    const transport = this.transportHandleForExternalAccount(handle);
+    const webfinger = await this.resolveWebFingerResource(transport);
+    if (!webfinger) return null;
+    const verifiedAcct = await this.verifiedAccountForResolution(transport, webfinger);
+    const result = await this.resolveExternalActorIdentity(webfinger.actorUri, verifiedAcct);
+    if (transport !== handle && result?.externalIdentity.canonicalAcct !== handle) return null;
+    return result;
+  }
+
+  /** The single persistence path used by public discovery and every connector. */
+  async resolveExternalActorIdentity(actorUri: string, transportAcct?: string, opts: { forceAvatarRefresh?: boolean } = {}) {
+    if (!actorUri.startsWith('did:')) {
+      try { if (isOwnFederationDomain(new URL(actorUri).hostname)) return null; } catch { return null; }
+    }
+    const startedAt = new Date();
+    const profile = actorUri.startsWith('did:')
+      ? await this.fetchAtprotoProfile(actorUri)
+      : await this.fetchActorProfile(actorUri, transportAcct);
+    if (!profile) {
+      await revokeMetaIdentityProof(actorUri, 'source_actor_unavailable', startedAt);
+      return null;
+    }
+    if (isOwnFederationDomain(profile.domain)) return null;
+    const result = await registerExternalIdentity({
+      canonicalAcct: profile.username, actorUri: profile.actorUri, transportAcct: profile.transportAcct,
+      protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
+      profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
+    });
+    const identityCheck = await this.refreshMetaIdentityProof(profile, result);
+    const sourceOwnerVerified = identityCheck?.sourceOwnerVerified;
+    const identityProof = identityCheck ? { state: identityCheck.state, ...(identityCheck.reason ? { reason: identityCheck.reason } : {}) } : undefined;
+    const canonicalUserId = await resolveCanonicalUserId(result.identity.userId);
+    userCache.invalidate(canonicalUserId);
+    userCache.invalidate(result.userId);
+    userCache.invalidate(result.identity.userId);
+    if (result.deferredInstagramOwnerRefresh && !sourceOwnerVerified) return null;
+    if (profile.domain === 'instagram.com' && ['source_binding_changed', 'source_profile_contradiction', 'proof_predates_revocation'].includes(identityProof?.reason ?? '')) return null;
+    const user = await userService.readAccountDocument(canonicalUserId);
+    if (!user) return null;
+    if (profile.avatarUrl) {
+      const [source] = await getDb().select({ avatar: users.avatar }).from(users).where(eq(users.id, result.identity.userId));
+      const avatar = source?.avatar ?? undefined;
+      if (opts.forceAvatarRefresh || !avatar || avatar.startsWith('http')) {
+        this.scheduleAvatarRefresh(result.identity.userId, profile.avatarUrl, avatar, { force: opts.forceAvatarRefresh === true });
+      }
+    }
+    const [externalIdentities, redirectedUserIds] = await Promise.all([
+      getExternalIdentitiesForUser(canonicalUserId), getCanonicalUserRedirects(canonicalUserId),
+    ]);
+    const sourceUserId = externalIdentities.find(identity => identity.actorUri === profile.actorUri)?.sourceUserId ?? result.userId;
+    return {
+      user: { ...userService.formatUserResponse(user), externalIdentities, redirectedUserIds },
+      externalIdentity: { canonicalAcct: profile.username, network: profile.domain, protocol: profile.protocol,
+        actorUri: profile.actorUri, transportAcct: profile.transportAcct, userId: canonicalUserId, sourceUserId },
+      externalIdentities, redirectedUserIds, identityProof,
+    };
   }
 
   /**
@@ -1240,168 +1401,23 @@ class FederationService {
   }
 
   async resolveAndUpsert(handle: string): Promise<AccountDocument | null> {
-    const cleaned = normalizeFediverseHandle(handle);
+    const cleaned = this.normalizeExternalHandle(handle);
     if (!cleaned) return null;
-
     const domain = domainFromHandle(cleaned);
-    if (!domain) return null;
-
-    // Own-domain guard: a handle like `nate@oxy.so` is a NON-ENTITY. On Oxy's
-    // own apex the only valid identity is the bare local handle `@nate`; the
-    // domain-qualified form `@nate@oxy.so` must never resolve or be surfaced, so
-    // it can't even look like a second representation of the same user. Return
-    // null immediately — never WebFinger our own apex, never touch the DB, and
-    // never upsert a `type:'federated'` shadow row.
-    if (isOwnFederationDomain(domain)) {
-      return null;
-    }
-
-    // Check cache: existing federated user.
-    //
-    // Fediverse usernames are case-insensitive and we store them lowercased,
-    // but the lookup is written against the EXPRESSION `users_username_key` is
-    // built on (`lower(btrim(username))`) rather than a plain equality: a
-    // correct-looking `username = $1` is case-SENSITIVE and would miss a row
-    // whose stored casing differs, then upsert a duplicate actor beside it.
-    const cleanedHandle = cleaned.toLowerCase();
-    const [existingRow] = await getDb()
-      .select({ id: users.id })
-      .from(users)
-      .where(
-        and(
-          eq(users.type, 'federated'),
-          eq(users.federationDomain, domain),
-          sql`lower(btrim(${users.username})) = lower(btrim(${cleanedHandle}))`
-        )
-      )
-      .limit(1);
-
-    // The row is re-read as the full account document so the shape this service
-    // returns is byte-identical to what `PUT /users/resolve` returns for the
-    // same actor — one serializer, not two.
-    const existing = existingRow ? await userService.readAccountDocument(existingRow.id) : null;
-
-    if (existing) {
-      return this.returnCachedFederatedRow(existing, cleaned);
-    }
-
-    // No cached row — first-time blocking fetch (the only allowed blocking case).
-    const webfinger = await this.resolveWebFingerResource(cleaned);
-    if (!webfinger) return null;
-
-    // A relabelled bridge identity (e.g. `wired@x.com` stored via
-    // `PUT /users/resolve`) shares the bridge actor URI but not the bridge
-    // handle. A lookup keyed only on `(federationDomain, username)` would miss
-    // it and the upsert below would clobber the relabelled username/domain.
-    const [existingByActorUriRow] = await getDb()
-      .select({ id: users.id })
-      .from(users)
-      .where(
-        and(
-          eq(users.type, 'federated'),
-          eq(users.federationActorUri, webfinger.actorUri),
-        ),
-      )
-      .limit(1);
-
-    const existingByActorUri = existingByActorUriRow
-      ? await userService.readAccountDocument(existingByActorUriRow.id)
-      : null;
-
-    if (existingByActorUri) {
-      const storedDomain = existingByActorUri.federation?.domain;
-      let actorHost: string | null = null;
-      try {
-        actorHost = canonicalFederationHost(new URL(webfinger.actorUri).hostname);
-      } catch {
-        actorHost = null;
-      }
-
-      // A relabelled bridge identity (e.g. `nasa@x.com` on a bird.makeup actor)
-      // shares the bridge actor URI but not the bridge handle. Returning cached
-      // here preserves the derived identity; falling through would clobber it
-      // back to the bridge copy. A stale row on a NON-bridge actor (wrong domain
-      // stored beside a canonical actor URI) must fall through to the upsert.
-      if (
-        actorHost
-        && typeof storedDomain === 'string'
-        && storedDomain.length > 0
-        && bridgeVouchesForNetwork(actorHost, storedDomain)
-      ) {
-        return this.returnCachedFederatedRow(existingByActorUri, cleaned);
+    if (!domain || isOwnFederationDomain(domain)) return null;
+    const knownId = await lookupExternalIdentity(cleaned);
+    if (knownId) {
+      const known = await userService.readAccountDocument(knownId);
+      if (known) {
+        if (known.federation.actorUri && await this.needsBridgeCanonicalization(known.federation.actorUri)) {
+          const verified = await this.resolveExternalActorIdentity(known.federation.actorUri);
+          return verified ? userService.readAccountDocument(verified.externalIdentity.userId) : null;
+        }
+        return this.returnCachedFederatedRow(known, cleaned);
       }
     }
-
-    const verifiedAcct = await this.verifiedAccountForResolution(cleaned, webfinger);
-    const profile = await this.fetchActorProfile(webfinger.actorUri, verifiedAcct);
-    if (!profile) return null;
-
-    // COLUMN PROPERTIES, never Mongo dot paths. Drizzle keys `set()`/`values()`
-    // by column property and SILENTLY IGNORES an unknown key, so `'name.first'`
-    // here would write nothing and throw nothing — the exact failure that left
-    // every federated actor resolved through `PUT /users/resolve` with a null
-    // display name until it was caught there.
-    const setFields: Partial<typeof users.$inferInsert> = {
-      username: profile.username,
-      nameFirst: cleanDisplayName(profile.displayName),
-      federationActorUri: profile.actorUri,
-      federationDomain: profile.domain,
-      federationLastResolvedAt: new Date(),
-      // Mongo's `$unset` of the tombstone fields. NULL is what "available"
-      // means on these two columns, so clearing them is a write of NULL.
-      federationUnavailableAt: null,
-      federationUnavailableReason: null,
-    };
-
-    if (typeof profile.bio === 'string') {
-      const safeBio = sanitizePlainText(profile.bio);
-      setFields.bio = safeBio;
-      setFields.description = safeBio;
-    }
-
-    // Mongo's `{upsert: true}` on the unique `federation.actorUri`. `type` is
-    // written only on INSERT — matching `PUT /users/resolve`, where re-writing
-    // it on update would let the federation pipeline silently re-type an
-    // existing account. Column DEFAULTs replace `setDefaultsOnInsert`.
-    const [upserted] = await getDb()
-      .insert(users)
-      .values({ ...setFields, type: 'federated' })
-      .onConflictDoUpdate({ target: users.federationActorUri, set: setFields })
-      .returning({ id: users.id });
-
-    if (!upserted) {
-      return null;
-    }
-
-    const userId = upserted.id;
-    logger.info(`Resolved fediverse user: ${profile.username} (${profile.actorUri})`);
-    userCache.invalidate(userId);
-
-    if (profile.avatarUrl) {
-      const stored = await this.downloadAndStoreAvatar(
-        profile.avatarUrl,
-        undefined,
-        undefined,
-        userId,
-      );
-      if (stored.fileId) {
-        const avatarFields: Partial<typeof users.$inferInsert> = {
-          avatar: stored.fileId,
-          federationLastAvatarFetchedAt: new Date(),
-        };
-        if (stored.etag) avatarFields.federationAvatarETag = stored.etag;
-        if (stored.lastModified) avatarFields.federationAvatarLastModified = stored.lastModified;
-
-        await getDb().update(users).set(avatarFields).where(eq(users.id, userId));
-        userCache.invalidate(userId);
-      }
-    }
-
-    // Read the row back rather than patching the returned document field by
-    // field as Mongo did: the avatar write above happens AFTER the upsert, and
-    // hand-mirroring it into an in-memory copy is how the returned document and
-    // the stored row drift.
-    return userService.readAccountDocument(userId);
+    const resolved = await this.resolveExternalIdentity({ handle: cleaned });
+    return resolved ? userService.readAccountDocument(resolved.externalIdentity.userId) : null;
   }
 
   /**
@@ -1608,7 +1624,7 @@ class FederationService {
       return;
     }
 
-    const userId = existing._id;
+    let userId = existing._id;
     try {
       // Resolve the actor URI: reuse the stored one, else re-WebFinger.
       const actorUri = existing.federation.actorUri
@@ -1618,11 +1634,25 @@ class FederationService {
         return;
       }
 
+      const proofObservationStartedAt = new Date();
       const profile = await this.fetchActorProfile(actorUri, handle);
       if (!profile) {
+        await revokeMetaIdentityProof(actorUri, 'source_actor_unavailable', proofObservationStartedAt);
         logger.warn(`Background refresh: actor profile fetch returned null for ${actorUri}`);
         return;
       }
+
+      const registered = await registerExternalIdentity({
+        canonicalAcct: profile.username, actorUri: profile.actorUri, transportAcct: profile.transportAcct,
+        protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
+        profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio },
+      });
+      const identityProof = await this.refreshMetaIdentityProof(profile, registered);
+      userId = registered.identity.userId;
+      userCache.invalidate(registered.userId);
+      userCache.invalidate(registered.identity.userId);
+      if (profile.domain === 'instagram.com' && (registered.deferredInstagramOwnerRefresh && !identityProof?.sourceOwnerVerified
+        || ['source_binding_changed', 'source_profile_contradiction', 'proof_predates_revocation'].includes(identityProof?.reason ?? ''))) return;
 
       // COLUMN PROPERTIES, never Mongo dot paths — see the note in
       // `resolveAndUpsert`. `name.first` here would silently write nothing.
@@ -1644,7 +1674,6 @@ class FederationService {
       // because the remote fetch failed. On 304 we keep the existing file but
       // still advance the fetch clock so we don't re-attempt every request.
       if (profile.avatarUrl) {
-        const existingAvatar = typeof existing.avatar === 'string' ? existing.avatar : undefined;
         // The conditional-request validators are read from the ROW, not from
         // the account document this worker was handed. `AccountDocument`'s
         // `federation` key carries only `actorUri`/`domain` (it is the wire
@@ -1654,13 +1683,14 @@ class FederationService {
         // unconditional re-download of an unchanged image.
         const [validators] = await getDb()
           .select({
+            avatar: users.avatar,
             etag: users.federationAvatarETag,
             lastModified: users.federationAvatarLastModified,
           })
           .from(users)
           .where(eq(users.id, userId))
           .limit(1);
-        const stored = await this.downloadAndStoreAvatar(profile.avatarUrl, existingAvatar, {
+        const stored = await this.downloadAndStoreAvatar(profile.avatarUrl, validators?.avatar ?? undefined, {
           etag: validators?.etag ?? undefined,
           lastModified: validators?.lastModified ?? undefined,
         }, userId);
