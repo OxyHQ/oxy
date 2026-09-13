@@ -77,6 +77,8 @@ for (const [name, workflow] of [
 // Execute the actual closed shell registry: a swapped destination or an
 // accepted unknown ID must fail, including when scopes and names look valid.
 const activityDestinations = [
+	["71ea45cf97451563762ead13", "oxy-asset-variant-worker", "OXY_ACTIVITY_API"],
+	["ed143b1b58d60eab417f7d5c", "nilo", "OXY_SERVICE_API"],
 	["6a2f851751b784a86fd0e94f", "website-api", "OXY_SERVICE_API"],
 	["6a2f851751b784a86fd0e92b", "allo", "ALLO_OXY_SERVICE_API"],
 	["6a2f851751b784a86fd0e958", "peable", "OXY_SERVICE_API"],
@@ -339,4 +341,77 @@ assert.ok(destinationHandoff > finalizeCall);
 
 process.stdout.write(
 	"Service credential workflows bind exact app/credential IDs, scopes, and SSM destinations.\n",
+);
+
+// Keep Cloudflare credential delivery regression tests on the deploy-script gate.
+const edgeDelivery = spawnSync(
+	"python3",
+	["scripts/test-edge-activity-delivery.py"],
+	{
+		encoding: "utf8",
+	},
+);
+assert.equal(edgeDelivery.status, 0, edgeDelivery.stderr);
+const edgeRegistryEnd = provision.indexOf(
+	'          CREDENTIAL_NAME="${CREDENTIAL_NAME:-Service (production)}"',
+);
+const edgeRegistryShell = provision.slice(registryStart, edgeRegistryEnd);
+for (const [appId, entry] of Object.entries(
+	JSON.parse(readFileSync(".github/config/edge-activity-targets.json", "utf8")),
+)) {
+	const execution = spawnSync(
+		"bash",
+		[
+			"-c",
+			`${edgeRegistryShell}\nprintf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$DESTINATION_KEY_NAME" "$DESTINATION_SECRET_NAME" "$ROLLOUT_SERVICE"`,
+		],
+		{
+			env: { ...process.env, APP_ID: appId, CREDENTIAL_LANE: "edge" },
+			encoding: "utf8",
+		},
+	);
+	assert.equal(execution.status, 0, execution.stderr);
+	assert.deepEqual(execution.stdout.trim().split("\n"), [
+		entry.namespace,
+		"user:read",
+		"OXY_EDGE_ACTIVITY_API_KEY",
+		"OXY_EDGE_ACTIVITY_API_SECRET",
+	]);
+}
+
+const niloSpecSource = readFileSync(
+	"packages/api/src/scripts/seedOxyApplicationsSpecs.ts",
+	"utf8",
+);
+const niloId = niloSpecSource.match(
+	/export const NILO_APPLICATION_ID = '([a-f0-9]{24})'/,
+)?.[1];
+assert.ok(niloId);
+assert.ok(
+	activityDestinations.some(
+		([id, namespace]) => id === niloId && namespace === "nilo",
+	),
+);
+assert.equal(
+	JSON.parse(readFileSync(".github/config/edge-activity-targets.json", "utf8"))[
+		niloId
+	].namespace,
+	"nilo",
+);
+
+const mediaId = niloSpecSource.match(
+	/export const MEDIA_WORKER_APPLICATION_ID = '([a-f0-9]{24})'/,
+)?.[1];
+assert.ok(mediaId);
+assert.ok(
+	activityDestinations.some(
+		([id, namespace]) =>
+			id === mediaId && namespace === "oxy-asset-variant-worker",
+	),
+);
+assert.equal(
+	JSON.parse(readFileSync(".github/config/edge-activity-targets.json", "utf8"))[
+		mediaId
+	],
+	undefined,
 );
