@@ -107,3 +107,48 @@ it('timestamps the observation before the first fetch so late results cannot sup
   expect(result.status).toBe('verified');
   if (result.status === 'verified') expect(Date.parse(result.pair.fetchedAt)).toBeLessThanOrEqual(firstFetchAt);
 });
+
+it('retains a validated Instagram root when Threads is unavailable without another fetch', async () => {
+  mockSafeFetch.mockResolvedValueOnce(response(ig, igUrl)).mockResolvedValueOnce(response('', thUrl, 503));
+  const result = await fetchMetaFirstPartyProfilePair({ sourceAcct: 'zuck@instagram.com' });
+  expect(result).toMatchObject({ status: 'refused', reason: 'upstream_unavailable', instagramProfile: {
+    canonicalAcct: 'zuck@instagram.com', profileUrl: igUrl, displayName: 'Mark Zuckerberg', pk: '314216', graphId: '17841401746480004',
+    documentHash: expect.stringMatching(/^[a-f0-9]{64}$/), fetchedAt: expect.any(String), policyVersion: 'meta-profile-badges-2026-09-13-v1',
+  } });
+  expect(mockSafeFetch).toHaveBeenCalledTimes(2);
+});
+it('retains only the Instagram owner observation when its platform badge is absent', async () => {
+  const html = ig.replace('aria-label="Threads"', 'aria-label="Other"');
+  expect(() => parseMetaFirstPartyProfile(html, 'zuck@instagram.com')).toThrow('missing_profile_badge');
+  mockSafeFetch.mockResolvedValueOnce(response(html, igUrl));
+  const result = await fetchMetaFirstPartyProfilePair({ sourceAcct: 'zuck@instagram.com' });
+  expect(result).toMatchObject({ status: 'refused', reason: 'missing_profile_badge', instagramProfile: { pk: '314216' } });
+  expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+  expect(result.instagramProfile).not.toHaveProperty('badgeTargetAcct');
+});
+it('retains the fetched Instagram owner after nonreciprocity, including discovery starting at Threads', async () => {
+  const changed = ig.replace('threads.com/@zuck', 'threads.com/@other');
+  mockSafeFetch.mockResolvedValueOnce(response(th, thUrl)).mockResolvedValueOnce(response(changed, igUrl));
+  expect(await fetchMetaFirstPartyProfilePair({ sourceAcct: 'zuck@threads.net' })).toMatchObject({
+    status: 'refused', reason: 'nonreciprocal_badges', instagramProfile: { canonicalAcct: 'zuck@instagram.com', pk: '314216' },
+  });
+  expect(mockSafeFetch).toHaveBeenCalledTimes(2);
+});
+it.each([
+  ig.replace('"username":"zuck"', '"username":"other"'),
+  ig.replace('"is_private":false', '"is_private":true'),
+  ig.replace('rel="canonical"', 'rel="other"'),
+  ig.replace('xig_user_by_username', 'unrelated_user'),
+])('never exposes partial Instagram ownership from an invalid owner or canonical document', async html => {
+  mockSafeFetch.mockResolvedValueOnce(response(html, igUrl));
+  const result = await fetchMetaFirstPartyProfilePair({ sourceAcct: 'zuck@instagram.com' });
+  expect(result.status).toBe('refused');
+  expect(result).not.toHaveProperty('instagramProfile');
+});
+it('includes the same source observation and start time in a fully verified pair', async () => {
+  mockSafeFetch.mockResolvedValueOnce(response(ig, igUrl)).mockResolvedValueOnce(response(th, thUrl));
+  const result = await fetchMetaFirstPartyProfilePair({ sourceAcct: 'zuck@instagram.com' });
+  if (result.status !== 'verified') throw new Error('Expected verified fixture pair');
+  expect(result.instagramProfile).toMatchObject({ pk: result.pair.instagram.pk, graphId: result.pair.instagram.graphId,
+    documentHash: result.pair.instagram.documentHash, fetchedAt: result.pair.fetchedAt });
+});

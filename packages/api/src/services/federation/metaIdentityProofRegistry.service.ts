@@ -1,7 +1,8 @@
 import { and, eq, or, sql } from 'drizzle-orm';
 import { getDb } from '../../config/postgres';
 import { externalIdentities, externalIdentityActors } from '../../db/schema/externalIdentities';
-import { externalIdentityMetaProofs } from '../../db/schema/externalIdentityMetaProofs';
+import type { ObservedInstagramProfile } from './metaFirstPartyProof.service';
+import { externalIdentityInstagramPins, externalIdentityMetaProofs } from '../../db/schema/externalIdentityMetaProofs';
 
 export interface BoundMetaIdentityProof {
   instagramActorUri: string;
@@ -19,14 +20,20 @@ export interface BoundMetaIdentityProof {
   evidenceDigest: string;
   verifiedAt: Date;
 }
-export type MetaIdentityProofOutcome = { state: 'verified' | 'pending' | 'refused'; reason?: string };
+export type MetaIdentityProofOutcome = { state: 'verified' | 'pending' | 'refused'; reason?: string; sourceOwnerVerified?: boolean };
 
 /** A failed fresh verification cannot keep a previously linked source group alive. */
-export async function revokeMetaIdentityProof(identifier: string, reason: string, observedAt = new Date()): Promise<void> {
+export async function revokeMetaIdentityProof(identifier: string, reason: string, observedAt = new Date(), revokeOwnershipClaims = false): Promise<void> {
   await getDb().transaction(async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
     await tx.execute(sql`update external_identities set meta_proof_revoked_at = greatest(meta_proof_revoked_at, ${observedAt.toISOString()}::timestamptz)
       where canonical_acct = ${identifier} or canonical_acct in (select canonical_acct from external_identity_actors where actor_uri = ${identifier})`);
+    if (revokeOwnershipClaims) {
+      await tx.execute(sql`update external_identity_claims set state = 'revoked', updated_at = ${observedAt.toISOString()}::timestamptz
+        where updated_at <= ${observedAt.toISOString()}::timestamptz and (target_acct in
+          (select canonical_acct from external_identity_actors where actor_uri = ${identifier} or canonical_acct = ${identifier})
+          or actor_uri in (select actor_uri from external_identity_actors where actor_uri = ${identifier} or canonical_acct = ${identifier}))`);
+    }
     await tx.update(externalIdentityMetaProofs).set({ state: 'revoked', revokedAt: observedAt, revocationReason: reason.slice(0, 80) })
       .where(and(sql`${externalIdentityMetaProofs.verifiedAt} <= ${observedAt.toISOString()}::timestamptz`, or(eq(externalIdentityMetaProofs.instagramAcct, identifier), eq(externalIdentityMetaProofs.threadsAcct, identifier),
         eq(externalIdentityMetaProofs.instagramActorUri, identifier), eq(externalIdentityMetaProofs.threadsActorUri, identifier))));
@@ -93,4 +100,54 @@ export async function recordMetaIdentityProof(proof: BoundMetaIdentityProof, enr
     });
     return { state, ...(reason ? { reason } : {}) };
   });
+}
+
+/** Preserve cold-source ownership independently of counterpart availability. */
+export async function recordInstagramSourcePin(actorUri: string, proof: ObservedInstagramProfile,
+  enrollment: { createdInstagramUserId?: string }): Promise<MetaIdentityProofOutcome> {
+  const observedAt = new Date(proof.fetchedAt);
+  const now = new Date();
+  if (!Number.isFinite(observedAt.getTime()) || observedAt > now || now.getTime() - observedAt.getTime() > 5 * 60_000) {
+    return { state: 'refused', reason: 'proof_not_fresh' };
+  }
+  let refusalObservedAt = observedAt;
+  const result: MetaIdentityProofOutcome = await getDb().transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
+    const [source] = await tx.select({ canonicalAcct: externalIdentities.canonicalAcct, userId: externalIdentities.userId,
+      stableId: externalIdentities.stableId, revokedAt: externalIdentities.metaProofRevokedAt }).from(externalIdentityActors)
+      .innerJoin(externalIdentities, eq(externalIdentityActors.canonicalAcct, externalIdentities.canonicalAcct))
+      .where(eq(externalIdentityActors.actorUri, actorUri));
+    const [previous] = await tx.select().from(externalIdentityInstagramPins).where(eq(externalIdentityInstagramPins.actorUri, actorUri));
+    const stableId = `instagram:pk:${proof.pk}`;
+    const sameObservedOwner = previous?.instagramPk === proof.pk && previous.instagramGraphId === proof.graphId;
+    if (!source || source.canonicalAcct !== proof.canonicalAcct || (source.stableId !== null && source.stableId !== stableId)
+      || (previous && (previous.sourceUserId !== source.userId || (previous.state === 'pinned' && !sameObservedOwner)
+        || (previous.verifiedAt > observedAt && !sameObservedOwner)))) {
+      if (previous && previous.verifiedAt > refusalObservedAt) refusalObservedAt = previous.verifiedAt;
+      return { state: 'refused', reason: 'source_binding_changed' };
+    }
+    // A newer consistent observation can support the original atomic creator;
+    // an overlapping non-creator cannot take that authority from it or invent it.
+    const latestAt = previous && previous.verifiedAt > observedAt ? previous.verifiedAt : observedAt;
+    if (source.revokedAt && source.revokedAt >= latestAt) return { state: 'refused', reason: 'proof_predates_revocation' };
+    const eligible = source.stableId === stableId || enrollment.createdInstagramUserId === source.userId;
+    const state = eligible ? 'pinned' : 'pending';
+    if (eligible && source.stableId === null) {
+      await tx.update(externalIdentities).set({ stableId }).where(eq(externalIdentities.canonicalAcct, source.canonicalAcct));
+    }
+    if (previous && previous.verifiedAt > observedAt) {
+      if (eligible && previous.state !== 'pinned') {
+        await tx.update(externalIdentityInstagramPins).set({ state: 'pinned' }).where(eq(externalIdentityInstagramPins.actorUri, actorUri));
+      }
+    } else {
+      const row = { state, actorUri, canonicalAcct: proof.canonicalAcct, sourceUserId: source.userId,
+        instagramPk: proof.pk, instagramGraphId: proof.graphId, profileUrl: proof.profileUrl, documentHash: proof.documentHash,
+        policyVersion: proof.policyVersion, verifiedAt: observedAt } as const;
+      await tx.insert(externalIdentityInstagramPins).values({ ...row, firstVerifiedAt: observedAt })
+        .onConflictDoUpdate({ target: externalIdentityInstagramPins.actorUri, set: row });
+    }
+    return eligible ? { state: 'verified' } : { state: 'pending', reason: 'legacy_source_lineage_unproven' };
+  });
+  if (result.reason === 'source_binding_changed') await revokeMetaIdentityProof(actorUri, result.reason, refusalObservedAt, true);
+  return result;
 }

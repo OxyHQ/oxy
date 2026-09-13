@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../../config/postgres';
-import { externalIdentities, externalIdentityMetaProofs, users, blocks } from '../../../db/schema';
+import { externalIdentities, externalIdentityMetaProofs, externalIdentityInstagramPins, users, blocks } from '../../../db/schema';
 import { registerExternalIdentity, getEquivalentUserIds } from '../../externalIdentityRegistry.service';
-import { recordMetaIdentityProof, revokeMetaIdentityProof, type BoundMetaIdentityProof } from '../metaIdentityProofRegistry.service';
+import { recordInstagramSourcePin, recordMetaIdentityProof, revokeMetaIdentityProof, type BoundMetaIdentityProof } from '../metaIdentityProofRegistry.service';
 import { userService } from '../../user.service';
 
 beforeAll(connectPostgres);
@@ -129,4 +129,20 @@ it('renewing a replacement pair does not revoke the former counterpart’s indep
   expect(await recordMetaIdentityProof({ ...replacement, verifiedAt: new Date(time + 3000) }, {})).toEqual({ state: 'verified' });
   expect(await getEquivalentUserIds(first.b.identity.userId)).toEqual(expect.arrayContaining([first.b.identity.userId, second.a.identity.userId]));
   expect(await getEquivalentUserIds(first.a.identity.userId)).not.toContain(second.a.identity.userId);
+});
+
+it.each([false, true])('delayed creator respects a newer pending owner observation (contradictory=%s)', async contradictory => {
+  const { a, proof } = await sourcePair();
+  const old = { canonicalAcct: proof.instagramAcct, profileUrl: proof.instagramProfileUrl, displayName: 'Author',
+    pk: proof.instagramPk, graphId: proof.instagramGraphId, documentHash: 'd'.repeat(64),
+    policyVersion: 'meta-profile-badges-2026-09-13-v1' as const, fetchedAt: new Date(Date.now() - 2000).toISOString() };
+  const newer = { ...old, pk: contradictory ? '999' : old.pk, documentHash: 'e'.repeat(64), fetchedAt: new Date(Date.now() - 1000).toISOString() };
+  expect(await recordInstagramSourcePin(proof.instagramActorUri, newer, {})).toEqual({ state: 'pending', reason: 'legacy_source_lineage_unproven' });
+  const creator = await recordInstagramSourcePin(proof.instagramActorUri, old, { createdInstagramUserId: a.identity.userId });
+  expect(creator).toEqual(contradictory ? { state: 'refused', reason: 'source_binding_changed' } : { state: 'verified' });
+  const [pin] = await getDb().select().from(externalIdentityInstagramPins).where(eq(externalIdentityInstagramPins.actorUri, proof.instagramActorUri));
+  expect(pin).toMatchObject({ state: contradictory ? 'pending' : 'pinned', instagramPk: newer.pk, documentHash: newer.documentHash, verifiedAt: new Date(newer.fetchedAt) });
+  const [identity] = await getDb().select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, proof.instagramAcct));
+  expect(identity.stableId).toBe(contradictory ? null : `instagram:pk:${old.pk}`);
+  expect(await getEquivalentUserIds(a.identity.userId)).toEqual([a.identity.userId]);
 });

@@ -28,8 +28,19 @@ export interface VerifiedMetaFirstPartyPair {
   evidenceHash: string;
   policyVersion: typeof POLICY_VERSION;
 }
-export type MetaFirstPartyProofResult = { status: 'verified'; pair: VerifiedMetaFirstPartyPair }
-  | { status: 'refused'; sourceAcct: string; reason: MetaProofRefusalReason };
+export interface ObservedInstagramProfile {
+  canonicalAcct: string;
+  profileUrl: string;
+  displayName: string;
+  pk: string;
+  graphId: string;
+  documentHash: string;
+  fetchedAt: string;
+  policyVersion: typeof POLICY_VERSION;
+}
+export type MetaFirstPartyProofResult = ({ status: 'verified'; pair: VerifiedMetaFirstPartyPair }
+  | { status: 'refused'; sourceAcct: string; reason: MetaProofRefusalReason })
+  & { instagramProfile?: ObservedInstagramProfile };
 
 function account(value: string): { local: string; network: MetaNetwork; acct: string; url: string } {
   const match = /^([a-z0-9_][a-z0-9._]{0,63})@(instagram\.com|threads\.net|threads\.com)$/.exec(value);
@@ -159,7 +170,7 @@ function ownedBadge(anchor: Element, network: MetaNetwork, owner: Owner): boolea
   return false;
 }
 
-export function parseMetaFirstPartyProfile(html: string, sourceAcct: string) {
+function parseOwnedProfile(html: string, sourceAcct: string) {
   const source = account(sourceAcct);
   if (Buffer.byteLength(html) > MAX_BYTES) throw new ProofRefusal('oversized_document');
   const nodes = descendants(parse(html));
@@ -167,6 +178,11 @@ export function parseMetaFirstPartyProfile(html: string, sourceAcct: string) {
   if (canonical.length !== 1 || canonical[0] !== source.acct) throw new ProofRefusal('profile_mismatch');
   const owner = profileOwner(nodes, source.network);
   if (owner.username !== source.local) throw new ProofRefusal('profile_mismatch');
+  return { source, nodes, owner, documentHash: createHash('sha256').update(html).digest('hex') };
+}
+
+function parseProfileBadge(parsed: ReturnType<typeof parseOwnedProfile>) {
+  const { source, nodes, owner, documentHash } = parsed;
   const label = source.network === 'instagram.com' ? 'Threads' : 'Instagram';
   const badges = nodes.filter(node => node.tagName === 'a' && attr(node, 'role') === 'link' && attr(node, 'target') === '_blank'
     && descendants(node).some(child => child.tagName === 'svg' && attr(child, 'aria-label') === label)
@@ -176,10 +192,14 @@ export function parseMetaFirstPartyProfile(html: string, sourceAcct: string) {
   const badgeTargetAcct = profileAccount(attr(badges[0], 'href') ?? '');
   if (!badgeTargetAcct || account(badgeTargetAcct).network === source.network) throw new ProofRefusal('missing_profile_badge');
   return { canonicalAcct: source.acct, profileUrl: source.url, badgeTargetAcct, displayName: owner.fullName, pk: owner.pk, id: owner.id,
-    documentHash: createHash('sha256').update(html).digest('hex') };
+    documentHash };
 }
 
-async function fetchProfile(sourceAcct: string) {
+export function parseMetaFirstPartyProfile(html: string, sourceAcct: string) {
+  return parseProfileBadge(parseOwnedProfile(html, sourceAcct));
+}
+
+async function fetchProfile(sourceAcct: string, observe: (profile: ReturnType<typeof parseOwnedProfile>) => void) {
   const source = account(sourceAcct);
   const response = await safeFetch(source.url, { method: 'GET', headers: { Accept: 'text/html', 'Accept-Language': 'en' },
     maxRedirects: 0, headersTimeoutMs: TIMEOUT_MS, signal: AbortSignal.timeout(TIMEOUT_MS) });
@@ -197,26 +217,34 @@ async function fetchProfile(sourceAcct: string) {
         chunks.push(buffer);
       }
     } finally { clearTimeout(timer); }
-    return parseMetaFirstPartyProfile(Buffer.concat(chunks).toString('utf8'), source.acct);
+    const parsed = parseOwnedProfile(Buffer.concat(chunks).toString('utf8'), source.acct);
+    observe(parsed);
+    return parseProfileBadge(parsed);
   } finally { response.response.destroy(); }
 }
 
 /** Two fresh source-owned documents; AP/DID binding is deliberately not inferred here. */
 export async function fetchMetaFirstPartyProfilePair(input: { sourceAcct: string; expectedCounterpartAcct?: string }): Promise<MetaFirstPartyProofResult> {
   const fetchedAt = new Date().toISOString();
+  let instagramProfile: ObservedInstagramProfile | undefined;
+  const observe = ({ source, owner, documentHash }: ReturnType<typeof parseOwnedProfile>) => {
+    if (source.network !== 'instagram.com') return;
+    instagramProfile = { canonicalAcct: source.acct, profileUrl: source.url, displayName: owner.fullName,
+      pk: owner.pk, graphId: owner.id, documentHash, fetchedAt, policyVersion: POLICY_VERSION };
+  };
   try {
     const source = account(input.sourceAcct);
-    const first = await fetchProfile(source.acct);
+    const first = await fetchProfile(source.acct, observe);
     if (input.expectedCounterpartAcct && account(input.expectedCounterpartAcct).acct !== first.badgeTargetAcct) throw new ProofRefusal('nonreciprocal_badges');
-    const second = await fetchProfile(first.badgeTargetAcct);
+    const second = await fetchProfile(first.badgeTargetAcct, observe);
     if (second.badgeTargetAcct !== first.canonicalAcct) throw new ProofRefusal('nonreciprocal_badges');
     const ig = source.network === 'instagram.com' ? first : second;
     const th = source.network === 'threads.net' ? first : second;
     const { pk: igPk, id: graphId, ...instagram } = ig;
     const { pk: webPk, id: _webId, ...threads } = th;
     const evidence: Omit<VerifiedMetaFirstPartyPair, 'fetchedAt' | 'evidenceHash'> = { instagram: { ...instagram, pk: igPk, graphId }, threads: { ...threads, webPk }, policyVersion: POLICY_VERSION };
-    return { status: 'verified', pair: { ...evidence, fetchedAt, evidenceHash: createHash('sha256').update(JSON.stringify(evidence)).digest('hex') } };
+    return { status: 'verified', ...(instagramProfile ? { instagramProfile } : {}), pair: { ...evidence, fetchedAt, evidenceHash: createHash('sha256').update(JSON.stringify(evidence)).digest('hex') } };
   } catch (error) {
-    return { status: 'refused', sourceAcct: input.sourceAcct, reason: error instanceof ProofRefusal ? error.reason : 'upstream_unavailable' };
+    return { status: 'refused', ...(instagramProfile ? { instagramProfile } : {}), sourceAcct: input.sourceAcct, reason: error instanceof ProofRefusal ? error.reason : 'upstream_unavailable' };
   }
 }

@@ -3,6 +3,7 @@ import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { canonicalUserRedirects, externalIdentities, externalIdentityActors, externalIdentityClaims } from '../db/schema/externalIdentities';
 import { users } from '../db/schema/users';
+import { externalIdentityInstagramPins } from '../db/schema/externalIdentityMetaProofs';
 import { revokeMetaIdentityProof } from './federation/metaIdentityProofRegistry.service';
 import { blocks } from '../db/schema/blocks';
 import { restrictions } from '../db/schema/restrictions';
@@ -20,6 +21,8 @@ export interface RegisterExternalIdentityInput {
   /** Only source-controlled, verified rel=me / alsoKnownAs links, never biography text. */
   evidenceLinks?: string[];
   stableId?: string;
+  /** Internal proof already persisted by the source verifier, never caller profile hints. */
+  verifiedInstagramPin?: { documentHash: string; verifiedAt: string };
 }
 
 export function normalizeExternalAcct(value: string): string {
@@ -231,6 +234,17 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
     let createdUser = false;
     let [identity] = await tx.select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, canonicalAcct));
+    if (network === 'instagram.com' && identity?.stableId?.startsWith('instagram:pk:')) {
+      const [pin] = await tx.select().from(externalIdentityInstagramPins).where(eq(externalIdentityInstagramPins.actorUri, input.actorUri));
+      const proof = input.verifiedInstagramPin;
+      const matches = pin?.state === 'pinned' && pin.canonicalAcct === canonicalAcct && pin.sourceUserId === identity.userId
+        && identity.stableId === `instagram:pk:${pin.instagramPk}` && proof?.documentHash === pin.documentHash
+        && proof.verifiedAt === pin.verifiedAt.toISOString() && pin.verifiedAt.getTime() > Date.now() - 5 * 60_000
+        && (!identity.metaProofRevokedAt || pin.verifiedAt > identity.metaProofRevokedAt);
+      // Nothing below this boundary may refresh ownership, evidence or metadata
+      // until the persisted current owner observation matches in this transaction.
+      if (!matches) return { userId: await resolveCanonicalUserId(identity.userId, tx), identity, createdUser: false, deferredInstagramOwnerRefresh: true };
+    }
     if (identity?.stableId && input.stableId && identity.stableId !== input.stableId) throw new Error('External stable identity changed; explicit ownership reconciliation required');
     const [actor] = await tx.select().from(externalIdentityActors).where(eq(externalIdentityActors.actorUri, input.actorUri));
     if (identity && (!actor || actor.canonicalAcct !== canonicalAcct)) {
@@ -304,7 +318,7 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
           .where(and(eq(externalIdentityClaims.actorUri, claim.actorUri), eq(externalIdentityClaims.targetAcct, canonicalAcct)));
       }
     }
-    return { userId: await resolveCanonicalUserId(identity.userId, tx), identity, createdUser };
+    return { userId: await resolveCanonicalUserId(identity.userId, tx), identity, createdUser, deferredInstagramOwnerRefresh: false };
   }).catch(async (error: unknown) => {
     if (error instanceof Error && error.message.startsWith('External stable identity changed')) {
       await revokeMetaIdentityProof(canonicalAcct, 'stable_identity_changed');

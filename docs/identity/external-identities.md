@@ -48,8 +48,21 @@ assertion pathway remains independent.
 
 Kilogram actors generally lack a stable Instagram identifier. Only an Instagram
 source user atomically created in the current discovery may initially acquire
-`instagram:pk:<pk>` from a fully bound first-party proof. An existing matching pin
-can renew. Existing unpinned bridge users remain `pending` with reason
+`instagram:pk:<pk>` from its own validated first-party profile owner. That
+standalone pin stores the source URL, document hash, parser version and observation
+time separately from the pair proof; it never creates a cross-network edge. It
+survives unavailable Threads pages, missing badges and native actor outages, so a
+later fully verified reciprocal proof can join the same source user. An existing
+matching pin can renew, while contradictory owner IDs cannot replace it. Pending
+owner observations record freshness without assigning ownership: an overlapping
+request may preserve a newer consistent observation for the original creator,
+but a newer contradictory owner blocks that delayed initialization. Already
+pinned Instagram sources cannot refresh actor timestamps, claims or profile
+metadata until that observation passes the registry transaction guard. A changed
+owner revokes both pair proof and machine claims, returns no usable old identity
+from resolution, and stops background metadata/ownership updates. If the pinned
+source’s own page is unavailable, resolution also withholds its ID; a verified
+Instagram owner can recover independently while Threads remains unavailable. Existing unpinned bridge users remain `pending` with reason
 `legacy_source_lineage_unproven`, retaining their graph and historical ownership.
 Raw preexisting numeric IDs are not silently reinterpreted as Instagram `pk`.
 This limitation applies even when current badges demonstrate the web accounts'

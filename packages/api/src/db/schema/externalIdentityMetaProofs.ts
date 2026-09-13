@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+import { users } from './users';
 import { externalIdentityActors } from './externalIdentities';
 
 /** Minimal first-party account proof, never HTML or browser/session metadata. */
@@ -37,4 +38,26 @@ export const externalIdentityMetaProofs = pgTable('external_identity_meta_proofs
     and ${table.instagramDocumentHash} ~ '^[a-f0-9]{64}$' and ${table.threadsDocumentHash} ~ '^[a-f0-9]{64}$'
     and ${table.evidenceDigest} ~ '^[a-f0-9]{64}$' and length(${table.revocationReason}) <= 80
     and ${table.expiresAt} > ${table.verifiedAt} and ${table.expiresAt} <= ${table.verifiedAt} + interval '24 hours'`),
+]);
+
+/** Immutable owner anchor can precede cross-network badge/AP availability. */
+export const externalIdentityInstagramPins = pgTable('external_identity_instagram_pins', {
+  state: text({ enum: ['pending', 'pinned'] }).notNull(),
+  actorUri: text().primaryKey().references(() => externalIdentityActors.actorUri, { onDelete: 'cascade' }),
+  canonicalAcct: text().notNull(),
+  sourceUserId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+  instagramPk: text().notNull(),
+  instagramGraphId: text().notNull(),
+  profileUrl: text().notNull(),
+  documentHash: text().notNull(),
+  policyVersion: text().notNull(),
+  firstVerifiedAt: timestamp({ withTimezone: true }).notNull(),
+  verifiedAt: timestamp({ withTimezone: true }).notNull(),
+}, table => [
+  check('external_identity_instagram_pins_bounds_check', sql`${table.state} in ('pending', 'pinned') and length(${table.actorUri}) <= 2048
+    and length(${table.canonicalAcct}) <= 320 and length(${table.sourceUserId}) <= 128
+    and ${table.instagramPk} ~ '^[0-9]{1,32}$' and ${table.instagramGraphId} ~ '^[0-9]{1,32}$'
+    and length(${table.profileUrl}) <= 2048 and ${table.documentHash} ~ '^[a-f0-9]{64}$'
+    and ${table.policyVersion} = 'meta-profile-badges-2026-09-13-v1'
+    and ${table.verifiedAt} >= ${table.firstVerifiedAt}`),
 ]);

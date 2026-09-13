@@ -596,6 +596,13 @@
       "when": 1789258626916,
       "tag": "0085_external_identity_meta_proofs",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1789262664960,
+      "tag": "0086_external_identity_instagram_pins",
+      "breakpoints": true
     }
   ]
 }
