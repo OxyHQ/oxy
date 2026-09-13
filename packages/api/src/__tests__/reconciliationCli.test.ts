@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -39,10 +40,15 @@ describe('external identity reconciliation command lifecycle', () => {
         encoding: 'utf8', timeout: 15000, maxBuffer: 1024 * 1024,
       });
       expect(result.error).toBeUndefined();
-      expect(result.status).toBe(failCleanup ? 1 : 2);
-      expect(result.stdout).toContain('x'.repeat(300000));
-      expect(result.stdout).toContain('POSTGRES_CLOSED\nREDIS_CLOSED');
-      expect(result.stdout).toContain('"visited":1,"changed":0,"refused":1,"pending":0');
+      if (result.status !== (failCleanup ? 1 : 2)) {
+        throw new Error(`Unexpected CLI exit ${result.status}: ${result.stderr.slice(0, 2000)}`);
+      }
+      const payload = result.stdout.split('\n')[0];
+      expect(payload.length).toBe(300000);
+      expect(createHash('sha256').update(payload).digest('hex'))
+        .toBe(createHash('sha256').update('x'.repeat(300000)).digest('hex'));
+      expect(result.stdout.includes('POSTGRES_CLOSED\nREDIS_CLOSED')).toBe(true);
+      expect(result.stdout.includes('"visited":1,"changed":0,"refused":1,"pending":0')).toBe(true);
       expect(result.stderr).not.toContain('private cleanup detail');
       if (failCleanup) expect(result.stderr).toContain('Reconciliation failed');
     } finally { rmSync(scratch, { recursive: true, force: true }); }

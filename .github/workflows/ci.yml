@@ -277,11 +277,15 @@ jobs:
       # without this build the job dies in global setup with
       # `Cannot find module '@oxy.so/db/migrate'` before a single test file
       # loads. Verified by deleting `packages/db/dist` and running the suite.
-      - name: Build core SDK, MCP + db (for resolution in api tests)
+      # The reconciliation CLI lifecycle test also spawns Bun; its real bridge
+      # policy imports federation outside Jest's source mapper. Build that package
+      # too, so a fresh checkout exercises the same entry point as the image.
+      - name: Build core SDK, federation, MCP + db (for resolution in api tests)
         run: |
           bun run --filter @oxy.so/contracts build
           bun run --filter @oxy.so/protocol build
           bun run --filter @oxy.so/core build
+          bun run --filter @oxy.so/federation build
           bun run --filter @oxy.so/mcp build
           bun run --filter @oxy.so/db build
 
