@@ -6,14 +6,14 @@ on:
         description: Fixed operation (inspection never discovers or writes)
         required: true
         type: choice
-        options: [reconcile, inspect_cache]
+        options: [reconcile, inspect_cache, inspect_meta]
         default: reconcile
       actor_uri:
         description: inspect_cache only - exact HTTPS source actor URI
         required: false
         type: string
       canonical_acct:
-        description: inspect_cache only - canonical user@network account
+        description: Inspection canonical account; inspect_meta accepts Instagram or Threads only
         required: false
         type: string
       transport_acct:

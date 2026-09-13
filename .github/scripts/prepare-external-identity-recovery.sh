@@ -19,7 +19,7 @@ gh run download "$RECOVERY_RUN_ID" --repo "$GITHUB_REPOSITORY" \
   --name "external-identity-reconciliation-$RECOVERY_RUN_ID" --dir "$scratch/artifact"
 jq -e --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$EXPECTED_IMAGE_DIGEST" '
   .expectedSourceSha == $sha and .imageDigest == $digest
-  and (.operation == "reconcile" or .operation == "inspect_cache")
+  and (.operation == "reconcile" or .operation == "inspect_cache" or (.operation == "inspect_meta" and .dryRun == true))
   and (.dryRun | type == "boolean")
   and (.taskArn | test("^arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/[0-9a-f]{32}$"))
 ' "$scratch/artifact/run.json" >/dev/null

@@ -45,7 +45,9 @@ aws() {
       if [[ "$*" == *'--next-token last '* ]]; then
         echo '{"events":[],"nextForwardToken":"last"}'
       elif [[ "$*" == *'--next-token second '* ]]; then
-        if [[ "$TEST_MODE" == completed || "$TEST_MODE" == service || "$TEST_MODE" == live_definition || "$TEST_MODE" == cursor || "$TEST_MODE" == wrong_started_by || "$TEST_MODE" == stuck ]]; then
+        if [[ "$TEST_MODE" == meta || "$TEST_MODE" == meta_cross ]]; then
+          jq -nc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$EXPECTED_IMAGE_DIGEST" '{events:[{message:({operation:"inspect_meta",readOnly:true,canonicalAcct:"zuck@instagram.com",sourceSha:$sha,imageDigest:$digest,status:"refused",observations:[],visited:1,refused:1}|tojson)}],nextForwardToken:"last"}'
+        elif [[ "$TEST_MODE" == completed || "$TEST_MODE" == service || "$TEST_MODE" == live_definition || "$TEST_MODE" == cursor || "$TEST_MODE" == wrong_started_by || "$TEST_MODE" == stuck ]]; then
           echo '{"events":[{"message":"{\"actorUri\":\"https://bird.makeup/users/example\",\"state\":\"refused\"}"},{"message":"{\"apply\":true,\"visited\":1,\"changed\":0,\"refused\":1,\"pending\":0,\"after\":\"https://bird.makeup/users/example\"}"}],"nextForwardToken":"last"}'
         elif [[ "$TEST_MODE" == missing || "$TEST_MODE" == running ]]; then
           echo '{"events":[],"nextForwardToken":"last"}'
@@ -148,3 +150,17 @@ prepare stuck
 if COLLECTION_MODE=stop_completed TEST_MODE=stuck collect stuck; then echo 'Unconfirmed stop reported success' >&2; exit 1; fi
 [[ $(grep -c 'ecs stop-task' "$TEST_LOG") == 1 ]]
 jq -e '.tasks[0].lastStatus == "RUNNING"' "$test_root/stuck/identity-reconciliation-report/result.json" >/dev/null
+
+# A Meta source diagnostic is readable but can never act as a reconciliation
+# summary or authorize stop_completed, even if unexpected count fields appear.
+jq '.operation = "inspect_meta" | .dryRun = true | .identifiers = {canonicalAcct:"zuck@instagram.com"}' "$TEST_ARTIFACT" > "$TEST_ARTIFACT.meta"
+export TEST_ARTIFACT="$TEST_ARTIFACT.meta"
+prepare meta
+TEST_MODE=meta collect meta
+jq -e '.operation == "inspect_meta" and .readOnly' "$test_root/meta/identity-reconciliation-report/summary.json" >/dev/null
+if COLLECTION_MODE=stop_completed TEST_MODE=meta collect meta; then echo 'Diagnostic authorized stop' >&2; exit 1; fi
+jq '.operation = "reconcile"' "$TEST_ARTIFACT" > "$TEST_ARTIFACT.cross"
+export TEST_ARTIFACT="$TEST_ARTIFACT.cross"
+prepare meta-cross
+if TEST_MODE=meta_cross collect meta-cross; then echo 'Meta diagnostic accepted as apply preview' >&2; exit 1; fi
+echo 'Meta diagnostic recovery and cross-operation rejection: passed'
