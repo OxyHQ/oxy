@@ -31,6 +31,7 @@ import storageRoutes from './routes/storage';
 import applicationRoutes from './routes/applications';
 import internalRoutes from './routes/internal';
 import accountRoutes from './routes/accounts';
+import familyRoutes from './routes/families';
 import capabilityRoutes from './routes/capabilities';
 import devicesRouter from './routes/devices';
 import securityRoutes from './routes/security';
@@ -751,6 +752,9 @@ app.use('/internal', internalRoutes);
 // Unified Account graph (tree + membership + service credentials). Per-route
 // rate limiters (rl:accounts:*) live inside the router.
 app.use('/accounts', csrfProtection, accountRoutes);
+// Oxy Family membership (organizer + member personal accounts). Per-route
+// rate limiters (rl:families:*) live inside the router, same as `/accounts`.
+app.use('/families', csrfProtection, familyRoutes);
 app.use('/capabilities', userRateLimiter, csrfProtection, capabilityRoutes);
 app.use('/devices', userRateLimiter, csrfProtection, devicesRouter);
 app.use('/security', userRateLimiter, csrfProtection, securityRoutes);
