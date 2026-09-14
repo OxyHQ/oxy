@@ -3,8 +3,8 @@ import { render } from '@testing-library/react';
 import { LanguageBridge } from '../LanguageBridge';
 
 /**
- * `OxyProvider`'s `language` prop, realized: the one place Oxy's resolved
- * language reaches a host app's own i18n library. `useOxy` is mocked here —
+ * `OxyProvider`'s language config prop, realized: the one place Oxy's
+ * resolved language reaches a host app's own i18n library. `useOxy` is mocked here —
  * it is the SDK's own well-tested context — so these tests exercise exactly
  * what this component adds: coercion to the caller's catalog, and calling
  * back only when the RESOLVED locale actually changes.

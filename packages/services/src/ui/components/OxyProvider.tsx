@@ -60,7 +60,7 @@ const isWeb = Platform.OS === 'web';
  * }
  * ```
  *
- * An app with its own translated UI passes `language` to follow the account's
+ * An app with its own translated UI passes a language config to follow the account's
  * (or, signed out, the device/guest) resolved locale automatically — see ADR
  * 0022 (`docs/adr/0022-app-i18n-follows-oxy-language.md`):
  * ```tsx

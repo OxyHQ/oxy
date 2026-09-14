@@ -183,21 +183,23 @@ export interface OxyProviderProps {
      * Omitted entirely (the default) when an app has no i18n of its own, or
      * manages it independently of the account/device locale.
      */
-    language?: {
-        /** The exact locales this app ships a translation catalog for. */
-        supportedLocales: readonly string[];
-        /**
-         * Used when Oxy's resolved language matches none of `supportedLocales`,
-         * not even by base language (Oxy's account-locale catalog is broader
-         * than any one app's translations).
-         */
-        fallbackLocale: string;
-        /**
-         * Called whenever the resolved locale changes, coerced to the closest
-         * one in `supportedLocales`. May return a promise; a rejection is
-         * reported to `onError` instead of throwing into the app tree.
-         */
-        onChange: (locale: string) => void | Promise<void>;
-        onError?: (error: unknown, locale: string) => void;
-    };
+    language?: OxyLanguageConfig;
+}
+
+export interface OxyLanguageConfig {
+    /** The exact locales this app ships a translation catalog for. */
+    supportedLocales: readonly string[];
+    /**
+     * Used when Oxy's resolved language matches none of `supportedLocales`,
+     * not even by base language (Oxy's account-locale catalog is broader
+     * than any one app's translations).
+     */
+    fallbackLocale: string;
+    /**
+     * Called whenever the resolved locale changes, coerced to the closest
+     * one in `supportedLocales`. May return a promise; a rejection is
+     * reported to `onError` instead of throwing into the app tree.
+     */
+    onChange: (locale: string) => void | Promise<void>;
+    onError?: (error: unknown, locale: string) => void;
 }

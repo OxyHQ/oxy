@@ -1,25 +1,25 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { coerceToSupportedLocale } from '@oxy.so/core';
 import { useOxy } from '../context/OxyContext';
-import type { OxyProviderProps } from '../types/navigation';
-
-type LanguageConfig = NonNullable<OxyProviderProps['language']>;
+import type { OxyLanguageConfig } from '../types/navigation';
 
 /**
- * `OxyProvider`'s `language` prop, realized. Oxy decides which language an
- * account (or, signed out, the device/guest locale) should see; this is the
- * ONE place that decision reaches the host app's own i18n library — so an app
- * never re-derives or imperatively tracks a language of its own, and never
- * mounts anything extra to get it. It owns only its translation catalogs.
+ * `OxyProvider`'s language config prop, realized. Oxy decides which
+ * language an account (or, signed out, the device/guest locale) should see;
+ * this is the ONE place that decision reaches the host app's own i18n library
+ * — so an app never re-derives or imperatively tracks a language of its own,
+ * and never mounts anything extra to get it. It owns only its translation
+ * catalogs.
  *
  * `currentLanguage` may name a locale the host app never shipped a catalog
  * for — {@link coerceToSupportedLocale} narrows it to the closest one the app
  * actually has (exact match, then same base language, then `fallbackLocale`).
  *
  * Renders nothing. Mounted by `OxyProvider` INSIDE `OxyRuntimeProvider` only
- * when `language` is supplied, so an app with no i18n of its own pays nothing.
+ * when this config is supplied, so an app with no i18n of its own pays
+ * nothing.
  */
-export function LanguageBridge({ supportedLocales, fallbackLocale, onChange, onError }: LanguageConfig): null {
+export function LanguageBridge({ supportedLocales, fallbackLocale, onChange, onError }: OxyLanguageConfig): null {
     const { currentLanguage } = useOxy();
     const resolvedLocale = useMemo(
         () => coerceToSupportedLocale(currentLanguage, supportedLocales, fallbackLocale),
