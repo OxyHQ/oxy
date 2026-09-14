@@ -14,6 +14,7 @@ import { createMemoryStorage, createPlatformStorage, type StorageInterface } fro
 import { isNetConnectivityOnline } from '../utils/netConnectivity';
 import { KeyboardBoundary } from './KeyboardBoundary';
 import { ProductAnalyticsObserver } from '../analytics/productAnalytics';
+import { LanguageBridge } from './LanguageBridge';
 
 const bootStyles = StyleSheet.create({
     providerRoot: {
@@ -58,6 +59,20 @@ const isWeb = Platform.OS === 'web';
  *   return <Text>Welcome, {user?.username}!</Text>;
  * }
  * ```
+ *
+ * An app with its own translated UI passes `language` to follow the account's
+ * (or, signed out, the device/guest) resolved locale automatically — see ADR
+ * 0022 (`docs/adr/0022-app-i18n-follows-oxy-language.md`):
+ * ```tsx
+ * <OxyProvider
+ *   baseURL="https://api.oxy.so"
+ *   language={{
+ *     supportedLocales: SUPPORTED_LANGUAGES,       // this app's own catalog
+ *     fallbackLocale: DEFAULT_LANGUAGE,
+ *     onChange: (locale) => i18n.changeLanguage(locale),
+ *   }}
+ * >
+ * ```
  */
 const OxyProvider: FC<OxyProviderProps> = ({
     oxyServices,
@@ -76,6 +91,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
     requireAuth = 'off',
     backgroundSession = false,
     deviceCredentialStorage = 'persistent',
+    language,
 }) => {
 
     // Storage + persistence wiring.
@@ -229,6 +245,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
                 onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
             >
                 {productAnalytics ? <ProductAnalyticsObserver analytics={productAnalytics} /> : null}
+                {language ? <LanguageBridge {...language} /> : null}
                 <SurfaceProvider>
                     {requireAuth === 'off' ? (
                         children

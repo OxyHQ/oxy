@@ -254,3 +254,32 @@ export function getUserLanguages(user: Pick<User, 'languages'> | null | undefine
 export function getPrimaryLanguage(user: Pick<User, 'languages'> | null | undefined): string | undefined {
   return getUserLanguages(user)[0];
 }
+
+/**
+ * Coerce a locale down to one from a CALLER-provided catalog: an exact
+ * canonical match wins, else the closest entry sharing the same base
+ * language (an `es-MX` account reads a host app's `es-ES` catalog), else
+ * `fallback`.
+ *
+ * A host app's own shipped translation catalog is rarely {@link SUPPORTED_LANGUAGES}
+ * itself — Oxy's account-locale catalog is broader than any one app's
+ * translated strings — so this is the one place that gap is bridged. Every Oxy
+ * app was independently re-deriving this exact algorithm against its own
+ * catalog before it moved here.
+ */
+export function coerceToSupportedLocale(
+  locale: string | null | undefined,
+  supportedLocales: readonly string[],
+  fallback: string,
+): string {
+  if (locale) {
+    const canonical = normalizeLocale(locale);
+    if (canonical && supportedLocales.includes(canonical)) {
+      return canonical;
+    }
+    const base = getBaseLanguage(locale);
+    const byBase = supportedLocales.find((entry) => getBaseLanguage(entry) === base);
+    if (byBase) return byBase;
+  }
+  return fallback;
+}

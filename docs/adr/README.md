@@ -33,6 +33,7 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 | [0019](0019-kaana-byok-custody.md) | #972 | Every provider credential, including BYOK, lives as KMS ciphertext in Kaana PostgreSQL; Oxy stores only customer-facing metadata plus an opaque handle and revision, and inference uses the canonical signed Kaana boundary. |
 | [0020](0020-mcp-connections-hold-several-accounts.md) | — | An external MCP connection covers several accounts: Oxy groups grants under the connection, each account approves its own membership through a single-use link on the IdP, and introspection reports the set plus the selected member. Changes 0018. |
 | [0021](0021-service-read-of-owner-linked-files.md) | — | A relying service reaches file BYTES only where the file's own owner linked it to that application (`file_links.created_by = files.owner_user_id`), through `POST /assets/service/linked-url` and the new, non-implied `files:linked:read` scope; a refused id is omitted rather than distinguished, and Oxy holds none of the entitlement that motivated the call. |
+| [0022](0022-app-i18n-follows-oxy-language.md) | — | Oxy resolves *which* language via `OxyProvider`'s new `language` prop; every app keeps its own translation library and catalog (react-i18next for a full product app, the SDK's own dependency-free `translate()` for its embedded screens) and is told the resolved locale, never re-deriving it. |
 
 ## Related
 
