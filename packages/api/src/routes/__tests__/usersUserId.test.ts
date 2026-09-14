@@ -45,6 +45,7 @@ jest.mock('../../services/user.service', () => ({
     getUserStats: mockGetUserStats,
     formatUserResponse: mockFormatUserResponse,
     getViewerRelationship: mockGetViewerRelationship,
+    withExternalIdentities: async (user: Record<string, unknown>) => ({ ...user, externalIdentities: [], redirectedUserIds: [] }),
   },
 }));
 jest.mock('../../services/identityExport.service', () => ({
@@ -169,7 +170,7 @@ describe('GET /users/:userId', () => {
 
     const res = await requestJson(server, targetUserId);
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ id: targetUserId, username: 'nate' });
+    expect(res.body.data).toEqual({ id: targetUserId, username: 'nate', externalIdentities: [], redirectedUserIds: [] });
     expect(res.body.data?.relationship).toBeUndefined();
     expect(mockGetViewerRelationship).not.toHaveBeenCalled();
   });

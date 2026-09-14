@@ -4,12 +4,11 @@ Framework-agnostic primitives for anonymous, real-time Oxy activity telemetry.
 The package has no runtime dependencies and does not import Express, Socket.IO,
 Redis, React, React Native or Expo.
 
-Version: `0.1.2`.
-
 ## Entry points
 
 - `@oxy.so/telemetry` — shared header names and aggregate interfaces.
 - `@oxy.so/telemetry/browser` — ephemeral browser metadata.
+- `@oxy.so/telemetry/collector` — bounded HTTP/custom-transport flow aggregation.
 - `@oxy.so/telemetry/server` — pure validation, route bucketing and cardinality
   keys/interfaces.
 
@@ -33,7 +32,7 @@ session storage, IndexedDB or a URL. Closing or reloading the page loses it.
 `X-Oxy-Edge-Region` contains only the three-letter Cloudflare PoP code obtained
 from the same-origin `/cdn-cgi/trace` endpoint. The helper reads no IP field and
 returns, logs and persists none of the rest of the trace response. Discovery is
-cached per runtime, has a one-second timeout and is disabled on loopback.
+cached for 15 seconds per runtime (including failed discovery), has a one-second timeout and is disabled on loopback.
 
 Use `createBrowserTelemetry()` to create an isolated runtime or inject clock,
 crypto, location and trace-fetch dependencies in tests.
@@ -95,21 +94,44 @@ exports while applications migrate their direct imports.
 
 ## Collector, realtime and reconnect
 
-The intended collector records only successful, non-control-plane requests. It
-increments request totals per `source region × bounded service × time window`
-and sends the ephemeral activity ID to a cardinality adapter, never to an event
-row or log.
+The collector records successful, failed and aborted HTTP requests. A completed
+response is a separate observed outbound flow; an aborted request never produces
+a fabricated response. Scope (`internal`/`external`), direction relative to the
+reporter (`inbound`/`outbound`) and type (`identity`, `ai`, `communication`,
+`media`, `platform`) are independent dimensions. Source and destination always
+follow the actual movement, even when two services share one region.
+
+`trafficMiddleware` attaches before routes and reads the verified service
+identity after route authentication. `instrumentTrafficFetch` observes actual
+outbound calls; internal destination regions come from the peer's `X-Oxy-Region`
+response, not a guessed IP location. Unlocated peers remain unlocated. Health,
+telemetry collection, infrastructure snapshots and service-token minting are
+excluded from observation where applicable to prevent control traffic feedback.
+Custom transports can call the collector's `record` method explicitly.
+
+Each collector retains at most 512 distinct pending flows and publishes chunks
+of at most 256. Publishing is best effort: a failed batch is discarded, with no
+durable retry queue. These are live operational observations, not billing or
+lossless historical request totals. No dashboard viewer is needed to collect.
 
 Realtime transport publishes aggregate buckets, not individual metadata. A
 socket event may carry `ActivityAggregate`: request count, approximate active
 clients, source/target regions, service and window timestamps. Transport and
 fan-out are application concerns and intentionally absent from this package.
 
-Realtime events are not a durable replay log. After reconnect, a consumer first
-loads the collector's current aggregate snapshot and then resumes the live
-stream, deduplicating any overlapping window by its stable flow/window identity.
-Reconnect backoff, socket lifecycle and snapshot endpoints belong to the
-consumer and collector, not these pure primitives.
+Realtime activity events are not a durable replay log. The dashboard retains a
+60-second window of distinct flows and resumes live events on reconnect.
+Infrastructure is separate: the API broadcasts a complete snapshot on connection
+and on changes. Registration/removal updates immediately; heartbeats run every
+10 seconds and crashed instances expire after 45 seconds (observed at the next
+registry refresh). Only reporting instances are included. The publisher must be
+installed in each service before this can represent the whole ecosystem.
+
+The authenticated publisher is `createEcosystemTraffic` from `@oxy.so/core/server`.
+It exposes HTTP middleware, `wrapFetch`, `record` for explicit transport events,
+and `stop` for graceful removal. It requires an existing trusted service
+credential and a known infrastructure region (or explicit infrastructure
+coordinates). Credentials, user metadata and paths never enter public snapshots.
 
 ## Development
 

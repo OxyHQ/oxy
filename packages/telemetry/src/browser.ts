@@ -2,6 +2,7 @@ import { OXY_ACTIVITY_ID_HEADER, OXY_EDGE_REGION_HEADER } from './index.js';
 
 export const DEFAULT_ACTIVITY_ID_ROTATION_MS = 5 * 60 * 1_000;
 export const DEFAULT_EDGE_TRACE_TIMEOUT_MS = 1_000;
+export const DEFAULT_EDGE_CACHE_MS = 15_000;
 
 interface TraceResponse {
   ok: boolean;
@@ -11,6 +12,7 @@ interface TraceResponse {
 export interface BrowserTelemetryOptions {
   activityIdRotationMs?: number;
   edgeTraceTimeoutMs?: number;
+  edgeCacheMs?: number;
   now?: () => number;
   crypto?: Pick<Crypto, 'getRandomValues' | 'randomUUID'>;
   location?: Pick<Location, 'hostname' | 'protocol'>;
@@ -45,6 +47,7 @@ export function createBrowserTelemetry(options: BrowserTelemetryOptions = {}): B
   let activityId: string | null = null;
   let activityIdCreatedAt = 0;
   let edgePopPromise: Promise<string | null> | null = null;
+  let edgePopReadAt = -Infinity;
 
   const getActivityIdHeader = (): Record<string, string> => {
     const hasInjectedBrowser = Boolean(options.location);
@@ -79,7 +82,11 @@ export function createBrowserTelemetry(options: BrowserTelemetryOptions = {}): B
   };
 
   const getEdgeRegionHeader = async (): Promise<Record<string, string>> => {
-    edgePopPromise ??= discoverEdgePop();
+    const now = (options.now ?? Date.now)();
+    if (!edgePopPromise || now < edgePopReadAt || now - edgePopReadAt >= (options.edgeCacheMs ?? DEFAULT_EDGE_CACHE_MS)) {
+      edgePopReadAt = now;
+      edgePopPromise = discoverEdgePop();
+    }
     const edgePop = await edgePopPromise;
     return edgePop ? { [OXY_EDGE_REGION_HEADER]: edgePop } : {};
   };

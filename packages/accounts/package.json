@@ -9,13 +9,14 @@
     "android": "RCT_METRO_PORT=8102 expo run:android",
     "ios": "RCT_METRO_PORT=8102 expo run:ios",
     "lint": "expo lint",
-    "test": "jest --passWithNoTests",
+    "test": "node --test worker/edge-checks.mjs && jest --passWithNoTests",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "reset-project": "node ./scripts/reset-project.js",
     "smoke:csp": "bun run scripts/smoke-csp.ts"
   },
   "dependencies": {
+    "@oxy.so/telemetry": "workspace:*",
     "@expo/vector-icons": "^15.1.1",
     "@lottiefiles/dotlottie-react": "catalog:",
     "@oxy.so/app-preset": "workspace:*",

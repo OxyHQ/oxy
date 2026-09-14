@@ -54,6 +54,9 @@
  */
 
 import express from 'express';
+import { observeInfrastructure } from '../services/platformInfrastructure.service';
+import { platformActivityBatchSchema, infrastructureHeartbeatSchema } from '../services/platformActivity.schema';
+import { publishPlatformActivity } from '../services/platformActivity.service';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
@@ -149,6 +152,27 @@ const requireTrustedServiceApp = asyncHandler(
 
 router.use(serviceAuthMiddleware);
 router.use(requireTrustedServiceApp);
+
+// Aggregate-only collection from the whole first-party ecosystem. The router's
+// shared service authentication and trust gates also protect this endpoint.
+router.post('/activity/infrastructure', asyncHandler(async (req: ServiceAuthRequest, res) => {
+  const result = infrastructureHeartbeatSchema.safeParse(req.body);
+  if (!result.success) { res.status(400).json({ error: 'Invalid infrastructure heartbeat' }); return; }
+  const { removed, ...member } = result.data;
+  await observeInfrastructure(req.serviceApp!.appId, member, removed);
+  res.status(204).end();
+}));
+
+router.post('/activity', (req, res) => {
+  const result = platformActivityBatchSchema.safeParse(req.body);
+  if (!result.success) {
+    res.status(400).json({ error: 'Invalid activity aggregate' });
+    return;
+  }
+  publishPlatformActivity(result.data);
+  res.status(204).end();
+});
+
 
 /**
  * Both ids are opaque strings the caller supplies, and neither is trusted for

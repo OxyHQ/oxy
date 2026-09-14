@@ -376,6 +376,8 @@ describe('GET /profiles/resolve — wire shape', () => {
       color: 'blue',
       links: ['https://mastodon.social/@shape'],
       linksMetadata: [],
+      externalIdentities: [],
+      redirectedUserIds: [],
       createdAt: stored.createdAt.toISOString(),
       updatedAt: stored.updatedAt.toISOString(),
       type: 'federated',

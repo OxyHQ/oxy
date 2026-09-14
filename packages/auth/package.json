@@ -12,6 +12,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@oxy.so/telemetry": "workspace:*",
     "@base-ui/react": "^1.6.0",
     "@expo/vector-icons": "^15.0.3",
     "@hugeicons/core-free-icons": "catalog:",

@@ -428,6 +428,7 @@ export {
     isRTLLocale,
     getUserLanguages,
     getPrimaryLanguage,
+    coerceToSupportedLocale,
 } from './utils/languageUtils';
 export type { SupportedLanguage } from './utils/languageUtils';
 

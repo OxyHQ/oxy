@@ -41,6 +41,8 @@ import {
   INBOX_APPLICATION_ID,
   KAANA_APPLICATION_ID,
   MENTION_APPLICATION_ID,
+  NILO_APPLICATION_ID,
+  MEDIA_WORKER_APPLICATION_ID,
   SEED_APPS,
   seedApplicationLookupIdentity,
   type SeedAppSpec,
@@ -78,6 +80,38 @@ function seededPrincipal(spec: SeedAppSpec): CatalogueApplicationPrincipal {
 }
 
 describe('the canonical official-application registry', () => {
+  it('registers Nilo by exact identity with only public user-read authority', () => {
+    const nilo = specNamed('Nilo');
+    expect(nilo).toMatchObject({
+      id: NILO_APPLICATION_ID,
+      websiteUrl: 'https://nilo.so',
+      redirectUris: ['https://nilo.so'],
+      type: 'first_party',
+      scopes: ['user:read'],
+    });
+    expect(SEED_APPS.filter((spec) => spec.id === NILO_APPLICATION_ID)).toHaveLength(1);
+    expect(NILO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    expect(seedApplicationLookupIdentity(nilo, PLATFORM_OWNER_ID)).toEqual({ kind: 'id', id: NILO_APPLICATION_ID });
+    expect(seededPrincipal(nilo)).toEqual({ type: 'first_party', isInternal: false });
+    expect(nilo.capabilities ?? []).toEqual([]);
+  });
+
+  it('pins a separate media worker with no sign-in redirects or write grants', () => {
+    const worker = specNamed('Oxy Media Worker');
+    expect(worker).toMatchObject({
+      id: MEDIA_WORKER_APPLICATION_ID,
+      type: 'internal',
+      redirectUris: [],
+      scopes: ['user:read'],
+    });
+    expect(SEED_APPS.filter((spec) => spec.id === MEDIA_WORKER_APPLICATION_ID)).toHaveLength(1);
+    expect(worker.capabilities ?? []).toEqual([]);
+    expect(seedApplicationLookupIdentity(worker, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id', id: MEDIA_WORKER_APPLICATION_ID,
+    });
+    expect(seededPrincipal(worker)).toEqual({ type: 'internal', isInternal: true });
+  });
+
   describe('Kaana has one exact machine identity', () => {
     it('pins the opaque id, origin, narrow scope and validator capability', () => {
       const kaana = specNamed('Kaana');

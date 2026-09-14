@@ -1222,3 +1222,4 @@ export type {
     InboxThreadSummaryResponse,
     InboxInferenceStreamEvent,
 } from './inference/inbox';
+export * from './externalIdentity';

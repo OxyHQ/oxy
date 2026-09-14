@@ -1,3 +1,6 @@
+import { getDb } from '../config/postgres';
+import { externalIdentities, canonicalUserRedirects } from '../db/schema/externalIdentities';
+import { inArray } from 'drizzle-orm';
 /**
  * Viewer-Graph Cache
  *
@@ -67,7 +70,15 @@ async function get(viewerId: string): Promise<ViewerGraph | null> {
     if (!raw) return null;
 
     const parsed: unknown = JSON.parse(raw);
-    return isViewerGraph(parsed) ? parsed : null;
+    if (!isViewerGraph(parsed)) return null;
+    // Virtual source equivalence can change (including expiring) without a local
+    // graph mutation. External-containing snapshots must be recomputed on every
+    // instance, so a stale cache never becomes an authorization shortcut.
+    const ids = [viewerId, ...parsed.followingIds, ...parsed.mutualIds, ...parsed.blockedIds, ...parsed.restrictedIds];
+    const [external] = await getDb().select({ id: externalIdentities.userId }).from(externalIdentities).where(inArray(externalIdentities.userId, ids)).limit(1);
+    if (external) return null;
+    const [redirect] = await getDb().select({ id: canonicalUserRedirects.userId }).from(canonicalUserRedirects).where(inArray(canonicalUserRedirects.userId, ids)).limit(1);
+    return redirect ? null : parsed;
   } catch (error) {
     logger.warn('[graphCache] Redis read failed, recomputing from source', {
       viewerId,

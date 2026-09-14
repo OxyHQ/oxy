@@ -19,42 +19,25 @@ FROM node:24-alpine AS bun-node
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN test "$(bun --version)" = "1.4.2"
 
+FROM alpine:3.22 AS workspace-manifests
+
+WORKDIR /app
+
+# Frozen installs need the complete workspace graph that produced bun.lock.
+# Keep every manifest while discarding unrelated source before the install
+# stages, so dependency resolution is reproducible without building the apps.
+COPY package.json bun.lock ./
+COPY packages/ packages/
+RUN find packages -type f ! -name package.json -delete
+
 FROM bun-node AS builder
 
 WORKDIR /app
 
-# Copy workspace root and override workspaces to only include api + core +
-# telemetry + protocol + contracts + federation + db. `@oxy.so/api` depends on
-# `@oxy.so/contracts` + `@oxy.so/protocol` + `@oxy.so/federation` + `@oxy.so/db`
-# (workspace:*); core is retained for the admin scripts that import
-# packages/core/src/* at runtime (and core depends on protocol).
-#
-# A workspace:* dependency missing from this list is not a degraded build, it
-# is no build at all: `bun install` below exits 1 with
-# `@oxy.so/db@workspace:* failed to resolve`. Every entry in packages/api's
-# `dependencies` that reads `workspace:*` must appear here.
-#
-# Remove bun.lock since the workspace change invalidates it — bun will
-# resolve fresh dependencies (still deterministic from package.json versions).
-COPY package.json ./
-# The root dependencies belong to the Expo test app, not the API. Leaving them
-# in this reduced server workspace pulled Expo, React Native and Bloom into both
-# the build graph and the production image even though no server package imports
-# them. Package-local dependencies below remain authoritative.
-RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/federation','packages/telemetry','packages/core','packages/mcp','packages/db','packages/api']; p.workspaces=catalog?{packages,catalog}:packages; p.dependencies={}; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
-
-# Copy package.json files for dependency resolution
-COPY packages/api/package.json packages/api/
-COPY packages/core/package.json packages/core/
-COPY packages/telemetry/package.json packages/telemetry/
-COPY packages/mcp/package.json packages/mcp/
-COPY packages/protocol/package.json packages/protocol/
-COPY packages/contracts/package.json packages/contracts/
-COPY packages/federation/package.json packages/federation/
-COPY packages/db/package.json packages/db/
-
-# Install dependencies (no lockfile — workspace subset doesn't match the full monorepo lock)
-RUN bun install
+# Validate the committed lock against the complete manifest graph, while only
+# materializing the API workspace and its transitive workspace dependencies.
+COPY --from=workspace-manifests /app/ ./
+RUN bun install --frozen-lockfile --filter @oxy.so/api
 
 # The install above is UNLOCKED, so this asserts the one property the lockfile
 # would otherwise have guaranteed: that the express types resolve to exactly one
@@ -122,22 +105,14 @@ RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Reuse the already-normalised workspace manifests from the builder. The API
-# image always installs Alpine's ffmpeg/ffprobe, so carrying ffprobe-static's
-# every-OS binary bundle (336 MiB in a measured install) is pure duplication.
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/packages/api/package.json packages/api/
-COPY --from=builder /app/packages/core/package.json packages/core/
-COPY --from=builder /app/packages/telemetry/package.json packages/telemetry/
-COPY --from=builder /app/packages/mcp/package.json packages/mcp/
-COPY --from=builder /app/packages/protocol/package.json packages/protocol/
-COPY --from=builder /app/packages/contracts/package.json packages/contracts/
-COPY --from=builder /app/packages/federation/package.json packages/federation/
-COPY --from=builder /app/packages/db/package.json packages/db/
-RUN node -e "const fs=require('fs'); const apiFile='packages/api/package.json'; const api=require('./'+apiFile); delete api.optionalDependencies?.['ffmpeg-static']; delete api.optionalDependencies?.['ffprobe-static']; for (const name of Object.keys(api.dependencies ?? {})) if (name.startsWith('@types/')) delete api.dependencies[name]; fs.writeFileSync(apiFile, JSON.stringify(api, null, 2)); const mobilePeers=['@react-native-async-storage/async-storage','expo-crypto','expo-secure-store','expo-modules-core']; for (const name of ['core','protocol']) { const file='packages/'+name+'/package.json'; const p=require('./'+file); for (const peer of mobilePeers) { delete p.peerDependencies?.[peer]; delete p.peerDependenciesMeta?.[peer]; } fs.writeFileSync(file, JSON.stringify(p, null, 2)); }"
-
-# Install production dependencies
-RUN bun install --production \
+# Required peers belong to the runtime closure too. Omitting every peer leaves
+# @oxy.so/db unable to resolve postgres/drizzle-orm from its own workspace even
+# though the API declares both: Bun's isolated layout does not hoist API-local
+# dependencies into sibling packages. Preserve the frozen peer graph.
+COPY --from=workspace-manifests /app/ ./
+RUN bun install --production --frozen-lockfile --filter @oxy.so/api \
+    && rm -rf node_modules/ffmpeg-static node_modules/ffprobe-static \
+              node_modules/.bun/ffmpeg-static@* node_modules/.bun/ffprobe-static@* \
     && rm -rf node_modules/.bun/@img+sharp-linux-*@* \
               node_modules/.bun/@img+sharp-libvips-linux-*@*
 
@@ -196,6 +171,7 @@ RUN command -v ffmpeg >/dev/null \
     && command -v ffprobe >/dev/null \
     && command -v bun >/dev/null \
     && node -e "const p=require.resolve('sharp',{paths:['/app/packages/api']}); require(p)" \
+    && node -e "const r=require('node:module').createRequire('/app/packages/api/package.json'); r('@oxy.so/db/migrate')" \
     && test ! -d node_modules/ffmpeg-static \
     && test ! -d node_modules/ffprobe-static \
     && test ! -e packages/api/drizzle/meta/0000_snapshot.json \

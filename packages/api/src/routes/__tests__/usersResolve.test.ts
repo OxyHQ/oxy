@@ -1,33 +1,8 @@
 /**
- * `PUT /users/resolve` against a REAL Postgres.
- *
- * The federated/agent/automated upsert an internal service calls to bring a
- * remote actor into the Oxy graph. Every guard on it is a trust boundary:
- *
- *  - the `federation:write` scope gate,
- *  - the actor-URI ↔ asserted-domain binding (a service must not be able to
- *    claim `alice@mastodon.social` actually lives at `attacker.example`),
- *  - the own-domain guard (`nate@oxy.so` is a NON-ENTITY; minting a
- *    `type:'federated'` row for it would shadow the real local account),
- *  - the local-username collision refusal (account takeover through the
- *    federation pipeline),
- *  - and type immutability (no silent federated→agent promotion).
- *
- * The old suite mocked `models/User` — which this route no longer imports — so
- * every one of those guards ran against a database the suite never set up, and
- * the assertions were about the arguments a `findOneAndUpdate` mock received.
- * Here each guard is checked by what is, or is not, in `users` afterwards.
- *
- * That change is what surfaced the defect this rewrite also fixes: the display
- * name was written with Mongo's `name.first` DOT PATH, and drizzle silently
- * ignores a key that names no column — so every federated actor resolved through
- * this route landed with a NULL display name. "persists the cleaned display
- * name" below is the regression test.
- *
- * Two network boundaries stay mocked: `safeFetch` (the WebFinger probe) and
- * `federationService.scheduleAvatarRefresh` (the off-request-path avatar
- * download). Everything else — validation, the guards, the writes, the
- * serializer, the user cache — is real.
+ * Oxy external identity boundaries against real PostgreSQL. Only remote HTTP,
+ * service credentials, and avatar transfer are mocked. Actor documents control
+ * identity; caller fields cannot impersonate authors. Both public discovery and
+ * connector requests converge on the same registry and public DTO.
  */
 
 import express from 'express';
@@ -103,6 +78,10 @@ import { errorHandler } from '../../middleware/errorHandler';
 import { federationService } from '../../services/federation.service';
 import userCache from '../../utils/userCache';
 import usersRouter from '../users';
+import federationRouter from '../federation';
+import profilesRouter from '../profiles';
+import { registerExternalIdentity } from '../../services/externalIdentityRegistry.service';
+import { externalIdentities, externalIdentityActors } from '../../db/schema/externalIdentities';
 
 interface JsonResponse {
   status: number;
@@ -114,16 +93,16 @@ let server: http.Server;
 let scheduleAvatarRefreshSpy: jest.SpyInstance;
 let invalidateSpy: jest.SpyInstance;
 
-function resolveUser(payload: unknown): Promise<JsonResponse> {
+function resolveUser(payload: unknown, path = '/users/resolve'): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = JSON.stringify(payload ?? {});
   return new Promise((resolve, reject) => {
     const req = http.request(
       {
-        method: 'PUT',
+        method: path === '/users/resolve' ? 'PUT' : 'POST',
         host: '127.0.0.1',
         port: address.port,
-        path: '/users/resolve',
+        path,
         headers: {
           'content-type': 'application/json',
           'content-length': Buffer.byteLength(body),
@@ -197,6 +176,8 @@ beforeAll(async () => {
   const app = express();
   app.use(express.json());
   app.use('/users', usersRouter);
+  app.use('/federation', federationRouter);
+  app.use('/profiles', profilesRouter);
   app.use(errorHandler);
   await new Promise<void>((resolve) => {
     server = app.listen(0, '127.0.0.1', resolve);
@@ -224,603 +205,241 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-describe('PUT /users/resolve — scope gate', () => {
-  it('rejects a service token without federation:write, and writes nothing', async () => {
+function publishedActor(uri: string, overrides: Record<string, unknown> = {}) {
+  const local = new URL(uri).pathname.split('/').pop();
+  if (!local) throw new Error('Actor fixture requires username path');
+  return { id: uri, type: 'Person', preferredUsername: local, name: 'Remote Author',
+    inbox: `${uri}/inbox`, summary: 'Source biography', ...overrides };
+}
+
+function serveActor(uri: string, overrides: Record<string, unknown> = {}) {
+  mockSafeFetch.mockImplementation(async (url: string) => url === uri
+    ? webFingerResult(200, publishedActor(uri, overrides)) : webFingerResult(404, {}));
+}
+
+describe('PUT /users/resolve — Oxy identity authority', () => {
+  it('keeps another linked source profile and avatar separate from the canonical representative', async () => {
+    const handle = `sources${token()}`;
+    const uri = `https://threads.net/ap/users/${Date.now()}`;
+    const primary = await registerExternalIdentity({ canonicalAcct: `${handle}@instagram.com`,
+      actorUri: `https://instagram.example/actor/${handle}`, transportAcct: `${handle}@instagram.example`,
+      protocol: 'activitypub', stableId: `instagram:test:${handle}`, profile: { displayName: 'Instagram source', bio: 'Instagram biography' },
+      evidenceLinks: [`https://threads.net/@${handle}`] });
+    await getDb().update(users).set({ avatar: 'instagram-file' }).where(eq(users.id, primary.userId));
+    serveActor(uri, { preferredUsername: handle, name: 'Threads source', summary: 'Threads biography',
+      alsoKnownAs: [`https://instagram.com/${handle}`], icon: { url: 'https://threads.net/avatar.jpg' } });
+    const resolved = await federationService.resolveExternalActorIdentity(uri);
+    expect(resolved?.user.id).toBe(primary.userId);
+    expect(resolved?.externalIdentity.sourceUserId).not.toBe(primary.userId);
+    expect(scheduleAvatarRefreshSpy).toHaveBeenCalledWith(resolved?.externalIdentity.sourceUserId,
+      'https://threads.net/avatar.jpg', undefined, { force: false });
+    const [row] = await getDb().select().from(users).where(eq(users.id, primary.userId));
+    expect(row.bio).toBe('Instagram biography');
+    expect(row.avatar).toBe('instagram-file');
+  });
+
+  it('canonicalizes an unverified migrated bridge row before a public profile response', async () => {
+    const handle = `migrated${token()}`;
+    const uri = `https://bird.makeup/users/${handle}`;
+    const id = await account({ type: 'federated', username: `${handle}@bird.makeup`, federationActorUri: uri, federationDomain: 'bird.makeup', bio: 'Old transport bio' });
+    await getDb().insert(externalIdentities).values({ canonicalAcct: `${handle}@bird.makeup`, userId: id, network: 'bird.makeup' });
+    await getDb().insert(externalIdentityActors).values({ actorUri: uri, canonicalAcct: `${handle}@bird.makeup`, transportAcct: `${handle}@bird.makeup`, protocol: 'activitypub', updatedAt: new Date(0) });
+    serveActor(uri, { attachment: [{ name: 'Official', value: `<a href="https://https://twitter.com/${handle}" rel="me">Official</a>` }] });
+    const address = server.address() as AddressInfo;
+    const response = await fetch(`http://127.0.0.1:${address.port}/profiles/resolve?handle=${encodeURIComponent(`${handle}@bird.makeup`)}`);
+    expect(response.status).toBe(200);
+    const body = await response.json() as { data: { id: string; username: string; bio: string } };
+    expect(body.data).toMatchObject({ id, username: `${handle}@x.com`, bio: 'Source biography' });
+    expect((await storedByActorUri(uri)).username).toBe(`${handle}@x.com`);
+  });
+
+  it('refuses user-id-only retirement when another source actor remains', async () => {
+    const handle = `multiple${token()}`;
+    const first = await registerExternalIdentity({ canonicalAcct: `${handle}@x.com`, actorUri: `https://bird.makeup/users/${handle}`,
+      transportAcct: `${handle}@bird.makeup`, protocol: 'activitypub', profile: { displayName: 'Author', bio: 'Bio' } });
+    await registerExternalIdentity({ canonicalAcct: `${handle}@x.com`, actorUri: `https://mastox.eu/users/${handle}`,
+      transportAcct: `${handle}@mastox.eu`, protocol: 'activitypub', profile: { displayName: 'Author', bio: 'Bio' } });
+    expect((await resolveUser({ oxyUserId: first.userId }, '/federation/actor-gone')).status).toBe(409);
+    expect((await resolveUser({ oxyUserId: first.userId }, '/federation/actor-delete')).status).toBe(409);
+    const [row] = await getDb().select().from(users).where(eq(users.id, first.userId));
+    expect(row.accountStatus).toBe('active');
+  });
+  it('resolves handle URLs through Oxy and exposes a coherent source lookup', async () => {
+    const handle = `bird${token()}`;
+    const uri = `https://bird.makeup/users/${handle}`;
+    mockSafeFetch.mockImplementation(async (url: string) => url === uri
+      ? webFingerResult(200, publishedActor(uri, { attachment: [{ name: 'Official', value: `<a href="https://https://twitter.com/${handle}" rel="me">Official</a>` }] }))
+      : url.startsWith('https://bird.makeup/.well-known/webfinger?')
+        ? webFingerResult(200, { subject: `acct:${handle}@bird.makeup`, links: [{ rel: 'self', type: 'application/activity+json', href: uri }] })
+        : webFingerResult(404, {}));
+    const resolved = await resolveUser({ handle: `https://x.com/${handle}` }, '/federation/identities/resolve');
+    expect(resolved.status).toBe(200);
+    expect(resolved.body.data?.externalIdentity).toMatchObject({ actorUri: uri, canonicalAcct: `${handle}@x.com`, sourceUserId: expect.any(String), userId: expect.any(String) });
+    const lookup = await resolveUser({ identifiers: [uri, `${handle}@x.com`, `${handle}@bird.makeup`] }, '/federation/identities/lookup');
+    expect(lookup.status).toBe(200);
+    const mappings = lookup.body.data?.identities as Array<{ userId: string }>;
+    expect(mappings).toHaveLength(3);
+    expect(new Set(mappings.map(mapping => mapping.userId)).size).toBe(1);
+  });
+
+  it('refuses ambiguous resolve input before fetching', async () => {
+    expect((await resolveUser({ actorUri: 'https://example.com/a', handle: 'a@example.com' }, '/federation/identities/resolve')).status).toBe(400);
+    expect(mockSafeFetch).not.toHaveBeenCalled();
+  });
+  it('requires federation:write before any fetch or write', async () => {
     currentScopes = [];
-    const handle = `alice${token()}`;
-    const actorUri = `https://mastodon.social/users/${handle}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-    });
-
-    expect(res.status).toBe(403);
-    expect(res.body.message).toMatch(/federation:write/i);
-    expect(await storedByActorUri(actorUri)).toBeUndefined();
-  });
-});
-
-describe('PUT /users/resolve — body validation', () => {
-  it('400s an unsupported type', async () => {
-    const res = await resolveUser({ type: 'local', username: `x${token()}` });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/type must be/i);
-  });
-
-  it('400s a missing username', async () => {
-    const res = await resolveUser({ type: 'federated' });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/username is required/i);
-  });
-
-  it('400s a federated body with no actorUri', async () => {
-    const res = await resolveUser({
-      type: 'federated',
-      username: `a${token()}@mastodon.social`,
-      domain: 'mastodon.social',
-    });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/actorUri is required/i);
-  });
-
-  it('400s a malformed ownerId on an agent, and writes nothing', async () => {
-    const username = `bot${token()}`;
-
-    const res = await resolveUser({ type: 'agent', username, ownerId: 'owner-1' });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/ownerId must be a valid user id/i);
-    const [row] = await getDb()
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.username, username));
-    expect(row).toBeUndefined();
-  });
-
-  it('400s a username whose domain disagrees with the asserted domain', async () => {
-    const handle = `alice${token()}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@other.example`,
-      actorUri: `https://mastodon.social/users/${handle}`,
-      domain: 'mastodon.social',
-    });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/username domain does not match/i);
-  });
-});
-
-describe('PUT /users/resolve — actor-URI host binding', () => {
-  it('400s when the actor host does not match the domain and WebFinger does not vouch', async () => {
-    const handle = `mallory${token()}`;
-    const actorUri = `https://evil.example/users/${handle}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-    });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/actorUri hostname/i);
-    expect(mockSafeFetch).toHaveBeenCalledWith(
-      `https://mastodon.social/.well-known/webfinger?resource=${encodeURIComponent(`acct:${handle}@mastodon.social`)}`,
-      expect.anything(),
-    );
-    expect(await storedByActorUri(actorUri)).toBeUndefined();
-  });
-
-  /**
-   * A BRIDGE republishes another network's accounts under its own hostname, so
-   * for a bridged actor the host and the identity domain differ by design and
-   * WebFinger can never reconcile them (x.com publishes none). The reviewed
-   * trust list in `config/federationBridgeTrust` is what makes that difference
-   * legitimate — a decision THIS service makes, not one the caller asserts. The
-   * calling app's `createBridgeRelabeller([...])` entries are deliberately
-   * separate and fail closed in both directions.
-   */
-  it('accepts a bridged actor whose identity domain is the network it mirrors', async () => {
-    const handle = `wired${token()}`;
-    const actorUri = `https://bird.makeup/users/${handle}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@x.com`,
-      actorUri,
-      domain: 'x.com',
-    });
-
-    expect(res.status).toBe(200);
-    // The bridge policy is a local lookup, so no WebFinger round trip is spent.
+    const uri = `https://social.example/users/${token()}`;
+    const response = await resolveUser({ type: 'federated', actorUri: uri });
+    expect(response.status).toBe(403);
     expect(mockSafeFetch).not.toHaveBeenCalled();
-    const stored = await storedByActorUri(actorUri);
-    expect(stored.username).toBe(`${handle}@x.com`);
-    expect(stored.federationDomain).toBe('x.com');
-    // The actor URI stays the address we actually reach the account at.
-    expect(stored.federationActorUri).toBe(actorUri);
+    expect(await storedByActorUri(uri)).toBeUndefined();
   });
 
-  it('400s when a listed bridge claims a network it does not mirror', async () => {
-    const handle = `wired${token()}`;
-    const actorUri = `https://bird.makeup/users/${handle}`;
-
-    // bird.makeup mirrors X. Being a known bridge is not a licence to vouch for
-    // Instagram, so this falls through to WebFinger and is refused like any
-    // other mismatched pair.
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@instagram.com`,
-      actorUri,
-      domain: 'instagram.com',
-    });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/actorUri hostname/i);
-    expect(await storedByActorUri(actorUri)).toBeUndefined();
+  it('rejects unsupported types and missing actor references', async () => {
+    expect((await resolveUser({ type: 'local', username: token() })).status).toBe(400);
+    expect((await resolveUser({ type: 'federated' })).status).toBe(400);
   });
 
-  it('400s when a host that is not a reviewed bridge claims a network domain', async () => {
-    const handle = `wired${token()}`;
-    const actorUri = `https://attacker.example/users/${handle}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@x.com`,
-      actorUri,
-      domain: 'x.com',
-    });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/actorUri hostname/i);
-    expect(await storedByActorUri(actorUri)).toBeUndefined();
-  });
-
-  it('accepts an actor on the www host of the asserted domain without a WebFinger probe', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `https://www.mastodon.social/users/${handle}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-    });
-
-    expect(res.status).toBe(200);
+  it('does not mint an own-domain shadow even when the caller labels it external', async () => {
+    const uri = `https://oxy.so/users/${token()}`;
+    serveActor(uri);
+    expect((await resolveUser({ type: 'federated', actorUri: uri })).status).toBe(400);
     expect(mockSafeFetch).not.toHaveBeenCalled();
-    const stored = await storedByActorUri(actorUri);
-    // The canonical handle is kept — the www host does not become the domain.
-    expect(stored.username).toBe(`${handle}@mastodon.social`);
-    expect(stored.federationDomain).toBe('mastodon.social');
+    expect(await storedByActorUri(uri)).toBeUndefined();
   });
 
-  it('accepts the SAME pair with www. on the domain side instead of the actor side', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `https://mastodon.social/users/${handle}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@www.mastodon.social`,
-      actorUri,
-      domain: 'www.mastodon.social',
-    });
-
-    // The binding is a comparison, so it has to answer the same regardless of
-    // which side carries the `www.`. A rule applied to only one side (the shape
-    // this route shipped with) rejects this pair while accepting the mirrored
-    // one above — so the two cases have to be asserted together or the
-    // asymmetry reads as passing.
-    expect(res.status).toBe(200);
-    expect(mockSafeFetch).not.toHaveBeenCalled();
-    const stored = await storedByActorUri(actorUri);
-    expect(stored.username).toBe(`${handle}@mastodon.social`);
-    expect(stored.federationDomain).toBe('mastodon.social');
+  it('never repurposes a non-federated account that holds the actor URI', async () => {
+    const uri = `https://social.example/users/${token()}`;
+    const id = await account({ type: 'agent', federationActorUri: uri, username: `protected${token()}` });
+    serveActor(uri);
+    const response = await resolveUser({ type: 'federated', actorUri: uri });
+    expect(response.status).toBe(409);
+    expect(await storedByActorUri(uri)).toMatchObject({ id, type: 'agent' });
   });
 
-  it('accepts a foreign actor host when WebFinger loops the handle back to it', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `https://ap.mastodon.example/users/${handle}`;
-    mockSafeFetch.mockResolvedValue(
-      webFingerResult(200, {
-        subject: `acct:${handle}@mastodon.social`,
-        links: [{ rel: 'self', type: 'application/activity+json', href: actorUri }],
-      }),
-    );
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-    });
-
-    expect(res.status).toBe(200);
-    expect((await storedByActorUri(actorUri)).federationActorUri).toBe(actorUri);
+  it.each(['refresh', 'forceAvatarRefresh'])('honors %s using only the source-owned avatar URL', async flag => {
+    const uri = `https://social.example/users/${token()}`;
+    const id = await account({ type: 'federated', federationActorUri: uri, username: `${uri.split('/').pop()}@social.example`, avatar: 'existing-file' });
+    const sourceAvatar = 'https://social.example/avatars/source.png';
+    serveActor(uri, { icon: { type: 'Image', url: sourceAvatar } });
+    const response = await resolveUser({ type: 'federated', actorUri: uri, [flag]: true, avatar: 'https://evil.example/forged.png' });
+    expect(response.status).toBe(200);
+    expect(scheduleAvatarRefreshSpy).toHaveBeenCalledWith(id, sourceAvatar, 'existing-file', { force: true });
   });
 
-  it('400s a foreign actor host when the WebFinger probe is blocked by the SSRF guard', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `https://ap.mastodon.example/users/${handle}`;
-    mockSafeFetch.mockRejectedValue(new FakeSsrfRejection('blocked'));
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-    });
-
-    expect(res.status).toBe(400);
-    expect(await storedByActorUri(actorUri)).toBeUndefined();
+  it('refetches actor identity and ignores forged caller fields, even on the same host', async () => {
+    const uri = `https://social.example/users/bob${token()}`;
+    serveActor(uri);
+    const response = await resolveUser({ type: 'federated', actorUri: uri, username: 'alice@social.example',
+      domain: 'social.example', displayName: 'Forged Name', bio: 'Forged biography', avatar: 'private-file-id' });
+    expect(response.status).toBe(200);
+    const row = await storedByActorUri(uri);
+    expect(row.username).toBe(`${uri.split('/').pop()}@social.example`);
+    expect(row.nameFirst).toBe('Remote Author');
+    expect(row.bio).toBe('Source biography');
+    expect(row.avatar).toBeNull();
+    expect(mockSafeFetch).toHaveBeenCalledWith(uri, expect.objectContaining({ headers: expect.objectContaining({ Signature: expect.any(String) }) }));
   });
 
-  it('stores a did:plc actor verbatim and never probes WebFinger for it', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `did:plc:${token()}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@bsky.social`,
-      actorUri,
-      domain: 'bsky.social',
-    });
-
-    expect(res.status).toBe(200);
-    expect(mockSafeFetch).not.toHaveBeenCalled();
-    const stored = await storedByActorUri(actorUri);
-    expect(stored.federationActorUri).toBe(actorUri);
-    expect(stored.federationDomain).toBe('bsky.social');
+  it('canonicalizes cold BirdsiteLive discovery and returns the same user to public discovery', async () => {
+    const handle = `jordievole${token()}`;
+    const uri = `https://bird.makeup/users/${handle}`;
+    const summary = "Uno @delbarriotv@bird.makeup y de @lodeevole@bird.makeup\nThis account is a replica from Twitter. Its author can't see your replies. If you find this service useful, please consider supporting us via our Patreon.";
+    serveActor(uri, { type: 'Service', summary, attachment: [{ name: 'Official', value: `<a href="https://twitter.com/${handle}" rel="me">Official</a>` }] });
+    const response = await resolveUser({ type: 'federated', actorUri: uri, username: `${handle}@bird.makeup` });
+    expect(response.status).toBe(200);
+    const row = await storedByActorUri(uri);
+    expect(row.username).toBe(`${handle}@x.com`);
+    expect(row.bio).toBe('Uno @delbarriotv@x.com y de @lodeevole@x.com');
+    const direct = await federationService.resolveAndUpsert(`${handle}@bird.makeup`);
+    expect(direct?._id).toBe(row.id);
+    expect(response.body.data).toMatchObject({ id: row.id, username: row.username,
+      externalIdentities: expect.arrayContaining([expect.objectContaining({ actorUri: uri, canonicalAcct: row.username, sourceUserId: row.id })]) });
   });
 
-  it('stores a did:web actor verbatim and never probes WebFinger for it', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `did:web:${handle}.example.com`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@example.com`,
-      actorUri,
-      domain: 'example.com',
-    });
-
-    expect(res.status).toBe(200);
-    expect(mockSafeFetch).not.toHaveBeenCalled();
-    expect((await storedByActorUri(actorUri)).federationActorUri).toBe(actorUri);
-  });
-});
-
-describe('PUT /users/resolve — own-domain guard', () => {
-  it('400s an own-domain handle and never mints a federated shadow row', async () => {
-    const handle = `nate${token()}`;
-    const actorUri = `https://oxy.so/users/${handle}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@oxy.so`,
-      actorUri,
-      domain: 'oxy.so',
-    });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/own federation domain/i);
-    expect(await storedByActorUri(actorUri)).toBeUndefined();
+  it('canonicalizes a verified Instagram mirror while keeping unproven Threads equivalence separate', async () => {
+    const handle = `zuck${token()}`;
+    const uri = `https://kilogram.makeup/users/${handle}`;
+    serveActor(uri, { attachment: [{ name: 'Official', value: `<a href="https://www.instagram.com/${handle}" rel="me">Official</a>` },
+      { name: 'Threads', value: `<a href="https://threads.net/@${handle}" rel="me">Threads</a>` }] });
+    const response = await resolveUser({ type: 'federated', actorUri: uri });
+    expect(response.status).toBe(200);
+    expect(response.body.data?.username).toBe(`${handle}@instagram.com`);
+    expect(response.body.data?.externalIdentities).toHaveLength(1);
   });
 
-  it('400s an own-domain handle regardless of the local part', async () => {
-    const handle = `anyone${token()}`;
-    const actorUri = `https://oxy.so/users/${handle}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@oxy.so`,
-      actorUri,
-      domain: 'oxy.so',
-    });
-
-    expect(res.status).toBe(400);
-    expect(await storedByActorUri(actorUri)).toBeUndefined();
-  });
-});
-
-describe('PUT /users/resolve — collision and type immutability', () => {
-  it('409s an agent username already held by a local user, and leaves that user alone', async () => {
-    const username = `taken${token()}`;
-    const localUserId = await account({ username, type: 'local' });
-
-    const res = await resolveUser({ type: 'agent', username });
-
-    expect(res.status).toBe(409);
-    expect(res.body.message).toMatch(/already taken/i);
-    const [row] = await getDb()
-      .select({ type: users.type })
-      .from(users)
-      .where(eq(users.id, localUserId));
-    expect(row.type).toBe('local');
+  it('leaves bridge administrator identities on their transport domain', async () => {
+    const handle = `admin${token()}`;
+    const uri = `https://bird.makeup/users/${handle}`;
+    serveActor(uri);
+    expect((await resolveUser({ type: 'federated', actorUri: uri, username: `${handle}@x.com` })).status).toBe(200);
+    expect((await storedByActorUri(uri)).username).toBe(`${handle}@bird.makeup`);
   });
 
-  it('409s when the existing row has a different type, and does not re-type it', async () => {
-    const username = `bot${token()}`;
-    const existingId = await account({ username, type: 'automated' });
-
-    const res = await resolveUser({ type: 'agent', username });
-
-    expect(res.status).toBe(409);
-    expect(res.body.message).toMatch(/cannot change.*type/i);
-    const [row] = await getDb()
-      .select({ type: users.type })
-      .from(users)
-      .where(eq(users.id, existingId));
-    expect(row.type).toBe('automated');
-  });
-});
-
-describe('PUT /users/resolve — persistence', () => {
-  it('creates the federated row, clears the tombstone and invalidates the user cache', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `https://mastodon.social/users/${handle}`;
-    const before = Date.now();
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-    });
-
-    expect(res.status).toBe(200);
-    const stored = await storedByActorUri(actorUri);
-    expect(stored.username).toBe(`${handle}@mastodon.social`);
-    expect(stored.type).toBe('federated');
-    expect(stored.federationDomain).toBe('mastodon.social');
-    expect(stored.federationLastResolvedAt?.getTime()).toBeGreaterThanOrEqual(before);
-    expect(stored.federationUnavailableAt).toBeNull();
-    expect(stored.federationUnavailableReason).toBeNull();
-    expect(res.body.data?.id).toBe(stored.id);
-    expect(invalidateSpy).toHaveBeenCalledWith(stored.id);
+  it('rejects a mismatched actor id and writes no impersonated identity', async () => {
+    const uri = `https://evil.example/users/${token()}`;
+    serveActor(uri, { id: 'https://victim.example/users/alice' });
+    expect((await resolveUser({ type: 'federated', actorUri: uri })).status).toBe(400);
+    expect(await storedByActorUri(uri)).toBeUndefined();
   });
 
-  /**
-   * The federated namespace is not governed by the local username policy, and in
-   * particular not by the rule that a `bot` account's handle must end in `bot`
-   * (`botUsernameSchema`, `@oxy.so/contracts`).
-   *
-   * A remote bot is a bot on ANOTHER server. Its handle is stored as
-   * `handle@domain` — a shape the local policy rejects outright, label or no
-   * label — and there are ~74k such rows. Pointing either schema at this route
-   * would reject every one of them, so this is the control that says nobody did:
-   * an actor that is plainly a bot and carries no label resolves, and lands in
-   * `users` under exactly the handle it was given.
-   */
-  it('stores a remote BOT actor whose handle carries no local label', async () => {
-    const handle = `newsfeed${token()}`;
-    const actorUri = `https://mastodon.social/users/${handle}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-      displayName: 'News Feed',
-    });
-
-    expect(res.status).toBe(200);
-    const stored = await storedByActorUri(actorUri);
-    expect(stored.username).toBe(`${handle}@mastodon.social`);
-    expect(stored.username.endsWith('bot')).toBe(false);
+  it('fails closed when the SSRF-safe fetch refuses a target', async () => {
+    mockSafeFetch.mockRejectedValue(new FakeSsrfRejection('private target'));
+    expect((await resolveUser({ type: 'federated', actorUri: 'https://127.0.0.1/users/alice' })).status).toBe(400);
   });
 
-  it('clears an existing tombstone on re-resolve rather than leaving the actor dead', async () => {
-    const handle = `revived${token()}`;
-    const actorUri = `https://mastodon.social/users/${handle}`;
-    await account({
-      username: `${handle}@mastodon.social`,
-      type: 'federated',
-      federationActorUri: actorUri,
-      federationDomain: 'mastodon.social',
-      federationUnavailableAt: new Date('2026-01-01T00:00:00.000Z'),
-      federationUnavailableReason: 'gone',
-    });
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-    });
-
-    expect(res.status).toBe(200);
-    const stored = await storedByActorUri(actorUri);
-    expect(stored.federationUnavailableAt).toBeNull();
-    expect(stored.federationUnavailableReason).toBeNull();
+  it('verifies a split-host WebFinger identity against its account host', async () => {
+    const local = token();
+    const uri = `https://actors.example/users/${local}`;
+    const handle = `${local}@accounts.example`;
+    mockSafeFetch.mockImplementation(async (url: string) => url === uri ? webFingerResult(200, publishedActor(uri))
+      : url.startsWith('https://accounts.example/.well-known/webfinger?') ? webFingerResult(200, { subject: `acct:${handle}`, links: [{ rel: 'self', type: 'application/activity+json', href: uri }] })
+        : webFingerResult(404, {}));
+    const response = await resolveUser({ type: 'federated', actorUri: uri, username: handle });
+    expect(response.status).toBe(200);
+    expect((await storedByActorUri(uri)).username).toBe(handle);
   });
 
-  it('persists the cleaned display name — the dot-path regression', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `https://mastodon.social/users/${handle}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-      displayName: 'Alice 🌸 :verified:',
-    });
-
-    expect(res.status).toBe(200);
-    // Emoji and shortcodes are stripped by `cleanDisplayName`; what remains MUST
-    // reach the column. A Mongo dot-path key here writes nothing at all, and
-    // drizzle reports no error.
-    const stored = await storedByActorUri(actorUri);
-    expect(stored.nameFirst).toBe('Alice');
-    expect(res.body.data?.name).toEqual(expect.objectContaining({ first: 'Alice' }));
+  it('verifies atproto DID and derives its handle from the appview response', async () => {
+    const did = `did:plc:${token()}`;
+    mockSafeFetch.mockImplementation(async () => webFingerResult(200, { did, handle: 'alice.bsky.social', displayName: 'Alice', description: 'Real biography' }));
+    const response = await resolveUser({ type: 'federated', actorUri: did, username: 'victim@bsky.social', bio: 'Fake' });
+    expect(response.status).toBe(200);
+    expect(response.body.data?.username).toBe('alice@bsky.social');
+    expect(response.body.data?.bio).toBe('Real biography');
   });
 
-  it('strips tags from the bio before persisting it (stored-XSS regression)', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `https://mastodon.social/users/${handle}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-      bio: '<script>alert(1)</script>hello <b>world</b>',
-    });
-
-    expect(res.status).toBe(200);
-    const stored = await storedByActorUri(actorUri);
-    expect(stored.bio).not.toContain('<script>');
-    expect(stored.bio).not.toContain('<b>');
-    expect(stored.bio).toContain('hello');
-    expect(res.raw).not.toContain('<script>');
+  it('rejects an appview response for a different DID', async () => {
+    mockSafeFetch.mockResolvedValue(webFingerResult(200, { did: 'did:plc:other', handle: 'alice.bsky.social' }));
+    expect((await resolveUser({ type: 'federated', actorUri: `did:plc:${token()}` })).status).toBe(400);
   });
 
-  it('records an agent owner when the ownerId is a real account id', async () => {
-    const owner = await account({ username: `owner${token()}` });
-    const username = `bot${token()}`;
-
-    const res = await resolveUser({ type: 'agent', username, ownerId: owner });
-
-    expect(res.status).toBe(200);
-    const [row] = await getDb()
-      .select({ type: users.type, automationOwnerId: users.automationOwnerId })
-      .from(users)
-      .where(eq(users.username, username));
-    expect(row.type).toBe('agent');
-    expect(row.automationOwnerId).toBe(owner);
-  });
-});
-
-describe('PUT /users/resolve — avatar handling', () => {
-  it('stores a non-URL avatar synchronously and schedules no download', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `https://mastodon.social/users/${handle}`;
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-      avatar: 'file_already_stored',
-    });
-
-    expect(res.status).toBe(200);
-    expect((await storedByActorUri(actorUri)).avatar).toBe('file_already_stored');
-    expect(scheduleAvatarRefreshSpy).not.toHaveBeenCalled();
+  it('repairs legacy bridge rows without changing their stable Oxy id', async () => {
+    const handle = `legacy${token()}`;
+    const uri = `https://bird.makeup/users/${handle}`;
+    const id = await account({ type: 'federated', username: `${handle}@bird.makeup`, federationActorUri: uri,
+      federationDomain: 'bird.makeup', federationUnavailableAt: new Date(), federationUnavailableReason: 'gone' });
+    serveActor(uri, { attachment: [{ name: 'Official', value: `<a href="https://x.com/${handle}" rel="me">Official</a>` }] });
+    expect((await resolveUser({ type: 'federated', actorUri: uri })).status).toBe(200);
+    expect(await storedByActorUri(uri)).toMatchObject({ id, username: `${handle}@x.com`, federationUnavailableAt: null, federationUnavailableReason: null });
+    expect(invalidateSpy).toHaveBeenCalledWith(id);
   });
 
-  it('schedules the initial download when a remote avatar URL arrives and nothing is stored', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `https://mastodon.social/users/${handle}`;
-    const avatarUrl = 'https://mastodon.social/avatars/alice.png';
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-      avatar: avatarUrl,
-    });
-
-    expect(res.status).toBe(200);
-    const stored = await storedByActorUri(actorUri);
-    // The download is scheduled, never awaited — the stored row carries no
-    // avatar yet, which is the documented one-cycle lag.
-    expect(stored.avatar).toBeNull();
-    expect(scheduleAvatarRefreshSpy).toHaveBeenCalledWith(stored.id, avatarUrl, undefined, {
-      force: false,
-    });
+  it('keeps existing automation collision and owner guards', async () => {
+    const username = `local${token()}`;
+    const id = await account({ username });
+    expect((await resolveUser({ type: 'agent', username })).status).toBe(409);
+    expect((await resolveUser({ type: 'agent', username: `agent${token()}`, ownerId: 'invalid' })).status).toBe(400);
+    const agent = await resolveUser({ type: 'agent', username: `agent${token()}`, ownerId: id });
+    expect(agent.status).toBe(200);
   });
 
-  it('skips scheduling when a stored avatar already exists and no refresh was asked for', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `https://mastodon.social/users/${handle}`;
-    await account({
-      username: `${handle}@mastodon.social`,
-      type: 'federated',
-      federationActorUri: actorUri,
-      federationDomain: 'mastodon.social',
-      avatar: 'file_existing',
-    });
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-      avatar: 'https://mastodon.social/avatars/alice.png',
-    });
-
-    expect(res.status).toBe(200);
-    expect(scheduleAvatarRefreshSpy).not.toHaveBeenCalled();
-    expect((await storedByActorUri(actorUri)).avatar).toBe('file_existing');
-  });
-
-  it('forces a re-download with refresh: true, passing the existing file id through', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `https://mastodon.social/users/${handle}`;
-    const avatarUrl = 'https://mastodon.social/avatars/alice.png';
-    const existingId = await account({
-      username: `${handle}@mastodon.social`,
-      type: 'federated',
-      federationActorUri: actorUri,
-      federationDomain: 'mastodon.social',
-      avatar: 'file_existing',
-    });
-
-    const res = await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-      avatar: avatarUrl,
-      refresh: true,
-    });
-
-    expect(res.status).toBe(200);
-    expect(scheduleAvatarRefreshSpy).toHaveBeenCalledWith(
-      existingId,
-      avatarUrl,
-      'file_existing',
-      { force: true },
-    );
-  });
-
-  it('accepts forceAvatarRefresh as the alias of refresh', async () => {
-    const handle = `alice${token()}`;
-    const actorUri = `https://mastodon.social/users/${handle}`;
-    const avatarUrl = 'https://mastodon.social/avatars/alice.png';
-    const existingId = await account({
-      username: `${handle}@mastodon.social`,
-      type: 'federated',
-      federationActorUri: actorUri,
-      federationDomain: 'mastodon.social',
-      avatar: 'file_existing',
-    });
-
-    await resolveUser({
-      type: 'federated',
-      username: `${handle}@mastodon.social`,
-      actorUri,
-      domain: 'mastodon.social',
-      avatar: avatarUrl,
-      forceAvatarRefresh: true,
-    });
-
-    expect(scheduleAvatarRefreshSpy).toHaveBeenCalledWith(
-      existingId,
-      avatarUrl,
-      'file_existing',
-      { force: true },
-    );
+  it('normalizes source display names and strips markup from source biographies', async () => {
+    const uri = `https://social.example/users/${token()}`;
+    serveActor(uri, { name: 'Alice 🚀', summary: '<b>Real biography</b><script>ignored()</script>' });
+    expect((await resolveUser({ type: 'federated', actorUri: uri })).status).toBe(200);
+    const row = await storedByActorUri(uri);
+    expect(row.nameFirst).toBe('Alice');
+    expect(row.bio).not.toMatch(/<[^>]*>/);
   });
 });

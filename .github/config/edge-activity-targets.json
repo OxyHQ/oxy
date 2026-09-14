@@ -1,0 +1,90 @@
+{
+	"6a2f851751b784a86fd0e94f": {
+		"namespace": "website-api",
+		"targets": [["pages", "oxy-website"]]
+	},
+	"6a2f851751b784a86fd0e92b": {
+		"namespace": "allo",
+		"targets": [["workers", "allo-frontend"]]
+	},
+	"6a2f851751b784a86fd0e958": {
+		"namespace": "peable",
+		"targets": [["pages", "peable-frontend"], ["pages", "peable-checkout"]]
+	},
+	"6a6947b30fe72510b411252f": {
+		"namespace": "crowdsource",
+		"targets": [
+			["workers", "crowdsource-frontend"],
+			["workers", "crowdsource-console"]
+		]
+	},
+	"6a396f5c2ccd7e7831cb6a31": {
+		"namespace": "moovo",
+		"targets": [
+			["pages", "moovo"],
+			["pages", "moovo-go"],
+			["pages", "moovo-hub"],
+			["pages", "moovo-tracker"]
+		]
+	},
+	"6a37d0cc5d4b5f15482a9340": {
+		"namespace": "mercaria",
+		"targets": [
+			["workers", "mercaria"],
+			["workers", "mercaria-dashboard"],
+			["workers", "mercaria-pos"]
+		]
+	},
+	"6a37b3e71ddfd195b65681d2": {
+		"namespace": "noted",
+		"targets": [["workers", "noted"]]
+	},
+	"019fe305-3543-750c-997f-650db85b2dec": {
+		"namespace": "atlas",
+		"targets": [["pages", "atlas"]]
+	},
+	"6a2f851751b784a86fd0e946": {
+		"namespace": "tnp",
+		"targets": [["pages", "tnp"]]
+	},
+	"6a37b3e61ddfd195b656819b": {
+		"namespace": "inbox",
+		"targets": [["workers", "oxy-inbox"]]
+	},
+	"6a2f851751b784a86fd0e916": {
+		"namespace": "mention",
+		"targets": [["workers", "mention-frontend"]]
+	},
+	"6a2f851751b784a86fd0e934": {
+		"namespace": "alia",
+		"targets": [["workers", "alia-app"], ["workers", "alia-canvas"]]
+	},
+	"6a2f851751b784a86fd0e922": {
+		"namespace": "homiio",
+		"targets": [["workers", "homiio-frontend"]]
+	},
+	"6a2f851751b784a86fd0e93d": {
+		"namespace": "syra",
+		"targets": [["pages", "syra"], ["pages", "syra-studio"]]
+	},
+	"01a0646a-2382-74a3-a795-788924d55722": {
+		"namespace": "clarity",
+		"targets": [["workers", "clarity"]]
+	},
+	"ed143b1b58d60eab417f7d5c": {
+		"namespace": "nilo",
+		"targets": [["workers", "nilo"]]
+	},
+	"6a2f851651b784a86fd0e8d1": {
+		"namespace": "accounts",
+		"targets": [["workers", "oxy-accounts"]]
+	},
+	"6a2f851751b784a86fd0e905": {
+		"namespace": "auth",
+		"targets": [["pages", "oxy-auth"]]
+	},
+	"6a2f851751b784a86fd0e8e3": {
+		"namespace": "console",
+		"targets": [["workers", "oxy-console"]]
+	}
+}

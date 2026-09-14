@@ -104,6 +104,7 @@ export class TTLCache<T> {
     const effectiveTTL = ttl === undefined ? this.defaultTTL : ttl;
     const expiresAt = now + effectiveTTL;
     this.cache.set(key, { data, timestamp: now, expiresAt });
+    if (!cleanupInterval && activeCaches.has(this)) updateCleanupInterval();
   }
 
   /**
@@ -112,7 +113,9 @@ export class TTLCache<T> {
    * @returns true if entry was deleted, false if not found
    */
   delete(key: string): boolean {
-    return this.cache.delete(key);
+    const deleted = this.cache.delete(key);
+    if (activeCaches.has(this)) updateCleanupInterval();
+    return deleted;
   }
 
   /**
@@ -122,6 +125,7 @@ export class TTLCache<T> {
     this.cache.clear();
     this.hits = 0;
     this.misses = 0;
+    if (activeCaches.has(this)) updateCleanupInterval();
   }
 
   /**
@@ -232,31 +236,29 @@ const activeCaches = new Set<TTLCache<any>>();
  */
 export function registerCacheForCleanup(cache: TTLCache<any>): void {
   activeCaches.add(cache);
-
-  // Start cleanup interval if not already running
-  if (!cleanupInterval) {
-    cleanupInterval = setInterval(() => {
-      for (const cache of activeCaches) {
-        cache.cleanup();
-      }
-    }, 60000); // Every minute
-    // Never block process/worker exit on a housekeeping timer.
-    cleanupInterval.unref?.();
-  }
+  updateCleanupInterval();
 }
 
-/**
- * Unregister a cache from automatic cleanup
- * @param cache Cache instance to unregister
- */
+/** Empty registered caches need no timer; importing a client must stay inert. */
+function updateCleanupInterval(): void {
+  const hasEntries = [...activeCaches].some(cache => cache.size() > 0);
+  if (!hasEntries) {
+    if (cleanupInterval) clearInterval(cleanupInterval);
+    cleanupInterval = null;
+    return;
+  }
+  if (cleanupInterval) return;
+  cleanupInterval = setInterval(() => {
+    for (const cache of activeCaches) cache.cleanup();
+    updateCleanupInterval();
+  }, 60_000);
+  cleanupInterval.unref?.();
+}
+
+/** Unregister a cache without changing its entries or TTL behavior. */
 export function unregisterCacheFromCleanup(cache: TTLCache<any>): void {
   activeCaches.delete(cache);
-
-  // Stop cleanup interval if no caches are registered
-  if (activeCaches.size === 0 && cleanupInterval) {
-    clearInterval(cleanupInterval);
-    cleanupInterval = null;
-  }
+  updateCleanupInterval();
 }
 
 /**

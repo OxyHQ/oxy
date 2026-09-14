@@ -164,6 +164,7 @@ export function parseUpstreamProfileUrl(
     return undefined;
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
+  if (url.username || url.password || url.port) return undefined;
 
   const host = canonicalFederationHost(url.hostname);
   for (const network of networks) {
@@ -397,6 +398,7 @@ function profileUrlHandle(
     return undefined;
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
+  if (url.username || url.password || url.port) return undefined;
   const host = canonicalFederationHost(url.hostname);
   if (!allowedHosts.some((allowed) => canonicalFederationHost(allowed) === host)) return undefined;
 
@@ -409,8 +411,17 @@ function profileUrlHandle(
 }
 
 /** Every `href="…"` in a sanitized field value, in document order. */
-function fieldHrefs(value: string): string[] {
+function fieldHrefs(value: string, requireRelMe = false): string[] {
   const hrefs: string[] = [];
+  if (requireRelMe) {
+    for (const anchor of value.matchAll(/<a\b([^>]*)>/gi)) {
+      const rel = /\brel\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(anchor[1]);
+      if (!(rel?.[1] ?? rel?.[2] ?? '').toLowerCase().split(/\s+/).includes('me')) continue;
+      const href = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(anchor[1]);
+      if (href) hrefs.push(href[1] ?? href[2]);
+    }
+    return hrefs;
+  }
   const pattern = /href="([^"]*)"/gi;
   let match = pattern.exec(value);
   while (match !== null) {
@@ -431,18 +442,30 @@ export function upstreamHandleFromProfileField(options: {
   readonly hosts: readonly string[];
   /** Fixed path segments before the handle (`bsky.app/profile/<handle>` ⇒ `['profile']`). */
   readonly pathPrefix?: readonly string[];
+  /** Opt-in for the exact BirdsiteLive double-HTTPS serialization defect. */
+  readonly repairRepeatedHttpsScheme?: boolean;
+  /** Require the named assertion's link to explicitly carry rel=me. */
+  readonly requireRelMe?: boolean;
 }): BridgeDerivation {
   const wanted = options.fieldName.toLowerCase();
   const prefix = options.pathPrefix ?? [];
   return (candidate) => {
+    const handles = new Map<string, string>();
     for (const field of candidate.fields) {
       if (field.name.trim().toLowerCase() !== wanted) continue;
-      for (const href of fieldHrefs(field.value)) {
-        const handle = profileUrlHandle(href, options.hosts, prefix);
-        if (handle !== undefined && handle.length > 0) return handle;
+      for (const href of fieldHrefs(field.value, options.requireRelMe)) {
+        // Observed bird.makeup Official assertion, 2026-09-13:
+        // https://https://twitter.com/jordievole. Repair exactly one duplicated
+        // HTTPS prefix, then run the ordinary host/path/credential validation.
+        const candidateHref = options.repairRepeatedHttpsScheme && href.startsWith('https://https://')
+          ? href.slice('https://'.length) : href;
+        let handle: string | undefined;
+        try { handle = profileUrlHandle(candidateHref, options.hosts, prefix); } catch { continue; }
+        if (handle !== undefined && handle.length > 0) handles.set(handle.toLowerCase(), handle);
       }
     }
-    return undefined;
+    // Conflicting source assertions cannot be settled by document order.
+    return handles.size === 1 ? handles.values().next().value : undefined;
   };
 }
 

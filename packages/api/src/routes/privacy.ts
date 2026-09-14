@@ -1,5 +1,6 @@
+import { getEquivalentUserIds } from '../services/externalIdentityRegistry.service';
 import express, { type Request, type Response } from 'express';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { getDb } from '../config/postgres';
 import { blocks } from '../db/schema/blocks';
@@ -135,7 +136,7 @@ const createUserListHandler = (relation: UserRelation) =>
       })
       .from(relation.table)
       .innerJoin(users, eq(users.id, relation.counterparty))
-      .where(eq(relation.owner, authUser.id));
+      .where(inArray(relation.owner, await getEquivalentUserIds(authUser.id)));
 
     res.json(
       rows.map((row) => ({
@@ -249,7 +250,7 @@ const createUserRemoveHandler = (relation: UserRelation, actionName: string) =>
 
     const deleted = await getDb()
       .delete(relation.table)
-      .where(and(eq(relation.owner, authUser.id), eq(relation.counterparty, targetId)))
+      .where(and(inArray(relation.owner, await getEquivalentUserIds(authUser.id)), inArray(relation.counterparty, await getEquivalentUserIds(targetId))))
       .returning({ id: relation.table.id });
 
     if (deleted.length === 0) {
