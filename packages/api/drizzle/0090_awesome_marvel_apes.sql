@@ -1,0 +1,26 @@
+-- oxy:deploy-phase=pre
+--
+-- PRE: one new nullable column, no backfill. Nothing is dropped, renamed or
+-- narrowed, and the new column carries no default and no NOT NULL, so an
+-- INSERT issued by the previous image (which does not name it) still
+-- succeeds unchanged.
+--
+-- `users.birthday` is free-form text ported verbatim from Mongo (see its own
+-- comment in `db/schema/users.ts`) — never validated, never parsed, and real
+-- rows can hold anything from a clean ISO date to a typo to an empty string.
+-- `users.date_of_birth` is the new structured `date` column every write path
+-- should prefer going forward (`user.service.ts`'s `updateUserProfile`).
+--
+-- Deliberately a clean cut, not a backfill: a wrong date is worse than a
+-- missing one — `date_of_birth` unlocks an age-gate signal (`isAdult`,
+-- computed in `user.service.ts`) — and guess-parsing free text carries real
+-- risk of misreporting someone's age. Existing rows start with
+-- `date_of_birth` NULL; the account holder fills it in themselves through
+-- the Accounts app.
+--
+-- `users.birthday` IS DELIBERATELY LEFT IN PLACE. Dropping it is explicitly
+-- OUT OF SCOPE for this migration — existing readers still consume it, and
+-- retiring it (once every reader has moved to `date_of_birth`) is its own
+-- later migration, the same deferred-drop shape `0013_users_account_categories`
+-- used for `organization_category`.
+ALTER TABLE "users" ADD COLUMN "date_of_birth" date;
