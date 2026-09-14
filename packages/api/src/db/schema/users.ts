@@ -74,6 +74,7 @@ import {
   type AnyPgColumn,
   boolean,
   check,
+  date,
   doublePrecision,
   index,
   integer,
@@ -501,6 +502,30 @@ export const users = pgTable(
     address: text(),
     /** Free-form date string, exactly as Mongo stored it. Never parsed here. */
     birthday: text(),
+    /**
+     * The structured date of birth, `date` — no time-of-day component, which
+     * is the correct semantic for a birthdate (a person is born on a DAY, not
+     * an instant; see `inferenceModels.knowledgeCutoff` for the same
+     * `date`-not-`timestamptz` reasoning applied to a different column).
+     *
+     * ADDITIVE next to `birthday`, not a replacement for it. `birthday` is
+     * free text ported from Mongo with no guaranteed shape — see its own
+     * comment — so it cannot be parsed with confidence for every row, and a
+     * WRONG parse (picking March 4 for the ambiguous `03/04/2005`) is worse
+     * than leaving this column NULL for the user to fill in themselves. The
+     * `pre` migration that adds this column backfills it from `birthday` on a
+     * best-effort basis — see `drizzle/<generated>.sql` for the exact parser
+     * and priority order, and
+     * `schema/__tests__/dateOfBirthBackfill.test.ts` for the corpus it is
+     * proven against. Going forward this is the field every write path should
+     * set; `birthday` is kept only for backward compatibility with existing
+     * readers (see `user.service.ts`'s `updateUserProfile`).
+     *
+     * A protected column (`protectedColumns.ts`) — raw PII, owner-only, never
+     * echoed on another account's profile. Apps read the derived `isAdult`
+     * signal instead of this value wherever possible.
+     */
+    dateOfBirth: date(),
     /** Profile links. A short scalar array, never queried by element. */
     links: text().array(),
     /**

@@ -114,6 +114,66 @@ export const themePreferenceSchema: z.ZodType<ThemePreference> = z.object({
 });
 
 /**
+ * The earliest calendar year `dateOfBirthSchema` accepts.
+ *
+ * Not a real biological bound — it exists to catch an obviously-transposed
+ * year (`1027` for `2027`, a stray OCR/typo digit) with a clear message
+ * instead of the value quietly becoming a 150-year-old account. 1900 is
+ * generous enough that no living person's real birthdate is rejected by it.
+ */
+const MIN_BIRTH_YEAR = 1900;
+
+/**
+ * `true` when `year`/`month`/`day` name a date that actually exists on the
+ * Gregorian calendar — the check `z.string().regex(...)` alone cannot make,
+ * since the regex only constrains digit COUNT and would pass `2024-02-30`.
+ */
+function isRealCalendarDate(year: number, month: number, day: number): boolean {
+    const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth[month - 1];
+}
+
+/**
+ * A date of birth, `YYYY-MM-DD`, the sole structured representation this
+ * platform stores going forward (`users.date_of_birth` — see
+ * `packages/api/src/db/schema/users.ts`). `birthday` (below) stays as the
+ * legacy free-text field for backward compatibility with existing readers;
+ * this schema is what both the write path (`user.service.ts`) and the read
+ * path (nothing — a date of birth is owner-only, never echoed to another
+ * viewer) validate against.
+ *
+ * Three checks, in order, because a regex alone would accept a string-shaped
+ * lie:
+ *  1. Exactly `YYYY-MM-DD` — the wire format, nothing looser.
+ *  2. A real Gregorian date — rejects `2024-02-30`, a date the regex cannot see
+ *     is impossible.
+ *  3. Bounded to a plausible human lifetime — not before {@link MIN_BIRTH_YEAR}
+ *     and not after today (comparing the zero-padded ISO strings directly is
+ *     a valid, simpler stand-in for a numeric comparison here, since two
+ *     `YYYY-MM-DD` strings of equal length sort exactly the way their dates
+ *     do). "Today" is UTC — see `computeIsAdult` in `user.service.ts` for why
+ *     a date with no timezone of its own is evaluated in UTC rather than any
+ *     particular caller's local zone.
+ */
+export const dateOfBirthSchema = z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'dateOfBirth must be an ISO 8601 calendar date (YYYY-MM-DD)')
+    .refine(
+        (value) => {
+            const [year, month, day] = value.split('-').map(Number);
+            return isRealCalendarDate(year, month, day);
+        },
+        { message: 'dateOfBirth is not a real calendar date' },
+    )
+    .refine((value) => Number(value.slice(0, 4)) >= MIN_BIRTH_YEAR, {
+        message: `dateOfBirth must not be before ${MIN_BIRTH_YEAR}`,
+    })
+    .refine((value) => value <= new Date().toISOString().slice(0, 10), {
+        message: 'dateOfBirth must not be in the future',
+    });
+
+/**
  * The canonical user object emitted by `formatUserResponse`.
  *
  * `id` is present on formatted user DTOs. `name.displayName` is OPTIONAL on the
@@ -142,6 +202,26 @@ export const userResponseSchema = z
         phone: z.string().optional(),
         address: z.string().optional(),
         birthday: z.string().optional(),
+        /**
+         * Structured date of birth, `YYYY-MM-DD`. Present only on the
+         * account's OWN profile response (`GET /users/me`, `PUT /users/me`
+         * with `includePrivateFields`) — never on another account's profile,
+         * the same visibility `phone`/`address`/`birthday` already have. See
+         * {@link dateOfBirthSchema}.
+         */
+        dateOfBirth: dateOfBirthSchema.optional(),
+        /**
+         * Derived, non-PII signal: whether the account holder is at least 18
+         * (see `computeIsAdult` in `user.service.ts` for the exact threshold
+         * and the UTC-"today" choice). Computed fresh on every read — age
+         * changes daily, so this is never stored. `undefined` when
+         * `dateOfBirth` is unset ("unknown"), distinct from `false` ("known,
+         * not yet 18"). Rides the same owner-only visibility as
+         * `dateOfBirth`; a future pass may widen this specific field to
+         * other viewers without exposing the birthdate itself, but that is
+         * not decided here.
+         */
+        isAdult: z.boolean().optional(),
         /** Avatar file id (string) or null. */
         avatar: z.string().nullable().optional(),
         /** Named Bloom color preset (e.g. `"blue"`) or null. */
@@ -240,6 +320,13 @@ export const userProfileUpdateSchema = z
         phone: z.string().optional(),
         address: z.string().optional(),
         birthday: z.string().optional(),
+        /**
+         * Structured date of birth. `null` (or `''`, at the service layer)
+         * clears it. Independently settable from `birthday` — see
+         * `user.service.ts`'s `updateUserProfile` for why the two legacy and
+         * structured fields are not kept in sync with each other.
+         */
+        dateOfBirth: dateOfBirthSchema.nullable().optional(),
         locations: z.array(z.unknown()).optional(),
         links: z.array(z.string()).optional(),
         linksMetadata: z
