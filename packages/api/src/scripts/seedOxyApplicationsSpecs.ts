@@ -238,6 +238,15 @@ export const ALIA_OWNER_ACCOUNT_USERNAME = 'alia-production-chat';
 export const NILO_APPLICATION_ID = 'ed143b1b58d60eab417f7d5c';
 export const MEDIA_WORKER_APPLICATION_ID = '71ea45cf97451563762ead13';
 
+/**
+ * Clarity's BACKEND service-activity principal. Distinct from Clarity's existing
+ * edge-lane application (registered separately for its Cloudflare Worker) — that
+ * one is gated to `credential_lane=edge` only in `provision-service-credential.yml`
+ * and must not be widened to also mint service-lane credentials, so the backend
+ * gets its own isolated identity here instead of reusing/blending trust surfaces.
+ */
+export const CLARITY_BACKEND_APPLICATION_ID = 'c92f1f887a389fe86c7e716f';
+
 /** Exact opaque identity of the Kaana control/data-plane application. */
 export const KAANA_APPLICATION_ID = '68b7c4e19f2a6d0e3c8b5174';
 
@@ -510,6 +519,17 @@ export const SEED_APPS: SeedAppSpec[] = [
     redirectUris: ['https://nilo.so'],
     // Sign-in and the isolated activity principal need no feature-write or
     // inference authority. This is not an internal catalogue audience.
+    scopes: ['user:read'],
+  },
+  {
+    id: CLARITY_BACKEND_APPLICATION_ID,
+    name: 'Clarity Backend',
+    description: 'Official Oxy AI-powered search engine — backend activity principal.',
+    websiteUrl: 'https://clarity.surf',
+    type: 'first_party',
+    redirectUris: ['https://clarity.surf'],
+    // Isolated activity-only principal, same shape as Nilo's: no feature-write
+    // or inference authority, distinct from Clarity's existing edge-lane app.
     scopes: ['user:read'],
   },
   {
