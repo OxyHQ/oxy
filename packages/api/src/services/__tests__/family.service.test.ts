@@ -67,13 +67,15 @@ describe('createFamily', () => {
     expect(family.name).toBeNull();
   });
 
-  it('refuses a second family for someone already active in one', async () => {
+  it('lets someone organize a second family while already active in one — separated parents, blended families', async () => {
     const organizerId = await personalUser();
-    await familyService.createFamily(organizerId);
+    const { family: first } = await familyService.createFamily(organizerId);
 
-    await expect(familyService.createFamily(organizerId)).rejects.toThrow(
-      /already belong to a family/i
-    );
+    const { family: second, membership } = await familyService.createFamily(organizerId);
+
+    expect(second.id).not.toBe(first.id);
+    expect(membership.role).toBe('organizer');
+    expect(membership.status).toBe('active');
   });
 });
 
@@ -203,17 +205,23 @@ describe('acceptInvite', () => {
     );
   });
 
-  it('refuses accepting while already active in a different family', async () => {
+  it('lets someone accept a second family while already active in another', async () => {
     const memberId = await personalUser();
-    await familyService.createFamily(memberId); // already active elsewhere
+    const { family: firstFamily, membership: firstMembership } =
+      await familyService.createFamily(memberId);
 
     const organizerId = await personalUser();
     const { family: secondFamily } = await familyService.createFamily(organizerId);
     const invited = await familyService.inviteMember(secondFamily.id, organizerId, memberId);
 
-    await expect(
-      familyService.acceptInvite(secondFamily.id, invited.id, memberId)
-    ).rejects.toThrow(/already belong to a family/i);
+    const accepted = await familyService.acceptInvite(secondFamily.id, invited.id, memberId);
+
+    expect(accepted.status).toBe('active');
+    // The first membership is untouched — accepting a second family membership
+    // does not implicitly leave the first.
+    const firstRow = await membershipRow(firstMembership.id);
+    expect(firstRow.status).toBe('active');
+    expect(firstRow.familyId).toBe(firstFamily.id);
   });
 });
 
@@ -242,9 +250,9 @@ describe('declineInvite', () => {
   });
 });
 
-describe('getMyFamily', () => {
-  it('returns null for someone in no family', async () => {
-    expect(await familyService.getMyFamily(await personalUser())).toBeNull();
+describe('getMyFamilies', () => {
+  it('returns an empty array for someone in no family', async () => {
+    expect(await familyService.getMyFamilies(await personalUser())).toEqual([]);
   });
 
   it('returns the family and its roster, invited rows included', async () => {
@@ -256,10 +264,10 @@ describe('getMyFamily', () => {
     await familyService.acceptInvite(family.id, invited.id, memberId);
     await familyService.inviteMember(family.id, organizerId, pendingId);
 
-    const roster = await familyService.getMyFamily(organizerId);
+    const [roster] = await familyService.getMyFamilies(organizerId);
 
-    expect(roster?.family.id).toBe(family.id);
-    const statuses = roster?.members.map((m) => `${m.memberUserId}:${m.status}`);
+    expect(roster.family.id).toBe(family.id);
+    const statuses = roster.members.map((m) => `${m.memberUserId}:${m.status}`);
     expect(statuses).toEqual(
       expect.arrayContaining([
         `${organizerId}:active`,
@@ -276,8 +284,23 @@ describe('getMyFamily', () => {
     const invited = await familyService.inviteMember(family.id, organizerId, memberId);
     await familyService.declineInvite(family.id, invited.id, memberId);
 
-    const roster = await familyService.getMyFamily(organizerId);
-    expect(roster?.members.some((m) => m.memberUserId === memberId)).toBe(false);
+    const [roster] = await familyService.getMyFamilies(organizerId);
+    expect(roster.members.some((m) => m.memberUserId === memberId)).toBe(false);
+  });
+
+  it('returns every family the caller actively belongs to', async () => {
+    const memberId = await personalUser();
+    const { family: firstFamily } = await familyService.createFamily(memberId);
+    const organizerId = await personalUser();
+    const { family: secondFamily } = await familyService.createFamily(organizerId);
+    const invited = await familyService.inviteMember(secondFamily.id, organizerId, memberId);
+    await familyService.acceptInvite(secondFamily.id, invited.id, memberId);
+
+    const rosters = await familyService.getMyFamilies(memberId);
+
+    expect(rosters.map((r) => r.family.id).sort()).toEqual(
+      [firstFamily.id, secondFamily.id].sort()
+    );
   });
 });
 

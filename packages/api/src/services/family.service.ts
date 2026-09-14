@@ -1,8 +1,12 @@
 /**
  * Family Service — Oxy Family membership.
  *
- * See `db/schema/families.ts` for the design decision (dedicated tables,
- * not `users.kind` + `account_members`) and the "one family at a time" rule.
+ * See `db/schema/families.ts` for the design decision (dedicated tables, not
+ * `users.kind` + `account_members`). A person may belong to more than one
+ * ACTIVE family at once — separated parents' households, a blended family, a
+ * shared-custody arrangement all mean this is an ordinary case, not an edge
+ * case — so {@link FamilyService.getMyFamilies} returns every family the
+ * caller actively belongs to, plural, never assumes there is at most one.
  *
  * ## Every action here resolves the OPERATOR, never the session subject
  *
@@ -11,17 +15,9 @@
  * that managed account, not a person — so every route calls
  * `resolveOperatorId(req)` (mirroring `routes/accounts.ts`) and passes the
  * result in here as `userId`. This service never reads `req` itself.
- *
- * ## The one-family-at-a-time invariant is enforced at TWO layers
- *
- * `family_members_member_user_id_active_key` (a partial unique index on
- * `member_user_id` WHERE `status = 'active'`) is the backstop — it cannot be
- * violated no matter what bug reaches this file. This service ALSO checks
- * before writing, so a caller gets a clear 409 naming the reason instead of a
- * raw unique-violation 500 from the database.
  */
 
-import { and, asc, eq, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { families, familyMembers } from '../db/schema/families';
 import { users } from '../db/schema/users';
@@ -31,7 +27,7 @@ import { logger } from '../utils/logger';
 export type FamilyRow = typeof families.$inferSelect;
 export type FamilyMemberRow = typeof familyMembers.$inferSelect;
 
-/** The roster entry shape `listFamily` returns — a membership row is enough; the client resolves profiles by id. */
+/** The roster entry shape `getMyFamilies` returns — a membership row is enough; the client resolves profiles by id. */
 export interface FamilyRoster {
   family: FamilyRow;
   members: FamilyMemberRow[];
@@ -43,41 +39,26 @@ export interface PendingFamilyInvite {
   family: FamilyRow;
 }
 
-/** The caller's current ACTIVE family membership row, or `null`. */
-async function findActiveMembership(userId: string): Promise<FamilyMemberRow | null> {
-  const [row] = await getDb()
+/** Every family `userId` actively belongs to, oldest membership first. */
+async function findActiveMemberships(userId: string): Promise<FamilyMemberRow[]> {
+  return getDb()
     .select()
     .from(familyMembers)
     .where(and(eq(familyMembers.memberUserId, userId), eq(familyMembers.status, 'active')))
-    .limit(1);
-  return row ?? null;
-}
-
-/** Refuse if `userId` already holds an active family membership other than `exceptMembershipId`. */
-async function assertNoOtherActiveFamily(
-  userId: string,
-  exceptMembershipId?: string
-): Promise<void> {
-  const existing = await findActiveMembership(userId);
-  if (existing && existing.id !== exceptMembershipId) {
-    throw new ConflictError(
-      'You already belong to a family. Leave it before joining another.'
-    );
-  }
+    .orderBy(asc(familyMembers.createdAt));
 }
 
 export class FamilyService {
   /**
    * Create a family. The creator becomes its `organizer`, active immediately —
    * there is no invite-accept step for the person creating the family, since
-   * nobody added them but themselves.
+   * nobody added them but themselves. Creating a new family while already
+   * organizing or belonging to another is allowed — see the module header.
    */
   async createFamily(
     organizerUserId: string,
     name?: string
   ): Promise<{ family: FamilyRow; membership: FamilyMemberRow }> {
-    await assertNoOtherActiveFamily(organizerUserId);
-
     const db = getDb();
     const result = await db.transaction(async (tx) => {
       const [family] = await tx.insert(families).values({ name }).returning();
@@ -99,37 +80,38 @@ export class FamilyService {
   }
 
   /**
-   * The caller's current family and its roster (every non-`removed` row,
-   * `invited` ones included — an organizer needs to see who they have invited).
-   * `null` when the caller belongs to no family.
+   * Every family the caller actively belongs to, each with its roster (every
+   * non-`removed` row, `invited` ones included — an organizer needs to see
+   * who they have invited). Empty when the caller belongs to no family — that
+   * is an ordinary state, not an error.
    */
-  async getMyFamily(userId: string): Promise<FamilyRoster | null> {
-    const membership = await findActiveMembership(userId);
-    if (!membership) {
-      return null;
+  async getMyFamilies(userId: string): Promise<FamilyRoster[]> {
+    const memberships = await findActiveMemberships(userId);
+    if (memberships.length === 0) {
+      return [];
     }
 
     const db = getDb();
-    const [family] = await db
-      .select()
-      .from(families)
-      .where(eq(families.id, membership.familyId))
-      .limit(1);
-    if (!family) {
-      // The membership's own FK guarantees this cannot happen; kept as a
-      // narrow guard rather than a non-null assertion.
-      throw new NotFoundError('Family not found');
+    const familyIds = memberships.map((membership) => membership.familyId);
+    const familyRows = await db.select().from(families).where(inArray(families.id, familyIds));
+    const familyById = new Map(familyRows.map((family) => [family.id, family]));
+
+    const rosters: FamilyRoster[] = [];
+    for (const membership of memberships) {
+      const family = familyById.get(membership.familyId);
+      if (!family) {
+        // The membership's own FK guarantees this cannot happen; kept as a
+        // narrow guard rather than a non-null assertion.
+        throw new NotFoundError('Family not found');
+      }
+      const members = await db
+        .select()
+        .from(familyMembers)
+        .where(and(eq(familyMembers.familyId, family.id), ne(familyMembers.status, 'removed')))
+        .orderBy(asc(familyMembers.createdAt));
+      rosters.push({ family, members });
     }
-
-    const members = await db
-      .select()
-      .from(familyMembers)
-      .where(
-        and(eq(familyMembers.familyId, family.id), ne(familyMembers.status, 'removed'))
-      )
-      .orderBy(asc(familyMembers.createdAt));
-
-    return { family, members };
+    return rosters;
   }
 
   /** Pending invites addressed to `userId` — every family that has invited them and not yet been answered. */
@@ -257,10 +239,9 @@ export class FamilyService {
   }
 
   /**
-   * Accept a pending invite. Only the invitee may accept their own invite, and
-   * only while it is still `invited`. Refuses when the caller already belongs
-   * to another active family — see the header on the "one family at a time"
-   * invariant.
+   * Accept a pending invite. Only the invitee may accept their own invite,
+   * and only while it is still `invited`. Accepting while already active in
+   * another family is allowed — see the module header.
    */
   async acceptInvite(
     familyId: string,
@@ -274,8 +255,6 @@ export class FamilyService {
     if (membership.status !== 'invited') {
       throw new BadRequestError('This invitation is no longer pending');
     }
-
-    await assertNoOtherActiveFamily(callerUserId, membershipId);
 
     const [updated] = await getDb()
       .update(familyMembers)

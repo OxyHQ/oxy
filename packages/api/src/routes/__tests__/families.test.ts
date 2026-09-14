@@ -13,7 +13,7 @@ import { ForbiddenError, NotFoundError } from '../../utils/error';
 const OPERATOR_ID = '6c0000000000000000000001';
 
 const mockCreateFamily = jest.fn();
-const mockGetMyFamily = jest.fn();
+const mockGetMyFamilies = jest.fn();
 const mockListPendingInvites = jest.fn();
 const mockInviteMember = jest.fn();
 const mockAcceptInvite = jest.fn();
@@ -25,7 +25,7 @@ jest.mock('../../services/family.service', () => ({
   __esModule: true,
   familyService: {
     createFamily: (...args: unknown[]) => mockCreateFamily(...args),
-    getMyFamily: (...args: unknown[]) => mockGetMyFamily(...args),
+    getMyFamilies: (...args: unknown[]) => mockGetMyFamilies(...args),
     listPendingInvites: (...args: unknown[]) => mockListPendingInvites(...args),
     inviteMember: (...args: unknown[]) => mockInviteMember(...args),
     acceptInvite: (...args: unknown[]) => mockAcceptInvite(...args),
@@ -124,22 +124,27 @@ describe('POST /families', () => {
 });
 
 describe('GET /families/me', () => {
-  it("returns the caller's family and roster", async () => {
-    mockGetMyFamily.mockResolvedValue({ family: fakeFamily(), members: [fakeMembership()] });
+  it('returns every family the caller actively belongs to, each with its roster', async () => {
+    mockGetMyFamilies.mockResolvedValue([
+      { family: fakeFamily(), members: [fakeMembership()] },
+      { family: fakeFamily({ id: 'family-2' }), members: [fakeMembership({ familyId: 'family-2' })] },
+    ]);
 
     const res = await request(app).get('/families/me').set('Authorization', 'Bearer user-token');
 
     expect(res.status).toBe(200);
-    expect(res.body.members).toHaveLength(1);
-    expect(mockGetMyFamily).toHaveBeenCalledWith(OPERATOR_ID);
+    expect(res.body.families).toHaveLength(2);
+    expect(res.body.families[0].members).toHaveLength(1);
+    expect(mockGetMyFamilies).toHaveBeenCalledWith(OPERATOR_ID);
   });
 
-  it('answers 404 when the caller belongs to no family', async () => {
-    mockGetMyFamily.mockResolvedValue(null);
+  it('answers 200 with an empty list when the caller belongs to no family', async () => {
+    mockGetMyFamilies.mockResolvedValue([]);
 
     const res = await request(app).get('/families/me').set('Authorization', 'Bearer user-token');
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    expect(res.body.families).toEqual([]);
   });
 });
 
@@ -262,11 +267,14 @@ describe('POST /families/:id/leave', () => {
 // comes from that class, not an incidental empty-body 404 from Express.
 describe('error shape', () => {
   it('a thrown NotFoundError serialises to a 404 with a message', async () => {
-    mockGetMyFamily.mockRejectedValue(new NotFoundError('You do not belong to a family'));
+    mockLeaveFamily.mockRejectedValue(new NotFoundError('You are not a member of this family'));
 
-    const res = await request(app).get('/families/me').set('Authorization', 'Bearer user-token');
+    const res = await request(app)
+      .post('/families/family-1/leave')
+      .set('Authorization', 'Bearer user-token')
+      .send();
 
     expect(res.status).toBe(404);
-    expect(res.body.message).toMatch(/do not belong to a family/i);
+    expect(res.body.message).toMatch(/not a member of this family/i);
   });
 });

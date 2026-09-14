@@ -4,9 +4,10 @@
  * `foreignKeys.test.ts`, `protectedColumns.test.ts` all run against these
  * tables automatically because they are in the schema barrel). This file
  * covers what is specific to Family: the CHECK vocabularies, the compound
- * unique, the two PARTIAL unique indexes that carry the "one family at a
- * time" and "at most one organizer" invariants, and what deleting a family or
- * a user actually does to a membership row.
+ * unique, the PARTIAL unique index carrying the "at most one organizer per
+ * family" invariant (a person may hold any number of ACTIVE family
+ * memberships — see the module header on `../families.ts`), and what
+ * deleting a family or a user actually does to a membership row.
  *
  * Same helpers and style as `constraints.test.ts` — a real Postgres through
  * the application's own pool, no mock.
@@ -108,47 +109,15 @@ describe('family_members — compound unique (family, member)', () => {
   });
 });
 
-describe('family_members — one ACTIVE family at a time', () => {
-  it('rejects a second ACTIVE row for the same person across two families', async () => {
+describe('family_members — a person may be ACTIVE in more than one family', () => {
+  it('allows a second ACTIVE row for the same person across two families', async () => {
+    // Separated parents' households, a blended family, shared custody: one
+    // person genuinely belongs to more than one family at once, so nothing
+    // here restricts how many ACTIVE rows one member_user_id may hold.
     const memberUserId = await personalUser();
     await getDb()
       .insert(familyMembers)
       .values({ familyId: await family(), memberUserId, role: 'organizer', status: 'active' });
-
-    const error = await rejection(
-      getDb()
-        .insert(familyMembers)
-        .values({ familyId: await family(), memberUserId, role: 'member', status: 'active' })
-    );
-    expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
-  });
-
-  it('does NOT block a second PENDING invite while already active elsewhere', async () => {
-    const memberUserId = await personalUser();
-    await getDb()
-      .insert(familyMembers)
-      .values({ familyId: await family(), memberUserId, role: 'organizer', status: 'active' });
-
-    // A second family may still INVITE this person — the constraint only
-    // refuses a second ACTIVE row, matching Google Family Group's own
-    // behaviour: acceptance, not invitation, is what is exclusive.
-    await expect(
-      getDb()
-        .insert(familyMembers)
-        .values({ familyId: await family(), memberUserId, role: 'member', status: 'invited' })
-    ).resolves.toBeDefined();
-  });
-
-  it('does not count a REMOVED row against the one-family limit', async () => {
-    const memberUserId = await personalUser();
-    const firstFamily = await family();
-    await getDb()
-      .insert(familyMembers)
-      .values({ familyId: firstFamily, memberUserId, role: 'organizer', status: 'active' });
-    await getDb()
-      .update(familyMembers)
-      .set({ status: 'removed' })
-      .where(eq(familyMembers.familyId, firstFamily));
 
     await expect(
       getDb()

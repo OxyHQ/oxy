@@ -130,16 +130,12 @@ export const familyMembers = pgTable(
     // of racing a second insert.
     unique('family_members_family_id_member_user_id_key').on(t.familyId, t.memberUserId),
 
-    // ---- one family at a time ----------------------------------------------
-    // A person may hold at most one ACTIVE family membership. Enforced here as
-    // the backstop and in `family.service.ts` as the friendly, pre-checked
-    // error — see that file's header for why both layers exist. Pending
-    // (`invited`) rows are NOT covered: a person may hold invites from several
-    // families at once and simply cannot ACCEPT a second while active
-    // elsewhere, matching Google Family Group's own behaviour.
-    uniqueIndex('family_members_member_user_id_active_key')
-      .on(t.memberUserId)
-      .where(sql`${t.status} = 'active'`),
+    // Deliberately NO constraint limiting a person to one active family: two
+    // separated parents' households, a blended family, a shared-custody
+    // arrangement all mean one person genuinely belongs to more than one
+    // family at once. `role` already varies per membership row rather than
+    // per person, so being `organizer` in one family and `member` in another
+    // falls out of this shape for free — nothing else to change for it.
 
     // At most one ACTIVE organizer per family — never zero enforced (a family
     // that loses its only organizer by that organizer leaving alone is simply

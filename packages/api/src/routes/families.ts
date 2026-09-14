@@ -95,19 +95,18 @@ router.post(
   })
 );
 
-/** GET /families/me — the caller's family and its roster, or 404 when they belong to none. */
+/** GET /families/me — every family the caller actively belongs to, each with its roster. Empty, not 404, when they belong to none. */
 router.get(
   '/me',
   readLimiter,
   asyncHandler(async (req: AuthRequest, res) => {
     const operatorId = await resolveOperatorId(req);
-    const roster = await familyService.getMyFamily(operatorId);
-    if (!roster) {
-      throw new NotFoundError('You do not belong to a family');
-    }
+    const rosters = await familyService.getMyFamilies(operatorId);
     res.json({
-      family: serializeFamily(roster.family),
-      members: roster.members.map(serializeMember),
+      families: rosters.map((roster) => ({
+        family: serializeFamily(roster.family),
+        members: roster.members.map(serializeMember),
+      })),
     });
   })
 );
