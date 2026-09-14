@@ -238,6 +238,15 @@ export const ALIA_OWNER_ACCOUNT_USERNAME = 'alia-production-chat';
 export const NILO_APPLICATION_ID = 'ed143b1b58d60eab417f7d5c';
 export const MEDIA_WORKER_APPLICATION_ID = '71ea45cf97451563762ead13';
 
+/**
+ * Willo's backend service-activity principal. First credential this
+ * application has ever needed — `requireOxyAuth`/`getRequiredOxyUserId`
+ * validate end-user bearer tokens against api.oxy.so directly and need no
+ * service credential of their own, so this exists solely for ecosystem
+ * activity.
+ */
+export const WILLO_APPLICATION_ID = 'b043569d14d358371cb545b5';
+
 /** Exact opaque identity of the Kaana control/data-plane application. */
 export const KAANA_APPLICATION_ID = '68b7c4e19f2a6d0e3c8b5174';
 
@@ -510,6 +519,17 @@ export const SEED_APPS: SeedAppSpec[] = [
     redirectUris: ['https://nilo.so'],
     // Sign-in and the isolated activity principal need no feature-write or
     // inference authority. This is not an internal catalogue audience.
+    scopes: ['user:read'],
+  },
+  {
+    id: WILLO_APPLICATION_ID,
+    name: 'Willo',
+    description: 'Official Oxy smart home control app.',
+    websiteUrl: 'https://willo.sh',
+    type: 'first_party',
+    redirectUris: ['https://willo.sh'],
+    // Isolated activity-only principal, same shape as Nilo's: no feature-write
+    // or inference authority.
     scopes: ['user:read'],
   },
   {
