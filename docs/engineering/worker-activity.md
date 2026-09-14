@@ -1,6 +1,6 @@
 # Asset worker activity
 
-The standalone asset-variant consumer publishes as `oxy-asset-variant-worker` only with `OXY_ECOSYSTEM_ACTIVITY_ENABLED=true`, a valid `AWS_REGION`, and dedicated `OXY_ACTIVITY_API_KEY` / `OXY_ACTIVITY_API_SECRET` credentials. Missing enablement stays off even when AWS storage credentials exist. The worker heartbeat becomes ready after both PostgreSQL and the BullMQ consumer are ready, and becomes unready before shutdown drains the consumer and stops publication.
+The standalone asset-variant consumer publishes as `oxy-asset-variant-worker` only when the dedicated `OXY_ACTIVITY_API_KEY` / `OXY_ACTIVITY_API_SECRET` credential pair is present, and requires a valid `AWS_REGION` once it is. There is no separate enablement flag: this credential is used for nothing else, so its presence alone is the gate. Missing or blank credentials stay off even when AWS storage credentials exist. The worker heartbeat becomes ready after both PostgreSQL and the BullMQ consumer are ready, and becomes unready before shutdown drains the consumer and stops publication.
 
 Each consumed job records an internal inbound media operation. The API adds only its validated infrastructure region to the existing private queue payload; the public aggregate contains no file ID, job ID, user ID, URL or payload. Older queued jobs continue processing with unknown source geography. Failed rendition attempts remain observable operations and still throw to BullMQ for its existing retry behavior. The observer does not invent a completed response or a return queue job.
 

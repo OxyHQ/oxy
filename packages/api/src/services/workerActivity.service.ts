@@ -4,18 +4,15 @@ import { normalizeInfrastructureRegion } from '@oxy.so/telemetry/collector';
 type Publisher = ReturnType<typeof createEcosystemTraffic>;
 let publisher: Publisher | undefined;
 
-/** One explicitly enabled publisher per standalone worker process. */
+/** One publisher per standalone worker process, gated solely on the dedicated activity credential being present. */
 export function startWorkerActivity(
   service: string,
   ready: () => boolean,
   create: (options: EcosystemTrafficOptions) => Publisher = createEcosystemTraffic,
 ): Publisher | undefined {
-  const enabled = process.env.OXY_ECOSYSTEM_ACTIVITY_ENABLED;
-  if (enabled !== undefined && enabled !== 'true' && enabled !== 'false') throw new Error('OXY_ECOSYSTEM_ACTIVITY_ENABLED must be true or false');
-  if (enabled !== 'true') return undefined;
+  if (!process.env.OXY_ACTIVITY_API_KEY?.trim() || !process.env.OXY_ACTIVITY_API_SECRET?.trim()) return undefined;
   const region = normalizeInfrastructureRegion(process.env.AWS_REGION);
   if (!region) throw new Error('Worker activity requires a valid AWS_REGION');
-  if (!process.env.OXY_ACTIVITY_API_KEY || !process.env.OXY_ACTIVITY_API_SECRET) throw new Error('Worker activity requires dedicated OXY_ACTIVITY_API_KEY and OXY_ACTIVITY_API_SECRET');
   if (publisher) throw new Error('Worker activity is already running');
   publisher = create({ service, region, ready });
   publisher.installFetch();
