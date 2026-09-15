@@ -104,6 +104,10 @@ const ALLOWED: ReadonlyMap<string, string> = new Map([
     'Read-only selectors for remote canonical/transport accounts (user@domain) and HTTPS actor URIs; these identify existing external network records and never validate or allocate local Oxy usernames.',
   ],
   [
+    'packages/api/src/services/externalProfileInspection.service.ts',
+    'Validates the shape of an incoming REMOTE actor URI restricted to exactly one reviewed federation bridge host (bird.makeup) before a read-only inspection; reads existing users.username via joins only to compare against the remote record, never to allocate or validate a local Oxy username. url.username on the same lines is the standard URL API basic-auth field, asserted empty, not a handle.',
+  ],
+  [
     'packages/api/src/services/externalIdentityRegistry.service.ts',
     'Remote Instagram/Threads profile URL handles used to bind source identity claims; these are upstream network namespaces, never local Oxy username validation.',
   ],
