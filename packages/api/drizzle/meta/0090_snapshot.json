@@ -1,6 +1,6 @@
 {
-  "id": "82cf59fb-f27b-491f-a00d-994f05e68ba6",
-  "prevId": "56a386bb-2f50-48ce-9e8e-5f629bfa4a6e",
+  "id": "6abe35d2-55a1-4856-9fc5-9f4cef7f3c29",
+  "prevId": "634db71b-f50c-4d57-ae37-9f07cfd6cc2b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -11506,7 +11506,7 @@
       "checkConstraints": {
         "inference_deployments_availability_scope_check": {
           "name": "inference_deployments_availability_scope_check",
-          "value": "\"inference_deployments\".\"availability_scope\" in ('internal_alia', 'public_payg', 'enterprise', 'byok_only', 'oxy_hosted')"
+          "value": "\"inference_deployments\".\"availability_scope\" in ('internal_alia', 'platform_internal', 'public_payg', 'enterprise', 'byok_only', 'oxy_hosted')"
         },
         "inference_deployments_commercial_permission_check": {
           "name": "inference_deployments_commercial_permission_check",
@@ -28016,6 +28016,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "date_of_birth": {
+          "name": "date_of_birth",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
         "links": {
           "name": "links",
           "type": "text[]",
@@ -30573,22 +30579,6 @@
         }
       },
       "indexes": {
-        "family_members_member_user_id_active_key": {
-          "name": "family_members_member_user_id_active_key",
-          "columns": [
-            {
-              "expression": "member_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"family_members\".\"status\" = 'active'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "family_members_family_id_organizer_key": {
           "name": "family_members_family_id_organizer_key",
           "columns": [

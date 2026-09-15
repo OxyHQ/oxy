@@ -56,6 +56,7 @@ export {
     userNameSchema,
     userRelationshipSchema,
     themePreferenceSchema,
+    dateOfBirthSchema,
     userResponseSchema,
     userProfileUpdateSchema,
     currentUserResponseSchema,
