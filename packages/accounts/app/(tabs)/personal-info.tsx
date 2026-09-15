@@ -11,7 +11,6 @@ import { useHapticPress } from '@/hooks/use-haptic-press';
 import { AccountInfoGrid, type AccountInfoCard } from '@/components/account-info-grid';
 import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
-import type { ExtendedUser } from '@/types/user';
 import { useTranslation } from '@/lib/i18n';
 
 export default function PersonalInfoScreen() {
@@ -39,13 +38,16 @@ export default function PersonalInfoScreen() {
   );
   const userUsername = useMemo(() => user?.username ?? null, [user?.username]);
   const userEmail = useMemo(() => user?.email ?? t('personalInfo.fields.noEmail'), [user?.email, t]);
-  const extendedUser = user as ExtendedUser | undefined;
-  const userPhone = useMemo(() => extendedUser?.phone ?? null, [extendedUser]);
-  const userAddress = useMemo(() => extendedUser?.address ?? null, [extendedUser]);
+  const userPhone = useMemo(() => user?.phone ?? null, [user]);
+  const userAddress = useMemo(() => user?.address ?? null, [user]);
   const userBirthday = useMemo(() => {
-    const birthday = extendedUser?.birthday ?? extendedUser?.dateOfBirth;
+    // `dateOfBirth` is the structured source of truth going forward; `birthday`
+    // is the legacy free-text field, read only as a fallback for an account
+    // that has not been backfilled or re-saved yet — see `users.dateOfBirth`'s
+    // own comment in `packages/api/src/db/schema/users.ts`.
+    const birthday = user?.dateOfBirth ?? user?.birthday;
     return birthday ? formatDate(birthday) : null;
-  }, [extendedUser]);
+  }, [user]);
 
   const personalInfoCards = useMemo<AccountInfoCard[]>(() => [
     {

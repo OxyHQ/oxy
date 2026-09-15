@@ -70,6 +70,7 @@ import { userIdentityFields, deriveIsFederated, toThemePreference } from '../uti
 import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, normalizeLocale } from '@oxy.so/core';
 import { buildUserDid } from './did.service';
 import {
+  dateOfBirthSchema,
   isAccountKind,
   usernameSchemaForAccountKind,
   type UserRelationship,
@@ -98,6 +99,8 @@ export interface SelfUserView extends PublicUserView {
   phone?: string;
   address?: string;
   birthday?: string;
+  /** The structured date of birth. See `users.dateOfBirth`'s own comment. */
+  dateOfBirth?: string;
   themePreference?: { mode: 'light' | 'dark' | 'system'; colorPreset: string };
 }
 
@@ -129,6 +132,7 @@ export interface UserResponseSource {
   phone?: unknown;
   address?: unknown;
   birthday?: unknown;
+  dateOfBirth?: unknown;
   themePreference?: unknown;
   type?: unknown;
   /** Account-graph classification (`personal` / `organization` / `channel` …). */
@@ -398,6 +402,41 @@ function blankToNull(value: unknown): string | null {
 }
 
 /**
+ * The age, in whole years, at which an app may treat an account as an adult
+ * for gating purposes (Mention's `privacySensitiveContent` viewer preference
+ * is the first consumer, wired in that app's own repo as a follow-up — this
+ * pass only exposes the signal). Not configurable per app: the point of a
+ * platform-level signal is that every app answers the same question the same
+ * way, rather than each re-deriving its own threshold from the raw birthdate.
+ */
+const ADULT_AGE_THRESHOLD_YEARS = 18;
+
+/**
+ * Whether `dateOfBirth` is at least {@link ADULT_AGE_THRESHOLD_YEARS} years in
+ * the past, evaluated against UTC "today".
+ *
+ * UTC, not the server's local zone or any particular caller's: `dateOfBirth`
+ * is a `date` column with no time-of-day and no timezone of its own (see its
+ * comment in `db/schema/users.ts`), so there is no single "authoritative"
+ * zone to evaluate it in, and UTC is the one choice every server process and
+ * every caller agrees on without configuration. The practical effect is that
+ * `isAdult` can flip up to a day earlier or later than a viewer's own local
+ * midnight would — a one-day skew around a threshold that is itself a policy
+ * approximation rather than a legal record, so the simplicity is worth it.
+ *
+ * Computed fresh on every read rather than stored: age changes daily, so a
+ * cached or generated-column value would go stale on its own without any
+ * write ever touching the row.
+ */
+function computeIsAdult(dateOfBirth: string): boolean {
+  const [year, month, day] = dateOfBirth.split('-').map(Number);
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const thresholdUtc = Date.UTC(year + ADULT_AGE_THRESHOLD_YEARS, month - 1, day);
+  return thresholdUtc <= todayUtc;
+}
+
+/**
  * Every column of `users` a self-view reads — the public set plus the four
  * owner-only fields. `phone` is named EXPLICITLY: it is a protected column
  * (`db/schema/protectedColumns.ts`), so naming it is how a caller opts in, and
@@ -408,6 +447,7 @@ const selfUserColumns = {
   phone: users.phone,
   address: users.address,
   birthday: users.birthday,
+  dateOfBirth: users.dateOfBirth,
   themePreferenceMode: users.themePreferenceMode,
   themePreferenceColorPreset: users.themePreferenceColorPreset,
 } as const;
@@ -416,6 +456,7 @@ type SelfUserRow = PublicUserRow & {
   phone: string | null;
   address: string | null;
   birthday: string | null;
+  dateOfBirth: string | null;
   themePreferenceMode: 'light' | 'dark' | 'system' | null;
   themePreferenceColorPreset: string | null;
 };
@@ -434,6 +475,7 @@ function toSelfUserView(row: SelfUserRow): SelfUserView {
     phone: row.phone ?? undefined,
     address: row.address ?? undefined,
     birthday: row.birthday ?? undefined,
+    dateOfBirth: row.dateOfBirth ?? undefined,
   };
   if (row.themePreferenceMode !== null && row.themePreferenceColorPreset !== null) {
     view.themePreference = {
@@ -860,6 +902,7 @@ export class UserService {
       'phone',
       'address',
       'birthday',
+      'dateOfBirth',
       'links',
       'linksMetadata',
       'locations',
@@ -936,6 +979,32 @@ export class UserService {
           }
         }
         filteredUpdates.languages = normalizedLocales;
+        continue;
+      }
+
+      // The structured date of birth. `null` or `''` clears it — the same
+      // "clear with blank" convention `blankToNull` gives every other
+      // free-text field, extended to `null` too because a date has no
+      // meaningful "blank string" of its own for a client to send.
+      //
+      // Independently settable from `birthday`: they are validated against
+      // the SAME `dateOfBirthSchema` a `PUT /users/me` body would carry, but
+      // there is no "set one, update the other" coupling. `birthday` stays
+      // whatever free text existing readers already expect (`user.service`'s
+      // module header — nothing in this codebase parses it), and a client
+      // that only ever sends `dateOfBirth` going forward must not have its
+      // legacy `birthday` text silently rewritten out from under it, nor vice
+      // versa for a client that has not adopted the new field yet.
+      if (key === 'dateOfBirth') {
+        if (value === null || value === '') {
+          filteredUpdates.dateOfBirth = null;
+          continue;
+        }
+        const parsed = dateOfBirthSchema.safeParse(value);
+        if (!parsed.success) {
+          throw new BadRequestError(parsed.error.issues[0].message, { field: 'dateOfBirth' });
+        }
+        filteredUpdates.dateOfBirth = parsed.data;
         continue;
       }
 
@@ -2172,6 +2241,15 @@ export class UserService {
       response.phone = stringOrUndefined(user.phone);
       response.address = stringOrUndefined(user.address);
       response.birthday = stringOrUndefined(user.birthday);
+      // The structured date of birth — owner-only, exactly like the three
+      // fields above, and for the same reason (`db/schema/protectedColumns.ts`).
+      const dateOfBirth = stringOrUndefined(user.dateOfBirth);
+      response.dateOfBirth = dateOfBirth;
+      // Derived from `dateOfBirth` on EVERY read (see `computeIsAdult`'s own
+      // comment for why this is never stored) rather than read from a column,
+      // and `undefined` — not `false` — when there is no birthdate to derive
+      // it from, so a consumer can tell "unknown" from "confirmed minor".
+      response.isAdult = dateOfBirth ? computeIsAdult(dateOfBirth) : undefined;
       // Portable theme preference — a personal setting, so it rides ONLY the
       // self payload (`GET /users/me`, `PUT /users/me`), which is what cold boot
       // loads. Gated with the other private fields so it never leaks onto other
@@ -2275,6 +2353,12 @@ function buildUserColumnUpdates(
   if (typeof filtered.phone === 'string') set.phone = blankToNull(filtered.phone);
   if (typeof filtered.address === 'string') set.address = blankToNull(filtered.address);
   if (typeof filtered.birthday === 'string') set.birthday = blankToNull(filtered.birthday);
+  // Already validated (real calendar date, in range) or explicitly nulled by
+  // the `dateOfBirth` block in `updateUserProfile` above — nothing left to do
+  // here but pass the decided value through.
+  if ('dateOfBirth' in filtered) {
+    set.dateOfBirth = typeof filtered.dateOfBirth === 'string' ? filtered.dateOfBirth : null;
+  }
   if (Array.isArray(filtered.links)) {
     set.links = filtered.links.filter((link): link is string => typeof link === 'string');
   }

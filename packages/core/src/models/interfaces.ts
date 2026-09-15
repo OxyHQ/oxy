@@ -117,7 +117,22 @@ export interface User {
   description?: string;
   phone?: string;
   address?: string;
+  /** Legacy free-text birthday, kept for backward compatibility. Prefer `dateOfBirth`. */
   birthday?: string;
+  /**
+   * The structured date of birth, `YYYY-MM-DD`. The new source of truth going
+   * forward — `birthday` above is unparsed free text with no guaranteed
+   * shape. Present only on the account's OWN profile (never on another
+   * account's public profile), same visibility as `phone`/`address`/`birthday`.
+   */
+  dateOfBirth?: string | null;
+  /**
+   * Derived, non-PII signal: whether the account holder is at least 18.
+   * `undefined` when `dateOfBirth` is unset ("unknown"), distinct from
+   * `false` ("known, not yet 18"). Never stored — computed fresh by the API
+   * on every read of the owner's own profile.
+   */
+  isAdult?: boolean;
   website?: string;
   createdAt?: string;
   updatedAt?: string;
