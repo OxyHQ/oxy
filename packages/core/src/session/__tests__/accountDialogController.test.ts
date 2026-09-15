@@ -626,7 +626,7 @@ describe('AccountDialogController — startPasskeyHubSignIn (b2 passkey hub popu
   it('opens the popup synchronously, then navigates it to the hub URL with the authorizeCode once the session exists', async () => {
     const popup = fakePopup();
     const openPopup = jest.fn(() => popup);
-    const { controller, oxy } = makeHarness({ openPopup, hubBaseUrl: 'https://auth.oxy.so' });
+    const { controller, oxy } = makeHarness({ openPopup, hubBaseUrl: 'https://id.oxy.so' });
     oxy.startCommonsSignIn.mockResolvedValue({
       sessionToken: 'secret-tok',
       authorizeCode: 'AUTH-CODE',
@@ -638,7 +638,7 @@ describe('AccountDialogController — startPasskeyHubSignIn (b2 passkey hub popu
     await controller.startPasskeyHubSignIn();
 
     expect(openPopup).toHaveBeenCalledTimes(1);
-    expect(popup.location.href).toBe('https://auth.oxy.so/hub-passkey?code=AUTH-CODE');
+    expect(popup.location.href).toBe('https://id.oxy.so/continue?code=AUTH-CODE');
     // Same underlying device-flow session showQr would create — the QR view
     // still renders as a fallback/alternative alongside the popup.
     const snap = controller.getSnapshot();
@@ -2220,7 +2220,7 @@ describe('AccountDialogController — "Try again" repeats the user\'s choice', (
     await retry;
 
     expect(oxy.deliverCommonsSignIn).not.toHaveBeenCalled();
-    expect(popup.location.href).toContain('/hub-passkey?code=AUTH-CODE');
+    expect(popup.location.href).toContain('/continue?code=AUTH-CODE');
     controller.cancelSignIn();
   });
 

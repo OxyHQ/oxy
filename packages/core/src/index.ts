@@ -624,7 +624,7 @@ export type { QuickAccount, DisplayNameUserShape } from './utils/accountUtils';
 // `*.oxy.so`).
 // ---------------------------------------------------------------------------
 export { registrableApex } from './utils/registrableApex';
-export { CENTRAL_IDP_APEX } from './utils/authWebUrl';
+export { CENTRAL_IDP_APEX, IDENTITY_WEB_ORIGIN } from './utils/authWebUrl';
 
 // WebAuthn relying-party origin guard (client side). Mirrors the server's
 // `isOxyApexOrigin` so consumers can decide whether to offer passkey UI on the

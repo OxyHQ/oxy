@@ -477,6 +477,13 @@ const AccountsMenuView: React.FC<AccountsMenuViewProps> = ({
           title={t('accountMenu.settings')}
           onPress={menu.onOpenSettings}
         />
+        {menu.onOpenIdentity ? (
+          <SettingsListItem
+            icon={<MenuIcon name="shield-account-outline" theme={theme} />}
+            title={t('accountMenu.identity')}
+            onPress={menu.onOpenIdentity}
+          />
+        ) : null}
         <SettingsListItem
           icon={<MenuIcon name="help-circle-outline" theme={theme} />}
           title={t('accountMenu.help')}

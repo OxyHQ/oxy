@@ -52,19 +52,9 @@
   "signup": {
     "title": "Crie a sua conta",
     "subtitle": "Uma identidade para todo o ecossistema.",
-    "commonsHeadline": "Crie a sua identidade no Commons",
-    "commonsExplainer": "O Commons é a sua identidade Oxy com autocustódia total: uma app que funciona em todo o lado.",
     "createInCommons": "Crie a sua identidade no Commons",
-    "passkeyAlternative": "Não tem o Commons? Crie uma chave de acesso neste dispositivo",
     "createAccount": "Criar conta",
-    "creating": "A criar…",
-    "usernamePlaceholder": "Escolha um nome de utilizador",
-    "usernameChecking": "A verificar…",
-    "usernameAvailable": "Disponível",
-    "usernameTaken": "Este nome de utilizador já está em uso",
     "backToSignInLink": "Já tem uma conta? Inicie sessão",
-    "hubExplainer": "Crie a sua Oxy ID numa janela segura e volte de seguida.",
-    "continueInWindow": "Continuar numa nova janela",
     "welcome": {
       "title": "Bem-vindo ao Oxy!",
       "subtitle": "Crie a sua conta em poucos passos",
@@ -119,7 +109,6 @@
     "qrHeadline": "Inicie sessão com a sua identidade Oxy",
     "signInWithOxy": "Iniciar sessão com Oxy",
     "useIdentityOnDevice": "Não tem o Commons? Use uma chave de acesso neste dispositivo",
-    "passkeySigningIn": "A iniciar sessão…",
     "getCommons": "Obter o Commons",
     "commonsNotInstalled": "Não tem o Commons? Obtenha a app para iniciar sessão com o seu Oxy ID.",
     "showQrAnyway": "Tenho o Commons noutro dispositivo",
@@ -146,7 +135,10 @@
       "claimFailed": "O início de sessão foi aprovado, mas não conseguimos concluí-lo. Tente novamente.",
       "generic": "Não foi possível iniciar sessão. Tente novamente."
     },
-    "linkOpenFailed": "Não foi possível abrir a ligação. Tente novamente."
+    "linkOpenFailed": "Não foi possível abrir a ligação. Tente novamente.",
+    "continueWithPasskey": "Continuar",
+    "passkeyHint": "Use a impressão digital, o rosto ou o PIN do dispositivo.",
+    "otherDeviceCommons": "Conta noutro dispositivo? Digitalize com o Commons"
   },
   "common": {
     "actions": {
@@ -287,6 +279,7 @@
     "help": "Ajuda e feedback",
     "signOut": "Terminar sessão",
     "privacy": "Política de privacidade",
-    "terms": "Termos de serviço"
+    "terms": "Termos de serviço",
+    "identity": "A sua identidade"
   }
 }

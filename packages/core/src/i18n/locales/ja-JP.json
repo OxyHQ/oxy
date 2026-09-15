@@ -52,19 +52,9 @@
   "signup": {
     "title": "アカウントを作成",
     "subtitle": "エコシステム全体で使える1つのアイデンティティ。",
-    "commonsHeadline": "Commonsであなたのアイデンティティを作成",
-    "commonsExplainer": "Commonsは完全に自己管理できるあなたのOxy IDです。1つのアプリでどこでも使えます。",
     "createInCommons": "Commonsであなたのアイデンティティを作成",
-    "passkeyAlternative": "Commonsがありませんか？このデバイスでパスキーを作成",
     "createAccount": "アカウントを作成",
-    "creating": "作成しています…",
-    "usernamePlaceholder": "ユーザー名を選択",
-    "usernameChecking": "確認しています…",
-    "usernameAvailable": "利用可能",
-    "usernameTaken": "このユーザー名は既に使用されています",
     "backToSignInLink": "すでにアカウントをお持ちですか？サインイン",
-    "hubExplainer": "安全なウィンドウでOxy IDを作成し、すぐに戻ってきてください。",
-    "continueInWindow": "新しいウィンドウで続ける",
     "welcome": {
       "title": "Oxyへようこそ！",
       "subtitle": "数ステップでアカウントを作成",
@@ -119,7 +109,6 @@
     "qrHeadline": "Oxy IDでサインイン",
     "signInWithOxy": "Oxyでサインイン",
     "useIdentityOnDevice": "Commonsがありませんか？このデバイスのパスキーを使用",
-    "passkeySigningIn": "サインインしています…",
     "getCommons": "Commonsを入手",
     "commonsNotInstalled": "Commonsがありませんか？アプリを入手してOxy IDでサインインしましょう。",
     "showQrAnyway": "別のデバイスにCommonsがあります",
@@ -146,7 +135,10 @@
       "claimFailed": "サインインは承認されましたが、完了できませんでした。もう一度お試しください。",
       "generic": "サインインできませんでした。もう一度お試しください。"
     },
-    "linkOpenFailed": "リンクを開けませんでした。もう一度お試しください。"
+    "linkOpenFailed": "リンクを開けませんでした。もう一度お試しください。",
+    "continueWithPasskey": "続ける",
+    "passkeyHint": "指紋、顔、またはデバイスのPINを使います。",
+    "otherDeviceCommons": "別のデバイスのアカウントですか？Commonsでスキャン"
   },
   "common": {
     "actions": {
@@ -287,6 +279,7 @@
     "help": "ヘルプとフィードバック",
     "signOut": "サインアウト",
     "privacy": "プライバシーポリシー",
-    "terms": "利用規約"
+    "terms": "利用規約",
+    "identity": "あなたのアイデンティティ"
   }
 }
