@@ -721,7 +721,19 @@ app.use("/session/device", userRateLimiter, sessionDeviceRouter);
 // only legitimate caller (the IdP edge, a server) can never hold.
 app.use("/session/browser-hub", userRateLimiter, browserHubRouter);
 app.use("/session", userRateLimiter, csrfProtection, sessionRouter);
-app.use("/privacy", userRateLimiter, csrfProtection, privacyRoutes);
+// `authMiddleware` FIRST, not after `userRateLimiter`: `userRateLimiter`'s
+// keyGenerator/skip both read `(req as AuthRequest).user`, which privacyRoutes'
+// own internal `router.use(authMiddleware)` does not set until AFTER this
+// limiter has already run. With the old order every request reached
+// userRateLimiter before req.user existed, so its skip (`!req.user`) was
+// always true and it silently no-op'd — every call to /privacy/blocked and
+// /privacy/restricted fell through to the shared per-IP `rl:general` budget
+// with no per-user fallback. Measured directly: Mention's `/notifications`
+// 500s with `OxyPrivacyUnavailableError` after these two calls came back 429,
+// because Mention fans every signed-in user's privacy-list read through one
+// shared backend NAT egress IP and the general 1000/15min budget has no
+// per-account attribution to fall back on once it is shared like that.
+app.use("/privacy", authMiddleware, userRateLimiter, csrfProtection, privacyRoutes);
 app.use("/analytics", userRateLimiter, authMiddleware, analyticsRoutes);
 app.use('/payments', userRateLimiter, csrfProtection, paymentRoutes);
 app.use('/notifications', userRateLimiter, csrfProtection, notificationsRouter);
