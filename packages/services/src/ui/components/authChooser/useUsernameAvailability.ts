@@ -5,9 +5,13 @@
  * taken` verdict without racing. A sequence guard drops superseded responses,
  * and a NETWORK failure resets the (now stale) verdict and toasts — it never
  * paints an inline error inside the dialog (owner mandate).
+ *
+ * Leaving the form ends the check: unmounting drops the pending debounce and
+ * invalidates the request in flight, so a user who has already moved on never
+ * gets a verdict — or a failure toast — for a form that is gone.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from '@oxy.so/bloom/toast';
 import type { OxyServices } from '@oxy.so/core';
 import type { Translate } from './types';
@@ -29,6 +33,15 @@ export function useUsernameAvailability(
   const [status, setStatus] = useState<UsernameStatus>('idle');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestSeqRef = useRef(0);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
+      requestSeqRef.current += 1;
+    },
+    [],
+  );
 
   const check = useCallback(
     (value: string) => {

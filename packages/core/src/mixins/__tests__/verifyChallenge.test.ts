@@ -127,4 +127,35 @@ describe('OxyServices.verifyChallenge token planting', () => {
     expect(oxy.hasValidToken()).toBe(true);
     expect(oxy.getAccessToken()).toBe('access_claim');
   });
+
+  /**
+   * `plantTokens: false` is for a caller that must decide AFTER the response
+   * whether the session is still wanted — the account dialog, whose user may
+   * have cancelled while the request was in flight. It still gets the bearer in
+   * the response; the client just is not switched to it.
+   */
+  it('leaves the client untouched with plantTokens: false, on both paths', async () => {
+    const oxy = makeOxy();
+
+    jest.spyOn(oxy, 'makeRequest').mockImplementation(async (_method, url) => {
+      const body = {
+        sessionId: 'sess_x',
+        deviceId: 'dev_x',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        user: { id: 'user_x', username: 'x' },
+      };
+      if (url === '/auth/verify') return { ...body, accessToken: 'access_verify' } as never;
+      if (url === '/auth/session/claim') return { ...body, accessToken: 'access_claim' } as never;
+      throw new Error(`unexpected request to ${url}`);
+    });
+
+    const verified = await oxy.verifyChallenge('pubkey', 'challenge', 'sig', 1, undefined, undefined, undefined, {
+      plantTokens: false,
+    });
+    const claimed = await oxy.claimSessionByToken('session-token-abc', { plantTokens: false });
+
+    expect(verified.accessToken).toBe('access_verify');
+    expect(claimed.accessToken).toBe('access_claim');
+    expect(oxy.hasValidToken()).toBe(false);
+  });
 });

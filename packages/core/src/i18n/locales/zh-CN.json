@@ -136,7 +136,17 @@
       "openedInCommons": "已在 Commons 中打开",
       "confirming": "正在确认身份",
       "confirmed": "身份已确认"
-    }
+    },
+    "signInFailures": {
+      "denied": "登录请求已在 Commons 中被拒绝。",
+      "expired": "登录请求已过期，请重试。",
+      "network": "无法连接到 Oxy。请检查网络连接后重试。",
+      "notConfigured": "此应用尚未设置登录。",
+      "unsupportedFlow": "此登录无法在这里完成。",
+      "claimFailed": "登录已获批准，但未能完成。请重试。",
+      "generic": "登录失败，请重试。"
+    },
+    "linkOpenFailed": "无法打开链接，请重试。"
   },
   "common": {
     "actions": {

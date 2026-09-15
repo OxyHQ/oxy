@@ -136,7 +136,17 @@
       "openedInCommons": "In Commons geöffnet",
       "confirming": "Identität wird bestätigt",
       "confirmed": "Identität bestätigt"
-    }
+    },
+    "signInFailures": {
+      "denied": "Die Anmeldung wurde in Commons abgelehnt.",
+      "expired": "Die Anmeldeanfrage ist abgelaufen. Bitte versuchen Sie es erneut.",
+      "network": "Oxy ist nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+      "notConfigured": "Diese App ist noch nicht für die Anmeldung eingerichtet.",
+      "unsupportedFlow": "Diese Anmeldung kann hier nicht abgeschlossen werden.",
+      "claimFailed": "Die Anmeldung wurde genehmigt, konnte aber nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
+      "generic": "Die Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut."
+    },
+    "linkOpenFailed": "Der Link konnte nicht geöffnet werden. Bitte versuchen Sie es erneut."
   },
   "common": {
     "actions": {

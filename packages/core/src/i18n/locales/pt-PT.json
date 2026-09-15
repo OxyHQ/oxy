@@ -136,7 +136,17 @@
       "openedInCommons": "Aberto no Commons",
       "confirming": "A confirmar a identidade",
       "confirmed": "Identidade confirmada"
-    }
+    },
+    "signInFailures": {
+      "denied": "O início de sessão foi recusado no Commons.",
+      "expired": "O pedido de início de sessão expirou. Tente novamente.",
+      "network": "Não foi possível contactar a Oxy. Verifique a ligação e tente novamente.",
+      "notConfigured": "Esta app ainda não está preparada para iniciar sessão.",
+      "unsupportedFlow": "Este início de sessão não pode ser concluído aqui.",
+      "claimFailed": "O início de sessão foi aprovado, mas não conseguimos concluí-lo. Tente novamente.",
+      "generic": "Não foi possível iniciar sessão. Tente novamente."
+    },
+    "linkOpenFailed": "Não foi possível abrir a ligação. Tente novamente."
   },
   "common": {
     "actions": {
