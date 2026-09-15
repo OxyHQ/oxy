@@ -51,3 +51,12 @@ it('keeps missing users and changed accounts visible while treating legacy empty
   expect(await inspectReconciliationChanges(source, source.username)).toBe(false);
   expect(await inspectReconciliationChanges({ ...source, username: `other${source.username}` }, source.username)).toBe(true);
 });
+
+it('finds the same persisted identity when legacy username casing/spacing differs', async () => {
+  const source = profile('Canonical biography');
+  const registered = await registerExternalIdentity({ canonicalAcct: source.username, actorUri: source.actorUri,
+    transportAcct: source.transportAcct, protocol: source.protocol,
+    profile: { displayName: source.displayName, bio: source.bio } });
+  await getDb().update(users).set({ username: ` ${source.username.toUpperCase()} ` }).where(eq(users.id, registered.userId));
+  expect(await inspectReconciliationChanges(source, source.username)).toBe(false);
+});

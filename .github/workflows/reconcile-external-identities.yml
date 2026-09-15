@@ -6,10 +6,10 @@ on:
         description: Fixed operation (inspection never discovers or writes)
         required: true
         type: choice
-        options: [reconcile, inspect_cache, inspect_meta]
+        options: [reconcile, inspect_cache, inspect_meta, inspect_profile]
         default: reconcile
       actor_uri:
-        description: inspect_cache only - exact HTTPS source actor URI
+        description: inspect_cache or inspect_profile (reviewed Bird actor only) - exact HTTPS URI
         required: false
         type: string
       canonical_acct:
