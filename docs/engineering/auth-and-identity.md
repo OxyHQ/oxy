@@ -170,6 +170,16 @@ Domain verification = a **badge** only (`alsoKnownAs` in DID). NOT domain-as-han
 
 Registered in `MIXIN_PIPELINE` + `AllMixinInstances`. Methods: `resolveDid`, `getMyDid`, `listAuthMethods`, `linkIdentityKey` (sign + `/auth/link`), `unlinkAuthMethod`, `linkPassword`, `signRecord`, `publishRecord`, `getRecord`, `verifyRecord`, `exportMyData`, `requestDomainVerification`, `verifyDomain`, `listDomains`, `removeDomain`. Cache-sweeps `/users/me` + DID cache after mutations. Exports new types + `canonicalize` + `buildSignedRecord`.
 
+## Web identity carrier — `id.oxy.so` (one identity, two carriers)
+
+Design: `docs/superpowers/specs/2026-09-15-one-identity-two-carriers-design.md`.
+
+- **Same identity as Commons.** A web identity is the BIP-39 phrase → `seed[0:32]` key Commons uses; `@oxy.so/core` `crypto/webIdentityCarrier.ts` seals the entropy under a data key wrapped per passkey with a WebAuthn PRF-derived key. Recovery for both carriers is the same 12-word phrase; nobody, Oxy included, can reset it.
+- **Oxy is never the custodian.** The API stores the sealed envelope (`identity_web_envelopes`) and can open none of it. `GET/PUT/DELETE /identity/web-envelope`, `POST …/establish` and `POST …/phrase-confirmed` answer ONLY `IDENTITY_WEB_ORIGIN` (`https://id.oxy.so`) or loopback, and every write carries a fresh identity-key proof bound to its action. A first identity is linked and stored in ONE transaction (`/establish`) — never a linked key without its envelope.
+- **`packages/id` is a deliberate exception to "ONE `OxyProvider`".** It is the page that unseals identities, so it is plain React with no provider, no design-system runtime, no analytics and no third-party code; its CSP lives in the Worker (`worker/headers.mjs`, unit-tested, smoke-gated after deploy). It persists no session: every visit proves the person with a passkey, and a sign-in session is signed out once its job is done.
+- **Key operations stay on that origin.** Saving/recovering the phrase and account deletion run on `id.oxy.so` with its own session; no other site receives the key or a signature made with it. `/continue?code=` signs an app in through the existing device-flow `authorize-code` path with the passkey hub's mandatory confirmation + acknowledgement.
+- **No PRF → no web identity (D3).** The account still signs in; the identity is created once the person is in a PRF-capable browser or Commons. `/prf-check` diagnoses a browser + passkey without sending anything.
+
 ## Sign in with Oxy — QR/Shared-Key Handoff (PR #415, extended by issue #691)
 
 **User-facing label everywhere: "Sign in with Oxy"** — never say "Sign in with Commons"; the mechanism is invisible plumbing. The in-app `OxyAccountDialog` entry (issue #691, Phase 5) is NOT a menu of co-equal methods: it shows existing device accounts plus ONE primary **"Continue with Oxy"** action, and Oxy — not the user — picks how the request reaches the Commons identity (see "Automatic delivery selection" below). Scan-QR, passkey-on-this-device, and "Get Commons" are subordinate links behind a collapsed "Having trouble?" disclosure; there is no password option anywhere in this dialog.

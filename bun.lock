@@ -609,6 +609,26 @@
         "express",
       ],
     },
+    "packages/id": {
+      "name": "id",
+      "version": "0.1.0",
+      "dependencies": {
+        "@oxy.so/contracts": "workspace:*",
+        "@oxy.so/core": "workspace:*",
+        "@oxy.so/protocol": "workspace:*",
+        "react": "catalog:",
+        "react-dom": "catalog:",
+      },
+      "devDependencies": {
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "@vitejs/plugin-react": "catalog:",
+        "jest": "^30.5.1",
+        "ts-jest": "^29.4.12",
+        "typescript": "^5.9.2",
+        "vite": "npm:rolldown-vite@^7.3.1",
+      },
+    },
     "packages/mcp": {
       "name": "@oxy.so/mcp",
       "version": "1.0.0",
@@ -3711,6 +3731,8 @@
     "hyphenate-style-name": ["hyphenate-style-name@1.1.0", "", {}, "sha512-WDC/ui2VVRrz3jOVi+XtjqkDjiVjTtFaAGiW37k6b+ohyQ5wYDOGkvCZa8+H0nx3gyvv0+BST9xuOgIyGQ00gw=="],
 
     "iconv-lite": ["iconv-lite@0.6.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw=="],
+
+    "id": ["id@workspace:packages/id"],
 
     "ieee754": ["ieee754@1.2.1", "", {}, "sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA=="],
 
