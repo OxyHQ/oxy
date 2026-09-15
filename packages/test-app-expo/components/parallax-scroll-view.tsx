@@ -1,5 +1,6 @@
 import type { PropsWithChildren, ReactElement } from 'react';
 import { StyleSheet } from 'react-native';
+import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import Animated, {
   interpolate,
   useAnimatedRef,
@@ -27,6 +28,8 @@ export default function ParallaxScrollView({
   const colorScheme = useColorScheme() ?? 'light';
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const scrollOffset = useScrollOffset(scrollRef);
+  // The tab bar floats over the content; leave room so the last item clears it.
+  const tabBarFootprint = useTabBarFootprint();
   const headerAnimatedStyle = useAnimatedStyle(() => {
     return {
       transform: [
@@ -48,6 +51,7 @@ export default function ParallaxScrollView({
     <Animated.ScrollView
       ref={scrollRef}
       style={{ backgroundColor, flex: 1 }}
+      contentContainerStyle={{ paddingBottom: tabBarFootprint }}
       scrollEventThrottle={16}>
       <Animated.View
         style={[
