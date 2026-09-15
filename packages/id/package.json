@@ -16,10 +16,12 @@
     "@oxy.so/contracts": "workspace:*",
     "@oxy.so/core": "workspace:*",
     "@oxy.so/protocol": "workspace:*",
+    "qrcode": "^1.5.4",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "catalog:",

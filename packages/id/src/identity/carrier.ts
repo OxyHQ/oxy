@@ -10,16 +10,23 @@
  */
 
 import {
+  deriveMoveKey,
+  deriveMoveSas,
+  generateMoveEphemeralKeyPair,
   generateWebIdentity,
+  IDENTITY_MOVE_ACTIONS,
+  sealIdentityForMove,
   sealWebIdentity,
   signIdentityAction,
+  signMoveAction,
   unlockWebIdentity,
+  verifyMoveReceipt,
   wipeBytes,
   WebIdentityUnlockError,
   type OpenedWebIdentity,
   type WebIdentityUnlockFailure,
 } from '@oxy.so/core';
-import type { WebIdentityEnvelope, WebIdentityEnvelopeResponse } from '@oxy.so/contracts';
+import type { IdentityMoveState, WebIdentityEnvelope, WebIdentityEnvelopeResponse } from '@oxy.so/contracts';
 import { signMessage } from '@oxy.so/protocol';
 import type { CarrierAccount, IdentityApi } from './api';
 import type { CeremonyResult, CreationOptionsJSON, RequestOptionsJSON } from './passkey';
@@ -184,6 +191,121 @@ export async function deleteAccount(ports: CarrierPorts, identity: OpenedWebIden
   const timestamp = Date.now();
   const signature = await signMessage(`delete:${identity.publicKey}:${timestamp}`, identity.privateKey);
   await ports.api.deleteAccount({ publicKey: identity.publicKey, signature, timestamp, confirmText });
+}
+
+/** A move this browser started. The ephemeral private key never leaves memory. */
+export interface OutgoingMove {
+  moveId: string;
+  expiresAt: string;
+  ephemeral: { privateKey: string; publicKey: string };
+}
+
+/** What the person sees while a move is under way. */
+export type MoveProgress =
+  /** Waiting for Commons to scan the code. */
+  | { kind: 'waiting' }
+  /** Commons joined: compare this code on both screens before sending. */
+  | { kind: 'compare'; sas: string }
+  /** Sent; waiting for Commons to confirm it holds the identity. */
+  | { kind: 'sent' }
+  /** Commons proved it holds the identity. */
+  | { kind: 'received' }
+  /** The move ended without the identity changing hands. */
+  | { kind: 'ended'; reason: 'expired' | 'cancelled' };
+
+/**
+ * Start moving this account's identity to Commons (a MOVE, not a copy).
+ *
+ * Only an identity this passkey actually opens can be moved — proven before a
+ * code is shown, so a person never scans a code that cannot complete.
+ */
+export async function startMove(ports: CarrierPorts, session: CarrierSession): Promise<OutgoingMove> {
+  wipeIdentity(await unlockIdentity(ports, session));
+  const ephemeral = generateMoveEphemeralKeyPair();
+  const { moveId, expiresAt } = await ports.api.createMove(ephemeral.publicKey);
+  return { moveId, expiresAt, ephemeral };
+}
+
+/**
+ * Read where the move stands. A relay that reports an initiator key other than
+ * ours is not showing us our own move, and nothing is sealed to it.
+ */
+export async function readMove(ports: CarrierPorts, move: OutgoingMove): Promise<{ state: IdentityMoveState; progress: MoveProgress }> {
+  const state = await ports.api.getMove(move.moveId);
+  if (state.moveId !== move.moveId || state.initiatorEphemeralPublicKey !== move.ephemeral.publicKey) {
+    throw new Error('The move could not be verified. Start again.');
+  }
+  switch (state.status) {
+    case 'pending':
+      return { state, progress: { kind: 'waiting' } };
+    case 'joined':
+      if (!state.responderEphemeralPublicKey) throw new Error('The move could not be verified. Start again.');
+      return { state, progress: { kind: 'compare', sas: deriveMoveSas(move.moveId, move.ephemeral.publicKey, state.responderEphemeralPublicKey) } };
+    case 'sealed':
+      return { state, progress: { kind: 'sent' } };
+    case 'completed':
+      return { state, progress: { kind: 'received' } };
+    default:
+      return { state, progress: { kind: 'ended', reason: state.status === 'cancelled' ? 'cancelled' : 'expired' } };
+  }
+}
+
+/**
+ * The person confirmed both screens show the same code: seal the identity for
+ * the device that joined. The SAS is recomputed from the state being sealed to,
+ * so a key swapped after the comparison cannot receive it.
+ */
+export async function sendMove(ports: CarrierPorts, session: CarrierSession, move: OutgoingMove, confirmedSas: string): Promise<void> {
+  const { state, progress } = await readMove(ports, move);
+  if (progress.kind !== 'compare' || progress.sas !== confirmedSas || !state.responderEphemeralPublicKey) {
+    throw new Error('The code changed. Start again.');
+  }
+  const identity = await unlockIdentity(ports, session);
+  const moveKey = deriveMoveKey(move.ephemeral.privateKey, state.responderEphemeralPublicKey, move.moveId);
+  try {
+    if (identity.publicKey !== state.publicKey) throw new Error('The move could not be verified. Start again.');
+    const sealed = sealIdentityForMove(identity, moveKey, move.moveId);
+    await ports.api.sealMove(move.moveId, { ...sealed, ...(await signMoveAction(identity, IDENTITY_MOVE_ACTIONS.seal, move.moveId)) });
+  } finally {
+    wipeBytes(moveKey);
+    wipeIdentity(identity);
+  }
+}
+
+/**
+ * Commons reports the identity received: verify its receipt HERE, with the
+ * identity's own public key, and only then destroy the web copy — server and
+ * local. A server that claims completion without Commons holding the key
+ * cannot make this browser forget the identity.
+ */
+export async function completeMove(ports: CarrierPorts, session: CarrierSession, move: OutgoingMove, state: IdentityMoveState): Promise<void> {
+  if (state.status !== 'completed' || state.receiptSignature === null || state.receiptTimestamp === null) {
+    throw new Error('The move is not complete yet');
+  }
+  const identity = await unlockIdentity(ports, session);
+  try {
+    if (identity.publicKey !== state.publicKey) throw new Error('The move could not be verified. Start again.');
+    const valid = await verifyMoveReceipt(identity.publicKey, move.moveId, { signature: state.receiptSignature, timestamp: state.receiptTimestamp });
+    if (!valid) throw new Error('Commons did not prove it received your identity. Your identity is still here.');
+    await ports.api.deleteEnvelope(await signIdentityAction(identity, 'web_envelope_delete', session.account.userId));
+  } finally {
+    wipeIdentity(identity);
+  }
+  await ports.local.remove(session.account.userId);
+  wipeMove(move);
+}
+
+/** Give up on a move before it completes. */
+export async function cancelMove(ports: CarrierPorts, move: OutgoingMove): Promise<void> {
+  try {
+    await ports.api.cancelMove(move.moveId);
+  } finally {
+    wipeMove(move);
+  }
+}
+
+function wipeMove(move: OutgoingMove): void {
+  (move.ephemeral as { privateKey: string }).privateKey = '';
 }
 
 /** Best-effort removal of secret strings from an opened identity. */
