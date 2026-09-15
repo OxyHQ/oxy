@@ -136,7 +136,17 @@
       "openedInCommons": "Commonsで開きました",
       "confirming": "本人確認をしています",
       "confirmed": "本人確認が完了しました"
-    }
+    },
+    "signInFailures": {
+      "denied": "Commonsでサインインが拒否されました。",
+      "expired": "サインインのリクエストの有効期限が切れました。もう一度お試しください。",
+      "network": "Oxyに接続できませんでした。接続を確認して、もう一度お試しください。",
+      "notConfigured": "このアプリはまだサインインに対応していません。",
+      "unsupportedFlow": "このサインインはここでは完了できません。",
+      "claimFailed": "サインインは承認されましたが、完了できませんでした。もう一度お試しください。",
+      "generic": "サインインできませんでした。もう一度お試しください。"
+    },
+    "linkOpenFailed": "リンクを開けませんでした。もう一度お試しください。"
   },
   "common": {
     "actions": {

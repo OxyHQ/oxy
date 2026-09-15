@@ -137,6 +137,9 @@ interface OxyMock {
   denyCommonsSignIn: jest.Mock;
   claimSessionByToken: jest.Mock;
   signInWithSharedIdentity: jest.Mock;
+  /** Plant / clear the bearer — both fire `onTokensChanged`, like `OxyServices`. */
+  setTokens: jest.Mock;
+  clearTokens: jest.Mock;
   /**
    * Test helper: set the current access token and fire every registered
    * `onTokensChanged` listener (mirrors `OxyServices.setTokens`/`clearTokens`).
@@ -149,6 +152,12 @@ function makeOxy(): OxyMock {
   const tokenListeners = new Set<(token: string | null) => void>();
   // Authenticated by default (mirrors a warm start with a planted bearer).
   let currentToken: string | null = 'access-token';
+  const emitTokenChange = (token: string | null) => {
+    currentToken = token;
+    for (const listener of tokenListeners) {
+      listener(token);
+    }
+  };
   return {
     getAccessToken: jest.fn(() => currentToken),
     getBaseURL: jest.fn(() => 'http://test.invalid'),
@@ -168,12 +177,9 @@ function makeOxy(): OxyMock {
     denyCommonsSignIn: jest.fn().mockResolvedValue({ success: true }),
     claimSessionByToken: jest.fn(),
     signInWithSharedIdentity: jest.fn().mockResolvedValue(null),
-    emitTokenChange: (token: string | null) => {
-      currentToken = token;
-      for (const listener of tokenListeners) {
-        listener(token);
-      }
-    },
+    setTokens: jest.fn((token: string) => emitTokenChange(token)),
+    clearTokens: jest.fn(() => emitTokenChange(null)),
+    emitTokenChange,
   };
 }
 
@@ -494,6 +500,7 @@ describe('AccountDialogController — sign in with Oxy', () => {
     const snap = controller.getSnapshot();
     expect(snap.signIn.phase).toBe('error');
     expect(snap.signIn.error).toMatch(/clientId/);
+    expect(snap.signIn.failure).toBe('not-configured');
   });
 
   it('polls, claims, and commits when the QR flow is authorized', async () => {
@@ -526,7 +533,7 @@ describe('AccountDialogController — sign in with Oxy', () => {
       expect(oxy.pollCommonsSignIn).toHaveBeenCalledTimes(1);
 
       await jest.advanceTimersByTimeAsync(1000); // second poll → authorized → claim
-      expect(oxy.claimSessionByToken).toHaveBeenCalledWith('secret-tok');
+      expect(oxy.claimSessionByToken).toHaveBeenCalledWith('secret-tok', { plantTokens: false });
       expect(commitSession).toHaveBeenCalledWith(
         expect.objectContaining({
           sessionId: 'sess-1',
@@ -559,6 +566,7 @@ describe('AccountDialogController — sign in with Oxy', () => {
 
       expect(controller.getSnapshot().signIn.phase).toBe('error');
       expect(controller.getSnapshot().signIn.error).toMatch(/denied/i);
+      expect(controller.getSnapshot().signIn.failure).toBe('denied');
 
       // No further polls after the terminal error.
       await jest.advanceTimersByTimeAsync(5000);
@@ -698,6 +706,8 @@ describe('AccountDialogController — startPasskeyHubSignIn (b2 passkey hub popu
       const snap = controller.getSnapshot();
       expect(snap.signIn.phase).toBe('error');
       expect(snap.signIn.error).toMatch(/cancelled/i);
+      // A VOLUNTARY exit — the surface must be able to tell it from a failure.
+      expect(snap.signIn.failure).toBe('cancelled');
     } finally {
       jest.useRealTimers();
     }
@@ -891,7 +901,7 @@ describe('AccountDialogController — /auth-session socket (instant QR wake)', (
     await flush();
 
     expect(oxy.pollCommonsSignIn).toHaveBeenCalledWith('secret-tok');
-    expect(oxy.claimSessionByToken).toHaveBeenCalledWith('secret-tok');
+    expect(oxy.claimSessionByToken).toHaveBeenCalledWith('secret-tok', { plantTokens: false });
     expect(commitSession).toHaveBeenCalled();
     expect(controller.getSnapshot().view).toBe('accounts');
     expect(sock.disconnected).toBe(true); // torn down on completion
@@ -1307,11 +1317,13 @@ describe('AccountDialogController — automatic delivery selection (#691 phase 5
       'qrPayload',
       'expiresAt',
       'error',
+      'failure',
       'route',
       'routeFailed',
       'pushSentAt',
       'openedAt',
       'progress',
+      'attempt',
     ]);
     // Only the PUBLIC handles are exposed.
     expect(snap.signIn.authorizeCode).toBe('AUTH-CODE');
@@ -1560,11 +1572,13 @@ describe('AccountDialogController — cancellation converges (#691 phase 5)', ()
         qrPayload: null,
         expiresAt: null,
         error: null,
+        failure: null,
         route: null,
         routeFailed: false,
         pushSentAt: null,
         openedAt: null,
         progress: 'idle',
+        attempt: expect.any(Number),
       });
       await jest.advanceTimersByTimeAsync(10_000);
       expect(oxy.pollCommonsSignIn).not.toHaveBeenCalled();
@@ -1956,6 +1970,389 @@ describe('AccountDialogController — the directory (ADR 0002)', () => {
 
     expect(urls).not.toContain('/session/device/directory');
     expect(controller.getSnapshot().directory).toBeNull();
+  });
+});
+
+/** A promise whose settlement the test controls — a slow network, on demand. */
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (error: unknown) => void;
+} {
+  let resolve: (value: T) => void = () => undefined;
+  let reject: (error: unknown) => void = () => undefined;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+const CLAIMED_SESSION = {
+  accessToken: 'access-claimed',
+  sessionId: 'sess-claimed',
+  deviceId: 'device-1',
+  expiresAt: '2030-01-01T00:00:00Z',
+  user: user('b1'),
+};
+
+describe('AccountDialogController — an abandoned attempt stays abandoned', () => {
+  it('withdraws a request that is created only after the user closed the dialog, and wires nothing up', async () => {
+    jest.useFakeTimers();
+    try {
+      const { controller, oxy } = makeHarness();
+      const created = deferred<typeof DELIVERY_HANDLE & { expiresAt: number }>();
+      oxy.startCommonsSignIn.mockReturnValue(created.promise);
+
+      const running = controller.showQr();
+      expect(controller.getSnapshot().signIn.phase).toBe('starting');
+      // Closed on a slow connection: there is no authorize code to withdraw yet.
+      controller.cancelSignIn();
+      expect(oxy.denyCommonsSignIn).not.toHaveBeenCalled();
+
+      created.resolve({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+      await running;
+
+      // The late request is withdrawn the moment it exists, and nothing revives:
+      // no waiting surface, no delivery, no poll.
+      expect(oxy.denyCommonsSignIn).toHaveBeenCalledWith('AUTH-CODE');
+      expect(controller.getSnapshot().signIn.phase).toBe('idle');
+      expect(controller.getSnapshot().signIn.authorizeCode).toBeNull();
+      expect(oxy.deliverCommonsSignIn).not.toHaveBeenCalled();
+      await jest.advanceTimersByTimeAsync(10_000);
+      expect(oxy.pollCommonsSignIn).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('lets a newer attempt win over a slower earlier one', async () => {
+    const { controller, oxy } = makeHarness();
+    const first = deferred<unknown>();
+    oxy.startCommonsSignIn
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce({
+        sessionToken: 'tok-2',
+        authorizeCode: 'CODE-2',
+        qrPayload: 'oxycommons://approve?code=CODE-2',
+        expiresAt: Date.now() + 600_000,
+        status: 'pending',
+      });
+
+    const slow = controller.showQr();
+    await controller.showQr();
+    first.resolve({
+      sessionToken: 'tok-1',
+      authorizeCode: 'CODE-1',
+      qrPayload: 'oxycommons://approve?code=CODE-1',
+      expiresAt: Date.now() + 600_000,
+      status: 'pending',
+    });
+    await slow;
+
+    expect(controller.getSnapshot().signIn.authorizeCode).toBe('CODE-2');
+    expect(oxy.denyCommonsSignIn).toHaveBeenCalledWith('CODE-1');
+    expect(oxy.denyCommonsSignIn).not.toHaveBeenCalledWith('CODE-2');
+    controller.cancelSignIn();
+  });
+
+  it('never installs a shared-identity session that was minted after the user cancelled', async () => {
+    const { controller, oxy, commitSession, onSignedIn } = makeHarness();
+    const minted = deferred<SessionLoginResponse>();
+    oxy.signInWithSharedIdentity.mockReturnValue(minted.promise);
+
+    const running = controller.signInWithOxy();
+    // Minted without planting: the controller decides whether to install it.
+    expect(oxy.signInWithSharedIdentity).toHaveBeenCalledWith({ plantTokens: false });
+    controller.cancelSignIn();
+    minted.resolve({
+      sessionId: 'sess-shared',
+      deviceId: 'device-1',
+      expiresAt: '2030-01-01T00:00:00Z',
+      accessToken: 'access-shared',
+      user: { id: 'a1', username: 'user_a1' },
+    });
+    await running;
+
+    expect(oxy.setTokens).not.toHaveBeenCalled();
+    expect(commitSession).not.toHaveBeenCalled();
+    expect(onSignedIn).not.toHaveBeenCalled();
+    // …and the abandoned attempt does not fall through to a QR request either.
+    expect(oxy.startCommonsSignIn).not.toHaveBeenCalled();
+    expect(controller.getSnapshot().signIn.phase).toBe('idle');
+  });
+
+  it('never installs a session whose claim returned after the user cancelled', async () => {
+    jest.useFakeTimers();
+    try {
+      const { controller, oxy, commitSession, onSignedIn } = makeHarness();
+      oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+      oxy.pollCommonsSignIn.mockResolvedValue({ authorized: true, sessionId: 'sess-claimed', status: 'authorized' });
+      const claim = deferred<typeof CLAIMED_SESSION>();
+      oxy.claimSessionByToken.mockReturnValue(claim.promise);
+
+      await controller.showQr();
+      await jest.advanceTimersByTimeAsync(1000); // poll → authorized → claim in flight
+      expect(controller.getSnapshot().signIn.phase).toBe('authorized');
+
+      controller.cancelSignIn();
+      claim.resolve(CLAIMED_SESSION);
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(oxy.setTokens).not.toHaveBeenCalled();
+      expect(commitSession).not.toHaveBeenCalled();
+      expect(onSignedIn).not.toHaveBeenCalled();
+      expect(controller.getSnapshot().signIn.phase).toBe('idle');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('plants the claimed bearer at the install point, immediately before the commit', async () => {
+    jest.useFakeTimers();
+    try {
+      const { controller, oxy, commitSession } = makeHarness();
+      oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+      oxy.pollCommonsSignIn.mockResolvedValue({ authorized: true, sessionId: 'sess-claimed', status: 'authorized' });
+      oxy.claimSessionByToken.mockResolvedValue(CLAIMED_SESSION);
+
+      await controller.showQr();
+      await jest.advanceTimersByTimeAsync(1000);
+
+      expect(oxy.setTokens).toHaveBeenCalledWith('access-claimed');
+      expect(oxy.setTokens.mock.invocationCallOrder[0]).toBeLessThan(
+        commitSession.mock.invocationCallOrder[0],
+      );
+      expect(controller.getSnapshot().signIn.phase).toBe('completed');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('restores the previous bearer when the commit fails, and fails the attempt', async () => {
+    jest.useFakeTimers();
+    try {
+      const { controller, oxy, commitSession, onSignedIn } = makeHarness();
+      commitSession.mockRejectedValue(new Error('persist failed'));
+      oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+      oxy.pollCommonsSignIn.mockResolvedValue({ authorized: true, sessionId: 'sess-claimed', status: 'authorized' });
+      oxy.claimSessionByToken.mockResolvedValue(CLAIMED_SESSION);
+
+      await controller.showQr();
+      await jest.advanceTimersByTimeAsync(1000);
+
+      // Requests must not keep going out as an account the device never took.
+      expect(oxy.getAccessToken()).toBe('access-token');
+      expect(onSignedIn).not.toHaveBeenCalled();
+      expect(controller.getSnapshot().signIn.phase).toBe('error');
+      expect(controller.getSnapshot().signIn.failure).toBe('unknown');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('falls through to the QR handoff when a shared-identity session cannot be committed', async () => {
+    const { controller, oxy, commitSession } = makeHarness();
+    const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    commitSession.mockRejectedValue(new Error('persist failed'));
+    oxy.signInWithSharedIdentity.mockResolvedValue({
+      sessionId: 'sess-shared',
+      deviceId: 'device-1',
+      expiresAt: '2030-01-01T00:00:00Z',
+      accessToken: 'access-shared',
+      user: { id: 'a1', username: 'user_a1' },
+    });
+    oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+
+    await controller.signInWithOxy();
+
+    expect(oxy.getAccessToken()).toBe('access-token');
+    expect(controller.getSnapshot().signIn.phase).toBe('waiting');
+    controller.cancelSignIn();
+    warnSpy.mockRestore();
+  });
+
+  it('classifies an unreachable server as a network failure', async () => {
+    const { controller, oxy } = makeHarness();
+    oxy.startCommonsSignIn.mockRejectedValue(
+      Object.assign(new Error('Network error - failed to connect to server'), { code: 'NETWORK_ERROR', status: 0 }),
+    );
+
+    await controller.showQr();
+
+    expect(controller.getSnapshot().signIn.phase).toBe('error');
+    expect(controller.getSnapshot().signIn.failure).toBe('network');
+  });
+
+  it('moves the attempt identity on every new attempt, and keeps it on the failure it belongs to', async () => {
+    const { controller, oxy } = makeHarness({ clientId: null });
+    oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+
+    await controller.showQr();
+    const firstFailure = controller.getSnapshot().signIn.attempt;
+    await controller.showQr();
+
+    // Same message, different attempt — a surface can tell a repeat of the
+    // failure it already reported from a new one.
+    expect(controller.getSnapshot().signIn.failure).toBe('not-configured');
+    expect(controller.getSnapshot().signIn.attempt).not.toBe(firstFailure);
+  });
+});
+
+describe('AccountDialogController — "Try again" repeats the user\'s choice', () => {
+  it('reopens the passkey hub after a failed hub attempt', async () => {
+    // A real window stays closed once closed, so every open is a fresh one.
+    let popup = fakePopup();
+    const openPopup = jest.fn(() => {
+      popup = fakePopup();
+      return popup;
+    });
+    const { controller, oxy } = makeHarness({ openPopup });
+    oxy.startCommonsSignIn.mockRejectedValue(new Error('boom'));
+
+    await controller.startPasskeyHubSignIn();
+    expect(controller.getSnapshot().signIn.phase).toBe('error');
+
+    oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+    const retry = controller.retrySignIn();
+    // Opened synchronously, inside the press — before any await.
+    expect(openPopup).toHaveBeenCalledTimes(2);
+    await retry;
+
+    expect(oxy.deliverCommonsSignIn).not.toHaveBeenCalled();
+    expect(popup.location.href).toContain('/hub-passkey?code=AUTH-CODE');
+    controller.cancelSignIn();
+  });
+
+  it('retries "Sign in with Oxy" (never the hub) after a failed Oxy attempt', async () => {
+    const openPopup = jest.fn(() => fakePopup());
+    const { controller, oxy } = makeHarness({ openPopup });
+    oxy.startCommonsSignIn.mockRejectedValueOnce(new Error('boom'));
+
+    await controller.signInWithOxy();
+    expect(controller.getSnapshot().signIn.phase).toBe('error');
+
+    oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+    await controller.retrySignIn();
+
+    expect(openPopup).not.toHaveBeenCalled();
+    expect(oxy.signInWithSharedIdentity).toHaveBeenCalledTimes(2);
+    expect(controller.getSnapshot().signIn.phase).toBe('waiting');
+    controller.cancelSignIn();
+  });
+
+  it('closes a hub popup that was opened for an attempt the user cancelled while its request was created', async () => {
+    const popup = fakePopup();
+    const { controller, oxy } = makeHarness({ openPopup: () => popup });
+    const created = deferred<unknown>();
+    oxy.startCommonsSignIn.mockReturnValue(created.promise);
+
+    const running = controller.startPasskeyHubSignIn();
+    controller.cancelSignIn();
+    // Closed at once, not left blank until the slow request returns.
+    expect(popup.close).toHaveBeenCalled();
+
+    created.resolve({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+    await running;
+    expect(popup.location.href).toBe('');
+  });
+});
+
+describe('AccountDialogController — device mutations report their own outcome', () => {
+  function directoryClient() {
+    const sc = new TestSessionClient(host().host);
+    const controller = createAccountDialogController({
+      oxyServices: makeOxy() as unknown as OxyServices,
+      sessionClient: sc,
+      clientId: 'oxy_dk_test',
+      commitSession: jest.fn().mockResolvedValue(undefined),
+    });
+    return { controller, sc };
+  }
+
+  it('reports a switch that happened as a switch, even when the re-read after it fails', async () => {
+    const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const { controller, sc } = directoryClient();
+    jest.spyOn(sc, 'activateContext').mockResolvedValue(undefined);
+    jest.spyOn(sc, 'refreshDirectory').mockRejectedValue(new Error('directory boom'));
+
+    // The subject DID change. Calling that a failed switch would invite the user
+    // to repeat it — and skip the cache reset a switch requires.
+    expect(await controller.activateContext('ctx-b')).toBe(true);
+    // The re-read's failure is still reported, as the directory's.
+    expect(controller.getSnapshot().error).toBe('directory boom');
+    expect(controller.getSnapshot().activatingContextId).toBeNull();
+    warnSpy.mockRestore();
+  });
+
+  it('never lets an older refresh failure overwrite a newer successful read', async () => {
+    const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const { controller, sc } = directoryClient();
+    const older = deferred<void>();
+    jest
+      .spyOn(sc, 'refreshDirectory')
+      .mockReturnValueOnce(older.promise)
+      .mockResolvedValueOnce(undefined);
+
+    const first = controller.refresh();
+    expect(await controller.refresh()).toBe(true);
+    older.reject(new Error('stale boom'));
+    expect(await first).toBe(false);
+
+    expect(controller.getSnapshot().error).toBeNull();
+    expect(controller.getSnapshot().loading).toBe(false);
+    warnSpy.mockRestore();
+  });
+
+  it('refuses a removal while a switch is in flight, and a switch while a removal is', async () => {
+    const { controller, sc } = directoryClient();
+    const switching = deferred<void>();
+    jest.spyOn(sc, 'activateContext').mockReturnValue(switching.promise);
+    const removeContext = jest.spyOn(sc, 'signOutContext').mockResolvedValue(undefined);
+    const removePrincipal = jest.spyOn(sc, 'signOutPrincipal').mockResolvedValue(undefined);
+    jest.spyOn(sc, 'refreshDirectory').mockResolvedValue(undefined);
+
+    const activation = controller.activateContext('ctx-b');
+    expect(controller.isDeviceMutationInFlight()).toBe(true);
+    // Refused, not queued: nothing destructive may fire later, after the switch.
+    expect(await controller.signOutContext('ctx-a')).toBe(false);
+    expect(await controller.signOutPrincipal('p-a')).toBe(false);
+    expect(removeContext).not.toHaveBeenCalled();
+    expect(removePrincipal).not.toHaveBeenCalled();
+
+    switching.resolve();
+    expect(await activation).toBe(true);
+    expect(controller.isDeviceMutationInFlight()).toBe(false);
+
+    const removing = deferred<void>();
+    removeContext.mockReturnValue(removing.promise);
+    const removal = controller.signOutContext('ctx-a');
+    expect(await controller.activateContext('ctx-c')).toBe(false);
+    removing.resolve();
+    expect(await removal).toBe(true);
+    await flush();
+    expect(removeContext).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs a host operation under the same gate, and releases it when the operation rejects', async () => {
+    const { controller, sc } = directoryClient();
+    const signingOut = deferred<string>();
+    const activate = jest.spyOn(sc, 'activateContext').mockResolvedValue(undefined);
+    jest.spyOn(sc, 'refreshDirectory').mockResolvedValue(undefined);
+
+    const exclusive = controller.runDeviceMutation(() => signingOut.promise);
+    expect(await controller.activateContext('ctx-b')).toBe(false);
+    expect(await controller.runDeviceMutation(async () => 'second')).toEqual({ ran: false });
+    expect(activate).not.toHaveBeenCalled();
+    signingOut.resolve('done');
+    expect(await exclusive).toEqual({ ran: true, value: 'done' });
+
+    await expect(
+      controller.runDeviceMutation(async () => {
+        throw new Error('boom');
+      }),
+    ).rejects.toThrow('boom');
+    expect(controller.isDeviceMutationInFlight()).toBe(false);
   });
 });
 

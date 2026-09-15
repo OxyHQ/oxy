@@ -136,7 +136,17 @@
       "openedInCommons": "Aperto in Commons",
       "confirming": "Conferma dell'identità in corso",
       "confirmed": "Identità confermata"
-    }
+    },
+    "signInFailures": {
+      "denied": "L'accesso è stato rifiutato in Commons.",
+      "expired": "La richiesta di accesso è scaduta. Riprova.",
+      "network": "Impossibile raggiungere Oxy. Controlla la connessione e riprova.",
+      "notConfigured": "Questa app non è ancora configurata per l'accesso.",
+      "unsupportedFlow": "Questo accesso non può essere completato qui.",
+      "claimFailed": "L'accesso è stato approvato, ma non siamo riusciti a completarlo. Riprova.",
+      "generic": "Accesso non riuscito. Riprova."
+    },
+    "linkOpenFailed": "Impossibile aprire il link. Riprova."
   },
   "common": {
     "actions": {

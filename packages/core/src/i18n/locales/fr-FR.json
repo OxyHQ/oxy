@@ -136,7 +136,17 @@
       "openedInCommons": "Ouvert dans Commons",
       "confirming": "Confirmation de l'identité",
       "confirmed": "Identité confirmée"
-    }
+    },
+    "signInFailures": {
+      "denied": "La connexion a été refusée dans Commons.",
+      "expired": "La demande de connexion a expiré. Veuillez réessayer.",
+      "network": "Impossible de joindre Oxy. Vérifiez votre connexion et réessayez.",
+      "notConfigured": "Cette app n'est pas encore configurée pour la connexion.",
+      "unsupportedFlow": "Cette connexion ne peut pas être finalisée ici.",
+      "claimFailed": "La connexion a été approuvée, mais nous n'avons pas pu la finaliser. Veuillez réessayer.",
+      "generic": "La connexion a échoué. Veuillez réessayer."
+    },
+    "linkOpenFailed": "Impossible d'ouvrir le lien. Veuillez réessayer."
   },
   "common": {
     "actions": {

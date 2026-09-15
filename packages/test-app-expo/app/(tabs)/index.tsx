@@ -35,10 +35,9 @@ export default function HomeScreen() {
   }, [user]);
 
   const handleLogout = useCallback(async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Failed to log out', error);
+    const result = await logout();
+    if (result.status === 'failed') {
+      console.error('Failed to log out', result.error);
       Alert.alert('Logout failed', 'Check the console for details.');
     }
   }, [logout]);

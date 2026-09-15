@@ -24,6 +24,24 @@ function nodeCodeChallenge(verifier: string): string {
   return createHash('sha256').update(verifier).digest('base64url');
 }
 
+/**
+ * Remove the `sessionStorage` a test installed, so the next test starts without
+ * one. When Jest runs on the Bun runtime deleting a global reports success
+ * but leaves the property in place, and a later "no sessionStorage" test would
+ * then run against a leftover store — so a surviving property is overwritten
+ * with `undefined`, which is exactly the absence the code under test checks for.
+ */
+function removeSessionStorage(): void {
+  Reflect.deleteProperty(globalThis, 'sessionStorage');
+  if ((globalThis as { sessionStorage?: Storage }).sessionStorage !== undefined) {
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      value: undefined,
+      configurable: true,
+      writable: true,
+    });
+  }
+}
+
 describe('computeCodeChallenge', () => {
   it('matches the RFC 7636 Appendix B known-answer vector', async () => {
     // From RFC 7636 §Appendix B: verifier -> S256 challenge.
@@ -176,22 +194,25 @@ describe('canonicalizeOAuthRedirectUri', () => {
 describe('OAuth handshake persistence', () => {
   function installSessionStorage(): Map<string, string> {
     const map = new Map<string, string>();
-    (globalThis as { sessionStorage?: Storage }).sessionStorage = {
-      getItem: (k: string) => (map.has(k) ? (map.get(k) as string) : null),
-      setItem: (k: string, v: string) => void map.set(k, v),
-      removeItem: (k: string) => void map.delete(k),
-      clear: () => map.clear(),
-      key: (i: number) => [...map.keys()][i] ?? null,
-      get length() {
-        return map.size;
-      },
-    } as unknown as Storage;
+    // Configurable, so `removeSessionStorage` can always take it away again.
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      value: {
+        getItem: (k: string) => (map.has(k) ? (map.get(k) as string) : null),
+        setItem: (k: string, v: string) => void map.set(k, v),
+        removeItem: (k: string) => void map.delete(k),
+        clear: () => map.clear(),
+        key: (i: number) => [...map.keys()][i] ?? null,
+        get length() {
+          return map.size;
+        },
+      } as unknown as Storage,
+      configurable: true,
+      writable: true,
+    });
     return map;
   }
 
-  afterEach(() => {
-    delete (globalThis as { sessionStorage?: Storage }).sessionStorage;
-  });
+  afterEach(removeSessionStorage);
 
   it('round-trips redirect_uri through persist/read/clear', () => {
     const store = installSessionStorage();
@@ -212,22 +233,25 @@ describe('OAuth return path', () => {
   /** Minimal sessionStorage stand-in — jsdom is not assumed by this suite. */
   function installSessionStorage(): Map<string, string> {
     const map = new Map<string, string>();
-    (globalThis as { sessionStorage?: Storage }).sessionStorage = {
-      getItem: (k: string) => (map.has(k) ? (map.get(k) as string) : null),
-      setItem: (k: string, v: string) => void map.set(k, v),
-      removeItem: (k: string) => void map.delete(k),
-      clear: () => map.clear(),
-      key: (i: number) => [...map.keys()][i] ?? null,
-      get length() {
-        return map.size;
-      },
-    } as unknown as Storage;
+    // Configurable, so `removeSessionStorage` can always take it away again.
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      value: {
+        getItem: (k: string) => (map.has(k) ? (map.get(k) as string) : null),
+        setItem: (k: string, v: string) => void map.set(k, v),
+        removeItem: (k: string) => void map.delete(k),
+        clear: () => map.clear(),
+        key: (i: number) => [...map.keys()][i] ?? null,
+        get length() {
+          return map.size;
+        },
+      } as unknown as Storage,
+      configurable: true,
+      writable: true,
+    });
     return map;
   }
 
-  afterEach(() => {
-    delete (globalThis as { sessionStorage?: Storage }).sessionStorage;
-  });
+  afterEach(removeSessionStorage);
 
   it('round-trips a deep path through persist/consume', () => {
     installSessionStorage();

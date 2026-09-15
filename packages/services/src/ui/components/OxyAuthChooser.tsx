@@ -55,6 +55,7 @@ import AccountsMenuView from './authChooser/AccountsMenuView';
 import SignInEntryView from './authChooser/SignInEntryView';
 import SignInRequestView from './authChooser/SignInRequestView';
 import SignUpView from './authChooser/SignUpView';
+import { signInFailureMessage } from './authChooser/signInFailureMessage';
 import {
   resolveAccentHex,
   type AccountHeroModel,
@@ -75,6 +76,16 @@ const COMMONS_CREATE_IDENTITY_URL = 'oxycommons://create-identity';
  * hands off to Commons; nothing here invents new API endpoints.
  */
 const ACCOUNTS_APP_URL = 'https://accounts.oxy.so';
+
+/**
+ * The last sign-in attempt whose failure was toasted, per controller.
+ *
+ * Module-level, not per subscription: a failure is ONE event. Remounting the
+ * chooser (or re-subscribing to the same controller) must not report it again,
+ * while a NEW attempt that fails with the very same message must. The attempt
+ * identity is what tells those apart; the message text cannot.
+ */
+const toastedFailureAttempt = new WeakMap<object, number>();
 
 export interface OxyAuthChooserProps {
   /** Called after a completed switch, sign-in, or sign-up. */
@@ -205,15 +216,13 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
   const subscribe = useCallback(
     (listener: () => void) => {
       if (!controller) return () => undefined;
-      let lastToastedSignInError: string | null = null;
       const maybeToastSignInError = () => {
         const { signIn } = controller.getSnapshot();
-        if (signIn.phase === 'error' && signIn.error && signIn.error !== lastToastedSignInError) {
-          lastToastedSignInError = signIn.error;
-          toast.error(signIn.error);
-        } else if (signIn.phase !== 'error') {
-          lastToastedSignInError = null;
-        }
+        if (signIn.phase !== 'error') return;
+        if (toastedFailureAttempt.get(controller) === signIn.attempt) return;
+        toastedFailureAttempt.set(controller, signIn.attempt);
+        const message = signInFailureMessage(signIn.failure, t);
+        if (message) toast.error(message);
       };
       maybeToastSignInError();
       autoStartSignIn();
@@ -222,7 +231,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
         listener();
       });
     },
-    [controller, autoStartSignIn],
+    [controller, autoStartSignIn, t],
   );
   const getSnapshot = useCallback(
     () => (controller ? controller.getSnapshot() : EMPTY_ACCOUNT_DIALOG_SNAPSHOT),
@@ -239,31 +248,30 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
   const handleActivate = useCallback(
     async (contextId: string) => {
       if (!controller) return;
-      if (controller.getSnapshot().activatingContextId) return;
+      // Another switch or removal is already changing this device: the press is
+      // dropped, not queued — and it is not a failure to report.
+      if (controller.isDeviceMutationInFlight()) return;
       // Already live: activating it again bumps nothing server-side, so treat
       // the press as "yes, this one" and close.
       if (contextId === controller.getSnapshot().activeContext?.contextId) {
         onComplete?.();
         return;
       }
-      try {
-        await controller.activateContext(contextId);
-        // Failures are recorded on the controller snapshot rather than thrown,
-        // so the same path works with the real controller and with test doubles
-        // that resolve void.
-        if (controller.getSnapshot().error) {
-          toast.error(t('accountSwitcher.toasts.activateFailed'));
-          return;
-        }
-        // The subject changed, so every account-scoped query is now about
-        // somebody else. The runtime resets its own caches between the bearer
-        // commit and the notify; this drops the Query cache the same way the
-        // account switch did.
-        queryClient.invalidateQueries();
-        onComplete?.();
-      } catch {
+      // The controller's own verdict on the SWITCH — never `snapshot.error`,
+      // which the directory re-read after a successful switch can also set.
+      // Reading that as "the switch failed" left the dialog open on a false
+      // error with the previous account's queries still cached.
+      const switched = await controller.activateContext(contextId).catch(() => false);
+      if (!switched) {
         toast.error(t('accountSwitcher.toasts.activateFailed'));
+        return;
       }
+      // The subject changed, so every account-scoped query is now about
+      // somebody else. The runtime resets its own caches between the bearer
+      // commit and the notify; this drops the Query cache the same way the
+      // account switch did.
+      queryClient.invalidateQueries();
+      onComplete?.();
     },
     [controller, onComplete, queryClient, t],
   );
@@ -278,7 +286,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
    */
   const handleRemoveContext = useCallback(
     async (contextId: string) => {
-      if (!controller) return;
+      if (!controller || controller.isDeviceMutationInFlight()) return;
       const group = principals.find((principal) =>
         principal.contexts.some((context) => context.contextId === contextId),
       );
@@ -308,7 +316,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
   /** Remove ONE PERSON and every account they reach here, and nobody else's. */
   const handleRemovePrincipal = useCallback(
     async (principalId: string) => {
-      if (!controller) return;
+      if (!controller || controller.isDeviceMutationInFlight()) return;
       const group = principals.find((principal) => principal.principalId === principalId);
       if (!group) return;
       const confirmed = await surfaces.confirm({
@@ -327,6 +335,42 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
       toast.success(t('accountSwitcher.toasts.principalRemoved', { name: group.displayName }));
     },
     [controller, principals, t],
+  );
+
+  /**
+   * Sign out of the current account, and close only once that is TRUE.
+   *
+   * Runs under the controller's device-mutation gate, so it can neither race a
+   * switch or removal nor be issued twice by a double press. A failed
+   * revocation keeps the dialog open and says so: closing it would read as
+   * "signed out" while this device still holds the session.
+   */
+  const handleSignOut = useCallback(async () => {
+    if (!controller) return;
+    const outcome = await controller.runDeviceMutation(() => logout());
+    if (!outcome.ran) return;
+    if (outcome.value.status === 'failed') {
+      toast.error(t('common.errors.signOutFailed'));
+      return;
+    }
+    onComplete?.();
+  }, [controller, logout, onComplete, t]);
+
+  /**
+   * Hand a URL to the OS. `Linking.openURL` REJECTS when nothing can open it
+   * (no browser, an unregistered scheme, a blocked navigation) — a press that
+   * then does nothing at all is exactly the dead end this reports instead.
+   */
+  const openExternal = useCallback(
+    (url: string) => {
+      // Wrapped so a synchronous throw lands in the same handler as a rejection.
+      Promise.resolve()
+        .then(() => Linking.openURL(url))
+        .catch(() => {
+          toast.error(t('accountSwitcher.linkOpenFailed'));
+        });
+    },
+    [t],
   );
 
   const handleManage = useCallback(() => {
@@ -403,10 +447,10 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
         void controller?.startPasskeyHubSignIn();
       },
       onShowQr: () => void controller?.showQr(),
-      onGetCommons: () => void Linking.openURL(getCommonsAcquisitionUrl(Platform.OS)),
+      onGetCommons: () => openExternal(getCommonsAcquisitionUrl(Platform.OS)),
       onCreateAccount: () => controller?.startSignup(),
     }),
-    [passkeyMode, signInPasskeyPending, handleSignInWithPasskey, controller],
+    [passkeyMode, signInPasskeyPending, handleSignInWithPasskey, controller, openExternal],
   );
 
   // Real storage usage for the account menu's "Oxy storage" block. Disabled
@@ -430,9 +474,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
   // endpoints — the same handoff pattern `handleManage`/`getCommonsAcquisitionUrl`
   // already use.
   const accountMenu = useMemo<AccountsMenuActions>(() => {
-    const openUrl = (url: string) => {
-      void Linking.openURL(url);
-    };
+    const openUrl = openExternal;
     const openSheet = (config: Parameters<NonNullable<typeof showBottomSheet>>[0]) => {
       onComplete?.();
       showBottomSheet?.(config);
@@ -446,8 +488,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
       onPrivacy: () => openSheet({ screen: 'LegalDocuments', props: { initialStep: 1 } }),
       onTerms: () => openSheet({ screen: 'LegalDocuments', props: { initialStep: 2 } }),
       onSignOut: () => {
-        void logout();
-        onComplete?.();
+        void handleSignOut();
       },
       customItems: (consumerHooks?.menuItems ?? []).map((item) => ({
         ...item,
@@ -457,7 +498,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
         },
       })),
     };
-  }, [consumerHooks, onComplete, showBottomSheet, logout]);
+  }, [consumerHooks, onComplete, showBottomSheet, handleSignOut, openExternal]);
 
   if (!controller) {
     return null;
@@ -483,7 +524,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
       <SignInRequestView
         snapshot={snapshot}
         t={t}
-        onRetry={() => void controller.showQr()}
+        onRetry={() => void controller.retrySignIn()}
         alternatives={alternatives}
       />
     );
@@ -500,7 +541,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
         onCreateWithPasskey={(username) => void handleCreateWithPasskey(username)}
         createPending={createPasskeyPending}
         onOpenHub={() => void controller.startPasskeyHubSignIn()}
-        onCreateIdentityInCommons={() => void Linking.openURL(COMMONS_CREATE_IDENTITY_URL)}
+        onCreateIdentityInCommons={() => openExternal(COMMONS_CREATE_IDENTITY_URL)}
         onGetCommons={alternatives.onGetCommons}
         onBackToSignIn={() => {
           controller.setView('signin');
