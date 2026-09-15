@@ -48,7 +48,9 @@ export default function MoveIdentityScreen() {
   const { importIdentity } = useIdentity();
   const { id } = useLocalSearchParams<{ id: string }>();
   const relay = useMemo(() => createMoveRelay(oxyServices), [oxyServices]);
-  const [stage, setStage] = useState<Stage>({ name: 'joining' });
+  // A screen reached without a move id has nothing to join — decided on the
+  // first render, not in an effect.
+  const [stage, setStage] = useState<Stage>(() => (id ? { name: 'joining' } : { name: 'failed', messageKey: 'identityMove.unavailable' }));
   const identityRef = useRef<OpenedWebIdentity | null>(null);
 
   useEffect(() => {
@@ -92,11 +94,8 @@ export default function MoveIdentityScreen() {
 
   // Join once per scanned code.
   useEffect(() => {
+    if (!id) return;
     let cancelled = false;
-    if (!id) {
-      setStage({ name: 'failed', messageKey: 'identityMove.unavailable' });
-      return;
-    }
     joinMove(relay, id)
       .then((move) => {
         if (!cancelled) setStage({ name: 'compare', move });
