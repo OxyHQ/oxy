@@ -1244,69 +1244,59 @@ export class KeyManager {
   }
 
   /**
-   * Migrate local identity to shared identity
+   * Make the shared slot hold THIS device's identity key.
    *
-   * Call this when upgrading existing apps to use shared identities.
-   * Copies the device-specific identity to shared storage so it can
-   * be accessed by other Oxy apps.
+   * The shared slot is the one every Oxy app on the device reads, so it has to
+   * agree with the primary slot. This creates it when it is empty (the original
+   * migration, for apps that predate the shared identity) and repairs it when it
+   * holds a different key.
    *
-   * @returns True if migration was successful, false if no local identity exists
+   * @returns True when the shared slot ends up holding the device's key, false
+   *          when there is no identity to share.
    */
-  static async migrateToSharedIdentity(): Promise<boolean> {
+  static async syncSharedIdentity(): Promise<boolean> {
     if (isWebPlatform()) {
       return false;
     }
 
     try {
-      // A shared slot that holds a DIFFERENT key than the primary is not a
-      // migration that already happened — it is a device deriving from two
-      // identities at once, and the readers disagree silently: `deriveScopedSeed`
-      // and `getSharedPrivateKey` take the shared slot, while signing and the
-      // server take the primary. That is how a key rotation used to strand
-      // money: the shared slot kept the replaced key, so a wallet derived from
-      // it watched addresses nobody would ever pay. Repair it here rather than
-      // returning `true` on the mere presence of a shared slot.
       const state = await KeyManager.getIdentityKeyState();
-      if (state.sharedPublicKey !== null) {
-        if (state.inSync || state.primaryPublicKey === null) {
-          if (isDev()) {
-            logger.debug('Shared identity already exists, skipping migration', { component: 'KeyManager' });
-          }
-          return true;
-        }
-        const primaryPrivate = await KeyManager.getPrivateKey();
-        if (!primaryPrivate) return true;
-        await KeyManager.importSharedIdentity(primaryPrivate);
-        logger.warn(
-          'Shared identity held a different key than this device: repaired it from the primary slot.',
-          { component: 'KeyManager', method: 'migrateToSharedIdentity' },
-        );
+      if (state.sharedPublicKey !== null && (state.inSync || state.primaryPublicKey === null)) {
         return true;
       }
 
-      // Get local identity
       const privateKey = await KeyManager.getPrivateKey();
       if (!privateKey) {
-        if (isDev()) {
-          logger.debug('No local identity to migrate', { component: 'KeyManager' });
-        }
-        return false;
+        // Nothing of this device's own to share. A shared slot that is already
+        // populated stays as it is: it is the only identity here.
+        return state.sharedPublicKey !== null;
       }
 
-      // Import to shared storage
       await KeyManager.importSharedIdentity(privateKey);
 
-      if (isDev()) {
-        logger.debug('Successfully migrated local identity to shared identity', { component: 'KeyManager' });
+      // A slot that held a DIFFERENT key is the dangerous case, so it is said
+      // out loud rather than debug-logged: until this write, cross-app readers
+      // (`deriveScopedSeed`, so Peable's wallet) were deriving from one key
+      // while signing and the server used another.
+      if (state.sharedPublicKey !== null) {
+        logger.warn(
+          'Shared identity held a different key than this device: repaired it from the primary slot.',
+          { component: 'KeyManager', method: 'syncSharedIdentity' },
+        );
       }
 
       return true;
     } catch (error) {
       if (isDev()) {
-        logger.error('Failed to migrate to shared identity', error, { component: 'KeyManager' });
+        logger.error('Failed to sync the shared identity', error, { component: 'KeyManager' });
       }
       return false;
     }
+  }
+
+  /** @deprecated Renamed to {@link KeyManager.syncSharedIdentity}. */
+  static async migrateToSharedIdentity(): Promise<boolean> {
+    return KeyManager.syncSharedIdentity();
   }
 
   // ==================== END SHARED IDENTITY METHODS ====================

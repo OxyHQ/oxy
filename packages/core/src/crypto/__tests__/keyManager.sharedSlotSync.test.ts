@@ -115,7 +115,7 @@ describe('identity slots stay in sync', () => {
   it('repairs a disagreeing shared slot from the primary instead of skipping', async () => {
     const { publicB } = await makeSlotsDisagree();
 
-    const migrated = await KeyManager.migrateToSharedIdentity();
+    const migrated = await KeyManager.syncSharedIdentity();
 
     expect(migrated).toBe(true);
     const state = await KeyManager.getIdentityKeyState();
@@ -129,7 +129,7 @@ describe('identity slots stay in sync', () => {
     await makeSlotsDisagree();
     const strandedSeed = await KeyManager.deriveScopedSeed('peable/faircoin/v1');
 
-    await KeyManager.migrateToSharedIdentity();
+    await KeyManager.syncSharedIdentity();
     const repairedSeed = await KeyManager.deriveScopedSeed('peable/faircoin/v1');
 
     if (!strandedSeed || !repairedSeed) throw new Error('expected seeds');

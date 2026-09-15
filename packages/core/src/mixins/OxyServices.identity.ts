@@ -457,7 +457,7 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
         //    Writing shared first means a crash between the two writes leaves
         //    the money path already on the new key and the primary stale, which
         //    fails LOUDLY on the next signature instead of quietly misdirecting
-        //    funds. `migrateToSharedIdentity` repairs that case on the next boot.
+        //    funds. `syncSharedIdentity` repairs that case on the next boot.
         let localPersistFailed = false;
         if (!isWeb()) {
           try {
