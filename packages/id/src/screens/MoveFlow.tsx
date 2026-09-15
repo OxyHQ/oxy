@@ -154,7 +154,7 @@ export function MoveFlow({ ports, session, onDone }: { ports: CarrierPorts; sess
       return (
         <section className="card">
           <h1>Scan with Commons</h1>
-          <p>In Commons, choose <strong>I already have an identity</strong>, then <strong>Scan from the web</strong>.</p>
+          <p>In Commons, tap <strong>Restore with recovery phrase</strong>, then <strong>Move from the Oxy website</strong>.</p>
           {/* The SVG is generated locally from a fixed-format payload; it carries only the move id. */}
           <div className="qr" role="img" aria-label="Code to scan with Commons" dangerouslySetInnerHTML={{ __html: step.qrSvg }} />
           <p className="note">The code works once and expires in 5 minutes.</p>
