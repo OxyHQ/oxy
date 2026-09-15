@@ -12,7 +12,7 @@ import sessionDeviceRouter from "./routes/sessionDevice";
 import browserHubRouter from "./routes/browserHub";
 import dotenv from "dotenv";
 import searchRoutes from "./routes/search";
-import { rateLimiter, authRateLimiter, userRateLimiter, federationServiceLimiter, bruteForceProtection, securityHeaders } from "./middleware/security";
+import { rateLimiter, serviceCredentialLimiter, authRateLimiter, userRateLimiter, federationServiceLimiter, bruteForceProtection, securityHeaders } from "./middleware/security";
 import privacyRoutes from "./routes/privacy";
 import analyticsRoutes from "./routes/analytics.routes";
 import paymentRoutes from './routes/payment.routes';
@@ -676,6 +676,12 @@ app.get('/.well-known/jwks.json', (_request, response) => {
 // Apply rate limiting middleware globally (before application routes)
 // Note: Auth routes have their own stricter rate limiting
 app.use(rateLimiter);
+// The per-CREDENTIAL budget every service token answers to. Mounted HERE, beside
+// the general limiter it replaces for that traffic: both skip requests the other
+// charges, so each request is counted exactly once (see
+// `isFirstPartyServiceRequest`). Removing this mount would leave service traffic
+// with no global ceiling at all.
+app.use(serviceCredentialLimiter);
 app.use(bruteForceProtection);
 
 // CSRF token endpoint (must be before CSRF protection)
