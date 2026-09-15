@@ -842,7 +842,10 @@ export class VariantService {
         }
 
         if (code !== 0) {
-          logger.error('Poster generation failed', { code, signal, stderr: stderr.substring(0, 500) });
+          // The LAST bytes, not the first: ffmpeg's fixed version/build-config
+          // banner alone fills 500 characters, so `.substring(0, N)` always
+          // logged the banner and never the fatal error that follows it.
+          logger.error('Poster generation failed', { code, signal, stderr: stderr.slice(-500) });
           if (code === null) {
             reject(
               new Error(
@@ -851,7 +854,7 @@ export class VariantService {
             );
             return;
           }
-          reject(new Error(`Poster generation failed with code ${code}: ${stderr.substring(0, 200)}`));
+          reject(new Error(`Poster generation failed with code ${code}: ${stderr.slice(-200)}`));
           return;
         }
 
@@ -985,7 +988,14 @@ export class VariantService {
         '-c:v', config.videoCodec || 'libx264',
         '-c:a', config.audioCodec || 'aac',
         '-b:v', config.bitrate || '1M',
-        '-movflags', '+faststart', // Enable progressive download
+        // `+faststart` needs to seek back and rewrite the header once encoding
+        // finishes — impossible on `pipe:1`, so the mp4 muxer refused to write
+        // ANY output at all ("muxer does not support non seekable output"),
+        // failing every video variant outright. `frag_keyframe+empty_moov`
+        // (fragmented mp4) is the streaming-safe equivalent: no seek required,
+        // and still progressively playable. Reproduced and confirmed fixed
+        // locally against this exact ffmpeg invocation before changing it.
+        '-movflags', 'frag_keyframe+empty_moov',
         '-preset', config.preset || 'fast',
         '-crf', '23', // Constant rate factor for quality
         '-pix_fmt', 'yuv420p', // Compatibility
@@ -1038,10 +1048,13 @@ export class VariantService {
 
       ffmpegProcess.on('close', async (code) => {
         if (code !== 0) {
-          logger.error('Video variant generation failed', { 
-            variant: config.type, 
+          // The LAST bytes, not the first — see the poster-generation error
+          // handler above for why: the banner, not the fatal error, was all
+          // that ever reached these logs.
+          logger.error('Video variant generation failed', {
+            variant: config.type,
             code,
-            error: stderr.substring(0, 500)
+            error: stderr.slice(-500)
           });
           resolve(null); // Don't fail entire process if one variant fails
           return;
