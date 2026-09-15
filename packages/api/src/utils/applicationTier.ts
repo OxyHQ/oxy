@@ -17,10 +17,10 @@
 /**
  * Least to most privileged.
  *
- * `first_party` sits BELOW `internal` deliberately: Console and Accounts are
- * first-party and customer-facing, and the separation between "Alia may use it
- * internally" and "an Oxy customer may be sold it" is exactly what workstream 11
- * exists to draw.
+ * `first_party` sits BELOW `internal` deliberately because rollout and operator
+ * gates may still distinguish customer-facing official products from internal
+ * runtimes. Both tiers may consume `platform_internal` inference routes; neither
+ * classification by itself makes those routes publicly resellable.
  */
 export const APPLICATION_TIERS = ['third_party', 'first_party', 'internal'] as const;
 
