@@ -17600,6 +17600,560 @@
         "operationId": "getIdentityRecordsUserIdTypeVerify"
       }
     },
+    "/identity/web-envelope": {
+      "get": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "GET /identity/web-envelope",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityWebEnvelope.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityWebEnvelope.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getIdentityWebEnvelope"
+      },
+      "put": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "Replacing keeps `phrase_confirmed_at`: adding a passkey re-wraps the same",
+        "description": "identity, it does not un-save the phrase.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityWebEnvelope.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envelope": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "number",
+                        "enum": [
+                          1
+                        ]
+                      },
+                      "algorithm": {
+                        "type": "string",
+                        "enum": [
+                          "xchacha20poly1305"
+                        ]
+                      },
+                      "publicKey": {
+                        "type": "string",
+                        "pattern": "^04[0-9a-f]{128}$"
+                      },
+                      "entropyNonce": {
+                        "type": "string",
+                        "pattern": "^[0-9a-fA-F]{48}$"
+                      },
+                      "sealedEntropy": {
+                        "type": "string",
+                        "pattern": "^[0-9a-fA-F]{64}$"
+                      },
+                      "wraps": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "credentialId": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]+$",
+                              "minLength": 16,
+                              "maxLength": 1024
+                            },
+                            "nonce": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]{48}$"
+                            },
+                            "wrappedKey": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]{96}$"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "credentialId",
+                            "nonce",
+                            "wrappedKey",
+                            "createdAt"
+                          ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 10
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "algorithm",
+                      "publicKey",
+                      "entropyNonce",
+                      "sealedEntropy",
+                      "wraps"
+                    ]
+                  },
+                  "signature": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "envelope",
+                  "signature",
+                  "timestamp"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "putIdentityWebEnvelope"
+      },
+      "delete": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "the identity into Commons). Idempotent. The identity itself is untouched: it",
+        "description": "lives on wherever else it is carried.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityWebEnvelope.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "signature": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "signature",
+                  "timestamp"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "deleteIdentityWebEnvelope"
+      }
+    },
+    "/identity/web-envelope/establish": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "first one: link the key and store the envelope in one transaction, so there is",
+        "description": "never a committed link without an envelope (an identity nothing carries).\n\nBoth proofs are by the ENVELOPE's key (there is no linked key yet to check\nagainst). Idempotent for a retry of the same identity; an account that already\nhas a DIFFERENT identity is refused — this can never replace one.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityWebEnvelope.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envelope": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "number",
+                        "enum": [
+                          1
+                        ]
+                      },
+                      "algorithm": {
+                        "type": "string",
+                        "enum": [
+                          "xchacha20poly1305"
+                        ]
+                      },
+                      "publicKey": {
+                        "type": "string",
+                        "pattern": "^04[0-9a-f]{128}$"
+                      },
+                      "entropyNonce": {
+                        "type": "string",
+                        "pattern": "^[0-9a-fA-F]{48}$"
+                      },
+                      "sealedEntropy": {
+                        "type": "string",
+                        "pattern": "^[0-9a-fA-F]{64}$"
+                      },
+                      "wraps": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "credentialId": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]+$",
+                              "minLength": 16,
+                              "maxLength": 1024
+                            },
+                            "nonce": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]{48}$"
+                            },
+                            "wrappedKey": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]{96}$"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "credentialId",
+                            "nonce",
+                            "wrappedKey",
+                            "createdAt"
+                          ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 10
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "algorithm",
+                      "publicKey",
+                      "entropyNonce",
+                      "sealedEntropy",
+                      "wraps"
+                    ]
+                  },
+                  "signature": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "link": {
+                    "type": "object",
+                    "properties": {
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "timestamp": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "required": [
+                      "signature",
+                      "timestamp"
+                    ]
+                  }
+                },
+                "required": [
+                  "envelope",
+                  "signature",
+                  "timestamp",
+                  "link"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityWebEnvelopeEstablish"
+      }
+    },
+    "/identity/web-envelope/phrase-confirmed": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /identity/web-envelope/phrase-confirmed",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityWebEnvelope.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityWebEnvelope.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "signature": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "signature",
+                  "timestamp"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityWebEnvelopePhraseConfirmed"
+      }
+    },
     "/inference/admin/deployments": {
       "get": {
         "tags": [
