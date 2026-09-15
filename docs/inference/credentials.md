@@ -228,7 +228,8 @@ The inference family (`packages/api/src/utils/applicationScopes.ts`):
 **`inference:models:read` is checked by nothing.** The catalogue is
 audience-scoped by application type rather than by scope: an anonymous caller, a
 user bearer and an ordinary application's service token all resolve to the public
-audience, and only an internal/system application sees internal-only routes. So
+audience, and only a staff-controlled first-party/internal/system application
+sees `platform_internal` routes. So
 holding this scope grants nothing that is checked, and not holding it costs
 nothing — the same shape `chat:completions` had before it was removed for
 exactly that reason. Recorded here rather than quietly documented as if it
