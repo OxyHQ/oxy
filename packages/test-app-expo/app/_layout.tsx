@@ -35,7 +35,7 @@ export default function RootLayout() {
         <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} authRedirectUri={AUTH_REDIRECT_URI}>
           <RootNavigator />
         </OxyProvider>
-      </BloomProvider>
+      </BloomThemeProvider>
     </SafeAreaProvider>
   );
 }
