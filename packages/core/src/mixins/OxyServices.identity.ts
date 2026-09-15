@@ -447,9 +447,23 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
         //    re-import the now-live key. Surface the result with
         //    `localPersistFailed: true` (mirrors the pendingIdentity
         //    show-phrase-first path, where the caller already holds the phrase).
+        //    The SHARED slot is written FIRST, and that order is load-bearing.
+        //    Every cross-app reader takes the shared slot before the primary —
+        //    `deriveScopedSeed` does, which is where Peable's FairCoin wallet
+        //    comes from. Leaving the replaced key there was silent money loss:
+        //    payers derive the recipient's address from the key in the DID (now
+        //    the new one) while the recipient's wallet still watches addresses
+        //    derived from the old one, so payments land where nobody looks.
+        //    Writing shared first means a crash between the two writes leaves
+        //    the money path already on the new key and the primary stale, which
+        //    fails LOUDLY on the next signature instead of quietly misdirecting
+        //    funds. `migrateToSharedIdentity` repairs that case on the next boot.
         let localPersistFailed = false;
         if (!isWeb()) {
           try {
+            if (await KeyManager.hasSharedIdentity()) {
+              await KeyManager.importSharedIdentity(pending.privateKey);
+            }
             await KeyManager.importKeyPair(pending.privateKey, { overwrite: true });
           } catch (persistError) {
             localPersistFailed = true;

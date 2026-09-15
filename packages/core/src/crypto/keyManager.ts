@@ -992,6 +992,49 @@ export class KeyManager {
   }
 
   /**
+   * Which identity key this device is actually acting as, per slot.
+   *
+   * There are two slots and they can disagree. The shared slot is what every
+   * cross-app reader takes first — `deriveScopedSeed` (so: the FairCoin wallet
+   * Peable derives) and `getSharedPrivateKey` — while the primary slot is what
+   * signing and the server-facing identity use. A disagreement is invisible to
+   * both sides on its own, and it is money: a wallet derived from a stale
+   * shared key watches addresses that the key published in the DID will never
+   * produce, so payments land where the recipient cannot see them.
+   *
+   * `activePublicKey` is the one money derives from — the same `shared ?? primary`
+   * order `deriveScopedSeed` uses, so a caller can compare it against the key
+   * published for the account and refuse to receive rather than watch the wrong
+   * addresses.
+   *
+   * Public keys are canonicalized, so two encodings of the same key compare
+   * equal. On web both slots are null and `inSync` is true: nothing is stored,
+   * so nothing can disagree.
+   */
+  static async getIdentityKeyState(): Promise<{
+    primaryPublicKey: string | null;
+    sharedPublicKey: string | null;
+    activePublicKey: string | null;
+    inSync: boolean;
+  }> {
+    const [primaryRaw, sharedRaw] = await Promise.all([
+      KeyManager.getPublicKey(),
+      KeyManager.getSharedPublicKey(),
+    ]);
+    const primaryPublicKey = primaryRaw ? KeyManager.canonicalPublicKey(primaryRaw) : null;
+    const sharedPublicKey = sharedRaw ? KeyManager.canonicalPublicKey(sharedRaw) : null;
+    return {
+      primaryPublicKey,
+      sharedPublicKey,
+      activePublicKey: sharedPublicKey ?? primaryPublicKey,
+      // Only a real disagreement is out of sync. A device with just one slot
+      // populated has nothing to contradict.
+      inSync:
+        primaryPublicKey === null || sharedPublicKey === null || primaryPublicKey === sharedPublicKey,
+    };
+  }
+
+  /**
    * Check if a shared identity exists (accessible across all Oxy apps)
    *
    * @returns True if shared identity exists, false otherwise
@@ -1215,12 +1258,29 @@ export class KeyManager {
     }
 
     try {
-      // Check if we already have a shared identity
-      const hasShared = await KeyManager.hasSharedIdentity();
-      if (hasShared) {
-        if (isDev()) {
-          logger.debug('Shared identity already exists, skipping migration', { component: 'KeyManager' });
+      // A shared slot that holds a DIFFERENT key than the primary is not a
+      // migration that already happened — it is a device deriving from two
+      // identities at once, and the readers disagree silently: `deriveScopedSeed`
+      // and `getSharedPrivateKey` take the shared slot, while signing and the
+      // server take the primary. That is how a key rotation used to strand
+      // money: the shared slot kept the replaced key, so a wallet derived from
+      // it watched addresses nobody would ever pay. Repair it here rather than
+      // returning `true` on the mere presence of a shared slot.
+      const state = await KeyManager.getIdentityKeyState();
+      if (state.sharedPublicKey !== null) {
+        if (state.inSync || state.primaryPublicKey === null) {
+          if (isDev()) {
+            logger.debug('Shared identity already exists, skipping migration', { component: 'KeyManager' });
+          }
+          return true;
         }
+        const primaryPrivate = await KeyManager.getPrivateKey();
+        if (!primaryPrivate) return true;
+        await KeyManager.importSharedIdentity(primaryPrivate);
+        logger.warn(
+          'Shared identity held a different key than this device: repaired it from the primary slot.',
+          { component: 'KeyManager', method: 'migrateToSharedIdentity' },
+        );
         return true;
       }
 
