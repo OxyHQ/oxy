@@ -78,6 +78,7 @@ export * from './followRelationships';
 export * from './followApplicationOverrides';
 export * from './followEvents';
 export * from './identityBackups';
+export * from './identityWebEnvelopes';
 export * from './identityBindings';
 export * from './inferenceDeployments';
 export * from './inferenceDeploymentRoutingScores';
