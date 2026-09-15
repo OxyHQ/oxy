@@ -57,17 +57,23 @@ interface RefreshMockOverrides {
   signInWithSharedIdentity?: OxyServices['signInWithSharedIdentity'];
 }
 
-function makeOxy(overrides: RefreshMockOverrides = {}): { oxy: OxyServices; setTokens: jest.Mock } {
+function makeOxy(
+  overrides: RefreshMockOverrides = {},
+): { oxy: OxyServices; setTokens: jest.Mock; noteRefreshRateLimited: jest.Mock } {
   const setTokens = jest.fn();
+  const noteRefreshRateLimited = jest.fn();
   const oxy = {
     setTokens,
     mintFromDeviceSecret: overrides.mintFromDeviceSecret ?? (async () => MINT),
     signInWithSharedIdentity: overrides.signInWithSharedIdentity ?? (async () => null),
     // The rotating mint runs under the client's process-wide single-flight; the
     // arm reaches for it via `oxy.httpService.runSingleFlightDeviceSecretMint`.
-    httpService: { runSingleFlightDeviceSecretMint: makeMintSingleFlight() },
+    httpService: {
+      runSingleFlightDeviceSecretMint: makeMintSingleFlight(),
+      noteRefreshRateLimited,
+    },
   } as unknown as OxyServices;
-  return { oxy, setTokens };
+  return { oxy, setTokens, noteRefreshRateLimited };
 }
 
 describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
@@ -178,6 +184,50 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
     expect(await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true })).toBeNull();
     expect(await store.load()).toEqual(STORED);
     expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+  });
+
+  it('KEEPS the store on a 429 and does NOT fall through to shared-key — a rationed mint never judged the secret', async () => {
+    const store = createMemoryAuthStateStore();
+    await store.save(STORED);
+    const signInWithSharedIdentity = jest.fn(async () => null);
+    const { oxy } = makeOxy({
+      mintFromDeviceSecret: async () => {
+        throw Object.assign(new Error('Too many requests'), { status: 429 });
+      },
+      signInWithSharedIdentity,
+    });
+
+    expect(await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true })).toBeNull();
+    expect(await store.load()).toEqual(STORED);
+    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+  });
+
+  it('tells HttpService to lengthen the refresh cooldown when the mint is rate limited', async () => {
+    const store = createMemoryAuthStateStore();
+    await store.save(STORED);
+    const { oxy, noteRefreshRateLimited } = makeOxy({
+      mintFromDeviceSecret: async () => {
+        throw Object.assign(new Error('Too many requests'), { status: 429 });
+      },
+    });
+
+    await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
+
+    expect(noteRefreshRateLimited).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT lengthen the cooldown for failures the server did not ration', async () => {
+    const store = createMemoryAuthStateStore();
+    await store.save(STORED);
+    const { oxy, noteRefreshRateLimited } = makeOxy({
+      mintFromDeviceSecret: async () => {
+        throw Object.assign(new Error('server'), { status: 500 });
+      },
+    });
+
+    await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
+
+    expect(noteRefreshRateLimited).not.toHaveBeenCalled();
   });
 });
 

@@ -159,6 +159,18 @@ export async function refreshDeviceSecretArm(deps: {
           })
         : await oxy.mintFromDeviceSecret(persisted.deviceId, persisted.deviceSecret);
     } catch (error) {
+      // 429 keeps the credential like any other transient failure — the secret
+      // was never judged — but it must NOT retry on the transient cadence. The
+      // request-driven lanes (request-time preflight, 401 retry) reattempt every
+      // second once the access token is expired, which is 60 mints/min against a
+      // 30/min server budget: the client's own retries then hold the limiter
+      // tripped and the session cannot recover while the app keeps making
+      // requests. Telling HttpService lengthens the next cooldown to one attempt
+      // per limiter window, which lets the budget drain and the session heal.
+      if (extractErrorStatus(error) === 429) {
+        oxy.httpService.noteRefreshRateLimited();
+        return { status: 'transient' };
+      }
       if (extractErrorStatus(error) === 401) {
         // Structural read (not `instanceof Error`): the thrown value can be a
         // plain ApiError-shaped object or come from another realm.
