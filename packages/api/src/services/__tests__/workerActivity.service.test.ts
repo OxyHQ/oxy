@@ -2,7 +2,7 @@ import type { createEcosystemTraffic, EcosystemTrafficOptions } from '@oxy.so/co
 import { observeAssetJob, startWorkerActivity, stopWorkerActivity } from '../workerActivity.service';
 
 type Publisher = ReturnType<typeof createEcosystemTraffic>;
-const keys = ['OXY_ECOSYSTEM_ACTIVITY_ENABLED', 'AWS_REGION', 'OXY_ACTIVITY_API_KEY', 'OXY_ACTIVITY_API_SECRET', 'NODE_ENV'] as const;
+const keys = ['AWS_REGION', 'OXY_ACTIVITY_API_KEY', 'OXY_ACTIVITY_API_SECRET', 'NODE_ENV'] as const;
 let original: Array<string | undefined>;
 const record = jest.fn();
 const stop = jest.fn(async () => undefined);
@@ -19,30 +19,26 @@ afterEach(async () => {
   keys.forEach((key, index) => { if (original[index] === undefined) delete process.env[key]; else process.env[key] = original[index]; });
 });
 function enable() {
-  process.env.OXY_ECOSYSTEM_ACTIVITY_ENABLED = 'true';
   process.env.AWS_REGION = 'us-west-2';
   process.env.OXY_ACTIVITY_API_KEY = 'dedicated-test-key';
   process.env.OXY_ACTIVITY_API_SECRET = 'dedicated-test-secret';
 }
 
-test('AWS storage configuration alone never enables activity; explicit false stays disabled', () => {
+test('AWS storage configuration alone never enables activity; missing or blank dedicated credentials stay disabled', () => {
   process.env.AWS_REGION = 'us-west-2';
   expect(startWorkerActivity('oxy-asset-variant-worker', () => true, create)).toBeUndefined();
-  process.env.OXY_ECOSYSTEM_ACTIVITY_ENABLED = 'false';
+  process.env.OXY_ACTIVITY_API_KEY = 'dedicated-test-key';
+  expect(startWorkerActivity('oxy-asset-variant-worker', () => true, create)).toBeUndefined();
+  process.env.OXY_ACTIVITY_API_SECRET = '   ';
   expect(startWorkerActivity('oxy-asset-variant-worker', () => true, create)).toBeUndefined();
   observeAssetJob('us-west-2');
   expect(create).not.toHaveBeenCalled();
   expect(record).not.toHaveBeenCalled();
 });
-test('invalid enablement, region and incomplete dedicated credentials fail before publisher creation', () => {
-  process.env.OXY_ECOSYSTEM_ACTIVITY_ENABLED = 'yes';
-  expect(() => startWorkerActivity('worker', () => false, create)).toThrow('true or false');
+test('an invalid region fails before publisher creation once dedicated credentials are present', () => {
   enable();
   process.env.AWS_REGION = 'private-host/path';
   expect(() => startWorkerActivity('worker', () => false, create)).toThrow('valid AWS_REGION');
-  process.env.AWS_REGION = 'us-west-2';
-  delete process.env.OXY_ACTIVITY_API_SECRET;
-  expect(() => startWorkerActivity('worker', () => false, create)).toThrow('dedicated');
   expect(create).not.toHaveBeenCalled();
 });
 test('readiness follows the running consumer and shutdown stops the publisher exactly once without NODE_ENV', async () => {
