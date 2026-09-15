@@ -847,6 +847,29 @@ jobs:
       - run: bunx tsc --noEmit
         working-directory: ./packages/auth
 
+  # Identity origin (id.oxy.so) — the web identity carrier. Worker header policy
+  # (node:test) + carrier rules against the real core crypto (Jest, from source).
+  id-test:
+    name: Identity Origin Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+      - run: bun install --frozen-lockfile --minimum-release-age=0
+      - run: bun run test
+        working-directory: ./packages/id
+      - run: |
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
+      - run: bun run build
+        working-directory: ./packages/id
+
   # Commons app tests (Jest — native identity vault)
   commons-test:
     name: Commons Tests
@@ -1069,6 +1092,7 @@ jobs:
       - node-test
       - services-test
       - auth-test
+      - id-test
       - commons-test
       - accounts-test
       - console-test

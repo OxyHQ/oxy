@@ -81,6 +81,7 @@ import appSignalsRouter from './routes/appSignals';
 import identityRoutes from './routes/identity';
 import chainsRoutes from './routes/chains';
 import identityBackupRoutes from './routes/identityBackup';
+import identityWebEnvelopeRoutes from './routes/identityWebEnvelope';
 import deviceTransferRoutes from './routes/deviceTransfer';
 import civicRoutes from './routes/civic';
 import nodeRoutes from './routes/nodes';
@@ -844,6 +845,11 @@ app.use('/app-signals', appSignalsRouter);
 // auth, so no csrfProtection (bearer-write CSRF rule + public GET). Mounted
 // BEFORE `/identity` so the more specific `/identity/backup` prefix wins.
 app.use('/identity/backup', identityBackupRoutes);
+// Sealed web copy of an identity (one identity, two carriers). Bearer +
+// identity-key proof on every write and restricted to the identity origin; no
+// ambient cookie credentials, so no csrfProtection (bearer-write CSRF rule).
+// Mounted BEFORE `/identity` so its specific prefix wins.
+app.use('/identity/web-envelope', identityWebEnvelopeRoutes);
 // Device-to-device identity transfer ("add a device"). Mounted BEFORE `/identity`
 // so its specific prefix wins over the identity router. Public init/info/deny +
 // bearer+signature approve; the relay is E2E-encrypted (no CSRF — no ambient
