@@ -616,7 +616,6 @@
         "@oxy.so/contracts": "workspace:*",
         "@oxy.so/core": "workspace:*",
         "@oxy.so/protocol": "workspace:*",
-        "@simplewebauthn/browser": "^13.3.0",
         "react": "catalog:",
         "react-dom": "catalog:",
       },

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { base64URLStringToBuffer } from '@simplewebauthn/browser';
+import { base64UrlToBuffer } from '../identity/base64url';
 import { WEB_IDENTITY_PRF_INPUT } from '@oxy.so/core';
 import { readPrfOutput } from '../identity/passkey';
 import { messageOf } from '../identity/ports';
@@ -31,7 +31,7 @@ export function PrfCheckScreen() {
       publicKey: {
         challenge,
         userVerification: 'required',
-        allowCredentials: credentialId ? [{ id: base64URLStringToBuffer(credentialId), type: 'public-key' }] : undefined,
+        allowCredentials: credentialId ? [{ id: base64UrlToBuffer(credentialId), type: 'public-key' }] : undefined,
         extensions: { prf: { eval: { first: WEB_IDENTITY_PRF_INPUT } } } as AuthenticationExtensionsClientInputs,
       },
     })) as PublicKeyCredential | null;

@@ -6,8 +6,7 @@
  * carrier needs on top: the PRF evaluation of `WEB_IDENTITY_PRF_INPUT`, returned
  * alongside the response and never sent to the server.
  *
- * `navigator.credentials` is called directly rather than through
- * `@simplewebauthn/browser`'s `start*` helpers so the PRF input stays a
+ * `navigator.credentials` is called directly so the PRF input stays a
  * `BufferSource` and the PRF output is read before the response is serialized.
  *
  * User verification is always REQUIRED here: an authenticator derives a
@@ -16,7 +15,7 @@
  * the envelope — and a key-unsealing prompt must prove the person anyway.
  */
 
-import { base64URLStringToBuffer, bufferToBase64URLString } from '@simplewebauthn/browser';
+import { base64UrlToBuffer, bufferToBase64Url } from './base64url';
 import { WEB_IDENTITY_PRF_INPUT } from '@oxy.so/core';
 
 /** A JSON-encoded public-key credential descriptor, as the API sends it. */
@@ -61,15 +60,15 @@ const prfExtension = (): AuthenticationExtensionsClientInputs =>
   ({ prf: { eval: { first: WEB_IDENTITY_PRF_INPUT } } }) as AuthenticationExtensionsClientInputs;
 
 function toDescriptor(descriptor: CredentialDescriptorJSON): PublicKeyCredentialDescriptor {
-  return { id: base64URLStringToBuffer(descriptor.id), type: 'public-key', transports: descriptor.transports };
+  return { id: base64UrlToBuffer(descriptor.id), type: 'public-key', transports: descriptor.transports };
 }
 
 /** API creation options → browser options, with PRF requested and a discoverable, verified credential. */
 export function toCreationOptions(json: CreationOptionsJSON): PublicKeyCredentialCreationOptions {
   return {
-    challenge: base64URLStringToBuffer(json.challenge),
+    challenge: base64UrlToBuffer(json.challenge),
     rp: json.rp,
-    user: { ...json.user, id: base64URLStringToBuffer(json.user.id) },
+    user: { ...json.user, id: base64UrlToBuffer(json.user.id) },
     pubKeyCredParams: json.pubKeyCredParams,
     timeout: json.timeout,
     excludeCredentials: json.excludeCredentials?.map(toDescriptor),
@@ -88,7 +87,7 @@ export function toCreationOptions(json: CreationOptionsJSON): PublicKeyCredentia
 /** API request options → browser options, with PRF requested and user verification required. */
 export function toRequestOptions(json: RequestOptionsJSON): PublicKeyCredentialRequestOptions {
   return {
-    challenge: base64URLStringToBuffer(json.challenge),
+    challenge: base64UrlToBuffer(json.challenge),
     timeout: json.timeout,
     rpId: json.rpId,
     allowCredentials: json.allowCredentials?.map(toDescriptor),
@@ -119,11 +118,11 @@ export function registrationToJSON(credential: PublicKeyCredential): Record<stri
   const response = credential.response as AttestationResponse;
   return {
     id: credential.id,
-    rawId: bufferToBase64URLString(credential.rawId),
+    rawId: bufferToBase64Url(credential.rawId),
     type: credential.type,
     response: {
-      clientDataJSON: bufferToBase64URLString(response.clientDataJSON),
-      attestationObject: bufferToBase64URLString(response.attestationObject),
+      clientDataJSON: bufferToBase64Url(response.clientDataJSON),
+      attestationObject: bufferToBase64Url(response.attestationObject),
       transports: response.getTransports?.() ?? [],
     },
     clientExtensionResults: {},
@@ -136,13 +135,13 @@ export function authenticationToJSON(credential: PublicKeyCredential): Record<st
   const response = credential.response as AuthenticatorAssertionResponse;
   return {
     id: credential.id,
-    rawId: bufferToBase64URLString(credential.rawId),
+    rawId: bufferToBase64Url(credential.rawId),
     type: credential.type,
     response: {
-      clientDataJSON: bufferToBase64URLString(response.clientDataJSON),
-      authenticatorData: bufferToBase64URLString(response.authenticatorData),
-      signature: bufferToBase64URLString(response.signature),
-      userHandle: response.userHandle ? bufferToBase64URLString(response.userHandle) : undefined,
+      clientDataJSON: bufferToBase64Url(response.clientDataJSON),
+      authenticatorData: bufferToBase64Url(response.authenticatorData),
+      signature: bufferToBase64Url(response.signature),
+      userHandle: response.userHandle ? bufferToBase64Url(response.userHandle) : undefined,
     },
     clientExtensionResults: {},
     authenticatorAttachment: credential.authenticatorAttachment ?? undefined,
@@ -189,7 +188,7 @@ export async function evaluatePrf(credentialId: string): Promise<Uint8Array | nu
   const credential = (await navigator.credentials.get({
     publicKey: {
       challenge,
-      allowCredentials: [{ id: base64URLStringToBuffer(credentialId), type: 'public-key' }],
+      allowCredentials: [{ id: base64UrlToBuffer(credentialId), type: 'public-key' }],
       userVerification: 'required',
       extensions: prfExtension(),
     },
