@@ -117,9 +117,23 @@ export const webIdentityEnvelopeProofSchema = z.object({
 /** `PUT /identity/web-envelope` body: the envelope plus a `web_envelope_put` identity-key proof. */
 export const webIdentityEnvelopePutSchema = webIdentityEnvelopeUploadSchema.extend(webIdentityEnvelopeProofSchema.shape);
 
+/**
+ * `POST /identity/web-envelope/establish` body — create an account's FIRST
+ * identity on the web: link the key and store its envelope in ONE transaction.
+ *
+ * Linking and storing as two calls would let a failure (or a closed tab) in
+ * between leave the account bound to a key that nothing carries — an identity
+ * lost at birth. `link` is a `link_identity` proof and the outer proof a
+ * `web_envelope_put` proof, both signed by the envelope's own key.
+ */
+export const webIdentityEnvelopeEstablishSchema = webIdentityEnvelopePutSchema.extend({
+    link: webIdentityEnvelopeProofSchema,
+});
+
 export type WebIdentityWrap = z.infer<typeof webIdentityWrapSchema>;
 export type WebIdentityEnvelope = z.infer<typeof webIdentityEnvelopeSchema>;
 export type WebIdentityEnvelopeUpload = z.infer<typeof webIdentityEnvelopeUploadSchema>;
 export type WebIdentityEnvelopeResponse = z.infer<typeof webIdentityEnvelopeResponseSchema>;
 export type WebIdentityEnvelopeProof = z.infer<typeof webIdentityEnvelopeProofSchema>;
 export type WebIdentityEnvelopePut = z.infer<typeof webIdentityEnvelopePutSchema>;
+export type WebIdentityEnvelopeEstablish = z.infer<typeof webIdentityEnvelopeEstablishSchema>;

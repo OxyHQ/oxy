@@ -4,6 +4,7 @@
  * Mounted at `/identity/web-envelope`:
  *  - `GET    /`                  (bearer) the caller's envelope + phrase state
  *  - `PUT    /`                  (bearer + identity-key proof) store or replace it
+ *  - `POST   /establish`         (bearer + two identity-key proofs) link the account's FIRST identity and store it, atomically
  *  - `POST   /phrase-confirmed`  (bearer + identity-key proof) record that the phrase is saved
  *  - `DELETE /`                  (bearer + identity-key proof) destroy the web copy
  *
@@ -29,18 +30,20 @@
  *    key over `JSON.stringify({ action, userId, timestamp })`.
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import {
+  webIdentityEnvelopeEstablishSchema,
   webIdentityEnvelopeProofSchema,
   webIdentityEnvelopePutSchema,
   type WebIdentityEnvelope,
+  type WebIdentityEnvelopeEstablish,
   type WebIdentityEnvelopeProof,
   type WebIdentityEnvelopePut,
   type WebIdentityEnvelopeResponse,
 } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
-import { BadRequestError, ForbiddenError, UnauthorizedError } from '../utils/error';
+import { BadRequestError, ConflictError, ForbiddenError, UnauthorizedError } from '../utils/error';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
@@ -48,13 +51,17 @@ import { isLoopbackOrigin } from '../utils/origin';
 import { getIdentityWebOrigin } from '../config/env';
 import { getDb } from '../config/postgres';
 import { identityWebEnvelopes } from '../db/schema/identityWebEnvelopes';
+import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users } from '../db/schema/users';
 import { SignatureService } from '../services/signature.service';
+import { isUniqueViolation } from '../utils/postgresErrors';
+import userCache from '../utils/userCache';
 
 const router = Router();
 
 /** The actions an identity-key proof may authorize on this router. */
 export const WEB_ENVELOPE_ACTIONS = {
+  link: 'link_identity',
   put: 'web_envelope_put',
   phraseConfirmed: 'web_envelope_phrase_confirmed',
   delete: 'web_envelope_delete',
@@ -109,12 +116,8 @@ async function linkedPublicKey(userId: string): Promise<string | null> {
   return row?.publicKey ? row.publicKey.trim().toLowerCase() : null;
 }
 
-/** Verify a fresh identity-key proof for `action`, returning the linked key. */
-async function verifyProof(userId: string, action: string, proof: WebIdentityEnvelopeProof): Promise<string> {
-  const publicKey = await linkedPublicKey(userId);
-  if (!publicKey) {
-    throw new BadRequestError('Account does not have an identity key');
-  }
+/** Check one fresh proof for `action` by `publicKey`. */
+function assertProof(userId: string, action: string, proof: WebIdentityEnvelopeProof, publicKey: string): void {
   if (!SignatureService.isTimestampFresh(proof.timestamp)) {
     throw new BadRequestError('Signature expired or invalid timestamp - please try again');
   }
@@ -122,7 +125,32 @@ async function verifyProof(userId: string, action: string, proof: WebIdentityEnv
   if (!SignatureService.verifySignature(message, proof.signature, publicKey)) {
     throw new UnauthorizedError('Invalid identity signature');
   }
+}
+
+/** Verify a fresh identity-key proof for `action` by the account's linked key, returning that key. */
+async function verifyProof(userId: string, action: string, proof: WebIdentityEnvelopeProof): Promise<string> {
+  const publicKey = await linkedPublicKey(userId);
+  if (!publicKey) {
+    throw new BadRequestError('Account does not have an identity key');
+  }
+  assertProof(userId, action, proof, publicKey);
   return publicKey;
+}
+
+/** `lower(btrim(public_key)) = lower(btrim($1))` — the spelling `users_lower_public_key_key` serves. */
+function publicKeyMatches(candidate: string) {
+  return sql`lower(btrim(${users.publicKey})) = lower(btrim(${candidate}))`;
+}
+
+function envelopeColumns(envelope: WebIdentityEnvelope, publicKey: string) {
+  return {
+    publicKey,
+    version: envelope.version,
+    algorithm: envelope.algorithm,
+    entropyNonce: envelope.entropyNonce.toLowerCase(),
+    sealedEntropy: envelope.sealedEntropy.toLowerCase(),
+    wraps: envelope.wraps,
+  };
 }
 
 const ENVELOPE_COLUMNS = {
@@ -207,19 +235,86 @@ router.put(
       throw new BadRequestError('The envelope does not seal this account’s identity');
     }
 
-    const stored = {
-      publicKey,
-      version: body.envelope.version,
-      algorithm: body.envelope.algorithm,
-      entropyNonce: body.envelope.entropyNonce.toLowerCase(),
-      sealedEntropy: body.envelope.sealedEntropy.toLowerCase(),
-      wraps: body.envelope.wraps,
-    };
+    const stored = envelopeColumns(body.envelope, publicKey);
     await getDb()
       .insert(identityWebEnvelopes)
       .values({ userId, ...stored })
       .onConflictDoUpdate({ target: identityWebEnvelopes.userId, set: stored });
 
+    res.status(200).json(await readEnvelope(userId));
+  }),
+);
+
+/**
+ * POST /identity/web-envelope/establish — give an account with NO identity its
+ * first one: link the key and store the envelope in one transaction, so there is
+ * never a committed link without an envelope (an identity nothing carries).
+ *
+ * Both proofs are by the ENVELOPE's key (there is no linked key yet to check
+ * against). Idempotent for a retry of the same identity; an account that already
+ * has a DIFFERENT identity is refused — this can never replace one.
+ */
+router.post(
+  '/establish',
+  authMiddleware,
+  writeLimiter,
+  validate({ body: webIdentityEnvelopeEstablishSchema }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = requireUserId(req);
+    const body = req.body as WebIdentityEnvelopeEstablish;
+    const publicKey = body.envelope.publicKey.toLowerCase();
+    assertProof(userId, WEB_ENVELOPE_ACTIONS.link, body.link, publicKey);
+    assertProof(userId, WEB_ENVELOPE_ACTIONS.put, body, publicKey);
+
+    try {
+      await getDb().transaction(async (tx) => {
+        // Row lock: two concurrent establishes for one account cannot both link.
+        const [account] = await tx
+          .select({ publicKey: users.publicKey })
+          .from(users)
+          .where(eq(users.id, userId))
+          .for('update')
+          .limit(1);
+        if (!account) {
+          throw new BadRequestError('User not found');
+        }
+        const current = account.publicKey?.trim().toLowerCase() || null;
+        if (current && current !== publicKey) {
+          throw new ConflictError('This account already has an identity');
+        }
+        if (!current) {
+          const [other] = await tx
+            .select({ id: users.id })
+            .from(users)
+            .where(and(publicKeyMatches(publicKey), ne(users.id, userId)))
+            .limit(1);
+          if (other) {
+            throw new ConflictError('This identity is already linked to another account');
+          }
+          await tx.update(users).set({ publicKey }).where(eq(users.id, userId));
+          const [method] = await tx
+            .select({ id: userAuthMethods.id })
+            .from(userAuthMethods)
+            .where(and(eq(userAuthMethods.userId, userId), eq(userAuthMethods.type, 'identity')))
+            .limit(1);
+          if (!method) {
+            await tx.insert(userAuthMethods).values({ userId, type: 'identity', methodPublicKey: publicKey });
+          }
+        }
+        const stored = envelopeColumns(body.envelope, publicKey);
+        await tx
+          .insert(identityWebEnvelopes)
+          .values({ userId, ...stored })
+          .onConflictDoUpdate({ target: identityWebEnvelopes.userId, set: stored });
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ConflictError('This identity is already linked to another account');
+      }
+      throw error;
+    }
+
+    userCache.invalidate(userId);
     res.status(200).json(await readEnvelope(userId));
   }),
 );

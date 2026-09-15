@@ -44,6 +44,7 @@ jest.mock('../../utils/logger', () => ({
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { identityWebEnvelopes } from '../../db/schema/identityWebEnvelopes';
+import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import identityWebEnvelopeRouter, { WEB_ENVELOPE_ACTIONS } from '../identityWebEnvelope';
@@ -240,6 +241,86 @@ describe('storing the envelope', () => {
 
     const rows = await getDb().select({ id: identityWebEnvelopes.id }).from(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, userId));
     expect(rows).toHaveLength(1);
+  });
+});
+
+describe('establishing an account’s first identity', () => {
+  async function accountWithoutIdentity(): Promise<string> {
+    const [row] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
+    return row.id;
+  }
+
+  async function establishBody(identity: OpenedWebIdentity, userId: string) {
+    return {
+      envelope: sealFor(identity),
+      link: await proof(identity, WEB_ENVELOPE_ACTIONS.link, userId),
+      ...(await proof(identity, WEB_ENVELOPE_ACTIONS.put, userId)),
+    };
+  }
+
+  async function linkedKey(userId: string): Promise<string | null> {
+    const [row] = await getDb().select({ publicKey: users.publicKey }).from(users).where(eq(users.id, userId));
+    return row?.publicKey ?? null;
+  }
+
+  it('links the key, records the auth method and stores the envelope together', async () => {
+    const userId = await accountWithoutIdentity();
+    currentUserId = userId;
+    const identity = generateWebIdentity();
+    const body = await establishBody(identity, userId);
+
+    const res = await request('POST', '/establish', body);
+    expect(res.status).toBe(200);
+    expect(res.body.envelope).toEqual(body.envelope);
+    expect(await linkedKey(userId)).toBe(identity.publicKey);
+    const methods = await getDb()
+      .select({ type: userAuthMethods.type, methodPublicKey: userAuthMethods.methodPublicKey })
+      .from(userAuthMethods)
+      .where(eq(userAuthMethods.userId, userId));
+    expect(methods).toEqual([{ type: 'identity', methodPublicKey: identity.publicKey }]);
+  });
+
+  it('links nothing when any part is refused — never a key without its envelope', async () => {
+    const userId = await accountWithoutIdentity();
+    currentUserId = userId;
+    const identity = generateWebIdentity();
+    const body = await establishBody(identity, userId);
+
+    const badPut = await request('POST', '/establish', { ...body, signature: (await proof(generateWebIdentity(), WEB_ENVELOPE_ACTIONS.put, userId)).signature });
+    expect(badPut.status).toBe(401);
+    const badLink = await request('POST', '/establish', { ...body, link: await proof(identity, WEB_ENVELOPE_ACTIONS.put, userId) });
+    expect(badLink.status).toBe(401);
+
+    expect(await linkedKey(userId)).toBeNull();
+    expect((await request('GET', '/')).body.envelope).toBeNull();
+  });
+
+  it('is safe to retry with the same identity', async () => {
+    const userId = await accountWithoutIdentity();
+    currentUserId = userId;
+    const identity = generateWebIdentity();
+
+    expect((await request('POST', '/establish', await establishBody(identity, userId))).status).toBe(200);
+    expect((await request('POST', '/establish', await establishBody(identity, userId))).status).toBe(200);
+    const methods = await getDb().select({ id: userAuthMethods.id }).from(userAuthMethods).where(eq(userAuthMethods.userId, userId));
+    expect(methods).toHaveLength(1);
+  });
+
+  it('never replaces an identity the account already has', async () => {
+    const { userId, identity: existing } = await accountWithIdentity();
+    currentUserId = userId;
+    const res = await request('POST', '/establish', await establishBody(generateWebIdentity(), userId));
+    expect(res.status).toBe(409);
+    expect(await linkedKey(userId)).toBe(existing.publicKey);
+  });
+
+  it('refuses a key already linked to another account', async () => {
+    const { identity: taken } = await accountWithIdentity();
+    const userId = await accountWithoutIdentity();
+    currentUserId = userId;
+    const res = await request('POST', '/establish', await establishBody(taken, userId));
+    expect(res.status).toBe(409);
+    expect(await linkedKey(userId)).toBeNull();
   });
 });
 

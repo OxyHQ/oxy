@@ -587,6 +587,7 @@ export {
     webIdentityEnvelopeResponseSchema,
     webIdentityEnvelopeProofSchema,
     webIdentityEnvelopePutSchema,
+    webIdentityEnvelopeEstablishSchema,
 } from './webIdentityCarrier';
 
 export type {
@@ -596,6 +597,7 @@ export type {
     WebIdentityEnvelopeResponse,
     WebIdentityEnvelopeProof,
     WebIdentityEnvelopePut,
+    WebIdentityEnvelopeEstablish,
 } from './webIdentityCarrier';
 
 export {
