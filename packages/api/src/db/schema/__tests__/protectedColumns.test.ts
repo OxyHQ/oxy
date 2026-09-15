@@ -31,6 +31,7 @@ import {
   INFERENCE_ROUTING_SCORES_PROTECTED_COLUMNS,
   PROTECTED_COLUMNS,
   PROTECTED_COLUMNS_BY_TABLE,
+  USERS_POST_MONGO_PROTECTED_COLUMNS,
 } from '../protectedColumns';
 import { users } from '../users';
 
@@ -51,6 +52,19 @@ const MONGOOSE_SELECT_FALSE_USER_COLUMNS = [
   'emailSignature',
   'autoForwardTo',
   'autoForwardKeepCopy',
+] as const;
+
+/**
+ * The full expectation for `users`: the Mongoose-derived set PLUS the columns
+ * added directly in Postgres for their own stated reason (see
+ * `USERS_POST_MONGO_PROTECTED_COLUMNS`'s own comment). Kept as a UNION of two
+ * independently-written lists rather than one combined list, so an accidental
+ * addition to either source array still has an independent list to be caught
+ * against.
+ */
+const EXPECTED_USERS_PROTECTED_COLUMNS = [
+  ...MONGOOSE_SELECT_FALSE_USER_COLUMNS,
+  ...USERS_POST_MONGO_PROTECTED_COLUMNS,
 ] as const;
 
 /** `packages/api/src`. */
@@ -82,9 +96,9 @@ function sourceFiles(directory: string): string[] {
 const protectedTableNames = Object.keys(PROTECTED_COLUMNS_BY_TABLE);
 
 describe('protected columns — the registry', () => {
-  it('protects exactly the columns Mongoose marked `select: false`', () => {
+  it('protects exactly the columns Mongoose marked `select: false`, plus the deliberate post-Mongo additions', () => {
     expect([...PROTECTED_COLUMNS_BY_TABLE.users]).toEqual([
-      ...MONGOOSE_SELECT_FALSE_USER_COLUMNS,
+      ...EXPECTED_USERS_PROTECTED_COLUMNS,
     ]);
   });
 
@@ -95,7 +109,7 @@ describe('protected columns — the registry', () => {
 
     // `column.name` IS the TypeScript property name here — the trap in
     // `casing.ts` is about using it as a SQL name, which this is not.
-    expect(reasoned.sort()).toEqual([...MONGOOSE_SELECT_FALSE_USER_COLUMNS].sort());
+    expect(reasoned.sort()).toEqual([...EXPECTED_USERS_PROTECTED_COLUMNS].sort());
   });
 
   it('states a reason for every protected column', () => {
@@ -156,6 +170,7 @@ describe('protected columns — publicColumns()', () => {
     expect(selectable).not.toContain('emailSignature');
     expect(selectable).not.toContain('autoForwardTo');
     expect(selectable).not.toContain('autoForwardKeepCopy');
+    expect(selectable).not.toContain('dateOfBirth');
   });
 
   it('withholds nothing else — the removal is exactly the registry', () => {
@@ -164,7 +179,7 @@ describe('protected columns — publicColumns()', () => {
     const missing = all.filter(
       (name) =>
         !selectable.has(name) &&
-        !(MONGOOSE_SELECT_FALSE_USER_COLUMNS as readonly string[]).includes(name)
+        !(EXPECTED_USERS_PROTECTED_COLUMNS as readonly string[]).includes(name)
     );
 
     expect(missing).toEqual([]);

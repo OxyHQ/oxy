@@ -31,6 +31,7 @@ export interface ProfileUpdateData {
     phone?: string;
     address?: string;
     birthday?: string;
+    dateOfBirth?: string;
 }
 
 type ProfileFieldValue = string | ProfileLocation[] | ProfileLinkMetadata[];
@@ -87,6 +88,13 @@ export const useProfileEditing = () => {
         if (updates.birthday !== undefined) {
             updateData.birthday = updates.birthday;
         }
+        if (updates.dateOfBirth !== undefined) {
+            // '' clears it — `updateData.dateOfBirth` is `string | null`
+            // per the contract, and there is no separate blank sentinel for
+            // a structured date the way `blankToNull` gives every free-text
+            // field.
+            updateData.dateOfBirth = updates.dateOfBirth === '' ? null : updates.dateOfBirth;
+        }
 
         // Handle name field
         if (updates.firstName !== undefined || updates.lastName !== undefined) {
@@ -141,6 +149,13 @@ export const useProfileEditing = () => {
             case 'birthday':
                 if (typeof value !== 'string') return false;
                 updates.birthday = value;
+                break;
+            case 'dateOfBirth':
+                // '' clears it (the picker's "no complete date selected"
+                // state) — `updateUserProfile`'s `dateOfBirth` block treats
+                // an empty string the same as `null`.
+                if (typeof value !== 'string') return false;
+                updates.dateOfBirth = value;
                 break;
             case 'location':
                 if (!isProfileLocationArray(value)) return false;

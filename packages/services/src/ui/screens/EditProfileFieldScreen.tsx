@@ -12,6 +12,16 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
+import {
+    Select,
+    SelectContent,
+    SelectIcon,
+    SelectItem,
+    SelectItemIndicator,
+    SelectItemText,
+    SelectTrigger,
+    SelectValue,
+} from '@oxy.so/bloom/select';
 import { normalizeTheme } from '@oxy.so/core';
 import type { User } from '@oxy.so/core';
 import { useI18n } from '../hooks/useI18n';
@@ -53,6 +63,67 @@ interface FieldConfig {
         inputProps?: Partial<TextInputProps>;
     }>;
     isList?: boolean;
+    /** Renders `renderBirthdayPicker` instead of the plain-text `fields`. */
+    isDatePicker?: boolean;
+}
+
+/**
+ * The earliest calendar year the birthday picker offers — matches the
+ * platform's own lower bound (`dateOfBirthSchema`, `@oxy.so/contracts`) so a
+ * value this picker can produce is never one the API would reject.
+ */
+const MIN_BIRTH_YEAR = 1900;
+
+/** `MIN_BIRTH_YEAR` through the current year, most recent first. */
+function birthYearOptions(): Array<{ value: string; label: string }> {
+    const currentYear = new Date().getUTCFullYear();
+    const years: Array<{ value: string; label: string }> = [];
+    for (let year = currentYear; year >= MIN_BIRTH_YEAR; year--) {
+        years.push({ value: String(year), label: String(year) });
+    }
+    return years;
+}
+
+/**
+ * Month names are not run through `t()` here: this SDK has no existing
+ * calendar-month translation catalogue to hook into, and inventing one is out
+ * of scope for wiring up the date picker itself. English month names are a
+ * known, deliberate limitation of this pass.
+ */
+const MONTH_OPTIONS: Array<{ value: string; label: string }> = [
+    { value: '01', label: 'January' },
+    { value: '02', label: 'February' },
+    { value: '03', label: 'March' },
+    { value: '04', label: 'April' },
+    { value: '05', label: 'May' },
+    { value: '06', label: 'June' },
+    { value: '07', label: 'July' },
+    { value: '08', label: 'August' },
+    { value: '09', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' },
+];
+
+/**
+ * Real Gregorian days in `month` (1-12) of `year`, leap years included — the
+ * same rule `dateOfBirthSchema` (`@oxy.so/contracts`) applies server-side,
+ * written a second time here because a picker's OWN day list must bound
+ * itself before the value ever reaches it.
+ */
+function daysInMonth(year: number, month: number): number {
+    const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    const DAYS_PER_MONTH = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    return DAYS_PER_MONTH[month - 1];
+}
+
+/** Day options for the current year/month selection — 31 while either is unset. */
+function dayOptions(year: string, month: string): Array<{ value: string; label: string }> {
+    const count = year && month ? daysInMonth(Number(year), Number(month)) : 31;
+    return Array.from({ length: count }, (_, index) => {
+        const day = String(index + 1).padStart(2, '0');
+        return { value: day, label: day };
+    });
 }
 
 interface EditProfileFieldScreenProps extends BaseScreenProps {
@@ -131,7 +202,13 @@ function buildInitialProfileState(
             fieldValues.lastName = String(userData.lastName || userData.name?.last || '');
             break;
         case 'birthday':
-            fieldValues.birthday = String(userData.birthday || userData.dateOfBirth || '');
+            // Seeded from `dateOfBirth` ONLY, never the legacy free-text
+            // `birthday` — a structured picker needs a real `YYYY-MM-DD`
+            // value to select against, and `birthday` has no guaranteed
+            // shape (see its own comment in `db/schema/users.ts`). An
+            // account whose `dateOfBirth` is not yet set opens the picker
+            // empty rather than seeded with a guess.
+            fieldValues.dateOfBirth = String(userData.dateOfBirth || '');
             break;
         case 'address':
             fieldValues.address = String(userData.address || '');
@@ -322,17 +399,18 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
                 return {
                     title: t('editProfile.items.birthday.title') || 'Birthday',
                     subtitle: t('editProfile.items.birthday.subtitle') || 'Your date of birth',
+                    // One entry, naming the field `handleSave`'s generic branch writes
+                    // (`fieldConfig.fields[0]?.key`) — `renderBirthdayPicker` renders the
+                    // actual day/month/year controls; this array is never mapped through
+                    // `renderField` for this field type (see `isDatePicker` below).
                     fields: [
                         {
-                            key: 'birthday',
+                            key: 'dateOfBirth',
                             label: t('editProfile.items.birthday.label') || 'Birthday',
                             placeholder: t('editProfile.items.birthday.placeholder') || 'YYYY-MM-DD',
-                            inputProps: {
-                                autoCapitalize: 'none',
-                                autoCorrect: false,
-                            },
                         },
                     ],
+                    isDatePicker: true,
                 };
             case 'locations':
                 return {
@@ -363,6 +441,54 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
             setFieldErrors(prev => ({ ...prev, [key]: undefined }));
         }
     }, [fieldErrors]);
+
+    // The birthday picker's three pieces, seeded once from the same
+    // one-time-mount value `fieldValues.dateOfBirth` already carries (empty
+    // string parts when unset). Kept separate from `fieldValues` because a
+    // `Select` needs its OWN current value per control; each change handler
+    // below composes the three back into the single `dateOfBirth` field
+    // `handleSave` actually writes, in the event handler itself rather than
+    // an effect.
+    const [dobYear, setDobYear] = useState(() => (fieldValues.dateOfBirth || '').split('-')[0] || '');
+    const [dobMonth, setDobMonth] = useState(() => (fieldValues.dateOfBirth || '').split('-')[1] || '');
+    const [dobDay, setDobDay] = useState(() => (fieldValues.dateOfBirth || '').split('-')[2] || '');
+
+    // A partial selection (e.g. year and month but no day yet) writes ''`,
+    // which `updateField`/the API's `dateOfBirth` write path already treats
+    // as "clear" — the same behaviour a fully-erased text field would have
+    // had. There is deliberately no separate "incomplete date" error: the
+    // three controls are either all filled (a real date) or the field is
+    // unset, and both are valid states to save.
+    const commitDateOfBirth = useCallback((year: string, month: string, day: string) => {
+        handleFieldChange('dateOfBirth', year && month && day ? `${year}-${month}-${day}` : '');
+    }, [handleFieldChange]);
+
+    // Changing the year or month can strand a selected day past the new
+    // month's length (31 March -> April has none) — clamped down to the new
+    // last day rather than left pointing at a day `dayOptions` no longer
+    // lists, the same way a native date picker behaves.
+    const handleDobYearChange = useCallback((year: string) => {
+        const clampedDay = dobDay && dobMonth && Number(dobDay) > daysInMonth(Number(year), Number(dobMonth))
+            ? String(daysInMonth(Number(year), Number(dobMonth))).padStart(2, '0')
+            : dobDay;
+        setDobYear(year);
+        setDobDay(clampedDay);
+        commitDateOfBirth(year, dobMonth, clampedDay);
+    }, [dobMonth, dobDay, commitDateOfBirth]);
+
+    const handleDobMonthChange = useCallback((month: string) => {
+        const clampedDay = dobDay && dobYear && Number(dobDay) > daysInMonth(Number(dobYear), Number(month))
+            ? String(daysInMonth(Number(dobYear), Number(month))).padStart(2, '0')
+            : dobDay;
+        setDobMonth(month);
+        setDobDay(clampedDay);
+        commitDateOfBirth(dobYear, month, clampedDay);
+    }, [dobYear, dobDay, commitDateOfBirth]);
+
+    const handleDobDayChange = useCallback((day: string) => {
+        setDobDay(day);
+        commitDateOfBirth(dobYear, dobMonth, day);
+    }, [dobYear, dobMonth, commitDateOfBirth]);
 
     // Validate all fields
     const validateFields = useCallback((): boolean => {
@@ -511,6 +637,71 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
         );
     };
 
+    // Render the birthday picker: three `Select`s (day, month, year) rather
+    // than a native date-picker dependency. Neither this app nor
+    // `@oxy.so/bloom` has one installed, and `Select` is already this
+    // design system's cross-platform choice control (a bottom sheet on
+    // native, an anchored dropdown on web — see its own docs) with no new
+    // dependency to add and no native linking to carry across platforms.
+    const renderBirthdayPicker = () => (
+        <View className="flex-row gap-space-8">
+            <View className="flex-1">
+                <Select value={dobMonth} onValueChange={handleDobMonthChange}>
+                    <SelectTrigger label={t('editProfile.items.birthday.month') || 'Month'}>
+                        <SelectValue placeholder={t('editProfile.items.birthday.month') || 'Month'} />
+                        <SelectIcon />
+                    </SelectTrigger>
+                    <SelectContent
+                        label={t('editProfile.items.birthday.month') || 'Month'}
+                        items={MONTH_OPTIONS}
+                        renderItem={(item) => (
+                            <SelectItem value={item.value} label={item.label}>
+                                <SelectItemIndicator />
+                                <SelectItemText>{item.label}</SelectItemText>
+                            </SelectItem>
+                        )}
+                    />
+                </Select>
+            </View>
+            <View className="flex-1">
+                <Select value={dobDay} onValueChange={handleDobDayChange}>
+                    <SelectTrigger label={t('editProfile.items.birthday.day') || 'Day'}>
+                        <SelectValue placeholder={t('editProfile.items.birthday.day') || 'Day'} />
+                        <SelectIcon />
+                    </SelectTrigger>
+                    <SelectContent
+                        label={t('editProfile.items.birthday.day') || 'Day'}
+                        items={dayOptions(dobYear, dobMonth)}
+                        renderItem={(item) => (
+                            <SelectItem value={item.value} label={item.label}>
+                                <SelectItemIndicator />
+                                <SelectItemText>{item.label}</SelectItemText>
+                            </SelectItem>
+                        )}
+                    />
+                </Select>
+            </View>
+            <View className="flex-1">
+                <Select value={dobYear} onValueChange={handleDobYearChange}>
+                    <SelectTrigger label={t('editProfile.items.birthday.year') || 'Year'}>
+                        <SelectValue placeholder={t('editProfile.items.birthday.year') || 'Year'} />
+                        <SelectIcon />
+                    </SelectTrigger>
+                    <SelectContent
+                        label={t('editProfile.items.birthday.year') || 'Year'}
+                        items={birthYearOptions()}
+                        renderItem={(item) => (
+                            <SelectItem value={item.value} label={item.label}>
+                                <SelectItemIndicator />
+                                <SelectItemText>{item.label}</SelectItemText>
+                            </SelectItem>
+                        )}
+                    />
+                </Select>
+            </View>
+        </View>
+    );
+
     // Render list content (locations or links)
     const renderListContent = () => {
         const addLabel = fieldType === 'locations'
@@ -590,7 +781,11 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
         <View className="px-screen-margin pt-space-16 pb-space-32 gap-space-24">
             {/* Form Content */}
             <View className="gap-space-16 p-space-16 rounded-radius-20 bg-fill">
-                {fieldConfig.isList ? renderListContent() : fieldConfig.fields.map(renderField)}
+                {fieldConfig.isList
+                    ? renderListContent()
+                    : fieldConfig.isDatePicker
+                        ? renderBirthdayPicker()
+                        : fieldConfig.fields.map(renderField)}
             </View>
         </View>
     );
