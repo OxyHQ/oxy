@@ -12,7 +12,9 @@
  *
  * Output: totals, a split by which auth methods the account has (passkey-only
  * accounts are the ones the sign-in prompt reaches), and — with `SAMPLE` — a
- * handful of ids to spot-check. No usernames, no emails, no IPs.
+ * handful of ids to spot-check, NEWEST first, because a
+ * gap among accounts created today says something different from a gap among
+ * accounts created before the identity existed. No usernames, no emails, no IPs.
  *
  * Run (inside the oxy-api image, working dir /app):
  *   bun run packages/api/src/scripts/report-accounts-without-identity.ts
@@ -40,6 +42,7 @@ export interface IdentityGapReport {
    * something linked a key and did not write it back.
    */
   linkedKeyMissing: number;
+  /** Up to `SAMPLE` ids per bucket, newest first. Empty unless `SAMPLE` is set. */
   samples: { passkeyOnly: string[]; noAuthMethod: string[]; linkedKeyMissing: string[] };
 }
 
@@ -58,18 +61,19 @@ export async function reportAccountsWithoutIdentity(sampleSize = 0): Promise<Ide
   const rows = await db.execute<{ bucket: Bucket; count: string; sample: string[] }>(sql`
     with gap as (
       select u.id,
+             u.created_at,
              coalesce(bool_or(m.type = 'identity'), false) as has_identity_method,
              count(m.id) as methods
         from users u
         left join user_auth_methods m on m.user_id = u.id
        where u.public_key is null
-       group by u.id
+       group by u.id, u.created_at
     )
     select case when methods = 0 then 'noAuthMethod'
                 when has_identity_method then 'linkedKeyMissing'
                 else 'passkeyOnly' end as bucket,
            count(*)::text as count,
-           (array_agg(id order by id))[1:${sql.raw(String(Math.max(0, Math.trunc(sampleSize))))}] as sample
+           (array_agg(id order by created_at desc, id desc))[1:${sql.raw(String(Math.max(0, Math.trunc(sampleSize))))}] as sample
       from gap
      group by 1
   `);

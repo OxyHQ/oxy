@@ -48,6 +48,8 @@ it('counts only key-less accounts, split by how they sign in', async () => {
   const noMethod = await account(null, []);
   const linkedKeyMissing = await account(null, ['webauthn', 'identity']);
 
+  // Newest first, so the accounts this test just created lead each bucket even
+  // in a database another suite has already filled.
   const after = await reportAccountsWithoutIdentity(10);
 
   expect(after.totalUsers - before.totalUsers).toBe(4);
@@ -61,6 +63,14 @@ it('counts only key-less accounts, split by how they sign in', async () => {
   expect(after.samples.noAuthMethod).toContain(noMethod);
   expect(after.samples.linkedKeyMissing).toContain(linkedKeyMissing);
   expect([...after.samples.passkeyOnly, ...after.samples.noAuthMethod, ...after.samples.linkedKeyMissing]).not.toContain(withKey);
+});
+
+it('samples the newest accounts of each bucket', async () => {
+  const older = await account(null, ['webauthn']);
+  const newer = await account(null, ['webauthn']);
+  const sample = (await reportAccountsWithoutIdentity(1)).samples.passkeyOnly;
+  expect(sample).toEqual([newer]);
+  expect(sample).not.toContain(older);
 });
 
 it('prints no ids unless asked', async () => {
