@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import type { ApiError, AuthStateStore, IdentityBinding, SessionClient, User } from '@oxy.so/core';
 import type { ClientSession, SessionLoginResponse } from '@oxy.so/core';
 import type { OxyRuntime } from '../../runtime';
+import type { LogoutResult } from '../oxyContextTypes';
 import { DeviceManager } from '@oxy.so/core';
 import { fetchSessionsWithFallback } from '../../utils/sessionHelpers';
 import { handleAuthError, isInvalidSessionError } from '../../utils/errorHandlers';
@@ -56,8 +57,8 @@ export interface UseAuthOperationsOptions {
 export interface UseAuthOperationsResult {
   /** Sign in with existing public key */
   signIn: (publicKey: string, deviceName?: string) => Promise<User>;
-  /** Logout from current session */
-  logout: (targetSessionId?: string) => Promise<void>;
+  /** Logout from current session. Never rejects — see {@link LogoutResult}. */
+  logout: (targetSessionId?: string) => Promise<LogoutResult>;
   /** Logout from all sessions */
   logoutAll: () => Promise<void>;
 }
@@ -292,9 +293,9 @@ export const useAuthOperations = ({
    * Logout from session
    */
   const logout = useCallback(
-    async (targetSessionId?: string): Promise<void> => {
+    async (targetSessionId?: string): Promise<LogoutResult> => {
       const activeSessionId = runtime.getSnapshot().activeSessionId;
-      if (!activeSessionId) return;
+      if (!activeSessionId) return { status: 'signed-out' };
 
       const sessionToLogout = targetSessionId || activeSessionId;
 
@@ -326,6 +327,7 @@ export const useAuthOperations = ({
           clearPersistedAuthSafe(store, logger);
           await clearSessionState();
         }
+        return { status: 'signed-out' };
       } catch (error) {
         const isInvalid = isInvalidSessionError(error);
 
@@ -337,7 +339,7 @@ export const useAuthOperations = ({
           // The active session is invalid → full sign-out; clear persisted state.
           clearPersistedAuthSafe(store, logger);
           await clearSessionState();
-          return;
+          return { status: 'signed-out' };
         }
 
         handleAuthError(error, {
@@ -348,6 +350,9 @@ export const useAuthOperations = ({
           logger,
           status: isInvalid ? 401 : undefined,
         });
+        // Nothing was revoked and the session is still installed here. Say so,
+        // rather than letting a caller close its surface as if it had worked.
+        return { status: 'failed', error };
       }
     },
     [

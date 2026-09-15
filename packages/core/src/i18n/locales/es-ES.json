@@ -696,7 +696,17 @@
     },
     "principal": {
       "signOut": "Cerrar la sesión de {{name}} en este dispositivo"
-    }
+    },
+    "signInFailures": {
+      "denied": "Se rechazó el inicio de sesión en Commons.",
+      "expired": "La solicitud de inicio de sesión ha caducado. Inténtalo de nuevo.",
+      "network": "No se pudo conectar con Oxy. Comprueba tu conexión e inténtalo de nuevo.",
+      "notConfigured": "Esta app aún no está preparada para iniciar sesión.",
+      "unsupportedFlow": "Este inicio de sesión no se puede completar aquí.",
+      "claimFailed": "Se aprobó el inicio de sesión, pero no pudimos completarlo. Inténtalo de nuevo.",
+      "generic": "No se pudo iniciar sesión. Inténtalo de nuevo."
+    },
+    "linkOpenFailed": "No se pudo abrir el enlace. Inténtalo de nuevo."
   },
   "feedback": {
     "type": {

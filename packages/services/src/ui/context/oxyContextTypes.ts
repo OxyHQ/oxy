@@ -11,6 +11,19 @@ import type {
 import type { WebAuthMode, WebOAuthSignInResult } from '../oauth/types';
 import type { StorageInterface } from '../utils/storageHelpers';
 
+/**
+ * The outcome of `logout()`. It never rejects: a caller reads this instead.
+ *
+ *  - `signed-out` — the server confirmed the sign-out, or the session was
+ *    already invalid and was cleaned up locally. Either way, this device no
+ *    longer holds it.
+ *  - `failed` — the revocation did not go through (typically no connection).
+ *    The session is still installed on this device, and nothing about the
+ *    outcome may be presented as revoked. The error is also reported through
+ *    the provider's `onError`, as before.
+ */
+export type LogoutResult = { status: 'signed-out' } | { status: 'failed'; error: unknown };
+
 export interface OxyContextState {
   user: User | null;
   sessions: ClientSession[];
@@ -125,10 +138,11 @@ export interface OxyContextState {
    */
   requestOAuthConsent: (options: RequestOAuthConsentOptions) => Promise<OAuthConsentResult>;
 
-  logout: (targetSessionId?: string) => Promise<void>;
+  logout: (targetSessionId?: string) => Promise<LogoutResult>;
   logoutAll: () => Promise<void>;
   switchSession: (sessionId: string) => Promise<User>;
-  removeSession: (sessionId: string) => Promise<void>;
+  /** The same operation as `logout(sessionId)`, with the same {@link LogoutResult}. */
+  removeSession: (sessionId: string) => Promise<LogoutResult>;
   refreshSessions: () => Promise<void>;
   setLanguage: (languageId: string) => Promise<void>;
   getDeviceSessions: () => Promise<

@@ -456,7 +456,17 @@
     },
     "principal": {
       "signOut": "Sign {{name}} out of this device"
-    }
+    },
+    "signInFailures": {
+      "denied": "Sign-in was declined in Commons.",
+      "expired": "This sign-in request expired. Please try again.",
+      "network": "Couldn't reach Oxy. Check your connection and try again.",
+      "notConfigured": "This app isn't set up for sign-in yet.",
+      "unsupportedFlow": "This sign-in can't be completed here.",
+      "claimFailed": "Sign-in was approved, but we couldn't finish it. Please try again.",
+      "generic": "Sign-in failed. Please try again."
+    },
+    "linkOpenFailed": "Couldn't open that link. Please try again."
   },
   "reputation": {
     "faq": {

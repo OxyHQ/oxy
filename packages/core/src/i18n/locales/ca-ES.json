@@ -136,7 +136,17 @@
       "openedInCommons": "Obert a Commons",
       "confirming": "Confirmant la identitat",
       "confirmed": "Identitat confirmada"
-    }
+    },
+    "signInFailures": {
+      "denied": "S'ha rebutjat l'inici de sessió a Commons.",
+      "expired": "La sol·licitud d'inici de sessió ha caducat. Torna-ho a provar.",
+      "network": "No s'ha pogut connectar amb Oxy. Comprova la connexió i torna-ho a provar.",
+      "notConfigured": "Aquesta app encara no està preparada per iniciar sessió.",
+      "unsupportedFlow": "Aquest inici de sessió no es pot completar aquí.",
+      "claimFailed": "S'ha aprovat l'inici de sessió, però no l'hem pogut completar. Torna-ho a provar.",
+      "generic": "No s'ha pogut iniciar la sessió. Torna-ho a provar."
+    },
+    "linkOpenFailed": "No s'ha pogut obrir l'enllaç. Torna-ho a provar."
   },
   "common": {
     "actions": {

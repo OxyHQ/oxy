@@ -769,6 +769,7 @@ export type {
     AccountDialogView,
     CommonsAvailability,
     PopupWindowHandle,
+    SignInFailureReason,
     SignInFlowPhase,
     SignInFlowState,
     SignInProgress,

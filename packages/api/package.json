@@ -7,7 +7,7 @@
     "start": "node dist/server.js",
     "start:asset-variant-worker": "node dist/asset-variant-worker.js",
     "dev": "bun --watch src/server.ts",
-    "build": "bun run --filter @oxy.so/telemetry build && bun run --filter @oxy.so/contracts build && bun run --filter @oxy.so/protocol build && bun run --filter @oxy.so/core build && bun run --filter @oxy.so/federation build && bun run --filter @oxy.so/db build && bun run --filter @oxy.so/mcp build && tsc",
+    "build": "node ../core/scripts/build-workspace-deps.mjs @oxy.so/telemetry @oxy.so/contracts @oxy.so/protocol @oxy.so/core @oxy.so/federation @oxy.so/db @oxy.so/mcp && tsc",
     "clean": "rm -rf dist",
     "migrate:locations": "bun run src/utils/migrateLocations.ts",
     "register:commons-clients": "bun run scripts/register-commons-clients.ts",

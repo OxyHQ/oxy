@@ -37,7 +37,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "bun run --filter @oxy.so/contracts build && bun run --filter @oxy.so/protocol build && bun run --filter @oxy.so/core build && tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "bun test",

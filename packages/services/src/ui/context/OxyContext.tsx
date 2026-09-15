@@ -104,7 +104,7 @@ import {
 import { queryKeys } from '../hooks/queries/queryKeys';
 import { useOxyAccountGraph } from './useOxyAccountGraph';
 
-export type { OxyContextState, OxyRuntimeProviderProps } from './oxyContextTypes';
+export type { LogoutResult, OxyContextState, OxyRuntimeProviderProps } from './oxyContextTypes';
 
 const OxyRuntimeContext = createContext<OxyContextState | null>(null);
 

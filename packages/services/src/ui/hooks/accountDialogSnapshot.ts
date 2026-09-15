@@ -27,11 +27,13 @@ export const EMPTY_ACCOUNT_DIALOG_SNAPSHOT: AccountDialogSnapshot = {
     qrPayload: null,
     expiresAt: null,
     error: null,
+    failure: null,
     route: null,
     routeFailed: false,
     pushSentAt: null,
     openedAt: null,
     progress: 'idle',
+    attempt: 0,
   },
   commonsAvailability: 'unknown',
 };

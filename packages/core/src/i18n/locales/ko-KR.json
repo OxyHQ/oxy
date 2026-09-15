@@ -136,7 +136,17 @@
       "openedInCommons": "Commons에서 열림",
       "confirming": "신원 확인 중",
       "confirmed": "신원 확인 완료"
-    }
+    },
+    "signInFailures": {
+      "denied": "Commons에서 로그인이 거부되었습니다.",
+      "expired": "로그인 요청이 만료되었습니다. 다시 시도해 주세요.",
+      "network": "Oxy에 연결할 수 없습니다. 연결을 확인하고 다시 시도해 주세요.",
+      "notConfigured": "이 앱은 아직 로그인이 설정되지 않았습니다.",
+      "unsupportedFlow": "이 로그인은 여기에서 완료할 수 없습니다.",
+      "claimFailed": "로그인이 승인되었지만 완료하지 못했습니다. 다시 시도해 주세요.",
+      "generic": "로그인하지 못했습니다. 다시 시도해 주세요."
+    },
+    "linkOpenFailed": "링크를 열 수 없습니다. 다시 시도해 주세요."
   },
   "common": {
     "actions": {
