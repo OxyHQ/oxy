@@ -577,6 +577,28 @@ export type {
 } from './keyRecovery';
 
 export {
+    // Schemas — web identity carrier (one identity, two carriers)
+    WEB_IDENTITY_ENVELOPE_VERSION,
+    webIdentityPublicKeySchema,
+    webauthnCredentialIdSchema,
+    webIdentityWrapSchema,
+    webIdentityEnvelopeSchema,
+    webIdentityEnvelopeUploadSchema,
+    webIdentityEnvelopeResponseSchema,
+    webIdentityEnvelopeProofSchema,
+    webIdentityEnvelopePutSchema,
+} from './webIdentityCarrier';
+
+export type {
+    WebIdentityWrap,
+    WebIdentityEnvelope,
+    WebIdentityEnvelopeUpload,
+    WebIdentityEnvelopeResponse,
+    WebIdentityEnvelopeProof,
+    WebIdentityEnvelopePut,
+} from './webIdentityCarrier';
+
+export {
     // Shared primitives
     updatePlatformSchema,
     updateStatusSchema,
