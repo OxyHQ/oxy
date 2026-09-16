@@ -26,6 +26,11 @@ interface ImportPhraseStepProps {
    * (but has no recovery phrase) recover their account directly from the key.
    */
   onImportPrivateKey?: () => void;
+  /**
+   * Optional handler for moving an identity kept on the web (`id.oxy.so`) onto
+   * this device by scanning the code the web shows.
+   */
+  onMoveFromWeb?: () => void;
   backgroundColor: string;
   textColor: string;
 }
@@ -42,6 +47,7 @@ export function ImportPhraseStep({
   isLoading,
   onRestoreFromBackup,
   onImportPrivateKey,
+  onMoveFromWeb,
   backgroundColor,
   textColor,
 }: ImportPhraseStepProps) {
@@ -78,6 +84,16 @@ export function ImportPhraseStep({
         >
           {t('auth.importStep.import')}
         </Button>
+
+        {onMoveFromWeb && (
+          <Button
+            variant="ghost"
+            onPress={onMoveFromWeb}
+            disabled={isLoading}
+          >
+            {t('identityMove.entry')}
+          </Button>
+        )}
 
         {onRestoreFromBackup && (
           <Button

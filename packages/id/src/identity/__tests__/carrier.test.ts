@@ -5,20 +5,30 @@
 
 import {
   deriveIdentityFromMnemonic,
+  deriveMoveKey,
+  generateMoveEphemeralKeyPair,
   generateWebIdentity,
+  IDENTITY_MOVE_ACTIONS,
+  openMovedIdentity,
   sealWebIdentity,
+  signMoveAction,
   unlockWebIdentity,
   type OpenedWebIdentity,
 } from '@oxy.so/core';
-import type { WebIdentityEnvelope, WebIdentityEnvelopeProof, WebIdentityEnvelopeResponse } from '@oxy.so/contracts';
+import type { IdentityMoveState, WebIdentityEnvelope, WebIdentityEnvelopeProof, WebIdentityEnvelopeResponse } from '@oxy.so/contracts';
 import type { CarrierAccount, IdentityApi } from '../api';
 import {
+  cancelMove,
+  completeMove,
   deleteAccount,
   ensureIdentity,
   pickConfirmationPositions,
+  readMove,
   recoverWithPhrase,
+  sendMove,
   signIn,
   signUp,
+  startMove,
   unlockIdentity,
   type CarrierPorts,
   type CarrierSession,
@@ -34,6 +44,7 @@ interface FakeServer {
   calls: string[];
   failGet?: boolean;
   deleted?: { signature: string; timestamp: number; confirmText: string };
+  move?: IdentityMoveState;
 }
 
 function fakePorts(server: FakeServer, ceremony: { prfOutput: Uint8Array | null; createPrf?: Uint8Array | null } = { prfOutput: prf(7) }) {
@@ -72,7 +83,32 @@ function fakePorts(server: FakeServer, ceremony: { prfOutput: Uint8Array | null;
       return response();
     },
     deleteEnvelope: async () => {
+      server.calls.push('delete');
       server.envelope = null;
+    },
+    createMove: async (initiatorEphemeralPublicKey) => {
+      server.move = {
+        moveId: '0123456789abcdef0123456789abcdef',
+        status: 'pending',
+        publicKey: server.account.publicKey as string,
+        initiatorEphemeralPublicKey,
+        responderEphemeralPublicKey: null,
+        nonce: null,
+        ciphertext: null,
+        receiptSignature: null,
+        receiptTimestamp: null,
+        expiresAt: '2026-09-16T00:05:00.000Z',
+      };
+      return { moveId: server.move.moveId, expiresAt: server.move.expiresAt };
+    },
+    getMove: async () => ({ ...(server.move as IdentityMoveState) }),
+    sealMove: async (_moveId, body) => {
+      server.calls.push('seal');
+      server.move = { ...(server.move as IdentityMoveState), status: 'sealed', nonce: body.nonce, ciphertext: body.ciphertext };
+      return server.move;
+    },
+    cancelMove: async () => {
+      server.move = { ...(server.move as IdentityMoveState), status: 'cancelled', nonce: null, ciphertext: null };
     },
     approvalInfo: async () => {
       throw new Error('unused');
@@ -249,5 +285,110 @@ describe('phrase confirmation', () => {
     expect(new Set(positions).size).toBe(3);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
     expect(positions.every((p) => p >= 0 && p < 12)).toBe(true);
+  });
+});
+
+describe('moving the identity to Commons', () => {
+  /** A web account whose identity this passkey opens. */
+  async function readyAccount() {
+    const identity = generateWebIdentity();
+    const server = newServer(identity.publicKey);
+    server.envelope = sealWebIdentity(identity, { prfOutput: prf(7), credentialId: CREDENTIAL }).envelope;
+    const { ports, local } = fakePorts(server);
+    const session = await signIn(ports);
+    await ports.local.write('user-1', server.envelope);
+    return { identity, server, ports, local, session };
+  }
+
+  /** Commons joining with its own ephemeral key. */
+  function join(server: FakeServer) {
+    const commons = generateMoveEphemeralKeyPair();
+    server.move = { ...(server.move as IdentityMoveState), status: 'joined', responderEphemeralPublicKey: commons.publicKey };
+    return commons;
+  }
+
+  it('hands the identity to the device that joined and forgets it only after a valid receipt', async () => {
+    const { identity, server, ports, local, session } = await readyAccount();
+    const move = await startMove(ports, session);
+    expect((await readMove(ports, move)).progress).toEqual({ kind: 'waiting' });
+
+    const commons = join(server);
+    const { progress } = await readMove(ports, move);
+    expect(progress.kind).toBe('compare');
+    if (progress.kind !== 'compare') return;
+
+    await sendMove(ports, session, move, progress.sas);
+    const sealed = server.move as IdentityMoveState;
+    const received = openMovedIdentity(
+      { nonce: sealed.nonce as string, ciphertext: sealed.ciphertext as string },
+      deriveMoveKey(commons.privateKey, move.ephemeral.publicKey, move.moveId),
+      move.moveId,
+      sealed.publicKey,
+    );
+    expect(received.mnemonic).toBe(identity.mnemonic);
+    // Sent is not moved: the web copy stays until Commons proves it holds the key.
+    expect(server.envelope).not.toBeNull();
+
+    const receipt = await signMoveAction(received, IDENTITY_MOVE_ACTIONS.received, move.moveId);
+    server.move = { ...sealed, status: 'completed', nonce: null, ciphertext: null, receiptSignature: receipt.signature, receiptTimestamp: receipt.timestamp };
+    const done = await readMove(ports, move);
+    expect(done.progress).toEqual({ kind: 'received' });
+    await completeMove(ports, session, move, done.state);
+
+    expect(server.envelope).toBeNull();
+    expect(local.get('user-1')).toBeUndefined();
+    expect(move.ephemeral.privateKey).toBe('');
+  });
+
+  it('keeps the identity when the relay claims completion without a real receipt', async () => {
+    const { server, ports, local, session } = await readyAccount();
+    const move = await startMove(ports, session);
+    const commons = join(server);
+    const { progress } = await readMove(ports, move);
+    if (progress.kind !== 'compare') throw new Error('expected compare');
+    await sendMove(ports, session, move, progress.sas);
+
+    const forged = await signMoveAction(generateWebIdentity(), IDENTITY_MOVE_ACTIONS.received, move.moveId);
+    server.move = { ...(server.move as IdentityMoveState), status: 'completed', receiptSignature: forged.signature, receiptTimestamp: forged.timestamp };
+    await expect(completeMove(ports, session, move, await ports.api.getMove(move.moveId))).rejects.toThrow('did not prove');
+    expect(server.envelope).not.toBeNull();
+    expect(local.get('user-1')).toBeDefined();
+    expect(commons.publicKey).toBeTruthy();
+  });
+
+  it('seals nothing when the joined key changed after the codes were compared', async () => {
+    const { server, ports, session } = await readyAccount();
+    const move = await startMove(ports, session);
+    join(server);
+    const { progress } = await readMove(ports, move);
+    if (progress.kind !== 'compare') throw new Error('expected compare');
+
+    join(server); // a different device key swapped in
+    await expect(sendMove(ports, session, move, progress.sas)).rejects.toThrow('code changed');
+    expect(server.calls).not.toContain('seal');
+  });
+
+  it('refuses a relay that reports someone else’s initiator key', async () => {
+    const { server, ports, session } = await readyAccount();
+    const move = await startMove(ports, session);
+    server.move = { ...(server.move as IdentityMoveState), initiatorEphemeralPublicKey: generateMoveEphemeralKeyPair().publicKey };
+    await expect(readMove(ports, move)).rejects.toThrow('could not be verified');
+  });
+
+  it('cannot start without an identity this passkey opens', async () => {
+    const identity = generateWebIdentity();
+    const server = newServer(identity.publicKey);
+    server.envelope = sealWebIdentity(identity, { prfOutput: prf(1), credentialId: CREDENTIAL }).envelope;
+    const { ports } = fakePorts(server);
+    await expect(startMove(ports, await signIn(ports))).rejects.toThrow();
+    expect(server.move).toBeUndefined();
+  });
+
+  it('reports a cancelled move as ended and wipes the ephemeral key', async () => {
+    const { ports, session } = await readyAccount();
+    const move = await startMove(ports, session);
+    await cancelMove(ports, move);
+    expect((await readMove(ports, { ...move, ephemeral: { ...move.ephemeral } })).progress).toEqual({ kind: 'ended', reason: 'cancelled' });
+    expect(move.ephemeral.privateKey).toBe('');
   });
 });

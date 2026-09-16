@@ -12,6 +12,7 @@ import {
   type IdentityState,
 } from '../identity/carrier';
 import { createPorts, messageOf } from '../identity/ports';
+import { MoveFlow } from './MoveFlow';
 import { PhraseScreen } from './PhraseScreen';
 
 type View =
@@ -21,6 +22,7 @@ type View =
   | { name: 'phrase'; session: CarrierSession; identity: OpenedWebIdentity }
   | { name: 'recover'; session: CarrierSession }
   | { name: 'delete'; session: CarrierSession }
+  | { name: 'move'; session: CarrierSession }
   | { name: 'deleted' };
 
 /**
@@ -31,13 +33,14 @@ type View =
  * with it, deleting the account. No other site ever receives the key or a
  * signature made with it.
  */
-export function HomeScreen() {
+export function HomeScreen({ intent = 'overview' }: { intent?: 'overview' | 'move' }) {
   const portsRef = useRef(createPorts());
   const ports = portsRef.current;
   const [view, setView] = useState<View>({ name: 'signed-out' });
   const [error, setError] = useState<string | null>(null);
   const [phrase, setPhrase] = useState('');
   const [confirmText, setConfirmText] = useState('');
+  const intentRef = useRef(intent);
 
   function run(label: string, task: () => Promise<void>) {
     const from = view;
@@ -52,7 +55,9 @@ export function HomeScreen() {
   async function refresh(session: CarrierSession) {
     const identity = await ensureIdentity(ports, session);
     if (identity.kind === 'created') setView({ name: 'phrase', session, identity: identity.identity });
+    else if (intentRef.current === 'move' && identity.kind === 'ready') setView({ name: 'move', session });
     else setView({ name: 'overview', session, identity });
+    intentRef.current = 'overview';
   }
 
   const errorLine = error ? <p className="error">{error}</p> : null;
@@ -159,6 +164,8 @@ export function HomeScreen() {
           </div>
         </section>
       );
+    case 'move':
+      return <MoveFlow ports={ports} session={view.session} onDone={() => run('Loading…', () => refresh(view.session))} />;
     case 'deleted':
       return (
         <section className="card">
@@ -181,6 +188,11 @@ export function HomeScreen() {
                 onClick={() => run('Opening your identity…', async () => setView({ name: 'phrase', session, identity: await unlockIdentity(ports, session) }))}
               >
                 {identity.phraseConfirmedAt ? 'Show my recovery phrase' : 'Save my recovery phrase'}
+              </button>
+            ) : null}
+            {identity.kind === 'ready' ? (
+              <button type="button" className="secondary" onClick={() => setView({ name: 'move', session })}>
+                Move my identity to the Commons app
               </button>
             ) : null}
             {identity.kind === 'locked' || identity.kind === 'elsewhere' ? (

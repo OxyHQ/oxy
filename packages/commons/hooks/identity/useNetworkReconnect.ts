@@ -42,7 +42,7 @@ export const useNetworkReconnect = (options: UseNetworkReconnectOptions): void =
   } = options;
 
   const wasOfflineRef = useRef(false);
-  const checkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const checkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const circuitBreakerRef = useRef<CircuitBreakerState>(
     createCircuitBreakerState()
   );
@@ -56,7 +56,7 @@ export const useNetworkReconnect = (options: UseNetworkReconnectOptions): void =
       }
       checkTimeoutRef.current = setTimeout(() => {
         checkNetworkAndSync();
-      }, circuitBreakerRef.current.currentInterval) as unknown as NodeJS.Timeout;
+      }, circuitBreakerRef.current.currentInterval) as unknown as ReturnType<typeof setTimeout>;
     };
 
     const checkNetworkAndSync = async () => {

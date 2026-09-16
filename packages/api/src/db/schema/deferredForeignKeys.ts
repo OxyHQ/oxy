@@ -29,6 +29,7 @@ import { externalIdentityInstagramPins, externalIdentityMetaProofs } from './ext
  * the type rather than keeping a second copy that could drift from it.
  */
 
+import { identityMoves } from './identityMoves';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { DeferredForeignKey } from '@oxy.so/db/assert';
 import { appAffinitySeenEvents } from './appAffinitySeenEvents';
@@ -105,6 +106,8 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  { table: identityMoves, column: identityMoves.moveId,
+    reason: 'Random 128-bit capability minted by the move relay itself and carried in the QR; the public handle of this row, not a reference to any other row.' },
   { table: externalIdentityMetaProofs, column: externalIdentityMetaProofs.instagramGraphId,
     reason: 'Instagram first-party profile graph-ID namespace, retained with source hashes and parser provenance; distinct from Instagram pk, Threads web pk and ActivityPub actor URI, not an Oxy row reference.' },
   { table: externalIdentityInstagramPins, column: externalIdentityInstagramPins.instagramGraphId,

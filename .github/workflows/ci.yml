@@ -886,6 +886,10 @@ jobs:
           bun run --filter @oxy.so/core build
           bun run --filter @oxy.so/services build
           bun run --filter @oxy.so/expo-splash build
+      # Jest never compiles the root layout or any screen it does not import, so a
+      # broken JSX tree can reach main green without this.
+      - run: bunx tsc --noEmit -p tsconfig.json
+        working-directory: ./packages/commons
       - run: bun run test
         working-directory: ./packages/commons
 
