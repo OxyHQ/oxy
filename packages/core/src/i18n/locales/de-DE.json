@@ -52,19 +52,9 @@
   "signup": {
     "title": "Erstellen Sie Ihr Konto",
     "subtitle": "Eine Identität für das gesamte Ökosystem.",
-    "commonsHeadline": "Erstellen Sie Ihre Identität in Commons",
-    "commonsExplainer": "Commons ist Ihre vollständig selbstverwaltete Oxy-Identität – eine App, überall einsetzbar.",
     "createInCommons": "Erstellen Sie Ihre Identität in Commons",
-    "passkeyAlternative": "Kein Commons? Erstellen Sie stattdessen einen Passkey auf diesem Gerät",
     "createAccount": "Konto erstellen",
-    "creating": "Wird erstellt…",
-    "usernamePlaceholder": "Benutzernamen wählen",
-    "usernameChecking": "Wird geprüft…",
-    "usernameAvailable": "Verfügbar",
-    "usernameTaken": "Dieser Benutzername ist bereits vergeben",
     "backToSignInLink": "Sie haben bereits ein Konto? Anmelden",
-    "hubExplainer": "Erstellen Sie Ihre Oxy-ID in einem sicheren Fenster und kehren Sie dann direkt zurück.",
-    "continueInWindow": "In einem neuen Fenster fortfahren",
     "welcome": {
       "title": "Willkommen bei Oxy!",
       "subtitle": "Erstellen Sie Ihr Konto in nur wenigen Schritten",
@@ -119,7 +109,6 @@
     "qrHeadline": "Melden Sie sich mit Ihrer Oxy-Identität an",
     "signInWithOxy": "Mit Oxy anmelden",
     "useIdentityOnDevice": "Kein Commons? Verwenden Sie stattdessen einen Passkey auf diesem Gerät",
-    "passkeySigningIn": "Anmeldung läuft…",
     "getCommons": "Commons herunterladen",
     "commonsNotInstalled": "Kein Commons? Holen Sie sich die App, um sich mit Ihrer Oxy-ID anzumelden.",
     "showQrAnyway": "Ich habe Commons auf einem anderen Gerät",
@@ -146,7 +135,10 @@
       "claimFailed": "Die Anmeldung wurde genehmigt, konnte aber nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
       "generic": "Die Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut."
     },
-    "linkOpenFailed": "Der Link konnte nicht geöffnet werden. Bitte versuchen Sie es erneut."
+    "linkOpenFailed": "Der Link konnte nicht geöffnet werden. Bitte versuchen Sie es erneut.",
+    "continueWithPasskey": "Weiter",
+    "passkeyHint": "Nutzen Sie Fingerabdruck, Gesicht oder die Geräte-PIN.",
+    "otherDeviceCommons": "Konto auf einem anderen Gerät? Mit Commons scannen"
   },
   "common": {
     "actions": {
@@ -287,6 +279,7 @@
     "help": "Hilfe & Feedback",
     "signOut": "Abmelden",
     "privacy": "Datenschutzerklärung",
-    "terms": "Nutzungsbedingungen"
+    "terms": "Nutzungsbedingungen",
+    "identity": "Ihre Identität"
   }
 }

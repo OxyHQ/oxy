@@ -282,17 +282,21 @@ function AppStackContent() {
   // offline→online reconnect heal. The app-local auto-connect driver that used
   // to live here was deleted — do not reintroduce one.
 
-  // Cross-app shared-identity backfill (native only, one-shot per launch).
+  // Cross-app shared-identity sync (native only, one-shot per launch).
   //
   // Commons is the ONLY app that writes the cross-app shared-identity slot other
-  // Oxy apps read for silent "Sign in with Oxy". For users whose identity
-  // predates that write-through, the slot stays empty until it is backfilled
-  // once via `KeyManager.migrateToSharedIdentity()`. Gated on the shared identity
-  // probe reporting a healthy LOCAL `present` verdict (`identityPresent`), so it
-  // never runs on a fresh install, a `lost`/`unavailable` device, or during the
-  // possibly-locked cold-start window — and it is never the app's first identity
-  // reader. Ref-guarded so it fires at most once per launch. Fire-and-forget:
-  // never awaited on the render path, never blocks the splash hand-off.
+  // Oxy apps read for silent "Sign in with Oxy". `KeyManager.syncSharedIdentity()`
+  // fills it for users whose identity predates that write-through, AND repairs it
+  // when it holds a different key than this device. It is called unconditionally:
+  // an earlier `if (await hasSharedIdentity()) return` here meant a populated slot
+  // was never looked at again, which is precisely how a slot could keep a replaced
+  // key — and cross-app readers (`deriveScopedSeed`, so Peable's wallet) take that
+  // slot first. Gated on the shared identity probe reporting a healthy LOCAL
+  // `present` verdict (`identityPresent`), so it never runs on a fresh install, a
+  // `lost`/`unavailable` device, or during the possibly-locked cold-start window —
+  // and it is never the app's first identity reader. Ref-guarded so it fires at
+  // most once per launch. Fire-and-forget: never awaited on the render path, never
+  // blocks the splash hand-off.
   const backfillDoneRef = useRef(false);
   useEffect(() => {
     if (Platform.OS === 'web' || backfillDoneRef.current || !identityPresent) return;
@@ -300,22 +304,20 @@ function AppStackContent() {
 
     void (async () => {
       try {
-        if (await KeyManager.hasSharedIdentity()) return;
-
-        const migrated = await KeyManager.migrateToSharedIdentity();
-        if (!migrated) {
-          // The probe already confirmed a healthy primary and the shared slot
-          // was empty, so `false` here means the write itself failed (e.g.
-          // `OxyIdentityStore.write` threw) — surfaced distinctly so a real write
-          // failure is greppable in production, not confused with "not attempted".
+        const synced = await KeyManager.syncSharedIdentity();
+        if (!synced) {
+          // The probe already confirmed a healthy primary, so `false` here means
+          // the write itself failed (e.g. `OxyIdentityStore.write` threw) —
+          // surfaced distinctly so a real write failure is greppable in
+          // production, not confused with "not attempted".
           logger.error(
-            '[commons] shared-identity boot backfill: migrateToSharedIdentity returned false for a confirmed primary identity',
+            '[commons] shared-identity sync: syncSharedIdentity returned false for a confirmed primary identity',
             undefined,
             { component: 'AppStackContent' },
           );
         }
       } catch (error) {
-        logger.error('[commons] shared-identity boot backfill threw unexpectedly', error, {
+        logger.error('[commons] shared-identity sync threw unexpectedly', error, {
           component: 'AppStackContent',
         });
       }

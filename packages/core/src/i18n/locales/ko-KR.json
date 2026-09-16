@@ -52,19 +52,9 @@
   "signup": {
     "title": "계정 만들기",
     "subtitle": "생태계 전체를 위한 하나의 아이덴티티.",
-    "commonsHeadline": "Commons에서 나의 아이덴티티 만들기",
-    "commonsExplainer": "Commons는 완전한 자기 보관 방식의 Oxy 아이덴티티입니다. 하나의 앱으로 어디서나 사용하세요.",
     "createInCommons": "Commons에서 나의 아이덴티티 만들기",
-    "passkeyAlternative": "Commons가 없으신가요? 이 기기에서 패스키를 만드세요",
     "createAccount": "계정 만들기",
-    "creating": "만드는 중…",
-    "usernamePlaceholder": "사용자 이름 선택",
-    "usernameChecking": "확인 중…",
-    "usernameAvailable": "사용 가능",
-    "usernameTaken": "이미 사용 중인 사용자 이름입니다",
     "backToSignInLink": "이미 계정이 있으신가요? 로그인",
-    "hubExplainer": "안전한 창에서 Oxy ID를 만든 후 바로 돌아오세요.",
-    "continueInWindow": "새 창에서 계속하기",
     "welcome": {
       "title": "Oxy에 오신 것을 환영합니다!",
       "subtitle": "몇 단계만으로 계정을 만드세요",
@@ -119,7 +109,6 @@
     "qrHeadline": "Oxy ID로 로그인",
     "signInWithOxy": "Oxy로 로그인",
     "useIdentityOnDevice": "Commons가 없으신가요? 이 기기의 패스키를 사용하세요",
-    "passkeySigningIn": "로그인 중…",
     "getCommons": "Commons 다운로드",
     "commonsNotInstalled": "Commons가 없으신가요? 앱을 다운로드하여 Oxy ID로 로그인하세요.",
     "showQrAnyway": "다른 기기에 Commons가 있습니다",
@@ -146,7 +135,10 @@
       "claimFailed": "로그인이 승인되었지만 완료하지 못했습니다. 다시 시도해 주세요.",
       "generic": "로그인하지 못했습니다. 다시 시도해 주세요."
     },
-    "linkOpenFailed": "링크를 열 수 없습니다. 다시 시도해 주세요."
+    "linkOpenFailed": "링크를 열 수 없습니다. 다시 시도해 주세요.",
+    "continueWithPasskey": "계속",
+    "passkeyHint": "지문, 얼굴 또는 기기 PIN을 사용하세요.",
+    "otherDeviceCommons": "다른 기기의 계정인가요? Commons로 스캔하세요"
   },
   "common": {
     "actions": {
@@ -287,6 +279,7 @@
     "help": "도움말 및 피드백",
     "signOut": "로그아웃",
     "privacy": "개인정보 처리방침",
-    "terms": "서비스 약관"
+    "terms": "서비스 약관",
+    "identity": "내 아이덴티티"
   }
 }
