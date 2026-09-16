@@ -361,6 +361,14 @@ export interface OxyPagesHeadersOptions {
   /** Per-app additions merged into {@link OXY_CSP_BASELINE}. */
   csp?: OxyCspExtensions;
   /**
+   * An origin where people authenticate, consent or recover (`auth.oxy.so`,
+   * ADR 0024 D1). The Cloudflare Insights beacon — injected by the edge, not by
+   * the app — is REMOVED from `script-src` and `connect-src`, so third-party
+   * measurement cannot run there even when the zone has Web Analytics enabled.
+   * A structural block in the policy the page is served with, not a build flag.
+   */
+  sensitive?: boolean;
+  /**
    * Emit `Strict-Transport-Security` (default `true`). Cloudflare Pages serves
    * HTTPS only, so static deploys should keep this on.
    */
@@ -399,13 +407,18 @@ export function buildOxyPagesHeaders(options: OxyPagesHeadersOptions = {}): stri
     );
   }
 
-  const csp = formatOxyCspPolicy(
-    buildOxyCspDirectives(
-      hashes.length === 0
-        ? options.csp
-        : { ...options.csp, scriptSrc: [...(options.csp?.scriptSrc ?? []), ...hashes] },
-    ),
+  const directives = buildOxyCspDirectives(
+    hashes.length === 0
+      ? options.csp
+      : { ...options.csp, scriptSrc: [...(options.csp?.scriptSrc ?? []), ...hashes] },
   );
+  if (options.sensitive) {
+    const beacon = new Set([CLOUDFLARE_INSIGHTS_SCRIPT_ORIGIN, CLOUDFLARE_INSIGHTS_REPORT_ORIGIN]);
+    for (const name of ['script-src', 'connect-src']) {
+      directives[name] = (directives[name] ?? []).filter((source) => !beacon.has(source));
+    }
+  }
+  const csp = formatOxyCspPolicy(directives);
   const lines = [
     '/*',
     `  Content-Security-Policy: ${csp}`,

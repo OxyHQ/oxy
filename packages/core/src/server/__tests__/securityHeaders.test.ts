@@ -198,6 +198,21 @@ function expoExportHtml(body = EXPO_HYDRATE_SCRIPT): string {
   ].join('');
 }
 
+describe('@oxy.so/core/server buildOxyPagesHeaders on a sensitive origin (ADR 0024 D1)', () => {
+  it('removes the Cloudflare Insights beacon from script-src and connect-src, and nothing else', () => {
+    const csp = (block: string) => block.split('\n').find((line) => line.includes('Content-Security-Policy')) ?? '';
+    const normal = csp(buildOxyPagesHeaders({ csp: { connectSrc: ['https://example.test'] } }));
+    const sensitive = csp(buildOxyPagesHeaders({ csp: { connectSrc: ['https://example.test'] }, sensitive: true }));
+
+    expect(normal).toContain('static.cloudflareinsights.com');
+    expect(sensitive).not.toContain('cloudflareinsights.com');
+    expect(sensitive).toContain("script-src 'self'");
+    expect(sensitive).toContain('https://example.test');
+    expect(sensitive).toContain('https://api.oxy.so');
+    expect(sensitive).toContain("frame-ancestors 'none'");
+  });
+});
+
 describe('@oxy.so/core/server extractInlineScripts', () => {
   it('returns inline bodies and skips external scripts', () => {
     expect(extractInlineScripts(expoExportHtml())).toEqual([EXPO_HYDRATE_SCRIPT]);
