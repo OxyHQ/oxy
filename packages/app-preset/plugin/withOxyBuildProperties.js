@@ -9,12 +9,15 @@
  * `expo-build-properties` is required lazily (it is an optional peer): a missing
  * install throws a clear, actionable error only when this plugin actually runs
  * with build properties enabled.
+ * It is resolved from the APP's project root first (see `requireFromProject`).
  *
  * @param {import('expo/config').ExpoConfig} config
  * @param {object} [options]
  * @param {object|false} [options.ios]     iOS overrides, or `false` to skip iOS.
  * @param {object|false} [options.android] Android overrides, or `false` to skip Android.
  */
+const { projectRootOf, requireFromProject } = require('./requireFromProject');
+
 const DEFAULTS = {
   ios: {
     deploymentTarget: '16.4',
@@ -46,10 +49,10 @@ function deepMerge(base, override) {
   return result;
 }
 
-function resolveBuildPropertiesPlugin() {
+function resolveBuildPropertiesPlugin(projectRoot) {
   let mod;
   try {
-    mod = require('expo-build-properties');
+    mod = requireFromProject('expo-build-properties', projectRoot);
   } catch (error) {
     throw new Error(
       "[@oxy.so/app-preset] withOxyBuildProperties requires the peer dependency 'expo-build-properties'. "
@@ -81,7 +84,7 @@ module.exports = function withOxyBuildProperties(config, options = {}) {
     props.android = deepMerge(DEFAULTS.android, android);
   }
 
-  const withBuildProperties = resolveBuildPropertiesPlugin();
+  const withBuildProperties = resolveBuildPropertiesPlugin(projectRootOf(config));
   return withBuildProperties(config, props);
 };
 
