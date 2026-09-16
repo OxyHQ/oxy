@@ -74,7 +74,9 @@ export async function joinMove(relay: MoveRelay, moveId: string): Promise<Incomi
   } catch (error) {
     throw new MoveError('unavailable', error instanceof Error ? error.message : 'This code can no longer be used');
   }
-  if (state.moveId !== moveId || state.status !== 'joined' || state.responderEphemeralPublicKey !== ephemeral.publicKey) {
+  // A move whose initiator key is not public at join is a protocol this build
+  // does not speak (version 2 hides it until later): refuse rather than guess.
+  if (state.moveId !== moveId || state.status !== 'joined' || state.responderEphemeralPublicKey !== ephemeral.publicKey || !state.initiatorEphemeralPublicKey) {
     throw new MoveError('tampered', 'The move could not be verified');
   }
   return {

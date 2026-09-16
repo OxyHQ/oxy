@@ -18,6 +18,9 @@ function setup() {
   let state: IdentityMoveState = {
     moveId: MOVE_ID,
     status: 'pending',
+    protocolVersion: 1,
+    initiatorCommitment: null,
+    initiatorCommitmentNonce: null,
     publicKey: identity.publicKey,
     initiatorEphemeralPublicKey: web.publicKey,
     responderEphemeralPublicKey: null,

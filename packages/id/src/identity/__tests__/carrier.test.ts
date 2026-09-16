@@ -215,6 +215,9 @@ function fakePorts(
       server.move = {
         moveId: '0123456789abcdef0123456789abcdef',
         status: 'pending',
+        protocolVersion: 1,
+        initiatorCommitment: null,
+        initiatorCommitmentNonce: null,
         publicKey: server.account.publicKey as string,
         initiatorEphemeralPublicKey,
         responderEphemeralPublicKey: null,
