@@ -643,6 +643,13 @@ export {
     IDENTITY_MOVE_TTL_MS,
     IDENTITY_MOVE_STATUSES,
     IDENTITY_MOVE_QR_PREFIX,
+    IDENTITY_MOVE_PROTOCOL_VERSION,
+    IDENTITY_MOVE_PROTOCOL_VERSIONS,
+    identityMoveRevealRequestSchema,
+    buildMoveCommitmentInput,
+    buildMoveSasInputV2,
+    buildMoveCiphertextDigestInput,
+    buildMoveReceiptMessageV2,
     identityMoveIdSchema,
     identityMoveEphemeralKeySchema,
     identityMoveCreateRequestSchema,
@@ -660,6 +667,8 @@ export type {
     IdentityMoveJoinRequest,
     IdentityMoveSealRequest,
     IdentityMoveReceiptRequest,
+    IdentityMoveRevealRequest,
+    IdentityMoveProtocolVersion,
     IdentityMoveState,
 } from './identityMove';
 

@@ -4,15 +4,15 @@
  * Extracted from `OxyContext` so the fixed `options → ceremony → verify → commit`
  * ordering is unit-testable with injected deps — the exact pattern
  * `commitSessionFlow.ts` (`commitDeviceSetAndResolve`) uses. The context methods
- * (`signInWithPasskey` / `registerWithPasskey` / `addPasskey`) are thin wrappers
+ * (`signInWithPasskey` / `addPasskey`) are thin wrappers
  * that supply the real deps: the core `webauthn*` methods, the platform ceremony
  * client (`webauthn/passkeyClient`), and the internal `commitSession` funnel.
  *
- * All three GATE on `isSupported()` first (the platform client returns `false`
+ * Both GATE on `isSupported()` first (the platform client returns `false`
  * off the web) so an unsupported surface fails loudly before touching a ceremony.
  */
 
-import type { LoginResult, LoginSessionResult } from '@oxy.so/contracts';
+import { IDENTITY_ERROR_CODES, type LoginResult, type LoginSessionResult } from '@oxy.so/contracts';
 import type { CommitInput } from './oxyContextTypes';
 
 /**
@@ -84,41 +84,18 @@ export async function runPasskeyLogin(deps: RunPasskeyLoginDeps): Promise<void> 
   await deps.commit(toCommitInput(result));
 }
 
-/** Injected dependencies for {@link runPasskeyRegister}. */
-export interface RunPasskeyRegisterDeps {
-  isSupported: () => boolean;
-  getRegisterOptions: (username: string) => Promise<unknown>;
-  runCeremony: (optionsJSON: unknown) => Promise<unknown>;
-  registerVerify: (
-    response: unknown,
-    envelope: { username: string; deviceName?: string },
-  ) => Promise<PasskeyRegisterVerifyResult>;
-  commit: (input: CommitInput) => Promise<void>;
-  username: string;
-  deviceName?: string;
-}
-
 /**
- * Passkey SIGNUP: create a brand-new account whose first auth method is a
- * passkey. The verify signup branch mints a session (a {@link LoginSessionResult}
- * carrying `sessionId`), which is committed exactly like a password signup.
+ * Passkey SIGN-UP no longer runs here (ADR 0024 D4): an Oxy account is created
+ * WITH its self-custody root, in the canonical account flow the account dialog
+ * opens, or not at all. A local ceremony can create a passkey but not a root the
+ * person controls, so this refuses before touching anything — with the stable
+ * `IDENTITY_ENROLLMENT_REQUIRED` code the API uses for the same refusal.
  */
-export async function runPasskeyRegister(deps: RunPasskeyRegisterDeps): Promise<void> {
-  if (!deps.isSupported()) {
-    throw new Error(PASSKEY_UNSUPPORTED_MESSAGE);
-  }
-  const options = await deps.getRegisterOptions(deps.username);
-  const response = await deps.runCeremony(options);
-  const result = await deps.registerVerify(response, {
-    username: deps.username,
-    deviceName: deps.deviceName,
-  });
-  // Only the signup session arm carries `sessionId`; the link branch
-  // (`{ success, message }`) does not.
-  if (!('sessionId' in result)) {
-    throw new Error('Passkey registration did not establish a session.');
-  }
-  await deps.commit(toCommitInput(result));
+export function identityEnrollmentRequiredError(): Error & { code: string } {
+  return Object.assign(
+    new Error('Create Oxy accounts through the Oxy account dialog (openAccountDialog("signup")).'),
+    { code: IDENTITY_ERROR_CODES.enrollmentRequired },
+  );
 }
 
 /** Injected dependencies for {@link runPasskeyAdd}. */

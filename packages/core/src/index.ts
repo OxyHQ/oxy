@@ -378,8 +378,14 @@ export {
     IDENTITY_MOVE_ACTIONS,
     buildMoveMessage,
     buildMoveQrPayload,
+    createMoveCommitment,
     deriveMoveKey,
     deriveMoveSas,
+    deriveMoveSasV2,
+    digestMoveCiphertext,
+    signMoveReceiptV2,
+    verifyMoveCommitment,
+    verifyMoveReceiptV2,
     generateMoveEphemeralKeyPair,
     openMovedIdentity,
     parseMoveQrPayload,
@@ -387,6 +393,7 @@ export {
     signMoveAction,
     verifyMoveReceipt,
 } from './crypto/identityMove';
+export type { MoveReceiptV2Claims } from './crypto/identityMove';
 
 // ---------------------------------------------------------------------------
 // Devices

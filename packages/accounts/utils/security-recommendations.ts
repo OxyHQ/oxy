@@ -1,9 +1,11 @@
+import type { IdentityRootStatus } from '@oxy.so/contracts';
 import type { ClientSession, SecurityActivity } from '@oxy.so/core';
 
 /** Stable identifier for each security recommendation the app can surface. */
 export type SecurityRecommendationId =
   | 'biometric'
-  | 'recovery-email'
+  | 'secure-account'
+  | 'recovery-phrase'
   | 'old-sessions'
   | 'many-devices'
   | 'suspicious-activity';
@@ -22,7 +24,12 @@ export interface SecurityRecommendationInput {
   canEnableBiometric: boolean;
   biometricEnabled: boolean;
   biometricLoading: boolean;
-  hasRecoveryEmail: boolean;
+  /**
+   * The account's root readiness (`GET /identity/root-status`), or `undefined`
+   * while unknown. Oxy has no email or support recovery (ADR 0024): what gets an
+   * account back is its recovery phrase, so that is what is recommended.
+   */
+  rootStatus: IdentityRootStatus | undefined;
   sessions: ClientSession[] | undefined;
   deviceCount: number;
   securityActivities: SecurityActivity[];
@@ -86,9 +93,11 @@ export function selectSecurityRecommendations(
     recommendations.push({ id: 'biometric', priority: 1 });
   }
 
-  // 2. Recovery email missing (high priority).
-  if (!input.hasRecoveryEmail) {
-    recommendations.push({ id: 'recovery-email', priority: 1 });
+  // 2. No root yet, or a phrase that was never saved (high priority).
+  if (input.rootStatus && !input.rootStatus.rootLinked) {
+    recommendations.push({ id: 'secure-account', priority: 1 });
+  } else if (input.rootStatus?.hasPhrase === true && !input.rootStatus.phraseConfirmedAt) {
+    recommendations.push({ id: 'recovery-phrase', priority: 1 });
   }
 
   // 3. Old/inactive sessions (medium priority).

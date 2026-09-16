@@ -20,6 +20,9 @@ export function messageOf(error: unknown): string {
   if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'AbortError')) {
     return 'The passkey request was cancelled.';
   }
+  if (error instanceof DOMException && error.name === 'InvalidStateError') {
+    return 'This passkey is already registered here. Sign in with it instead.';
+  }
   if (error instanceof Error && error.message) return error.message;
   return 'Something went wrong. Please try again.';
 }

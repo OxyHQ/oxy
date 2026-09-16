@@ -18,8 +18,14 @@ import http from 'http';
 import type { AddressInfo } from 'net';
 import { eq } from 'drizzle-orm';
 import {
+  createMoveCommitment,
   deriveMoveKey,
   deriveMoveSas,
+  deriveMoveSasV2,
+  digestMoveCiphertext,
+  signMoveReceiptV2,
+  verifyMoveCommitment,
+  verifyMoveReceiptV2,
   generateMoveEphemeralKeyPair,
   generateWebIdentity,
   IDENTITY_MOVE_ACTIONS,
@@ -29,6 +35,7 @@ import {
   verifyMoveReceipt,
   type OpenedWebIdentity,
 } from '@oxy.so/core';
+import { signMessage } from '@oxy.so/protocol';
 
 let currentUserId = '';
 
@@ -287,5 +294,88 @@ describe('ending without a move', () => {
     const ctx = await startAndJoin();
     await getDb().delete(users).where(eq(users.id, ctx.userId));
     expect((await request('GET', `/${ctx.moveId}`, undefined, COMMONS)).status).toBe(404);
+  });
+});
+
+/* ------------------------------------------------------------------------- */
+/* Protocol version 2: commit, join, reveal (#1302).                          */
+/* ------------------------------------------------------------------------- */
+
+describe('protocol version 2', () => {
+  async function startV2() {
+    const account = await accountWithIdentity();
+    const web = generateMoveEphemeralKeyPair();
+    const { commitment, nonce } = createMoveCommitment(web.publicKey);
+    const created = await request('POST', '/', { protocolVersion: 2, initiatorCommitment: commitment });
+    expect(created.status).toBe(201);
+    return { ...account, web, commitment, nonce, moveId: created.body.moveId as string };
+  }
+
+  it('publishes only a commitment until Commons joined, then accepts exactly the committed key', async () => {
+    const ctx = await startV2();
+    const before = (await request('GET', `/${ctx.moveId}`, undefined, COMMONS)).body;
+    expect(before).toMatchObject({ protocolVersion: 2, initiatorCommitment: ctx.commitment, initiatorEphemeralPublicKey: null, status: 'pending' });
+
+    // Nothing to reveal before a responder joined.
+    expect((await request('POST', `/${ctx.moveId}/reveal`, { initiatorEphemeralPublicKey: ctx.web.publicKey, commitmentNonce: ctx.nonce })).status).toBe(409);
+
+    const commons = generateMoveEphemeralKeyPair();
+    expect((await request('POST', `/${ctx.moveId}/join`, { responderEphemeralPublicKey: commons.publicKey }, COMMONS)).status).toBe(200);
+
+    // A key the commitment does not open is refused, as is a wrong nonce.
+    const other = generateMoveEphemeralKeyPair();
+    expect((await request('POST', `/${ctx.moveId}/reveal`, { initiatorEphemeralPublicKey: other.publicKey, commitmentNonce: ctx.nonce })).status).toBe(400);
+    expect((await request('POST', `/${ctx.moveId}/reveal`, { initiatorEphemeralPublicKey: ctx.web.publicKey, commitmentNonce: 'ab'.repeat(32) })).status).toBe(400);
+
+    const revealed = await request('POST', `/${ctx.moveId}/reveal`, { initiatorEphemeralPublicKey: ctx.web.publicKey, commitmentNonce: ctx.nonce });
+    expect(revealed.status).toBe(200);
+    expect(revealed.body.initiatorEphemeralPublicKey).toBe(ctx.web.publicKey);
+    expect(revealed.body.initiatorCommitmentNonce).toBe(ctx.nonce);
+    // Once only.
+    expect((await request('POST', `/${ctx.moveId}/reveal`, { initiatorEphemeralPublicKey: ctx.web.publicKey, commitmentNonce: ctx.nonce })).status).toBe(409);
+    // Both sides agree on the code.
+    expect(verifyMoveCommitment(revealed.body.initiatorEphemeralPublicKey as string, ctx.nonce, before.initiatorCommitment as string)).toBe(true);
+    expect(deriveMoveSasV2({ moveId: ctx.moveId, initiatorEphemeralPublicKey: ctx.web.publicKey, responderEphemeralPublicKey: commons.publicKey, initiatorCommitment: ctx.commitment })).toMatch(/^\d{6}$/);
+  });
+
+  it('seals nothing before the key is revealed, and completes only on a version-2 receipt over the relayed ciphertext', async () => {
+    const ctx = await startV2();
+    const commons = generateMoveEphemeralKeyPair();
+    await request('POST', `/${ctx.moveId}/join`, { responderEphemeralPublicKey: commons.publicKey }, COMMONS);
+
+    const sealedPayload = sealIdentityForMove(ctx.identity, deriveMoveKey(ctx.web.privateKey, commons.publicKey, ctx.moveId), ctx.moveId);
+    const proof = await signMoveAction(ctx.identity, IDENTITY_MOVE_ACTIONS.seal, ctx.moveId);
+    expect((await request('POST', `/${ctx.moveId}/seal`, { ...sealedPayload, ...proof })).status).toBe(409);
+
+    await request('POST', `/${ctx.moveId}/reveal`, { initiatorEphemeralPublicKey: ctx.web.publicKey, commitmentNonce: ctx.nonce });
+    expect((await request('POST', `/${ctx.moveId}/seal`, { ...sealedPayload, ...(await signMoveAction(ctx.identity, IDENTITY_MOVE_ACTIONS.seal, ctx.moveId)) })).status).toBe(200);
+
+    const claims = {
+      moveId: ctx.moveId,
+      rootPublicKey: ctx.identity.publicKey,
+      initiatorEphemeralPublicKey: ctx.web.publicKey,
+      responderEphemeralPublicKey: commons.publicKey,
+      ciphertextDigest: digestMoveCiphertext(sealedPayload),
+    };
+
+    // A version-1 receipt is not accepted for a version-2 move.
+    const v1 = await signMoveAction(ctx.identity, IDENTITY_MOVE_ACTIONS.received, ctx.moveId);
+    expect((await request('POST', `/${ctx.moveId}/receipt`, v1, COMMONS)).status).toBe(400);
+    // A receipt over a different ciphertext is not the root's receipt for THIS move.
+    const wrong = await signMoveReceiptV2((message) => signMessage(message, ctx.identity.privateKey), { ...claims, ciphertextDigest: 'ab'.repeat(32) });
+    expect((await request('POST', `/${ctx.moveId}/receipt`, wrong, COMMONS)).status).toBe(401);
+
+    const receipt = await signMoveReceiptV2((message) => signMessage(message, ctx.identity.privateKey), claims);
+    const completed = await request('POST', `/${ctx.moveId}/receipt`, receipt, COMMONS);
+    expect(completed.status).toBe(200);
+    expect(completed.body).toMatchObject({ status: 'completed', ciphertext: null, receiptSignature: receipt.signature });
+    // The web verifies the same receipt locally from what IT sealed.
+    expect(await verifyMoveReceiptV2(claims, completed.body.receiptSignature as string)).toBe(true);
+  });
+
+  it('keeps accepting version-1 moves for clients already under way', async () => {
+    const ctx = await startAndJoin();
+    expect((await request('GET', `/${ctx.moveId}`, undefined, COMMONS)).body).toMatchObject({ protocolVersion: 1, initiatorCommitment: null });
+    expect((await request('POST', `/${ctx.moveId}/reveal`, { initiatorEphemeralPublicKey: ctx.web.publicKey, commitmentNonce: 'ab'.repeat(32) })).status).toBe(409);
   });
 });

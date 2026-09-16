@@ -10,6 +10,16 @@
   `verifiedAt`) alongside `parseRecoveryMaterial`,
   `deriveIdentityFromPrivateKey`, `deriveIdentityFromRecoveryMaterial`,
   `markWrapVerified`, `isUsablePrfOutput` and `wipeOpenedIdentity`.
+- `getIdentityRootStatus()` reads the account's root readiness (root linked, web
+  holder passkeys, phrase saved, recovery verified) without anything that opens
+  the root. `webauthnRegisterVerify` accepts the sign-up `identity` enrollment.
+
+- Identity transfer protocol version 2: `createMoveCommitment`,
+  `verifyMoveCommitment`, `deriveMoveSasV2`, `digestMoveCiphertext`,
+  `signMoveReceiptV2`, `verifyMoveReceiptV2`. The initiator commits to its
+  ephemeral key before the responder joins, so an active relay can no longer
+  grind substituted keys into matching codes; the receipt binds the move, root,
+  both keys and the relayed ciphertext. 12–24-word phrases move.
 
 ### Changed
 

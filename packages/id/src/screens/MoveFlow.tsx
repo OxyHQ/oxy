@@ -17,16 +17,19 @@ type Step =
   | { name: 'ended'; reason: 'expired' | 'cancelled' };
 
 /**
- * Move this account's identity into the Commons app — a MOVE, not a copy.
+ * Give this account's identity to the Commons app (ADR 0024 D6).
  *
- * The browser shows a code, Commons scans it, both screens show the same six
- * digits, and only after the person confirms they match is the identity sealed
- * for that phone. The web copy is destroyed only once Commons proves — with a
- * signature this page checks itself — that it holds the identity.
+ * Two intentions: ADD Commons and keep this browser as well, or keep the
+ * identity ONLY in Commons. Either way the browser shows a code, Commons scans
+ * it, both screens show the same six digits, and only after the person confirms
+ * they match is the identity sealed for that phone. The browser copy is removed
+ * — when that was chosen — only once Commons proves, with a signature this page
+ * checks itself, that it holds the identity.
  */
 export function MoveFlow({ ports, session, onDone }: { ports: CarrierPorts; session: CarrierSession; onDone: () => void }) {
   const [step, setStep] = useState<Step>({ name: 'intro' });
   const [error, setError] = useState<string | null>(null);
+  const [keepWebHolder, setKeepWebHolder] = useState(true);
   const moveRef = useRef<OutgoingMove | null>(null);
 
   // Poll while a move is under way. One request at a time; each step decides
@@ -98,9 +101,9 @@ export function MoveFlow({ ports, session, onDone }: { ports: CarrierPorts; sess
   }
 
   async function finish(move: OutgoingMove, state: IdentityMoveState) {
-    setStep({ name: 'working', label: 'Commons has your identity. Removing it from this browser…' });
+    setStep({ name: 'working', label: keepWebHolder ? 'Commons has your identity. Finishing…' : 'Commons has your identity. Removing it from this browser…' });
     try {
-      await completeMove(ports, session, move, state);
+      await completeMove(ports, session, move, state, { keepWebHolder });
       moveRef.current = null;
       setStep({ name: 'moved' });
     } catch (reason) {
@@ -134,8 +137,12 @@ export function MoveFlow({ ports, session, onDone }: { ports: CarrierPorts; sess
     case 'intro':
       return (
         <section className="card">
-          <h1>Move your identity to Commons</h1>
-          <p>Your identity will live in the Commons app on your phone, and this browser will stop keeping it. Your account, username and everything in it stay the same.</p>
+          <h1>Add your identity to Commons</h1>
+          <p>The Commons app on your phone will keep your identity too. Your account, username and everything in it stay the same.</p>
+          <label className="check">
+            <input type="checkbox" checked={!keepWebHolder} onChange={(event) => setKeepWebHolder(!event.target.checked)} />
+            Keep it only in Commons — this browser stops keeping it once Commons confirms. Copies saved elsewhere before are not affected.
+          </label>
           <p>Have Commons open on your phone. If you already use it with another identity, this one can’t be added there.</p>
           {errorLine}
           <div className="actions">
@@ -188,14 +195,18 @@ export function MoveFlow({ ports, session, onDone }: { ports: CarrierPorts; sess
       return (
         <section className="card">
           <h1>Finishing in Commons…</h1>
-          <p>Keep this page open until Commons confirms. Your identity stays here until it does.</p>
+          <p>Keep this page open until Commons confirms. Nothing is removed from this browser before it does.</p>
         </section>
       );
     case 'moved':
       return (
         <section className="card">
           <h1>Your identity is in Commons</h1>
-          <p>This browser no longer keeps it. From now on, approve sign-ins and keep your recovery phrase with the Commons app.</p>
+          <p>
+            {keepWebHolder
+              ? 'Commons now keeps your identity, and this browser still does too.'
+              : 'This browser no longer keeps it. From now on, approve sign-ins and keep your recovery phrase with the Commons app.'}
+          </p>
           <div className="actions">
             <button type="button" className="primary" onClick={onDone}>
               Done
@@ -206,8 +217,8 @@ export function MoveFlow({ ports, session, onDone }: { ports: CarrierPorts; sess
     case 'ended':
       return (
         <section className="card">
-          <h1>{step.reason === 'expired' ? 'The code expired' : 'Move cancelled'}</h1>
-          <p>Nothing was moved. Your identity is still here.</p>
+          <h1>{step.reason === 'expired' ? 'The code expired' : 'Cancelled'}</h1>
+          <p>Nothing was sent. Your identity is still here.</p>
           <div className="actions">
             <button type="button" className="primary" onClick={() => void begin()}>
               Start again

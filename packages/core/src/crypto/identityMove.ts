@@ -15,7 +15,14 @@ import { wordlist } from '@scure/bip39/wordlists/english';
 import { bytesToHex, hexToBytes, utf8ToBytes } from '@noble/hashes/utils';
 import { signMessage, verifySignature } from '@oxy.so/protocol';
 import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
-import { IDENTITY_MOVE_QR_PREFIX } from '@oxy.so/contracts';
+import {
+  IDENTITY_MOVE_QR_PREFIX,
+  buildMoveCiphertextDigestInput,
+  buildMoveCommitmentInput,
+  buildMoveReceiptMessageV2,
+  buildMoveSasInputV2,
+} from '@oxy.so/contracts';
+import { sha256 } from '@noble/hashes/sha256';
 import { decryptAead, encryptAead, AEAD_KEY_LENGTH } from './aead';
 import { deriveSharedSecret } from './ecdh';
 import { hkdfSha256 } from './kdf';
@@ -42,6 +49,65 @@ export function deriveMoveKey(ownEphemeralPrivateKey: string, otherEphemeralPubl
   } finally {
     wipeBytes(shared);
   }
+}
+
+function sha256Hex(input: string): string {
+  return bytesToHex(sha256(utf8ToBytes(input)));
+}
+
+/**
+ * Version 2, initiator: commit to the ephemeral key before anyone else's key is
+ * known. The nonce stays in memory until the reveal.
+ */
+export function createMoveCommitment(initiatorEphemeralPublicKey: string): { commitment: string; nonce: string } {
+  const nonceBytes = new Uint8Array(32);
+  globalThis.crypto.getRandomValues(nonceBytes);
+  const nonce = bytesToHex(nonceBytes);
+  return { commitment: sha256Hex(buildMoveCommitmentInput(initiatorEphemeralPublicKey, nonce)), nonce };
+}
+
+/** Version 2, responder: does the revealed key match the commitment read before joining? */
+export function verifyMoveCommitment(initiatorEphemeralPublicKey: string, nonce: string, commitment: string): boolean {
+  return sha256Hex(buildMoveCommitmentInput(initiatorEphemeralPublicKey, nonce)) === commitment.toLowerCase();
+}
+
+/** Version 2: the 6-digit code, bound to the move, both keys in their roles, and the commitment. */
+export function deriveMoveSasV2(input: {
+  moveId: string;
+  initiatorEphemeralPublicKey: string;
+  responderEphemeralPublicKey: string;
+  initiatorCommitment: string;
+}): string {
+  const digest = sha256(utf8ToBytes(buildMoveSasInputV2(input)));
+  const value = ((digest[0] << 24) | (digest[1] << 16) | (digest[2] << 8) | digest[3]) >>> 0;
+  return String(value % 1_000_000).padStart(6, '0');
+}
+
+/** The digest a version-2 receipt binds: what was actually relayed. */
+export function digestMoveCiphertext(sealed: { nonce: string; ciphertext: string }): string {
+  return sha256Hex(buildMoveCiphertextDigestInput(sealed));
+}
+
+export interface MoveReceiptV2Claims {
+  moveId: string;
+  rootPublicKey: string;
+  initiatorEphemeralPublicKey: string;
+  responderEphemeralPublicKey: string;
+  ciphertextDigest: string;
+}
+
+/**
+ * Version 2, responder: sign the receipt with a signer that reads the root back
+ * from durable storage (Commons passes its keychain signer), so a receipt exists
+ * only for a root that was actually stored.
+ */
+export async function signMoveReceiptV2(sign: (message: string) => Promise<string>, claims: MoveReceiptV2Claims): Promise<{ v: 2; signature: string }> {
+  return { v: 2, signature: await sign(buildMoveReceiptMessageV2(claims)) };
+}
+
+/** Version 2, initiator: is this receipt the root's, for exactly this move and ciphertext? */
+export function verifyMoveReceiptV2(claims: MoveReceiptV2Claims, signature: string): Promise<boolean> {
+  return verifySignature(buildMoveReceiptMessageV2(claims), signature, claims.rootPublicKey);
 }
 
 /** The 6-digit code both screens show, bound to the move and both ephemeral keys in their roles. */

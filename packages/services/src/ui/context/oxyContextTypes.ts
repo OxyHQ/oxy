@@ -89,8 +89,10 @@ export interface OxyContextState {
   }) => Promise<void>;
 
   /**
-   * Create a brand-new account whose first authentication method is a passkey.
-   * WEB-ONLY — throws on native or an unsupported browser.
+   * @deprecated Always rejects with `code: 'IDENTITY_ENROLLMENT_REQUIRED'`. An
+   * Oxy account is created WITH its self-custody root (ADR 0024 D4) in the
+   * account dialog's creation flow — `openAccountDialog('signup')` — never by a
+   * local passkey ceremony. Removed in the next major.
    */
   registerWithPasskey: (params: { username: string; deviceName?: string }) => Promise<void>;
 

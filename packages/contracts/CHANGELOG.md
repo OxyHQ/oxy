@@ -12,6 +12,10 @@
   readiness facts on the envelope response, v2 proof fields on every envelope
   write, `webauthnAssertionResponseSchema`, and the optional sign-up `identity`
   enrollment on `webauthnRegisterVerifyRequestSchema`.
+- Identity move protocol version 2: commitment create request, reveal request,
+  `protocolVersion`/`initiatorCommitment`/`initiatorCommitmentNonce` on the state
+  (initiator key nullable until revealed), version-2 receipt, 12–24-word
+  ciphertext lengths, and the canonical commitment/SAS/receipt byte builders.
 
 ## 0.41.0
 

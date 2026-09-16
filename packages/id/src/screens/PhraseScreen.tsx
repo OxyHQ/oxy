@@ -11,7 +11,7 @@ interface PhraseScreenProps {
 }
 
 /**
- * Show the 12-word recovery phrase, then ask for three of the words back.
+ * Show the recovery phrase, then ask for three of the words back.
  *
  * "I saved it" is demonstrated, not clicked: the phrase is the only way to get
  * an identity back when every device and passkey is gone, and nobody — Oxy
@@ -33,7 +33,7 @@ export function PhraseScreen({ identity, onConfirmed, onLater }: PhraseScreenPro
       <section className="card">
         <h1>Your recovery phrase</h1>
         <p>
-          These 12 words are your identity. Write them down and keep them somewhere safe. If you lose every device
+          These {words.length} words are your identity. Write them down and keep them somewhere safe. If you lose every device
           and passkey, they are the only way back — nobody, not even Oxy, can reset them.
         </p>
         <ol className="phrase">

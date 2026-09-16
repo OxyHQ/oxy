@@ -9,7 +9,7 @@ import type {
   LoginResult,
   CommonsDenyReason,
 } from '@oxy.so/contracts';
-import { loginResultSchema, safeParseContract } from '@oxy.so/contracts';
+import { loginResultSchema, safeParseContract, type IdentityProof, type WebIdentityEnvelope } from '@oxy.so/contracts';
 import type { SessionLoginResponse } from '../models/session';
 import type { OxyServicesBase } from '../OxyServices.base';
 import type { PublicApplication } from './OxyServices.connectedApps';
@@ -1643,6 +1643,12 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         username?: string;
         deviceName?: string;
         deviceFingerprint?: string;
+        /**
+         * Sign-up only: the root created on the holder before this call, sealed
+         * under the passkey being registered, plus its `enroll_identity` proof
+         * (ADR 0024 D4). The account is created WITH it or not at all.
+         */
+        identity?: { envelope: WebIdentityEnvelope; proof: IdentityProof };
       } = {},
     ): Promise<{ success: true; message: string } | LoginResult> {
       try {

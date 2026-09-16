@@ -25,6 +25,7 @@
  */
 import type {
   AuthMethodsResponse,
+  IdentityRootStatus,
   DidDocument,
   DomainVerificationInstructions,
   ExportBundle,
@@ -296,12 +297,30 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
     }
 
     /**
+     * The signed-in account's root readiness (ADR 0024 D5): whether a root is
+     * linked, how many passkeys can open the web holder, whether the root has a
+     * phrase and whether it is saved and was shown to recover it. Metadata only —
+     * nothing here can open the root — so any first-party surface may show a
+     * "save your recovery phrase" reminder from it.
+     */
+    async getIdentityRootStatus(): Promise<IdentityRootStatus> {
+      try {
+        return await this.makeRequest<IdentityRootStatus>('GET', '/identity/root-status', undefined, { cache: false });
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
      * Remove ONE passkey (WebAuthn credential) from the current account.
      *
      * Passkeys are per-credential, so unlike {@link unlinkAuthMethod} (which
      * removes an auth method by type) this targets a specific credential id.
      * The server refuses to remove the last remaining auth method (the account
      * would become inaccessible) and deletes the stored `WebauthnCredential`.
+     * A passkey that also opens the account's root on the web takes its wrap with
+     * it, and the ONLY such passkey is refused with
+     * `code: 'IDENTITY_LAST_WEB_HOLDER'` (ADR 0024 D6).
      *
      * @param credentialId - The passkey's public credential id
      *   (`AuthMethodEntry.credentialId`).
