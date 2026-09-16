@@ -175,6 +175,53 @@ describe('OxyServices.rotateKey', () => {
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/u/user-123/did.json');
     });
 
+    // The shared slot is what every cross-app reader takes first, including
+    // `deriveScopedSeed` — the FairCoin wallet Peable derives. A rotation that
+    // wrote only the primary left that wallet on the replaced key, watching
+    // addresses the rotated identity will never be paid at, with no error
+    // anywhere. Shared is written FIRST so a crash between the two writes leaves
+    // the money path on the new key and the primary stale, which fails loudly.
+    it('writes the new key to the shared slot too, before the primary', async () => {
+      const order: string[] = [];
+      jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
+      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
+      jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
+      jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
+      jest.spyOn(KeyManager, 'hasSharedIdentity').mockResolvedValue(true);
+      const sharedSpy = jest
+        .spyOn(KeyManager, 'importSharedIdentity')
+        .mockImplementation(async () => { order.push('shared'); return NEW_PUBLIC; });
+      const importSpy = jest
+        .spyOn(KeyManager, 'importKeyPair')
+        .mockImplementation(async () => { order.push('primary'); return NEW_PUBLIC; });
+      makeRequestSpy
+        .mockResolvedValueOnce({ challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' })
+        .mockResolvedValueOnce({ success: true, publicKey: NEW_PUBLIC, message: 'ok' });
+
+      await oxy.rotateKey({ proof: 'device' });
+
+      expect(sharedSpy).toHaveBeenCalledWith(NEW_PRIVATE);
+      expect(importSpy).toHaveBeenCalledWith(NEW_PRIVATE, { overwrite: true });
+      expect(order).toEqual(['shared', 'primary']);
+    });
+
+    it('leaves the shared slot alone on a device that has none', async () => {
+      jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
+      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
+      jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
+      jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
+      jest.spyOn(KeyManager, 'hasSharedIdentity').mockResolvedValue(false);
+      const sharedSpy = jest.spyOn(KeyManager, 'importSharedIdentity');
+      jest.spyOn(KeyManager, 'importKeyPair').mockResolvedValue(NEW_PUBLIC);
+      makeRequestSpy
+        .mockResolvedValueOnce({ challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' })
+        .mockResolvedValueOnce({ success: true, publicKey: NEW_PUBLIC, message: 'ok' });
+
+      await oxy.rotateKey({ proof: 'device' });
+
+      expect(sharedSpy).not.toHaveBeenCalled();
+    });
+
     it('throws (no network) when the device holds no identity', async () => {
       jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
       jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(null);

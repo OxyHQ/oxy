@@ -132,7 +132,7 @@ export default function RestoreFromBackupScreen() {
         // authenticated APIs with no session (same guard as the phrase importer).
         try {
           await syncIdentity();
-          await KeyManager.migrateToSharedIdentity();
+          await KeyManager.syncSharedIdentity();
           router.replace('/(auth)/import-identity/username');
         } catch {
           setError(t('restoreBackup.syncFailed'));
