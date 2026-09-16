@@ -18,9 +18,11 @@
 
 import {
   IDENTITY_MOVE_ACTIONS,
+  createMoveCommitment,
   deriveIdentityFromRecoveryMaterial,
   deriveMoveKey,
-  deriveMoveSas,
+  deriveMoveSasV2,
+  digestMoveCiphertext,
   digestIdentityPayload,
   generateMoveEphemeralKeyPair,
   generateWebIdentity,
@@ -30,7 +32,7 @@ import {
   signIdentityProof,
   signMoveAction,
   unlockWebIdentity,
-  verifyMoveReceipt,
+  verifyMoveReceiptV2,
   wipeBytes,
   wipeOpenedIdentity,
   WebIdentityUnlockError,
@@ -600,11 +602,18 @@ export async function deleteAccount(ports: CarrierPorts, session: CarrierSession
 /* Adding Commons as a holder, optionally keeping only Commons                 */
 /* -------------------------------------------------------------------------- */
 
-/** A move this browser started. The ephemeral private key never leaves memory. */
+/**
+ * A transfer this browser started (protocol version 2). The ephemeral private
+ * key and the commitment nonce never leave memory until the reveal.
+ */
 export interface OutgoingMove {
   moveId: string;
   expiresAt: string;
   ephemeral: { privateKey: string; publicKey: string };
+  commitment: string;
+  commitmentNonce: string;
+  /** Set when the root is sealed: the digest the receipt must bind. */
+  ciphertextDigest?: string;
 }
 
 /** What the person sees while a transfer is under way. */
@@ -623,6 +632,7 @@ export type MoveProgress =
 /**
  * Start giving this account's root to Commons. The root is proven to open here
  * before a code is shown, so a person never scans a code that cannot complete.
+ * Only a COMMITMENT to this browser's ephemeral key is published (protocol v2).
  */
 export async function startMove(ports: CarrierPorts, session: CarrierSession): Promise<OutgoingMove> {
   await withRoot(ports, session, async (identity) => {
@@ -631,25 +641,57 @@ export async function startMove(ports: CarrierPorts, session: CarrierSession): P
     }
   });
   const ephemeral = generateMoveEphemeralKeyPair();
-  const { moveId, expiresAt } = await ports.api.createMove(ephemeral.publicKey);
-  return { moveId, expiresAt, ephemeral };
+  const { commitment, nonce } = createMoveCommitment(ephemeral.publicKey);
+  const { moveId, expiresAt } = await ports.api.createMove(commitment);
+  return { moveId, expiresAt, ephemeral, commitment, commitmentNonce: nonce };
+}
+
+function verifyOwnMove(move: OutgoingMove, state: IdentityMoveState): void {
+  if (
+    state.moveId !== move.moveId ||
+    state.protocolVersion !== 2 ||
+    state.initiatorCommitment !== move.commitment ||
+    (state.initiatorEphemeralPublicKey !== null && state.initiatorEphemeralPublicKey !== move.ephemeral.publicKey)
+  ) {
+    throw new Error('The transfer could not be verified. Start again.');
+  }
 }
 
 /**
- * Read where the transfer stands. A relay that reports an initiator key other
- * than ours is not showing us our own transfer, and nothing is sealed to it.
+ * Read where the transfer stands. Once Commons has joined, reveal this browser's
+ * key — only then, so the relay has already committed to the key it forwarded
+ * from Commons. A relay reporting another commitment or key is not showing us
+ * our own transfer, and nothing is sealed to it.
  */
 export async function readMove(ports: CarrierPorts, move: OutgoingMove): Promise<{ state: IdentityMoveState; progress: MoveProgress }> {
-  const state = await ports.api.getMove(move.moveId);
-  if (state.moveId !== move.moveId || state.initiatorEphemeralPublicKey !== move.ephemeral.publicKey) {
-    throw new Error('The transfer could not be verified. Start again.');
+  let state = await ports.api.getMove(move.moveId);
+  verifyOwnMove(move, state);
+  if (state.status === 'joined' && state.initiatorEphemeralPublicKey === null) {
+    if (!state.responderEphemeralPublicKey) throw new Error('The transfer could not be verified. Start again.');
+    const responder = state.responderEphemeralPublicKey;
+    state = await ports.api.revealMove(move.moveId, move.ephemeral.publicKey, move.commitmentNonce);
+    verifyOwnMove(move, state);
+    if (state.responderEphemeralPublicKey !== responder) throw new Error('The transfer could not be verified. Start again.');
   }
   switch (state.status) {
     case 'pending':
       return { state, progress: { kind: 'waiting' } };
     case 'joined':
-      if (!state.responderEphemeralPublicKey) throw new Error('The transfer could not be verified. Start again.');
-      return { state, progress: { kind: 'compare', sas: deriveMoveSas(move.moveId, move.ephemeral.publicKey, state.responderEphemeralPublicKey) } };
+      if (!state.responderEphemeralPublicKey || state.initiatorEphemeralPublicKey !== move.ephemeral.publicKey) {
+        throw new Error('The transfer could not be verified. Start again.');
+      }
+      return {
+        state,
+        progress: {
+          kind: 'compare',
+          sas: deriveMoveSasV2({
+            moveId: move.moveId,
+            initiatorEphemeralPublicKey: move.ephemeral.publicKey,
+            responderEphemeralPublicKey: state.responderEphemeralPublicKey,
+            initiatorCommitment: move.commitment,
+          }),
+        },
+      };
     case 'sealed':
       return { state, progress: { kind: 'sent' } };
     case 'completed':
@@ -676,6 +718,7 @@ export async function sendMove(ports: CarrierPorts, session: CarrierSession, mov
     const moveKey = deriveMoveKey(move.ephemeral.privateKey, responderKey, move.moveId);
     try {
       const sealed = sealIdentityForMove(identity, moveKey, move.moveId);
+      move.ciphertextDigest = digestMoveCiphertext(sealed);
       await ports.api.sealMove(move.moveId, { ...sealed, ...(await signMoveAction(identity, IDENTITY_MOVE_ACTIONS.seal, move.moveId)) });
     } finally {
       wipeBytes(moveKey);
@@ -685,8 +728,9 @@ export async function sendMove(ports: CarrierPorts, session: CarrierSession, mov
 
 /**
  * Commons reports the root received. Its receipt is verified HERE against the
- * account's root — a server that claims completion without Commons holding the
- * root cannot make this browser remove anything.
+ * account's root, over this move, both keys and the ciphertext THIS browser
+ * sealed — a server that claims completion without Commons holding the root, or
+ * that relayed different bytes, cannot make this browser remove anything.
  *
  * `keepWebHolder` (ADR 0024 D6): adding Commons keeps the browser holder; only
  * "keep it only in Commons" removes it, and only after the receipt verified.
@@ -698,12 +742,21 @@ export async function completeMove(
   state: IdentityMoveState,
   options: { keepWebHolder: boolean },
 ): Promise<void> {
-  if (state.status !== 'completed' || state.receiptSignature === null || state.receiptTimestamp === null) {
+  if (state.status !== 'completed' || state.receiptSignature === null || !state.responderEphemeralPublicKey) {
     throw new Error('The transfer is not complete yet');
   }
   const root = session.account.publicKey;
-  if (!root || root !== state.publicKey) throw new Error('The transfer could not be verified. Start again.');
-  const valid = await verifyMoveReceipt(root, move.moveId, { signature: state.receiptSignature, timestamp: state.receiptTimestamp });
+  if (!root || root !== state.publicKey || !move.ciphertextDigest) throw new Error('The transfer could not be verified. Start again.');
+  const valid = await verifyMoveReceiptV2(
+    {
+      moveId: move.moveId,
+      rootPublicKey: root,
+      initiatorEphemeralPublicKey: move.ephemeral.publicKey,
+      responderEphemeralPublicKey: state.responderEphemeralPublicKey,
+      ciphertextDigest: move.ciphertextDigest,
+    },
+    state.receiptSignature,
+  );
   if (!valid) throw new Error('Commons did not prove it received your identity. Nothing was removed here.');
 
   if (!options.keepWebHolder) {
@@ -733,6 +786,7 @@ export async function cancelMove(ports: CarrierPorts, move: OutgoingMove): Promi
 
 function wipeMove(move: OutgoingMove): void {
   (move.ephemeral as { privateKey: string }).privateKey = '';
+  move.commitmentNonce = '';
 }
 
 /** Best-effort removal of secret strings from an opened identity. */
