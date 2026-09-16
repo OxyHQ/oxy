@@ -62,7 +62,7 @@ import type { SessionLoginResponse, MinimalUserData } from '../models/session';
 import type { User } from '../models/interfaces';
 import { logger } from '../logger';
 import { extractErrorStatus } from '../utils/errorUtils';
-import { CENTRAL_IDP_APEX } from '../utils/authWebUrl';
+import { IDENTITY_WEB_ORIGIN } from '../utils/authWebUrl';
 import type { SessionClient } from './SessionClient';
 import { getSocketIO, type MinimalSocket, type SocketIOFactory } from './socketLoader';
 import { resolveActiveContext, type DeviceContext } from './deviceDirectory';
@@ -396,8 +396,16 @@ export interface AccountDialogControllerOptions {
    */
   openPopup?: () => PopupWindowHandle | null;
   /**
-   * Base origin of the auth.oxy.so passkey hub (defaults to
-   * `https://auth.${CENTRAL_IDP_APEX}`). Overridable for local/staging testing.
+   * Origin of the web identity carrier (default `IDENTITY_WEB_ORIGIN`,
+   * `https://id.oxy.so`) — where a passkey sign-in or sign-up runs
+   * and the account's identity is kept sealed under the passkey. The popup opens
+   * `<identityOrigin>/continue?code=…`. Overridable for local/staging testing.
+   */
+  identityOrigin?: string;
+  /**
+   * @deprecated Alias of {@link identityOrigin}, kept for existing
+   * configuration. The popup used to open `auth.oxy.so/hub-passkey`; it now opens
+   * the identity origin's `/continue`, so a value here must be that origin.
    */
   hubBaseUrl?: string;
   /**
@@ -486,7 +494,7 @@ export class AccountDialogController {
   private readonly canOpenApp?: (url: string) => Promise<boolean>;
   private readonly socketFactory?: SocketIOFactory;
   private readonly openPopup?: () => PopupWindowHandle | null;
-  private readonly hubBaseUrl: string;
+  private readonly identityOrigin: string;
   private readonly platform: CommonsDeliveryPlatform;
 
   private readonly listeners = new Set<SnapshotListener>();
@@ -559,7 +567,7 @@ export class AccountDialogController {
     this.canOpenApp = options.canOpenApp;
     this.socketFactory = options.socketFactory;
     this.openPopup = options.openPopup;
-    this.hubBaseUrl = options.hubBaseUrl ?? `https://auth.${CENTRAL_IDP_APEX}`;
+    this.identityOrigin = options.identityOrigin ?? options.hubBaseUrl ?? IDENTITY_WEB_ORIGIN;
     this.platform = options.platform ?? 'unknown';
     this.snapshot = this.computeSnapshot();
   }
@@ -1001,11 +1009,13 @@ export class AccountDialogController {
   }
 
   /**
-   * Web-only: "Sign in with a passkey" on a non-Oxy origin cannot run the
-   * WebAuthn ceremony locally — a credential minted with `WEBAUTHN_RP_ID=oxy.so`
-   * can only be asserted from `oxy.so`/a subdomain/loopback, a browser-enforced
-   * boundary `isOxyRpOrigin()` (consumer-side) already gates on. Instead, open
-   * a popup at the auth.oxy.so passkey hub, scoped to the SAME device-flow
+   * Web-only: sign in (or create an account) with a passkey at the web identity
+   * carrier. The ceremony runs on `id.oxy.so`, never on the calling origin, for
+   * two reasons: a credential minted with `WEBAUTHN_RP_ID=oxy.so` can only be
+   * asserted from `oxy.so`/a subdomain/loopback (a browser-enforced boundary),
+   * and only the identity origin may unseal or create the account's identity
+   * (one identity, two carriers). Opens a popup at `<identityOrigin>/continue`,
+   * scoped to the SAME device-flow
    * session {@link showQr} would create (same `authorizeCode`/`sessionToken`
    * pair), and let the SAME poll/socket/claim engine complete it once the hub
    * authorizes the session (`POST /auth/session/authorize-code/:authorizeCode`,
@@ -1050,7 +1060,7 @@ export class AccountDialogController {
       if (pendingCode) void this.withdrawRequest(pendingCode);
       return;
     }
-    popup.location.href = `${this.hubBaseUrl}/hub-passkey?code=${encodeURIComponent(handle.authorizeCode)}`;
+    popup.location.href = `${this.identityOrigin}/continue?code=${encodeURIComponent(handle.authorizeCode)}`;
     this.watchPopup(popup);
   }
 

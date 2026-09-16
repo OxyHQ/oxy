@@ -65,22 +65,9 @@
   "signup": {
     "title": "Create your account",
     "subtitle": "One identity for the whole ecosystem.",
-    "commonsHeadline": "Create your identity in Commons",
-    "commonsExplainer": "Commons is your full self-custody Oxy identity — one app, works everywhere.",
     "createInCommons": "Create your identity in Commons",
-    "passkeyAlternative": "No Commons? Create a passkey on this device instead",
     "createAccount": "Create account",
-    "creating": "Creating…",
-    "usernamePlaceholder": "Choose a username",
-    "usernameChecking": "Checking…",
-    "usernameAvailable": "Available",
-    "usernameTaken": "This username is taken",
     "backToSignInLink": "Already have an account? Sign in",
-    "hubExplainer": "Create your Oxy ID in a secure window, then come right back.",
-    "continueInWindow": "Continue in a new window",
-    "toasts": {
-      "passkeyCreateFailed": "We couldn't create your account. Please try again."
-    },
     "welcome": {
       "title": "Welcome to Oxy!",
       "subtitle": "Let's create your account in just a few steps",
@@ -386,7 +373,6 @@
       "switchSuccess": "Account switched successfully!",
       "switchFailed": "There was a problem switching accounts. Please try again.",
       "signInFailed": "Sign-in failed. Please try again.",
-      "passkeySignInFailed": "Passkey sign-in failed. Please try again.",
       "removeSuccess": "Account removed successfully!",
       "removeFailed": "There was a problem removing the account. Please try again.",
       "signOutAllSuccess": "All accounts signed out successfully!",
@@ -431,7 +417,6 @@
     "qrHeadline": "Sign in with your Oxy identity",
     "signInWithOxy": "Sign in with Oxy",
     "useIdentityOnDevice": "No Commons? Use a passkey on this device instead",
-    "passkeySigningIn": "Signing in…",
     "getCommons": "Get Commons",
     "commonsNotInstalled": "Don't have Commons? Get the app to sign in with your Oxy ID.",
     "showQrAnyway": "I have Commons on another device",
@@ -466,7 +451,10 @@
       "claimFailed": "Sign-in was approved, but we couldn't finish it. Please try again.",
       "generic": "Sign-in failed. Please try again."
     },
-    "linkOpenFailed": "Couldn't open that link. Please try again."
+    "linkOpenFailed": "Couldn't open that link. Please try again.",
+    "continueWithPasskey": "Continue",
+    "passkeyHint": "Use your fingerprint, face or device PIN.",
+    "otherDeviceCommons": "Account on another device? Scan with Commons"
   },
   "reputation": {
     "faq": {
@@ -1734,7 +1722,8 @@
     "help": "Help & feedback",
     "signOut": "Sign out",
     "privacy": "Privacy Policy",
-    "terms": "Terms of Service"
+    "terms": "Terms of Service",
+    "identity": "Your identity"
   },
   "accounts": {
     "activeAccount": {
