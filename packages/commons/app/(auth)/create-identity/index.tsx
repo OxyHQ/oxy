@@ -38,8 +38,8 @@ export default function CreateIdentityScreen() {
   const textColor = colors.text;
 
   const [creatingProgress, setCreatingProgress] = useState(0);
-  const creatingProgressRef = useRef<NodeJS.Timeout | null>(null);
-  const finalDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const creatingProgressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finalDelayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
   // Guards against the effect re-firing — without it, React strict-mode's
   // intentional double-invocation in development would call createIdentity
@@ -180,7 +180,7 @@ export default function CreateIdentityScreen() {
             }
           }, CREATING_PROGRESS_INTERVAL_MS);
 
-          creatingProgressRef.current = progressInterval as unknown as NodeJS.Timeout;
+          creatingProgressRef.current = progressInterval as unknown as ReturnType<typeof setTimeout>;
 
           // Detect connectivity up front so createIdentity can skip the ~19s
           // DNS-timeout on the register/signIn round-trip when offline (the
