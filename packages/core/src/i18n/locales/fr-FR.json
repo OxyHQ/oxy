@@ -52,19 +52,9 @@
   "signup": {
     "title": "Créez votre compte",
     "subtitle": "Une seule identité pour tout l'écosystème.",
-    "commonsHeadline": "Créez votre identité dans Commons",
-    "commonsExplainer": "Commons est votre identité Oxy en autoconservation complète : une seule app, partout.",
     "createInCommons": "Créez votre identité dans Commons",
-    "passkeyAlternative": "Pas de Commons ? Créez une clé d'accès sur cet appareil",
     "createAccount": "Créer un compte",
-    "creating": "Création…",
-    "usernamePlaceholder": "Choisissez un nom d'utilisateur",
-    "usernameChecking": "Vérification…",
-    "usernameAvailable": "Disponible",
-    "usernameTaken": "Ce nom d'utilisateur est déjà pris",
     "backToSignInLink": "Vous avez déjà un compte ? Connectez-vous",
-    "hubExplainer": "Créez votre Oxy ID dans une fenêtre sécurisée, puis revenez directement.",
-    "continueInWindow": "Continuer dans une nouvelle fenêtre",
     "welcome": {
       "title": "Bienvenue sur Oxy !",
       "subtitle": "Créez votre compte en quelques étapes",
@@ -119,7 +109,6 @@
     "qrHeadline": "Connectez-vous avec votre identité Oxy",
     "signInWithOxy": "Se connecter avec Oxy",
     "useIdentityOnDevice": "Pas de Commons ? Utilisez une clé d'accès sur cet appareil",
-    "passkeySigningIn": "Connexion…",
     "getCommons": "Obtenir Commons",
     "commonsNotInstalled": "Pas de Commons ? Téléchargez l'app pour vous connecter avec votre Oxy ID.",
     "showQrAnyway": "J'ai Commons sur un autre appareil",
@@ -146,7 +135,10 @@
       "claimFailed": "La connexion a été approuvée, mais nous n'avons pas pu la finaliser. Veuillez réessayer.",
       "generic": "La connexion a échoué. Veuillez réessayer."
     },
-    "linkOpenFailed": "Impossible d'ouvrir le lien. Veuillez réessayer."
+    "linkOpenFailed": "Impossible d'ouvrir le lien. Veuillez réessayer.",
+    "continueWithPasskey": "Continuer",
+    "passkeyHint": "Utilisez votre empreinte, votre visage ou le code de l'appareil.",
+    "otherDeviceCommons": "Compte sur un autre appareil ? Scannez avec Commons"
   },
   "common": {
     "actions": {
@@ -287,6 +279,7 @@
     "help": "Aide et commentaires",
     "signOut": "Se déconnecter",
     "privacy": "Politique de confidentialité",
-    "terms": "Conditions d'utilisation"
+    "terms": "Conditions d'utilisation",
+    "identity": "Votre identité"
   }
 }
