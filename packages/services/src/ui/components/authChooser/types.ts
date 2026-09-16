@@ -95,6 +95,11 @@ export interface AccountsMenuActions {
   onPrivacy: () => void;
   onTerms: () => void;
   onSignOut: () => void;
+  /**
+   * Open the person's identity at the identity origin (recovery phrase,
+   * recovery, account deletion). Web only — `undefined` hides the row.
+   */
+  onOpenIdentity?: () => void;
   customItems: readonly {
     key: string;
     label: string;
@@ -104,15 +109,13 @@ export interface AccountsMenuActions {
 }
 
 /**
- * Where a WebAuthn ceremony can run from the current origin.
+ * Where a passkey sign-in or sign-up can run from the current surface.
  *
- * A credential minted for `oxy.so` can only be ASSERTED there (or a loopback
- * dev host) — a hard, browser-enforced RP-ID boundary, not feature detection.
- * `'direct'` = a first-party Oxy web origin, the ceremony runs here.
- * `'hub'`    = any other web origin; it runs in the auth.oxy.so popup instead.
- * `'none'`   = native, where Commons owns identity.
+ * `'hub'`  = web: it runs at the identity origin (`id.oxy.so`) in a popup, on
+ *            every web origin, first-party or not.
+ * `'none'` = native, where Commons owns identity.
  */
-export type PasskeyMode = 'direct' | 'hub' | 'none';
+export type PasskeyMode = 'hub' | 'none';
 
 /**
  * Everything that is NOT the sign-in surface's one primary action.
@@ -125,17 +128,12 @@ export type PasskeyMode = 'direct' | 'hub' | 'none';
 export interface SignInAlternatives {
   /** Whether a WebAuthn ceremony is reachable from this origin at all. */
   passkeyAvailable: boolean;
-  /**
-   * `true` while a DIRECT ceremony is in flight. The hub-popup variant reports
-   * its progress through `snapshot.signIn` instead, so it never sets this.
-   */
-  passkeyPending: boolean;
   onSignInWithPasskey: () => void;
   /** Fall back to the cross-device QR handoff (restarts the request). */
   onShowQr: () => void;
   /** Open the Commons store listing / landing page for this platform. */
   onGetCommons: () => void;
-  /** Enter the account-creation view. */
+  /** Create an account: the identity-origin window on web, the Commons flow on native. */
   onCreateAccount: () => void;
 }
 

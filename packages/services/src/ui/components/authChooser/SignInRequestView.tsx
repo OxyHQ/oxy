@@ -58,11 +58,8 @@ const SignInRequestView: React.FC<SignInRequestViewProps> = ({
       ? [
           {
             key: 'passkey-signin-link',
-            label: alternatives.passkeyPending
-              ? t('accountSwitcher.passkeySigningIn')
-              : t('accountSwitcher.useIdentityOnDevice'),
+            label: t('accountSwitcher.useIdentityOnDevice'),
             onPress: alternatives.onSignInWithPasskey,
-            disabled: alternatives.passkeyPending,
           },
         ]
       : [];

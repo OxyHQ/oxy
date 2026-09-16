@@ -184,8 +184,6 @@ const controller = {
   cancelSignIn: jest.fn(),
 };
 
-const signInWithPasskey = jest.fn(async () => undefined);
-const registerWithPasskey = jest.fn(async () => undefined);
 const openAvatarPicker = jest.fn();
 const closeAccountDialog = jest.fn();
 const showBottomSheet = jest.fn();
@@ -193,7 +191,6 @@ const logout = jest.fn(async (): Promise<{ status: 'signed-out' } | { status: 'f
   status: 'signed-out',
 }));
 const invalidateQueries = jest.fn();
-const checkUsernameAvailability = jest.fn(async () => ({ available: true, message: '' }));
 
 /** `null` reproduces `sessionMode: 'identity'`, where no controller is built. */
 let mockController: typeof controller | null = controller;
@@ -216,11 +213,9 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
     showBottomSheet,
     logout,
     logoutAll: jest.fn(async () => undefined),
-    signInWithPasskey,
-    registerWithPasskey,
     openAvatarPicker,
     user: mockUser,
-    oxyServices: { checkUsernameAvailability, getFileDownloadUrl: (id: string) => `https://cdn/${id}` },
+    oxyServices: { getFileDownloadUrl: (id: string) => `https://cdn/${id}` },
   }),
 }));
 
@@ -817,6 +812,24 @@ describe('OxyAuthChooser', () => {
       expect(toast.error).not.toHaveBeenCalled();
     });
 
+    it('offers the person’s identity on web — recovery phrase, recovery, deletion live at the identity origin', async () => {
+      const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+      snapshot = makeSnapshot({ directory: soloDirectory() });
+      render(<OxyAuthChooser />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Your identity' }));
+
+      await waitFor(() => expect(openURL).toHaveBeenCalledWith('https://id.oxy.so/'));
+      openURL.mockRestore();
+    });
+
+    it('has no identity row on native, where Commons carries the identity', () => {
+      isWebBrowserMock.mockReturnValue(false);
+      snapshot = makeSnapshot({ directory: soloDirectory() });
+      render(<OxyAuthChooser />);
+      expect(screen.queryByRole('button', { name: 'Your identity' })).toBeNull();
+    });
+
     it('reports a menu link the OS could not open, instead of a press that does nothing', async () => {
       const openURL = jest.spyOn(Linking, 'openURL').mockRejectedValueOnce(new Error('no handler'));
       snapshot = makeSnapshot({ directory: soloDirectory() });
@@ -831,23 +844,54 @@ describe('OxyAuthChooser', () => {
     });
   });
 
-  it('auto-starts the device flow on web the instant the sign-in entry is reached — no click needed', () => {
-    snapshot = makeSnapshot({ view: 'signin' });
-
-    render(<OxyAuthChooser />);
-
-    expect(controller.signInWithOxy).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not re-trigger the auto-start once a flow is already in flight', () => {
-    snapshot = makeSnapshot({
-      view: 'signin',
-      signIn: { ...IDLE_SIGN_IN, phase: 'waiting', authorizeCode: 'C', qrPayload: 'oxycommons://approve?code=C' },
+  describe('sign-in entry on web — the identity origin', () => {
+    beforeEach(() => {
+      isWebBrowserMock.mockReturnValue(true);
+      snapshot = makeSnapshot({ view: 'signin' });
     });
 
-    render(<OxyAuthChooser />);
+    it('starts nothing on its own — a popup can only open from the press', () => {
+      render(<OxyAuthChooser />);
+      expect(controller.signInWithOxy).not.toHaveBeenCalled();
+      expect(controller.showQr).not.toHaveBeenCalled();
+      expect(controller.startPasskeyHubSignIn).not.toHaveBeenCalled();
+    });
 
-    expect(controller.signInWithOxy).not.toHaveBeenCalled();
+    it('leads with one passkey action, the way in for newcomers, and Commons one link away', () => {
+      render(<OxyAuthChooser />);
+
+      expect(screen.getByText('Use your fingerprint, face or device PIN.')).toBeTruthy();
+      expect(buttonLabels()).toEqual([
+        'Continue',
+        'New to Oxy? Create one',
+        'Account on another device? Scan with Commons',
+        'Having trouble?',
+      ]);
+    });
+
+    it('opens the identity origin from Continue — on any web origin, first-party or not', () => {
+      for (const firstParty of [true, false]) {
+        isOxyRpOriginMock.mockReturnValue(firstParty);
+        const { unmount } = render(<OxyAuthChooser />);
+        fireEvent.click(screen.getByTestId('continue-with-oxy'));
+        unmount();
+      }
+      expect(controller.startPasskeyHubSignIn).toHaveBeenCalledTimes(2);
+      expect(controller.signInWithOxy).not.toHaveBeenCalled();
+    });
+
+    it('creates an account in the same identity-origin window, not in this page', () => {
+      render(<OxyAuthChooser />);
+      fireEvent.click(screen.getByTestId('create-account-link'));
+      expect(controller.startPasskeyHubSignIn).toHaveBeenCalledTimes(1);
+      expect(controller.startSignup).not.toHaveBeenCalled();
+    });
+
+    it('keeps an account on another device one link away (Commons QR)', () => {
+      render(<OxyAuthChooser />);
+      fireEvent.click(screen.getByTestId('scan-qr-link'));
+      expect(controller.showQr).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('sign-in entry — one primary action', () => {
@@ -954,23 +998,6 @@ describe('OxyAuthChooser', () => {
       expect(controller.showQr).toHaveBeenCalledTimes(1);
     });
 
-    it('offers the passkey fallback in that disclosure on web, and never before it', () => {
-      isWebBrowserMock.mockReturnValue(true);
-      isOxyRpOriginMock.mockReturnValue(true);
-      // Web auto-start is gated on an idle flow — a live one keeps the entry up.
-      snapshot = makeSnapshot({
-        view: 'signin',
-        signIn: { ...IDLE_SIGN_IN, phase: 'waiting', authorizeCode: 'C' },
-      });
-      render(<OxyAuthChooser />);
-
-      expect(screen.queryByTestId('passkey-signin-link')).toBeNull();
-
-      fireEvent.click(screen.getByRole('button', { name: 'Having trouble?' }));
-      fireEvent.click(screen.getByTestId('passkey-signin-link'));
-
-      expect(signInWithPasskey).toHaveBeenCalledTimes(1);
-    });
   });
 
   describe('active request — one surface per route', () => {
@@ -1087,19 +1114,7 @@ describe('OxyAuthChooser', () => {
       expect(screen.getByTestId('get-commons-link')).toBeTruthy();
     });
 
-    it('keeps the passkey path reachable after disclosure, on a first-party Oxy origin', async () => {
-      snapshot = requestSnapshot({ route: 'qr' });
-      render(<OxyAuthChooser />);
-
-      fireEvent.click(screen.getByRole('button', { name: 'Having trouble?' }));
-      fireEvent.click(screen.getByTestId('passkey-signin-link'));
-
-      await waitFor(() => expect(signInWithPasskey).toHaveBeenCalledTimes(1));
-      await waitFor(() => expect(closeAccountDialog).not.toHaveBeenCalled()); // onComplete is not wired without a host
-    });
-
-    it('routes the disclosed passkey link through the auth.oxy.so hub on a non-Oxy origin', () => {
-      isOxyRpOriginMock.mockReturnValue(false);
+    it('routes the disclosed passkey link through the identity origin', () => {
       snapshot = requestSnapshot({ route: 'qr' });
       render(<OxyAuthChooser />);
 
@@ -1107,21 +1122,6 @@ describe('OxyAuthChooser', () => {
       fireEvent.click(screen.getByTestId('passkey-signin-link'));
 
       expect(controller.startPasskeyHubSignIn).toHaveBeenCalledTimes(1);
-      expect(signInWithPasskey).not.toHaveBeenCalled();
-    });
-
-    it('toasts the ceremony error (never inline) when the direct passkey sign-in fails', async () => {
-      signInWithPasskey.mockRejectedValueOnce(new Error('The passkey request was cancelled.'));
-      snapshot = requestSnapshot({ route: 'qr' });
-      render(<OxyAuthChooser />);
-
-      fireEvent.click(screen.getByRole('button', { name: 'Having trouble?' }));
-      fireEvent.click(screen.getByTestId('passkey-signin-link'));
-
-      await waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith('The passkey request was cancelled.'),
-      );
-      expect(screen.queryByText('The passkey request was cancelled.')).toBeNull();
     });
 
     it('leads with "Get Commons" — the genuine primary route — when Commons is not installed', () => {
@@ -1269,82 +1269,12 @@ describe('OxyAuthChooser', () => {
   });
 
   describe('signup view', () => {
-    it('offers passkey account creation on a first-party Oxy origin, gated on username availability', async () => {
-      snapshot = makeSnapshot({ view: 'signup' });
-      render(<OxyAuthChooser />);
-
-      const button = screen.getByTestId('signup-create-button') as HTMLButtonElement;
-      expect(button.disabled).toBe(true);
-
-      fireEvent.change(screen.getByTestId('signup-username-input'), { target: { value: 'newuser' } });
-      await waitFor(() => expect(checkUsernameAvailability).toHaveBeenCalledWith('newuser'), { timeout: 1000 });
-
-      await waitFor(() => expect((screen.getByTestId('signup-create-button') as HTMLButtonElement).disabled).toBe(false));
-
-      fireEvent.click(screen.getByTestId('signup-create-button'));
-      await waitFor(() => expect(registerWithPasskey).toHaveBeenCalledWith({ username: 'newuser' }));
-    });
-
-    it('toasts (never inline) when the username-availability check fails', async () => {
-      checkUsernameAvailability.mockRejectedValueOnce(new Error('network'));
-      snapshot = makeSnapshot({ view: 'signup' });
-      render(<OxyAuthChooser />);
-
-      fireEvent.change(screen.getByTestId('signup-username-input'), { target: { value: 'newuser' } });
-
-      await waitFor(
-        () => expect(toast.error).toHaveBeenCalledWith('Could not check availability'),
-        { timeout: 1000 },
-      );
-      // The availability indicator (checking/available/taken) stays inline; only
-      // the network ERROR moves to a toast — no inline error text is painted.
-      expect(screen.queryByText('Could not check availability')).toBeNull();
-    });
-
-    it('drops a pending availability check when the user leaves the form', () => {
-      jest.useFakeTimers();
-      try {
-        snapshot = makeSnapshot({ view: 'signup' });
-        const { unmount } = render(<OxyAuthChooser />);
-
-        fireEvent.change(screen.getByTestId('signup-username-input'), { target: { value: 'newuser' } });
-        unmount();
-        act(() => {
-          jest.advanceTimersByTime(1000);
-        });
-
-        // Gone before the debounce settled: no request, and so no late verdict or toast.
-        expect(checkUsernameAvailability).not.toHaveBeenCalled();
-        expect(toast.error).not.toHaveBeenCalled();
-      } finally {
-        jest.useRealTimers();
-      }
-    });
-
-    it('toasts when passkey account creation fails (after the username resolves available)', async () => {
-      registerWithPasskey.mockRejectedValueOnce(new Error('Passkey attestation rejected.'));
-      snapshot = makeSnapshot({ view: 'signup' });
-      render(<OxyAuthChooser />);
-
-      fireEvent.change(screen.getByTestId('signup-username-input'), { target: { value: 'newuser' } });
-      await waitFor(
-        () => expect((screen.getByTestId('signup-create-button') as HTMLButtonElement).disabled).toBe(false),
-        { timeout: 1000 },
-      );
-
-      fireEvent.click(screen.getByTestId('signup-create-button'));
-
-      await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Passkey attestation rejected.'));
-    });
-
-    it('offers the auth.oxy.so hub popup (b2) on a non-Oxy web origin, instead of the direct passkey form', () => {
-      isOxyRpOriginMock.mockReturnValue(false);
+    it('on web, offers one action: create the account in the identity-origin window', () => {
       snapshot = makeSnapshot({ view: 'signup' });
       render(<OxyAuthChooser />);
 
       expect(screen.queryByTestId('signup-username-input')).toBeNull();
-      const button = screen.getByRole('button', { name: 'Continue in a new window' });
-      fireEvent.click(button);
+      fireEvent.click(screen.getByTestId('signup-open-identity'));
       expect(controller.startPasskeyHubSignIn).toHaveBeenCalledTimes(1);
     });
 

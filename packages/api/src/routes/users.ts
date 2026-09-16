@@ -1678,7 +1678,7 @@ interface ResolveUserBody {
  * (one resolve per unique external author), all through a single NAT egress IP.
  *
  * This path is EXEMPT from the global browser per-IP limiter (rl:general) and the
- * slowDown penalty (see `isServiceToServiceBulkRequest` in middleware/security),
+ * slowDown penalty (see `isFirstPartyServiceRequest` in middleware/security),
  * because that per-IP browser budget — shared across ALL of the app's oxy-api
  * calls from one NAT IP — 429'd bulk resolves (the same failure mode as the
  * federation sign surface). This is therefore its dedicated budget. Keyed by the

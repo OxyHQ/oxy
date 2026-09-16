@@ -12,7 +12,7 @@ import sessionDeviceRouter from "./routes/sessionDevice";
 import browserHubRouter from "./routes/browserHub";
 import dotenv from "dotenv";
 import searchRoutes from "./routes/search";
-import { rateLimiter, authRateLimiter, userRateLimiter, federationServiceLimiter, bruteForceProtection, securityHeaders } from "./middleware/security";
+import { rateLimiter, serviceCredentialLimiter, authRateLimiter, userRateLimiter, federationServiceLimiter, bruteForceProtection, securityHeaders } from "./middleware/security";
 import privacyRoutes from "./routes/privacy";
 import analyticsRoutes from "./routes/analytics.routes";
 import paymentRoutes from './routes/payment.routes';
@@ -82,6 +82,7 @@ import identityRoutes from './routes/identity';
 import chainsRoutes from './routes/chains';
 import identityBackupRoutes from './routes/identityBackup';
 import identityWebEnvelopeRoutes from './routes/identityWebEnvelope';
+import identityMoveRoutes from './routes/identityMove';
 import deviceTransferRoutes from './routes/deviceTransfer';
 import civicRoutes from './routes/civic';
 import nodeRoutes from './routes/nodes';
@@ -677,6 +678,12 @@ app.get('/.well-known/jwks.json', (_request, response) => {
 // Apply rate limiting middleware globally (before application routes)
 // Note: Auth routes have their own stricter rate limiting
 app.use(rateLimiter);
+// The per-CREDENTIAL budget every service token answers to. Mounted HERE, beside
+// the general limiter it replaces for that traffic: both skip requests the other
+// charges, so each request is counted exactly once (see
+// `isFirstPartyServiceRequest`). Removing this mount would leave service traffic
+// with no global ceiling at all.
+app.use(serviceCredentialLimiter);
 app.use(bruteForceProtection);
 
 // CSRF token endpoint (must be before CSRF protection)
@@ -850,6 +857,10 @@ app.use('/identity/backup', identityBackupRoutes);
 // ambient cookie credentials, so no csrfProtection (bearer-write CSRF rule).
 // Mounted BEFORE `/identity` so its specific prefix wins.
 app.use('/identity/web-envelope', identityWebEnvelopeRoutes);
+// Moving a web identity into Commons: E2E relay (two ephemeral keys + opaque
+// ciphertext), bearer + identity-key proof on the web's writes, identity-key
+// receipt from Commons. No ambient cookies, so no csrfProtection. Before `/identity`.
+app.use('/identity/move', identityMoveRoutes);
 // Device-to-device identity transfer ("add a device"). Mounted BEFORE `/identity`
 // so its specific prefix wins over the identity router. Public init/info/deny +
 // bearer+signature approve; the relay is E2E-encrypted (no CSRF — no ambient

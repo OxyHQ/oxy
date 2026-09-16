@@ -75,6 +75,7 @@ import {
   inferenceProviderConnectionAuditEvents,
 } from './schema/inferenceProviderConnectionAuditEvents';
 import { devicePairingSessions } from './schema/devicePairingSessions';
+import { identityMoves } from './schema/identityMoves';
 import { domainVerifications } from './schema/domainVerifications';
 import {
   mcpOauthAccessTokens,
@@ -205,6 +206,15 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Grace window — the request outlives its deadline for an hour so a late ' +
       'poll is told "expired" rather than "never existed". Every read filters ' +
       'expiry itself, so nothing depends on the sweep for correctness.',
+  },
+  {
+    table: identityMoves,
+    column: identityMoves.expiresAt,
+    retentionSeconds: 3600,
+    reason:
+      'Storage reclamation ONLY, an hour after the deadline so a late poll is ' +
+      'told "expired" rather than "unknown". Every read and transition in ' +
+      '`routes/identityMove.ts` filters on `expires_at` itself.',
   },
   {
     table: devicePairingSessions,
