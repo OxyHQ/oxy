@@ -1,7 +1,7 @@
 # One Identity, Two Carriers — passkey web identity + Commons, same key, same recovery
 
 **Date:** 2026-09-15
-**Status:** Approved (design and decisions D1–D4, 2026-09-15); implementation phased, starting with the phase 0 spike
+**Status:** Approved 2026-09-15; **partly superseded by [ADR 0024](../../adr/0024-one-oxy-account-root-holders.md)** (#1302): the identity origin is an internal holder host, not a product; moving is one of two holder operations (add or move); decision D2's session block is replaced by readiness metadata; the `{action,userId,timestamp}` proof is replaced by the v2 payload-bound proof. Read the ADR first.
 **Owner question:** a newcomer to any Oxy app should get in with "Continue → passkey → username → done", without first understanding Commons. Can a passkey account be a first-class Oxy identity without making Oxy a custodian and without weakening Commons as *the* identity?
 
 **Decisions already taken by the owner (2026-09-15):**

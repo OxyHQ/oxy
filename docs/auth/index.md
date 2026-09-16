@@ -11,7 +11,7 @@ out. This page exists so there is one place that is answerable for being right.
 
 ## The model in five nouns
 
-An **identity** is a cryptographic human identity controlled by a Commons key.
+An **identity** is a cryptographic human identity controlled by its owner's root key, held in Commons or in a passkey-sealed web holder ([ADR 0024](../adr/0024-one-oxy-account-root-holders.md)).
 A **principal** is a human who has authenticated onto one device or browser
 profile. An **account** is the subject an application acts as. A **device
 session** is the server's record of one device, its principals, and their
@@ -44,6 +44,7 @@ these before proposing a change to the model:
 - [ADR 0002 — one globally active context, activated through one endpoint](../adr/0002-global-account-context.md)
 - [ADR 0003 — `auth.oxy.so` becomes the browser's first-party DeviceSession hub](../adr/0003-browser-device-session-hub.md)
 - [ADR 0004 — one headless `OxyRuntime` behind one public `OxyProvider`](../adr/0004-single-oxy-runtime-provider.md)
+- [ADR 0024 — one Oxy account: `auth.oxy.so` is the web entry, the root lives in user-controlled holders](../adr/0024-one-oxy-account-root-holders.md)
 
 ## What is NOT built yet
 

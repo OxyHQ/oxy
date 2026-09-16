@@ -1,5 +1,18 @@
 # Changelog: `@oxy.so/contracts`
 
+## Unreleased
+
+### Added
+
+- `identityProof`: `buildIdentityProofMessage`, `canonicalJson`,
+  `identityProofSchema`, proof-challenge request/response schemas,
+  `IDENTITY_PROOF_ACTIONS` and the stable `IDENTITY_ERROR_CODES` (ADR 0024 D7).
+- Web identity envelope version 2 (`webIdentityEnvelopeV2Schema`,
+  `WEB_IDENTITY_SECRET_KINDS`), wrap `rpId`/`verifiedAt`, holder metadata and
+  readiness facts on the envelope response, v2 proof fields on every envelope
+  write, `webauthnAssertionResponseSchema`, and the optional sign-up `identity`
+  enrollment on `webauthnRegisterVerifyRequestSchema`.
+
 ## 0.41.0
 
 ### Changed

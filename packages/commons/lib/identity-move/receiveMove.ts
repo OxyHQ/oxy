@@ -5,7 +5,7 @@ import {
   IDENTITY_MOVE_ACTIONS,
   openMovedIdentity,
   signMoveAction,
-  type OpenedWebIdentity,
+  type OpenedMnemonicIdentity,
 } from '@oxy.so/core';
 import type { IdentityMoveState } from '@oxy.so/contracts';
 
@@ -91,7 +91,7 @@ export async function joinMove(relay: MoveRelay, moveId: string): Promise<Incomi
  * this device's key and checked against the declared public key — or `null`
  * while the person has not confirmed yet.
  */
-export async function receiveIdentity(relay: MoveRelay, move: IncomingMove): Promise<OpenedWebIdentity | null> {
+export async function receiveIdentity(relay: MoveRelay, move: IncomingMove): Promise<OpenedMnemonicIdentity | null> {
   const state = await relay.getMove(move.moveId);
   if (
     state.moveId !== move.moveId ||
@@ -116,7 +116,7 @@ export async function receiveIdentity(relay: MoveRelay, move: IncomingMove): Pro
 }
 
 /** Tell the web this device holds the identity, proven with the identity key. */
-export async function confirmReceived(relay: MoveRelay, move: IncomingMove, identity: Pick<OpenedWebIdentity, 'privateKey'>): Promise<void> {
+export async function confirmReceived(relay: MoveRelay, move: IncomingMove, identity: Pick<OpenedMnemonicIdentity, 'privateKey'>): Promise<void> {
   const receipt = await signMoveAction(identity, IDENTITY_MOVE_ACTIONS.received, move.moveId);
   await relay.postReceipt(move.moveId, receipt);
 }

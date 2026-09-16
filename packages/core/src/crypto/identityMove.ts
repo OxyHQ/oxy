@@ -19,7 +19,7 @@ import { IDENTITY_MOVE_QR_PREFIX } from '@oxy.so/contracts';
 import { decryptAead, encryptAead, AEAD_KEY_LENGTH } from './aead';
 import { deriveSharedSecret } from './ecdh';
 import { hkdfSha256 } from './kdf';
-import { deriveIdentityFromMnemonic, deriveTransferSas, wipeBytes, type OpenedWebIdentity } from './webIdentityCarrier';
+import { deriveIdentityFromMnemonic, deriveTransferSas, wipeBytes, type OpenedMnemonicIdentity } from './webIdentityCarrier';
 
 const MOVE_KDF_INFO = utf8ToBytes('oxy-identity-move-v1');
 
@@ -55,10 +55,13 @@ function moveAad(moveId: string, publicKey: string): Uint8Array {
 
 /** Initiator: seal the identity's entropy for the responder. */
 export function sealIdentityForMove(
-  identity: Pick<OpenedWebIdentity, 'mnemonic' | 'publicKey'>,
+  identity: Pick<OpenedMnemonicIdentity, 'mnemonic' | 'publicKey'>,
   moveKey: Uint8Array,
   moveId: string,
 ): { nonce: string; ciphertext: string } {
+  if (typeof identity.mnemonic !== 'string' || !identity.mnemonic) {
+    throw new Error('Only an identity with a recovery phrase can be moved this way');
+  }
   const entropy = mnemonicToEntropy(identity.mnemonic, wordlist);
   try {
     const { nonce, ciphertext } = encryptAead(moveKey, entropy, moveAad(moveId, identity.publicKey));
@@ -77,7 +80,7 @@ export function openMovedIdentity(
   moveKey: Uint8Array,
   moveId: string,
   expectedPublicKey: string,
-): OpenedWebIdentity {
+): OpenedMnemonicIdentity {
   let entropy: Uint8Array;
   try {
     entropy = decryptAead(moveKey, hexToBytes(sealed.nonce), hexToBytes(sealed.ciphertext), moveAad(moveId, expectedPublicKey));
@@ -102,7 +105,7 @@ export function buildMoveMessage(action: string, moveId: string, timestamp: numb
 
 /** Sign a move action with the identity key. */
 export async function signMoveAction(
-  identity: Pick<OpenedWebIdentity, 'privateKey'>,
+  identity: { privateKey: string },
   action: string,
   moveId: string,
   timestamp: number = Date.now(),

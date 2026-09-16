@@ -12,6 +12,8 @@
  */
 
 import { z } from 'zod';
+import { identityProofSchema } from './identityProof';
+import { webIdentityEnvelopeSchema } from './webIdentityCarrier';
 
 /**
  * Device-session options shared by every first-party sign-in body
@@ -63,6 +65,18 @@ export type WebauthnLoginOptionsRequest = z.infer<typeof webauthnLoginOptionsReq
  */
 export const webauthnRegisterVerifyRequestSchema = z.object({
   username: z.string().trim().min(1).max(60).optional(),
+  /**
+   * Sign-up only (ADR 0024 D4): the account's root, created on the holder BEFORE
+   * this request — sealed under the passkey being registered — and a root proof
+   * (`enroll_identity`) whose challenge is the registration challenge. The
+   * account, passkey, root and envelope are then created in one transaction.
+   */
+  identity: z
+    .object({
+      envelope: webIdentityEnvelopeSchema,
+      proof: identityProofSchema,
+    })
+    .optional(),
   ...deviceSessionEnvelope,
 });
 export type WebauthnRegisterVerifyRequest = z.infer<typeof webauthnRegisterVerifyRequestSchema>;

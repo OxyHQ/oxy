@@ -22,6 +22,7 @@ import {
   unlockWebIdentity,
   verifyMoveReceipt,
   wipeBytes,
+  wipeOpenedIdentity,
   WebIdentityUnlockError,
   type OpenedWebIdentity,
   type WebIdentityUnlockFailure,
@@ -264,6 +265,7 @@ export async function sendMove(ports: CarrierPorts, session: CarrierSession, mov
   const moveKey = deriveMoveKey(move.ephemeral.privateKey, state.responderEphemeralPublicKey, move.moveId);
   try {
     if (identity.publicKey !== state.publicKey) throw new Error('The move could not be verified. Start again.');
+    if (identity.kind !== 'mnemonic') throw new Error('This identity has no recovery phrase, so it cannot be moved this way.');
     const sealed = sealIdentityForMove(identity, moveKey, move.moveId);
     await ports.api.sealMove(move.moveId, { ...sealed, ...(await signMoveAction(identity, IDENTITY_MOVE_ACTIONS.seal, move.moveId)) });
   } finally {
@@ -310,8 +312,7 @@ function wipeMove(move: OutgoingMove): void {
 
 /** Best-effort removal of secret strings from an opened identity. */
 export function wipeIdentity(identity: OpenedWebIdentity): void {
-  (identity as { privateKey: string }).privateKey = '';
-  (identity as { mnemonic: string }).mnemonic = '';
+  wipeOpenedIdentity(identity);
 }
 
 /**

@@ -24,7 +24,7 @@ import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 const OXY_ORIGIN = 'https://accounts.oxy.so';
 
@@ -100,6 +100,10 @@ import { users } from '../../db/schema/users';
 import { webauthnChallenges } from '../../db/schema/webauthnChallenges';
 import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
 import webauthnRouter from '../webauthn';
+import { identityWebEnvelopes } from '../../db/schema/identityWebEnvelopes';
+import { deriveIdentityFromPrivateKey, digestIdentityPayload, generateWebIdentity, sealWebIdentity, signIdentityProof, type OpenedWebIdentity } from '@oxy.so/core';
+import { IDENTITY_PROOF_AUDIENCE } from '@oxy.so/contracts';
+import { randomBytes } from 'node:crypto';
 
 interface JsonResponse {
   status: number;
@@ -693,5 +697,120 @@ describe('POST /webauthn/register/verify — linking branch', () => {
     expect(res.status).toBe(409);
     expect(await storedAuthMethods(userId)).toHaveLength(0);
     expect((await storedCredential(currentCredentialId)).userId).toBe(otherUserId);
+  });
+});
+
+describe('POST /webauthn/register/verify — sign-up WITH its root (ADR 0024 D4)', () => {
+  /** A real registration challenge shape: 32 random bytes, base64url. */
+  function realChallenge(): string {
+    return randomBytes(32).toString('base64url');
+  }
+
+  async function enrollment(
+    identity: OpenedWebIdentity,
+    username: string,
+    overrides: { credentialId?: string; challenge?: string; rpId?: string; subject?: string; extraWrap?: boolean } = {},
+  ) {
+    const credentialId = overrides.credentialId ?? currentCredentialId;
+    const { envelope: sealed, dataKey } = sealWebIdentity(
+      identity,
+      { prfOutput: new Uint8Array(32).fill(4), credentialId, ...(overrides.rpId ? { rpId: overrides.rpId } : {}) },
+      new Date(),
+      { version: 2 },
+    );
+    let envelope = sealed;
+    if (overrides.extraWrap) {
+      const { addWrap } = await import('@oxy.so/core');
+      envelope = addWrap(envelope, dataKey, { prfOutput: new Uint8Array(32).fill(5), credentialId: 'credential-extra-aaaaaaaa' });
+    }
+    dataKey.fill(0);
+    const proof = await signIdentityProof(identity, {
+      action: 'enroll_identity',
+      subject: overrides.subject ?? `username:${username}`,
+      actor: `credential:${credentialId}`,
+      rootPublicKey: identity.publicKey,
+      payloadDigest: digestIdentityPayload({ envelope }),
+      expectedRevision: null,
+      audience: IDENTITY_PROOF_AUDIENCE,
+      challenge: Buffer.from(overrides.challenge ?? currentChallenge, 'base64url').toString('hex'),
+      expiresAt: Date.now() + 4 * 60 * 1000,
+    });
+    return { envelope, proof };
+  }
+
+  beforeEach(() => {
+    currentChallenge = realChallenge();
+  });
+
+  it('creates the account, passkey, root, both auth methods and the envelope together', async () => {
+    const username = freshUsername();
+    const identity = generateWebIdentity();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+
+    const identityBody = await enrollment(identity, username);
+    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse(), identity: identityBody });
+
+    expect(res.status).toBe(200);
+    const created = await storedUserByUsername(username);
+    const [row] = await getDb().select({ publicKey: users.publicKey }).from(users).where(eq(users.id, created.id));
+    expect(row.publicKey).toBe(identity.publicKey);
+    const methods = await storedAuthMethods(created.id);
+    expect(methods.map((m) => m.type).sort()).toEqual(['identity', 'webauthn']);
+    const [envelope] = await getDb().select().from(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, created.id));
+    expect(envelope).toMatchObject({ publicKey: identity.publicKey, version: 2, secretKind: 'mnemonic-entropy', revision: 1, phraseConfirmedAt: null });
+    expect(envelope.wraps.map((w) => w.credentialId)).toEqual([currentCredentialId]);
+  });
+
+  it('keeps a raw-key root a raw-key root', async () => {
+    const username = freshUsername();
+    const identity = deriveIdentityFromPrivateKey(randomBytes(32).toString('hex'));
+    await request(server, 'POST', '/webauthn/register/options', { username });
+    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse(), identity: await enrollment(identity, username) });
+    expect(res.status).toBe(200);
+    const created = await storedUserByUsername(username);
+    const [envelope] = await getDb().select({ secretKind: identityWebEnvelopes.secretKind }).from(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, created.id));
+    expect(envelope.secretKind).toBe('raw-private-key');
+  });
+
+  it.each([
+    ['sealed for a different passkey', { credentialId: 'credential-someone-else-aa' }],
+    ['carrying a second wrap', { extraWrap: true }],
+    ['sealed for another passkey domain', { rpId: 'evil.example' }],
+  ])('creates NOTHING for an envelope %s', async (_label, overrides) => {
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+    const res = await request(server, 'POST', '/webauthn/register/verify', {
+      username,
+      response: registrationResponse(),
+      identity: await enrollment(generateWebIdentity(), username, overrides),
+    });
+    expect(res.status).toBe(400);
+    expect(await storedUserByUsername(username)).toBeUndefined();
+  });
+
+  it.each([
+    ['another ceremony’s challenge', { challenge: randomBytes(32).toString('base64url') }],
+    ['another username', { subject: 'username:someoneelse' }],
+  ])('creates NOTHING when the root proof names %s', async (_label, overrides) => {
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+    const res = await request(server, 'POST', '/webauthn/register/verify', {
+      username,
+      response: registrationResponse(),
+      identity: await enrollment(generateWebIdentity(), username, overrides),
+    });
+    expect(res.status).toBe(401);
+    expect(await storedUserByUsername(username)).toBeUndefined();
+  });
+
+  it('creates NOTHING for a root already linked to another account', async () => {
+    const identity = generateWebIdentity();
+    await getDb().insert(users).values({ publicKey: identity.publicKey });
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse(), identity: await enrollment(identity, username) });
+    expect(res.status).toBe(409);
+    expect(await storedUserByUsername(username)).toBeUndefined();
+    expect(await storedCredential(currentCredentialId)).toBeUndefined();
   });
 });

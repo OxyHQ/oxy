@@ -341,23 +341,39 @@ export { deriveSharedSecret } from './crypto/ecdh';
 export {
     WEB_IDENTITY_PRF_INPUT,
     WebIdentityUnlockError,
+    WEB_IDENTITY_PRF_OUTPUT_LENGTH,
     addWrap,
     buildIdentityActionMessage,
     deriveIdentityFromMnemonic,
+    deriveIdentityFromPrivateKey,
+    deriveIdentityFromRecoveryMaterial,
     deriveKeyEncryptionKey,
     deriveTransferSas,
     generateDataKey,
     generateWebIdentity,
+    isUsablePrfOutput,
+    markWrapVerified,
+    normalizeMnemonic,
     openWebIdentity,
+    parseRecoveryMaterial,
     removeWrap,
     sealWebIdentity,
     signIdentityAction,
     unlockWebIdentity,
     unwrapDataKey,
     wipeBytes,
+    wipeOpenedIdentity,
     wrapDataKey,
 } from './crypto/webIdentityCarrier';
-export type { OpenedWebIdentity, WebIdentityUnlockFailure } from './crypto/webIdentityCarrier';
+export type {
+    OpenedMnemonicIdentity,
+    OpenedRawKeyIdentity,
+    OpenedWebIdentity,
+    WebIdentityRecoveryMaterial,
+    WebIdentityUnlockFailure,
+    WrapInput,
+} from './crypto/webIdentityCarrier';
+export { digestIdentityPayload, signIdentityProof } from './crypto/identityProof';
 export {
     IDENTITY_MOVE_ACTIONS,
     buildMoveMessage,

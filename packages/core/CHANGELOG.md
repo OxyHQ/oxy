@@ -4,6 +4,24 @@
 
 ### Added
 
+- Identity roots (ADR 0024): `signIdentityProof` / `digestIdentityPayload` sign
+  the one payload-bound, one-use v2 root proof; web identity envelopes gain
+  version 2 (12–24-word phrases or a raw private key, RP-bound wraps, holder
+  `verifiedAt`) alongside `parseRecoveryMaterial`,
+  `deriveIdentityFromPrivateKey`, `deriveIdentityFromRecoveryMaterial`,
+  `markWrapVerified`, `isUsablePrfOutput` and `wipeOpenedIdentity`.
+
+### Changed
+
+- `OpenedWebIdentity` is now a union of `OpenedMnemonicIdentity` (`kind:
+  'mnemonic'`) and `OpenedRawKeyIdentity` (`kind: 'raw-key'`, `mnemonic: null`).
+  `openMovedIdentity` returns `OpenedMnemonicIdentity`.
+
+### Deprecated
+
+- `linkIdentityKey` and `unlinkAuthMethod('identity')`: the API links a root
+  first time only (with a fresh passkey assertion) and never unlinks one.
+
 - Native agency-authority methods for catalog discovery, resource-scoped agent
   grants, account autonomy policies, execution-authority revocation, and the
   correlated audit trail used by Oxy Settings.
