@@ -10,6 +10,9 @@
   `verifiedAt`) alongside `parseRecoveryMaterial`,
   `deriveIdentityFromPrivateKey`, `deriveIdentityFromRecoveryMaterial`,
   `markWrapVerified`, `isUsablePrfOutput` and `wipeOpenedIdentity`.
+- `getIdentityRootStatus()` reads the account's root readiness (root linked, web
+  holder passkeys, phrase saved, recovery verified) without anything that opens
+  the root. `webauthnRegisterVerify` accepts the sign-up `identity` enrollment.
 
 ### Changed
 

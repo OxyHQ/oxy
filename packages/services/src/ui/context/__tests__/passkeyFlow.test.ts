@@ -12,11 +12,10 @@
 import type { LoginSessionResult } from '@oxy.so/contracts';
 import {
   runPasskeyLogin,
-  runPasskeyRegister,
+  identityEnrollmentRequiredError,
   runPasskeyAdd,
   PASSKEY_UNSUPPORTED_MESSAGE,
   type RunPasskeyLoginDeps,
-  type RunPasskeyRegisterDeps,
   type RunPasskeyAddDeps,
   type PasskeyRegisterVerifyResult,
 } from '../passkeyFlow';
@@ -122,64 +121,11 @@ describe('runPasskeyLogin', () => {
   });
 });
 
-describe('runPasskeyRegister', () => {
-  const buildDeps = (
-    order: string[],
-    overrides: Partial<RunPasskeyRegisterDeps> = {},
-  ): RunPasskeyRegisterDeps => ({
-    isSupported: jest.fn(() => true),
-    getRegisterOptions: jest.fn(async (username) => {
-      order.push('getRegisterOptions');
-      expect(username).toBe('newuser');
-      return { challenge: 'reg-opts' };
-    }),
-    runCeremony: jest.fn(async () => {
-      order.push('runCeremony');
-      return { id: 'attestation' };
-    }),
-    registerVerify: jest.fn(async () => {
-      order.push('registerVerify');
-      return sessionResult;
-    }),
-    commit: jest.fn(async () => {
-      order.push('commit');
-    }),
-    username: 'newuser',
-    deviceName: 'My Laptop',
-    ...overrides,
-  });
-
-  it('creates the account (signup branch) and commits the minted session', async () => {
-    const order: string[] = [];
-    const deps = buildDeps(order);
-
-    await runPasskeyRegister(deps);
-
-    expect(order).toEqual(['getRegisterOptions', 'runCeremony', 'registerVerify', 'commit']);
-    expect(deps.registerVerify).toHaveBeenCalledWith(
-      { id: 'attestation' },
-      { username: 'newuser', deviceName: 'My Laptop' },
-    );
-    expect(deps.commit).toHaveBeenCalledWith(expectedCommitInput);
-  });
-
-  it('throws (no commit) when verify returns a link branch instead of a session', async () => {
-    const order: string[] = [];
-    const deps = buildDeps(order, {
-      registerVerify: jest.fn(async () => linkResult),
-    });
-
-    await expect(runPasskeyRegister(deps)).rejects.toThrow(/did not establish a session/i);
-    expect(deps.commit).not.toHaveBeenCalled();
-  });
-
-  it('throws and touches nothing when passkeys are unsupported', async () => {
-    const order: string[] = [];
-    const deps = buildDeps(order, { isSupported: jest.fn(() => false) });
-
-    await expect(runPasskeyRegister(deps)).rejects.toThrow(PASSKEY_UNSUPPORTED_MESSAGE);
-    expect(deps.getRegisterOptions).not.toHaveBeenCalled();
-    expect(deps.commit).not.toHaveBeenCalled();
+describe('passkey sign-up (ADR 0024 D4)', () => {
+  it('refuses with the stable enrollment code instead of creating an account without its root', () => {
+    const error = identityEnrollmentRequiredError();
+    expect(error.code).toBe('IDENTITY_ENROLLMENT_REQUIRED');
+    expect(error.message).toMatch(/account dialog/i);
   });
 });
 
