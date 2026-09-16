@@ -18,7 +18,8 @@ interface PhraseScreenProps {
  * included — can reset it.
  */
 export function PhraseScreen({ identity, onConfirmed, onLater }: PhraseScreenProps) {
-  const words = useMemo(() => identity.mnemonic.split(' '), [identity.mnemonic]);
+  // A raw-key root has no phrase, and none is ever derived for it (ADR 0024 D5).
+  const words = useMemo(() => (identity.mnemonic ? identity.mnemonic.split(' ') : []), [identity.mnemonic]);
   const positions = useMemo(() => pickConfirmationPositions(words.length), [words.length]);
   const [step, setStep] = useState<'show' | 'check'>('show');
   const [answers, setAnswers] = useState<Record<number, string>>({});

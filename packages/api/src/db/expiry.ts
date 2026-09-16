@@ -76,6 +76,7 @@ import {
 } from './schema/inferenceProviderConnectionAuditEvents';
 import { devicePairingSessions } from './schema/devicePairingSessions';
 import { identityMoves } from './schema/identityMoves';
+import { identityProofChallenges } from './schema/identityProofChallenges';
 import { domainVerifications } from './schema/domainVerifications';
 import {
   mcpOauthAccessTokens,
@@ -215,6 +216,15 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Storage reclamation ONLY, an hour after the deadline so a late poll is ' +
       'told "expired" rather than "unknown". Every read and transition in ' +
       '`routes/identityMove.ts` filters on `expires_at` itself.',
+  },
+  {
+    table: identityProofChallenges,
+    column: identityProofChallenges.expiresAt,
+    retentionSeconds: 0,
+    reason:
+      'Housekeeping only — the proof verifier burns `used_at` with an ' +
+      '`expires_at > now()` predicate in the same UPDATE, so a challenge is ' +
+      'unspendable at its deadline whether or not the sweep has run.',
   },
   {
     table: devicePairingSessions,

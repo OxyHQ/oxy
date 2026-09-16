@@ -645,6 +645,13 @@
       "when": 1789510693970,
       "tag": "0092_identity_moves",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1789548388901,
+      "tag": "0093_identity_root_authority",
+      "breakpoints": true
     }
   ]
 }

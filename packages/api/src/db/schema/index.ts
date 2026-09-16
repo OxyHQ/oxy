@@ -80,6 +80,7 @@ export * from './followEvents';
 export * from './identityBackups';
 export * from './identityWebEnvelopes';
 export * from './identityMoves';
+export * from './identityProofChallenges';
 export * from './identityBindings';
 export * from './inferenceDeployments';
 export * from './inferenceDeploymentRoutingScores';

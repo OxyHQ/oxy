@@ -15,15 +15,16 @@
 
 Every user has a [W3C DID](https://www.w3.org/TR/did-core/) that is
 **account-anchored on the stable Mongo `_id`**, *not* on a keypair. The keypair
-(if any) is a *verification method* under the account's `authMethods[]`. This is
-what makes the identity reversible: linking a key makes the DID self-sovereign;
-unlinking reverts it to custodial — the DID string never changes.
+(if any) is a *verification method* under the account's `authMethods[]`. Linking a
+root makes the DID self-sovereign and the DID string never changes. A root is
+never unlinked back to custodial; it is replaced only by rotation
+([ADR 0024](../adr/0024-one-oxy-account-root-holders.md) D8).
 
 - The anchor domain is configurable via `DID_WEB_DOMAIN` (default `api.oxy.so`,
   falling back to `FEDERATION_DOMAIN` = `oxy.so`). `:` is `%3A`-encoded.
   (`did.service.ts:47`)
 - `buildUserDid(userId)` → `did:web:<domain>:u:<userId>` (`did.service.ts:86`).
-- `OXY_DID` = `did:web:<domain>` is the Oxy organization's custodial controller.
+- `OXY_DID` = `did:web:<domain>` is the Oxy organization's DID: controller of accounts that have no root (managed, federated, legacy keyless), and the issuer of service attestations — never a controller of a personal root.
 
 ### Custodial vs self-sovereign
 
@@ -32,7 +33,7 @@ unlinking reverts it to custodial — the DID string never changes.
 
 | | Custodial (no on-device key) | Self-sovereign (≥1 `identity` auth method) |
 |---|---|---|
-| `controller` | `[OXY_DID]` | `[userDid, OXY_DID]` |
+| `controller` | `[OXY_DID]` | `[userDid]` — Oxy is not a controller of a personal root (ADR 0024 D9) |
 | `verificationMethod` | Oxy custodial key (if any) | the user's `publicKey` + each `authMethods[].type==='identity'` key |
 | `authentication` / `assertionMethod` | — | references to the user's VMs |
 

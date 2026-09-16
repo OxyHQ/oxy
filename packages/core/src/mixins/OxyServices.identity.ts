@@ -224,9 +224,15 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
     }
 
     /**
-     * Link the on-device cryptographic identity to the current account,
-     * upgrading it from custodial to self-sovereign. Signs a proof of private
-     * key ownership and posts it to `POST /auth/link`.
+     * Re-assert the on-device root against the current account (`POST /auth/link`).
+     *
+     * Since ADR 0024 D8 the API links a root FIRST TIME ONLY and only with a
+     * one-use root proof plus a fresh passkey assertion; this version-1 call is
+     * accepted solely when the account's root already IS this key (it heals the
+     * derived method row). It can no longer upgrade a keyless account nor
+     * replace a different root — rotation does that.
+     *
+     * @deprecated No caller in the ecosystem; removed in the next major.
      *
      * NATIVE-ONLY: requires a stored identity (throws if `KeyManager` has no key
      * or no user is authenticated). The signed payload is
@@ -264,9 +270,13 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
     }
 
     /**
-     * Unlink an authentication method from the current account. The server
-     * refuses to remove the last remaining method (the account would become
-     * inaccessible). Unlinking `identity` downgrades the account to custodial.
+     * Unlink an authentication method from the current account.
+     *
+     * `identity` is the only type and the API REFUSES it (`403
+     * IDENTITY_ROOT_NOT_UNLINKABLE`, ADR 0024 D8): a root is never unlinked back
+     * into a keyless account; it is replaced by rotation.
+     *
+     * @deprecated Always rejected by the API; removed in the next major.
      *
      * @param type - The auth-method type to remove.
      */

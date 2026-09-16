@@ -579,16 +579,49 @@ export type {
 export {
     // Schemas — web identity carrier (one identity, two carriers)
     WEB_IDENTITY_ENVELOPE_VERSION,
+    WEB_IDENTITY_ENVELOPE_VERSIONS,
+    WEB_IDENTITY_SECRET_KINDS,
     webIdentityPublicKeySchema,
     webauthnCredentialIdSchema,
+    webauthnRpIdSchema,
     webIdentityWrapSchema,
+    webIdentityEnvelopeV1Schema,
+    webIdentityEnvelopeV2Schema,
     webIdentityEnvelopeSchema,
     webIdentityEnvelopeUploadSchema,
+    webIdentityHolderSchema,
     webIdentityEnvelopeResponseSchema,
     webIdentityEnvelopeProofSchema,
+    webIdentityEnvelopeV2ProofFieldsSchema,
+    webIdentityEnvelopeActionSchema,
     webIdentityEnvelopePutSchema,
+    webauthnAssertionResponseSchema,
     webIdentityEnvelopeEstablishSchema,
 } from './webIdentityCarrier';
+
+export {
+    // Identity proofs (ADR 0024 D7) — the one signed format for root operations
+    IDENTITY_PROOF_VERSION,
+    IDENTITY_PROOF_DOMAIN,
+    IDENTITY_PROOF_AUDIENCE,
+    IDENTITY_PROOF_CHALLENGE_TTL_MS,
+    IDENTITY_PROOF_ACTIONS,
+    IDENTITY_PROOF_ACTION_VALUES,
+    IDENTITY_ERROR_CODES,
+    canonicalJson,
+    buildIdentityProofMessage,
+    identityProofSchema,
+    identityProofChallengeRequestSchema,
+    identityProofChallengeResponseSchema,
+} from './identityProof';
+export type {
+    IdentityProofAction,
+    IdentityErrorCode,
+    IdentityProofClaims,
+    IdentityProof,
+    IdentityProofChallengeRequest,
+    IdentityProofChallengeResponse,
+} from './identityProof';
 
 export {
     // Schemas — moving a web identity into Commons
@@ -618,6 +651,13 @@ export type {
 export type {
     WebIdentityWrap,
     WebIdentityEnvelope,
+    WebIdentityEnvelopeV1,
+    WebIdentityEnvelopeV2,
+    WebIdentityEnvelopeVersion,
+    WebIdentitySecretKind,
+    WebIdentityHolder,
+    WebIdentityEnvelopeAction,
+    WebauthnAssertionResponse,
     WebIdentityEnvelopeUpload,
     WebIdentityEnvelopeResponse,
     WebIdentityEnvelopeProof,
