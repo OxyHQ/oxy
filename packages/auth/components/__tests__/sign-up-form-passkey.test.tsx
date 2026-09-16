@@ -11,7 +11,6 @@ import { createRoot, type Root } from "react-dom/client"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { defaultDeviceSwitcher } from "@/lib/__tests__/setup-services-mock"
 
-const registerWithPasskey = mock(async (_params: { username: string }) => undefined)
 const openAccountDialog = mock((_view?: string) => undefined)
 const startPasskeyHubSignIn = mock(async () => undefined)
 let authenticated = false
@@ -23,7 +22,6 @@ mock.module("@oxy.so/services", () => ({
         isAuthenticated: authenticated,
         accountDialogController: { startPasskeyHubSignIn },
         handleWebSession: async () => undefined,
-        registerWithPasskey,
         openAccountDialog,
         oxyServices: { lookupUsername: async () => ({ username: "", name: {}, avatar: null, color: null }) },
         signInWithPassword: async () => ({ status: "ok" as const }),
@@ -71,7 +69,6 @@ function renderForm(): { container: HTMLDivElement; rerender: () => void; unmoun
 afterEach(() => {
     authenticated = false
     location = ""
-    registerWithPasskey.mockClear()
     openAccountDialog.mockClear()
     startPasskeyHubSignIn.mockClear()
 })
@@ -83,13 +80,12 @@ describe("SignUpForm — the canonical account flow", () => {
         unmount()
     })
 
-    test("opens the account flow from the click and never registers a keyless account", () => {
+    test("opens the account flow from the click", () => {
         const { container, unmount } = renderForm()
         const button = [...container.querySelectorAll("button")].find((b) => /create account/i.test(b.textContent ?? ""))
         act(() => button?.dispatchEvent(new (window.MouseEvent)("click", { bubbles: true })))
         expect(openAccountDialog).toHaveBeenCalledWith("signin")
         expect(startPasskeyHubSignIn).toHaveBeenCalledTimes(1)
-        expect(registerWithPasskey).not.toHaveBeenCalled()
         unmount()
     })
 

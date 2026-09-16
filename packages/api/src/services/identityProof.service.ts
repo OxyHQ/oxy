@@ -33,6 +33,7 @@ const ROOT_REQUIRED: ReadonlySet<IdentityProofAction> = new Set([
   'web_envelope_phrase_confirmed',
   'web_envelope_recovery_verified',
   'web_envelope_delete',
+  'identity_move_seal',
 ]);
 
 /** Actions minted by `POST /identity/proof-challenge`. Enrollment and recovery have their own challenges. */

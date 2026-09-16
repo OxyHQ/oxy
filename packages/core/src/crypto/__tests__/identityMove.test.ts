@@ -1,96 +1,138 @@
 /**
- * Moving an identity: both sides derive the same key and code; the responder
- * receives exactly the identity that was declared; a relay that swaps a key
- * gets a different code and cannot open the identity; receipts cannot be forged.
+ * Giving a root to Commons (ADR 0024 D6): both sides derive the same key and code;
+ * the responder receives exactly the declared identity; the initiator's key is
+ * committed before the responder's is chosen, so a relay cannot steer both codes
+ * together; and the receipt binds the move, root, both keys and the relayed
+ * ciphertext.
  */
 
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
+import { signMessage } from '@oxy.so/protocol';
 import {
   buildMoveQrPayload,
+  createMoveCommitment,
   deriveMoveKey,
   deriveMoveSas,
+  digestMoveCiphertext,
   generateMoveEphemeralKeyPair,
-  IDENTITY_MOVE_ACTIONS,
   openMovedIdentity,
   parseMoveQrPayload,
   sealIdentityForMove,
-  signMoveAction,
+  signMoveReceipt,
+  verifyMoveCommitment,
   verifyMoveReceipt,
 } from '../identityMove';
-import { generateWebIdentity } from '../webIdentityCarrier';
+import { deriveIdentityFromMnemonic, generateWebIdentity } from '../webIdentityCarrier';
 
 const MOVE_ID = '0123456789abcdef0123456789abcdef';
+const MNEMONIC_24 =
+  'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art';
 
-describe('a move between two honest carriers', () => {
-  it('delivers the declared identity and both screens show the same code', () => {
-    const identity = generateWebIdentity();
-    const web = generateMoveEphemeralKeyPair();
-    const commons = generateMoveEphemeralKeyPair();
+function code(initiator: string, responder: string, commitment: string, moveId = MOVE_ID): string {
+  return deriveMoveSas({ moveId, initiatorEphemeralPublicKey: initiator, responderEphemeralPublicKey: responder, initiatorCommitment: commitment });
+}
 
-    const webKey = deriveMoveKey(web.privateKey, commons.publicKey, MOVE_ID);
-    const commonsKey = deriveMoveKey(commons.privateKey, web.publicKey, MOVE_ID);
-    expect(Buffer.from(webKey).equals(Buffer.from(commonsKey))).toBe(true);
+describe('a move between two honest sides', () => {
+  it('delivers the declared identity — 12 or 24 words — and both screens show the same code', () => {
+    for (const identity of [generateWebIdentity(), deriveIdentityFromMnemonic(MNEMONIC_24)]) {
+      const web = generateMoveEphemeralKeyPair();
+      const commons = generateMoveEphemeralKeyPair();
+      const { commitment, nonce } = createMoveCommitment(web.publicKey);
+      expect(verifyMoveCommitment(web.publicKey, nonce, commitment)).toBe(true);
 
-    expect(deriveMoveSas(MOVE_ID, web.publicKey, commons.publicKey)).toMatch(/^\d{6}$/);
+      const webKey = deriveMoveKey(web.privateKey, commons.publicKey, MOVE_ID);
+      const commonsKey = deriveMoveKey(commons.privateKey, web.publicKey, MOVE_ID);
+      expect(Buffer.from(webKey).equals(Buffer.from(commonsKey))).toBe(true);
+      expect(code(web.publicKey, commons.publicKey, commitment)).toMatch(/^\d{6}$/);
+      expect(code(web.publicKey, commons.publicKey, commitment, MOVE_ID.toUpperCase())).toBe(code(web.publicKey, commons.publicKey, commitment));
 
-    const sealed = sealIdentityForMove(identity, webKey, MOVE_ID);
-    expect(JSON.stringify(sealed)).not.toContain(identity.privateKey);
-
-    const received = openMovedIdentity(sealed, commonsKey, MOVE_ID, identity.publicKey);
-    expect(received).toEqual(identity);
+      const sealed = sealIdentityForMove(identity, webKey, MOVE_ID);
+      expect(JSON.stringify(sealed)).not.toContain(identity.privateKey);
+      expect(openMovedIdentity(sealed, commonsKey, MOVE_ID, identity.publicKey)).toEqual(identity);
+    }
   });
 });
 
-describe('a relay that substitutes a key', () => {
+describe('a relay that substitutes keys', () => {
+  it('cannot reveal a key the commitment does not open', () => {
+    const web = generateSecp256k1KeyPair();
+    const { commitment, nonce } = createMoveCommitment(web.publicKey);
+    expect(verifyMoveCommitment(generateSecp256k1KeyPair().publicKey, nonce, commitment)).toBe(false);
+    expect(verifyMoveCommitment(web.publicKey, 'ab'.repeat(32), commitment)).toBe(false);
+  });
+
   it('shows a different code on each screen and cannot open the identity', () => {
     const identity = generateWebIdentity();
     const web = generateMoveEphemeralKeyPair();
     const commons = generateMoveEphemeralKeyPair();
     const attacker = generateMoveEphemeralKeyPair();
+    const { commitment } = createMoveCommitment(web.publicKey);
+    const attackerCommitment = createMoveCommitment(attacker.publicKey).commitment;
 
-    // Web talks to the attacker thinking it is Commons; Commons talks to the attacker thinking it is the web.
-    const webSas = deriveMoveSas(MOVE_ID, web.publicKey, attacker.publicKey);
-    const commonsSas = deriveMoveSas(MOVE_ID, attacker.publicKey, commons.publicKey);
-    expect(webSas).not.toBe(commonsSas);
+    expect(code(web.publicKey, attacker.publicKey, commitment)).not.toBe(code(attacker.publicKey, commons.publicKey, attackerCommitment));
 
-    // Even sealed to the attacker, Commons' own key cannot open it.
     const sealedToAttacker = sealIdentityForMove(identity, deriveMoveKey(web.privateKey, attacker.publicKey, MOVE_ID), MOVE_ID);
     expect(() =>
       openMovedIdentity(sealedToAttacker, deriveMoveKey(commons.privateKey, web.publicKey, MOVE_ID), MOVE_ID, identity.publicKey),
     ).toThrow('could not be opened');
   });
 
-  it('refuses a sealed identity that is not the one the move declared', () => {
-    const declared = generateWebIdentity();
-    const other = generateWebIdentity();
-    const web = generateMoveEphemeralKeyPair();
-    const commons = generateMoveEphemeralKeyPair();
-    const key = deriveMoveKey(web.privateKey, commons.publicKey, MOVE_ID);
-
-    const sealedOther = sealIdentityForMove(other, key, MOVE_ID);
-    expect(() => openMovedIdentity(sealedOther, key, MOVE_ID, declared.publicKey)).toThrow();
+  it('changes the code when any input changes, including the commitment', () => {
+    const web = generateSecp256k1KeyPair();
+    const commons = generateSecp256k1KeyPair();
+    const { commitment } = createMoveCommitment(web.publicKey);
+    const base = code(web.publicKey, commons.publicKey, commitment);
+    expect(code(web.publicKey, commons.publicKey, createMoveCommitment(web.publicKey).commitment)).not.toBe(base);
+    expect(code(web.publicKey, generateSecp256k1KeyPair().publicKey, commitment)).not.toBe(base);
+    expect(code(commons.publicKey, web.publicKey, commitment)).not.toBe(base);
   });
 
-  it('binds the ciphertext to its move id', () => {
-    const identity = generateWebIdentity();
+  it('refuses a sealed identity that is not the one the move declared, or another move’s ciphertext', () => {
+    const declared = generateWebIdentity();
     const web = generateMoveEphemeralKeyPair();
     const commons = generateMoveEphemeralKeyPair();
     const key = deriveMoveKey(web.privateKey, commons.publicKey, MOVE_ID);
-    const sealed = sealIdentityForMove(identity, key, MOVE_ID);
-    expect(() => openMovedIdentity(sealed, key, 'ffffffffffffffffffffffffffffffff', identity.publicKey)).toThrow();
+    expect(() => openMovedIdentity(sealIdentityForMove(generateWebIdentity(), key, MOVE_ID), key, MOVE_ID, declared.publicKey)).toThrow();
+    expect(() => openMovedIdentity(sealIdentityForMove(declared, key, MOVE_ID), key, 'ffffffffffffffffffffffffffffffff', declared.publicKey)).toThrow();
   });
 });
 
 describe('receipts', () => {
-  it('verify only when signed by the moved identity for this move', async () => {
+  function transfer() {
     const identity = generateWebIdentity();
-    const receipt = await signMoveAction(identity, IDENTITY_MOVE_ACTIONS.received, MOVE_ID);
+    const web = generateMoveEphemeralKeyPair();
+    const commons = generateMoveEphemeralKeyPair();
+    const sealed = sealIdentityForMove(identity, deriveMoveKey(web.privateKey, commons.publicKey, MOVE_ID), MOVE_ID);
+    const claims = {
+      moveId: MOVE_ID,
+      rootPublicKey: identity.publicKey,
+      initiatorEphemeralPublicKey: web.publicKey,
+      responderEphemeralPublicKey: commons.publicKey,
+      ciphertextDigest: digestMoveCiphertext(sealed),
+    };
+    return { identity, sealed, claims };
+  }
 
-    expect(await verifyMoveReceipt(identity.publicKey, MOVE_ID, receipt)).toBe(true);
-    expect(await verifyMoveReceipt(identity.publicKey, 'ffffffffffffffffffffffffffffffff', receipt)).toBe(false);
-    expect(await verifyMoveReceipt(generateWebIdentity().publicKey, MOVE_ID, receipt)).toBe(false);
+  it('verify for exactly the move, root, keys and ciphertext they were made over', async () => {
+    const { identity, sealed, claims } = transfer();
+    const receipt = await signMoveReceipt((message) => signMessage(message, identity.privateKey), claims);
+    expect(await verifyMoveReceipt(claims, receipt.signature)).toBe(true);
 
-    const sealProof = await signMoveAction(identity, IDENTITY_MOVE_ACTIONS.seal, MOVE_ID);
-    expect(await verifyMoveReceipt(identity.publicKey, MOVE_ID, sealProof)).toBe(false);
+    const other = { ...sealed, ciphertext: `${sealed.ciphertext.slice(0, -2)}00` };
+    for (const changed of [
+      { ...claims, moveId: 'ffffffffffffffffffffffffffffffff' },
+      { ...claims, responderEphemeralPublicKey: generateSecp256k1KeyPair().publicKey },
+      { ...claims, initiatorEphemeralPublicKey: generateSecp256k1KeyPair().publicKey },
+      { ...claims, ciphertextDigest: digestMoveCiphertext(other) },
+    ]) {
+      expect(await verifyMoveReceipt(changed, receipt.signature)).toBe(false);
+    }
+  });
+
+  it('are not the root’s if another key signed them', async () => {
+    const { claims } = transfer();
+    const forged = await signMoveReceipt((message) => signMessage(message, generateWebIdentity().privateKey), claims);
+    expect(await verifyMoveReceipt(claims, forged.signature)).toBe(false);
   });
 });
 

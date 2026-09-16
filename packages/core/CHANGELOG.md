@@ -14,23 +14,30 @@
   holder passkeys, phrase saved, recovery verified) without anything that opens
   the root. `webauthnRegisterVerify` accepts the sign-up `identity` enrollment.
 
-- Identity transfer protocol version 2: `createMoveCommitment`,
-  `verifyMoveCommitment`, `deriveMoveSasV2`, `digestMoveCiphertext`,
-  `signMoveReceiptV2`, `verifyMoveReceiptV2`. The initiator commits to its
-  ephemeral key before the responder joins, so an active relay can no longer
-  grind substituted keys into matching codes; the receipt binds the move, root,
-  both keys and the relayed ciphertext. 12–24-word phrases move.
+- Identity transfer (ADR 0024 D6): `createMoveCommitment`,
+  `verifyMoveCommitment`, `deriveMoveSas({ moveId, initiatorEphemeralPublicKey,
+  responderEphemeralPublicKey, initiatorCommitment })`, `digestMoveCiphertext`,
+  `signMoveReceipt(sign, claims)`, `verifyMoveReceipt(claims, signature)`. The
+  initiator commits to its ephemeral key before the responder joins, so an active
+  relay cannot grind substituted keys into matching codes; the receipt binds the
+  move, root, both keys and the relayed ciphertext. 12–24-word phrases move.
 
 ### Changed
 
 - `OpenedWebIdentity` is now a union of `OpenedMnemonicIdentity` (`kind:
   'mnemonic'`) and `OpenedRawKeyIdentity` (`kind: 'raw-key'`, `mnemonic: null`).
   `openMovedIdentity` returns `OpenedMnemonicIdentity`.
+- **Breaking:** web identity envelopes have one scheme. `sealWebIdentity` and
+  `addWrap` require the wrap's `rpId`; there is no version-1 envelope.
 
-### Deprecated
+### Removed
 
-- `linkIdentityKey` and `unlinkAuthMethod('identity')`: the API links a root
-  first time only (with a fresh passkey assertion) and never unlinks one.
+- **Breaking:** `linkIdentityKey`, `unlinkAuthMethod` (the API links a root first
+  time only through the holder flow and never unlinks one).
+- **Breaking:** the `deviceTransfer` mixin (`/device-transfer*` is gone from the
+  API; it had no caller), the version-1 transfer (`deriveMoveSas(moveId, a, b)`,
+  `signMoveAction`, `IDENTITY_MOVE_ACTIONS`, timestamped receipts) and the `V2`
+  suffixed names, which are now the only ones.
 
 - Native agency-authority methods for catalog discovery, resource-scoped agent
   grants, account autonomy policies, execution-authority revocation, and the

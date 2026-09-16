@@ -39,14 +39,11 @@ export const identityWebEnvelopes = pgTable(
     version: integer().notNull(),
     /** The AEAD that sealed the envelope, `xchacha20poly1305`. */
     algorithm: text().notNull(),
-    /**
-     * What a version-2 envelope seals (`mnemonic-entropy` | `raw-private-key`);
-     * `null` for version 1, which only ever sealed 12-word entropy.
-     */
-    secretKind: text({ enum: WEB_IDENTITY_SECRET_KINDS }),
-    /** 24-byte nonce of the secret seal, hex (`entropyNonce` in v1, `secretNonce` in v2). */
+    /** What the envelope seals: `mnemonic-entropy` | `raw-private-key`. */
+    secretKind: text({ enum: WEB_IDENTITY_SECRET_KINDS }).notNull(),
+    /** 24-byte nonce of the secret seal, hex (`secretNonce`). */
     entropyNonce: text().notNull(),
-    /** The secret sealed under the data key, tag appended, hex (`sealedEntropy` / `sealedSecret`). Undecryptable here. */
+    /** The secret sealed under the data key, tag appended, hex (`sealedSecret`). Undecryptable here. */
     sealedEntropy: text().notNull(),
     /** One data-key wrap per passkey (`WebIdentityWrap[]`). Undecryptable here. */
     wraps: jsonb().$type<WebIdentityWrap[]>().notNull(),
@@ -71,5 +68,7 @@ export const identityWebEnvelopes = pgTable(
     unique('identity_web_envelopes_user_id_key').on(t.userId),
     index('identity_web_envelopes_public_key_idx').on(t.publicKey),
     check('identity_web_envelopes_revision_check', sql`${t.revision} >= 1`),
+    check('identity_web_envelopes_version_check', sql`${t.version} = 2`),
+    check('identity_web_envelopes_secret_kind_check', sql`${t.secretKind} in ('mnemonic-entropy', 'raw-private-key')`),
   ],
 );

@@ -489,8 +489,7 @@ export function checkIdentityEnrollment(
   if (envelope.wraps.length !== 1 || envelope.wraps[0].credentialId !== context.credentialId) {
     throw enrollmentInvalid('The identity must be sealed with exactly the passkey being created');
   }
-  const wrapRpId = envelope.wraps[0].rpId;
-  if (wrapRpId !== undefined && wrapRpId !== context.rpId) {
+  if (envelope.wraps[0].rpId !== context.rpId) {
     throw enrollmentInvalid('The identity was sealed for a different passkey domain');
   }
   const expectedChallenge = Buffer.from(context.registrationChallenge, 'base64url').toString('hex');

@@ -136,10 +136,10 @@ describe('origin', () => {
 });
 
 /* ------------------------------------------------------------------------- */
-/* Version-2 proofs (ADR 0024 D7): payload-bound, revision-bound, one use.    */
+/* Root proofs (ADR 0024 D7): payload-bound, revision-bound, one use.         */
 /* ------------------------------------------------------------------------- */
 
-async function v2Proof(
+async function rootProof(
   identity: OpenedWebIdentity,
   userId: string,
   action: IdentityProofAction,
@@ -159,32 +159,32 @@ async function v2Proof(
   });
 }
 
-function sealV2(identity: OpenedWebIdentity, credentialId = 'credential-aaaaaaaaaaaaaaaa', fill = 5): WebIdentityEnvelope {
-  const { envelope, dataKey } = sealWebIdentity(identity, { prfOutput: prf(fill), credentialId, rpId: 'oxy.so' }, new Date(), { version: 2 });
+function seal(identity: OpenedWebIdentity, credentialId = 'credential-aaaaaaaaaaaaaaaa', fill = 5): WebIdentityEnvelope {
+  const { envelope, dataKey } = sealWebIdentity(identity, { prfOutput: prf(fill), credentialId, rpId: 'oxy.so' });
   dataKey.fill(0);
   return envelope;
 }
 
-async function putV2(identity: OpenedWebIdentity, userId: string, envelope: WebIdentityEnvelope, expectedRevision: number) {
-  const proof = await v2Proof(identity, userId, 'web_envelope_put', { payload: envelope, expectedRevision });
+async function put(identity: OpenedWebIdentity, userId: string, envelope: WebIdentityEnvelope, expectedRevision: number) {
+  const proof = await rootProof(identity, userId, 'web_envelope_put', { payload: envelope, expectedRevision });
   return request('PUT', '/', { envelope, expectedRevision, proof });
 }
 
 const errorCode = (res: JsonResponse) => (res.body as { error?: string }).error;
 
-describe('v2: writing the envelope', () => {
-  it('stores a version-2 envelope at revision 1, then replaces it at revision 2', async () => {
+describe('writing the envelope', () => {
+  it('stores an envelope at revision 1, then replaces it at revision 2', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
 
-    const first = sealV2(identity);
-    const created = await putV2(identity, userId, first, 0);
+    const first = seal(identity);
+    const created = await put(identity, userId, first, 0);
     expect(created.status).toBe(200);
     expect(created.body).toMatchObject({ envelope: first, revision: 1, rootLinked: true });
     expect(created.body.holders).toEqual([{ credentialId: 'credential-aaaaaaaaaaaaaaaa', rpId: 'oxy.so', verifiedAt: null, createdAt: first.wraps[0].createdAt }]);
 
-    const second = sealV2(identity, 'credential-bbbbbbbbbbbbbbbb', 7);
-    const replaced = await putV2(identity, userId, second, 1);
+    const second = seal(identity, 'credential-bbbbbbbbbbbbbbbb', 7);
+    const replaced = await put(identity, userId, second, 1);
     expect(replaced.status).toBe(200);
     expect(replaced.body).toMatchObject({ envelope: second, revision: 2 });
   });
@@ -193,8 +193,8 @@ describe('v2: writing the envelope', () => {
     const identity = deriveIdentityFromPrivateKey('2a'.repeat(32));
     const [row] = await getDb().insert(users).values({ color: 'teal', publicKey: identity.publicKey }).returning({ id: users.id });
     currentUserId = row.id;
-    const envelope = sealV2(identity);
-    const res = await putV2(identity, row.id, envelope, 0);
+    const envelope = seal(identity);
+    const res = await put(identity, row.id, envelope, 0);
     expect(res.status).toBe(200);
     expect(res.body.envelope).toEqual(envelope);
     expect((res.body.envelope as { secretKind: string }).secretKind).toBe('raw-private-key');
@@ -203,9 +203,9 @@ describe('v2: writing the envelope', () => {
   it('refuses different envelope bytes under a valid proof', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    const signed = sealV2(identity);
-    const proof = await v2Proof(identity, userId, 'web_envelope_put', { payload: signed, expectedRevision: 0 });
-    const swapped = sealV2(identity, 'credential-cccccccccccccccc', 9);
+    const signed = seal(identity);
+    const proof = await rootProof(identity, userId, 'web_envelope_put', { payload: signed, expectedRevision: 0 });
+    const swapped = seal(identity, 'credential-cccccccccccccccc', 9);
 
     const res = await request('PUT', '/', { envelope: swapped, expectedRevision: 0, proof });
     expect(res.status).toBe(401);
@@ -216,8 +216,8 @@ describe('v2: writing the envelope', () => {
   it('refuses a replayed proof even for the exact same write', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    const envelope = sealV2(identity);
-    const proof = await v2Proof(identity, userId, 'web_envelope_put', { payload: envelope, expectedRevision: 0 });
+    const envelope = seal(identity);
+    const proof = await rootProof(identity, userId, 'web_envelope_put', { payload: envelope, expectedRevision: 0 });
 
     expect((await request('PUT', '/', { envelope, expectedRevision: 0, proof })).status).toBe(200);
     const replay = await request('PUT', '/', { envelope, expectedRevision: 0, proof });
@@ -227,12 +227,12 @@ describe('v2: writing the envelope', () => {
   it('refuses a proof for another action, account, revision or audience', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    const envelope = sealV2(identity);
+    const envelope = seal(identity);
 
-    const wrongAction = await v2Proof(identity, userId, 'web_envelope_delete', { payload: envelope, expectedRevision: 0 });
+    const wrongAction = await rootProof(identity, userId, 'web_envelope_delete', { payload: envelope, expectedRevision: 0 });
     expect((await request('PUT', '/', { envelope, expectedRevision: 0, proof: wrongAction })).status).toBe(401);
 
-    const wrongRevision = await v2Proof(identity, userId, 'web_envelope_put', { payload: envelope, expectedRevision: 5 });
+    const wrongRevision = await rootProof(identity, userId, 'web_envelope_put', { payload: envelope, expectedRevision: 5 });
     expect((await request('PUT', '/', { envelope, expectedRevision: 0, proof: wrongRevision })).status).toBe(401);
 
     const minted = await mintIdentityProofChallenge(userId, 'web_envelope_put');
@@ -250,7 +250,7 @@ describe('v2: writing the envelope', () => {
     expect((await request('PUT', '/', { envelope, expectedRevision: 0, proof: wrongAudience })).status).toBe(401);
 
     const other = await accountWithIdentity();
-    const otherChallenge = await v2Proof(identity, other.userId, 'web_envelope_put', { payload: envelope, expectedRevision: 0 });
+    const otherChallenge = await rootProof(identity, other.userId, 'web_envelope_put', { payload: envelope, expectedRevision: 0 });
     expect((await request('PUT', '/', { envelope, expectedRevision: 0, proof: otherChallenge })).status).toBe(401);
 
     expect((await request('GET', '/')).body.envelope).toBeNull();
@@ -259,14 +259,14 @@ describe('v2: writing the envelope', () => {
   it('lets exactly one of two concurrent holder changes win; the other must re-read', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    const base = sealWebIdentity(identity, { prfOutput: prf(1), credentialId: 'credential-aaaaaaaaaaaaaaaa', rpId: 'oxy.so' }, new Date(), { version: 2 });
-    expect((await putV2(identity, userId, base.envelope, 0)).status).toBe(200);
+    const base = sealWebIdentity(identity, { prfOutput: prf(1), credentialId: 'credential-aaaaaaaaaaaaaaaa', rpId: 'oxy.so' });
+    expect((await put(identity, userId, base.envelope, 0)).status).toBe(200);
 
     const withB = addWrap(base.envelope, base.dataKey, { prfOutput: prf(2), credentialId: 'credential-bbbbbbbbbbbbbbbb', rpId: 'oxy.so' });
     const withC = addWrap(base.envelope, base.dataKey, { prfOutput: prf(3), credentialId: 'credential-cccccccccccccccc', rpId: 'oxy.so' });
     base.dataKey.fill(0);
 
-    const [a, b] = await Promise.all([putV2(identity, userId, withB, 1), putV2(identity, userId, withC, 1)]);
+    const [a, b] = await Promise.all([put(identity, userId, withB, 1), put(identity, userId, withC, 1)]);
     const statuses = [a.status, b.status].sort();
     expect(statuses).toEqual([200, 409]);
     const loser = a.status === 409 ? a : b;
@@ -277,25 +277,25 @@ describe('v2: writing the envelope', () => {
   it('removes the web holder only for the revision the proof names', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    expect((await putV2(identity, userId, sealV2(identity), 0)).status).toBe(200);
+    expect((await put(identity, userId, seal(identity), 0)).status).toBe(200);
 
-    const stale = await v2Proof(identity, userId, 'web_envelope_delete', { expectedRevision: 7 });
+    const stale = await rootProof(identity, userId, 'web_envelope_delete', { expectedRevision: 7 });
     expect((await request('DELETE', '/', { expectedRevision: 7, proof: stale })).status).toBe(409);
     expect((await request('GET', '/')).body.envelope).not.toBeNull();
 
-    const current = await v2Proof(identity, userId, 'web_envelope_delete', { expectedRevision: 1 });
+    const current = await rootProof(identity, userId, 'web_envelope_delete', { expectedRevision: 1 });
     expect((await request('DELETE', '/', { expectedRevision: 1, proof: current })).status).toBe(200);
     expect((await request('GET', '/')).body.envelope).toBeNull();
   });
 
-  it('records the recovery facts separately, and only with a v2 proof', async () => {
+  it('records the recovery facts separately', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    expect((await putV2(identity, userId, sealV2(identity), 0)).status).toBe(200);
+    expect((await put(identity, userId, seal(identity), 0)).status).toBe(200);
 
     const verified = await request('POST', '/recovery-verified', {
       expectedRevision: 1,
-      proof: await v2Proof(identity, userId, 'web_envelope_recovery_verified', { expectedRevision: 1 }),
+      proof: await rootProof(identity, userId, 'web_envelope_recovery_verified', { expectedRevision: 1 }),
     });
     expect(verified.status).toBe(200);
     expect(typeof verified.body.recoveryVerifiedAt).toBe('string');
@@ -307,7 +307,7 @@ describe('v2: writing the envelope', () => {
   });
 });
 
-describe('v2: establishing a keyless account’s first root', () => {
+describe('establishing a keyless account’s first root', () => {
   const credentialId = 'passkey-establish-aaaaaaaa';
 
   async function keylessWithPasskey(): Promise<string> {
@@ -342,10 +342,10 @@ describe('v2: establishing a keyless account’s first root', () => {
     const userId = await keylessWithPasskey();
     currentUserId = userId;
     const identity = generateWebIdentity();
-    const envelope = sealV2(identity);
-    const rootProof = await v2Proof(identity, userId, 'web_envelope_establish', { payload: envelope });
+    const envelope = seal(identity);
+    const establishProof = await rootProof(identity, userId, 'web_envelope_establish', { payload: envelope });
 
-    const res = await request('POST', '/establish', { envelope, proof: rootProof, assertion: assertion(userId, rootProof.challenge) });
+    const res = await request('POST', '/establish', { envelope, proof: establishProof, assertion: assertion(userId, establishProof.challenge) });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ envelope, revision: 1, rootLinked: true });
     const [row] = await getDb().select({ publicKey: users.publicKey }).from(users).where(eq(users.id, userId));
@@ -364,8 +364,8 @@ describe('v2: establishing a keyless account’s first root', () => {
     const existing = generateWebIdentity();
     await getDb().update(users).set({ publicKey: existing.publicKey }).where(eq(users.id, userId));
     const intruder = generateWebIdentity();
-    const envelope = sealV2(intruder);
-    await expect(v2Proof(intruder, userId, 'web_envelope_establish', { payload: envelope })).resolves.toBeDefined();
+    const envelope = seal(intruder);
+    await expect(rootProof(intruder, userId, 'web_envelope_establish', { payload: envelope })).resolves.toBeDefined();
     const minted = await mintIdentityProofChallenge(userId, 'web_envelope_establish');
     const proof = await signIdentityProof(intruder, {
       action: 'web_envelope_establish', subject: userId, actor: userId, rootPublicKey: intruder.publicKey,
@@ -379,8 +379,8 @@ describe('v2: establishing a keyless account’s first root', () => {
 
     const other = await keylessWithPasskey();
     currentUserId = other;
-    const taken = sealV2(existing);
-    const takenProof = await v2Proof(existing, other, 'web_envelope_establish', { payload: taken });
+    const taken = seal(existing);
+    const takenProof = await rootProof(existing, other, 'web_envelope_establish', { payload: taken });
     const claimed = await request('POST', '/establish', { envelope: taken, proof: takenProof, assertion: assertion(other, takenProof.challenge) });
     expect(claimed.status).toBe(409);
   });
@@ -389,19 +389,19 @@ describe('v2: establishing a keyless account’s first root', () => {
     const userId = await keylessWithPasskey();
     currentUserId = userId;
     const identity = generateWebIdentity();
-    const envelope = sealV2(identity);
+    const envelope = seal(identity);
 
-    const p1 = await v2Proof(identity, userId, 'web_envelope_establish', { payload: envelope });
+    const p1 = await rootProof(identity, userId, 'web_envelope_establish', { payload: envelope });
     const otherOrigin = await request('POST', '/establish', { envelope, proof: p1, assertion: assertion(userId, p1.challenge, 'https://mention.earth') });
     expect(otherOrigin.status).toBe(401);
     expect(errorCode(otherOrigin)).toBe(IDENTITY_ERROR_CODES.freshFactorRequired);
 
-    const p2 = await v2Proof(identity, userId, 'web_envelope_establish', { payload: envelope });
+    const p2 = await rootProof(identity, userId, 'web_envelope_establish', { payload: envelope });
     const otherChallenge = await request('POST', '/establish', { envelope, proof: p2, assertion: assertion(userId, 'ee'.repeat(32)) });
     expect(otherChallenge.status).toBe(401);
 
     mockVerifyAuthentication.mockResolvedValueOnce({ verified: false, authenticationInfo: { newCounter: 0, userVerified: false } });
-    const p3 = await v2Proof(identity, userId, 'web_envelope_establish', { payload: envelope });
+    const p3 = await rootProof(identity, userId, 'web_envelope_establish', { payload: envelope });
     const unverified = await request('POST', '/establish', { envelope, proof: p3, assertion: assertion(userId, p3.challenge) });
     expect(unverified.status).toBe(401);
 
@@ -413,9 +413,9 @@ describe('v2: establishing a keyless account’s first root', () => {
     const userId = await keylessWithPasskey();
     currentUserId = userId;
     const identity = generateWebIdentity();
-    const envelope = sealV2(identity);
-    const rootProof = await v2Proof(identity, userId, 'web_envelope_establish', { payload: envelope });
-    expect((await request('POST', '/establish', { envelope, proof: rootProof })).status).toBe(400);
+    const envelope = seal(identity);
+    const establishProof = await rootProof(identity, userId, 'web_envelope_establish', { payload: envelope });
+    expect((await request('POST', '/establish', { envelope, proof: establishProof })).status).toBe(400);
   });
 });
 
@@ -438,8 +438,8 @@ describe('minting proof challenges', () => {
   it('binds the challenge to the root linked when it was minted', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    const envelope = sealV2(identity);
-    const proof = await v2Proof(identity, userId, 'web_envelope_put', { payload: envelope, expectedRevision: 0 });
+    const envelope = seal(identity);
+    const proof = await rootProof(identity, userId, 'web_envelope_put', { payload: envelope, expectedRevision: 0 });
     // The root changes between mint and use (a rotation elsewhere).
     const rotated = generateWebIdentity();
     await getDb().update(users).set({ publicKey: rotated.publicKey }).where(eq(users.id, userId));
@@ -452,8 +452,8 @@ describe('storing the envelope', () => {
   it('stores the ciphertext only — no phrase, no private key', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    const envelope = sealV2(identity);
-    expect((await putV2(identity, userId, envelope, 0)).status).toBe(200);
+    const envelope = seal(identity);
+    expect((await put(identity, userId, envelope, 0)).status).toBe(200);
 
     const [row] = await getDb().select().from(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, userId));
     const serialized = JSON.stringify(row);
@@ -463,17 +463,17 @@ describe('storing the envelope', () => {
     }
   });
 
-  it('refuses a write carried by a bearer alone, or a version-1 proof', async () => {
+  it('refuses a write carried by a bearer alone, or a timestamp signature instead of a root proof', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    expect((await request('PUT', '/', { envelope: sealV2(identity) })).status).toBe(400);
-    expect((await request('PUT', '/', { envelope: sealV2(identity), signature: 'ab', timestamp: Date.now() })).status).toBe(400);
+    expect((await request('PUT', '/', { envelope: seal(identity) })).status).toBe(400);
+    expect((await request('PUT', '/', { envelope: seal(identity), signature: 'ab', timestamp: Date.now() })).status).toBe(400);
   });
 
   it('refuses a proof signed by a different key', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    const envelope = sealV2(identity);
+    const envelope = seal(identity);
     const minted = await mintIdentityProofChallenge(userId, 'web_envelope_put');
     const forged = await signIdentityProof(generateWebIdentity(), {
       action: 'web_envelope_put',
@@ -495,8 +495,8 @@ describe('storing the envelope', () => {
   it('refuses an envelope that seals any identity but the account’s own', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    const foreign = sealV2(generateWebIdentity());
-    const res = await putV2(identity, userId, foreign, 0);
+    const foreign = seal(generateWebIdentity());
+    const res = await put(identity, userId, foreign, 0);
     expect(res.status).toBe(400);
   });
 
@@ -509,18 +509,18 @@ describe('storing the envelope', () => {
   it('replaces rather than accumulates, and a re-wrap keeps the saved-phrase state', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    expect((await putV2(identity, userId, sealV2(identity), 0)).status).toBe(200);
+    expect((await put(identity, userId, seal(identity), 0)).status).toBe(200);
     const confirmed = await request('POST', '/phrase-confirmed', {
       expectedRevision: 1,
-      proof: await v2Proof(identity, userId, 'web_envelope_phrase_confirmed', { expectedRevision: 1 }),
+      proof: await rootProof(identity, userId, 'web_envelope_phrase_confirmed', { expectedRevision: 1 }),
     });
     expect(confirmed.status).toBe(200);
     expect(typeof confirmed.body.phraseConfirmedAt).toBe('string');
 
-    const rewrapped = sealV2(identity, 'credential-bbbbbbbbbbbbbbbb', 9);
-    const put = await putV2(identity, userId, rewrapped, 1);
-    expect(put.body.envelope).toEqual(rewrapped);
-    expect(put.body.phraseConfirmedAt).toBe(confirmed.body.phraseConfirmedAt);
+    const rewrapped = seal(identity, 'credential-bbbbbbbbbbbbbbbb', 9);
+    const rewrote = await put(identity, userId, rewrapped, 1);
+    expect(rewrote.body.envelope).toEqual(rewrapped);
+    expect(rewrote.body.phraseConfirmedAt).toBe(confirmed.body.phraseConfirmedAt);
 
     const rows = await getDb().select({ id: identityWebEnvelopes.id }).from(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, userId));
     expect(rows).toHaveLength(1);
@@ -531,19 +531,19 @@ describe('an identity that moved on', () => {
   it('reads as absent once the account’s identity key is no longer the one sealed', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    expect((await putV2(identity, userId, sealV2(identity), 0)).status).toBe(200);
+    expect((await put(identity, userId, seal(identity), 0)).status).toBe(200);
     await getDb().update(users).set({ publicKey: generateWebIdentity().publicKey }).where(eq(users.id, userId));
     expect((await request('GET', '/')).body.envelope).toBeNull();
   });
 });
 
 describe('confirming the phrase', () => {
-  it('needs an envelope to confirm, and a version-2 proof', async () => {
+  it('needs an envelope to confirm, and a root proof', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
     const res = await request('POST', '/phrase-confirmed', {
       expectedRevision: 0,
-      proof: await v2Proof(identity, userId, 'web_envelope_phrase_confirmed', { expectedRevision: 0 }),
+      proof: await rootProof(identity, userId, 'web_envelope_phrase_confirmed', { expectedRevision: 0 }),
     });
     expect(res.status).toBe(400);
     expect((await request('POST', '/phrase-confirmed', { signature: 'ab', timestamp: Date.now() })).status).toBe(400);
@@ -554,21 +554,21 @@ describe('removing the web holder', () => {
   it('deletes only with a proof for the delete action, and is idempotent', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    expect((await putV2(identity, userId, sealV2(identity), 0)).status).toBe(200);
+    expect((await put(identity, userId, seal(identity), 0)).status).toBe(200);
 
-    const wrongAction = await v2Proof(identity, userId, 'web_envelope_put', { expectedRevision: 1 });
+    const wrongAction = await rootProof(identity, userId, 'web_envelope_put', { expectedRevision: 1 });
     expect((await request('DELETE', '/', { expectedRevision: 1, proof: wrongAction })).status).toBe(401);
     expect((await request('GET', '/')).body.envelope).not.toBeNull();
 
-    expect((await request('DELETE', '/', { expectedRevision: 1, proof: await v2Proof(identity, userId, 'web_envelope_delete', { expectedRevision: 1 }) })).status).toBe(200);
+    expect((await request('DELETE', '/', { expectedRevision: 1, proof: await rootProof(identity, userId, 'web_envelope_delete', { expectedRevision: 1 }) })).status).toBe(200);
     expect((await request('GET', '/')).body.envelope).toBeNull();
-    expect((await request('DELETE', '/', { expectedRevision: 0, proof: await v2Proof(identity, userId, 'web_envelope_delete', { expectedRevision: 0 }) })).status).toBe(200);
+    expect((await request('DELETE', '/', { expectedRevision: 0, proof: await rootProof(identity, userId, 'web_envelope_delete', { expectedRevision: 0 }) })).status).toBe(200);
   });
 
   it('dies with the account', async () => {
     const { userId, identity } = await accountWithIdentity();
     currentUserId = userId;
-    expect((await putV2(identity, userId, sealV2(identity), 0)).status).toBe(200);
+    expect((await put(identity, userId, seal(identity), 0)).status).toBe(200);
     await getDb().delete(users).where(eq(users.id, userId));
     const rows = await getDb().select({ id: identityWebEnvelopes.id }).from(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, userId));
     expect(rows).toHaveLength(0);

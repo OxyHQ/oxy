@@ -38,6 +38,8 @@ import { and, eq, ne, sql } from 'drizzle-orm';
 import {
   IDENTITY_ERROR_CODES,
   IDENTITY_PROOF_ACTIONS,
+  WEB_IDENTITY_ENVELOPE_VERSION,
+  type WebIdentitySecretKind,
   webIdentityEnvelopeActionSchema,
   webIdentityEnvelopeEstablishSchema,
   webIdentityEnvelopePutSchema,
@@ -169,7 +171,7 @@ interface StoredEnvelope {
   publicKey: string;
   version: number;
   algorithm: string;
-  secretKind: 'mnemonic-entropy' | 'raw-private-key' | null;
+  secretKind: WebIdentitySecretKind;
   entropyNonce: string;
   sealedEntropy: string;
   wraps: WebIdentityWrap[];
@@ -180,21 +182,11 @@ interface StoredEnvelope {
 }
 
 function storedToEnvelope(row: StoredEnvelope): WebIdentityEnvelope {
-  if (row.version === 1) {
-    return {
-      version: 1,
-      algorithm: 'xchacha20poly1305',
-      publicKey: row.publicKey,
-      entropyNonce: row.entropyNonce,
-      sealedEntropy: row.sealedEntropy,
-      wraps: row.wraps,
-    };
-  }
   return {
-    version: 2,
+    version: WEB_IDENTITY_ENVELOPE_VERSION,
     algorithm: 'xchacha20poly1305',
     publicKey: row.publicKey,
-    secretKind: row.secretKind ?? 'mnemonic-entropy',
+    secretKind: row.secretKind,
     secretNonce: row.entropyNonce,
     sealedSecret: row.sealedEntropy,
     wraps: row.wraps,
@@ -219,7 +211,7 @@ function toResponse(row: StoredEnvelope | undefined, currentPublicKey: string | 
     rootLinked: true,
     holders: row.wraps.map((wrap) => ({
       credentialId: wrap.credentialId,
-      rpId: wrap.rpId ?? null,
+      rpId: wrap.rpId,
       verifiedAt: wrap.verifiedAt ?? null,
       createdAt: wrap.createdAt,
     })),

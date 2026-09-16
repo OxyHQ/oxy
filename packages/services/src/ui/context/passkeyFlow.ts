@@ -12,7 +12,7 @@
  * off the web) so an unsupported surface fails loudly before touching a ceremony.
  */
 
-import { IDENTITY_ERROR_CODES, type LoginResult, type LoginSessionResult } from '@oxy.so/contracts';
+import type { LoginResult, LoginSessionResult } from '@oxy.so/contracts';
 import type { CommitInput } from './oxyContextTypes';
 
 /**
@@ -82,20 +82,6 @@ export async function runPasskeyLogin(deps: RunPasskeyLoginDeps): Promise<void> 
     deviceId: deps.deviceId,
   });
   await deps.commit(toCommitInput(result));
-}
-
-/**
- * Passkey SIGN-UP no longer runs here (ADR 0024 D4): an Oxy account is created
- * WITH its self-custody root, in the canonical account flow the account dialog
- * opens, or not at all. A local ceremony can create a passkey but not a root the
- * person controls, so this refuses before touching anything — with the stable
- * `IDENTITY_ENROLLMENT_REQUIRED` code the API uses for the same refusal.
- */
-export function identityEnrollmentRequiredError(): Error & { code: string } {
-  return Object.assign(
-    new Error('Create Oxy accounts through the Oxy account dialog (openAccountDialog("signup")).'),
-    { code: IDENTITY_ERROR_CODES.enrollmentRequired },
-  );
 }
 
 /** Injected dependencies for {@link runPasskeyAdd}. */

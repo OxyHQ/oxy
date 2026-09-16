@@ -17,11 +17,10 @@
  */
 
 import {
-  IDENTITY_MOVE_ACTIONS,
   createMoveCommitment,
   deriveIdentityFromRecoveryMaterial,
   deriveMoveKey,
-  deriveMoveSasV2,
+  deriveMoveSas,
   digestMoveCiphertext,
   digestIdentityPayload,
   generateMoveEphemeralKeyPair,
@@ -30,9 +29,8 @@ import {
   sealIdentityForMove,
   sealWebIdentity,
   signIdentityProof,
-  signMoveAction,
   unlockWebIdentity,
-  verifyMoveReceiptV2,
+  verifyMoveReceipt,
   wipeBytes,
   wipeOpenedIdentity,
   WebIdentityUnlockError,
@@ -44,6 +42,7 @@ import {
   IDENTITY_ERROR_CODES,
   IDENTITY_PROOF_ACTIONS,
   IDENTITY_PROOF_AUDIENCE,
+  buildMoveSealPayload,
   type IdentityMoveState,
   type IdentityProof,
   type IdentityProofAction,
@@ -136,21 +135,18 @@ function nowOf(ports: CarrierPorts): Date {
 
 function statusFrom(response: WebIdentityEnvelopeResponse, session: CarrierSession): IdentityStatus {
   if (!response.envelope) {
-    const linked = response.rootLinked ?? session.account.publicKey !== null;
-    return linked ? { kind: 'elsewhere' } : { kind: 'no-root' };
+    return response.rootLinked ? { kind: 'elsewhere' } : { kind: 'no-root' };
   }
   const envelope = response.envelope;
-  const holders =
-    response.holders ??
-    envelope.wraps.map((wrap) => ({ credentialId: wrap.credentialId, rpId: wrap.rpId ?? null, verifiedAt: wrap.verifiedAt ?? null, createdAt: wrap.createdAt }));
+  const holders = response.holders;
   return {
     kind: 'ready',
-    revision: response.revision ?? 0,
+    revision: response.revision,
     holders,
     signedInWithHolder: holders.some((holder) => holder.credentialId === session.credentialId),
-    hasPhrase: envelope.version === 1 || envelope.secretKind === 'mnemonic-entropy',
+    hasPhrase: envelope.secretKind === 'mnemonic-entropy',
     phraseConfirmedAt: response.phraseConfirmedAt,
-    recoveryVerifiedAt: response.recoveryVerifiedAt ?? null,
+    recoveryVerifiedAt: response.recoveryVerifiedAt,
   };
 }
 
@@ -223,7 +219,7 @@ async function loadEnvelope(
       throw new HolderError('no-web-holder', 'Your identity isn’t kept in this browser.');
     }
     await ports.local.write(session.account.userId, response.envelope);
-    return { envelope: response.envelope, revision: response.revision ?? 0 };
+    return { envelope: response.envelope, revision: response.revision };
   } catch (error) {
     if (error instanceof HolderError) throw error;
     // An answer from the API — revoked, unauthorized, failing — is never
@@ -237,8 +233,8 @@ async function loadEnvelope(
 
 /** Run one PRF ceremony over the envelope's own passkeys and open the root. The caller wipes it. */
 async function openEnvelope(ports: CarrierPorts, session: CarrierSession, envelope: WebIdentityEnvelope): Promise<{ identity: OpenedWebIdentity; credentialId: string }> {
-  const rpId = envelope.wraps.find((wrap) => wrap.credentialId === session.credentialId)?.rpId ?? envelope.wraps[0]?.rpId ?? session.rpId;
-  const credentialIds = envelope.wraps.filter((wrap) => (wrap.rpId ?? session.rpId) === rpId).map((wrap) => wrap.credentialId);
+  const rpId = envelope.wraps.find((wrap) => wrap.credentialId === session.credentialId)?.rpId ?? envelope.wraps[0].rpId;
+  const credentialIds = envelope.wraps.filter((wrap) => wrap.rpId === rpId).map((wrap) => wrap.credentialId);
   const evaluation = await ports.passkeys.evaluatePrf({ rpId, credentialIds });
   if (!evaluation.prfOutput) throw new HolderError('prf-unsupported', PRF_UNSUPPORTED_MESSAGE);
   try {
@@ -281,7 +277,7 @@ export async function openRootForDisplay(ports: CarrierPorts, session: CarrierSe
   return (await openEnvelope(ports, session, envelope)).identity;
 }
 
-/** A v2 root proof for `action` on the signed-in account, over a fresh one-use challenge. */
+/** A root proof for `action` on the signed-in account, over a fresh one-use challenge. */
 async function proveForAccount(
   ports: CarrierPorts,
   session: CarrierSession,
@@ -353,7 +349,7 @@ function sealAndReopen(
   wrap: { prfOutput: Uint8Array; credentialId: string; rpId: string },
 ): WebIdentityEnvelope {
   const now = nowOf(ports);
-  const { envelope, dataKey } = sealWebIdentity(identity, { ...wrap, verifiedAt: now.toISOString() }, now, { version: 2 });
+  const { envelope, dataKey } = sealWebIdentity(identity, { ...wrap, verifiedAt: now.toISOString() }, now);
   wipeBytes(dataKey);
   const reopened = unlockWebIdentity(envelope, wrap.prfOutput, wrap.credentialId);
   const matches = reopened.publicKey === identity.publicKey;
@@ -516,11 +512,11 @@ export async function resealFromMaterial(ports: CarrierPorts, session: CarrierSe
     } finally {
       wipeBytes(evaluation.prfOutput);
     }
-    const expectedRevision = current.revision ?? 0;
+    const expectedRevision = current.revision;
     try {
       const put = await proveForAccount(ports, session, identity, IDENTITY_PROOF_ACTIONS.put, { payload: envelope, expectedRevision });
       const stored = await ports.api.putEnvelope(envelope, { proof: put, expectedRevision });
-      const revision = stored.revision ?? expectedRevision + 1;
+      const revision = stored.revision;
       const verified = await proveForAccount(ports, session, identity, IDENTITY_PROOF_ACTIONS.recoveryVerified, { expectedRevision: revision });
       await ports.api.recoveryVerified({ proof: verified, expectedRevision: revision });
       const confirmed = await proveForAccount(ports, session, identity, IDENTITY_PROOF_ACTIONS.phraseConfirmed, { expectedRevision: revision });
@@ -603,7 +599,7 @@ export async function deleteAccount(ports: CarrierPorts, session: CarrierSession
 /* -------------------------------------------------------------------------- */
 
 /**
- * A transfer this browser started (protocol version 2). The ephemeral private
+ * A transfer this browser started. The ephemeral private
  * key and the commitment nonce never leave memory until the reveal.
  */
 export interface OutgoingMove {
@@ -632,7 +628,7 @@ export type MoveProgress =
 /**
  * Start giving this account's root to Commons. The root is proven to open here
  * before a code is shown, so a person never scans a code that cannot complete.
- * Only a COMMITMENT to this browser's ephemeral key is published (protocol v2).
+ * Only a COMMITMENT to this browser's ephemeral key is published.
  */
 export async function startMove(ports: CarrierPorts, session: CarrierSession): Promise<OutgoingMove> {
   await withRoot(ports, session, async (identity) => {
@@ -649,7 +645,6 @@ export async function startMove(ports: CarrierPorts, session: CarrierSession): P
 function verifyOwnMove(move: OutgoingMove, state: IdentityMoveState): void {
   if (
     state.moveId !== move.moveId ||
-    state.protocolVersion !== 2 ||
     state.initiatorCommitment !== move.commitment ||
     (state.initiatorEphemeralPublicKey !== null && state.initiatorEphemeralPublicKey !== move.ephemeral.publicKey)
   ) {
@@ -684,7 +679,7 @@ export async function readMove(ports: CarrierPorts, move: OutgoingMove): Promise
         state,
         progress: {
           kind: 'compare',
-          sas: deriveMoveSasV2({
+          sas: deriveMoveSas({
             moveId: move.moveId,
             initiatorEphemeralPublicKey: move.ephemeral.publicKey,
             responderEphemeralPublicKey: state.responderEphemeralPublicKey,
@@ -716,13 +711,16 @@ export async function sendMove(ports: CarrierPorts, session: CarrierSession, mov
     if (identity.publicKey !== state.publicKey) throw new Error('The transfer could not be verified. Start again.');
     if (identity.kind !== 'mnemonic') throw new Error('This identity has no recovery phrase, so it can’t be added to Commons this way.');
     const moveKey = deriveMoveKey(move.ephemeral.privateKey, responderKey, move.moveId);
+    let sealed: { nonce: string; ciphertext: string };
     try {
-      const sealed = sealIdentityForMove(identity, moveKey, move.moveId);
-      move.ciphertextDigest = digestMoveCiphertext(sealed);
-      await ports.api.sealMove(move.moveId, { ...sealed, ...(await signMoveAction(identity, IDENTITY_MOVE_ACTIONS.seal, move.moveId)) });
+      sealed = sealIdentityForMove(identity, moveKey, move.moveId);
     } finally {
       wipeBytes(moveKey);
     }
+    // The seal is authorized by a one-use root proof over this move and these exact bytes.
+    const proof = await proveForAccount(ports, session, identity, IDENTITY_PROOF_ACTIONS.moveSeal, { payload: buildMoveSealPayload(move.moveId, sealed) });
+    await ports.api.sealMove(move.moveId, { ...sealed, proof });
+    move.ciphertextDigest = digestMoveCiphertext(sealed);
   });
 }
 
@@ -747,7 +745,7 @@ export async function completeMove(
   }
   const root = session.account.publicKey;
   if (!root || root !== state.publicKey || !move.ciphertextDigest) throw new Error('The transfer could not be verified. Start again.');
-  const valid = await verifyMoveReceiptV2(
+  const valid = await verifyMoveReceipt(
     {
       moveId: move.moveId,
       rootPublicKey: root,
