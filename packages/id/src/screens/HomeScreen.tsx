@@ -1,24 +1,28 @@
-import { useRef, useState } from 'react';
-import { deriveIdentityFromMnemonic, type OpenedWebIdentity } from '@oxy.so/core';
+import { useEffect, useRef, useState } from 'react';
+import type { OpenedWebIdentity } from '@oxy.so/core';
 import {
   confirmPhrase,
   deleteAccount,
-  ensureIdentity,
-  recoverWithPhrase,
+  establishRoot,
+  openRootForDisplay,
+  readIdentityStatus,
+  recoverSignedOut,
+  resealFromMaterial,
   signIn,
-  unlockIdentity,
   wipeIdentity,
   type CarrierSession,
-  type IdentityState,
+  type IdentityStatus,
 } from '../identity/carrier';
 import { createPorts, messageOf } from '../identity/ports';
 import { MoveFlow } from './MoveFlow';
 import { PhraseScreen } from './PhraseScreen';
+import { RecoveryForm } from './RecoveryForm';
 
 type View =
   | { name: 'signed-out' }
+  | { name: 'recover-signed-out' }
   | { name: 'working'; label: string }
-  | { name: 'overview'; session: CarrierSession; identity: IdentityState }
+  | { name: 'overview'; session: CarrierSession; status: IdentityStatus }
   | { name: 'phrase'; session: CarrierSession; identity: OpenedWebIdentity }
   | { name: 'recover'; session: CarrierSession }
   | { name: 'delete'; session: CarrierSession }
@@ -26,24 +30,33 @@ type View =
   | { name: 'deleted' };
 
 /**
- * `/` — your identity on the web.
- *
- * Everything that needs the identity key happens here, on this origin, with
- * this origin's own passkey session: saving the recovery phrase, recovering
- * with it, deleting the account. No other site ever receives the key or a
- * signature made with it.
+ * `/` — the person's Oxy identity: saving the recovery phrase, recovering,
+ * giving it to Commons, deleting the account. Every one of these opens the root
+ * with a fresh passkey ceremony, for that operation only; signing in opens nothing.
  */
 export function HomeScreen({ intent = 'overview' }: { intent?: 'overview' | 'move' }) {
   const portsRef = useRef(createPorts());
   const ports = portsRef.current;
   const [view, setView] = useState<View>({ name: 'signed-out' });
   const [error, setError] = useState<string | null>(null);
-  const [phrase, setPhrase] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const intentRef = useRef(intent);
 
-  function run(label: string, task: () => Promise<void>) {
-    const from = view;
+  // An opened root lives only while the phrase is on screen.
+  const openRef = useRef<OpenedWebIdentity | null>(null);
+  useEffect(() => {
+    const previous = openRef.current;
+    openRef.current = view.name === 'phrase' ? view.identity : null;
+    if (previous && previous !== openRef.current) wipeIdentity(previous);
+  }, [view]);
+  useEffect(
+    () => () => {
+      if (openRef.current) wipeIdentity(openRef.current);
+    },
+    [],
+  );
+
+  function run(label: string, task: () => Promise<void>, from: View = view) {
     setError(null);
     setView({ name: 'working', label });
     task().catch((reason: unknown) => {
@@ -53,10 +66,9 @@ export function HomeScreen({ intent = 'overview' }: { intent?: 'overview' | 'mov
   }
 
   async function refresh(session: CarrierSession) {
-    const identity = await ensureIdentity(ports, session);
-    if (identity.kind === 'created') setView({ name: 'phrase', session, identity: identity.identity });
-    else if (intentRef.current === 'move' && identity.kind === 'ready') setView({ name: 'move', session });
-    else setView({ name: 'overview', session, identity });
+    const status = await readIdentityStatus(ports, session);
+    if (intentRef.current === 'move' && status.kind === 'ready') setView({ name: 'move', session });
+    else setView({ name: 'overview', session, status });
     intentRef.current = 'overview';
   }
 
@@ -67,14 +79,35 @@ export function HomeScreen({ intent = 'overview' }: { intent?: 'overview' | 'mov
       return (
         <section className="card">
           <h1>Your Oxy identity</h1>
-          <p>Your identity is yours. It is sealed with your passkey, and nobody — not even Oxy — can open it without you.</p>
+          <p>Your identity is yours. It is protected with your passkey, and nobody — not even Oxy — can open it without you.</p>
           {errorLine}
-          <div className="actions">
+          <div className="actions vertical">
             <button type="button" className="primary" onClick={() => run('Waiting for your passkey…', async () => refresh(await signIn(ports)))}>
               Sign in with a passkey
             </button>
+            <button
+              type="button"
+              className="link"
+              onClick={() => {
+                setError(null);
+                setView({ name: 'recover-signed-out' });
+              }}
+            >
+              Lost your passkey? Recover your account
+            </button>
           </div>
         </section>
+      );
+    case 'recover-signed-out':
+      return (
+        <RecoveryForm
+          title="Recover your account"
+          description="Type your recovery phrase. It stays on this device — it is used here to prove the account is yours, and then to protect it with a new passkey."
+          submitLabel="Recover"
+          error={error}
+          onBack={() => setView({ name: 'signed-out' })}
+          onSubmit={(material) => run('Recovering your account…', async () => refresh(await recoverSignedOut(ports, material)), { name: 'recover-signed-out' })}
+        />
       );
     case 'working':
       return <p className="status">{view.label}</p>;
@@ -84,47 +117,30 @@ export function HomeScreen({ intent = 'overview' }: { intent?: 'overview' | 'mov
           identity={view.identity}
           onConfirmed={async () => {
             await confirmPhrase(ports, view.session, view.identity);
-            wipeIdentity(view.identity);
             await refresh(view.session);
           }}
-          onLater={() => {
-            wipeIdentity(view.identity);
-            void refresh(view.session);
-          }}
+          onLater={() => void refresh(view.session)}
         />
       );
     case 'recover':
       return (
-        <section className="card">
-          <h1>Recover with your phrase</h1>
-          <p>Type your 12 words. Your identity will be sealed again with the passkey you just used.</p>
-          <textarea className="phrase-input" rows={3} autoCapitalize="none" autoComplete="off" spellCheck={false} value={phrase} onChange={(event) => setPhrase(event.target.value)} />
-          {errorLine}
-          <div className="actions">
-            <button
-              type="button"
-              className="primary"
-              disabled={phrase.trim().split(/\s+/).length !== 12}
-              onClick={() =>
-                run('Recovering…', async () => {
-                  const identity = deriveIdentityFromMnemonic(phrase);
-                  setPhrase('');
-                  try {
-                    await recoverWithPhrase(ports, view.session, identity);
-                  } finally {
-                    wipeIdentity(identity);
-                  }
-                  await refresh(view.session);
-                })
-              }
-            >
-              Recover
-            </button>
-            <button type="button" className="link" onClick={() => void refresh(view.session)}>
-              Back
-            </button>
-          </div>
-        </section>
+        <RecoveryForm
+          title="Use your recovery phrase"
+          description="Your identity will be protected again with the passkey you signed in with."
+          submitLabel="Continue"
+          error={error}
+          onBack={() => void refresh(view.session)}
+          onSubmit={(material) =>
+            run(
+              'Protecting your identity…',
+              async () => {
+                await resealFromMaterial(ports, view.session, material);
+                await refresh(view.session);
+              },
+              { name: 'recover', session: view.session },
+            )
+          }
+        />
       );
     case 'delete':
       return (
@@ -132,6 +148,7 @@ export function HomeScreen({ intent = 'overview' }: { intent?: 'overview' | 'mov
           <h1>Delete your account</h1>
           <p>
             This permanently deletes <strong>@{view.session.account.username}</strong> and everything in it. It cannot be undone.
+            Copies of your data that were already shared with other services or exported are not reachable from here.
           </p>
           <label className="field">
             Type your username to confirm
@@ -145,13 +162,7 @@ export function HomeScreen({ intent = 'overview' }: { intent?: 'overview' | 'mov
               disabled={confirmText !== view.session.account.username}
               onClick={() =>
                 run('Deleting your account…', async () => {
-                  const identity = await unlockIdentity(ports, view.session);
-                  try {
-                    await deleteAccount(ports, identity, confirmText);
-                  } finally {
-                    wipeIdentity(identity);
-                  }
-                  await ports.local.remove(view.session.account.userId);
+                  await deleteAccount(ports, view.session, confirmText);
                   setView({ name: 'deleted' });
                 })
               }
@@ -174,33 +185,45 @@ export function HomeScreen({ intent = 'overview' }: { intent?: 'overview' | 'mov
         </section>
       );
     case 'overview': {
-      const { session, identity } = view;
+      const { session, status } = view;
       return (
         <section className="card">
           <h1>@{session.account.username}</h1>
-          <IdentitySummary identity={identity} />
+          <StatusSummary status={status} />
           {errorLine}
           <div className="actions vertical">
-            {identity.kind === 'ready' ? (
+            {status.kind === 'ready' && status.hasPhrase ? (
               <button
                 type="button"
-                className={identity.phraseConfirmedAt ? 'secondary' : 'primary'}
-                onClick={() => run('Opening your identity…', async () => setView({ name: 'phrase', session, identity: await unlockIdentity(ports, session) }))}
+                className={status.phraseConfirmedAt ? 'secondary' : 'primary'}
+                onClick={() => run('Opening your identity…', async () => setView({ name: 'phrase', session, identity: await openRootForDisplay(ports, session) }))}
               >
-                {identity.phraseConfirmedAt ? 'Show my recovery phrase' : 'Save my recovery phrase'}
+                {status.phraseConfirmedAt ? 'Show my recovery phrase' : 'Save my recovery phrase'}
               </button>
             ) : null}
-            {identity.kind === 'ready' ? (
+            {status.kind === 'ready' && status.hasPhrase ? (
               <button type="button" className="secondary" onClick={() => setView({ name: 'move', session })}>
-                Move my identity to the Commons app
+                Add my identity to the Commons app
               </button>
             ) : null}
-            {identity.kind === 'locked' || identity.kind === 'elsewhere' ? (
-              <button type="button" className="secondary" onClick={() => setView({ name: 'recover', session })}>
-                Recover with my phrase
+            {status.kind === 'no-root' ? (
+              <button
+                type="button"
+                className="primary"
+                onClick={() =>
+                  run('Creating your identity…', async () => {
+                    const { identity } = await establishRoot(ports, session);
+                    setView({ name: 'phrase', session, identity });
+                  })
+                }
+              >
+                Secure my account
               </button>
             ) : null}
-            {identity.kind === 'ready' ? (
+            <button type="button" className="secondary" onClick={() => setView({ name: 'recover', session })}>
+              {status.kind === 'elsewhere' ? 'Keep my identity in this browser too' : 'Use my recovery phrase'}
+            </button>
+            {status.kind === 'ready' ? (
               <button type="button" className="link destructive-link" onClick={() => setView({ name: 'delete', session })}>
                 Delete my account
               </button>
@@ -212,21 +235,18 @@ export function HomeScreen({ intent = 'overview' }: { intent?: 'overview' | 'mov
   }
 }
 
-function IdentitySummary({ identity }: { identity: IdentityState }) {
-  switch (identity.kind) {
+function StatusSummary({ status }: { status: IdentityStatus }) {
+  switch (status.kind) {
     case 'ready':
-      return identity.phraseConfirmedAt ? (
-        <p>Your identity is kept in this browser, sealed with your passkey, and your recovery phrase is saved.</p>
+      if (!status.hasPhrase) return <p>Your identity is kept in this browser, protected with your passkey.</p>;
+      return status.phraseConfirmedAt ? (
+        <p>Your identity is kept in this browser, protected with your passkey, and your recovery phrase is saved.</p>
       ) : (
-        <p className="note">Your identity is sealed with your passkey, but your recovery phrase isn’t saved yet. Save it now — it is the only way back if you lose your passkeys.</p>
+        <p className="note">Your identity is protected with your passkey, but your recovery phrase isn’t saved yet. Save it now — it is the only way back if you lose your passkeys.</p>
       );
     case 'elsewhere':
-      return <p>Your identity lives in the Commons app. To keep it on the web as well, recover it here with your phrase.</p>;
-    case 'locked':
-      return <p className="note">This passkey can’t open your identity in this browser. Use another passkey, or recover with your phrase.</p>;
-    case 'unsupported':
-      return <p className="note">This browser can’t keep your identity. Use Safari, Chrome, or the Commons app.</p>;
-    default:
-      return null;
+      return <p>Your identity is kept in the Commons app. To keep it in this browser as well, use your recovery phrase.</p>;
+    case 'no-root':
+      return <p className="note">Your account doesn’t have its own identity yet. Secure it with your passkey to get a recovery phrase only you keep.</p>;
   }
 }

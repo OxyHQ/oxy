@@ -2,7 +2,7 @@ import { ContinueScreen } from './screens/ContinueScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { PrfCheckScreen } from './screens/PrfCheckScreen';
 
-/** Four routes; a router library would be more code on the page that unseals identities. */
+/** A handful of routes; a router library would be more code on the page that unseals roots. The host is internal (ADR 0024 D1): nothing here names it. */
 export function App() {
   const { pathname, search } = window.location;
   const params = new URLSearchParams(search);
@@ -30,7 +30,7 @@ export function App() {
     <main className="shell">
       <header className="brand">
         <img src="/favicon.svg" alt="" width={28} height={28} />
-        <span>Oxy Identity</span>
+        <span>Oxy</span>
       </header>
       {screen}
     </main>
