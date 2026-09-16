@@ -29,10 +29,9 @@
  * 4. **Compare-and-swap.** Two holder changes racing each other cannot silently
  *    drop one another's wrap: the loser gets 409 and re-reads.
  *
- * ROLLOUT WINDOW: the version-1 proof (`{signature, timestamp}` over
- * `{action,userId,timestamp}`) is still accepted so the holder host already
- * serving keeps working while this deploys. It is removed once the holder host
- * sends v2 (ADR 0024 D10); nothing re-enables it on rollback.
+ * The version-1 proof (`{signature, timestamp}` over `{action,userId,timestamp}`)
+ * is no longer accepted (ADR 0024 D10): it bound neither the payload, the
+ * revision nor a one-use challenge. A rollback of this file must not bring it back.
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { and, eq, ne, sql } from 'drizzle-orm';
@@ -45,7 +44,6 @@ import {
   type WebIdentityEnvelope,
   type WebIdentityEnvelopeAction,
   type WebIdentityEnvelopeEstablish,
-  type WebIdentityEnvelopeProof,
   type WebIdentityEnvelopePut,
   type WebIdentityEnvelopeResponse,
   type WebIdentityWrap,
@@ -62,7 +60,6 @@ import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { identityWebEnvelopes } from '../db/schema/identityWebEnvelopes';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users } from '../db/schema/users';
-import { SignatureService } from '../services/signature.service';
 import { digestIdentityPayload, verifyIdentityProof } from '../services/identityProof.service';
 import { verifyFreshPasskeyAssertion } from '../services/webauthnFreshAssertion.service';
 import { isUniqueViolation } from '../utils/postgresErrors';
@@ -70,24 +67,6 @@ import userCache from '../utils/userCache';
 import { envelopeColumns } from '../utils/identityEnvelopeColumns';
 
 const router = Router();
-
-/** The version-1 actions (rollout window only). */
-export const WEB_ENVELOPE_ACTIONS = {
-  link: 'link_identity',
-  put: 'web_envelope_put',
-  phraseConfirmed: 'web_envelope_phrase_confirmed',
-  delete: 'web_envelope_delete',
-} as const;
-
-/**
- * The exact bytes a version-1 proof signs — byte-identical to
- * `buildIdentityActionMessage` in `@oxy.so/core`.
- *
- * @deprecated Rollout window only; v2 proofs use `buildIdentityProofMessage`.
- */
-export function buildWebEnvelopeProofMessage(action: string, userId: string, timestamp: number): string {
-  return JSON.stringify({ action, userId, timestamp });
-}
 
 /** Whether a browser origin may reach the holder routes: the holder host, or loopback. */
 export function isHolderOrigin(origin: string): boolean {
@@ -165,17 +144,6 @@ async function linkedPublicKey(userId: string): Promise<string | null> {
     .where(eq(users.id, userId))
     .limit(1);
   return row?.publicKey ? row.publicKey.trim().toLowerCase() : null;
-}
-
-/** Check one fresh version-1 proof for `action` by `publicKey`. */
-function assertV1Proof(userId: string, action: string, proof: WebIdentityEnvelopeProof, publicKey: string): void {
-  if (!SignatureService.isTimestampFresh(proof.timestamp)) {
-    throw new BadRequestError('Signature expired or invalid timestamp - please try again');
-  }
-  const message = buildWebEnvelopeProofMessage(action, userId, proof.timestamp);
-  if (!SignatureService.verifySignature(message, proof.signature, publicKey)) {
-    throw new UnauthorizedError('Invalid identity signature');
-  }
 }
 
 /** `lower(btrim(public_key)) = lower(btrim($1))` — the spelling `users_lower_public_key_key` serves. */
@@ -311,21 +279,17 @@ router.put(
       const existing = await lockEnvelope(tx, userId);
       const revision = currentRevision(existing, root);
 
-      if ('proof' in body) {
-        await verifyIdentityProof(tx, {
-          userId,
-          actor: userId,
-          action: IDENTITY_PROOF_ACTIONS.put,
-          rootPublicKey: root,
-          mintedRoot: root,
-          payloadDigest: digestIdentityPayload(body.envelope),
-          expectedRevision: body.expectedRevision,
-          proof: body.proof,
-        });
-        if (body.expectedRevision !== revision) throw revisionConflict();
-      } else {
-        assertV1Proof(userId, WEB_ENVELOPE_ACTIONS.put, body, root);
-      }
+      await verifyIdentityProof(tx, {
+        userId,
+        actor: userId,
+        action: IDENTITY_PROOF_ACTIONS.put,
+        rootPublicKey: root,
+        mintedRoot: root,
+        payloadDigest: digestIdentityPayload(body.envelope),
+        expectedRevision: body.expectedRevision,
+        proof: body.proof,
+      });
+      if (body.expectedRevision !== revision) throw revisionConflict();
       if (body.envelope.publicKey.toLowerCase() !== root) {
         throw new BadRequestError('The envelope does not seal this account’s identity');
       }
@@ -358,8 +322,8 @@ router.put(
  * its first one: link the key and store the envelope in one transaction, so there
  * is never a committed link without a holder.
  *
- * v2 requires, besides the root proof, a fresh assertion by one of the account's
- * existing passkeys over the same challenge — a bearer is not a fresh factor.
+ * Besides the root proof, a fresh assertion by one of the account's existing
+ * passkeys over the same challenge is required — a bearer is not a fresh factor.
  * An account whose root is already linked may add a web holder for THAT root
  * only when it has none; an account with a DIFFERENT root is refused.
  */
@@ -373,11 +337,6 @@ router.post(
     const body = req.body as WebIdentityEnvelopeEstablish;
     const publicKey = body.envelope.publicKey.toLowerCase();
 
-    if (!('proof' in body)) {
-      assertV1Proof(userId, WEB_ENVELOPE_ACTIONS.link, body.link, publicKey);
-      assertV1Proof(userId, WEB_ENVELOPE_ACTIONS.put, body, publicKey);
-    }
-
     try {
       await getDb().transaction(async (tx) => {
         const account = await lockAccount(tx, userId);
@@ -390,28 +349,26 @@ router.post(
         }
         const existing = await lockEnvelope(tx, userId);
 
-        if ('proof' in body) {
-          if (current && existing && existing.publicKey === current) {
-            // A holder already exists for this root; adding a wrap is a PUT.
-            throw new ApiError(409, 'This account already has an identity', IDENTITY_ERROR_CODES.rootAlreadyLinked);
-          }
-          await verifyFreshPasskeyAssertion(tx, {
-            userId,
-            response: body.assertion,
-            challengeHex: body.proof.challenge,
-            allowOrigin: isHolderOrigin,
-          });
-          await verifyIdentityProof(tx, {
-            userId,
-            actor: userId,
-            action: IDENTITY_PROOF_ACTIONS.establish,
-            rootPublicKey: publicKey,
-            mintedRoot: current,
-            payloadDigest: digestIdentityPayload(body.envelope),
-            expectedRevision: null,
-            proof: body.proof,
-          });
+        if (current && existing && existing.publicKey === current) {
+          // A holder already exists for this root; adding a wrap is a PUT.
+          throw new ApiError(409, 'This account already has an identity', IDENTITY_ERROR_CODES.rootAlreadyLinked);
         }
+        await verifyFreshPasskeyAssertion(tx, {
+          userId,
+          response: body.assertion,
+          challengeHex: body.proof.challenge,
+          allowOrigin: isHolderOrigin,
+        });
+        await verifyIdentityProof(tx, {
+          userId,
+          actor: userId,
+          action: IDENTITY_PROOF_ACTIONS.establish,
+          rootPublicKey: publicKey,
+          mintedRoot: current,
+          payloadDigest: digestIdentityPayload(body.envelope),
+          expectedRevision: null,
+          proof: body.proof,
+        });
 
         if (!current) {
           const [other] = await tx
@@ -468,24 +425,17 @@ function readinessRoute(action: 'web_envelope_phrase_confirmed' | 'web_envelope_
         throw new ApiError(400, 'Account does not have an identity key', IDENTITY_ERROR_CODES.noRoot);
       }
       const existing = await lockEnvelope(tx, userId);
-      if ('proof' in body) {
-        await verifyIdentityProof(tx, {
-          userId,
-          actor: userId,
-          action,
-          rootPublicKey: root,
-          mintedRoot: root,
-          payloadDigest: null,
-          expectedRevision: body.expectedRevision,
-          proof: body.proof,
-        });
-        if (body.expectedRevision !== currentRevision(existing, root)) throw revisionConflict();
-      } else {
-        if (action !== IDENTITY_PROOF_ACTIONS.phraseConfirmed) {
-          throw new ApiError(400, 'This operation needs a version-2 proof', IDENTITY_ERROR_CODES.proofInvalid);
-        }
-        assertV1Proof(userId, WEB_ENVELOPE_ACTIONS.phraseConfirmed, body, root);
-      }
+      await verifyIdentityProof(tx, {
+        userId,
+        actor: userId,
+        action,
+        rootPublicKey: root,
+        mintedRoot: root,
+        payloadDigest: null,
+        expectedRevision: body.expectedRevision,
+        proof: body.proof,
+      });
+      if (body.expectedRevision !== currentRevision(existing, root)) throw revisionConflict();
       if (!existing || existing.publicKey !== root) {
         throw new BadRequestError('No web identity to confirm');
       }
@@ -538,21 +488,17 @@ router.delete(
         throw new ApiError(400, 'Account does not have an identity key', IDENTITY_ERROR_CODES.noRoot);
       }
       const existing = await lockEnvelope(tx, userId);
-      if ('proof' in body) {
-        await verifyIdentityProof(tx, {
-          userId,
-          actor: userId,
-          action: IDENTITY_PROOF_ACTIONS.delete,
-          rootPublicKey: root,
-          mintedRoot: root,
-          payloadDigest: null,
-          expectedRevision: body.expectedRevision,
-          proof: body.proof,
-        });
-        if (body.expectedRevision !== currentRevision(existing, root)) throw revisionConflict();
-      } else {
-        assertV1Proof(userId, WEB_ENVELOPE_ACTIONS.delete, body, root);
-      }
+      await verifyIdentityProof(tx, {
+        userId,
+        actor: userId,
+        action: IDENTITY_PROOF_ACTIONS.delete,
+        rootPublicKey: root,
+        mintedRoot: root,
+        payloadDigest: null,
+        expectedRevision: body.expectedRevision,
+        proof: body.proof,
+      });
+      if (body.expectedRevision !== currentRevision(existing, root)) throw revisionConflict();
       await tx.delete(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, userId));
     });
 

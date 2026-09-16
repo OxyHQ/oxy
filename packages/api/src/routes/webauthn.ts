@@ -652,6 +652,16 @@ router.post(
 
     const { origin, challenge } = decodeAndGuardClientData(response.response.clientDataJSON);
 
+    // ADR 0024 D4: a personal account is created WITH its root or not at all.
+    // Refused before the challenge is spent, so the holder can retry properly.
+    if (!bearerUserId && !envelope.identity) {
+      throw new ApiError(
+        400,
+        'Create Oxy accounts through the Oxy account flow, which gives the account its own identity.',
+        IDENTITY_ERROR_CODES.enrollmentRequired,
+      );
+    }
+
     // Bind the challenge to its flow: a linking challenge to its user, a signup
     // challenge to no user.
     const burned = await burnChallenge(challenge, 'registration', bearerUserId);
@@ -768,17 +778,17 @@ router.post(
     // ONE transaction, or nothing. The root proof's challenge IS this ceremony's
     // registration challenge (burned above), and it names the username and the
     // credential, so it cannot be replayed onto another sign-up.
-    const enrollment = envelope.identity ?? null;
-    let enrolledRoot: string | null = null;
-    if (enrollment) {
-      enrolledRoot = checkIdentityEnrollment(enrollment.envelope, {
-        username: normalizedUsername,
-        credentialId: credential.id,
-        rpId: rpID,
-        registrationChallenge: challenge,
-        proof: enrollment.proof,
-      });
+    const enrollment = envelope.identity;
+    if (!enrollment) {
+      throw new ApiError(400, 'An Oxy account is created with its identity', IDENTITY_ERROR_CODES.enrollmentRequired);
     }
+    const enrolledRoot = checkIdentityEnrollment(enrollment.envelope, {
+      username: normalizedUsername,
+      credentialId: credential.id,
+      rpId: rpID,
+      registrationChallenge: challenge,
+      proof: enrollment.proof,
+    });
 
     // The account, its credential and its auth method(s) are created in ONE
     // transaction, so a failed credential insert can no longer orphan a username
@@ -788,7 +798,7 @@ router.post(
       account = await db.transaction(async (tx) => {
         const [created] = await tx
           .insert(users)
-          .values({ username: normalizedUsername, ...(enrolledRoot ? { publicKey: enrolledRoot } : {}) })
+          .values({ username: normalizedUsername, publicKey: enrolledRoot })
           .returning({ id: users.id, username: users.username, avatar: users.avatar });
         await tx.insert(webauthnCredentials).values({
           userId: created.id,
@@ -807,10 +817,8 @@ router.post(
           methodCredentialId: credential.id,
           methodName: credentialName,
         });
-        if (enrollment && enrolledRoot) {
-          await tx.insert(userAuthMethods).values({ userId: created.id, type: 'identity', methodPublicKey: enrolledRoot });
-          await tx.insert(identityWebEnvelopes).values({ userId: created.id, ...envelopeColumns(enrollment.envelope, enrolledRoot), revision: 1 });
-        }
+        await tx.insert(userAuthMethods).values({ userId: created.id, type: 'identity', methodPublicKey: enrolledRoot });
+        await tx.insert(identityWebEnvelopes).values({ userId: created.id, ...envelopeColumns(enrollment.envelope, enrolledRoot), revision: 1 });
         return created;
       });
     } catch (error) {

@@ -213,6 +213,49 @@ function registrationResponse() {
   };
 }
 
+/** A real registration challenge shape: 32 random bytes, base64url. */
+function realChallenge(): string {
+  return randomBytes(32).toString('base64url');
+}
+
+async function enrollment(
+  identity: OpenedWebIdentity,
+  username: string,
+  overrides: { credentialId?: string; challenge?: string; rpId?: string; subject?: string; extraWrap?: boolean } = {},
+) {
+  const credentialId = overrides.credentialId ?? currentCredentialId;
+  const { envelope: sealed, dataKey } = sealWebIdentity(
+    identity,
+    { prfOutput: new Uint8Array(32).fill(4), credentialId, ...(overrides.rpId ? { rpId: overrides.rpId } : {}) },
+    new Date(),
+    { version: 2 },
+  );
+  let envelope = sealed;
+  if (overrides.extraWrap) {
+    const { addWrap } = await import('@oxy.so/core');
+    envelope = addWrap(envelope, dataKey, { prfOutput: new Uint8Array(32).fill(5), credentialId: 'credential-extra-aaaaaaaa' });
+  }
+  dataKey.fill(0);
+  const proof = await signIdentityProof(identity, {
+    action: 'enroll_identity',
+    subject: overrides.subject ?? `username:${username}`,
+    actor: `credential:${credentialId}`,
+    rootPublicKey: identity.publicKey,
+    payloadDigest: digestIdentityPayload({ envelope }),
+    expectedRevision: null,
+    audience: IDENTITY_PROOF_AUDIENCE,
+    challenge: Buffer.from(overrides.challenge ?? currentChallenge, 'base64url').toString('hex'),
+    expiresAt: Date.now() + 4 * 60 * 1000,
+  });
+  return { envelope, proof };
+}
+
+
+/** A sign-up body WITH its root, for the current ceremony. */
+async function signupBody(username: string, extras: Record<string, unknown> = {}) {
+  return { username, response: registrationResponse(), identity: await enrollment(generateWebIdentity(), username), ...extras };
+}
+
 let server: http.Server;
 
 beforeAll(async () => {
@@ -236,7 +279,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockBearerUserId = null;
   mockRegisterUserVerified = true;
-  currentChallenge = `reg-${randomUUID()}`;
+  currentChallenge = realChallenge();
   currentCredentialId = freshCredentialId();
 
   mockGenerateRegistration.mockImplementation(async () => ({
@@ -400,15 +443,24 @@ describe('POST /webauthn/register/options', () => {
 });
 
 describe('POST /webauthn/register/verify — signup branch', () => {
+  it('refuses a sign-up without its root, before spending the challenge (ADR 0024 D4)', async () => {
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+
+    expect(res.status).toBe(400);
+    expect((res.body as { error?: string }).error).toBe('IDENTITY_ENROLLMENT_REQUIRED');
+    expect(await storedUserByUsername(username)).toBeUndefined();
+    expect((await storedChallenge(currentChallenge)).used).toBe(false);
+    expect(mockVerifyRegistration).not.toHaveBeenCalled();
+  });
+
   it('creates account + credential + webauthn auth method in one go and returns the AuthSuccess mint shape', async () => {
     const username = freshUsername();
     await request(server, 'POST', '/webauthn/register/options', { username });
 
-    const res = await request(server, 'POST', '/webauthn/register/verify', {
-      username,
-      deviceName: 'My Laptop',
-      response: registrationResponse(),
-    });
+    const res = await request(server, 'POST', '/webauthn/register/verify', await signupBody(username, { deviceName: 'My Laptop' }));
 
     expect(res.status).toBe(200);
     // Byte-identical shape to POST /auth/verify: buildSessionAuthResponse + deviceSecret.
@@ -435,11 +487,11 @@ describe('POST /webauthn/register/verify — signup branch', () => {
 
     // The auth method is a ROW in the child table, not an array entry.
     const methods = await storedAuthMethods(created.id);
-    expect(methods).toHaveLength(1);
-    expect(methods[0].type).toBe('webauthn');
-    expect(methods[0].methodCredentialId).toBe(currentCredentialId);
-    expect(methods[0].methodName).toBe('My Laptop');
-    expect(methods[0].methodPublicKey).toBeNull();
+    expect(methods.map((m) => m.type).sort()).toEqual(['identity', 'webauthn']);
+    const passkeyMethod = methods.find((m) => m.type === 'webauthn');
+    expect(passkeyMethod?.methodCredentialId).toBe(currentCredentialId);
+    expect(passkeyMethod?.methodName).toBe('My Laptop');
+    expect(passkeyMethod?.methodPublicKey).toBeNull();
 
     // The challenge is spent.
     expect((await storedChallenge(currentChallenge)).used).toBe(true);
@@ -460,7 +512,7 @@ describe('POST /webauthn/register/verify — signup branch', () => {
   it('defaults the credential name when the client sends none', async () => {
     const username = freshUsername();
     await request(server, 'POST', '/webauthn/register/options', { username });
-    await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+    await request(server, 'POST', '/webauthn/register/verify', await signupBody(username));
 
     expect((await storedCredential(currentCredentialId)).name).toBe('Passkey');
   });
@@ -470,11 +522,7 @@ describe('POST /webauthn/register/verify — signup branch', () => {
     const username = freshUsername();
     await request(server, 'POST', '/webauthn/register/options', { username });
 
-    const res = await request(server, 'POST', '/webauthn/register/verify', {
-      username,
-      deviceName: 'Titan Key',
-      response: registrationResponse(),
-    });
+    const res = await request(server, 'POST', '/webauthn/register/verify', await signupBody(username, { deviceName: 'Titan Key' }));
 
     expect(res.status).toBe(200);
     // Presence-only assertion → recorded as an unverified (possession-only) credential.
@@ -498,10 +546,7 @@ describe('POST /webauthn/register/verify — signup branch', () => {
 
     const username = freshUsername();
     await request(server, 'POST', '/webauthn/register/options', { username });
-    const res = await request(server, 'POST', '/webauthn/register/verify', {
-      username,
-      response: registrationResponse(),
-    });
+    const res = await request(server, 'POST', '/webauthn/register/verify', await signupBody(username));
 
     expect(res.status).toBe(409);
     // The row itself is gone — not "a compensating delete was called".
@@ -514,16 +559,13 @@ describe('POST /webauthn/register/verify — signup branch', () => {
   it('rejects a burned challenge with 401 — a replay creates no second account', async () => {
     const username = freshUsername();
     await request(server, 'POST', '/webauthn/register/options', { username });
-    const first = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+    const first = await request(server, 'POST', '/webauthn/register/verify', await signupBody(username));
     expect(first.status).toBe(200);
 
     // Replay the SAME (now burned) challenge with a different username.
     const replayUsername = freshUsername();
     currentCredentialId = freshCredentialId();
-    const replay = await request(server, 'POST', '/webauthn/register/verify', {
-      username: replayUsername,
-      response: registrationResponse(),
-    });
+    const replay = await request(server, 'POST', '/webauthn/register/verify', await signupBody(replayUsername));
 
     expect(replay.status).toBe(401);
     expect(await storedUserByUsername(replayUsername)).toBeUndefined();
@@ -540,7 +582,7 @@ describe('POST /webauthn/register/verify — signup branch', () => {
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(webauthnChallenges.challenge, currentChallenge));
 
-    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+    const res = await request(server, 'POST', '/webauthn/register/verify', await signupBody(username));
 
     expect(res.status).toBe(401);
     expect(await storedUserByUsername(username)).toBeUndefined();
@@ -551,7 +593,7 @@ describe('POST /webauthn/register/verify — signup branch', () => {
   it('rejects an unknown challenge with 401 (no account created)', async () => {
     const username = freshUsername();
     // No options call at all — nothing was ever stored for this challenge.
-    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+    const res = await request(server, 'POST', '/webauthn/register/verify', await signupBody(username));
 
     expect(res.status).toBe(401);
     expect(await storedUserByUsername(username)).toBeUndefined();
@@ -562,7 +604,7 @@ describe('POST /webauthn/register/verify — signup branch', () => {
     const username = freshUsername();
     await request(server, 'POST', '/webauthn/register/options', { username });
 
-    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+    const res = await request(server, 'POST', '/webauthn/register/verify', await signupBody(username));
 
     expect(res.status).toBe(400);
     expect(await storedUserByUsername(username)).toBeUndefined();
@@ -578,7 +620,7 @@ describe('POST /webauthn/register/verify — signup branch', () => {
     // …then try to spend it on the unauthenticated signup lane.
     mockBearerUserId = null;
     const username = freshUsername();
-    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+    const res = await request(server, 'POST', '/webauthn/register/verify', await signupBody(username));
 
     expect(res.status).toBe(401);
     expect(await storedUserByUsername(username)).toBeUndefined();
@@ -701,46 +743,6 @@ describe('POST /webauthn/register/verify — linking branch', () => {
 });
 
 describe('POST /webauthn/register/verify — sign-up WITH its root (ADR 0024 D4)', () => {
-  /** A real registration challenge shape: 32 random bytes, base64url. */
-  function realChallenge(): string {
-    return randomBytes(32).toString('base64url');
-  }
-
-  async function enrollment(
-    identity: OpenedWebIdentity,
-    username: string,
-    overrides: { credentialId?: string; challenge?: string; rpId?: string; subject?: string; extraWrap?: boolean } = {},
-  ) {
-    const credentialId = overrides.credentialId ?? currentCredentialId;
-    const { envelope: sealed, dataKey } = sealWebIdentity(
-      identity,
-      { prfOutput: new Uint8Array(32).fill(4), credentialId, ...(overrides.rpId ? { rpId: overrides.rpId } : {}) },
-      new Date(),
-      { version: 2 },
-    );
-    let envelope = sealed;
-    if (overrides.extraWrap) {
-      const { addWrap } = await import('@oxy.so/core');
-      envelope = addWrap(envelope, dataKey, { prfOutput: new Uint8Array(32).fill(5), credentialId: 'credential-extra-aaaaaaaa' });
-    }
-    dataKey.fill(0);
-    const proof = await signIdentityProof(identity, {
-      action: 'enroll_identity',
-      subject: overrides.subject ?? `username:${username}`,
-      actor: `credential:${credentialId}`,
-      rootPublicKey: identity.publicKey,
-      payloadDigest: digestIdentityPayload({ envelope }),
-      expectedRevision: null,
-      audience: IDENTITY_PROOF_AUDIENCE,
-      challenge: Buffer.from(overrides.challenge ?? currentChallenge, 'base64url').toString('hex'),
-      expiresAt: Date.now() + 4 * 60 * 1000,
-    });
-    return { envelope, proof };
-  }
-
-  beforeEach(() => {
-    currentChallenge = realChallenge();
-  });
 
   it('creates the account, passkey, root, both auth methods and the envelope together', async () => {
     const username = freshUsername();

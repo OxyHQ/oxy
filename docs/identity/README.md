@@ -6,7 +6,7 @@
 > engine is in `@oxy.so/api`; the crypto + SDK surface is in `@oxy.so/core`; wire
 > types are in `@oxy.so/contracts`.
 >
-> Related: [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
+> Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
 > [External identities and aliases](external-identities.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
 
 ---

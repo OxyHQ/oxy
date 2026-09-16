@@ -68,8 +68,11 @@ describe('webIdentityEnvelopeSchema', () => {
 });
 
 describe('request and response shapes', () => {
-    it('a PUT carries the envelope and an identity-key proof', () => {
-        expect(safeParseContract(webIdentityEnvelopePutSchema, { envelope, signature: 'ab', timestamp: 1 })).not.toBeNull();
+    it('a PUT carries the envelope, a version-2 root proof and the revision it replaces — and nothing weaker', () => {
+        const proof = { v: 2, challenge: 'a'.repeat(64), expiresAt: 1, signature: 'ab' };
+        expect(safeParseContract(webIdentityEnvelopePutSchema, { envelope, proof, expectedRevision: 0 })).not.toBeNull();
+        expect(safeParseContract(webIdentityEnvelopePutSchema, { envelope, proof })).toBeNull();
+        expect(safeParseContract(webIdentityEnvelopePutSchema, { envelope, signature: 'ab', timestamp: 1 })).toBeNull();
         expect(safeParseContract(webIdentityEnvelopePutSchema, { envelope })).toBeNull();
     });
 
