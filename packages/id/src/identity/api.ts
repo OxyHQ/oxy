@@ -14,6 +14,9 @@ import {
   type User,
 } from '@oxy.so/core';
 import type {
+  IdentityMoveCreateResponse,
+  IdentityMoveSealRequest,
+  IdentityMoveState,
   LoginResult,
   WebIdentityEnvelope,
   WebIdentityEnvelopeProof,
@@ -42,6 +45,10 @@ export interface IdentityApi {
   establishIdentity(envelope: WebIdentityEnvelope, link: WebIdentityEnvelopeProof, put: WebIdentityEnvelopeProof): Promise<WebIdentityEnvelopeResponse>;
   confirmPhrase(proof: WebIdentityEnvelopeProof): Promise<WebIdentityEnvelopeResponse>;
   deleteEnvelope(proof: WebIdentityEnvelopeProof): Promise<void>;
+  createMove(initiatorEphemeralPublicKey: string): Promise<IdentityMoveCreateResponse>;
+  getMove(moveId: string): Promise<IdentityMoveState>;
+  sealMove(moveId: string, body: IdentityMoveSealRequest): Promise<IdentityMoveState>;
+  cancelMove(moveId: string): Promise<void>;
   approvalInfo(code: string): Promise<{ info: CommonsApprovalInfo; blockingReason: string | null }>;
   authorizeCode(code: string): Promise<void>;
   denyCode(code: string): Promise<void>;
@@ -94,6 +101,18 @@ export function createIdentityApi(baseURL: string): IdentityApi {
     },
     async deleteEnvelope(proof) {
       await oxy.makeRequest('DELETE', '/identity/web-envelope', proof, { cache: false });
+    },
+    createMove(initiatorEphemeralPublicKey) {
+      return oxy.makeRequest<IdentityMoveCreateResponse>('POST', '/identity/move', { initiatorEphemeralPublicKey }, { cache: false });
+    },
+    getMove(moveId) {
+      return oxy.makeRequest<IdentityMoveState>('GET', `/identity/move/${encodeURIComponent(moveId)}`, undefined, { cache: false });
+    },
+    sealMove(moveId, body) {
+      return oxy.makeRequest<IdentityMoveState>('POST', `/identity/move/${encodeURIComponent(moveId)}/seal`, body, { cache: false });
+    },
+    async cancelMove(moveId) {
+      await oxy.makeRequest('DELETE', `/identity/move/${encodeURIComponent(moveId)}`, undefined, { cache: false });
     },
     async approvalInfo(code) {
       const info = await oxy.getCommonsApprovalInfo(code);

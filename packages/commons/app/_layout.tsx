@@ -204,7 +204,7 @@ function RootLayoutInner() {
             packages/services/src/ui/components/OxyProvider.tsx). The consumer
             (this app) owns the BloomProvider and feeds it the resolved
             theme mode from ThemeModeProvider. */}
-        <BloomThemeProvider mode={themeMode}>
+        <BloomProvider mode={themeMode}>
           {/* `sessionMode="identity"` — Commons IS the identity, so its session
               is PINNED to the owner of this device's PRIMARY identity key for as
               long as that key exists, not to whichever account the shared

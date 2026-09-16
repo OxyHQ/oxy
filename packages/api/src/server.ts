@@ -82,6 +82,7 @@ import identityRoutes from './routes/identity';
 import chainsRoutes from './routes/chains';
 import identityBackupRoutes from './routes/identityBackup';
 import identityWebEnvelopeRoutes from './routes/identityWebEnvelope';
+import identityMoveRoutes from './routes/identityMove';
 import deviceTransferRoutes from './routes/deviceTransfer';
 import civicRoutes from './routes/civic';
 import nodeRoutes from './routes/nodes';
@@ -856,6 +857,10 @@ app.use('/identity/backup', identityBackupRoutes);
 // ambient cookie credentials, so no csrfProtection (bearer-write CSRF rule).
 // Mounted BEFORE `/identity` so its specific prefix wins.
 app.use('/identity/web-envelope', identityWebEnvelopeRoutes);
+// Moving a web identity into Commons: E2E relay (two ephemeral keys + opaque
+// ciphertext), bearer + identity-key proof on the web's writes, identity-key
+// receipt from Commons. No ambient cookies, so no csrfProtection. Before `/identity`.
+app.use('/identity/move', identityMoveRoutes);
 // Device-to-device identity transfer ("add a device"). Mounted BEFORE `/identity`
 // so its specific prefix wins over the identity router. Public init/info/deny +
 // bearer+signature approve; the relay is E2E-encrypted (no CSRF — no ambient

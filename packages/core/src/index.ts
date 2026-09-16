@@ -358,6 +358,19 @@ export {
     wrapDataKey,
 } from './crypto/webIdentityCarrier';
 export type { OpenedWebIdentity, WebIdentityUnlockFailure } from './crypto/webIdentityCarrier';
+export {
+    IDENTITY_MOVE_ACTIONS,
+    buildMoveMessage,
+    buildMoveQrPayload,
+    deriveMoveKey,
+    deriveMoveSas,
+    generateMoveEphemeralKeyPair,
+    openMovedIdentity,
+    parseMoveQrPayload,
+    sealIdentityForMove,
+    signMoveAction,
+    verifyMoveReceipt,
+} from './crypto/identityMove';
 
 // ---------------------------------------------------------------------------
 // Devices
