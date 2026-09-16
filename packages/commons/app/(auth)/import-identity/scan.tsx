@@ -10,7 +10,7 @@ import { Button } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 
 /**
- * Scan the code `id.oxy.so/move` shows, to move a web identity onto this phone.
+ * Scan the code the Oxy identity page shows, to add a web identity to this phone.
  *
  * Lives in the `(auth)` flow, not `(scan)`: the person has no identity on this
  * device yet, and `(scan)` is only reachable once signed in. Only a move QR is

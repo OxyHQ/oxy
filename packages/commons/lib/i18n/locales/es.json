@@ -1031,12 +1031,12 @@
     "cancel": "Cancelar"
   },
   "identityMove": {
-    "entry": "Traer desde la web de Oxy",
+    "entry": "Añadir desde la web de Oxy",
     "scanTitle": "Escanea el código de la web",
-    "scanInstructions": "En tu ordenador, abre id.oxy.so/move y apunta la cámara al código.",
+    "scanInstructions": "En tu ordenador, abre tu identidad de Oxy, elige «Añadir mi identidad a la app Commons» y apunta la cámara al código.",
     "permissionBody": "Permite el acceso a la cámara para escanear el código que aparece en la web de Oxy.",
     "grantPermission": "Permitir cámara",
-    "invalidCode": "Ese no es un código de identidad de Oxy. Abre id.oxy.so/move y escanea el código que aparece allí.",
+    "invalidCode": "Ese no es un código de identidad de Oxy. En tu ordenador, elige «Añadir mi identidad a la app Commons» y escanea el código que aparece allí.",
     "scanAgain": "Escanear de nuevo",
     "joining": "Conectando…",
     "compareTitle": "Comprueba el código",
