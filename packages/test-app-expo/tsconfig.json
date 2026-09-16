@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
     "strict": true,
     "jsx": "react-jsx",
     "esModuleInterop": true,
@@ -36,5 +35,9 @@
     "../services/src/**/*.tsx",
     "nativewind-env.d.ts"
   ],
-  "extends": "expo/tsconfig.base"
+  "extends": "expo/tsconfig.base",
+  "exclude": [
+    "node_modules",
+    "../services/src/**/__tests__/**"
+  ]
 }

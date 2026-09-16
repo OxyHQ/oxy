@@ -336,6 +336,29 @@ export {
 export type { AeadResult } from './crypto/aead';
 export { deriveSharedSecret } from './crypto/ecdh';
 
+// Web identity carrier — the same identity as Commons, sealed under a passkey's
+// PRF output (docs/superpowers/specs/2026-09-15-one-identity-two-carriers-design.md)
+export {
+    WEB_IDENTITY_PRF_INPUT,
+    WebIdentityUnlockError,
+    addWrap,
+    buildIdentityActionMessage,
+    deriveIdentityFromMnemonic,
+    deriveKeyEncryptionKey,
+    deriveTransferSas,
+    generateDataKey,
+    generateWebIdentity,
+    openWebIdentity,
+    removeWrap,
+    sealWebIdentity,
+    signIdentityAction,
+    unlockWebIdentity,
+    unwrapDataKey,
+    wipeBytes,
+    wrapDataKey,
+} from './crypto/webIdentityCarrier';
+export type { OpenedWebIdentity, WebIdentityUnlockFailure } from './crypto/webIdentityCarrier';
+
 // ---------------------------------------------------------------------------
 // Devices
 // ---------------------------------------------------------------------------

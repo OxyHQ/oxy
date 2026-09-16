@@ -3,6 +3,7 @@ import * as Linking from 'expo-linking';
 import { Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { OxyProvider } from '@oxy.so/services';
@@ -29,14 +30,17 @@ export default function RootLayout() {
     // BloomProvider owns the theme. OxyProvider does NOT mount its own
     // (by design, to avoid duplicate contexts), so this wraps the tree —
     // services UI like OxySignInButton calls bloom's useTheme().
-    <SafeAreaProvider>
-      <BloomThemeProvider mode="system">
-        <ConnectionStatusToasts />
-        <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} authRedirectUri={AUTH_REDIRECT_URI}>
-          <RootNavigator />
-        </OxyProvider>
-      </BloomProvider>
-    </SafeAreaProvider>
+    // Gesture root: Bloom's tab bar scrubs between tabs with a pan gesture.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <BloomThemeProvider mode="system">
+          <ConnectionStatusToasts />
+          <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} authRedirectUri={AUTH_REDIRECT_URI}>
+            <RootNavigator />
+          </OxyProvider>
+        </BloomThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
