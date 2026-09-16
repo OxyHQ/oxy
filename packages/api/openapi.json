@@ -17920,7 +17920,7 @@
     "/identity/proof-challenge": {
       "post": {
         "tags": [
-          "Misc"
+          "Identity"
         ],
         "summary": "POST /identity/proof-challenge",
         "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityProof.ts` to fill in summary, description, request/response examples.",
@@ -18757,6 +18757,47 @@
           }
         },
         "operationId": "postIdentityRecoveryStart"
+      }
+    },
+    "/identity/root-status": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "GET /identity/root-status",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityProof.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityProof.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getIdentityRootStatus"
       }
     },
     "/identity/web-envelope": {

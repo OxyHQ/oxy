@@ -858,9 +858,10 @@ app.use('/identity/backup', identityBackupRoutes);
 // identity-key proof on every write and restricted to the identity origin; no
 // ambient cookie credentials, so no csrfProtection (bearer-write CSRF rule).
 // Mounted BEFORE `/identity` so its specific prefix wins.
-// One-use challenges for root proofs (ADR 0024 D7). Bearer only; a challenge
-// authorizes nothing until a root signs it. Before `/identity`.
-app.use('/identity/proof-challenge', identityProofRoutes);
+// One-use challenges for root proofs (ADR 0024 D7) and root readiness metadata.
+// Bearer only; a challenge authorizes nothing until a root signs it, and the
+// status carries no ciphertext. Two exact paths, before `/identity`.
+app.use('/identity', identityProofRoutes);
 // Signed-out recovery from a root proof alone (ADR 0024 D5). Holder origin only,
 // no bearer and no cookies, so no csrfProtection. Before `/identity`.
 app.use('/identity/recovery', identityRecoveryRoutes);

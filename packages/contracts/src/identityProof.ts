@@ -192,3 +192,27 @@ export const IDENTITY_ERROR_CODES = {
     recoveryFailed: 'IDENTITY_RECOVERY_FAILED',
 } as const;
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[keyof typeof IDENTITY_ERROR_CODES];
+
+/**
+ * `GET /identity/root-status` — non-sensitive readiness metadata any first-party
+ * surface (Accounts, the account menu) may read with a bearer to show a reminder,
+ * without the ciphertext and without opening anything (ADR 0024 D5).
+ */
+export interface IdentityRootStatus {
+    /** Whether the account has a root at all. */
+    rootLinked: boolean;
+    /** Passkeys whose wraps can open the web holder, and how many have proven it. `null`: no web holder. */
+    webHolder: { passkeys: number; verifiedPasskeys: number } | null;
+    /** Whether the root has recovery words (a raw-key root does not). `null` when unknown (no web holder). */
+    hasPhrase: boolean | null;
+    phraseConfirmedAt: string | null;
+    recoveryVerifiedAt: string | null;
+}
+
+export const identityRootStatusSchema: z.ZodType<IdentityRootStatus> = z.object({
+    rootLinked: z.boolean(),
+    webHolder: z.object({ passkeys: z.number().int().nonnegative(), verifiedPasskeys: z.number().int().nonnegative() }).nullable(),
+    hasPhrase: z.boolean().nullable(),
+    phraseConfirmedAt: z.string().datetime().nullable(),
+    recoveryVerifiedAt: z.string().datetime().nullable(),
+});

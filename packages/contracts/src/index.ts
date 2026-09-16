@@ -613,6 +613,7 @@ export {
     identityProofSchema,
     identityProofChallengeRequestSchema,
     identityProofChallengeResponseSchema,
+    identityRootStatusSchema,
 } from './identityProof';
 export {
     // Signed-out recovery (ADR 0024 D5)
@@ -634,6 +635,7 @@ export type {
     IdentityProof,
     IdentityProofChallengeRequest,
     IdentityProofChallengeResponse,
+    IdentityRootStatus,
 } from './identityProof';
 
 export {
