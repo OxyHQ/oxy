@@ -1,3 +1,4 @@
+import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import slowDown from "express-slow-down";
 import { type Request, Response, NextFunction } from "express";
@@ -130,6 +131,72 @@ function servicePrincipal(req: Request): { appId: string } | undefined {
   return verification.ok ? { appId: verification.payload.appId } : undefined;
 }
 
+/** Cache slot for {@link userPrincipal}; see {@link SERVICE_PRINCIPAL}. */
+const USER_PRINCIPAL = Symbol('oxy.rateLimit.userPrincipal');
+
+interface RequestWithUserPrincipal extends Request {
+  [USER_PRINCIPAL]?: { userId?: string };
+}
+
+/**
+ * The SESSION SUBJECT behind this request, from a locally verified access
+ * token, or `undefined` for an anonymous caller, a service token, or a token
+ * that does not verify.
+ *
+ * WHY THE LIMITER RESOLVES THIS ITSELF — the per-IP budget has no per-account
+ * attribution, and a relying app's backend reads on its users' behalf from ONE
+ * NAT egress IP. So thousands of signed-in readers share one 1000/15min bucket,
+ * and the app's normal traffic 429s itself: measured on Mention, whose feed
+ * privacy reads (which fail closed) turned those 429s into 500s for readers.
+ * Keying an authenticated request by its SUBJECT is what makes the budget mean
+ * "this account's traffic" wherever it enters from.
+ *
+ * Signature + expiry only, and NO session lookup: this decides whose budget to
+ * charge, never what the caller may do. `authMiddleware` still validates the
+ * session for authorisation, and a forged token verifies as nothing here, so it
+ * falls back to the per-IP key rather than minting itself a fresh bucket.
+ * `sessionId` is required because that is what a real Oxy access token carries
+ * (`authMiddleware` rejects a token without it), so a decorative JWT cannot buy
+ * its own bucket either.
+ */
+function userPrincipal(req: Request): string | undefined {
+  const cached = (req as RequestWithUserPrincipal)[USER_PRINCIPAL];
+  if (cached) return cached.userId;
+
+  const resolve = (): string | undefined => {
+    const secret = process.env.ACCESS_TOKEN_SECRET;
+    const authHeader = req.headers.authorization;
+    if (!secret || !authHeader?.startsWith('Bearer ')) return undefined;
+    try {
+      const decoded = jwt.verify(authHeader.slice('Bearer '.length), secret);
+      if (typeof decoded !== 'object' || decoded === null) return undefined;
+      const claims = decoded as { sessionId?: unknown; userId?: unknown; id?: unknown; _id?: unknown };
+      if (typeof claims.sessionId !== 'string' || claims.sessionId.length === 0) return undefined;
+      for (const candidate of [claims.userId, claims.id, claims._id]) {
+        if (typeof candidate === 'string' && candidate.length > 0) return candidate;
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const userId = resolve();
+  (req as RequestWithUserPrincipal)[USER_PRINCIPAL] = { userId };
+  return userId;
+}
+
+/**
+ * Charge an authenticated request to its SUBJECT and everything else to its IP.
+ *
+ * The `usr:` prefix keeps the two key spaces apart — {@link hashedIpKey} answers
+ * 24 hex characters, so no account id can ever collide with an IP bucket.
+ */
+function subjectOrIpKey(req: Request): string {
+  const userId = userPrincipal(req);
+  return userId ? `usr:${userId}` : hashedIpKey(req);
+}
+
 /**
  * A first-party SERVICE credential is infrastructure, not a browser.
  *
@@ -194,10 +261,13 @@ const rateLimiter = rateLimit({
   ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 1000 : 2000,
-  message: "Too many requests from this IP, please try again later.",
+  message: "Too many requests, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: hashedIpKey,
+  // Per SUBJECT for an authenticated caller, per IP for everyone else — see
+  // `userPrincipal`. A shared backend egress IP would otherwise pool every
+  // signed-in reader of a relying app into ONE bucket.
+  keyGenerator: subjectOrIpKey,
   skip: (req: Request) =>
     req.path.startsWith('/files/upload') ||
     isIdpServiceToServicePath(req.path) ||
@@ -271,12 +341,28 @@ const authRateLimiter = rateLimit({
   skip: (req: Request) => req.path.startsWith('/files/upload'),
 });
 
-// Per-user rate limiting for authenticated requests
+/**
+ * Per-user rate limiting for authenticated requests.
+ *
+ * The ceiling was 200/15min — about 13 requests a minute — which describes a
+ * human clicking a browser and nothing else. A RELYING APP's backend also reads
+ * Oxy on the signed-in user's behalf (Mention's feed alone resolves the viewer's
+ * blocked, restricted, following and follower lists per request), and those
+ * reads are charged to the same account, so one reader scrolling spent the
+ * budget in under a minute and the app 429'd itself. Mention's privacy reads
+ * fail CLOSED, so what the reader actually saw was a 500 on every feed request.
+ *
+ * 2000/15min (≈2.2 req/s sustained) is above what a reader plus the app reading
+ * for them generates, and still bounds one account: a compromised session or a
+ * runaway client is throttled long before it is a load problem, and it is
+ * throttled ALONE — this budget is per account, so it cannot become anyone
+ * else's outage.
+ */
 const userRateLimiter = rateLimit({
   ...makeStore('rl:user:'),
   ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
-  max: isProd ? 200 : 2000,
+  max: isProd ? 2000 : 4000,
   message: "Too many requests, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
@@ -297,7 +383,11 @@ const bruteForceProtection = slowDown({
   windowMs: 15 * 60 * 1000,
   delayAfter: isProd ? 100 : 1000,
   delayMs: () => isProd ? 500 : 100,
-  keyGenerator: hashedIpKey,
+  // Same key as the general limiter: an authenticated request is charged to its
+  // SUBJECT. Keyed purely by IP, a relying app's shared egress crossed
+  // `delayAfter` almost immediately and every signed-in reader behind it paid a
+  // 500ms penalty per request — a latency-shaped version of the same pooling.
+  keyGenerator: subjectOrIpKey,
   skip: (req: Request) =>
     req.path.startsWith('/files/upload') ||
     isIdpServiceToServicePath(req.path) ||
