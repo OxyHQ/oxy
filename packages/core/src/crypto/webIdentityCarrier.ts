@@ -464,15 +464,21 @@ export function removeWrap(envelope: WebIdentityEnvelope, credentialId: string):
 }
 
 /**
- * The message an identity key signs to authorize an account action
- * (`link_identity`, `web_envelope_delete`, …): `JSON.stringify({ action, userId,
- * timestamp })`, byte-identical to what the API reconstructs.
+ * The version-1 message an identity key signed to authorize an account action:
+ * `JSON.stringify({ action, userId, timestamp })`. It binds no payload, revision
+ * or one-use challenge, and the web-envelope routes no longer accept it.
+ *
+ * @deprecated Use `signIdentityProof` (ADR 0024 D7). Removed in the next major.
  */
 export function buildIdentityActionMessage(action: string, userId: string, timestamp: number): string {
   return JSON.stringify({ action, userId, timestamp });
 }
 
-/** Sign an identity-action message with an opened identity's key. */
+/**
+ * Sign a version-1 identity-action message.
+ *
+ * @deprecated Use `signIdentityProof` (ADR 0024 D7). Removed in the next major.
+ */
 export async function signIdentityAction(
   identity: Pick<OpenedWebIdentity, 'privateKey'>,
   action: string,

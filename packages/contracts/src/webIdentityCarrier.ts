@@ -181,8 +181,8 @@ export const webIdentityEnvelopeResponseSchema = z.object({
 
 /**
  * Version-1 proof: a signature over `JSON.stringify({ action, userId, timestamp })`.
- * Not bound to the payload, the revision or a one-use challenge. Accepted only
- * during the ADR 0024 rollout window; new clients send {@link identityProofSchema}.
+ * Not bound to the payload, the revision or a one-use challenge. The API no longer
+ * accepts it on any envelope route (ADR 0024 D10).
  *
  * @deprecated Use the v2 `proof` field.
  */
@@ -201,16 +201,10 @@ export const webIdentityEnvelopeV2ProofFieldsSchema = z.object({
  * `POST /identity/web-envelope/phrase-confirmed`, `/recovery-verified` and
  * `DELETE /identity/web-envelope` prove control of the root, not just a bearer.
  */
-export const webIdentityEnvelopeActionSchema = z.union([
-    webIdentityEnvelopeV2ProofFieldsSchema.strict(),
-    webIdentityEnvelopeProofSchema.strict(),
-]);
+export const webIdentityEnvelopeActionSchema = webIdentityEnvelopeV2ProofFieldsSchema.strict();
 
 /** `PUT /identity/web-envelope` body. */
-export const webIdentityEnvelopePutSchema = z.union([
-    webIdentityEnvelopeUploadSchema.extend(webIdentityEnvelopeV2ProofFieldsSchema.shape).strict(),
-    webIdentityEnvelopeUploadSchema.extend(webIdentityEnvelopeProofSchema.shape).strict(),
-]);
+export const webIdentityEnvelopePutSchema = webIdentityEnvelopeUploadSchema.extend(webIdentityEnvelopeV2ProofFieldsSchema.shape).strict();
 
 /**
  * A WebAuthn assertion by one of the account's EXISTING passkeys whose
@@ -237,21 +231,13 @@ export const webauthnAssertionResponseSchema = z
 
 /**
  * `POST /identity/web-envelope/establish` body — an account's FIRST root, linked
- * and stored with its envelope in ONE transaction.
- *
- * v2: one root proof (`web_envelope_establish`, digest of the envelope) plus a
- * fresh `assertion` by an existing passkey over the same challenge.
- * v1 (rollout window only): two v1 proofs, `link_identity` and `web_envelope_put`.
+ * and stored with its envelope in ONE transaction: one root proof
+ * (`web_envelope_establish`, digest of the envelope) plus a fresh `assertion` by
+ * an existing passkey over the same challenge.
  */
-export const webIdentityEnvelopeEstablishSchema = z.union([
-    webIdentityEnvelopeUploadSchema
-        .extend({ proof: identityProofSchema, assertion: webauthnAssertionResponseSchema })
-        .strict(),
-    webIdentityEnvelopeUploadSchema
-        .extend(webIdentityEnvelopeProofSchema.shape)
-        .extend({ link: webIdentityEnvelopeProofSchema })
-        .strict(),
-]);
+export const webIdentityEnvelopeEstablishSchema = webIdentityEnvelopeUploadSchema
+    .extend({ proof: identityProofSchema, assertion: webauthnAssertionResponseSchema })
+    .strict();
 
 export type WebIdentityWrap = z.infer<typeof webIdentityWrapSchema>;
 export type WebIdentityEnvelope = z.infer<typeof webIdentityEnvelopeSchema>;
