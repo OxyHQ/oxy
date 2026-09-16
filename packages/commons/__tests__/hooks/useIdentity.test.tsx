@@ -41,7 +41,7 @@ jest.mock('@oxy.so/core', () => {
       restoreIdentityFromBackup: jest.fn(async () => false),
       verifyIdentityIntegrity: jest.fn(async () => true),
       backupIdentity: jest.fn(async () => true),
-      migrateToSharedIdentity: jest.fn(async () => true),
+      syncSharedIdentity: jest.fn(async () => true),
       subscribeIdentityChanged: jest.fn(() => () => undefined),
     },
     readIdentityMarker: () => readIdentityMarkerMock(),
