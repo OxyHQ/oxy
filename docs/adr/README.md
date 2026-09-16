@@ -34,6 +34,7 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 | [0020](0020-mcp-connections-hold-several-accounts.md) | — | An external MCP connection covers several accounts: Oxy groups grants under the connection, each account approves its own membership through a single-use link on the IdP, and introspection reports the set plus the selected member. Changes 0018. |
 | [0021](0021-service-read-of-owner-linked-files.md) | — | A relying service reaches file BYTES only where the file's own owner linked it to that application (`file_links.created_by = files.owner_user_id`), through `POST /assets/service/linked-url` and the new, non-implied `files:linked:read` scope; a refused id is omitted rather than distinguished, and Oxy holds none of the entitlement that motivated the call. |
 | [0022](0022-app-i18n-follows-oxy-language.md) | — | Oxy resolves *which* language via `OxyProvider`'s new `language` prop; every app keeps its own translation library and catalog (react-i18next for a full product app, the SDK's own dependency-free `translate()` for its embedded screens) and is told the resolved locale, never re-deriving it. |
+| [0023](0023-development-credentials.md) | — | Developing against Oxy from a device that is not the dev machine is served by a DEVELOPMENT CREDENTIAL that carries its own exactly-matched origins, never reaches the credentialed CORS lane, never skips consent and expires — instead of loosening `isAllowedOrigin`/`isAllowedRedirectUri` or registering dev origins on a production application. |
 
 ## Related
 
