@@ -107,7 +107,7 @@ const loginOptionsLimiter = rateLimit({ prefix: 'rl:webauthn:login-options:', wi
 const loginVerifyLimiter = rateLimit({ prefix: 'rl:webauthn:login-verify:', windowMs: 60_000, max: 10 });
 
 /** The device-session options every first-party sign-in body carries. */
-interface DeviceEnvelope {
+export interface DeviceEnvelope {
   deviceName?: string;
   deviceFingerprint?: string;
 }
@@ -119,7 +119,7 @@ interface DeviceEnvelope {
  * keeps the protected columns (`phone`, the contact hashes, `refresh_token`)
  * out of the query entirely.
  */
-interface WebauthnAccount {
+export interface WebauthnAccount {
   id: string;
   username: string | null;
   avatar: string | null;
@@ -414,7 +414,7 @@ function decoyAllowCredentials(
  * and best-effort log the sign-in. Produces the SAME `AuthSuccess` shape as
  * `POST /auth/verify`.
  */
-async function mintWebauthnSession(
+export async function mintWebauthnSession(
   req: Request,
   res: Response,
   account: WebauthnAccount,
@@ -478,7 +478,7 @@ function enrollmentInvalid(message: string): ApiError {
  * proof must name this username, this credential, the digest of this envelope
  * and — as its challenge — this ceremony's registration challenge.
  */
-function checkIdentityEnrollment(
+export function checkIdentityEnrollment(
   envelope: WebIdentityEnvelope,
   context: { username: string; credentialId: string; rpId: string; registrationChallenge: string; proof: { v: 2; challenge: string; expiresAt: number; signature: string } },
 ): string {

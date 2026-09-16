@@ -614,6 +614,19 @@ export {
     identityProofChallengeRequestSchema,
     identityProofChallengeResponseSchema,
 } from './identityProof';
+export {
+    // Signed-out recovery (ADR 0024 D5)
+    IDENTITY_RECOVERY_TTL_MS,
+    identityRecoveryChallengeResponseSchema,
+    identityRecoveryStartRequestSchema,
+    identityRecoveryCompleteRequestSchema,
+} from './identityRecovery';
+export type {
+    IdentityRecoveryChallengeResponse,
+    IdentityRecoveryStartRequest,
+    IdentityRecoveryStartResponse,
+    IdentityRecoveryCompleteRequest,
+} from './identityRecovery';
 export type {
     IdentityProofAction,
     IdentityErrorCode,

@@ -18334,6 +18334,431 @@
         "operationId": "getIdentityRecordsUserIdTypeVerify"
       }
     },
+    "/identity/recovery/challenge": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /identity/recovery/challenge",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityRecovery.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityRecovery.ts`, naming a Zod schema the file imports."
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "postIdentityRecoveryChallenge"
+      }
+    },
+    "/identity/recovery/complete": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "and a session, in one transaction.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityRecovery.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityRecovery.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ticket": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "response": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "envelope": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "version": {
+                            "type": "number",
+                            "enum": [
+                              1
+                            ]
+                          },
+                          "algorithm": {
+                            "type": "string",
+                            "enum": [
+                              "xchacha20poly1305"
+                            ]
+                          },
+                          "publicKey": {
+                            "type": "string",
+                            "pattern": "^04[0-9a-f]{128}$"
+                          },
+                          "entropyNonce": {
+                            "type": "string",
+                            "pattern": "^[0-9a-fA-F]{48}$"
+                          },
+                          "sealedEntropy": {
+                            "type": "string",
+                            "pattern": "^[0-9a-fA-F]{64}$"
+                          },
+                          "wraps": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "credentialId": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9_-]+$",
+                                  "minLength": 16,
+                                  "maxLength": 1024
+                                },
+                                "nonce": {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-fA-F]{48}$"
+                                },
+                                "wrappedKey": {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-fA-F]{96}$"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "rpId": {
+                                  "type": "string",
+                                  "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
+                                  "minLength": 1,
+                                  "maxLength": 253
+                                },
+                                "verifiedAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": [
+                                "credentialId",
+                                "nonce",
+                                "wrappedKey",
+                                "createdAt"
+                              ]
+                            },
+                            "minItems": 1,
+                            "maxItems": 10
+                          }
+                        },
+                        "required": [
+                          "version",
+                          "algorithm",
+                          "publicKey",
+                          "entropyNonce",
+                          "sealedEntropy",
+                          "wraps"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "version": {
+                            "type": "number",
+                            "enum": [
+                              2
+                            ]
+                          },
+                          "algorithm": {
+                            "type": "string",
+                            "enum": [
+                              "xchacha20poly1305"
+                            ]
+                          },
+                          "publicKey": {
+                            "type": "string",
+                            "pattern": "^04[0-9a-f]{128}$"
+                          },
+                          "secretKind": {
+                            "type": "string",
+                            "enum": [
+                              "mnemonic-entropy",
+                              "raw-private-key"
+                            ]
+                          },
+                          "secretNonce": {
+                            "type": "string",
+                            "pattern": "^[0-9a-fA-F]{48}$"
+                          },
+                          "sealedSecret": {
+                            "type": "string",
+                            "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
+                          },
+                          "wraps": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "credentialId": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9_-]+$",
+                                  "minLength": 16,
+                                  "maxLength": 1024
+                                },
+                                "nonce": {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-fA-F]{48}$"
+                                },
+                                "wrappedKey": {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-fA-F]{96}$"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "rpId": {
+                                  "type": "string",
+                                  "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
+                                  "minLength": 1,
+                                  "maxLength": 253
+                                },
+                                "verifiedAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": [
+                                "credentialId",
+                                "nonce",
+                                "wrappedKey",
+                                "createdAt"
+                              ]
+                            },
+                            "minItems": 1,
+                            "maxItems": 10
+                          }
+                        },
+                        "required": [
+                          "version",
+                          "algorithm",
+                          "publicKey",
+                          "secretKind",
+                          "secretNonce",
+                          "sealedSecret",
+                          "wraps"
+                        ]
+                      }
+                    ]
+                  },
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
+                  },
+                  "deviceName": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "deviceFingerprint": {
+                    "type": "string",
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "ticket",
+                  "response",
+                  "envelope",
+                  "proof"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityRecoveryComplete"
+      }
+    },
+    "/identity/recovery/start": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "The signature is checked before anything is read, so a request without the",
+        "description": "root learns nothing, and a failed proof and an unused root answer identically.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityRecovery.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicKey": {
+                    "type": "string",
+                    "pattern": "^04[0-9a-f]{128}$"
+                  },
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
+                  }
+                },
+                "required": [
+                  "publicKey",
+                  "proof"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityRecoveryStart"
+      }
+    },
     "/identity/web-envelope": {
       "get": {
         "tags": [

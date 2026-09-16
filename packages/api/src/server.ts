@@ -84,6 +84,7 @@ import identityBackupRoutes from './routes/identityBackup';
 import identityWebEnvelopeRoutes from './routes/identityWebEnvelope';
 import identityMoveRoutes from './routes/identityMove';
 import identityProofRoutes from './routes/identityProof';
+import identityRecoveryRoutes from './routes/identityRecovery';
 import deviceTransferRoutes from './routes/deviceTransfer';
 import civicRoutes from './routes/civic';
 import nodeRoutes from './routes/nodes';
@@ -860,6 +861,9 @@ app.use('/identity/backup', identityBackupRoutes);
 // One-use challenges for root proofs (ADR 0024 D7). Bearer only; a challenge
 // authorizes nothing until a root signs it. Before `/identity`.
 app.use('/identity/proof-challenge', identityProofRoutes);
+// Signed-out recovery from a root proof alone (ADR 0024 D5). Holder origin only,
+// no bearer and no cookies, so no csrfProtection. Before `/identity`.
+app.use('/identity/recovery', identityRecoveryRoutes);
 app.use('/identity/web-envelope', identityWebEnvelopeRoutes);
 // Moving a web identity into Commons: E2E relay (two ephemeral keys + opaque
 // ciphertext), bearer + identity-key proof on the web's writes, identity-key

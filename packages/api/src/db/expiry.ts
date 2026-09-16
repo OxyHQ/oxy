@@ -77,6 +77,7 @@ import {
 import { devicePairingSessions } from './schema/devicePairingSessions';
 import { identityMoves } from './schema/identityMoves';
 import { identityProofChallenges } from './schema/identityProofChallenges';
+import { identityRecoveryAttempts } from './schema/identityRecoveryAttempts';
 import { domainVerifications } from './schema/domainVerifications';
 import {
   mcpOauthAccessTokens,
@@ -225,6 +226,15 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Housekeeping only — the proof verifier burns `used_at` with an ' +
       '`expires_at > now()` predicate in the same UPDATE, so a challenge is ' +
       'unspendable at its deadline whether or not the sweep has run.',
+  },
+  {
+    table: identityRecoveryAttempts,
+    column: identityRecoveryAttempts.expiresAt,
+    retentionSeconds: 3600,
+    reason:
+      'Storage reclamation ONLY, an hour after the deadline. Every transition ' +
+      'in `routes/identityRecovery.ts` filters `expires_at` in the same UPDATE, ' +
+      'so an expired attempt is unspendable whether or not the sweep has run.',
   },
   {
     table: devicePairingSessions,
