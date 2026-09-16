@@ -205,7 +205,7 @@ export const useIdentity = (): UseIdentityResult => {
           // server-registered primary. Idempotent (guarded by
           // `hasSharedIdentity`), native-only (no-op on web), and swallows its
           // own errors, so it can never regress identity creation.
-          await KeyManager.migrateToSharedIdentity();
+          await KeyManager.syncSharedIdentity();
 
           return {
             recoveryPhrase: words,
@@ -342,7 +342,7 @@ export const useIdentity = (): UseIdentityResult => {
 
           // Populate the cross-app shared identity slot (see createIdentity).
           // Idempotent, native-only, error-swallowing — never regresses import.
-          await KeyManager.migrateToSharedIdentity();
+          await KeyManager.syncSharedIdentity();
 
           return { synced: true };
         } catch (syncError) {
@@ -461,7 +461,7 @@ export const useIdentity = (): UseIdentityResult => {
 
           setSynced(true);
           await persistIdentitySyncState(true);
-          await KeyManager.migrateToSharedIdentity();
+          await KeyManager.syncSharedIdentity();
 
           return { synced: true };
         } catch (syncError) {
