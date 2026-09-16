@@ -17459,15 +17459,38 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "initiatorEphemeralPublicKey": {
-                    "type": "string",
-                    "pattern": "^04[0-9a-f]{128}$"
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "protocolVersion": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "initiatorCommitment": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    },
+                    "required": [
+                      "protocolVersion",
+                      "initiatorCommitment"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "initiatorEphemeralPublicKey": {
+                        "type": "string",
+                        "pattern": "^04[0-9a-f]{128}$"
+                      }
+                    },
+                    "required": [
+                      "initiatorEphemeralPublicKey"
+                    ]
                   }
-                },
-                "required": [
-                  "initiatorEphemeralPublicKey"
                 ]
               }
             }
@@ -17779,27 +17802,155 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "signature": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 512
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "signature"
+                    ]
                   },
-                  "timestamp": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0
+                  {
+                    "type": "object",
+                    "properties": {
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "timestamp": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "required": [
+                      "signature",
+                      "timestamp"
+                    ]
                   }
-                },
-                "required": [
-                  "signature",
-                  "timestamp"
                 ]
               }
             }
           }
         },
         "operationId": "postIdentityMoveMoveIdReceipt"
+      }
+    },
+    "/identity/move/{moveId}/reveal": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "key, which must open the commitment published at creation, and only once a",
+        "description": "responder has joined.",
+        "parameters": [
+          {
+            "name": "moveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityMove.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "initiatorEphemeralPublicKey": {
+                    "type": "string",
+                    "pattern": "^04[0-9a-f]{128}$"
+                  },
+                  "commitmentNonce": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "initiatorEphemeralPublicKey",
+                  "commitmentNonce"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityMoveMoveIdReveal"
       }
     },
     "/identity/move/{moveId}/seal": {
@@ -17892,7 +18043,7 @@
                   },
                   "ciphertext": {
                     "type": "string",
-                    "pattern": "^[0-9a-f]{64}$"
+                    "pattern": "^(?:[0-9a-f]{64}|[0-9a-f]{72}|[0-9a-f]{80}|[0-9a-f]{88}|[0-9a-f]{96})$"
                   },
                   "signature": {
                     "type": "string",

@@ -659,6 +659,13 @@
       "when": 1789549666896,
       "tag": "0094_identity_recovery_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1789551490153,
+      "tag": "0095_identity_move_commitment",
+      "breakpoints": true
     }
   ]
 }
