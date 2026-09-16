@@ -31,7 +31,7 @@ import type { Request } from 'express';
 const ACCESS_TOKEN_SECRET = 'test_access_token_secret_minimum_32_characters';
 process.env.ACCESS_TOKEN_SECRET = ACCESS_TOKEN_SECRET;
 
-import { rateLimiter, serviceCredentialLimiter, isFirstPartyServiceRequest } from '../security';
+import { rateLimiter, serviceCredentialLimiter, userRateLimiter, isFirstPartyServiceRequest } from '../security';
 
 function serviceToken(overrides: Record<string, unknown> = {}): string {
   return jwt.sign(
@@ -53,8 +53,13 @@ function serviceToken(overrides: Record<string, unknown> = {}): string {
   );
 }
 
-function userSessionToken(): string {
-  return jwt.sign({ userId: 'u-1', sessionId: 's-1' }, ACCESS_TOKEN_SECRET, { expiresIn: '5m' });
+function userSessionToken(userId = 'u-1'): string {
+  return jwt.sign({ userId, sessionId: `s-${userId}` }, ACCESS_TOKEN_SECRET, { expiresIn: '5m' });
+}
+
+/** A JWT with no `sessionId` — not what a real Oxy access token looks like. */
+function sessionlessToken(): string {
+  return jwt.sign({ userId: 'u-forged' }, ACCESS_TOKEN_SECRET, { expiresIn: '5m' });
 }
 
 function makeReq(path: string, authorization?: string, originalUrl?: string): Request {
@@ -204,5 +209,87 @@ describe('the two global budgets, mounted as server.ts mounts them', () => {
 
     expect(Number(second.headers['ratelimit-remaining']))
       .toBe(Number(first.headers['ratelimit-remaining']) - 1);
+  });
+});
+
+describe('an authenticated request is charged to its subject, not to its IP', () => {
+  let server: http.Server;
+
+  beforeAll(async () => {
+    const app = express();
+    app.use(rateLimiter);
+    app.use(serviceCredentialLimiter);
+    app.all('*', (_req, res) => res.json({ ok: true }));
+    server = await new Promise<http.Server>((resolve) => {
+      const s = app.listen(0, () => resolve(s));
+    });
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  /**
+   * The property the outage turned on: two readers arriving from the SAME IP
+   * (a relying app's backend reading on their behalf) must not share a budget.
+   */
+  it('gives two signed-in users separate budgets from one IP', async () => {
+    const first = await request(server, {
+      method: 'GET',
+      path: '/users/me',
+      authorization: `Bearer ${userSessionToken('u-subject-a')}`,
+    });
+    const second = await request(server, {
+      method: 'GET',
+      path: '/users/me',
+      authorization: `Bearer ${userSessionToken('u-subject-b')}`,
+    });
+
+    expect(second.headers['ratelimit-remaining']).toBe(first.headers['ratelimit-remaining']);
+  });
+
+  it('charges the same user twice to one budget', async () => {
+    const token = `Bearer ${userSessionToken('u-subject-repeat')}`;
+    const first = await request(server, { method: 'GET', path: '/users/me', authorization: token });
+    const second = await request(server, { method: 'GET', path: '/users/me', authorization: token });
+
+    expect(Number(second.headers['ratelimit-remaining']))
+      .toBe(Number(first.headers['ratelimit-remaining']) - 1);
+  });
+
+  it('does not let a token without a session claim mint its own bucket', async () => {
+    // Falls back to the per-IP key, so it shares the anonymous bucket rather
+    // than buying a fresh 1000 by decorating a JWT.
+    const anonymous = await request(server, { method: 'GET', path: '/users/me' });
+    const forged = await request(server, {
+      method: 'GET',
+      path: '/users/me',
+      authorization: `Bearer ${sessionlessToken()}`,
+    });
+
+    expect(Number(forged.headers['ratelimit-remaining']))
+      .toBe(Number(anonymous.headers['ratelimit-remaining']) - 1);
+  });
+
+  it('keeps the per-user ceiling above what a reader plus the app reading for them needs', async () => {
+    const app = express();
+    // `authMiddleware` runs before this limiter in server.ts, so the subject is
+    // already on the request by the time it is keyed.
+    app.use((req, _res, next) => {
+      (req as typeof req & { user: { id: string } }).user = { id: 'u-ceiling' };
+      next();
+    });
+    app.use(userRateLimiter);
+    app.all('*', (_req, res) => res.json({ ok: true }));
+    const local = await new Promise<http.Server>((resolve) => {
+      const s = app.listen(0, () => resolve(s));
+    });
+
+    try {
+      const res = await request(local, { method: 'GET', path: '/privacy/blocked' });
+      expect(res.headers['ratelimit-limit']).toBe('2000');
+    } finally {
+      await new Promise<void>((resolve) => local.close(() => resolve()));
+    }
   });
 });
