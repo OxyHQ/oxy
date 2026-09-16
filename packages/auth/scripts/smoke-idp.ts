@@ -169,7 +169,12 @@ async function checkWebIdentityGone(hostBase: string): Promise<void> {
   record('web-identity removed', true, `no FedCM manifest (status ${out.status}, ${out.contentType || 'no content-type'})`);
 }
 
-/** Shared Oxy Pages security headers must include the Cloudflare beacon on both halves. */
+/**
+ * auth.oxy.so is a SENSITIVE origin (ADR 0024 D1): its CSP must NOT allow the
+ * Cloudflare Insights beacon or any analytics host, and must keep `'self'`
+ * scripts and framing denied. A deploy that brings third-party measurement back
+ * to the page where people sign in fails here.
+ */
 async function checkSecurityHeaders(hostBase: string): Promise<void> {
   const out = await probe(`${hostBase}/`, { headers: { Accept: 'text/html' } });
   if (out.error) {
@@ -182,8 +187,9 @@ async function checkSecurityHeaders(hostBase: string): Promise<void> {
     return;
   }
   const missing: string[] = [];
-  if (!csp.includes('static.cloudflareinsights.com')) missing.push('static.cloudflareinsights.com (script-src)');
-  if (!csp.includes('cloudflareinsights.com')) missing.push('cloudflareinsights.com (connect-src)');
+  for (const forbidden of ['cloudflareinsights.com', 'posthog.com']) {
+    if (csp.includes(forbidden)) missing.push(`no ${forbidden} (sensitive origin)`);
+  }
   if (!csp.includes("script-src 'self'")) missing.push("'self' in script-src");
   if (out.headers.get('x-frame-options')?.toUpperCase() !== 'DENY') {
     missing.push('X-Frame-Options: DENY');
@@ -192,7 +198,7 @@ async function checkSecurityHeaders(hostBase: string): Promise<void> {
     record('security headers', false, `missing: ${missing.join('; ')}`);
     return;
   }
-  record('security headers', true, 'CSP baseline + X-Frame-Options present');
+  record('security headers', true, 'strict CSP (no beacon or analytics hosts) + X-Frame-Options present');
 }
 
 async function run(): Promise<void> {
