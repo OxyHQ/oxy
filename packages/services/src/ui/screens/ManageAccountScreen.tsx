@@ -4,6 +4,7 @@ import {
     View,
     StyleSheet,
     ActivityIndicator,
+    Linking,
     Platform,
 } from 'react-native';
 import Ionicons from '../icons/Ionicons';
@@ -13,6 +14,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import {
+    IDENTITY_WEB_ORIGIN,
     getAccountDisplayName,
     getAccountFallbackHandle,
     getNormalizedUserHandle,
@@ -27,6 +29,7 @@ import { presentActionSheet } from '../components/surfaces/ActionSheetSurface';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
+import { isWebBrowser } from '../utils/isWebBrowser';
 import { useCurrentUser } from '../hooks/queries/useAccountQueries';
 import { useUserSubscription } from '../hooks/queries/usePaymentQueries';
 import { useDeviceSessions } from '../hooks/queries/useServicesQueries';
@@ -324,6 +327,15 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
             toast.error(
                 t('accountOverview.items.deleteAccount.error') || 'User not available',
             );
+            return;
+        }
+        // Web: deleting an account is signed with its identity key, which only
+        // the identity origin can unseal — the deletion happens there, never on
+        // this page.
+        if (isWebBrowser()) {
+            await Linking.openURL(`${IDENTITY_WEB_ORIGIN}/`).catch(() => {
+                toast.error(t('accountSwitcher.linkOpenFailed'));
+            });
             return;
         }
         const deleted = await presentDeleteAccount({

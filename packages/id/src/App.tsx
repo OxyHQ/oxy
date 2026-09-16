@@ -2,7 +2,7 @@ import { ContinueScreen } from './screens/ContinueScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { PrfCheckScreen } from './screens/PrfCheckScreen';
 
-/** Three routes; a router library would be more code on the page that unseals identities. */
+/** Four routes; a router library would be more code on the page that unseals identities. */
 export function App() {
   const { pathname, search } = window.location;
   const params = new URLSearchParams(search);
@@ -18,6 +18,8 @@ export function App() {
         <p>Open this page from the app that asked you to sign in.</p>
       </section>
     );
+  } else if (pathname === '/move') {
+    screen = <HomeScreen intent="move" />;
   } else if (pathname === '/prf-check') {
     screen = <PrfCheckScreen />;
   } else {

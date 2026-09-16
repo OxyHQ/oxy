@@ -590,6 +590,31 @@ export {
     webIdentityEnvelopeEstablishSchema,
 } from './webIdentityCarrier';
 
+export {
+    // Schemas — moving a web identity into Commons
+    IDENTITY_MOVE_TTL_MS,
+    IDENTITY_MOVE_STATUSES,
+    IDENTITY_MOVE_QR_PREFIX,
+    identityMoveIdSchema,
+    identityMoveEphemeralKeySchema,
+    identityMoveCreateRequestSchema,
+    identityMoveCreateResponseSchema,
+    identityMoveJoinRequestSchema,
+    identityMoveSealRequestSchema,
+    identityMoveReceiptRequestSchema,
+    identityMoveStateSchema,
+} from './identityMove';
+
+export type {
+    IdentityMoveStatus,
+    IdentityMoveCreateRequest,
+    IdentityMoveCreateResponse,
+    IdentityMoveJoinRequest,
+    IdentityMoveSealRequest,
+    IdentityMoveReceiptRequest,
+    IdentityMoveState,
+} from './identityMove';
+
 export type {
     WebIdentityWrap,
     WebIdentityEnvelope,

@@ -52,19 +52,9 @@
   "signup": {
     "title": "Crea el teu compte",
     "subtitle": "Una identitat per a tot l'ecosistema.",
-    "commonsHeadline": "Crea la teva identitat a Commons",
-    "commonsExplainer": "Commons és la teva identitat d'Oxy amb autocustòdia completa: una app que funciona a tot arreu.",
     "createInCommons": "Crea la teva identitat a Commons",
-    "passkeyAlternative": "No tens Commons? Crea una clau d'accés en aquest dispositiu",
     "createAccount": "Crear compte",
-    "creating": "Creant…",
-    "usernamePlaceholder": "Tria un nom d'usuari",
-    "usernameChecking": "Comprovant…",
-    "usernameAvailable": "Disponible",
-    "usernameTaken": "Aquest nom d'usuari ja està en ús",
     "backToSignInLink": "Ja tens compte? Inicia sessió",
-    "hubExplainer": "Crea la teva Oxy ID en una finestra segura i torna de seguida.",
-    "continueInWindow": "Continua en una finestra nova",
     "welcome": {
       "title": "Benvingut a Oxy!",
       "subtitle": "Crea el teu compte en pocs passos",
@@ -119,7 +109,6 @@
     "qrHeadline": "Inicia sessió amb la teva identitat d'Oxy",
     "signInWithOxy": "Inicia sessió amb Oxy",
     "useIdentityOnDevice": "No tens Commons? Fes servir una clau d'accés en aquest dispositiu",
-    "passkeySigningIn": "Iniciant sessió…",
     "getCommons": "Descarrega Commons",
     "commonsNotInstalled": "No tens Commons? Descarrega l'app per iniciar sessió amb el teu Oxy ID.",
     "showQrAnyway": "Tinc Commons en un altre dispositiu",
@@ -146,7 +135,10 @@
       "claimFailed": "S'ha aprovat l'inici de sessió, però no l'hem pogut completar. Torna-ho a provar.",
       "generic": "No s'ha pogut iniciar la sessió. Torna-ho a provar."
     },
-    "linkOpenFailed": "No s'ha pogut obrir l'enllaç. Torna-ho a provar."
+    "linkOpenFailed": "No s'ha pogut obrir l'enllaç. Torna-ho a provar.",
+    "continueWithPasskey": "Continua",
+    "passkeyHint": "Fes servir l'empremta, la cara o el PIN del dispositiu.",
+    "otherDeviceCommons": "El teu compte és en un altre dispositiu? Escaneja amb Commons"
   },
   "common": {
     "actions": {
@@ -287,6 +279,7 @@
     "help": "Ajuda i comentaris",
     "signOut": "Tancar sessió",
     "privacy": "Política de privacitat",
-    "terms": "Condicions del servei"
+    "terms": "Condicions del servei",
+    "identity": "La teva identitat"
   }
 }

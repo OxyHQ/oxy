@@ -83,7 +83,7 @@ export function CameraPermissionSheet({
           label: t('signInApproval.scan.grantPermission'),
           onPress: () => void handleRequestPermission(),
           shouldCloseOnPress: false,
-          loading: requesting,
+          disabled: requesting,
         },
         {
           label: t('signInApproval.scan.openSettings'),
