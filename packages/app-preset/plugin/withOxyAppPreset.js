@@ -33,6 +33,7 @@
 const withSharedUserId = require('./withSharedUserId');
 const withOxyKeychain = require('./withOxyKeychain');
 const withOxyBuildProperties = require('./withOxyBuildProperties');
+const { projectRootOf, requireFromProject } = require('./requireFromProject');
 
 module.exports = function withOxyAppPreset(config, options = {}) {
   const {
@@ -60,7 +61,7 @@ module.exports = function withOxyAppPreset(config, options = {}) {
   if (sharedIdentityReader !== false) {
     let withSharedIdentityReader;
     try {
-      withSharedIdentityReader = require('@oxy.so/services/plugins/withSharedIdentityReader');
+      withSharedIdentityReader = requireFromProject('@oxy.so/services/plugins/withSharedIdentityReader', projectRootOf(config));
     } catch (error) {
       throw new Error(
         "[@oxy.so/app-preset] sharedIdentityReader is enabled but the peer dependency '@oxy.so/services' "
