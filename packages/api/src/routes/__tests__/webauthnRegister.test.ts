@@ -95,6 +95,7 @@ jest.mock('../../utils/userCache', () => ({
 jest.mock('../../server', () => ({ __esModule: true, emitSessionUpdate: jest.fn() }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { getWebauthnRpId } from '../../config/env';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
 import { webauthnChallenges } from '../../db/schema/webauthnChallenges';
@@ -226,14 +227,14 @@ async function enrollment(
   const credentialId = overrides.credentialId ?? currentCredentialId;
   const { envelope: sealed, dataKey } = sealWebIdentity(
     identity,
-    { prfOutput: new Uint8Array(32).fill(4), credentialId, ...(overrides.rpId ? { rpId: overrides.rpId } : {}) },
+    { prfOutput: new Uint8Array(32).fill(4), credentialId, rpId: overrides.rpId ?? getWebauthnRpId() },
     new Date(),
     { version: 2 },
   );
   let envelope = sealed;
   if (overrides.extraWrap) {
     const { addWrap } = await import('@oxy.so/core');
-    envelope = addWrap(envelope, dataKey, { prfOutput: new Uint8Array(32).fill(5), credentialId: 'credential-extra-aaaaaaaa' });
+    envelope = addWrap(envelope, dataKey, { prfOutput: new Uint8Array(32).fill(5), credentialId: 'credential-extra-aaaaaaaa', rpId: getWebauthnRpId() });
   }
   dataKey.fill(0);
   const proof = await signIdentityProof(identity, {

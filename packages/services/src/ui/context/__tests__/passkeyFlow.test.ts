@@ -1,6 +1,6 @@
 /**
  * `passkeyFlow` — the pure, deps-injected passkey (WebAuthn) orchestration that
- * backs `useOxy().signInWithPasskey` / `registerWithPasskey` / `addPasskey`.
+ * backs `useOxy().signInWithPasskey` / `addPasskey`.
  *
  * These tests assert the fixed `options → ceremony → verify → commit` ordering,
  * the exact `commitSession` input projected from a session-arm login result, the
@@ -12,8 +12,7 @@
 import type { LoginSessionResult } from '@oxy.so/contracts';
 import {
   runPasskeyLogin,
-  identityEnrollmentRequiredError,
-  runPasskeyAdd,
+    runPasskeyAdd,
   PASSKEY_UNSUPPORTED_MESSAGE,
   type RunPasskeyLoginDeps,
   type RunPasskeyAddDeps,
@@ -118,14 +117,6 @@ describe('runPasskeyLogin', () => {
     await expect(runPasskeyLogin(deps)).rejects.toThrow(PASSKEY_UNSUPPORTED_MESSAGE);
     expect(deps.getLoginOptions).not.toHaveBeenCalled();
     expect(deps.commit).not.toHaveBeenCalled();
-  });
-});
-
-describe('passkey sign-up (ADR 0024 D4)', () => {
-  it('refuses with the stable enrollment code instead of creating an account without its root', () => {
-    const error = identityEnrollmentRequiredError();
-    expect(error.code).toBe('IDENTITY_ENROLLMENT_REQUIRED');
-    expect(error.message).toMatch(/account dialog/i);
   });
 });
 

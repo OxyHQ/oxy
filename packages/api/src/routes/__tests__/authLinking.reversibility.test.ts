@@ -102,7 +102,15 @@ async function request(server: http.Server, method: string, path: string, payloa
       (res) => {
         let raw = '';
         res.on('data', (chunk) => { raw += chunk; });
-        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }));
+        res.on('end', () => {
+          let parsed: Record<string, unknown> = {};
+          try {
+            parsed = raw.length ? JSON.parse(raw) : {};
+          } catch {
+            parsed = {};
+          }
+          resolve({ status: res.statusCode ?? 0, body: parsed });
+        });
       },
     );
     req.on('error', reject);
@@ -284,20 +292,11 @@ describe('first link only (ADR 0024 D8)', () => {
   });
 
   it('refuses a keyless account’s first link carried by a bearer and a new key alone', async () => {
-    const keyPair = generateSecp256k1KeyPair();
-    const timestamp = Date.now();
-    const signature = SignatureService.signMessage(
-      JSON.stringify({ action: 'link_identity', userId: currentUserId, timestamp }),
-      keyPair.privateKey,
-    );
-    const v1 = await request(server, 'POST', '/auth/link', { type: 'identity', publicKey: keyPair.publicKey, signature, timestamp });
-    expect(v1.status).toBe(401);
-    expect((v1.body as { error?: string }).error).toBe(IDENTITY_ERROR_CODES.freshFactorRequired);
-
     const identity = generateWebIdentity();
     const noAssertion = await request(server, 'POST', '/auth/link', { type: 'identity', publicKey: identity.publicKey, proof: await rootProof(identity, 'link_identity') });
     expect(noAssertion.status).toBe(401);
 
+    expect((noAssertion.body as { error?: string }).error).toBe(IDENTITY_ERROR_CODES.freshFactorRequired);
     expect((await storedUser(currentUserId)).publicKey).toBeNull();
     expect(mockInvalidate).not.toHaveBeenCalled();
   });
@@ -340,25 +339,24 @@ describe('first link only (ADR 0024 D8)', () => {
     expect((await storedUser(currentUserId)).publicKey).toBe(existing.publicKey);
   });
 
-  it('heals a missing identity method row for the SAME root without adding a second', async () => {
-    const keyPair = generateSecp256k1KeyPair();
-    const publicKey = keyPair.publicKey.toLowerCase();
-    await getDb().update(users).set({ publicKey }).where(eq(users.id, currentUserId));
-    const sign = () => {
-      const timestamp = Date.now();
-      return {
-        type: 'identity',
-        publicKey: keyPair.publicKey.toUpperCase(),
-        timestamp,
-        signature: SignatureService.signMessage(JSON.stringify({ action: 'link_identity', userId: currentUserId, timestamp }), keyPair.privateKey),
-      };
-    };
+  it('heals a missing identity method row for the SAME root, with a root proof, without adding a second', async () => {
+    const identity = generateWebIdentity();
+    await getDb().update(users).set({ publicKey: identity.publicKey }).where(eq(users.id, currentUserId));
+    const body = async () => ({ type: 'identity', publicKey: identity.publicKey.toUpperCase(), proof: await rootProof(identity, 'link_identity') });
 
-    expect((await request(server, 'POST', '/auth/link', sign())).status).toBe(200);
-    expect((await request(server, 'POST', '/auth/link', sign())).status).toBe(200);
+    expect((await request(server, 'POST', '/auth/link', await body())).status).toBe(200);
+    expect((await request(server, 'POST', '/auth/link', await body())).status).toBe(200);
     const identityRows = (await storedAuthMethods(currentUserId)).filter((m) => m.type === 'identity');
     expect(identityRows).toHaveLength(1);
-    expect(identityRows[0].methodPublicKey).toBe(publicKey);
+    expect(identityRows[0].methodPublicKey).toBe(identity.publicKey);
+  });
+
+  it('refuses a timestamp signature in place of a root proof, even for the same root', async () => {
+    const keyPair = generateSecp256k1KeyPair();
+    await getDb().update(users).set({ publicKey: keyPair.publicKey.toLowerCase() }).where(eq(users.id, currentUserId));
+    const timestamp = Date.now();
+    const signature = SignatureService.signMessage(JSON.stringify({ action: 'link_identity', userId: currentUserId, timestamp }), keyPair.privateKey);
+    expect((await request(server, 'POST', '/auth/link', { type: 'identity', publicKey: keyPair.publicKey, signature, timestamp })).status).toBe(400);
   });
 
   it('rejects a key already linked to ANOTHER account (409, no write)', async () => {
@@ -381,14 +379,13 @@ describe('first link only (ADR 0024 D8)', () => {
 });
 
 describe('a root is never unlinked (ADR 0024 D8)', () => {
-  it('refuses DELETE /auth/link/identity with a stable code and changes nothing', async () => {
+  it('offers no route to unlink it', async () => {
     const publicKey = generateSecp256k1KeyPair().publicKey.toLowerCase();
     await addIdentity(currentUserId, publicKey);
 
     const res = await request(server, 'DELETE', '/auth/link/identity');
 
-    expect(res.status).toBe(403);
-    expect((res.body as { error?: string }).error).toBe(IDENTITY_ERROR_CODES.rootNotUnlinkable);
+    expect(res.status).toBe(404);
     expect((await storedUser(currentUserId)).publicKey).toBe(publicKey);
     expect((await storedAuthMethods(currentUserId)).some((m) => m.type === 'identity')).toBe(true);
     expect((await storedDidDocument(currentUserId)).controller).toEqual([buildUserDid(currentUserId)]);
@@ -399,12 +396,12 @@ describe('removing a passkey that holds the root on the web (ADR 0024 D6)', () =
   async function webHolder(credentialIds: string[]) {
     const identity = generateWebIdentity();
     await addIdentity(currentUserId, identity.publicKey);
-    const sealed = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(1), credentialId: credentialIds[0] }, new Date(), { version: 2 });
+    const sealed = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(1), credentialId: credentialIds[0], rpId: 'oxy.so' });
     let envelope = sealed.envelope;
     const dataKey = sealed.dataKey;
     for (const [index, credentialId] of credentialIds.slice(1).entries()) {
       const { addWrap } = await import('@oxy.so/core');
-      envelope = addWrap(envelope, dataKey, { prfOutput: new Uint8Array(32).fill(index + 2), credentialId });
+      envelope = addWrap(envelope, dataKey, { prfOutput: new Uint8Array(32).fill(index + 2), credentialId, rpId: 'oxy.so' });
     }
     dataKey.fill(0);
     await getDb().insert(identityWebEnvelopes).values({
@@ -412,9 +409,9 @@ describe('removing a passkey that holds the root on the web (ADR 0024 D6)', () =
       publicKey: identity.publicKey,
       version: 2,
       algorithm: 'xchacha20poly1305',
-      secretKind: envelope.version === 2 ? envelope.secretKind : null,
-      entropyNonce: envelope.version === 2 ? envelope.secretNonce : envelope.entropyNonce,
-      sealedEntropy: envelope.version === 2 ? envelope.sealedSecret : envelope.sealedEntropy,
+      secretKind: envelope.secretKind,
+      entropyNonce: envelope.secretNonce,
+      sealedEntropy: envelope.sealedSecret,
       wraps: envelope.wraps,
       revision: 3,
     });
@@ -459,11 +456,12 @@ describe('rotation retires the old root’s web holder', () => {
     await getDb().insert(identityWebEnvelopes).values({
       userId: currentUserId,
       publicKey: oldRoot.publicKey.toLowerCase(),
-      version: 1,
+      version: 2,
       algorithm: 'xchacha20poly1305',
+      secretKind: 'mnemonic-entropy',
       entropyNonce: 'aa'.repeat(24),
       sealedEntropy: 'bb'.repeat(32),
-      wraps: [{ credentialId: 'credential-aaaaaaaaaaaaaaaa', nonce: 'cc'.repeat(24), wrappedKey: 'dd'.repeat(48), createdAt: new Date().toISOString() }],
+      wraps: [{ credentialId: 'credential-aaaaaaaaaaaaaaaa', nonce: 'cc'.repeat(24), wrappedKey: 'dd'.repeat(48), createdAt: new Date().toISOString(), rpId: 'oxy.so' }],
     });
 
     const challengeRes = await request(server, 'POST', '/auth/rotate/challenge');

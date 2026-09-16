@@ -3,9 +3,7 @@
  *
  * Stubs `makeRequest` so the tests run with no network. We assert request shape
  * (method, URL, body, cache options), response unwrapping, the DID derivation,
- * the EXACT signed payload `linkIdentityKey` produces (it must match the
- * server's `JSON.stringify({ action, userId, timestamp })` reconstruction
- * byte-for-byte), and the cache sweep on every mutation.
+ * and the cache sweep on every mutation.
  */
 
 import type { AuthMethodsResponse, DidDocument, SignedRecordEnvelope, VerifiedDomain } from '@oxy.so/contracts';
@@ -126,79 +124,6 @@ describe('OxyServices.identity', () => {
         undefined,
         expect.objectContaining({ cache: true }),
       );
-    });
-  });
-
-  describe('linkIdentityKey', () => {
-    it('signs the exact server-expected payload and POSTs /auth/link', async () => {
-      jest.spyOn(Date, 'now').mockReturnValue(1700000000000);
-      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue('pub-hex');
-      const signSpy = jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
-      makeRequestSpy.mockResolvedValue({ success: true, message: 'Identity linked successfully' });
-
-      const result = await oxy.linkIdentityKey();
-
-      // The signed message MUST match the server's reconstruction byte-for-byte:
-      // JSON.stringify({ action, userId, timestamp }) in that key order.
-      const expectedMessage = JSON.stringify({
-        action: 'link_identity',
-        userId: 'user-123',
-        timestamp: 1700000000000,
-      });
-      expect(signSpy).toHaveBeenCalledWith(expectedMessage);
-      expect(expectedMessage).toBe(
-        '{"action":"link_identity","userId":"user-123","timestamp":1700000000000}',
-      );
-
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        'POST',
-        '/auth/link',
-        { type: 'identity', publicKey: 'pub-hex', signature: 'sig-hex', timestamp: 1700000000000 },
-        expect.objectContaining({ cache: false }),
-      );
-      expect(result).toEqual({ success: true, message: 'Identity linked successfully' });
-    });
-
-    it('sweeps /users/me, auth methods, domains and the DID cache after linking', async () => {
-      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue('pub-hex');
-      jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
-      makeRequestSpy.mockResolvedValue({ success: true, message: 'ok' });
-
-      await oxy.linkIdentityKey();
-
-      expect(clearPrefixSpy).toHaveBeenCalledWith('GET:/users/me');
-      expect(clearEntrySpy).toHaveBeenCalledWith('GET:/auth/methods');
-      expect(clearEntrySpy).toHaveBeenCalledWith('GET:/identity/domains');
-      expect(clearEntrySpy).toHaveBeenCalledWith('GET:/u/user-123/did.json');
-    });
-
-    it('throws (no network) when the device has no identity', async () => {
-      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(null);
-      await expect(oxy.linkIdentityKey()).rejects.toThrow(/No identity found/);
-      expect(makeRequestSpy).not.toHaveBeenCalled();
-    });
-
-    it('throws when no user is authenticated', async () => {
-      jest.spyOn(oxy, 'getCurrentUserId').mockReturnValue(null);
-      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue('pub-hex');
-      await expect(oxy.linkIdentityKey()).rejects.toThrow(/No authenticated user/);
-      expect(makeRequestSpy).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('unlinkAuthMethod', () => {
-    it('DELETEs /auth/link/:type and sweeps cache', async () => {
-      makeRequestSpy.mockResolvedValue({ success: true, message: 'identity auth unlinked successfully' });
-
-      await oxy.unlinkAuthMethod('identity');
-
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        'DELETE',
-        '/auth/link/identity',
-        undefined,
-        expect.objectContaining({ cache: false }),
-      );
-      expect(clearEntrySpy).toHaveBeenCalledWith('GET:/u/user-123/did.json');
     });
   });
 

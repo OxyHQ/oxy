@@ -24,7 +24,6 @@ import { applications } from '../applications';
 import { authCodes } from '../authCodes';
 import { authSessions } from '../authSessions';
 import { civicNonces } from '../civicNonces';
-import { devicePairingSessions } from '../devicePairingSessions';
 import { deviceSessionAccounts } from '../deviceSessionAccounts';
 import { deviceSessions } from '../deviceSessions';
 import { domainVerifications } from '../domainVerifications';
@@ -56,7 +55,6 @@ const CLUSTER_TABLES = [
   authSessions,
   deviceSessions,
   deviceSessionAccounts,
-  devicePairingSessions,
   webauthnChallenges,
   identityBackups,
   identityBindings,
@@ -70,7 +68,6 @@ const EXPECTED_SWEEP_RETENTIONS: ReadonlyArray<readonly [string, number]> = [
   ['sessions', 0],
   ['webauthn_challenges', 0],
   ['domain_verifications', 0],
-  ['device_pairing_sessions', 0],
   ['civic_nonces', 600],
   ['auth_sessions', 3600],
   ['auth_codes', 300],
@@ -671,7 +668,7 @@ describe('expiry registry — every Mongo TTL index in this batch', () => {
       expect([table, registered.get(table)]).toEqual([table, retentionSeconds]);
     }
     // Vacuity floor: a broken lookup above would compare undefined to undefined.
-    expect(EXPECTED_SWEEP_RETENTIONS).toHaveLength(8);
+    expect(EXPECTED_SWEEP_RETENTIONS).toHaveLength(7);
   });
 
   it('has a supporting btree index on every swept column of this batch', async () => {
@@ -1048,47 +1045,6 @@ describe('civic_nonces and webauthn_challenges — single-use, unforgeably', () 
 
     // NULL `user_id` is the discoverable-login case, not a missing value.
     expect(bound).toEqual([{ used: false }]);
-  });
-});
-
-describe('device_pairing_sessions', () => {
-  it('refuses a half-sealed approval', async () => {
-    const error = await rejection(
-      getDb().insert(devicePairingSessions).values({
-        pairingId: `p-${randomUUID()}`,
-        newDeviceEphemeralPublicKey: '02aa',
-        status: 'approved',
-        ciphertext: 'deadbeef',
-        expiresAt: new Date(Date.now() + 180_000),
-      })
-    );
-
-    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
-    expect(pgErrorText(error)).toContain('device_pairing_sessions_sealed_payload_check');
-  });
-
-  it('lets the lazy read path mark a past-deadline pairing expired before the sweep', async () => {
-    // The verdict a user sees comes from this write, not from the sweep. Port
-    // it verbatim: without it every expired transfer becomes an unknown one.
-    const pairingId = `p-${randomUUID()}`;
-    await getDb().insert(devicePairingSessions).values({
-      pairingId,
-      newDeviceEphemeralPublicKey: '02aa',
-      expiresAt: new Date(Date.now() - 1_000),
-    });
-
-    await getDb()
-      .update(devicePairingSessions)
-      .set({ status: 'expired' })
-      .where(
-        sql`${devicePairingSessions.pairingId} = ${pairingId} and ${devicePairingSessions.status} = 'pending' and ${devicePairingSessions.expiresAt} < now()`
-      );
-
-    const [row] = await getDb()
-      .select({ status: devicePairingSessions.status })
-      .from(devicePairingSessions)
-      .where(eq(devicePairingSessions.pairingId, pairingId));
-    expect(row.status).toBe('expired');
   });
 });
 

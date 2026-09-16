@@ -55,7 +55,6 @@ export * from './civicNonces';
 export * from './conductStrikes';
 export * from './contacts';
 export * from './deviceAccountContexts';
-export * from './devicePairingSessions';
 export * from './devicePrincipalBackfillConflicts';
 export * from './devicePrincipals';
 export * from './deviceSessionAccounts';

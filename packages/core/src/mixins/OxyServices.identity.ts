@@ -4,9 +4,9 @@
  * Provides typed access to Oxy's AtProto/Bluesky-flavoured identity &
  * portability layer:
  *  - DID resolution (`did:web:oxy.so:u:<userId>`, derived on demand by the API).
- *  - The auth-method ↔ DID verification-method mapping and its reversibility
- *    (link/unlink an identity key, link a password) via the existing
- *    `/auth/link` surface.
+ *  - The auth-method ↔ DID verification-method mapping (`GET /auth/methods`) and
+ *    passkey removal. A root is linked by the holder flows (ADR 0024) and never
+ *    unlinked; it is replaced by rotation.
  *  - Signed records: clients sign an envelope with their own cryptographic key
  *    (`SignatureService.signRecord` + the shared `canonicalize`) and publish it;
  *    anyone can fetch and verify it.
@@ -19,7 +19,7 @@
  * the API validates its output against, so producer and consumer cannot drift.
  *
  * Identity signing is NATIVE-ONLY: the private key lives in native secure
- * storage, so `linkIdentityKey`, `signRecord`, and `publishRecord` require an
+ * storage, so `signRecord` and `publishRecord` require an
  * on-device identity and throw on web (where `KeyManager.getPublicKey()` is
  * always `null`).
  */
@@ -59,13 +59,7 @@ const OXY_IDENTITY_APEX = 'oxy.so';
  */
 export type IdentityRecordType = OxySignedRecordType;
 
-/** Auth-method types that can be unlinked via {@link OxyServicesIdentityMixin}. */
-export type UnlinkableAuthMethodType = 'identity' | 'webauthn';
-
-/**
- * Result of a link/unlink auth-method mutation (`POST /auth/link`,
- * `DELETE /auth/link/:type`).
- */
+/** Result of an auth-method mutation (`DELETE /auth/link/webauthn/:id`). */
 export interface LinkAuthMethodResult {
   success: boolean;
   message: string;
@@ -225,78 +219,6 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
     }
 
     /**
-     * Re-assert the on-device root against the current account (`POST /auth/link`).
-     *
-     * Since ADR 0024 D8 the API links a root FIRST TIME ONLY and only with a
-     * one-use root proof plus a fresh passkey assertion; this version-1 call is
-     * accepted solely when the account's root already IS this key (it heals the
-     * derived method row). It can no longer upgrade a keyless account nor
-     * replace a different root — rotation does that.
-     *
-     * @deprecated No caller in the ecosystem; removed in the next major.
-     *
-     * NATIVE-ONLY: requires a stored identity (throws if `KeyManager` has no key
-     * or no user is authenticated). The signed payload is
-     * `JSON.stringify({ action: 'link_identity', userId, timestamp })` — the
-     * exact bytes the server reconstructs and verifies.
-     */
-    async linkIdentityKey(): Promise<LinkAuthMethodResult> {
-      try {
-        const userId = this.getCurrentUserId();
-        if (!userId) {
-          throw new Error('No authenticated user — sign in before linking an identity key.');
-        }
-        const publicKey = await KeyManager.getPublicKey();
-        if (!publicKey) {
-          throw new Error('No identity found on this device. Create or import an identity first.');
-        }
-
-        const timestamp = Date.now();
-        // The signed message MUST match the server's reconstruction byte-for-byte:
-        // JSON.stringify with this exact key order (action, userId, timestamp).
-        const message = JSON.stringify({ action: 'link_identity', userId, timestamp });
-        const signature = await SignatureService.sign(message);
-
-        const result = await this.makeRequest<LinkAuthMethodResult>(
-          'POST',
-          '/auth/link',
-          { type: 'identity', publicKey, signature, timestamp },
-          { cache: false },
-        );
-        this._invalidateIdentityCaches(userId);
-        return result;
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
-     * Unlink an authentication method from the current account.
-     *
-     * `identity` is the only type and the API REFUSES it (`403
-     * IDENTITY_ROOT_NOT_UNLINKABLE`, ADR 0024 D8): a root is never unlinked back
-     * into a keyless account; it is replaced by rotation.
-     *
-     * @deprecated Always rejected by the API; removed in the next major.
-     *
-     * @param type - The auth-method type to remove.
-     */
-    async unlinkAuthMethod(type: UnlinkableAuthMethodType): Promise<LinkAuthMethodResult> {
-      try {
-        const result = await this.makeRequest<LinkAuthMethodResult>(
-          'DELETE',
-          `/auth/link/${encodeURIComponent(type)}`,
-          undefined,
-          { cache: false },
-        );
-        this._invalidateIdentityCaches(this.getCurrentUserId());
-        return result;
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
      * The signed-in account's root readiness (ADR 0024 D5): whether a root is
      * linked, how many passkeys can open the web holder, whether the root has a
      * phrase and whether it is saved and was shown to recover it. Metadata only —
@@ -314,8 +236,7 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
     /**
      * Remove ONE passkey (WebAuthn credential) from the current account.
      *
-     * Passkeys are per-credential, so unlike {@link unlinkAuthMethod} (which
-     * removes an auth method by type) this targets a specific credential id.
+     * Passkeys are per-credential, so this targets a specific credential id.
      * The server refuses to remove the last remaining auth method (the account
      * would become inaccessible) and deletes the stored `WebauthnCredential`.
      * A passkey that also opens the account's root on the web takes its wrap with

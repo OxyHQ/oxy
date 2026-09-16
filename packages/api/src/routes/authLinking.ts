@@ -5,7 +5,8 @@
  * Allows users to:
  * - Link an identity (publicKey) to an existing account
  * - View and manage linked auth methods
- * - Unlink an identity or an individual passkey (webauthn)
+ * - Remove an individual passkey (webauthn). A root is never unlinked; it is
+ *   replaced by rotation (ADR 0024 D8).
  *
  * ## Storage (Postgres)
  *
@@ -43,7 +44,7 @@ import SignatureService from '../services/signature.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { BadRequestError, ConflictError, UnauthorizedError } from '../utils/error.js';
 import { validate } from '../middleware/validate.js';
-import { linkAuthMethodSchema, unlinkTypeParams, unlinkWebauthnParams, type LinkAuthMethodBody } from '../schemas/authLinking.schemas.js';
+import { linkAuthMethodSchema, unlinkWebauthnParams, type LinkAuthMethodBody } from '../schemas/authLinking.schemas.js';
 import sessionService from '../services/session.service.js';
 import { rateLimit } from '../middleware/rateLimiter.js';
 import { hashedIpKey } from '../utils/ipKey.js';
@@ -511,12 +512,11 @@ router.post('/rotate/complete', rotateCompleteLimiter, validate({ body: rotateKe
  * Link a root (`publicKey`) to a personal account that has NONE — first link only
  * (ADR 0024 D8).
  *
- * - An account whose root is this key: idempotent, and heals a missing
- *   `identity` method row. A v1 signature by the key is enough — it changes
- *   nothing but a derived row.
+ * - An account whose root is this key: idempotent with a root proof, and heals a
+ *   missing `identity` method row.
  * - An account with a DIFFERENT root: 409. Replacing a root is
  *   `POST /auth/rotate/*`, which needs the old root's proof too.
- * - A keyless account: a v2 root proof (`link_identity`, one-use challenge) AND a
+ * - A keyless account: a root proof (`link_identity`, one-use challenge) AND a
  *   fresh assertion by one of the account's existing passkeys over the same
  *   challenge. A bearer plus a key generated a moment ago is not authority.
  */
@@ -553,43 +553,27 @@ router.post('/link', validate({ body: linkAuthMethodSchema }), asyncHandler(asyn
         throw new ApiError(409, 'This account already has an identity', IDENTITY_ERROR_CODES.rootAlreadyLinked);
       }
 
-      if ('proof' in body) {
-        if (!current) {
-          if (!body.assertion) {
-            throw new ApiError(401, 'Confirm with one of this account’s passkeys', IDENTITY_ERROR_CODES.freshFactorRequired);
-          }
-          await verifyFreshPasskeyAssertion(tx, {
-            userId,
-            response: body.assertion,
-            challengeHex: body.proof.challenge,
-            allowOrigin: isOxyApexOrigin,
-          });
+      if (!current) {
+        if (!body.assertion) {
+          throw new ApiError(401, 'Confirm with one of this account’s passkeys', IDENTITY_ERROR_CODES.freshFactorRequired);
         }
-        await verifyIdentityProof(tx, {
+        await verifyFreshPasskeyAssertion(tx, {
           userId,
-          actor: userId,
-          action: IDENTITY_PROOF_ACTIONS.link,
-          rootPublicKey: safePublicKey,
-          mintedRoot: current,
-          payloadDigest: null,
-          expectedRevision: null,
-          proof: body.proof,
+          response: body.assertion,
+          challengeHex: body.proof.challenge,
+          allowOrigin: isOxyApexOrigin,
         });
-      } else {
-        if (!current) {
-          throw new ApiError(401, 'Linking a first identity needs a fresh confirmation', IDENTITY_ERROR_CODES.freshFactorRequired);
-        }
-        if (!body.signature || typeof body.timestamp !== 'number') {
-          throw new BadRequestError('publicKey, signature, and timestamp are required for identity linking');
-        }
-        if (!SignatureService.isTimestampFresh(body.timestamp)) {
-          throw new BadRequestError('Signature expired or invalid timestamp - please try again');
-        }
-        const message = JSON.stringify({ action: 'link_identity', userId, timestamp: body.timestamp });
-        if (!SignatureService.verifySignature(message, body.signature, safePublicKey)) {
-          throw new BadRequestError('Invalid signature - cannot verify identity ownership');
-        }
       }
+      await verifyIdentityProof(tx, {
+        userId,
+        actor: userId,
+        action: IDENTITY_PROOF_ACTIONS.link,
+        rootPublicKey: safePublicKey,
+        mintedRoot: current,
+        payloadDigest: null,
+        expectedRevision: null,
+        proof: body.proof,
+      });
 
       if (!current) {
         const [existingUser] = await tx
@@ -719,27 +703,6 @@ router.delete('/link/webauthn/:credentialID', validate({ params: unlinkWebauthnP
   userCache.invalidate(userId);
 
   res.json({ success: true, message: 'Passkey unlinked successfully' });
-}));
-
-/**
- * DELETE /api/auth/link/:type
- *
- * `identity` is the only type, and a root is never unlinked (ADR 0024 D8):
- * turning a self-custody account back into a keyless one is not an operation a
- * bearer — or anyone — performs. A root is replaced by rotation, which proves the
- * old root and the new one. Kept as an explicit refusal so an old client gets a
- * stable code instead of a 404.
- */
-router.delete('/link/:type', validate({ params: unlinkTypeParams }), asyncHandler(async (req: AuthRequest, _res: Response) => {
-  const userId = req.user?._id?.toString();
-  if (!userId) {
-    throw new BadRequestError('User not authenticated');
-  }
-  throw new ApiError(
-    403,
-    'An identity cannot be unlinked. Replace it by rotating the key instead.',
-    IDENTITY_ERROR_CODES.rootNotUnlinkable,
-  );
 }));
 
 export default router;

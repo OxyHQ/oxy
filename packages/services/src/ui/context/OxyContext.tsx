@@ -95,7 +95,7 @@ import { DEFAULT_SESSION_VALIDITY_MS } from './oxyContextHelpers';
 // never dereferenced at module scope here.
 import { useFollow } from '../hooks/useFollow';
 import { commitDeviceSetAndResolve } from './commitSessionFlow';
-import { identityEnrollmentRequiredError, runPasskeyLogin, runPasskeyAdd } from './passkeyFlow';
+import { runPasskeyLogin, runPasskeyAdd } from './passkeyFlow';
 import {
   isPasskeySupported,
   runRegistrationCeremony,
@@ -959,16 +959,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     [oxyServices, authStore, commitSession],
   );
 
-  // Accounts are created WITH their root in the canonical account flow (ADR
-  // 0024 D4); a local passkey ceremony cannot create one. Kept as a rejecting
-  // member until the next major so existing callers get a stable code.
-  const registerWithPasskey = useCallback(
-    async (_params: { username: string; deviceName?: string }): Promise<void> => {
-      throw identityEnrollmentRequiredError();
-    },
-    [],
-  );
-
   // Add a passkey to the already-signed-in account (bearer present). No new
   // session is committed — just refresh the linked auth-methods list.
   const addPasskey = useCallback(
@@ -1259,7 +1249,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       getPublicKey,
       signIn,
       signInWithPasskey,
-      registerWithPasskey,
       addPasskey,
       removePasskey,
       revokeSuspiciousSignIn,
@@ -1317,7 +1306,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       getPublicKey,
       signIn,
       signInWithPasskey,
-      registerWithPasskey,
       addPasskey,
       removePasskey,
       revokeSuspiciousSignIn,

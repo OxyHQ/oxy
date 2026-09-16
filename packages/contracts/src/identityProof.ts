@@ -49,6 +49,8 @@ export const IDENTITY_PROOF_ACTIONS = {
     recoverStart: 'recover_account_start',
     /** Bind the new passkey and envelope when completing signed-out recovery. */
     recoverComplete: 'recover_account_complete',
+    /** Seal the root for the Commons device that joined a move (payload: move id + sealed bytes). */
+    moveSeal: 'identity_move_seal',
 } as const;
 
 export type IdentityProofAction = (typeof IDENTITY_PROOF_ACTIONS)[keyof typeof IDENTITY_PROOF_ACTIONS];
@@ -185,7 +187,6 @@ export const IDENTITY_ERROR_CODES = {
     noRoot: 'IDENTITY_NO_ROOT',
     freshFactorRequired: 'IDENTITY_FRESH_FACTOR_REQUIRED',
     lastWebHolder: 'IDENTITY_LAST_WEB_HOLDER',
-    rootNotUnlinkable: 'IDENTITY_ROOT_NOT_UNLINKABLE',
     enrollmentRequired: 'IDENTITY_ENROLLMENT_REQUIRED',
     enrollmentInvalid: 'IDENTITY_ENROLLMENT_INVALID',
     notPersonal: 'IDENTITY_NOT_PERSONAL_ACCOUNT',
