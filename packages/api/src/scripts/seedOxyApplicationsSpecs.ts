@@ -357,6 +357,14 @@ export const SEED_APPS: SeedAppSpec[] = [
       'catalogs:write',
       'capabilities:read',
       'capability-audit:write',
+      // Mention publishes its own job listings to Clarity's index
+      // (`clarity.jobs.ingest`) and resolves shared links through it
+      // (`/v1/resolve`), which are `clarity:index`; the employer's place picker
+      // and job discovery read `clarity:search`. The credential carried
+      // neither, so every one of those calls has been failing closed — job
+      // sync, link previews and the place lookup alike.
+      'clarity:search',
+      'clarity:index',
     ],
     capabilities: [catalogApplicationCapability('mention')],
   },

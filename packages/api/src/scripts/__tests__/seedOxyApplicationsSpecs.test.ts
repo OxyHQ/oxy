@@ -436,7 +436,7 @@ describe('the canonical official-application registry', () => {
       expect(MENTION_APPLICATION_ID).toBe('6a2f851751b784a86fd0e916');
     });
 
-    it('can register, reauthorize and audit its catalog without coordinator authority', () => {
+    it('can register, reauthorize and audit its catalog, and reach Clarity, without coordinator authority', () => {
       expect(specNamed('Mention').scopes).toEqual([
         'user:read',
         'files:read',
@@ -446,6 +446,8 @@ describe('the canonical official-application registry', () => {
         'catalogs:write',
         'capabilities:read',
         'capability-audit:write',
+        'clarity:search',
+        'clarity:index',
       ]);
       expect(specNamed('Mention').capabilities).toEqual([
         catalogApplicationCapability('mention'),
