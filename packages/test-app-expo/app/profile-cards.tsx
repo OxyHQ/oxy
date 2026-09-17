@@ -4,8 +4,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import { useTheme } from '@oxy.so/bloom/theme';
-import { ProfileCard } from '@oxy.so/bloom/profile-card';
-import type { ProfileCardProps } from '@oxy.so/bloom/profile-card';
 import { DotGridMeter } from '@oxy.so/bloom/dot-grid-meter';
 import { StatBar } from '@oxy.so/bloom/stat-bar';
 import { ActivityHeatmap, bucketByDay } from '@oxy.so/bloom/activity-heatmap';
@@ -15,14 +13,15 @@ import { CompositionBar } from '@oxy.so/bloom/composition-bar';
 import type { CompositionCategory } from '@oxy.so/bloom/composition-bar';
 
 /**
- * Profile preview cards showcase — an Apple-Watch-style gallery of the
- * @oxy.so/bloom ProfileCard and its metric primitives. Everything on this screen
- * is mock data; it exists to exercise every new component in both light and dark
- * theme. Colors come from Bloom's useTheme() so the gallery tracks the active
- * color preset like the rest of the app chrome.
+ * Profile metric primitives showcase — a gallery of the @oxy.so/bloom metric
+ * components (DotGridMeter, StatBar, ActivityHeatmap, CompositionBar,
+ * AvatarGroup). Everything on this screen is mock data; it exists to exercise
+ * the components in both light and dark theme. Colors come from Bloom's
+ * useTheme() so the gallery tracks the active color preset like the rest of the
+ * app chrome. (Bloom 2.0 removed ProfileCard, so its gallery is gone.)
  */
 
-// Facepile members for the ProfileCard footers. `name` drives Avatar's colored
+// Facepile members for the AvatarGroup demos. `name` drives Avatar's colored
 // initial placeholder — no real image URLs are needed for the showcase.
 const TOKEN_AVATARS: AvatarGroupItem[] = [
   { id: 'btc', name: 'Bitcoin' },
@@ -56,121 +55,6 @@ export default function ProfileCardsScreen() {
   const insets = useSafeAreaInsets();
   const [selectedCategory, setSelectedCategory] = useState<string | null>('trust');
 
-  // The ProfileCard variants. Each entry is rendered twice below — once as a
-  // compact `widget` card and once as a full-width `wide` card — so both layouts
-  // are exercised for every variant and every metric kind. Colors are vivid,
-  // per-card accents (the widget surface is a committed near-black), mirroring
-  // the Apple-Watch reference.
-  const cards = useMemo<{ key: string; props: Omit<ProfileCardProps, 'layout'> }[]>(() => {
-    // A coin-style badge pinned to a ProfileCard avatar. ProfileCard already
-    // haloes it with the card surface, so the badge itself is a plain filled disc;
-    // the glyph cuts out to the card background color. Colors are theme tokens.
-    const coinBadge = (color: string, glyph: React.ComponentProps<typeof MaterialCommunityIcons>['name']) => (
-      <View className="h-4 w-4 items-center justify-center rounded-full" style={{ backgroundColor: color }}>
-        <MaterialCommunityIcons name={glyph} size={10} color={colors.background} />
-      </View>
-    );
-    return [
-      {
-        key: 'wallet-dots',
-        props: {
-          variant: 'wallet',
-          avatar: { name: 'Main Wallet', ring: { colors: colors.success }, badge: coinBadge(colors.warning, 'bitcoin') },
-          value: '$167,395',
-          subtitle: '*5bF5',
-          metric: { kind: 'dots', label: 'Token diversity', filled: 6, total: 14, filledColor: colors.success },
-          footer: { label: 'Top tokens', items: TOKEN_AVATARS.slice(0, 4), max: 4 },
-        },
-      },
-      {
-        key: 'wallet-progress',
-        props: {
-          variant: 'wallet',
-          avatar: { name: 'Trading Wallet', ring: { colors: colors.warning }, badge: coinBadge(colors.info, 'ethereum') },
-          value: '$64,395',
-          subtitle: '*8Sf4',
-          metric: {
-            kind: 'progress',
-            label: 'TX count 24h',
-            value: 32,
-            max: 350,
-            minLabel: '32',
-            maxLabel: '350',
-            fillColor: colors.warning,
-            icon: <MaterialCommunityIcons name="trophy" size={14} color={colors.textSecondary} />,
-          },
-          footer: { label: 'Top tokens', items: TOKEN_AVATARS.slice(1, 5), max: 4 },
-        },
-      },
-      {
-        key: 'wallet-split',
-        props: {
-          variant: 'wallet',
-          avatar: { name: 'Savings Wallet', ring: { colors: colors.primary }, badge: coinBadge(colors.success, 'currency-usd') },
-          value: '$96,395',
-          subtitle: '*2Ac9',
-          metric: {
-            kind: 'split',
-            label: 'Net flow 24h',
-            percent: 38,
-            leftValue: '$16,495',
-            rightValue: '$6,305',
-            fillColor: colors.primary,
-          },
-          footer: { label: 'Top tokens', items: TOKEN_AVATARS.slice(2, 6), max: 4 },
-        },
-      },
-      {
-        key: 'social',
-        props: {
-          variant: 'social',
-          avatar: { name: 'Ada Lovelace', ring: { colors: colors.info }, badge: coinBadge(colors.info, 'check-bold') },
-          value: 'Ada Lovelace',
-          subtitle: '@ada',
-          metric: { kind: 'dots', label: 'Weekly activity', filled: 12, total: 14, filledColor: colors.info },
-          footer: { label: 'Followed by', items: FOLLOWER_AVATARS.slice(0, 4), max: 4 },
-        },
-      },
-      {
-        key: 'shopping',
-        props: {
-          variant: 'shopping',
-          avatar: { name: 'Aurora Headphones', ring: { colors: colors.warning }, badge: coinBadge(colors.warning, 'star') },
-          value: '$249.00',
-          subtitle: 'Aurora Studio · Audio',
-          metric: {
-            kind: 'progress',
-            label: 'In stock',
-            value: 18,
-            max: 50,
-            minLabel: '18 left',
-            maxLabel: '50',
-            fillColor: colors.warning,
-          },
-          footer: { label: 'Recent buyers', items: FOLLOWER_AVATARS.slice(1, 5), max: 4 },
-        },
-      },
-      {
-        key: 'stat',
-        props: {
-          variant: 'stat',
-          avatar: { name: 'Trust Score', ring: { colors: colors.info } },
-          value: '742',
-          subtitle: 'Trust standing',
-          metric: {
-            kind: 'progress',
-            label: 'To next tier',
-            value: 742,
-            max: 1000,
-            minLabel: 'Trusted',
-            maxLabel: 'High trust',
-            fillColor: colors.info,
-          },
-        },
-      },
-    ];
-  }, [colors]);
-
   // Deterministic ~17 weeks of activity so the heatmap renders a stable gradient
   // in both themes. bucketByDay counts the generated timestamps per calendar day.
   const heatmapData = useMemo(() => {
@@ -196,33 +80,12 @@ export default function ProfileCardsScreen() {
       <View className="mb-1 gap-1.5">
         <Text className="text-[30px] font-extrabold tracking-[-0.5px] text-foreground">Profile preview cards</Text>
         <Text className="text-[15px] leading-[21px] text-muted-foreground">
-          @oxy.so/bloom ProfileCard — Apple-Watch-style preview cards and their metric primitives.
+          @oxy.so/bloom metric primitives for profile previews.
         </Text>
       </View>
 
-      {/* ── ProfileCard gallery ─────────────────────────────────────────── */}
-      <SectionHeader title="ProfileCard" subtitle="Widget carousel (240dp) + full-width wide cards" />
-
-      <Text className="mt-2 text-[12px] font-semibold uppercase tracking-[0.5px] text-muted-foreground">Widget layout</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerClassName="gap-3 py-1 pr-1"
-      >
-        {cards.map(({ key, props }) => (
-          <ProfileCard key={key} layout="widget" {...props} />
-        ))}
-      </ScrollView>
-
-      <Text className="mt-2 text-[12px] font-semibold uppercase tracking-[0.5px] text-muted-foreground">Wide layout</Text>
-      <View className="gap-3">
-        {cards.map(({ key, props }) => (
-          <ProfileCard key={key} layout="wide" {...props} />
-        ))}
-      </View>
-
       {/* ── Metric primitives ───────────────────────────────────────────── */}
-      <SectionHeader title="Primitives" subtitle="The building blocks used inside ProfileCard" />
+      <SectionHeader title="Primitives" subtitle="Metric building blocks for profile previews" />
 
       <Card label="DotGridMeter">
         <DotGridMeter filled={13} total={30} columns={10} filledColor={colors.success} />

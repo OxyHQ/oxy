@@ -11,7 +11,7 @@ import { H4, Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
-import { BenefitList, BenefitRow } from '@oxy.so/bloom/benefit-list';
+import { BenefitList, BenefitRow } from '../components/BenefitList';
 import * as Icons from '@oxy.so/bloom/icons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
@@ -82,7 +82,7 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({
             <View className="px-screen-margin pb-space-32">
                 {/* Hero */}
                 <View className="items-center py-space-24 gap-space-12">
-                    <IconCircle icon={Icons.Verified_Stroke2_Corner2_Rounded} />
+                    <IconCircle icon={Icons.RiVerifiedBadgeLine} />
                     <H4 className="text-headerBold font-headerBold text-text text-center">
                         {t('accountVerification.heroTitle') || 'Get a verified badge'}
                     </H4>
@@ -97,15 +97,15 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({
                     accessibilityLabel={t('accountVerification.sections.benefits') || 'What verification gives you'}
                 >
                     <BenefitRow
-                        icon={<Icons.ShieldCheck_Stroke2_Corner0_Rounded size="sm" style={{ color: bloomTheme.colors.primary }} />}
+                        icon={<Icons.RiShieldCheckLine size="sm" style={{ color: bloomTheme.colors.primary }} />}
                         label={t('accountVerification.benefits.authenticity') || 'Confirms your identity is authentic and trusted'}
                     />
                     <BenefitRow
-                        icon={<Icons.Verified_Stroke2_Corner2_Rounded size="sm" style={{ color: bloomTheme.colors.primary }} />}
+                        icon={<Icons.RiVerifiedBadgeLine size="sm" style={{ color: bloomTheme.colors.primary }} />}
                         label={t('accountVerification.benefits.badge') || 'Displays a verified badge across the platform'}
                     />
                     <BenefitRow
-                        icon={<Icons.Sparkle_Stroke2_Corner0_Rounded size="sm" style={{ color: bloomTheme.colors.primary }} />}
+                        icon={<Icons.RiSparklingLine size="sm" style={{ color: bloomTheme.colors.primary }} />}
                         label={t('accountVerification.benefits.credibility') || 'Builds credibility with people who follow you'}
                     />
                 </BenefitList>
@@ -161,7 +161,7 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({
                 </Button>
 
                 <View className="flex-row items-start gap-space-8 mt-space-24">
-                    <Icons.CircleInfo_Stroke2_Corner0_Rounded
+                    <Icons.RiInformationLine
                         size="sm"
                         style={{ color: bloomTheme.colors.textTertiary }}
                     />

@@ -2,12 +2,12 @@ import { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { TabBar, TabBarButton, type TabBarItem } from '@oxy.so/bloom/tab-bar';
 import {
-  Person_Filled_Corner2_Rounded,
-  Person_Stroke2_Corner2_Rounded,
-  SettingsGear2_Filled_Corner0_Rounded,
-  SettingsGear2_Stroke2_Corner0_Rounded,
-  Star_Filled_Corner0_Rounded,
-  Star_Stroke2_Corner0_Rounded,
+  RiUserFill,
+  RiUserLine,
+  RiSettings3Fill,
+  RiSettings3Line,
+  RiStarFill,
+  RiStarLine,
 } from '@oxy.so/bloom/icons';
 import type { BottomTabBarProps } from 'expo-router/tabs';
 
@@ -75,20 +75,20 @@ export function CommonsTabBar({ state, navigation }: BottomTabBarProps) {
       {
         name: '(id)',
         label: t('tabs.id'),
-        icon: <Person_Stroke2_Corner2_Rounded size={ICON_SIZE} />,
-        activeIcon: <Person_Filled_Corner2_Rounded size={ICON_SIZE} />,
+        icon: <RiUserLine size={ICON_SIZE} />,
+        activeIcon: <RiUserFill size={ICON_SIZE} />,
       },
       {
         name: '(reputation)',
         label: t('tabs.reputation'),
-        icon: <Star_Stroke2_Corner0_Rounded size={ICON_SIZE} />,
-        activeIcon: <Star_Filled_Corner0_Rounded size={ICON_SIZE} />,
+        icon: <RiStarLine size={ICON_SIZE} />,
+        activeIcon: <RiStarFill size={ICON_SIZE} />,
       },
       {
         name: '(settings)',
         label: t('tabs.settings'),
-        icon: <SettingsGear2_Stroke2_Corner0_Rounded size={ICON_SIZE} />,
-        activeIcon: <SettingsGear2_Filled_Corner0_Rounded size={ICON_SIZE} />,
+        icon: <RiSettings3Line size={ICON_SIZE} />,
+        activeIcon: <RiSettings3Fill size={ICON_SIZE} />,
       },
     ],
     [t],

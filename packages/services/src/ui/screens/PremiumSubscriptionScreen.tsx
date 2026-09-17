@@ -10,7 +10,7 @@ import { Chip } from '@oxy.so/bloom/chip';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Card, CardBody } from '@oxy.so/bloom/card';
 import { H2, H4, H5, Text } from '@oxy.so/bloom/typography';
-import { BenefitList, BenefitRow } from '@oxy.so/bloom/benefit-list';
+import { BenefitList, BenefitRow } from '../components/BenefitList';
 import {
     SegmentedControl,
     SegmentedControlItem,

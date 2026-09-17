@@ -186,7 +186,7 @@ function UserProfile() {
 ## Typography
 
 Typography is owned entirely by `@oxy.so/bloom`. `BloomThemeProvider` ships the
-Inter, BlomusModernus and Geist Mono families — variable `.ttf` files loaded via
+Inter, BlomusModernus and JetBrains Mono families — variable `.ttf` files loaded via
 `expo-font` on native, `@font-face` rules injected as data URLs on web — and
 applies the default family to every `<Text>`. This package bundles and loads no
 fonts for typography. Its screens do ship two generated icon-font subsets:

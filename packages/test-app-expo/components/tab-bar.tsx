@@ -2,9 +2,9 @@ import { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { TabBar, TabBarButton, type TabBarItem } from '@oxy.so/bloom/tab-bar';
 import {
-  Home_Filled_Corner0_Rounded,
-  Home_Stroke2_Corner0_Rounded,
-  PaperPlane_Stroke2_Corner0_Rounded,
+  RiHomeFill,
+  RiHomeLine,
+  RiSendPlaneLine,
 } from '@oxy.so/bloom/icons';
 import type { BottomTabBarProps } from 'expo-router/tabs';
 
@@ -33,13 +33,13 @@ export function TestAppTabBar({ state, navigation }: BottomTabBarProps) {
       {
         name: 'index',
         label: 'Home',
-        icon: <Home_Stroke2_Corner0_Rounded size={ICON_SIZE} />,
-        activeIcon: <Home_Filled_Corner0_Rounded size={ICON_SIZE} />,
+        icon: <RiHomeLine size={ICON_SIZE} />,
+        activeIcon: <RiHomeFill size={ICON_SIZE} />,
       },
       {
         name: 'explore',
         label: 'Explore',
-        icon: <PaperPlane_Stroke2_Corner0_Rounded size={ICON_SIZE} />,
+        icon: <RiSendPlaneLine size={ICON_SIZE} />,
       },
     ],
     [],
