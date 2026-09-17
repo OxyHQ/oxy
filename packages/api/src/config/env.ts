@@ -430,6 +430,17 @@ export function isDevelopment(): boolean {
 }
 
 /**
+ * The web origin of the identity carrier (`id.oxy.so`) — the ONLY browser origin
+ * that may read or write the sealed web copy of an identity. Overridable via
+ * `IDENTITY_WEB_ORIGIN` for staging. Loopback origins are accepted separately, in
+ * every environment, by the route guard itself.
+ */
+export function getIdentityWebOrigin(): string {
+  const configured = process.env.IDENTITY_WEB_ORIGIN?.trim();
+  return configured || 'https://id.oxy.so';
+}
+
+/**
  * The WebAuthn Relying Party ID — the registrable domain a passkey is scoped to.
  * Defaults to the Oxy apex `oxy.so` in production (so a single passkey works
  * across every `*.oxy.so` first-party origin) and to `localhost` in development

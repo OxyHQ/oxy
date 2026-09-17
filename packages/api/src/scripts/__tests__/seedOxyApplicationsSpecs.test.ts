@@ -5,10 +5,9 @@
  * Two of them are load-bearing for issue #972 workstream 14 and neither fails
  * loudly if it regresses:
  *
- *  - Alia's application `type` decides whether it can see the `internal_alia`
- *    catalogue audience at all. Registered as `first_party` it is a PUBLIC
- *    viewer, and the symptom is a model quietly not being offered — no error,
- *    no log line, nothing a smoke test distinguishes from an empty catalogue.
+ *  - Alia's application `type` keeps the agent runtime in the internal rollout
+ *    tier, while the catalogue must grant `platform_internal` to both internal
+ *    and staff-controlled first-party products.
  *  - Alia's scope set decides what it may do to the platform. A scope added
  *    "while we're here" is authority nobody re-examines, and two of the family
  *    are staff-gated precisely because holding them lets one tenant repoint
@@ -17,7 +16,7 @@
  * So the assertions below run the real chain — spec → `computeSeedApplicationPlan`
  * → `resolveCatalogueViewer` — rather than restating the constants. A test that
  * only read `SEED_APPS.find(...).type === 'internal'` would pass just as happily
- * if `resolveCatalogueViewer` stopped reading `type` tomorrow.
+ * if `resolveCatalogueViewer` stopped reading the staff-controlled tier tomorrow.
  */
 
 import {
@@ -41,6 +40,8 @@ import {
   INBOX_APPLICATION_ID,
   KAANA_APPLICATION_ID,
   MENTION_APPLICATION_ID,
+  NILO_APPLICATION_ID,
+  MEDIA_WORKER_APPLICATION_ID,
   SEED_APPS,
   seedApplicationLookupIdentity,
   type SeedAppSpec,
@@ -78,6 +79,38 @@ function seededPrincipal(spec: SeedAppSpec): CatalogueApplicationPrincipal {
 }
 
 describe('the canonical official-application registry', () => {
+  it('registers Nilo by exact identity with only public user-read authority', () => {
+    const nilo = specNamed('Nilo');
+    expect(nilo).toMatchObject({
+      id: NILO_APPLICATION_ID,
+      websiteUrl: 'https://nilo.so',
+      redirectUris: ['https://nilo.so'],
+      type: 'first_party',
+      scopes: ['user:read'],
+    });
+    expect(SEED_APPS.filter((spec) => spec.id === NILO_APPLICATION_ID)).toHaveLength(1);
+    expect(NILO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    expect(seedApplicationLookupIdentity(nilo, PLATFORM_OWNER_ID)).toEqual({ kind: 'id', id: NILO_APPLICATION_ID });
+    expect(seededPrincipal(nilo)).toEqual({ type: 'first_party', isInternal: false });
+    expect(nilo.capabilities ?? []).toEqual([]);
+  });
+
+  it('pins a separate media worker with no sign-in redirects or write grants', () => {
+    const worker = specNamed('Oxy Media Worker');
+    expect(worker).toMatchObject({
+      id: MEDIA_WORKER_APPLICATION_ID,
+      type: 'internal',
+      redirectUris: [],
+      scopes: ['user:read'],
+    });
+    expect(SEED_APPS.filter((spec) => spec.id === MEDIA_WORKER_APPLICATION_ID)).toHaveLength(1);
+    expect(worker.capabilities ?? []).toEqual([]);
+    expect(seedApplicationLookupIdentity(worker, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id', id: MEDIA_WORKER_APPLICATION_ID,
+    });
+    expect(seededPrincipal(worker)).toEqual({ type: 'internal', isInternal: true });
+  });
+
   describe('Kaana has one exact machine identity', () => {
     it('pins the opaque id, origin, narrow scope and validator capability', () => {
       const kaana = specNamed('Kaana');
@@ -137,7 +170,7 @@ describe('the canonical official-application registry', () => {
     });
   });
 
-  describe('Alia sees the internal catalogue audience', () => {
+  describe('Alia keeps its internal tier while catalogue routes are platform-wide', () => {
     it('pins the exact active production application primary key', () => {
       const alia = specNamed('Alia');
       expect(alia.id).toBe(ALIA_APPLICATION_ID);
@@ -150,7 +183,7 @@ describe('the canonical official-application registry', () => {
 
     it('is registered as an application the catalogue treats as internal', () => {
       const viewer = resolveCatalogueViewer(seededPrincipal(specNamed('Alia')));
-      expect(viewer.scopes).toContain('internal_alia');
+      expect(viewer.scopes).toContain('platform_internal');
       expect(viewer.label).toBe('internal');
     });
 
@@ -163,18 +196,20 @@ describe('the canonical official-application registry', () => {
       expect(seededPrincipal(spec).isInternal).toBe(true);
     });
 
-    it('does NOT hand the internal audience to a first-party app — the negative control', () => {
-      // Without this, "Alia sees internal_alia" would pass just as well if
-      // `resolveCatalogueViewer` returned the internal viewer for everybody, and
-      // the test above would be measuring nothing.
+    it('also grants the platform audience to a staff-controlled first-party app', () => {
       const console = resolveCatalogueViewer(seededPrincipal(specNamed('Oxy Console')));
-      expect(console.scopes).not.toContain('internal_alia');
-      expect(console.label).toBe('public');
+      expect(console.scopes).toContain('platform_internal');
+      expect(console.label).toBe('first_party');
+    });
+
+    it('does not grant the platform audience to a third-party app', () => {
+      const external = resolveCatalogueViewer({ type: 'third_party', isInternal: false });
+      expect(external.scopes).not.toContain('platform_internal');
+      expect(external.label).toBe('public');
     });
 
     it('the fixture contains both an internal and a first-party app', () => {
-      // Vacuity floor for the pair above: if every spec were one type, one of
-      // the two assertions would be unreachable.
+      // Vacuity floor for the official application pair above.
       const types = new Set(SEED_APPS.map((spec) => spec.type));
       expect(types.has('internal')).toBe(true);
       expect(types.has('first_party')).toBe(true);
@@ -332,6 +367,22 @@ describe('the canonical official-application registry', () => {
     });
   });
 
+  describe('Oxy Website owns only its catalog registration and job-search authority', () => {
+    it('can register a catalog, read users and search Clarity Jobs, nothing more', () => {
+      expect(specNamed('Oxy Website').scopes).toEqual([
+        'user:read',
+        'catalogs:write',
+        'clarity:search',
+      ]);
+    });
+
+    it('is bound to the website catalog namespace and no other platform capability', () => {
+      expect(specNamed('Oxy Website').capabilities).toEqual([
+        catalogApplicationCapability('website'),
+      ]);
+    });
+  });
+
   describe('Noted owns only its catalog service authority', () => {
     const NOTED_SERVICE_SCOPES = [
       'user:read',
@@ -385,7 +436,7 @@ describe('the canonical official-application registry', () => {
       expect(MENTION_APPLICATION_ID).toBe('6a2f851751b784a86fd0e916');
     });
 
-    it('can register, reauthorize and audit its catalog without coordinator authority', () => {
+    it('can register, reauthorize and audit its catalog, and reach Clarity, without coordinator authority', () => {
       expect(specNamed('Mention').scopes).toEqual([
         'user:read',
         'files:read',
@@ -395,6 +446,8 @@ describe('the canonical official-application registry', () => {
         'catalogs:write',
         'capabilities:read',
         'capability-audit:write',
+        'clarity:search',
+        'clarity:index',
       ]);
       expect(specNamed('Mention').capabilities).toEqual([
         catalogApplicationCapability('mention'),

@@ -7,7 +7,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "bun run --filter @oxy.so/contracts build && bun run --filter @oxy.so/protocol build && bun run --filter @oxy.so/core build && tsc",
+    "build": "node ../core/scripts/build-workspace-deps.mjs @oxy.so/contracts @oxy.so/protocol @oxy.so/core && tsc",
     "start": "node dist/index.js",
     "clean": "rm -rf dist",
     "test": "jest"

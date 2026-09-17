@@ -9,7 +9,7 @@ jest.mock('../../assetServiceSingleton', () => ({ assetService: { ensureOwnedAss
 jest.mock('../../../utils/logger', () => ({ logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() } }));
 import { eq } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../../config/postgres';
-import { inspectReconciliationActor } from '../../../../scripts/reconcile-external-identities';
+import { inspectReconciliationActor, inspectReconciliationActorResult } from '../../../../scripts/reconcile-external-identities';
 import { externalIdentities, externalIdentityInstagramPins, externalIdentityMetaProofs, externalIdentityActors, externalIdentityClaims, users } from '../../../db/schema';
 import { userService } from '../../user.service';
 import { federationService } from '../../federation.service';
@@ -20,10 +20,11 @@ afterEach(() => jest.restoreAllMocks());
 function response(url: string, body: unknown, contentType = 'application/activity+json') {
   return { status: 200, finalUrl: url, headers: { 'content-type': contentType }, response: Readable.from([Buffer.from(typeof body === 'string' ? body : JSON.stringify(body))]) };
 }
-function setup() {
+function setup(shape: 'numeric' | 'handle' = 'numeric') {
   const handle = `proof${randomUUID().replaceAll('-', '').slice(0, 12)}`;
   const igUri = `https://kilogram.makeup/users/${handle}`;
-  const thUri = `https://threads.net/ap/users/${Date.now()}${Math.floor(Math.random() * 100000)}`;
+  const thUri = shape === 'handle' ? `https://www.threads.net/ap/users/${handle}/`
+    : `https://threads.net/ap/users/${Date.now()}${Math.floor(Math.random() * 100000)}`;
   const igAcct = `${handle}@instagram.com`;
   const thAcct = `${handle}@threads.net`;
   const pages = {
@@ -47,8 +48,8 @@ function setup() {
   jest.spyOn(federationService, 'scheduleAvatarRefresh').mockImplementation(() => undefined);
   return { handle, igUri, thUri, igAcct, thAcct, pages, threadActor, instagramActor };
 }
-it('cold discovery parses first-party layouts and converges independent AP/web ID namespaces', async () => {
-  const source = setup();
+it.each(['numeric', 'handle'] as const)('cold discovery verifies %s AP paths and converges independent AP/web ID namespaces', async shape => {
+  const source = setup(shape);
   const ig = await federationService.resolveExternalActorIdentity(source.igUri);
   expect(ig?.identityProof).toEqual({ state: 'verified' });
   const th = await federationService.resolveExternalActorIdentity(source.thUri, source.thAcct);
@@ -59,8 +60,8 @@ it('cold discovery parses first-party layouts and converges independent AP/web I
   expect(stored.stableId).toBe(source.thUri);
   expect(stored.stableId).not.toContain('63055343223');
 });
-it('legacy null-pin Instagram never adopts historical lineage', async () => {
-  const source = setup();
+it.each(['numeric', 'handle'] as const)('legacy null-pin Instagram never adopts historical lineage with a %s AP path', async shape => {
+  const source = setup(shape);
   const legacy = await registerExternalIdentity({ canonicalAcct: source.igAcct, actorUri: source.igUri, transportAcct: `${source.handle}@kilogram.makeup`, protocol: 'activitypub', profile: { displayName: 'Mark Zuckerberg' } });
   const result = await federationService.resolveExternalActorIdentity(source.igUri);
   expect(result?.identityProof).toEqual({ state: 'pending', reason: 'legacy_source_lineage_unproven' });
@@ -69,6 +70,29 @@ it('legacy null-pin Instagram never adopts historical lineage', async () => {
   const [stored] = await getDb().select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, source.igAcct));
   expect(stored.stableId).toBeNull();
 });
+
+it.each(['id', 'subject', 'host', 'path'] as const)('handle-shaped native AP URI cannot bypass the %s binding', async failure => {
+  const source = setup('handle');
+  const originalFetch = mockSafeFetch.getMockImplementation();
+  if (!originalFetch) throw new Error('Expected fixture transport');
+  const wrongUri = failure === 'host' ? `https://untrusted.test/ap/users/${source.handle}/`
+    : failure === 'path' ? `https://www.threads.net/profiles/${source.handle}/` : source.thUri;
+  if (failure === 'id') source.threadActor.id = 'https://www.threads.net/ap/users/different/';
+  mockSafeFetch.mockImplementation(async (url: string) => {
+    if (url.includes('/.well-known/webfinger') && new URL(url).searchParams.get('resource') === `acct:${source.thAcct}`) {
+      return response(url, { subject: failure === 'subject' ? 'acct:different@threads.net' : `acct:${source.thAcct}`,
+        links: [{ rel: 'self', type: 'application/activity+json', href: wrongUri }] }, 'application/jrd+json');
+    }
+    if (wrongUri !== source.thUri && url === wrongUri) return response(url, { ...source.threadActor, id: wrongUri });
+    return originalFetch(url);
+  });
+  const result = await federationService.resolveExternalActorIdentity(source.igUri);
+  expect(result?.identityProof).toEqual({ state: 'refused', reason: failure === 'subject' ? 'threads_webfinger_binding_missing' : 'threads_actor_binding_missing' });
+  if (!result) throw new Error('Expected independent Instagram identity');
+  expect(await getEquivalentUserIds(result.externalIdentity.sourceUserId)).toEqual([result.externalIdentity.sourceUserId]);
+  expect(await getDb().select().from(externalIdentityMetaProofs).where(eq(externalIdentityMetaProofs.instagramActorUri, source.igUri))).toEqual([]);
+});
+
 it('a fresh missing badge revokes the existing group through public resolution', async () => {
   const source = setup();
   const first = await federationService.resolveExternalActorIdentity(source.igUri);
@@ -232,4 +256,14 @@ it('pinned source resolution withholds its ID during an own-page outage but reco
   expect(recovered?.identityProof?.state).toBe('refused');
   expect(recovered?.identityProof).not.toHaveProperty('sourceOwnerVerified');
   expect(await getEquivalentUserIds(first.externalIdentity.sourceUserId)).toEqual([first.externalIdentity.sourceUserId]);
+});
+
+
+test('reconciliation reports the same source failure without an additional fetch', async () => {
+  mockSafeFetch.mockReset();
+  mockSafeFetch.mockResolvedValue({ ...response('https://bird.makeup/users/missing', {}), status: 404 });
+  expect(await inspectReconciliationActorResult('https://bird.makeup/users/missing', false)).toMatchObject({
+    ok: false, failure: { phase: 'actor_fetch', reason: 'http_status', httpStatus: 404 },
+  });
+  expect(mockSafeFetch).toHaveBeenCalledTimes(1);
 });

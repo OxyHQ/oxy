@@ -28,7 +28,7 @@ aws() {
         if $next; then file="${arg#file://}"; break; fi
         [[ "$arg" != --cli-input-json ]] || next=true
       done
-      jq -e --arg image "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@$TEST_DIGEST" '.taskRoleArn == "preserved-role" and ([.containerDefinitions[] | select(.name == "oxy-api" and .image == $image and .secrets[0].valueFrom == "preserved-secret-arn")] | length == 1) and .containerDefinitions[0].image == "otel-image" and (has("taskDefinitionArn") | not)' "$file" >/dev/null || return 1
+      jq -e --arg image "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@$TEST_DIGEST" '.taskRoleArn == "preserved-role" and ([.containerDefinitions[] | select(.name == "oxy-api" and .image == $image and .secrets[0].valueFrom == "preserved-secret-arn" and .linuxParameters.initProcessEnabled == true)] | length == 1) and .containerDefinitions[0].image == "otel-image" and (has("taskDefinitionArn") | not)' "$file" >/dev/null || return 1
       echo 'arn:aws:ecs:r:a:task-definition/api:2' ;;
     'ecs run-task')
       local next=false override=''
@@ -38,6 +38,10 @@ aws() {
       done
       if [[ "${OPERATION_MODE:-reconcile}" == inspect_cache ]]; then
         jq -e --arg actor "$ACTOR_URI" --arg canonical "$CANONICAL_ACCT" --arg transport "$TRANSPORT_ACCT" --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$TEST_DIGEST" '.containerOverrides | length == 1 and .[0].command == ["busybox","timeout","-s","TERM","-k","30","120","bun","run","packages/api/scripts/inspect-external-identity-cache.ts","--actor-uri="+$actor,"--canonical-acct="+$canonical,"--transport-acct="+$transport,"--source-sha="+$sha,"--image-digest="+$digest] and (.[0] | has("environment") | not)' <<< "$override" >/dev/null || return 1
+      elif [[ "${OPERATION_MODE:-reconcile}" == inspect_profile ]]; then
+        jq -e --arg actor "$ACTOR_URI" --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$TEST_DIGEST" '.containerOverrides | length == 1 and .[0].command == ["busybox","timeout","-s","TERM","-k","30","120","bun","run","packages/api/scripts/inspect-external-profile.ts","--actor-uri="+$actor,"--source-sha="+$sha,"--image-digest="+$digest] and (.[0] | has("environment") | not)' <<< "$override" >/dev/null || return 1
+      elif [[ "${OPERATION_MODE:-reconcile}" == inspect_meta ]]; then
+        jq -e --arg acct "$CANONICAL_ACCT" --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$TEST_DIGEST" '.containerOverrides | length == 1 and .[0].command == ["busybox","timeout","-s","TERM","-k","30","60","bun","run","packages/api/scripts/inspect-meta-profile-proof.ts","--canonical-acct="+$acct,"--source-sha="+$sha,"--image-digest="+$digest] and (.[0] | has("environment") | not)' <<< "$override" >/dev/null || return 1
       else
       jq -e --arg dry "$DRY_RUN" --arg cursor "$AFTER_CURSOR" '.containerOverrides | length == 1 and .[0].command == (["busybox","timeout","-s","TERM","-k","30","5400","bun","run","packages/api/scripts/reconcile-external-identities.ts"] + (if $dry == "false" then ["--apply"] else [] end) + (if $cursor != "" then ["--after="+$cursor] else [] end)) and (.[0] | has("environment") | not)' <<< "$override" >/dev/null || return 1
       fi
@@ -50,6 +54,10 @@ aws() {
     'ecs stop-task'|'ecs deregister-task-definition') echo '{}' ;;
     'logs get-log-events')
       if [[ "$*" == *--next-token* ]]; then echo '{"events":[],"nextForwardToken":"end"}'
+      elif [[ "${OPERATION_MODE:-reconcile}" == inspect_profile && "$TEST_MODE" != wrong_summary ]]; then
+        jq -nc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$TEST_DIGEST" --arg actor "$ACTOR_URI" '{events:[{message:({operation:"inspect_profile",readOnly:true,actorUri:$actor,sourceSha:$sha,imageDigest:$digest,before:{},after:{},remote:null,failure:{reason:"signing_key_unavailable"}}|tojson)}],nextForwardToken:"end"}'
+      elif [[ "${OPERATION_MODE:-reconcile}" == inspect_meta && "$TEST_MODE" != wrong_summary ]]; then
+        jq -nc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$TEST_DIGEST" --arg acct "$CANONICAL_ACCT" '{events:[{message:({operation:"inspect_meta",readOnly:true,canonicalAcct:$acct,sourceSha:$sha,imageDigest:$digest,status:"refused",reason:"upstream_unavailable",observations:[{sourceAcct:$acct,phase:"response",reason:"http_status",httpStatus:429}]}|tojson)}],nextForwardToken:"end"}'
       elif [[ "${OPERATION_MODE:-reconcile}" == inspect_cache && "$TEST_MODE" != wrong_summary ]]; then
         jq -nc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$TEST_DIGEST" '{events:[{message:({operation:"inspect_cache",sourceSha:$sha,imageDigest:$digest,observedAt:"2026-09-13T00:00:00.000Z",counts:{users:0,registryActors:0,registryIdentities:0},absent:true}|tojson)}],nextForwardToken:"end"}'
       else echo '{"events":[{"message":"{\"visited\":1,\"refused\":0}"}],"nextForwardToken":"end"}'; fi ;;
@@ -84,6 +92,10 @@ for mode in success capacity; do
   grep -q 'deregister-task-definition' "$TEST_LOG"
   grep -q '"visited":1' "$test_root/$mode/identity-reconciliation-report/task.log"
 done
+: > "$TEST_LOG"
+LAUNCH_ONLY=true run_case launch
+jq -e '.taskDefinitionArn == "arn:aws:ecs:r:a:task-definition/api:2"' "$test_root/launch/identity-reconciliation-report/run.json" >/dev/null
+! grep -Eq 'ecs wait|stop-task|deregister-task-definition|logs get-log-events' "$TEST_LOG"
 DRY_RUN=false AFTER_CURSOR='https://bridge.example/users/person' run_case apply
 : > "$TEST_LOG"
 if TEST_EXIT=2 run_case refused; then exit 1; fi
@@ -116,3 +128,40 @@ for invalid in apply mixed unknown injection; do
 done
 if TEST_MODE=wrong_summary run_case wrong-summary; then exit 1; fi
 echo 'Identity ECS reconciliation guards and lifecycle: passed'
+
+export OPERATION_MODE=inspect_meta ACTOR_URI='' TRANSPORT_ACCT='' CANONICAL_ACCT=zuck@instagram.com
+: > "$TEST_LOG"
+run_case meta
+jq -e '.operation == "inspect_meta" and .status == "refused" and .observations[0].httpStatus == 429' "$test_root/meta/identity-reconciliation-report/summary.json" >/dev/null
+! grep -q 'reconcile-external-identities.ts' "$TEST_LOG"
+for invalid in apply cursor host url transport mixed; do
+  : > "$TEST_LOG"
+  case "$invalid" in
+    apply) if DRY_RUN=false run_case "meta-$invalid"; then exit 1; fi ;;
+    cursor) if AFTER_CURSOR=https://bird.makeup/users/a run_case "meta-$invalid"; then exit 1; fi ;;
+    host) if CANONICAL_ACCT=zuck@instagram.com.evil.example run_case "meta-$invalid"; then exit 1; fi ;;
+    url) if CANONICAL_ACCT=https://instagram.com/zuck run_case "meta-$invalid"; then exit 1; fi ;;
+    transport) if TRANSPORT_ACCT=zuck@kilogram.makeup run_case "meta-$invalid"; then exit 1; fi ;;
+    mixed) if ACTOR_URI=https://kilogram.makeup/users/zuck run_case "meta-$invalid"; then exit 1; fi ;;
+  esac
+  [[ ! -s "$TEST_LOG" ]]
+done
+if TEST_MODE=wrong_summary run_case meta-wrong-summary; then exit 1; fi
+echo 'Fixed Meta read-only source diagnostics and report discrimination: passed'
+
+export OPERATION_MODE=inspect_profile ACTOR_URI=https://bird.makeup/users/example CANONICAL_ACCT='' TRANSPORT_ACCT=''
+run_case profile
+jq -e '.operation == "inspect_profile" and .readOnly and .failure.reason == "signing_key_unavailable"' "$test_root/profile/identity-reconciliation-report/summary.json" >/dev/null
+for invalid in apply cursor account host query; do
+  : > "$TEST_LOG"
+  case "$invalid" in
+    apply) if DRY_RUN=false run_case "profile-$invalid"; then exit 1; fi ;;
+    cursor) if AFTER_CURSOR=https://bird.makeup/users/a run_case "profile-$invalid"; then exit 1; fi ;;
+    account) if CANONICAL_ACCT=example@x.com run_case "profile-$invalid"; then exit 1; fi ;;
+    host) if ACTOR_URI=https://evil.example/users/a run_case "profile-$invalid"; then exit 1; fi ;;
+    query) if ACTOR_URI='https://bird.makeup/users/a?secret=x' run_case "profile-$invalid"; then exit 1; fi ;;
+  esac
+  [[ ! -s "$TEST_LOG" ]]
+done
+if TEST_MODE=wrong_summary run_case profile-wrong-summary; then exit 1; fi
+echo 'Fixed read-only profile inspection guards: passed'

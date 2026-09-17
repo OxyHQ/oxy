@@ -7,6 +7,7 @@
  */
 
 import 'dotenv/config';
+import { startWorkerActivity, stopWorkerActivity } from './services/workerActivity.service';
 import { shutdownTelemetry } from './telemetry';
 import { closePostgres } from './config/postgres';
 import { closeRedis } from './config/redis';
@@ -39,10 +40,14 @@ if (!process.env.PG_MAX_POOL_SIZE) {
   process.env.PG_MAX_POOL_SIZE = String(WORKER_MAX_POOL_SIZE);
 }
 
+let ready = false;
+startWorkerActivity('oxy-asset-variant-worker', () => ready);
+
 async function start(): Promise<void> {
   logger.info('Starting Oxy asset-variant worker');
   await waitForDatabaseConnection(CONNECT_TIMEOUT_MS);
   await startAssetVariantWorker();
+  ready = true;
   logger.info('Oxy asset-variant worker is running', {
     maxPoolSize: process.env.PG_MAX_POOL_SIZE,
   });
@@ -53,8 +58,10 @@ let shuttingDown = false;
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
+  ready = false;
   logger.info(`${signal} received, stopping asset-variant worker`);
   await stopAssetVariantWorker();
+  await stopWorkerActivity();
   await closeRedis();
   await closePostgres();
   await shutdownTelemetry();

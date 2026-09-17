@@ -1,5 +1,42 @@
 # Changelog: `@oxy.so/contracts`
 
+## Unreleased
+
+### Added
+
+- `identityProof`: `buildIdentityProofMessage`, `canonicalJson`,
+  `identityProofSchema`, proof-challenge request/response schemas,
+  `IDENTITY_PROOF_ACTIONS` and the stable `IDENTITY_ERROR_CODES` (ADR 0024 D7).
+- Web identity envelope (one scheme, `version: 2`): `WEB_IDENTITY_SECRET_KINDS`,
+  required wrap `rpId`, `verifiedAt`, holder metadata and readiness facts on the
+  envelope response, proof fields on every envelope write,
+  `webauthnAssertionResponseSchema`, and the sign-up `identity` enrollment on
+  `webauthnRegisterVerifyRequestSchema`.
+- Identity move: commitment create request, reveal request, seal request with an
+  `identity_move_seal` root proof, `initiatorCommitment`/`initiatorCommitmentNonce`
+  on the state (initiator key `null` until revealed), `{ signature }` receipt,
+  12–24-word ciphertext lengths, and the canonical commitment/SAS/digest/seal/
+  receipt builders.
+
+### Removed
+
+- **Breaking:** `devicePairing` schemas; the version-1 web identity envelope and
+  unscoped wraps; identity move `protocolVersion`, `receiptTimestamp` and the
+  version-1 create/receipt shapes; `IDENTITY_ERROR_CODES.rootNotUnlinkable`.
+
+## 0.41.0
+
+### Changed
+
+- Replaced the Alia-specific `internal_alia` availability member with
+  `platform_internal`. The new name is an Oxy application audience: reviewed
+  routes are visible to staff-classified `first_party`, `internal` and `system`
+  applications, never to third-party applications or plain users.
+- `modelDeploymentSchema` advances from wire `schemaVersion: 1` to `2`, and
+  `modelCatalogueEntrySchema` from `2` to `3`. The contract-set handshake is
+  `3.0.0`; older consumers fail on the version instead of silently assigning the
+  new commercial boundary its retired Alia-only meaning.
+
 ## 0.40.0
 
 ### Added

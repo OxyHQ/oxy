@@ -62,7 +62,13 @@ export default function SessionsScreen() {
                     onPress: async () => {
                         try {
                             setActionLoading(sessionId);
-                            await removeSession(sessionId);
+                            // `removeSession` reports a failed revocation instead of
+                            // throwing — never announce a removal that did not happen.
+                            const result = await removeSession(sessionId);
+                            if (result.status === 'failed') {
+                                toast.error(t('sessions.remove.failed'));
+                                return;
+                            }
                             toast.success(t('sessions.remove.success'));
                         } catch (error) {
                             console.error('Failed to remove session:', error);

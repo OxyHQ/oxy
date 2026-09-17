@@ -12,6 +12,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@oxy.so/telemetry": "workspace:*",
     "@base-ui/react": "^1.6.0",
     "@expo/vector-icons": "^15.0.3",
     "@hugeicons/core-free-icons": "catalog:",
@@ -36,7 +37,6 @@
     "clsx": "catalog:",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.454.0",
-    "posthog-js": "1.428.6",
     "qrcode": "^1.5.4",
     "radix-ui": "catalog:",
     "react": "catalog:",

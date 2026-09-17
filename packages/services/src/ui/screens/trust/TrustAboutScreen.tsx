@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { H4, Text } from '@oxy.so/bloom/typography';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
-import { BenefitList, BenefitRow } from '@oxy.so/bloom/benefit-list';
+import { BenefitList, BenefitRow } from '../../components/BenefitList';
 import * as Icons from '@oxy.so/bloom/icons';
 import type { BaseScreenProps } from '../../types/navigation';
 import { useI18n } from '../../hooks/useI18n';
@@ -22,7 +22,7 @@ const TrustAboutScreen: React.FC<BaseScreenProps> = () => {
     return (
             <View className="px-screen-margin pt-space-16 pb-space-32">
                 <View className="items-center py-space-24 gap-space-12">
-                    <IconCircle icon={Icons.ShieldCheck_Stroke2_Corner0_Rounded} />
+                    <IconCircle icon={Icons.RiShieldCheckLine} />
                     <Text className="font-sans text-body text-text-secondary text-center">
                         {t('trust.about.intro') || 'Oxy Trust is a recognition of your positive actions in the Oxy Ecosystem. Reputation cannot be sent or received directly, only earned by contributing to the community.'}
                     </Text>
@@ -36,23 +36,23 @@ const TrustAboutScreen: React.FC<BaseScreenProps> = () => {
                     accessibilityLabel={t('trust.about.how.title') || 'How to Earn Reputation'}
                 >
                     <BenefitRow
-                        icon={<Icons.UserCircle_Stroke2_Corner0_Rounded size="sm" style={{ color: iconColor }} />}
+                        icon={<Icons.RiAccountCircleLine size="sm" style={{ color: iconColor }} />}
                         label={t('trust.about.how.help') || 'Helping other users'}
                     />
                     <BenefitRow
-                        icon={<Icons.Flag_Stroke2_Corner0_Rounded size="sm" style={{ color: iconColor }} />}
+                        icon={<Icons.RiFlagLine size="sm" style={{ color: iconColor }} />}
                         label={t('trust.about.how.report') || 'Reporting bugs'}
                     />
                     <BenefitRow
-                        icon={<Icons.PencilLine_Stroke2_Corner0_Rounded size="sm" style={{ color: iconColor }} />}
+                        icon={<Icons.RiEditLine size="sm" style={{ color: iconColor }} />}
                         label={t('trust.about.how.contribute') || 'Contributing content'}
                     />
                     <BenefitRow
-                        icon={<Icons.Calendar_Stroke2_Corner0_Rounded size="sm" style={{ color: iconColor }} />}
+                        icon={<Icons.RiCalendarLine size="sm" style={{ color: iconColor }} />}
                         label={t('trust.about.how.participate') || 'Participating in events'}
                     />
                     <BenefitRow
-                        icon={<Icons.Sparkle_Stroke2_Corner0_Rounded size="sm" style={{ color: iconColor }} />}
+                        icon={<Icons.RiSparklingLine size="sm" style={{ color: iconColor }} />}
                         label={t('trust.about.how.other') || 'Other positive actions'}
                     />
                 </BenefitList>

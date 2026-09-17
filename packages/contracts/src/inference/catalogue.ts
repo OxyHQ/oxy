@@ -159,12 +159,13 @@ export const inferenceDataPolicySchema = z
   });
 
 /**
- * Who a route may be served to. Availability inside Alia never implies
- * permission to resell the same provider/model publicly, which is why this is
- * an explicit scope on the route rather than a boolean derived from "it works".
+ * Who a route may be served to. Availability to an official Oxy product never
+ * implies permission to resell the same provider/model publicly, which is why
+ * this is an explicit scope on the route rather than a boolean derived from
+ * "it works".
  */
 export const availabilityScopeSchema = z.enum([
-  'internal_alia',
+  'platform_internal',
   'public_payg',
   'enterprise',
   'byok_only',
@@ -374,7 +375,7 @@ export const inferenceProviderSchema = z.object({
 export const modelDeploymentSchema = z
   .object({
     /** See `version.ts`: exchanged with the data plane on its own. */
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     deploymentId: deploymentIdSchema,
     provider: inferenceProviderSlugSchema,
     /** Always revision-pinned: a deployment serves specific weights. */
@@ -511,7 +512,7 @@ export const catalogueServingProviderSummarySchema = z
  */
 export const modelCatalogueEntrySchema = z.object({
   /** See `version.ts`: this is the public catalogue response shape. */
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   modelId: modelIdSchema,
   publisher: cataloguePublisherSummarySchema,
   displayName: z.string().min(1).max(200),

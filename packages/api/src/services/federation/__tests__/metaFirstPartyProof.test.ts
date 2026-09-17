@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 const mockSafeFetch = jest.fn();
 jest.mock('@oxy.so/core/server', () => ({ safeFetch: (...args: unknown[]) => mockSafeFetch(...args) }));
-import { fetchMetaFirstPartyProfilePair, parseMetaFirstPartyProfile } from '../metaFirstPartyProof.service';
+import { fetchMetaFirstPartyProfilePair, parseMetaFirstPartyProfile, inspectMetaFirstPartyProfilePair } from '../metaFirstPartyProof.service';
 const fixture = (name: string) => readFileSync(join(__dirname, '../__fixtures__/meta-profile-proof', name), 'utf8');
 const ig = fixture('instagram-zuck.html');
 const th = fixture('threads-zuck.html');
@@ -156,4 +156,67 @@ it('includes the same source observation and start time in a fully verified pair
   if (result.status !== 'verified') throw new Error('Expected verified fixture pair');
   expect(result.instagramProfile).toMatchObject({ pk: result.pair.instagram.pk, graphId: result.pair.instagram.graphId,
     documentHash: result.pair.instagram.documentHash, fetchedAt: result.pair.fetchedAt });
+});
+
+it('diagnostic uses identical live fetch defaults and emits only reviewed proof fields', async () => {
+  mockSafeFetch.mockResolvedValueOnce(response(ig, igUrl)).mockResolvedValueOnce(response(th, thUrl));
+  const result = await inspectMetaFirstPartyProfilePair('zuck@instagram.com');
+  expect(result.status).toBe('verified');
+  expect(result.observations).toHaveLength(2);
+  expect(result.observations.every(row => row.outcome === 'accepted' && row.httpStatus === 200 && /^[0-9a-f]{64}$/.test(row.documentHash ?? ''))).toBe(true);
+  expect(mockSafeFetch).toHaveBeenCalledTimes(2);
+  expect(mockSafeFetch.mock.calls[0][1]).toEqual({ method: 'GET', headers: { Accept: 'text/html', 'Accept-Language': 'en' },
+    maxRedirects: 0, headersTimeoutMs: 10000, signal: expect.any(AbortSignal) });
+  const serialized = JSON.stringify(result);
+  expect(serialized).not.toContain('Mark Zuckerberg');
+  expect(serialized).not.toContain('I build stuff');
+  expect(serialized).not.toContain('<script');
+  expect(result).toMatchObject({ pair: { instagram: { pk: '314216' }, threads: { webPk: '63055343223' } } });
+});
+
+it.each([404, 429])('classifies HTTP%s without reading or exposing the failure body', async status => {
+  mockSafeFetch.mockResolvedValueOnce(response('SECRET_BODY', igUrl, status));
+  const result = await inspectMetaFirstPartyProfilePair('zuck@instagram.com');
+  expect(result).toMatchObject({ status: 'refused', reason: 'upstream_unavailable', observations: [
+    { sourceAcct: 'zuck@instagram.com', phase: 'response', outcome: 'refused', reason: 'http_status', httpStatus: status },
+  ] });
+  expect(result.observations[0].documentHash).toBeUndefined();
+  expect(JSON.stringify(result)).not.toContain('SECRET_BODY');
+  expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+});
+
+it('classifies blocked redirects without retry or copying exception/location secrets', async () => {
+  mockSafeFetch.mockRejectedValueOnce(Object.assign(new Error('too many redirects'), { name: 'UpstreamError' }));
+  expect(await inspectMetaFirstPartyProfilePair('zuck@instagram.com')).toMatchObject({ observations: [{ phase: 'transport', reason: 'redirect' }] });
+  expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+  mockSafeFetch.mockReset().mockRejectedValueOnce(new Error('https://private.example/?token=SECRET_EXCEPTION'));
+  const result = await inspectMetaFirstPartyProfilePair('zuck@instagram.com');
+  expect(result.observations[0].reason).toBe('transport_error');
+  expect(JSON.stringify(result)).not.toMatch(/SECRET_EXCEPTION|private\.example/);
+});
+
+it('classifies a stalled body at the existing deadline and destroys the stream', async () => {
+  jest.useFakeTimers();
+  try {
+    const body = new Readable({ read() {} });
+    mockSafeFetch.mockResolvedValueOnce({ ...response('', igUrl), response: body });
+    const pending = inspectMetaFirstPartyProfilePair('zuck@instagram.com');
+    await jest.advanceTimersByTimeAsync(10001);
+    expect(await pending).toMatchObject({ status: 'refused', observations: [{ phase: 'body', reason: 'body_timeout', httpStatus: 200 }] });
+    expect(body.destroyed).toBe(true);
+    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+  } finally { jest.useRealTimers(); }
+});
+
+it('keeps concurrent call observations isolated and hashes parser failures without HTML', async () => {
+  mockSafeFetch.mockImplementation(async (url: string) => url.endsWith('/failed/')
+    ? response('<html>SECRET_LOGIN_WALL</html>', url) : response(url === igUrl ? ig : th, url));
+  const [good, bad] = await Promise.all([inspectMetaFirstPartyProfilePair('zuck@instagram.com'), inspectMetaFirstPartyProfilePair('failed@instagram.com')]);
+  expect(good.status).toBe('verified');
+  expect(good.observations).toHaveLength(2);
+  expect(bad.observations).toHaveLength(1);
+  expect(bad.observations[0]).toMatchObject({ sourceAcct: 'failed@instagram.com', phase: 'owner', reason: 'profile_mismatch', documentHash: expect.stringMatching(/^[0-9a-f]{64}$/) });
+  expect(JSON.stringify([good, bad])).not.toContain('SECRET_LOGIN_WALL');
+  expect(good.observations.every(row => row.sourceAcct.startsWith('zuck@'))).toBe(true);
+  expect(mockSafeFetch).toHaveBeenCalledTimes(3);
 });

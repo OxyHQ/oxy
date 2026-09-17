@@ -1,19 +1,34 @@
 /** Revalidate legacy bridge identity through the same Oxy discovery authority. */
 import 'dotenv/config';
-import { asc, eq, gt } from 'drizzle-orm';
+import { closeRedis } from '../src/config/redis';
+import { asc, gt, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
 import { externalIdentityActors } from '../src/db/schema/externalIdentities';
 import { users } from '../src/db/schema/users';
 import { federationService } from '../src/services/federation.service';
 import { revokeMetaIdentityProof } from '../src/services/federation/metaIdentityProofRegistry.service';
+import type { ExternalActorProfile } from '../src/services/federation/externalIdentityPolicy';
 import { FEDERATION_BRIDGE_POLICY } from '../src/config/federationBridgePolicy';
 
 /** Failed apply observations revoke stale proof; previews never mutate identity. */
-export async function inspectReconciliationActor(actorUri: string, apply: boolean) {
+export async function inspectReconciliationActorResult(actorUri: string, apply: boolean) {
   const observedAt = new Date();
-  const profile = await federationService.fetchActorProfile(actorUri);
-  if (!profile && apply) await revokeMetaIdentityProof(actorUri, 'source_actor_unavailable', observedAt);
-  return profile;
+  const result = await federationService.fetchActorProfileResult(actorUri);
+  if (!result.ok && apply) await revokeMetaIdentityProof(actorUri, 'source_actor_unavailable', observedAt);
+  return result;
+}
+
+export async function inspectReconciliationActor(actorUri: string, apply: boolean) {
+  const result = await inspectReconciliationActorResult(actorUri, apply);
+  return result.ok ? result.profile : null;
+}
+
+/** Compare the representation persisted by registerExternalIdentity, not wire emptiness. */
+export async function inspectReconciliationChanges(profile: Pick<ExternalActorProfile, 'username' | 'bio'>, canonicalAcct: string): Promise<boolean> {
+  const [stored] = await getDb().select({ bio: users.bio }).from(users).where(sql`lower(btrim(${users.username})) = ${canonicalAcct}`).limit(1);
+  // Registry persistence uses `bio || null`. Historical empty strings and NULL
+  // both mean no biography; otherwise every empty profile changes on every run.
+  return !stored || profile.username !== canonicalAcct || (profile.bio || null) !== (stored.bio || null);
 }
 
 async function main() {
@@ -38,14 +53,14 @@ async function main() {
         if (!reviewed.has(host) && host !== 'threads.net' && host !== 'threads.com') continue;
         visited++;
         try {
-          const profile = await inspectReconciliationActor(source.actorUri, apply);
-          if (!profile) {
+          const inspected = await inspectReconciliationActorResult(source.actorUri, apply);
+          if (!inspected.ok) {
             refused++;
-            console.log(JSON.stringify({ actorUri: source.actorUri, state: 'refused', reason: 'source_fetch_or_identity_proof_failed' }));
+            console.log(JSON.stringify({ actorUri: source.actorUri, state: 'refused', reason: inspected.failure.reason, phase: inspected.failure.phase, httpStatus: inspected.failure.httpStatus }));
             continue;
           }
-          const [stored] = await getDb().select({ bio: users.bio }).from(users).where(eq(users.username, source.canonicalAcct)).limit(1);
-          const changes = profile.username !== source.canonicalAcct || profile.bio !== stored?.bio;
+          const profile = inspected.profile;
+          const changes = await inspectReconciliationChanges(profile, source.canonicalAcct);
           let identityProof: { state: string; reason?: string } | undefined;
           if (apply) {
             // Refetching at commit time avoids persisting a dry-run document if
@@ -60,17 +75,27 @@ async function main() {
           console.log(JSON.stringify({ actorUri: source.actorUri, previousAcct: source.canonicalAcct,
             canonicalAcct: profile.username, changes, applied: apply, identityProof,
             state: profile.domain === host ? 'transport_identity_retained' : 'canonicalized' }));
-        } catch (error) {
+        } catch {
           refused++;
-          console.log(JSON.stringify({ actorUri: source.actorUri, state: 'refused', reason: error instanceof Error ? error.message : 'unknown' }));
+          console.log(JSON.stringify({ actorUri: source.actorUri, state: 'refused', reason: 'unexpected_failure' }));
         }
       }
     }
     console.log(JSON.stringify({ apply, visited, changed, refused, pending, after: cursor }));
     if (refused) process.exitCode = 2;
-  } finally { await closePostgres(); }
+  } finally {
+    // Resolution invalidates user caches, opening a persistent Redis socket.
+    // Closing only PostgreSQL leaves completed apply tasks alive indefinitely.
+    try { await closePostgres(); } finally { await closeRedis(); }
+  }
 }
 
 if (require.main === module) {
-  void main().catch(error => { console.error(error instanceof Error ? error.message : 'Reconciliation failed'); process.exitCode = 1; });
+  void main().catch(() => { console.error('Reconciliation failed'); process.exitCode = 1; }).then(async () => {
+    // Detached avatar work belongs to the server lifecycle. A completed one-shot
+    // must terminate, but only after its report and cleanup output are flushed.
+    await Promise.all([process.stdout, process.stderr].map(stream =>
+      new Promise<void>(resolve => { stream.write('', () => resolve()); })));
+    process.exit(process.exitCode ?? 0);
+  });
 }

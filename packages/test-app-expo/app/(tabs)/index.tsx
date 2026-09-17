@@ -35,10 +35,9 @@ export default function HomeScreen() {
   }, [user]);
 
   const handleLogout = useCallback(async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Failed to log out', error);
+    const result = await logout();
+    if (result.status === 'failed') {
+      console.error('Failed to log out', result.error);
       Alert.alert('Logout failed', 'Check the console for details.');
     }
   }, [logout]);
@@ -164,7 +163,7 @@ export default function HomeScreen() {
                 icon: 'id-card-outline',
                 iconColor: colors.iconData,
                 title: 'Profile preview cards',
-                subtitle: 'ProfileCard, StatBar, heatmap & more',
+                subtitle: 'StatBar, heatmap & more',
                 onPress: () => router.push('/profile-cards'),
                 showChevron: true,
               },

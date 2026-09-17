@@ -52,19 +52,9 @@
   "signup": {
     "title": "创建您的账户",
     "subtitle": "一个身份，畅行整个生态系统。",
-    "commonsHeadline": "在 Commons 中创建您的身份",
-    "commonsExplainer": "Commons 是您完全自主保管的 Oxy 身份——一个应用，随处可用。",
     "createInCommons": "在 Commons 中创建您的身份",
-    "passkeyAlternative": "没有 Commons？改为在此设备上创建通行密钥",
     "createAccount": "创建账户",
-    "creating": "正在创建…",
-    "usernamePlaceholder": "选择一个用户名",
-    "usernameChecking": "正在检查…",
-    "usernameAvailable": "可用",
-    "usernameTaken": "该用户名已被占用",
     "backToSignInLink": "已有账户？登录",
-    "hubExplainer": "在安全窗口中创建您的 Oxy ID，然后立即返回。",
-    "continueInWindow": "在新窗口中继续",
     "welcome": {
       "title": "欢迎使用Oxy！",
       "subtitle": "只需几步即可创建您的账户",
@@ -118,8 +108,8 @@
     "loading": "正在加载账户...",
     "qrHeadline": "使用您的 Oxy 身份登录",
     "signInWithOxy": "使用 Oxy 登录",
+    "signUpWithOxy": "使用 Oxy 注册",
     "useIdentityOnDevice": "没有 Commons？改用此设备上的通行密钥",
-    "passkeySigningIn": "正在登录…",
     "getCommons": "获取 Commons",
     "commonsNotInstalled": "没有 Commons？获取应用以使用您的 Oxy ID 登录。",
     "showQrAnyway": "我在另一台设备上有 Commons",
@@ -136,7 +126,20 @@
       "openedInCommons": "已在 Commons 中打开",
       "confirming": "正在确认身份",
       "confirmed": "身份已确认"
-    }
+    },
+    "signInFailures": {
+      "denied": "登录请求已在 Commons 中被拒绝。",
+      "expired": "登录请求已过期，请重试。",
+      "network": "无法连接到 Oxy。请检查网络连接后重试。",
+      "notConfigured": "此应用尚未设置登录。",
+      "unsupportedFlow": "此登录无法在这里完成。",
+      "claimFailed": "登录已获批准，但未能完成。请重试。",
+      "generic": "登录失败，请重试。"
+    },
+    "linkOpenFailed": "无法打开链接，请重试。",
+    "continueWithPasskey": "继续",
+    "passkeyHint": "使用指纹、面容或设备 PIN 码。",
+    "otherDeviceCommons": "账号在其他设备上？用 Commons 扫码"
   },
   "common": {
     "actions": {
@@ -277,6 +280,7 @@
     "help": "帮助与反馈",
     "signOut": "退出登录",
     "privacy": "隐私政策",
-    "terms": "服务条款"
+    "terms": "服务条款",
+    "identity": "你的身份"
   }
 }

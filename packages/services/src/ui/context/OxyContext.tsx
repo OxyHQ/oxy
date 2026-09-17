@@ -95,7 +95,7 @@ import { DEFAULT_SESSION_VALIDITY_MS } from './oxyContextHelpers';
 // never dereferenced at module scope here.
 import { useFollow } from '../hooks/useFollow';
 import { commitDeviceSetAndResolve } from './commitSessionFlow';
-import { runPasskeyLogin, runPasskeyRegister, runPasskeyAdd } from './passkeyFlow';
+import { runPasskeyLogin, runPasskeyAdd } from './passkeyFlow';
 import {
   isPasskeySupported,
   runRegistrationCeremony,
@@ -104,7 +104,7 @@ import {
 import { queryKeys } from '../hooks/queries/queryKeys';
 import { useOxyAccountGraph } from './useOxyAccountGraph';
 
-export type { OxyContextState, OxyRuntimeProviderProps } from './oxyContextTypes';
+export type { LogoutResult, OxyContextState, OxyRuntimeProviderProps } from './oxyContextTypes';
 
 const OxyRuntimeContext = createContext<OxyContextState | null>(null);
 
@@ -959,22 +959,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     [oxyServices, authStore, commitSession],
   );
 
-  // Create a brand-new account whose first auth method is a passkey.
-  const registerWithPasskey = useCallback(
-    async (params: { username: string; deviceName?: string }): Promise<void> => {
-      await runPasskeyRegister({
-        isSupported: isPasskeySupported,
-        getRegisterOptions: (username) => oxyServices.webauthnRegisterOptions(username),
-        runCeremony: runRegistrationCeremony,
-        registerVerify: (response, envelope) => oxyServices.webauthnRegisterVerify(response, envelope),
-        commit: (input) => commitSession(input, { activate: true }),
-        username: params.username,
-        deviceName: params.deviceName,
-      });
-    },
-    [oxyServices, commitSession],
-  );
-
   // Add a passkey to the already-signed-in account (bearer present). No new
   // session is committed — just refresh the linked auth-methods list.
   const addPasskey = useCallback(
@@ -1265,7 +1249,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       getPublicKey,
       signIn,
       signInWithPasskey,
-      registerWithPasskey,
       addPasskey,
       removePasskey,
       revokeSuspiciousSignIn,
@@ -1323,7 +1306,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       getPublicKey,
       signIn,
       signInWithPasskey,
-      registerWithPasskey,
       addPasskey,
       removePasskey,
       revokeSuspiciousSignIn,

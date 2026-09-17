@@ -52,19 +52,9 @@
   "signup": {
     "title": "Crea il tuo account",
     "subtitle": "Un'unica identità per tutto l'ecosistema.",
-    "commonsHeadline": "Crea la tua identità in Commons",
-    "commonsExplainer": "Commons è la tua identità Oxy in piena autocustodia: un'unica app, ovunque.",
     "createInCommons": "Crea la tua identità in Commons",
-    "passkeyAlternative": "Non hai Commons? Crea una passkey su questo dispositivo",
     "createAccount": "Crea account",
-    "creating": "Creazione…",
-    "usernamePlaceholder": "Scegli un nome utente",
-    "usernameChecking": "Verifica in corso…",
-    "usernameAvailable": "Disponibile",
-    "usernameTaken": "Questo nome utente è già in uso",
     "backToSignInLink": "Hai già un account? Accedi",
-    "hubExplainer": "Crea il tuo Oxy ID in una finestra sicura, poi torna subito qui.",
-    "continueInWindow": "Continua in una nuova finestra",
     "welcome": {
       "title": "Benvenuto su Oxy!",
       "subtitle": "Crea il tuo account in pochi passaggi",
@@ -118,8 +108,8 @@
     "loading": "Caricamento account...",
     "qrHeadline": "Accedi con la tua identità Oxy",
     "signInWithOxy": "Accedi con Oxy",
+    "signUpWithOxy": "Registrati con Oxy",
     "useIdentityOnDevice": "Non hai Commons? Usa una passkey su questo dispositivo",
-    "passkeySigningIn": "Accesso in corso…",
     "getCommons": "Ottieni Commons",
     "commonsNotInstalled": "Non hai Commons? Scarica l'app per accedere con il tuo Oxy ID.",
     "showQrAnyway": "Ho Commons su un altro dispositivo",
@@ -136,7 +126,20 @@
       "openedInCommons": "Aperto in Commons",
       "confirming": "Conferma dell'identità in corso",
       "confirmed": "Identità confermata"
-    }
+    },
+    "signInFailures": {
+      "denied": "L'accesso è stato rifiutato in Commons.",
+      "expired": "La richiesta di accesso è scaduta. Riprova.",
+      "network": "Impossibile raggiungere Oxy. Controlla la connessione e riprova.",
+      "notConfigured": "Questa app non è ancora configurata per l'accesso.",
+      "unsupportedFlow": "Questo accesso non può essere completato qui.",
+      "claimFailed": "L'accesso è stato approvato, ma non siamo riusciti a completarlo. Riprova.",
+      "generic": "Accesso non riuscito. Riprova."
+    },
+    "linkOpenFailed": "Impossibile aprire il link. Riprova.",
+    "continueWithPasskey": "Continua",
+    "passkeyHint": "Usa l'impronta, il volto o il PIN del dispositivo.",
+    "otherDeviceCommons": "Account su un altro dispositivo? Scansiona con Commons"
   },
   "common": {
     "actions": {
@@ -277,6 +280,7 @@
     "help": "Aiuto e feedback",
     "signOut": "Esci",
     "privacy": "Informativa sulla privacy",
-    "terms": "Termini di servizio"
+    "terms": "Termini di servizio",
+    "identity": "La tua identità"
   }
 }

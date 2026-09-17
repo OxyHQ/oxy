@@ -9,6 +9,7 @@ import {
   isRTLLocale,
   getUserLanguages,
   getPrimaryLanguage,
+  coerceToSupportedLocale,
 } from '../languageUtils';
 
 describe('getBaseLanguage', () => {
@@ -184,6 +185,30 @@ describe('getPrimaryLanguage', () => {
     expect(getPrimaryLanguage({})).toBeUndefined();
     expect(getPrimaryLanguage({ languages: ['xx-ZZ'] })).toBeUndefined();
     expect(getPrimaryLanguage(null)).toBeUndefined();
+  });
+});
+
+describe('coerceToSupportedLocale', () => {
+  const hostCatalog = ['en-US', 'es-ES', 'fr-FR'] as const;
+
+  it('returns an exact canonical match from the host catalog', () => {
+    expect(coerceToSupportedLocale('es-es', hostCatalog, 'en-US')).toBe('es-ES');
+  });
+
+  it('falls back to the closest entry sharing the same base language', () => {
+    // `es-MX` is a real Oxy locale, but this host never shipped a Mexican
+    // Spanish catalog — its Spanish (Spain) one is the closest match.
+    expect(coerceToSupportedLocale('es-MX', hostCatalog, 'en-US')).toBe('es-ES');
+  });
+
+  it('falls back to the caller default when no base language matches', () => {
+    expect(coerceToSupportedLocale('ja-JP', hostCatalog, 'en-US')).toBe('en-US');
+  });
+
+  it('falls back to the caller default for empty or unresolved input', () => {
+    expect(coerceToSupportedLocale(undefined, hostCatalog, 'en-US')).toBe('en-US');
+    expect(coerceToSupportedLocale(null, hostCatalog, 'en-US')).toBe('en-US');
+    expect(coerceToSupportedLocale('', hostCatalog, 'en-US')).toBe('en-US');
   });
 });
 

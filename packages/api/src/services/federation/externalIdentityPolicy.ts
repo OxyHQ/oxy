@@ -64,7 +64,11 @@ export function deriveExternalActorProfile(actor: Record<string, unknown>, actor
   let username = `${local}@${domain}`;
   let normalizedBio = bio;
   let stableId: string | undefined;
-  if (['threads.net', 'threads.com'].includes(host) && /^\/ap\/users\/[0-9]+\/?$/.test(actorUrl.pathname)) {
+  // Native WebFinger can name a handle-shaped AP URI (for example mosseri).
+  // The whole actor URI is the source ID; its path is never a username proof.
+  // Meta equivalence still requires exact WebFinger/actor and first-party bindings.
+  if (['threads.net', 'threads.com'].includes(host) && !actorUrl.search && !actorUrl.hash && !actorUrl.port
+    && /^\/ap\/users\/(?:[0-9]+|[a-zA-Z0-9_][a-zA-Z0-9._]{0,63})\/?$/.test(actorUrl.pathname)) {
     stableId = actorUri;
   }
   const candidate = {

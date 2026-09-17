@@ -6,7 +6,7 @@
 > engine is in `@oxy.so/api`; the crypto + SDK surface is in `@oxy.so/core`; wire
 > types are in `@oxy.so/contracts`.
 >
-> Related: [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
+> Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
 > [External identities and aliases](external-identities.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
 
 ---
@@ -15,15 +15,16 @@
 
 Every user has a [W3C DID](https://www.w3.org/TR/did-core/) that is
 **account-anchored on the stable Mongo `_id`**, *not* on a keypair. The keypair
-(if any) is a *verification method* under the account's `authMethods[]`. This is
-what makes the identity reversible: linking a key makes the DID self-sovereign;
-unlinking reverts it to custodial — the DID string never changes.
+(if any) is a *verification method* under the account's `authMethods[]`. Linking a
+root makes the DID self-sovereign and the DID string never changes. A root is
+never unlinked back to custodial; it is replaced only by rotation
+([ADR 0024](../adr/0024-one-oxy-account-root-holders.md) D8).
 
 - The anchor domain is configurable via `DID_WEB_DOMAIN` (default `api.oxy.so`,
   falling back to `FEDERATION_DOMAIN` = `oxy.so`). `:` is `%3A`-encoded.
   (`did.service.ts:47`)
 - `buildUserDid(userId)` → `did:web:<domain>:u:<userId>` (`did.service.ts:86`).
-- `OXY_DID` = `did:web:<domain>` is the Oxy organization's custodial controller.
+- `OXY_DID` = `did:web:<domain>` is the Oxy organization's DID: controller of accounts that have no root (managed, federated, legacy keyless), and the issuer of service attestations — never a controller of a personal root.
 
 ### Custodial vs self-sovereign
 
@@ -32,7 +33,7 @@ unlinking reverts it to custodial — the DID string never changes.
 
 | | Custodial (no on-device key) | Self-sovereign (≥1 `identity` auth method) |
 |---|---|---|
-| `controller` | `[OXY_DID]` | `[userDid, OXY_DID]` |
+| `controller` | `[OXY_DID]` | `[userDid]` — Oxy is not a controller of a personal root (ADR 0024 D9) |
 | `verificationMethod` | Oxy custodial key (if any) | the user's `publicKey` + each `authMethods[].type==='identity'` key |
 | `authentication` / `assertionMethod` | — | references to the user's VMs |
 
@@ -202,14 +203,14 @@ capped at `MAX_LOG_LIMIT = 500`.
 (`verificationMethodId` is present only for `identity` and links to a DID VM
 fragment).
 
-- `linkIdentityKey()` — native-only; signs a JSON proof with the on-device key →
-  `POST /auth/link`. Makes the DID self-sovereign.
-- `linkPassword(email, password)` → `POST /auth/link`.
-- `unlinkAuthMethod(type)` → `DELETE /auth/link/:type`; refuses to remove the last
-  remaining method. Reverts the DID to custodial if the last `identity` key is
-  removed.
+- `POST /auth/link` — first link of a root only (ADR 0024 D8): a root proof,
+  plus a fresh passkey assertion for a keyless account. Clients reach it through
+  the holder flow on `id.oxy.so` (web) or Commons (native), not an SDK method.
+- `removePasskey(credentialId)` → `DELETE /auth/link/webauthn/:id`; refuses to
+  drop the last web holder wrap.
+- A root is never unlinked; it is replaced only by `rotateKey()`.
 
-Every link/unlink invalidates the identity caches (`_invalidateIdentityCaches`:
+Every identity mutation invalidates the identity caches (`_invalidateIdentityCaches`:
 `GET:/users/me*`, `GET:/auth/methods`, `GET:/identity/domains`, the DID doc).
 
 ---

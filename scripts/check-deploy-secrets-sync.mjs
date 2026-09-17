@@ -87,6 +87,15 @@ const SSM_ONLY_SECRET_BINDINGS = new Map([
     'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY',
     'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY',
   ],
+  // ADR 0012: the Ed25519 service-token mint key and its active kid.
+  [
+    'SERVICE_TOKEN_PRIVATE_KEY',
+    'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY',
+  ],
+  [
+    'SERVICE_TOKEN_SIGNING_KEY_ID',
+    'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID',
+  ],
 ]);
 
 /**

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
+import type { IdentityRootStatus } from '@oxy.so/contracts';
 import type { GroupedItem } from '@/components/sections/types';
 import type { HomeHandlers } from './useHomeHandlers';
 
@@ -10,14 +11,18 @@ interface UseSecurityOverviewItemsArgs {
   canEnableBiometric: boolean;
   hasBiometricHardware: boolean;
   biometricLoading: boolean;
-  userEmail: string | undefined;
+  /** `GET /identity/root-status`, or `undefined` while unknown. */
+  rootStatus: IdentityRootStatus | undefined;
+  /** Open the person's Oxy identity page (save/show the recovery phrase, recover). */
+  handleIdentity: () => void;
   handleSecurity: HomeHandlers['handleSecurity'];
 }
 
 /**
  * Builds the security-overview rows on the home screen (biometric status,
- * recovery email, overall security status). Every row links to the security
- * screen. The biometric row is native-only.
+ * recovery phrase, overall security status). The biometric and status rows link
+ * to the security screen; the recovery row opens the person's Oxy identity. The
+ * biometric row is native-only.
  *
  * Extracted verbatim from the screen's inline `useMemo`.
  */
@@ -26,7 +31,8 @@ export function useSecurityOverviewItems({
   canEnableBiometric,
   hasBiometricHardware,
   biometricLoading,
-  userEmail,
+  rootStatus,
+  handleIdentity,
   handleSecurity,
 }: UseSecurityOverviewItemsArgs): GroupedItem[] {
   const colors = useColors();
@@ -60,18 +66,27 @@ export function useSecurityOverviewItems({
       });
     }
 
-    // Recovery email
+    // Recovery phrase — what gets an Oxy account back (ADR 0024: no email or
+    // support recovery exists). Unknown status shows no verdict.
+    const recoveryNeedsAttention =
+      rootStatus !== undefined && (!rootStatus.rootLinked || (rootStatus.hasPhrase === true && !rootStatus.phraseConfirmedAt));
+    let recoverySubtitle = '';
+    if (rootStatus === undefined) recoverySubtitle = t('home.securityOverview.recoveryChecking');
+    else if (!rootStatus.rootLinked) recoverySubtitle = t('home.securityOverview.recoveryNotSecured');
+    else if (rootStatus.webHolder === null) recoverySubtitle = t('home.securityOverview.recoveryInCommons');
+    else if (rootStatus.hasPhrase === false || rootStatus.phraseConfirmedAt) recoverySubtitle = t('home.securityOverview.recoverySaved');
+    else recoverySubtitle = t('home.securityOverview.recoveryNotSaved');
     items.push({
-      id: 'recovery-email',
-      icon: 'email-check-outline',
-      iconColor: userEmail ? colors.success : colors.sidebarIconSecurity,
-      title: t('home.securityOverview.recoveryEmail'),
-      subtitle: userEmail ? t('common.set') : t('common.notSet'),
-      onPress: handleSecurity,
+      id: 'recovery-phrase',
+      icon: 'form-textbox-password',
+      iconColor: recoveryNeedsAttention ? colors.sidebarIconSecurity : colors.success,
+      title: t('home.securityOverview.recoveryPhrase'),
+      subtitle: recoverySubtitle,
+      onPress: handleIdentity,
     });
 
     // Security status based on recommendations
-    const hasSecurityIssues = !userEmail || (Platform.OS !== 'web' && hasBiometricHardware && !biometricEnabled && canEnableBiometric);
+    const hasSecurityIssues = recoveryNeedsAttention || (Platform.OS !== 'web' && hasBiometricHardware && !biometricEnabled && canEnableBiometric);
     items.push({
       id: 'security-status',
       icon: 'shield-lock-outline',
@@ -82,5 +97,5 @@ export function useSecurityOverviewItems({
     });
 
     return items;
-  }, [biometricEnabled, canEnableBiometric, hasBiometricHardware, biometricLoading, colors.sidebarIconSecurity, colors.sidebarIconPayments, colors.success, userEmail, handleSecurity, t]);
+  }, [biometricEnabled, canEnableBiometric, hasBiometricHardware, biometricLoading, colors.sidebarIconSecurity, colors.sidebarIconPayments, colors.success, rootStatus, handleIdentity, handleSecurity, t]);
 }

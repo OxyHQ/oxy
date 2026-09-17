@@ -4,11 +4,65 @@
 
 ### Added
 
+- Identity roots (ADR 0024): `signIdentityProof` / `digestIdentityPayload` sign
+  the one payload-bound, one-use v2 root proof; web identity envelopes gain
+  version 2 (12–24-word phrases or a raw private key, RP-bound wraps, holder
+  `verifiedAt`) alongside `parseRecoveryMaterial`,
+  `deriveIdentityFromPrivateKey`, `deriveIdentityFromRecoveryMaterial`,
+  `markWrapVerified`, `isUsablePrfOutput` and `wipeOpenedIdentity`.
+- `getIdentityRootStatus()` reads the account's root readiness (root linked, web
+  holder passkeys, phrase saved, recovery verified) without anything that opens
+  the root. `webauthnRegisterVerify` accepts the sign-up `identity` enrollment.
+
+- Identity transfer (ADR 0024 D6): `createMoveCommitment`,
+  `verifyMoveCommitment`, `deriveMoveSas({ moveId, initiatorEphemeralPublicKey,
+  responderEphemeralPublicKey, initiatorCommitment })`, `digestMoveCiphertext`,
+  `signMoveReceipt(sign, claims)`, `verifyMoveReceipt(claims, signature)`. The
+  initiator commits to its ephemeral key before the responder joins, so an active
+  relay cannot grind substituted keys into matching codes; the receipt binds the
+  move, root, both keys and the relayed ciphertext. 12–24-word phrases move.
+
+### Changed
+
+- `OpenedWebIdentity` is now a union of `OpenedMnemonicIdentity` (`kind:
+  'mnemonic'`) and `OpenedRawKeyIdentity` (`kind: 'raw-key'`, `mnemonic: null`).
+  `openMovedIdentity` returns `OpenedMnemonicIdentity`.
+- **Breaking:** web identity envelopes have one scheme. `sealWebIdentity` and
+  `addWrap` require the wrap's `rpId`; there is no version-1 envelope.
+
+### Removed
+
+- **Breaking:** `linkIdentityKey`, `unlinkAuthMethod` (the API links a root first
+  time only through the holder flow and never unlinks one).
+- **Breaking:** the `deviceTransfer` mixin (`/device-transfer*` is gone from the
+  API; it had no caller), the version-1 transfer (`deriveMoveSas(moveId, a, b)`,
+  `signMoveAction`, `IDENTITY_MOVE_ACTIONS`, timestamped receipts) and the `V2`
+  suffixed names, which are now the only ones.
+
 - Native agency-authority methods for catalog discovery, resource-scoped agent
   grants, account autonomy policies, execution-authority revocation, and the
   correlated audit trail used by Oxy Settings.
 - Resource-bound external MCP connections can now be listed and revoked without
   exposing access or refresh tokens to clients.
+
+## 1.4.0
+
+Published 2026-09-17 from the maintenance line (tag `@oxy.so/core@1.4.0`: the
+1.3.1 release commit plus ADR 0025 only). Everything under "Unreleased" above
+it did NOT ship in 1.4.0; the breaking identity work makes the next release
+from `main` a major.
+
+### Added
+
+- Present-requester assertions (ADR 0025): `OxyServices.mintRequesterAssertion`
+  lets a pinned first-party product backend trade a signed-in person's live
+  session for a one-use, 120-second `OXY-REQUESTER+JWT`, and
+  `OxyServices.introspectRequesterAssertion` lets its audience consume it.
+  `@oxy.so/core/server` adds `createOxyRequesterAssertionAuth` (mount after
+  `createOxyAuthMiddleware`; sets `req.userId` and `req.oxyRequester` only after
+  local JWKS verification, presenter binding and live introspection),
+  `signOxyRequesterAssertion`, `verifyOxyRequesterAssertion` and
+  `createOxyJwksKeyResolver`. Additive.
 
 ## 23.2.0
 

@@ -81,3 +81,29 @@ describe('native product agent identities', () => {
     ]);
   });
 });
+
+describe('present-requester entry points (ADR 0025)', () => {
+  it('admits exactly the Homiio Sindi credential for the Sindi agent and nothing else', () => {
+    const {
+      NATIVE_PRODUCT_AGENT_ENTRY_POINTS,
+      nativeProductAgentEntryPoint,
+    } = jest.requireActual('../nativeProductAgents') as typeof import('../nativeProductAgents');
+    expect(NATIVE_PRODUCT_AGENT_ENTRY_POINTS).toEqual([{
+      product: 'homiio',
+      applicationId: '6a2f851751b784a86fd0e922',
+      credentialId: '01a0648e-ad3f-7608-aa8b-c07bfef6cf73',
+      agentId: '01a0646a-078f-7514-9800-9f43ceed7df8',
+    }]);
+    expect(nativeProductAgentEntryPoint(
+      '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e',
+      '01a0648b-8d74-7240-adba-80707fdfdf9c',
+      '01a0646a-078f-7642-95ef-439952f4f3f9',
+    )).toBeNull();
+  });
+
+  it('pins Alia as the audience application, matching the seeded Alia application', () => {
+    const { ALIA_RESOURCE_SERVER_APPLICATION_ID } = jest.requireActual('../nativeProductAgents') as typeof import('../nativeProductAgents');
+    const { ALIA_APPLICATION_ID } = jest.requireActual('../../scripts/seedOxyApplicationsSpecs') as typeof import('../../scripts/seedOxyApplicationsSpecs');
+    expect(ALIA_RESOURCE_SERVER_APPLICATION_ID).toBe(ALIA_APPLICATION_ID);
+  });
+});

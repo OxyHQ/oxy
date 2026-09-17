@@ -53,6 +53,7 @@
 const fs = require('fs/promises');
 const path = require('path');
 const { withDangerousMod } = require('expo/config-plugins');
+const { requireFromProject } = require('./requireFromProject');
 
 const RES_DIR = path.join('app', 'src', 'main', 'res');
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
@@ -132,7 +133,7 @@ function rendersIdentically(before, after) {
 async function convertResourceImages(projectRoot, resDir) {
   let sharp;
   try {
-    sharp = require('sharp');
+    sharp = requireFromProject('sharp', projectRoot);
   } catch (error) {
     throw new Error(
       `[withOxyAndroidWebp] \`sharp\` is required to emit real WebP resources but could not be loaded (${error.message}). ` +

@@ -14,7 +14,12 @@ module.exports = {
     // overrides in the KeyManager suites resolve deterministically.
     '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
     '^@oxy.so/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
+    '^@oxy.so/telemetry/collector$': '<rootDir>/../telemetry/src/collector.ts',
+    '^@oxy.so/telemetry/socket$': '<rootDir>/../telemetry/src/socket.ts',
     '^@oxy.so/telemetry/browser$': '<rootDir>/../telemetry/src/browser.ts',
+    // Jest on the Bun runtime only (Node — and so CI — is untouched): Express's
+    // `depd` cannot read JavaScriptCore call sites and throws on require.
+    ...(process.versions.bun ? { '^depd$': '<rootDir>/jest/depd-bun-stub.cjs' } : {}),
   },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {

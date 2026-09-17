@@ -54,6 +54,9 @@
  */
 
 import express from 'express';
+import { observeInfrastructure } from '../services/platformInfrastructure.service';
+import { platformActivityBatchSchema, infrastructureHeartbeatSchema } from '../services/platformActivity.schema';
+import { publishPlatformActivity } from '../services/platformActivity.service';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
@@ -66,7 +69,13 @@ import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/au
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { accountIdRouteParams } from '../schemas/account.schemas';
+import { ALIA_RESOURCE_SERVER_APPLICATION_ID } from '../config/nativeProductAgents';
 import { accountService } from '../services/account.service';
+import {
+  introspectRequesterAssertion,
+  mintRequesterAssertion,
+} from '../services/nativeRequesterAssertion.service';
+import { requesterAssertionRuntime } from '../services/nativeRequesterAssertion.runtime';
 import { resolveServiceActingAsGrant } from '../services/serviceActingAs.service';
 import sessionService from '../services/session.service';
 import type { SessionAuthResponse } from '../types/session';
@@ -150,6 +159,27 @@ const requireTrustedServiceApp = asyncHandler(
 router.use(serviceAuthMiddleware);
 router.use(requireTrustedServiceApp);
 
+// Aggregate-only collection from the whole first-party ecosystem. The router's
+// shared service authentication and trust gates also protect this endpoint.
+router.post('/activity/infrastructure', asyncHandler(async (req: ServiceAuthRequest, res) => {
+  const result = infrastructureHeartbeatSchema.safeParse(req.body);
+  if (!result.success) { res.status(400).json({ error: 'Invalid infrastructure heartbeat' }); return; }
+  const { removed, ...member } = result.data;
+  await observeInfrastructure(req.serviceApp!.appId, member, removed);
+  res.status(204).end();
+}));
+
+router.post('/activity', (req, res) => {
+  const result = platformActivityBatchSchema.safeParse(req.body);
+  if (!result.success) {
+    res.status(400).json({ error: 'Invalid activity aggregate' });
+    return;
+  }
+  publishPlatformActivity(result.data);
+  res.status(204).end();
+});
+
+
 /**
  * Both ids are opaque strings the caller supplies, and neither is trusted for
  * anything beyond being looked up. The bounds exist so an arbitrarily long
@@ -201,6 +231,146 @@ router.get(
   })
 );
 
+
+/**
+ * Present-requester assertions (ADR 0025).
+ *
+ * Keyed on the calling application like every limiter here. The number bounds
+ * a compromised entry-point credential that also holds stolen user bearers; a
+ * healthy caller makes one mint per chat turn and Alia one introspection per
+ * turn, which is far below it.
+ */
+const requesterAssertionLimiter = rateLimit({
+  prefix: 'rl:internal:native-requester-assertion:',
+  windowMs: 60 * 1000,
+  max: 3000,
+  keyGenerator: (req) => (req as ServiceAuthRequest).serviceApp?.appId ?? 'unknown',
+});
+
+const identifierSchema = z.string().min(1).max(128);
+
+const mintRequesterAssertionBody = z.object({
+  agentId: identifierSchema,
+  // The requester's Oxy access token, as the product backend received it. It
+  // is validated and dropped; it is never logged, stored or echoed.
+  subjectToken: z.string().min(1).max(8192),
+}).strict();
+
+const introspectRequesterAssertionBody = z.object({
+  assertion: z.string().min(1).max(4096),
+  presenter: z.object({
+    applicationId: identifierSchema,
+    credentialId: identifierSchema,
+  }).strict(),
+}).strict();
+
+/**
+ * `POST /internal/native-agents/requester-assertions`
+ *
+ * A pinned first-party product credential trades a PRESENT requester's live
+ * session for a one-use assertion its native agent's audience (Alia) consumes.
+ * No consent grant is involved: the person is signed in and making the request
+ * now. Every refusal is the same 403; the reason is logged here only.
+ */
+router.post(
+  '/native-agents/requester-assertions',
+  requesterAssertionLimiter,
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
+    const parsed = mintRequesterAssertionBody.safeParse(req.body);
+    if (!parsed.success) throw new BadRequestError('Invalid requester assertion request');
+    const serviceApp = req.serviceApp;
+    if (!serviceApp) throw new UnauthorizedError('Service authentication required');
+
+    const result = await mintRequesterAssertion(requesterAssertionRuntime(), {
+      caller: {
+        applicationId: serviceApp.appId,
+        credentialId: serviceApp.credentialId,
+        scopes: serviceApp.scopes,
+      },
+      agentId: parsed.data.agentId,
+      subjectToken: parsed.data.subjectToken,
+    });
+
+    if (!result.ok) {
+      logger.warn('[internal] requester assertion refused', {
+        callerAppId: serviceApp.appId,
+        credentialId: serviceApp.credentialId,
+        agentId: parsed.data.agentId,
+        reason: result.reason,
+      });
+      if (result.reason === 'signing_unavailable' || result.reason === 'replay_store_unavailable') {
+        res.status(503).json({
+          error: 'Service Unavailable',
+          code: 'REQUESTER_ASSERTION_UNAVAILABLE',
+          message: 'Requester assertions are temporarily unavailable',
+        });
+        return;
+      }
+      res.status(403).json({
+        error: 'Forbidden',
+        code: 'REQUESTER_ASSERTION_REFUSED',
+        message: 'A requester assertion cannot be issued for this request',
+      });
+      return;
+    }
+
+    logger.info('[internal] requester assertion minted', {
+      callerAppId: serviceApp.appId,
+      agentId: result.agentId,
+      requesterAccountId: result.requesterAccountId,
+    });
+    sendSuccess(res, {
+      assertion: result.assertion,
+      expiresAt: result.expiresAt,
+      requesterAccountId: result.requesterAccountId,
+      agentId: result.agentId,
+    }, 201);
+  })
+);
+
+/**
+ * `POST /internal/native-agents/requester-assertions/introspect`
+ *
+ * The audience (Alia's application only) verifies, live-revalidates and
+ * CONSUMES an assertion. Always 200: `{ active: false }` carries no reason, so
+ * the answer discloses nothing about the requester, session or entry point.
+ */
+router.post(
+  '/native-agents/requester-assertions/introspect',
+  requesterAssertionLimiter,
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
+    const parsed = introspectRequesterAssertionBody.safeParse(req.body);
+    if (!parsed.success) throw new BadRequestError('Invalid requester assertion introspection');
+    const serviceApp = req.serviceApp;
+    if (!serviceApp) throw new UnauthorizedError('Service authentication required');
+
+    const result = await introspectRequesterAssertion(requesterAssertionRuntime(), {
+      callerApplicationId: serviceApp.appId,
+      audienceApplicationId: ALIA_RESOURCE_SERVER_APPLICATION_ID,
+      assertion: parsed.data.assertion,
+      presenter: parsed.data.presenter,
+    });
+
+    if (!result.active) {
+      logger.warn('[internal] requester assertion inactive', {
+        callerAppId: serviceApp.appId,
+        presenterAppId: parsed.data.presenter.applicationId,
+        reason: result.reason,
+      });
+      sendSuccess(res, { active: false });
+      return;
+    }
+
+    logger.info('[internal] requester assertion consumed', {
+      callerAppId: serviceApp.appId,
+      presenterAppId: result.applicationId,
+      agentId: result.agentId,
+      requesterAccountId: result.requesterAccountId,
+      jti: result.jti,
+    });
+    sendSuccess(res, result);
+  })
+);
 
 /**
  * Keyed on the CALLING application, for the same reason and with the same

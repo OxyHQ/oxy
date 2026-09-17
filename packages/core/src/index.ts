@@ -87,10 +87,6 @@ export type {
     ContactDiscoveryResponse,
 } from './mixins/OxyServices.contacts';
 export type {
-    InitDeviceTransferResult,
-    DeviceTransferOutcome,
-} from './mixins/OxyServices.deviceTransfer';
-export type {
     BulkFollowEntry,
     BulkFollowResult,
     BulkUnfollowEntry,
@@ -136,6 +132,8 @@ export type {
     DelegationCatalogBinding,
     DelegationGrantView,
     PutAccountCapabilityPolicyInput,
+    RequesterAssertionGrant,
+    RequesterAssertionIntrospection,
     UpdateDelegationGrantInput,
 } from './mixins/OxyServices.agency';
 
@@ -232,7 +230,6 @@ export {
 export { buildUserDid } from './mixins/OxyServices.identity';
 export type {
     IdentityRecordType,
-    UnlinkableAuthMethodType,
     LinkAuthMethodResult,
     PublishRecordResult,
     VerifyRecordResult,
@@ -336,6 +333,56 @@ export {
 export type { AeadResult } from './crypto/aead';
 export { deriveSharedSecret } from './crypto/ecdh';
 
+// Web identity holder — the same root as Commons, sealed under a passkey's PRF
+// output; identity proofs; transfer to Commons (docs/adr/0024-one-oxy-account-root-holders.md)
+export {
+    WEB_IDENTITY_PRF_INPUT,
+    WebIdentityUnlockError,
+    WEB_IDENTITY_PRF_OUTPUT_LENGTH,
+    addWrap,
+    deriveIdentityFromMnemonic,
+    deriveIdentityFromPrivateKey,
+    deriveIdentityFromRecoveryMaterial,
+    deriveKeyEncryptionKey,
+    generateDataKey,
+    generateWebIdentity,
+    isUsablePrfOutput,
+    markWrapVerified,
+    normalizeMnemonic,
+    openWebIdentity,
+    parseRecoveryMaterial,
+    removeWrap,
+    sealWebIdentity,
+    unlockWebIdentity,
+    unwrapDataKey,
+    wipeBytes,
+    wipeOpenedIdentity,
+} from './crypto/webIdentityCarrier';
+export type {
+    OpenedMnemonicIdentity,
+    OpenedRawKeyIdentity,
+    OpenedWebIdentity,
+    WebIdentityRecoveryMaterial,
+    WebIdentityUnlockFailure,
+    WrapInput,
+} from './crypto/webIdentityCarrier';
+export { digestIdentityPayload, signIdentityProof } from './crypto/identityProof';
+export {
+    buildMoveQrPayload,
+    createMoveCommitment,
+    deriveMoveKey,
+    deriveMoveSas,
+    digestMoveCiphertext,
+    generateMoveEphemeralKeyPair,
+    openMovedIdentity,
+    parseMoveQrPayload,
+    sealIdentityForMove,
+    signMoveReceipt,
+    verifyMoveCommitment,
+    verifyMoveReceipt,
+} from './crypto/identityMove';
+export type { MoveReceiptClaims } from './crypto/identityMove';
+
 // ---------------------------------------------------------------------------
 // Devices
 // ---------------------------------------------------------------------------
@@ -428,6 +475,7 @@ export {
     isRTLLocale,
     getUserLanguages,
     getPrimaryLanguage,
+    coerceToSupportedLocale,
 } from './utils/languageUtils';
 export type { SupportedLanguage } from './utils/languageUtils';
 
@@ -623,7 +671,7 @@ export type { QuickAccount, DisplayNameUserShape } from './utils/accountUtils';
 // `*.oxy.so`).
 // ---------------------------------------------------------------------------
 export { registrableApex } from './utils/registrableApex';
-export { CENTRAL_IDP_APEX } from './utils/authWebUrl';
+export { CENTRAL_IDP_APEX, IDENTITY_WEB_ORIGIN } from './utils/authWebUrl';
 
 // WebAuthn relying-party origin guard (client side). Mirrors the server's
 // `isOxyApexOrigin` so consumers can decide whether to offer passkey UI on the
@@ -768,6 +816,7 @@ export type {
     AccountDialogView,
     CommonsAvailability,
     PopupWindowHandle,
+    SignInFailureReason,
     SignInFlowPhase,
     SignInFlowState,
     SignInProgress,

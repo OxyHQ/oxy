@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger';
 /**
  * Federation Service — resolveAndUpsert fast + eventually-fresh, against a REAL
  * Postgres.
@@ -1167,5 +1168,72 @@ describe('FederationService.fetchActorProfile — the stored handle needs a vouc
 
     expect(profile?.username).toBe('bob@mastodon.social');
     expect(profile?.domain).toBe('mastodon.social');
+  });
+});
+
+
+describe('federation source failure diagnostics', () => {
+  const uri = 'https://remote.example/users/diagnostic';
+  beforeEach(() => { mockSafeFetch.mockReset(); jest.mocked(logger.warn).mockClear(); jest.mocked(logger.info).mockClear(); });
+
+  it.each([404, 429])('classifies HTTP %i without changing nullable profile behavior', async status => {
+    mockSafeFetch.mockImplementation(async () => makeSafeFetchResult(status, {}));
+    expect(await federationService.fetchActorProfileResult(uri)).toEqual({ ok: false, failure: {
+      operation: 'resolve_external_identity', phase: 'actor_fetch', reason: 'http_status', actorUri: uri, httpStatus: status,
+    } });
+    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+    expect(await federationService.fetchActorProfile(uri)).toBeNull();
+  });
+
+  it.each([
+    ['not JSON', 'unreadable_document'],
+    [JSON.stringify({ id: uri }), 'missing_actor_fields'],
+    [JSON.stringify({ id: uri + '/different', inbox: uri + '/inbox' }), 'actor_id_mismatch'],
+    [JSON.stringify({ id: uri, inbox: uri + '/inbox', preferredUsername: 'invalid@name' }), 'identity_policy_rejected'],
+  ])('reports malformed source classification for %s', async (body, reason) => {
+    mockSafeFetch.mockResolvedValue(makeSafeFetchResult(200, {}, body));
+    expect(await federationService.fetchActorProfileResult(uri)).toMatchObject({ ok: false, failure: { reason } });
+    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps failures isolated across simultaneous actor requests', async () => {
+    const other = uri + '-other';
+    mockSafeFetch.mockImplementation(async (url: string) => makeSafeFetchResult(url === uri ? 404 : 429, {}));
+    const results = await Promise.all([federationService.fetchActorProfileResult(uri), federationService.fetchActorProfileResult(other)]);
+    expect(results).toMatchObject([
+      { ok: false, failure: { actorUri: uri, httpStatus: 404 } },
+      { ok: false, failure: { actorUri: other, httpStatus: 429 } },
+    ]);
+    expect(mockSafeFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('never logs query secrets or raw transport exceptions', async () => {
+    mockSafeFetch.mockRejectedValue(new Error('PRIVATE_EXCEPTION_PAYLOAD'));
+    const result = await federationService.fetchActorProfileResult(uri + '?token=PRIVATE_QUERY#PRIVATE_FRAGMENT');
+    expect(result).toMatchObject({ ok: false, failure: { actorUri: uri, reason: 'transport_unavailable' } });
+    const logs = JSON.stringify(jest.mocked(logger.warn).mock.calls);
+    expect(logs).not.toContain('PRIVATE_');
+    expect(logs).toContain('Federation identity resolution failed');
+  });
+
+  it('does not leak a selector query during the existing signed-fetch fallback', async () => {
+    mockSafeFetch.mockImplementation(async () => makeSafeFetchResult(503, {}));
+    expect(await federationService.fetchActorProfileResult(uri + '?token=PRIVATE_QUERY')).toMatchObject({
+      ok: false, failure: { httpStatus: 503, actorUri: uri },
+    });
+    expect(JSON.stringify([jest.mocked(logger.warn).mock.calls, jest.mocked(logger.info).mock.calls])).not.toContain('PRIVATE_QUERY');
+    expect(mockSafeFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    [404, '', 'webfinger_fetch', 'http_status'],
+    [200, 'not JSON', 'webfinger_document', 'unreadable_document'],
+    [200, '{}', 'webfinger_document', 'missing_self_link'],
+  ])('records WebFinger failure %s %s without changing its public return', async (status, body, phase, reason) => {
+    mockSafeFetch.mockResolvedValue(makeSafeFetchResult(status, {}, body));
+    expect(await federationService.resolveWebFingerResource('diagnostic@remote.example')).toBeNull();
+    expect(logger.warn).toHaveBeenCalledWith('Federation identity resolution failed', expect.objectContaining({
+      operation: 'resolve_external_identity', acct: 'diagnostic@remote.example', phase, reason,
+    }));
   });
 });

@@ -321,7 +321,7 @@ describe('GET /users/me/export (JSON)', () => {
     expect(bundle.$schema).toBe('https://oxy.so/schemas/identity-export/v1');
     expect(bundle.did).toBe(did);
     expect(bundle.didDocument.id).toBe(did);
-    expect(bundle.didDocument.controller).toEqual([did, 'did:web:oxy.so']);
+    expect(bundle.didDocument.controller).toEqual([did]);
     expect(bundle.didDocument.verificationMethod).toEqual([
       { id: `${did}#key-1`, type: 'EcdsaSecp256k1VerificationKey2019', controller: did, publicKeyHex: publicKey },
     ]);

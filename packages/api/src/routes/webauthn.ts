@@ -48,6 +48,9 @@ import {
 } from '@simplewebauthn/server';
 import { decodeClientDataJSON, isoUint8Array } from '@simplewebauthn/server/helpers';
 import {
+  IDENTITY_ERROR_CODES,
+  IDENTITY_PROOF_ACTIONS,
+  type WebIdentityEnvelope,
   webauthnRegisterOptionsRequestSchema,
   webauthnLoginOptionsRequestSchema,
   webauthnRegisterVerifyRequestSchema,
@@ -56,6 +59,7 @@ import {
   USERNAME_INVALID_MESSAGE,
 } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
+import { identityWebEnvelopes } from '../db/schema/identityWebEnvelopes';
 import { notifications } from '../db/schema/notifications';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users } from '../db/schema/users';
@@ -64,7 +68,10 @@ import { webauthnCredentials } from '../db/schema/webauthnCredentials';
 import { extractTokenFromRequest, decodeToken } from '../middleware/authUtils';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler } from '../utils/asyncHandler';
-import { BadRequestError, ConflictError, ForbiddenError, UnauthorizedError, InternalServerError } from '../utils/error';
+import { ApiError, BadRequestError, ConflictError, ForbiddenError, UnauthorizedError, InternalServerError } from '../utils/error';
+import { digestIdentityPayload, verifyIdentityProofSignature } from '../services/identityProof.service';
+import { envelopeColumns } from '../utils/identityEnvelopeColumns';
+import SignatureService from '../services/signature.service';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 import { isOxyApexOrigin } from '../utils/origin';
@@ -86,6 +93,8 @@ const DEFAULT_CREDENTIAL_NAME = 'Passkey';
 const UNIQUE_VIOLATION = '23505';
 /** The unique index that rejects a second account claiming one username. */
 const USERNAME_UNIQUE_CONSTRAINT = 'users_lower_username_key';
+/** The unique index that rejects a root already linked to another account. */
+const PUBLIC_KEY_UNIQUE_CONSTRAINTS = new Set(['users_lower_public_key_key', 'user_auth_methods_lower_method_public_key_key']);
 /** The two unique indexes a second registration of one passkey can collide with. */
 const CREDENTIAL_UNIQUE_CONSTRAINTS = new Set([
   'webauthn_credentials_credential_id_key',
@@ -98,7 +107,7 @@ const loginOptionsLimiter = rateLimit({ prefix: 'rl:webauthn:login-options:', wi
 const loginVerifyLimiter = rateLimit({ prefix: 'rl:webauthn:login-verify:', windowMs: 60_000, max: 10 });
 
 /** The device-session options every first-party sign-in body carries. */
-interface DeviceEnvelope {
+export interface DeviceEnvelope {
   deviceName?: string;
   deviceFingerprint?: string;
 }
@@ -110,7 +119,7 @@ interface DeviceEnvelope {
  * keeps the protected columns (`phone`, the contact hashes, `refresh_token`)
  * out of the query entirely.
  */
-interface WebauthnAccount {
+export interface WebauthnAccount {
   id: string;
   username: string | null;
   avatar: string | null;
@@ -405,7 +414,7 @@ function decoyAllowCredentials(
  * and best-effort log the sign-in. Produces the SAME `AuthSuccess` shape as
  * `POST /auth/verify`.
  */
-async function mintWebauthnSession(
+export async function mintWebauthnSession(
   req: Request,
   res: Response,
   account: WebauthnAccount,
@@ -455,6 +464,48 @@ async function mintWebauthnSession(
   }
 
   res.json(response);
+}
+
+function enrollmentInvalid(message: string): ApiError {
+  return new ApiError(400, message, IDENTITY_ERROR_CODES.enrollmentInvalid);
+}
+
+/**
+ * Check a sign-up's root enrollment, returning the canonical root.
+ *
+ * The envelope must open with the passkey being registered and nothing else (its
+ * ONE wrap names that credential and, when present, this RP ID), and the root
+ * proof must name this username, this credential, the digest of this envelope
+ * and — as its challenge — this ceremony's registration challenge.
+ */
+export function checkIdentityEnrollment(
+  envelope: WebIdentityEnvelope,
+  context: { username: string; credentialId: string; rpId: string; registrationChallenge: string; proof: { v: 2; challenge: string; expiresAt: number; signature: string } },
+): string {
+  const root = envelope.publicKey.toLowerCase();
+  if (!SignatureService.isValidPublicKey(root)) {
+    throw enrollmentInvalid('The identity is not a valid key');
+  }
+  if (envelope.wraps.length !== 1 || envelope.wraps[0].credentialId !== context.credentialId) {
+    throw enrollmentInvalid('The identity must be sealed with exactly the passkey being created');
+  }
+  if (envelope.wraps[0].rpId !== context.rpId) {
+    throw enrollmentInvalid('The identity was sealed for a different passkey domain');
+  }
+  const expectedChallenge = Buffer.from(context.registrationChallenge, 'base64url').toString('hex');
+  if (context.proof.challenge !== expectedChallenge) {
+    throw new ApiError(401, 'Invalid or expired identity proof', IDENTITY_ERROR_CODES.proofInvalid);
+  }
+  verifyIdentityProofSignature({
+    action: IDENTITY_PROOF_ACTIONS.enroll,
+    subject: `username:${context.username}`,
+    actor: `credential:${context.credentialId}`,
+    rootPublicKey: root,
+    payloadDigest: digestIdentityPayload({ envelope }),
+    expectedRevision: null,
+    proof: context.proof,
+  });
+  return root;
 }
 
 /**
@@ -600,6 +651,16 @@ router.post(
 
     const { origin, challenge } = decodeAndGuardClientData(response.response.clientDataJSON);
 
+    // ADR 0024 D4: a personal account is created WITH its root or not at all.
+    // Refused before the challenge is spent, so the holder can retry properly.
+    if (!bearerUserId && !envelope.identity) {
+      throw new ApiError(
+        400,
+        'Create Oxy accounts through the Oxy account flow, which gives the account its own identity.',
+        IDENTITY_ERROR_CODES.enrollmentRequired,
+      );
+    }
+
     // Bind the challenge to its flow: a linking challenge to its user, a signup
     // challenge to no user.
     const burned = await burnChallenge(challenge, 'registration', bearerUserId);
@@ -711,16 +772,32 @@ router.post(
       throw new ConflictError('Username already taken');
     }
 
-    // The account, its credential and its auth method are created in ONE
+    // ADR 0024 D4: when the holder created the root first, the account is born
+    // WITH it — user, passkey, root, both auth methods and the sealed envelope in
+    // ONE transaction, or nothing. The root proof's challenge IS this ceremony's
+    // registration challenge (burned above), and it names the username and the
+    // credential, so it cannot be replayed onto another sign-up.
+    const enrollment = envelope.identity;
+    if (!enrollment) {
+      throw new ApiError(400, 'An Oxy account is created with its identity', IDENTITY_ERROR_CODES.enrollmentRequired);
+    }
+    const enrolledRoot = checkIdentityEnrollment(enrollment.envelope, {
+      username: normalizedUsername,
+      credentialId: credential.id,
+      rpId: rpID,
+      registrationChallenge: challenge,
+      proof: enrollment.proof,
+    });
+
+    // The account, its credential and its auth method(s) are created in ONE
     // transaction, so a failed credential insert can no longer orphan a username
-    // with no usable auth method. Mongo needed a compensating delete here purely
-    // because it had no transaction on this path; that delete is gone.
+    // with no usable auth method.
     let account: WebauthnAccount;
     try {
       account = await db.transaction(async (tx) => {
         const [created] = await tx
           .insert(users)
-          .values({ username: normalizedUsername })
+          .values({ username: normalizedUsername, publicKey: enrolledRoot })
           .returning({ id: users.id, username: users.username, avatar: users.avatar });
         await tx.insert(webauthnCredentials).values({
           userId: created.id,
@@ -739,18 +816,23 @@ router.post(
           methodCredentialId: credential.id,
           methodName: credentialName,
         });
+        await tx.insert(userAuthMethods).values({ userId: created.id, type: 'identity', methodPublicKey: enrolledRoot });
+        await tx.insert(identityWebEnvelopes).values({ userId: created.id, ...envelopeColumns(enrollment.envelope, enrolledRoot), revision: 1 });
         return created;
       });
     } catch (error) {
-      // Which unique index rejected the write is what distinguishes the two
-      // 409s — the statement that threw no longer can, now that all three
-      // inserts share one transaction.
+      // Which unique index rejected the write is what distinguishes the 409s —
+      // the statement that threw no longer can, now that the inserts share one
+      // transaction.
       const constraint = uniqueViolationConstraint(error);
       if (constraint === USERNAME_UNIQUE_CONSTRAINT) {
         throw new ConflictError('Username already taken');
       }
       if (constraint !== null && CREDENTIAL_UNIQUE_CONSTRAINTS.has(constraint)) {
         throw new ConflictError('This passkey is already registered');
+      }
+      if (constraint !== null && PUBLIC_KEY_UNIQUE_CONSTRAINTS.has(constraint)) {
+        throw new ApiError(409, 'This identity is already linked to another account', IDENTITY_ERROR_CODES.rootLinkedElsewhere);
       }
       throw error;
     }

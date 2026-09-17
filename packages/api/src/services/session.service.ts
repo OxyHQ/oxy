@@ -1145,24 +1145,28 @@ class SessionService {
    */
   async validateSessionById(
     sessionId: string, 
-    populateUser = true
+    populateUser = true,
+    options: { useCache?: boolean } = {}
   ): Promise<{ session: CachedSession; user?: AccountDocument } | null> {
+    // `useCache: false` is for authority decisions that must observe a sign-out
+    // or revocation made on another task inside the cache TTL (ADR 0025).
+    const useCache = options.useCache ?? true;
     try {
       if (populateUser) {
-        const result = await this.getSessionWithUser(sessionId, { useCache: true });
-        if (result && !(await this.ensureManagedSessionAuthorized(result.session))) {
+        const result = await this.getSessionWithUser(sessionId, { useCache });
+        if (result && !(await this.ensureManagedSessionAuthorized(result.session, { force: !useCache }))) {
           return null;
         }
         return result;
       }
 
-      const session = await this.getSession(sessionId, true);
+      const session = await this.getSession(sessionId, useCache);
       if (!session) {
         return null;
       }
 
       // Bind managed-account sessions to the operator's act_as membership here too.
-      if (!(await this.ensureManagedSessionAuthorized(session))) {
+      if (!(await this.ensureManagedSessionAuthorized(session, { force: !useCache }))) {
         return null;
       }
 

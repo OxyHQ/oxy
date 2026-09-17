@@ -172,4 +172,34 @@ export interface OxyProviderProps {
      * @default 'persistent'
      */
     deviceCredentialStorage?: 'persistent' | 'ephemeral';
+    /**
+     * Wires the app's OWN i18n library to Oxy's resolved language, so the
+     * account (or, signed out, the device/guest locale) drives the app's
+     * translated UI directly — no app-local effect or "sync" component to
+     * remember to mount. Oxy decides WHICH language; the app keeps owning its
+     * own translation catalogs and library (i18next, FormatJS, or anything
+     * else) and is told through `onChange` when to switch.
+     *
+     * Omitted entirely (the default) when an app has no i18n of its own, or
+     * manages it independently of the account/device locale.
+     */
+    language?: OxyLanguageConfig;
+}
+
+export interface OxyLanguageConfig {
+    /** The exact locales this app ships a translation catalog for. */
+    supportedLocales: readonly string[];
+    /**
+     * Used when Oxy's resolved language matches none of `supportedLocales`,
+     * not even by base language (Oxy's account-locale catalog is broader
+     * than any one app's translations).
+     */
+    fallbackLocale: string;
+    /**
+     * Called whenever the resolved locale changes, coerced to the closest
+     * one in `supportedLocales`. May return a promise; a rejection is
+     * reported to `onError` instead of throwing into the app tree.
+     */
+    onChange: (locale: string) => void | Promise<void>;
+    onError?: (error: unknown, locale: string) => void;
 }

@@ -42,13 +42,13 @@ describe('buildDidDocument — self-sovereign account', () => {
     type: 'local',
   };
 
-  it('produces a contract-valid document controlled by [userDid, OXY_DID]', () => {
+  it('produces a contract-valid document controlled by the person alone (ADR 0024 D9)', () => {
     const doc = buildDidDocument(user);
     expect(() => didDocumentSchema.parse(doc)).not.toThrow();
 
     const did = buildUserDid(user._id);
     expect(doc.id).toBe(did);
-    expect(doc.controller).toEqual([did, OXY_DID]);
+    expect(doc.controller).toEqual([did]);
   });
 
   it('exposes the account key as the #key-1 verification method + active auth', () => {
@@ -224,7 +224,7 @@ describe('DID_WEB_DOMAIN override', () => {
     // DID id, controllers, verification-method ids, and service ids all follow
     // the DID-web domain.
     expect(doc.id).toBe(did);
-    expect(doc.controller).toEqual([did, 'did:web:api.oxy.so']);
+    expect(doc.controller).toEqual([did]);
     expect(doc.verificationMethod[0]?.id).toBe(`${did}#key-1`);
     expect(doc.service.map((s) => s.id)).toEqual([`${did}#oxy-api`, `${did}#profile`]);
 

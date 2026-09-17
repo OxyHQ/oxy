@@ -159,3 +159,65 @@ an observation at that timestamp, so concurrent discovery can change the result.
 An inspection report does not authorize reconciliation apply. After deployment,
 run this precheck before opening the candidate's public Mention search/profile;
 public Oxy profile lookup routes themselves can trigger discovery.
+
+
+### Stop a completed reconciliation whose process remains alive
+
+Recovery defaults to `operation=snapshot` and remains read-only. If the recovered
+report proves the complete scan finished but ECS still reports `RUNNING`, select
+`operation=stop_completed` on the same recovery workflow, with the original run
+ID, source SHA, and image digest. This does not rerun reconciliation. It grants
+StopTask only for the task ARN authenticated from that run's artifact, then
+rechecks its standalone identity, fixed full-scan command (no resume cursor),
+image, current service definitions, and complete CloudWatch report before issuing
+one stop request. `stop.json` records the request; the operation polls for up to
+two minutes and succeeds only after ECS reaches `STOPPED`. If that bound expires,
+collect another snapshot. A stop request alone is not completion evidence.
+
+New transient tasks enable a separate init process so BusyBox's child watchdog
+can terminate the command; a PID-namespace init cannot be forcibly killed by its
+own children. The CLI closes PostgreSQL and Redis, flushes both output streams,
+and exits with its result code (including 2 for refused observations). Server
+container configuration and normal server lifecycle remain unchanged.
+
+### Inspect first-party Meta proof availability without identity writes
+
+Use `mode=inspect_meta`, `dry_run=true`, `canonical_acct=user@instagram.com`
+(or `user@threads.net`), and empty actor URI, transport account and cursor inputs
+on the existing reconciliation workflow. The protected workflow source must match
+the healthy deployed image. The fixed diagnostic calls the same first-party pair
+provider as live resolution, with the same headers, default User-Agent, redirect
+policy and deadlines. It reads at most two public profile pages and never imports
+the identity registry or opens a database connection.
+
+The `inspect_meta` report contains source/image provenance, observation time,
+per-page phase, HTTP status when available, a classified refusal reason, and a
+SHA-256 hash only for a completely read bounded document. Verified results include
+only reviewed public account/owner IDs and badge targets. It excludes HTML,
+biographies, names, cookies, headers and raw exception strings. A blocked redirect
+may have no HTTP status because the shared safe-fetch helper rejects it before
+returning a response. Missing status/hash means unavailable evidence, not success.
+A refused proof is a successful diagnostic observation, not an apply preview.
+Neither this report nor successful current badges authorize adoption of historical
+unpinned identities; the registry's existing lineage requirements still apply.
+
+### Inspect residual biography differences without applying
+
+Use `mode=inspect_profile`, `dry_run=true`, an exact
+`actor_uri=https://bird.makeup/users/handle`, and empty account/cursor inputs.
+This deliberately covers only the reviewed enabled Bird bridge. The fixed CLI
+uses one call to Oxy's existing signed actor fetch, retaining its bounded redirects,
+public fallback and verification behavior. It requires an existing instance signing
+key; it cannot bootstrap one or resolve/register a user. The task has a 120-second
+watchdog and PostgreSQL snapshot queries have a 15-second statement deadline.
+
+The report includes independent read-only snapshots before/after that observation:
+registry/source user IDs, exact and normalized username lookup IDs, binding equality,
+source counts and at most ten associated public actor URIs with update times.
+Biographies are represented only by length, empty status and SHA-256 of
+`JSON.stringify(bio || null)`; names and raw biographies are never emitted.
+`remoteMatchesStored`, `storedBioStable` and `sourceBindingStable` distinguish a
+current upstream difference from binding mismatch or a concurrent database writer.
+A failed observation contains only a typed refusal. This report cannot serve as
+an apply preview or authorize `stop_completed`. It cannot retrospectively prove
+what an earlier apply fetched when that run did not retain observation hashes.

@@ -10,6 +10,9 @@
  *  - the worker is constructed with an explicit, small concurrency.
  */
 
+type JobData = { fileId: string; activitySourceRegion?: string };
+type Processor = (job: { data: JobData }) => Promise<void>;
+
 interface AddCall {
   jobId?: string;
   attempts?: number;
@@ -26,10 +29,12 @@ type WorkerEventHandler = (job: {
 // dedupes by. MockWorker records its construction options.
 jest.mock('bullmq', () => {
   class MockWorker {
+    static processor: Processor;
     static lastOptions: { concurrency?: number } | undefined;
     static failedHandler: WorkerEventHandler | undefined;
-    constructor(_name: unknown, _processor: unknown, options: { concurrency?: number }) {
+    constructor(_name: unknown, processor: Processor, options: { concurrency?: number }) {
       MockWorker.lastOptions = options;
+      MockWorker.processor = processor;
     }
     on(event: string, handler: WorkerEventHandler): this {
       if (event === 'failed') MockWorker.failedHandler = handler;
@@ -44,6 +49,7 @@ jest.mock('bullmq', () => {
   }
   class MockQueue {
     static addCalls: AddCall[] = [];
+    static dataCalls: JobData[] = [];
     static waiting = 0;
     static oldestTimestamp: number | undefined;
     on(): this {
@@ -55,8 +61,9 @@ jest.mock('bullmq', () => {
     waitUntilReady(): Promise<this> {
       return Promise.resolve(this);
     }
-    add(_name: unknown, _data: unknown, options: AddCall): Promise<void> {
+    add(_name: unknown, data: JobData, options: AddCall): Promise<void> {
       MockQueue.addCalls.push(options);
+      MockQueue.dataCalls.push(data);
       return Promise.resolve();
     }
     getJobCounts(): Promise<{ waiting: number }> {
@@ -70,6 +77,9 @@ jest.mock('bullmq', () => {
   }
   return { Queue: MockQueue, Worker: MockWorker };
 });
+
+const mockObserveAssetJob = jest.fn();
+jest.mock('../../services/workerActivity.service', () => ({ observeAssetJob: (region: unknown) => mockObserveAssetJob(region) }));
 
 const mockGenerateVariants = jest.fn(() => Promise.resolve());
 
@@ -102,10 +112,12 @@ import {
 
 const MockQueue = Queue as unknown as {
   addCalls: AddCall[];
+  dataCalls: JobData[];
   waiting: number;
   oldestTimestamp: number | undefined;
 };
 const MockWorker = Worker as unknown as {
+  processor: Processor;
   lastOptions: { concurrency?: number } | undefined;
   failedHandler: WorkerEventHandler | undefined;
 };
@@ -118,6 +130,8 @@ beforeEach(() => {
   delete process.env.REDIS_URL;
   delete process.env.QUEUE_REDIS_URL;
   MockQueue.addCalls = [];
+  MockQueue.dataCalls = [];
+  mockObserveAssetJob.mockClear();
   MockQueue.waiting = 0;
   MockQueue.oldestTimestamp = undefined;
   MockWorker.lastOptions = undefined;
@@ -341,5 +355,34 @@ describe('no-Redis fallback', () => {
     await settle();
 
     expect(mockGenerateVariants).toHaveBeenCalledTimes(2);
+  });
+});
+
+
+describe('queue activity metadata', () => {
+  it('adds only a valid producer region and leaves the file payload intact', async () => {
+    const region = process.env.AWS_REGION;
+    try {
+      process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+      await startAssetVariantProducer();
+      process.env.AWS_REGION = 'eu-west-1';
+      enqueueAssetVariantGeneration('private-file');
+      process.env.AWS_REGION = 'private-host/path';
+      enqueueAssetVariantGeneration('legacy-file');
+      await settle();
+      expect(MockQueue.dataCalls).toEqual([{ fileId: 'private-file', activitySourceRegion: 'eu-west-1' }, { fileId: 'legacy-file' }]);
+    } finally { if (region === undefined) delete process.env.AWS_REGION; else process.env.AWS_REGION = region; }
+  });
+  it('observes new and legacy jobs without passing file IDs and preserves processing failures', async () => {
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+    await startAssetVariantWorker();
+    await MockWorker.processor({ data: { fileId: 'private-file', activitySourceRegion: 'eu-west-1' } });
+    await MockWorker.processor({ data: { fileId: 'legacy-file' } });
+    expect(mockObserveAssetJob.mock.calls).toEqual([['eu-west-1'], [undefined]]);
+    expect(mockGenerateVariants).toHaveBeenNthCalledWith(1, 'private-file');
+    expect(mockGenerateVariants).toHaveBeenNthCalledWith(2, 'legacy-file');
+    const failure = new Error('rendition failed');
+    mockGenerateVariants.mockRejectedValueOnce(failure);
+    await expect(MockWorker.processor({ data: { fileId: 'failed-file' } })).rejects.toBe(failure);
   });
 });

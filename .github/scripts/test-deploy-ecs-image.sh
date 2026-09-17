@@ -940,6 +940,10 @@ grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVA
 grep -F 'TASK_SECRET_OVERRIDES_JSON: >-' "$workflow_file" >/dev/null
 grep -F '"KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY"' \
   "$workflow_file" >/dev/null
+grep -F '"SERVICE_TOKEN_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY"' \
+  "$workflow_file" >/dev/null
+grep -F '"SERVICE_TOKEN_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID"' \
+  "$workflow_file" >/dev/null
 if grep -F 'PRE_DEPLOY_TASK_COMMAND_JSON:' "$workflow_file" >/dev/null; then
   echo "Phase A must not activate the inference routing readiness gate." >&2
   exit 1
