@@ -109,6 +109,33 @@ export type {
   CapabilityTicketVerificationOptions,
 } from './capabilityTicket';
 
+// Present-requester assertions (ADR 0025): a product backend trades a signed-in
+// person's live session with Oxy for a one-use assertion its audience consumes.
+export {
+  createOxyJwksKeyResolver,
+  createOxyRequesterAssertionAuth,
+  OXY_REQUESTER_ASSERTION_DEFAULT_ISSUER,
+  OXY_REQUESTER_ASSERTION_HEADER,
+  OXY_REQUESTER_ASSERTION_MAX_TTL_SECONDS,
+  OXY_REQUESTER_ASSERTION_TYPE,
+  OxyRequesterAssertionError,
+  oxyRequesterAssertionClaimsSchema,
+  readOxyRequesterAssertionKeyId,
+  signOxyRequesterAssertion,
+  verifyOxyRequesterAssertion,
+} from './requesterAssertion';
+export type {
+  OxyJwksKeyResolverOptions,
+  OxyRequesterAssertionAuthOptions,
+  OxyRequesterAssertionClaims,
+  OxyRequesterAssertionErrorCode,
+  OxyRequesterAssertionIntrospection,
+  OxyRequesterAssertionIntrospector,
+  OxyRequesterAssertionRequest,
+  OxyRequesterAssertionVerificationOptions,
+  OxyRequesterContext,
+} from './requesterAssertion';
+
 // Constant-time secret comparison.
 export { verifySecret } from './verifySecret';
 
