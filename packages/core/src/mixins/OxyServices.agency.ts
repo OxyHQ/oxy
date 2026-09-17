@@ -97,6 +97,25 @@ export interface CapabilityExecutionAuthorization {
   updatedAt: string;
 }
 
+/** A present-requester assertion minted for a product backend (ADR 0025). */
+export interface RequesterAssertionGrant {
+  assertion: string;
+  expiresAt: string;
+  requesterAccountId: string;
+  agentId: string;
+}
+
+/** Oxy's live answer to the audience that consumed an assertion (ADR 0025). */
+export interface RequesterAssertionIntrospection {
+  active: boolean;
+  requesterAccountId?: string;
+  agentId?: string;
+  applicationId?: string;
+  credentialId?: string;
+  jti?: string;
+  expiresAt?: string;
+}
+
 function query(path: string, key: string, value: string): string {
   return `${path}?${key}=${encodeURIComponent(value)}`;
 }
@@ -269,6 +288,63 @@ export function OxyServicesAgencyMixin<T extends typeof OxyServicesBase>(Base: T
           { cache: true, cacheTTL: CACHE_TIMES.SHORT },
         );
         return response.events;
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * Product backend → Oxy: trade the signed-in requester's access token for a
+     * one-use assertion naming `agentId` (ADR 0025). Authenticated with THIS
+     * instance's service credential (`configureServiceAuth`). `subjectToken` is
+     * sent to Oxy only, in the body; never forward it anywhere else.
+     *
+     * Not retried: a refusal is an answer, and the caller mints per turn.
+     */
+    async mintRequesterAssertion(input: {
+      agentId: string;
+      subjectToken: string;
+    }): Promise<RequesterAssertionGrant> {
+      try {
+        const serviceToken = await (this as unknown as { getServiceToken(): Promise<string> }).getServiceToken();
+        return await this.makeRequest<RequesterAssertionGrant>(
+          'POST',
+          '/internal/native-agents/requester-assertions',
+          { agentId: input.agentId, subjectToken: input.subjectToken },
+          {
+            cache: false,
+            retry: false,
+            timeout: 5000,
+            headers: { Authorization: `Bearer ${serviceToken}` },
+          },
+        );
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * Audience → Oxy: verify, live-revalidate and CONSUME an assertion. A second
+     * call with the same assertion answers `active: false`. Authenticated with
+     * the audience's own service credential.
+     */
+    async introspectRequesterAssertion(input: {
+      assertion: string;
+      presenter: { applicationId: string; credentialId: string };
+    }): Promise<RequesterAssertionIntrospection> {
+      try {
+        const serviceToken = await (this as unknown as { getServiceToken(): Promise<string> }).getServiceToken();
+        return await this.makeRequest<RequesterAssertionIntrospection>(
+          'POST',
+          '/internal/native-agents/requester-assertions/introspect',
+          { assertion: input.assertion, presenter: input.presenter },
+          {
+            cache: false,
+            retry: false,
+            timeout: 5000,
+            headers: { Authorization: `Bearer ${serviceToken}` },
+          },
+        );
       } catch (error) {
         throw this.handleError(error);
       }
