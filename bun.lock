@@ -220,7 +220,7 @@
       },
       "peerDependencies": {
         "@oxy.so/bloom": "^2.0.0",
-        "@oxy.so/services": "^1.0.1",
+        "@oxy.so/services": "^2.0.0",
         "babel-plugin-module-resolver": "*",
         "babel-preset-expo": "*",
         "eslint": ">=9.0.0",
