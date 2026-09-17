@@ -1,5 +1,23 @@
 # Changelog — `@oxy.so/core`
 
+## 1.4.0
+
+Maintenance release cut from the `1.3.1` release commit (`f435259d`) plus the
+present-requester assertion work only. It deliberately excludes the unreleased,
+breaking identity changes on `main` (#1302), which ship in the next major.
+
+### Added
+
+- Present-requester assertions (ADR 0025): `OxyServices.mintRequesterAssertion`
+  lets a pinned first-party product backend trade a signed-in person's live
+  session for a one-use, 120-second `OXY-REQUESTER+JWT`, and
+  `OxyServices.introspectRequesterAssertion` lets its audience consume it.
+  `@oxy.so/core/server` adds `createOxyRequesterAssertionAuth` (mount after
+  `createOxyAuthMiddleware`; sets `req.userId` and `req.oxyRequester` only after
+  local JWKS verification, presenter binding and live introspection),
+  `signOxyRequesterAssertion`, `verifyOxyRequesterAssertion` and
+  `createOxyJwksKeyResolver`. Additive.
+
 ## Unreleased
 
 ### Added
