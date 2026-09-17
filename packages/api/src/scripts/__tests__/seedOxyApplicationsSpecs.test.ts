@@ -367,9 +367,13 @@ describe('the canonical official-application registry', () => {
     });
   });
 
-  describe('Oxy Website owns only its catalog registration authority', () => {
-    it('can register a catalog and read users, nothing more', () => {
-      expect(specNamed('Oxy Website').scopes).toEqual(['user:read', 'catalogs:write']);
+  describe('Oxy Website owns only its catalog registration and job-search authority', () => {
+    it('can register a catalog, read users and search Clarity Jobs, nothing more', () => {
+      expect(specNamed('Oxy Website').scopes).toEqual([
+        'user:read',
+        'catalogs:write',
+        'clarity:search',
+      ]);
     });
 
     it('is bound to the website catalog namespace and no other platform capability', () => {
