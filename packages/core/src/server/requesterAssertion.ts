@@ -322,17 +322,27 @@ export interface OxyRequesterAssertionAuthOptions {
   readonly jwksUrl?: string;
   readonly resolvePublicKey?: (keyId: string) => Promise<KeyObject | undefined>;
   readonly now?: () => Date;
-  readonly onRejected?: (event: { readonly code: string; readonly status: number }) => void;
+  /** Observability hook. Receives ids only, never the assertion. */
+  readonly onRejected?: (event: {
+    readonly code: string;
+    readonly status: number;
+    readonly applicationId: string | null;
+  }) => void;
 }
 
 function reject(
+  req: Request,
   res: Response,
   options: OxyRequesterAssertionAuthOptions,
   status: 400 | 401 | 503,
   error: string,
   code: string,
 ): void {
-  options.onRejected?.({ code, status });
+  options.onRejected?.({
+    code,
+    status,
+    applicationId: (req as OxyAuthRequest).serviceApp?.appId ?? null,
+  });
   res.status(status).json({ error, code, message: 'The requester assertion was not accepted', status });
 }
 
@@ -373,14 +383,14 @@ export function createOxyRequesterAssertionAuth(
       return;
     }
     if (assertion === 'invalid') {
-      reject(res, options, 401, 'REQUESTER_ASSERTION_INVALID', 'malformed');
+      reject(req, res, options, 401, 'REQUESTER_ASSERTION_INVALID', 'malformed');
       return;
     }
 
     const request = req as OxyRequesterAssertionRequest;
     const serviceApp: OxyServiceAppContext | undefined = request.serviceApp;
     if (!serviceApp) {
-      reject(res, options, 401, 'REQUESTER_ASSERTION_REQUIRES_SERVICE_TOKEN', 'service_token_required');
+      reject(req, res, options, 401, 'REQUESTER_ASSERTION_REQUIRES_SERVICE_TOKEN', 'service_token_required');
       return;
     }
     // One identity channel per request. An offline delegation header or an
@@ -391,7 +401,7 @@ export function createOxyRequesterAssertionAuth(
       || request.serviceActingAs !== undefined
       || (request.userId !== undefined && request.userId !== null)
     ) {
-      reject(res, options, 400, 'REQUESTER_ASSERTION_CONFLICT', 'identity_conflict');
+      reject(req, res, options, 400, 'REQUESTER_ASSERTION_CONFLICT', 'identity_conflict');
       return;
     }
 
@@ -406,14 +416,14 @@ export function createOxyRequesterAssertionAuth(
       });
     } catch (error) {
       const code = error instanceof OxyRequesterAssertionError ? error.code : 'invalid_claims';
-      reject(res, options, 401, 'REQUESTER_ASSERTION_INVALID', code);
+      reject(req, res, options, 401, 'REQUESTER_ASSERTION_INVALID', code);
       return;
     }
 
     // Bound to its presenter: a copy in anyone else's hands proves nothing,
     // and checking before introspection means it cannot even be spent.
     if (claims.azp !== serviceApp.appId || claims.cid !== serviceApp.credentialId) {
-      reject(res, options, 401, 'REQUESTER_ASSERTION_INVALID', 'presenter_mismatch');
+      reject(req, res, options, 401, 'REQUESTER_ASSERTION_INVALID', 'presenter_mismatch');
       return;
     }
 
@@ -424,7 +434,7 @@ export function createOxyRequesterAssertionAuth(
         presenter: { applicationId: serviceApp.appId, credentialId: serviceApp.credentialId },
       });
     } catch {
-      reject(res, options, 503, 'REQUESTER_ASSERTION_UNAVAILABLE', 'introspection_unavailable');
+      reject(req, res, options, 503, 'REQUESTER_ASSERTION_UNAVAILABLE', 'introspection_unavailable');
       return;
     }
 
@@ -436,7 +446,7 @@ export function createOxyRequesterAssertionAuth(
       || introspection.credentialId !== claims.cid
       || introspection.jti !== claims.jti
     ) {
-      reject(res, options, 401, 'REQUESTER_ASSERTION_INACTIVE', 'inactive');
+      reject(req, res, options, 401, 'REQUESTER_ASSERTION_INACTIVE', 'inactive');
       return;
     }
 

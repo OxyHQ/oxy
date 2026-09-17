@@ -300,6 +300,25 @@ describe('createOxyRequesterAssertionAuth', () => {
     }
   });
 
+  it('reports each rejection with ids only', async () => {
+    const events: unknown[] = [];
+    const introspector = {
+      introspectRequesterAssertion: jest.fn(async () => ({ active: false })),
+      getBaseURL: () => 'https://api.oxy.so',
+    };
+    const middleware = createOxyRequesterAssertionAuth(introspector, {
+      audience: 'alia',
+      now: () => NOW,
+      resolvePublicKey: async () => KEY.publicKey,
+      onRejected: (event) => events.push(event),
+    });
+    const assertion = sign(claims());
+    const res = { status() { return this; }, json() { return this; } } as unknown as Response;
+    await middleware({ headers: { [OXY_REQUESTER_ASSERTION_HEADER]: assertion }, serviceApp } as unknown as Request, res, jest.fn());
+    expect(events).toEqual([{ code: 'inactive', status: 401, applicationId: 'homiio-app' }]);
+    expect(JSON.stringify(events)).not.toContain(assertion);
+  });
+
   it('fails closed when Oxy cannot be asked', async () => {
     const { run } = harness(async () => { throw new Error('ECONNREFUSED'); });
     const result = await run({ headers: { [OXY_REQUESTER_ASSERTION_HEADER]: sign(claims()) }, serviceApp });
