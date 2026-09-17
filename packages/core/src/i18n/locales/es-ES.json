@@ -656,6 +656,7 @@
     "scanQr": "Escanear código QR",
     "qrHeadline": "Inicia sesión con tu identidad de Oxy",
     "signInWithOxy": "Inicia sesión con Oxy",
+    "signUpWithOxy": "Regístrate con Oxy",
     "useIdentityOnDevice": "¿No tienes Commons? Usa una clave de acceso en este dispositivo",
     "getCommons": "Descargar Commons",
     "commonsNotInstalled": "¿No tienes Commons? Descarga la app para iniciar sesión con tu Oxy ID.",

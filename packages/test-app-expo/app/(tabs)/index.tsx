@@ -163,7 +163,7 @@ export default function HomeScreen() {
                 icon: 'id-card-outline',
                 iconColor: colors.iconData,
                 title: 'Profile preview cards',
-                subtitle: 'ProfileCard, StatBar, heatmap & more',
+                subtitle: 'StatBar, heatmap & more',
                 onPress: () => router.push('/profile-cards'),
                 showChevron: true,
               },

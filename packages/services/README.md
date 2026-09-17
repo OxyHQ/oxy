@@ -186,7 +186,7 @@ function UserProfile() {
 ## Typography
 
 Typography is owned entirely by `@oxy.so/bloom`. `BloomThemeProvider` ships the
-Inter, BlomusModernus and Geist Mono families — variable `.ttf` files loaded via
+Inter, BlomusModernus and JetBrains Mono families — variable `.ttf` files loaded via
 `expo-font` on native, `@font-face` rules injected as data URLs on web — and
 applies the default family to every `<Text>`. This package bundles and loads no
 fonts for typography. Its screens do ship two generated icon-font subsets:
@@ -522,6 +522,16 @@ function LoginScreen() {
 
 - **Official Oxy apps** (`isOfficial` / first-party types): opens the in-app account dialog.
 - **Third-party apps** (`type: 'third_party'`): starts the standard OAuth 2.0 Authorization Code + PKCE flow against `auth.oxy.so` (the SDK generates `state` + PKCE via `@oxy.so/core`). On web the transport is `OxyProvider` prop `webAuthMode: 'popup' | 'redirect'` (default `'popup'`; issue #691 Phases 2/7b) — `'popup'` opens a small window and relays the result via `postMessage` without navigating your app's tab, falling back to a redirect if the browser blocks it. Pass `oauthRedirectUri`; on native handle `onOAuthResult` to complete the token exchange.
+
+The button is Bloom's `SocialButton brand="oxy"` (Bloom 2.1+), so it matches every other sign-in button in the app. It reads **"Sign in with Oxy"**, localized; `action` changes the verb and `variant` / `appearance` the look:
+
+```tsx
+<OxySignInButton />                                 // Sign in with Oxy — outlined, Oxy mark
+<OxySignInButton variant="contained" fullWidth />   // filled in the theme accent
+<OxySignInButton action="signUp" />                 // Sign up with Oxy
+<OxySignInButton action="continue" appearance="black" />
+<OxySignInButton iconOnly />                        // circular, named "Sign in with Oxy"
+```
 
 See the [integration guide](../../docs/auth/integration-guide.md) for Console registration, OAuth endpoints, and backend verification, and [AUTHENTICATION.md](../../docs/AUTHENTICATION.md) for the full model.
 

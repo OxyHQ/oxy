@@ -10,12 +10,16 @@ import {
 } from '@oxy.so/core';
 import { useAuthStore } from '../stores/authStore';
 import { useShallow } from 'zustand/react/shallow';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { Button, type ButtonVariant } from '@oxy.so/bloom/button';
+import {
+    SocialButton,
+    socialButtonLabel,
+    type SocialButtonAction,
+    type SocialButtonAppearance,
+    type SocialButtonSize,
+} from '@oxy.so/bloom/social-button';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
-import { LogoIcon } from './logo/LogoIcon';
 import { subscribeToAccountDialog } from '../navigation/accountDialogManager';
 import { openAuthorizeUrlNative } from './oauthNavigation';
 import { closeOAuthPopup, openOAuthPopup } from '../oauth/oauthPopup';
@@ -36,12 +40,39 @@ export interface OxyOAuthResult {
     codeVerifier: string;
 }
 
+/** The label's verb: "Sign in with Oxy", "Continue with Oxy" or "Sign up with Oxy". */
+export type OxySignInButtonAction = SocialButtonAction;
+
 export interface OxySignInButtonProps {
     /**
-     * Controls the appearance of the button
+     * Shorthand for {@link OxySignInButtonProps.appearance}: `contained` is the
+     * filled button in the theme accent (`colorful`); `default` and `outline`
+     * are the outlined button with the Oxy mark (`white`).
      * @default 'default'
      */
     variant?: 'default' | 'outline' | 'contained';
+
+    /**
+     * Bloom `SocialButton` appearance — `colorful`, `white` or `black`. Wins
+     * over `variant` when both are given.
+     */
+    appearance?: SocialButtonAppearance;
+
+    /**
+     * The label's verb, localized: `signIn` — "Sign in with Oxy", `continue` —
+     * "Continue with Oxy", `signUp` — "Sign up with Oxy".
+     * @default 'signIn'
+     */
+    action?: OxySignInButtonAction;
+
+    /** `medium` (36 tall, 300 wide) or `small` (32 × 250). @default 'medium' */
+    size?: SocialButtonSize;
+
+    /** Fill the container's width instead of the fixed 300 / 250. */
+    fullWidth?: boolean;
+
+    /** A circular button showing only the Oxy mark; the label becomes its accessible name. */
+    iconOnly?: boolean;
 
     /**
      * Optional function to handle button press
@@ -60,12 +91,10 @@ export interface OxySignInButtonProps {
     textStyle?: StyleProp<TextStyle>;
 
     /**
-     * Overrides the button label. When omitted the button renders the ONE
-     * primary relying-party action, localized: `accountSwitcher.continueWithOxy`
-     * ("Continue with Oxy" in English). "Sign in with Oxy" remains the name of
-     * the MECHANISM — only this surface's label is "Continue with Oxy".
+     * Overrides the button label. When omitted the label is the localized
+     * {@link OxySignInButtonProps.action} phrase.
      *
-     * @default localized `accountSwitcher.continueWithOxy`
+     * @default localized "Sign in with Oxy"
      */
     text?: string;
 
@@ -115,6 +144,12 @@ export interface OxySignInButtonProps {
     onOAuthResult?: (result: OxyOAuthResult) => void;
 }
 
+const ACTION_KEYS: Record<OxySignInButtonAction, string> = {
+    signIn: 'accountSwitcher.signInWithOxy',
+    continue: 'accountSwitcher.continueWithOxy',
+    signUp: 'accountSwitcher.signUpWithOxy',
+};
+
 /**
  * A pre-styled button component for signing in with Oxy identity
  *
@@ -126,12 +161,11 @@ export interface OxySignInButtonProps {
  * // Basic usage
  * <OxySignInButton />
  *
- * // Custom styling
- * <OxySignInButton
- *   variant="contained"
- *   style={{ marginTop: 20 }}
- *   text="Login with Oxy"
- * />
+ * // The filled button, full width
+ * <OxySignInButton variant="contained" fullWidth />
+ *
+ * // "Sign up with Oxy" on a registration screen
+ * <OxySignInButton action="signUp" />
  *
  * // Custom handler
  * <OxySignInButton onPress={() => {
@@ -141,6 +175,11 @@ export interface OxySignInButtonProps {
  */
 export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
     variant = 'default',
+    appearance,
+    action = 'signIn',
+    size = 'medium',
+    fullWidth = false,
+    iconOnly = false,
     onPress,
     style,
     textStyle,
@@ -150,7 +189,6 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
     oauthRedirectUri,
     onOAuthResult,
 }) => {
-    const theme = useTheme();
     const { t } = useI18n();
     const { openAccountDialog, oxyServices, clientId, webAuthMode, startWebOAuthSignIn } = useOxy();
     const { isAuthenticated, isLoading } = useAuthStore(
@@ -384,39 +422,33 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
 
     const isButtonDisabled = disabled || isLoading || isModalOpen;
 
-    // Map the public `variant` API onto Bloom's Button variants:
-    //   contained → primary (filled), outline → outline, default → secondary.
-    const buttonVariant: ButtonVariant =
-        variant === 'contained' ? 'primary' : variant === 'outline' ? 'outline' : 'secondary';
+    // `contained` is the filled button in the theme accent; `default` and
+    // `outline` are the outlined button carrying the Oxy mark.
+    const resolvedAppearance: SocialButtonAppearance =
+        appearance ?? (variant === 'contained' ? 'colorful' : 'white');
 
-    // The Oxy mark reads white-on-primary for the filled (contained) button and
-    // primary-on-transparent for the outline / default surfaces.
-    const isContained = variant === 'contained';
-    const logoColor = isContained ? '#ffffff' : theme.colors.primary;
-    const logoLetterColor = isContained ? theme.colors.primary : '#ffffff';
-
-    // The relying party surfaces exactly ONE primary action, and it reads
-    // "Continue with Oxy" (issue #691). A caller-supplied `text` still wins.
-    const label = text ?? t('accountSwitcher.continueWithOxy');
+    // A key missing from every dictionary comes back as the key itself; fall
+    // back to Bloom's English phrase rather than render a dotted path.
+    const actionKey = ACTION_KEYS[action];
+    const translated = t(actionKey);
+    const label = text ?? (translated === actionKey ? socialButtonLabel('Oxy', action) : translated);
 
     return (
-        <Button
-            variant={buttonVariant}
+        <SocialButton
+            brand="oxy"
+            action={action}
+            appearance={resolvedAppearance}
+            size={size}
+            fullWidth={fullWidth}
+            iconOnly={iconOnly}
             onPress={handlePress}
             disabled={isButtonDisabled}
             style={style}
-            textStyle={[Platform.OS === 'web' ? { fontWeight: '600' } : null, textStyle]}
-            icon={
-                <LogoIcon
-                    height={20}
-                    color={logoColor}
-                    letterColor={logoLetterColor}
-                    style={{ marginRight: 10 }}
-                />
-            }
+            textStyle={textStyle}
+            accessibilityLabel={iconOnly ? label : undefined}
         >
             {isLoading || isModalOpen ? t('signin.status.signingIn') : label}
-        </Button>
+        </SocialButton>
     );
 };
 
