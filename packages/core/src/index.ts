@@ -132,6 +132,8 @@ export type {
     DelegationCatalogBinding,
     DelegationGrantView,
     PutAccountCapabilityPolicyInput,
+    RequesterAssertionGrant,
+    RequesterAssertionIntrospection,
     UpdateDelegationGrantInput,
 } from './mixins/OxyServices.agency';
 

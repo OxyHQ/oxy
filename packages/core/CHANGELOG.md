@@ -4,6 +4,16 @@
 
 ### Added
 
+- Present-requester assertions (ADR 0025): `OxyServices.mintRequesterAssertion`
+  lets a pinned first-party product backend trade a signed-in person's live
+  session for a one-use, 120-second `OXY-REQUESTER+JWT`, and
+  `OxyServices.introspectRequesterAssertion` lets its audience consume it.
+  `@oxy.so/core/server` adds `createOxyRequesterAssertionAuth` (mount after
+  `createOxyAuthMiddleware`; sets `req.userId` and `req.oxyRequester` only after
+  local JWKS verification, presenter binding and live introspection),
+  `signOxyRequesterAssertion`, `verifyOxyRequesterAssertion` and
+  `createOxyJwksKeyResolver`. Additive.
+
 - Identity roots (ADR 0024): `signIdentityProof` / `digestIdentityPayload` sign
   the one payload-bound, one-use v2 root proof; web identity envelopes gain
   version 2 (12–24-word phrases or a raw private key, RP-bound wraps, holder

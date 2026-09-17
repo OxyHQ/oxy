@@ -112,3 +112,51 @@ export function aliaNativeAgentBootstrapManifest(): Readonly<{
     ],
   };
 }
+
+/**
+ * Alia's Oxy application — the only audience a present-requester assertion is
+ * minted for, and the only application allowed to introspect (and consume) one.
+ * Pinned beside the seed spec's `ALIA_APPLICATION_ID`; a test compares them.
+ */
+export const ALIA_RESOURCE_SERVER_APPLICATION_ID = '6a2f851751b784a86fd0e934';
+
+/** The `aud` of a present-requester assertion. */
+export const REQUESTER_ASSERTION_AUDIENCE = 'alia';
+
+export interface NativeProductAgentEntryPoint {
+  readonly product: 'homiio';
+  readonly applicationId: string;
+  readonly credentialId: string;
+  readonly agentId: string;
+}
+
+/**
+ * The exact (application, credential, agent) triples that may trade a present
+ * requester's live session for a present-requester assertion (ADR 0025).
+ *
+ * Deliberately NOT derived from "every product in the manifest": being a
+ * native product agent does not by itself mean the product's backend should be
+ * able to enter Alia for a signed-in person. Adding a product here is a reviewed
+ * authority change, not a side effect of provisioning its agent.
+ */
+export const NATIVE_PRODUCT_AGENT_ENTRY_POINTS: readonly NativeProductAgentEntryPoint[] = [
+  {
+    product: 'homiio',
+    applicationId: NATIVE_PRODUCT_AGENTS.products.homiio.applicationId,
+    credentialId: NATIVE_PRODUCT_AGENTS.products.homiio.sindiServiceCredential.id,
+    agentId: NATIVE_PRODUCT_AGENTS.products.homiio.aliaAgent.id,
+  },
+];
+
+/** The entry point matching all three identifiers exactly, or `null`. */
+export function nativeProductAgentEntryPoint(
+  applicationId: string,
+  credentialId: string,
+  agentId: string,
+): NativeProductAgentEntryPoint | null {
+  return NATIVE_PRODUCT_AGENT_ENTRY_POINTS.find((entry) => (
+    entry.applicationId === applicationId
+    && entry.credentialId === credentialId
+    && entry.agentId === agentId
+  )) ?? null;
+}
