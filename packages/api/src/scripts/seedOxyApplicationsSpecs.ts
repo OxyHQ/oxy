@@ -429,6 +429,11 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://oxy.so',
     type: 'first_party',
     redirectUris: ['https://oxy.so', 'https://fairco.in'],
+    // The website's MCP server (website-api.oxy.so/mcp) signs people in through
+    // Oxy's MCP OAuth. Its service credential registers the website catalog so
+    // Oxy can resolve that resource; introspection needs no further scope.
+    scopes: ['user:read', 'catalogs:write'],
+    capabilities: [catalogApplicationCapability('website')],
   },
   {
     name: 'Peable',

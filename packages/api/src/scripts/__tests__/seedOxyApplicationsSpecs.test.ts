@@ -367,6 +367,18 @@ describe('the canonical official-application registry', () => {
     });
   });
 
+  describe('Oxy Website owns only its catalog registration authority', () => {
+    it('can register a catalog and read users, nothing more', () => {
+      expect(specNamed('Oxy Website').scopes).toEqual(['user:read', 'catalogs:write']);
+    });
+
+    it('is bound to the website catalog namespace and no other platform capability', () => {
+      expect(specNamed('Oxy Website').capabilities).toEqual([
+        catalogApplicationCapability('website'),
+      ]);
+    });
+  });
+
   describe('Noted owns only its catalog service authority', () => {
     const NOTED_SERVICE_SCOPES = [
       'user:read',
