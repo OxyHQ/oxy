@@ -671,14 +671,14 @@
       "idx": 96,
       "version": "7",
       "when": 1789598677866,
-      "tag": "0096_drop_device_pairing_sessions",
+      "tag": "0096_identity_single_scheme",
       "breakpoints": true
     },
     {
       "idx": 97,
       "version": "7",
       "when": 1789599149859,
-      "tag": "0097_identity_single_scheme",
+      "tag": "0097_drop_device_pairing_sessions",
       "breakpoints": true
     },
     {

@@ -1,5 +1,5 @@
 {
-  "id": "d3beaf13-d1d7-4f5d-aebd-957eda195bbb",
+  "id": "890dc59f-feb1-411d-b8e1-055d8f520984",
   "prevId": "79a26e01-f396-4230-9175-83fcdc2bd25b",
   "version": "7",
   "dialect": "postgresql",
@@ -7782,6 +7782,141 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.device_pairing_sessions": {
+      "name": "device_pairing_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pairing_id": {
+          "name": "pairing_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "new_device_ephemeral_public_key": {
+          "name": "new_device_ephemeral_public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "new_device_label": {
+          "name": "new_device_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "old_device_ephemeral_public_key": {
+          "name": "old_device_ephemeral_public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ciphertext": {
+          "name": "ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "approved_by_user_id": {
+          "name": "approved_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "device_pairing_sessions_expires_at_idx": {
+          "name": "device_pairing_sessions_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "device_pairing_sessions_approved_by_user_id_users_id_fk": {
+          "name": "device_pairing_sessions_approved_by_user_id_users_id_fk",
+          "tableFrom": "device_pairing_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "approved_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "device_pairing_sessions_pairing_id_key": {
+          "name": "device_pairing_sessions_pairing_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pairing_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "device_pairing_sessions_status_check": {
+          "name": "device_pairing_sessions_status_check",
+          "value": "\"device_pairing_sessions\".\"status\" in ('pending', 'approved', 'denied', 'expired')"
+        },
+        "device_pairing_sessions_sealed_payload_check": {
+          "name": "device_pairing_sessions_sealed_payload_check",
+          "value": "(\"device_pairing_sessions\".\"old_device_ephemeral_public_key\" is null and \"device_pairing_sessions\".\"ciphertext\" is null and \"device_pairing_sessions\".\"nonce\" is null)\n        or (\"device_pairing_sessions\".\"old_device_ephemeral_public_key\" is not null and \"device_pairing_sessions\".\"ciphertext\" is not null and \"device_pairing_sessions\".\"nonce\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.device_principal_backfill_conflicts": {
       "name": "device_principal_backfill_conflicts",
       "schema": "",
@@ -10840,7 +10975,7 @@
           "name": "secret_kind",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "entropy_nonce": {
           "name": "entropy_nonce",
@@ -10941,6 +11076,14 @@
         "identity_web_envelopes_revision_check": {
           "name": "identity_web_envelopes_revision_check",
           "value": "\"identity_web_envelopes\".\"revision\" >= 1"
+        },
+        "identity_web_envelopes_version_check": {
+          "name": "identity_web_envelopes_version_check",
+          "value": "\"identity_web_envelopes\".\"version\" = 2"
+        },
+        "identity_web_envelopes_secret_kind_check": {
+          "name": "identity_web_envelopes_secret_kind_check",
+          "value": "\"identity_web_envelopes\".\"secret_kind\" in ('mnemonic-entropy', 'raw-private-key')"
         }
       },
       "isRLSEnabled": false
@@ -10978,13 +11121,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "default": 1
+          "default": 2
         },
         "initiator_commitment": {
           "name": "initiator_commitment",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "initiator_commitment_nonce": {
           "name": "initiator_commitment_nonce",
@@ -11112,21 +11255,13 @@
           "name": "identity_moves_receipt_check",
           "value": "(\"identity_moves\".\"receipt_signature\" is null) = (\"identity_moves\".\"receipt_timestamp\" is null)"
         },
-        "identity_moves_protocol_version_check": {
-          "name": "identity_moves_protocol_version_check",
-          "value": "\"identity_moves\".\"protocol_version\" in (1, 2)"
-        },
-        "identity_moves_protocol_shape_check": {
-          "name": "identity_moves_protocol_shape_check",
-          "value": "(\"identity_moves\".\"protocol_version\" = 1 and \"identity_moves\".\"initiator_commitment\" is null and \"identity_moves\".\"initiator_ephemeral_public_key\" is not null) or (\"identity_moves\".\"protocol_version\" = 2 and \"identity_moves\".\"initiator_commitment\" is not null)"
-        },
         "identity_moves_reveal_after_join_check": {
           "name": "identity_moves_reveal_after_join_check",
-          "value": "\"identity_moves\".\"protocol_version\" = 1 or \"identity_moves\".\"initiator_ephemeral_public_key\" is null or \"identity_moves\".\"responder_ephemeral_public_key\" is not null"
+          "value": "\"identity_moves\".\"initiator_ephemeral_public_key\" is null or \"identity_moves\".\"responder_ephemeral_public_key\" is not null"
         },
         "identity_moves_reveal_nonce_check": {
           "name": "identity_moves_reveal_nonce_check",
-          "value": "(\"identity_moves\".\"initiator_commitment_nonce\" is null) = (\"identity_moves\".\"protocol_version\" = 1 or \"identity_moves\".\"initiator_ephemeral_public_key\" is null)"
+          "value": "(\"identity_moves\".\"initiator_commitment_nonce\" is null) = (\"identity_moves\".\"initiator_ephemeral_public_key\" is null)"
         }
       },
       "isRLSEnabled": false
