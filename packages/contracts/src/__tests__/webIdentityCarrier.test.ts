@@ -16,17 +16,19 @@ const hex = (bytes: number, char = 'a'): string => char.repeat(bytes * 2);
 const PUBLIC_KEY = `04${hex(64, 'b')}`;
 
 const envelope: WebIdentityEnvelope = {
-    version: 1,
+    version: 2,
     algorithm: 'xchacha20poly1305',
     publicKey: PUBLIC_KEY,
-    entropyNonce: hex(24),
-    sealedEntropy: hex(32),
+    secretKind: 'mnemonic-entropy',
+    secretNonce: hex(24),
+    sealedSecret: hex(32),
     wraps: [
         {
             credentialId: 'AbCdEfGhIjKlMnOp_-12',
             nonce: hex(24),
             wrappedKey: hex(48),
             createdAt: '2026-09-16T00:00:00.000Z',
+            rpId: 'oxy.so',
         },
     ],
 };
@@ -41,8 +43,11 @@ describe('webIdentityEnvelopeSchema', () => {
         expect(safeParseContract(webIdentityEnvelopeSchema, { ...envelope, publicKey: PUBLIC_KEY.toUpperCase() })).toBeNull();
     });
 
-    it('pins the sealed sizes, so nothing but 16 bytes of entropy and a 32-byte key can be stored', () => {
-        expect(safeParseContract(webIdentityEnvelopeSchema, { ...envelope, sealedEntropy: hex(64) })).toBeNull();
+    it('pins the sealed sizes: 12–24-word entropy or a 32-byte raw key, and a 32-byte data key per wrap', () => {
+        expect(safeParseContract(webIdentityEnvelopeSchema, { ...envelope, sealedSecret: hex(48) })).not.toBeNull();
+        expect(safeParseContract(webIdentityEnvelopeSchema, { ...envelope, secretKind: 'raw-private-key', sealedSecret: hex(48) })).not.toBeNull();
+        expect(safeParseContract(webIdentityEnvelopeSchema, { ...envelope, secretKind: 'raw-private-key', sealedSecret: hex(32) })).toBeNull();
+        expect(safeParseContract(webIdentityEnvelopeSchema, { ...envelope, sealedSecret: hex(64) })).toBeNull();
         expect(
             safeParseContract(webIdentityEnvelopeSchema, { ...envelope, wraps: [{ ...envelope.wraps[0], wrappedKey: hex(80) }] }),
         ).toBeNull();
@@ -62,7 +67,8 @@ describe('webIdentityEnvelopeSchema', () => {
     });
 
     it('rejects an unknown version or algorithm', () => {
-        expect(safeParseContract(webIdentityEnvelopeSchema, { ...envelope, version: 2 })).toBeNull();
+        expect(safeParseContract(webIdentityEnvelopeSchema, { ...envelope, version: 1 })).toBeNull();
+        expect(safeParseContract(webIdentityEnvelopeSchema, { ...envelope, wraps: [{ ...envelope.wraps[0], rpId: undefined }] })).toBeNull();
         expect(safeParseContract(webIdentityEnvelopeSchema, { ...envelope, algorithm: 'aes-256-gcm' })).toBeNull();
     });
 });
@@ -78,7 +84,15 @@ describe('request and response shapes', () => {
 
     it('a response may say there is no envelope', () => {
         expect(
-            safeParseContract(webIdentityEnvelopeResponseSchema, { envelope: null, phraseConfirmedAt: null, updatedAt: null }),
+            safeParseContract(webIdentityEnvelopeResponseSchema, {
+                envelope: null,
+                revision: 0,
+                rootLinked: false,
+                holders: [],
+                phraseConfirmedAt: null,
+                recoveryVerifiedAt: null,
+                updatedAt: null,
+            }),
         ).not.toBeNull();
     });
 });

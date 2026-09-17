@@ -170,7 +170,7 @@ export function createIdentityApi(baseURL: string): IdentityApi {
       return resolveAccount(result);
     },
     createMove(initiatorCommitment) {
-      return oxy.makeRequest<IdentityMoveCreateResponse>('POST', '/identity/move', { protocolVersion: 2, initiatorCommitment }, { cache: false });
+      return oxy.makeRequest<IdentityMoveCreateResponse>('POST', '/identity/move', { initiatorCommitment }, { cache: false });
     },
     revealMove(moveId, initiatorEphemeralPublicKey, commitmentNonce) {
       return oxy.makeRequest<IdentityMoveState>(

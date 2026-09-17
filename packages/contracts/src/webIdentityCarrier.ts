@@ -1,47 +1,31 @@
 /**
- * Web identity carrier contract — "one identity, two carriers".
+ * Web identity holder contract — the sealed envelope that lets a browser hold an
+ * account's self-custody root without Oxy ever being able to use it (ADR 0024).
  *
- * SINGLE SOURCE OF TRUTH for the sealed envelope that lets a browser carry an
- * account's self-custody identity without Oxy ever holding it
- * (`docs/superpowers/specs/2026-09-15-one-identity-two-carriers-design.md`).
+ * A root is a BIP-39 phrase (12–24 words) whose seed's first 32 bytes are the
+ * secp256k1 key — exactly the Commons derivation — or, for a few imported
+ * identities, a raw private key that never had a phrase. On the web it travels as:
  *
- * The identity is a BIP-39 mnemonic whose seed's first 32 bytes are the
- * secp256k1 key — exactly the Commons derivation — so a web identity and a
- * Commons identity are the same thing. On the web it travels as:
- *
- *   entropy (16 bytes) ── XChaCha20-Poly1305 under a random DEK ──▶ sealedEntropy
- *   DEK ── XChaCha20-Poly1305 under KEK_i ──▶ wraps[i]
+ *   secret ── XChaCha20-Poly1305 under a random DEK ──▶ sealedSecret
+ *   DEK    ── XChaCha20-Poly1305 under KEK_i ──▶ wraps[i]
  *   KEK_i = HKDF(PRF output of passkey i)
  *
  * The server stores the envelope and can open NONE of it: the PRF output never
- * leaves the user's authenticator, and the mnemonic is never uploaded. The AEAD
- * associated data binds every ciphertext to the identity's public key (and each
- * wrap to its credential), so a re-labelled or transplanted envelope fails to
- * open instead of decrypting into the wrong identity.
+ * leaves the user's authenticator, and the secret is never uploaded. The AEAD
+ * associated data binds the secret to the root's public key and kind, and each
+ * wrap to its credential and RP ID, so a re-labelled or transplanted envelope
+ * fails to open instead of decrypting into the wrong identity.
  *
- * Every hex field is lowercase-or-uppercase hex. Platform-agnostic — zod only,
- * ESM-safe (no `require()`).
+ * Platform-agnostic — zod only, ESM-safe (no `require()`).
  */
 import { z } from 'zod';
 import { identityProofSchema } from './identityProof';
 
-/**
- * The envelope scheme a version-unaware caller seals with. A scheme change is a
- * new literal, never a mutation; every listed version still opens.
- *
- * - `1`: 16-byte BIP-39 entropy (12 words) only; wraps carry no RP metadata.
- * - `2` (ADR 0024): a sealed SECRET of an explicit kind — BIP-39 entropy of any
- *   standard length, or a raw 32-byte private key for identities that never had
- *   a phrase — and wraps that record the RP ID they were created under.
- *
- * Stays `1` until every verifier accepts version 2 (ADR 0024 D10).
- */
-export const WEB_IDENTITY_ENVELOPE_VERSION = 1 as const;
-export const WEB_IDENTITY_ENVELOPE_VERSIONS = [1, 2] as const;
-export type WebIdentityEnvelopeVersion = (typeof WEB_IDENTITY_ENVELOPE_VERSIONS)[number];
+/** The envelope scheme. A scheme change is a new literal, never a mutation. */
+export const WEB_IDENTITY_ENVELOPE_VERSION = 2 as const;
 
 /**
- * What a version-2 envelope seals. A raw-key identity stays a raw-key identity:
+ * What an envelope seals. A raw-key identity stays a raw-key identity:
  * nothing ever derives or displays a phrase for it.
  */
 export const WEB_IDENTITY_SECRET_KINDS = ['mnemonic-entropy', 'raw-private-key'] as const;
@@ -87,11 +71,8 @@ export const webIdentityWrapSchema = z.object({
     /** The 32-byte DEK sealed under this passkey's KEK, with the 16-byte tag appended (48 bytes). */
     wrappedKey: hex(48, 'wrappedKey'),
     createdAt: z.string().datetime(),
-    /**
-     * The RP ID the passkey was created under, so every later ceremony asserts it
-     * explicitly. Absent on version-1 wraps, which are all `oxy.so` (ADR 0024 D2).
-     */
-    rpId: webauthnRpIdSchema.optional(),
+    /** The RP ID the passkey was created under, asserted explicitly by every later ceremony (ADR 0024 D2). */
+    rpId: webauthnRpIdSchema,
     /**
      * When this passkey's PRF output was shown to open the envelope. A wrap is a
      * root HOLDER only once this is set; a login passkey never is by default.
@@ -105,20 +86,9 @@ export const webIdentityWrapSchema = z.object({
  * `wraps` holds one entry per passkey able to open it; at least one, and a
  * bounded number so an envelope cannot grow without limit.
  */
-export const webIdentityEnvelopeV1Schema = z.object({
-    version: z.literal(1),
-    algorithm: z.literal('xchacha20poly1305'),
-    publicKey: webIdentityPublicKeySchema,
-    /** 24-byte nonce of the entropy seal. */
-    entropyNonce: hex(24, 'entropyNonce'),
-    /** The 16-byte BIP-39 entropy sealed under the DEK, tag appended (32 bytes). */
-    sealedEntropy: hex(32, 'sealedEntropy'),
-    wraps: z.array(webIdentityWrapSchema).min(1).max(10),
-});
-
-export const webIdentityEnvelopeV2Schema = z
+export const webIdentityEnvelopeSchema = z
     .object({
-        version: z.literal(2),
+        version: z.literal(WEB_IDENTITY_ENVELOPE_VERSION),
         algorithm: z.literal('xchacha20poly1305'),
         publicKey: webIdentityPublicKeySchema,
         secretKind: z.enum(WEB_IDENTITY_SECRET_KINDS),
@@ -139,8 +109,6 @@ export const webIdentityEnvelopeV2Schema = z
         path: ['sealedSecret'],
     });
 
-export const webIdentityEnvelopeSchema = z.union([webIdentityEnvelopeV1Schema, webIdentityEnvelopeV2Schema]);
-
 /**
  * `PUT /identity/web-envelope` — store or replace the caller's envelope.
  *
@@ -154,7 +122,7 @@ export const webIdentityEnvelopeUploadSchema = z.object({
 /** A root holder as the status read reports it — metadata only, nothing that opens anything. */
 export const webIdentityHolderSchema = z.object({
     credentialId: webauthnCredentialIdSchema,
-    rpId: webauthnRpIdSchema.nullable(),
+    rpId: webauthnRpIdSchema,
     verifiedAt: z.string().datetime().nullable(),
     createdAt: z.string().datetime(),
 });
@@ -167,32 +135,20 @@ export const webIdentityHolderSchema = z.object({
 export const webIdentityEnvelopeResponseSchema = z.object({
     envelope: webIdentityEnvelopeSchema.nullable(),
     /** The revision a write must name as `expectedRevision`; `0` when there is no envelope. */
-    revision: z.number().int().nonnegative().optional(),
+    revision: z.number().int().nonnegative(),
     /** Whether the account has a linked root at all (it may live only in Commons). */
-    rootLinked: z.boolean().optional(),
+    rootLinked: z.boolean(),
     /** The web wraps, as metadata. */
-    holders: z.array(webIdentityHolderSchema).optional(),
+    holders: z.array(webIdentityHolderSchema),
     /** When the owner confirmed the recovery material is written down, or `null`. */
     phraseConfirmedAt: z.string().datetime().nullable(),
     /** When the recovery material was shown to re-derive this root, or `null`. */
-    recoveryVerifiedAt: z.string().datetime().nullable().optional(),
+    recoveryVerifiedAt: z.string().datetime().nullable(),
     updatedAt: z.string().datetime().nullable(),
 });
 
-/**
- * Version-1 proof: a signature over `JSON.stringify({ action, userId, timestamp })`.
- * Not bound to the payload, the revision or a one-use challenge. The API no longer
- * accepts it on any envelope route (ADR 0024 D10).
- *
- * @deprecated Use the v2 `proof` field.
- */
-export const webIdentityEnvelopeProofSchema = z.object({
-    signature: z.string().trim().min(1).max(512),
-    timestamp: z.number().int().positive(),
-});
-
-/** A v2 root proof, plus the envelope revision the write expects to replace. */
-export const webIdentityEnvelopeV2ProofFieldsSchema = z.object({
+/** A root proof, plus the envelope revision the write expects to replace. */
+export const webIdentityEnvelopeProofFieldsSchema = z.object({
     proof: identityProofSchema,
     expectedRevision: z.number().int().nonnegative(),
 });
@@ -201,10 +157,10 @@ export const webIdentityEnvelopeV2ProofFieldsSchema = z.object({
  * `POST /identity/web-envelope/phrase-confirmed`, `/recovery-verified` and
  * `DELETE /identity/web-envelope` prove control of the root, not just a bearer.
  */
-export const webIdentityEnvelopeActionSchema = webIdentityEnvelopeV2ProofFieldsSchema.strict();
+export const webIdentityEnvelopeActionSchema = webIdentityEnvelopeProofFieldsSchema.strict();
 
 /** `PUT /identity/web-envelope` body. */
-export const webIdentityEnvelopePutSchema = webIdentityEnvelopeUploadSchema.extend(webIdentityEnvelopeV2ProofFieldsSchema.shape).strict();
+export const webIdentityEnvelopePutSchema = webIdentityEnvelopeUploadSchema.extend(webIdentityEnvelopeProofFieldsSchema.shape).strict();
 
 /**
  * A WebAuthn assertion by one of the account's EXISTING passkeys whose
@@ -241,13 +197,10 @@ export const webIdentityEnvelopeEstablishSchema = webIdentityEnvelopeUploadSchem
 
 export type WebIdentityWrap = z.infer<typeof webIdentityWrapSchema>;
 export type WebIdentityEnvelope = z.infer<typeof webIdentityEnvelopeSchema>;
-export type WebIdentityEnvelopeV1 = z.infer<typeof webIdentityEnvelopeV1Schema>;
-export type WebIdentityEnvelopeV2 = z.infer<typeof webIdentityEnvelopeV2Schema>;
 export type WebIdentityHolder = z.infer<typeof webIdentityHolderSchema>;
 export type WebIdentityEnvelopeAction = z.infer<typeof webIdentityEnvelopeActionSchema>;
 export type WebauthnAssertionResponse = z.infer<typeof webauthnAssertionResponseSchema>;
 export type WebIdentityEnvelopeUpload = z.infer<typeof webIdentityEnvelopeUploadSchema>;
 export type WebIdentityEnvelopeResponse = z.infer<typeof webIdentityEnvelopeResponseSchema>;
-export type WebIdentityEnvelopeProof = z.infer<typeof webIdentityEnvelopeProofSchema>;
 export type WebIdentityEnvelopePut = z.infer<typeof webIdentityEnvelopePutSchema>;
 export type WebIdentityEnvelopeEstablish = z.infer<typeof webIdentityEnvelopeEstablishSchema>;

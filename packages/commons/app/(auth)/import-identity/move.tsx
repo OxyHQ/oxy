@@ -93,7 +93,7 @@ export default function MoveIdentityScreen() {
           }
           return SignatureService.sign(message);
         };
-        await confirmReceived(relay, move, identity, signWithStoredKey);
+        await confirmReceived(relay, move, signWithStoredKey);
       } catch {
         setStage({ name: 'receipt-failed', move, synced });
         return;
@@ -111,8 +111,7 @@ export default function MoveIdentityScreen() {
     joinMove(relay, id)
       .then((move) => {
         if (cancelled) return;
-        if (move.sas) setStage({ name: 'compare', move: move as IncomingMove & { sas: string } });
-        else setStage({ name: 'awaiting-code', move });
+        setStage({ name: 'awaiting-code', move });
       })
       .catch((error: unknown) => {
         if (!cancelled) failWith(error);
@@ -122,7 +121,7 @@ export default function MoveIdentityScreen() {
     };
   }, [failWith, id, relay]);
 
-  // Version 2: wait for the computer to reveal its key, and show the code only
+  // Wait for the computer to reveal its key, and show the code only
   // once that key opens the commitment read before joining.
   useEffect(() => {
     if (stage.name !== 'awaiting-code') return;

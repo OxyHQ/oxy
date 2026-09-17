@@ -579,20 +579,16 @@ export type {
 export {
     // Schemas — web identity carrier (one identity, two carriers)
     WEB_IDENTITY_ENVELOPE_VERSION,
-    WEB_IDENTITY_ENVELOPE_VERSIONS,
     WEB_IDENTITY_SECRET_KINDS,
     webIdentityPublicKeySchema,
     webauthnCredentialIdSchema,
     webauthnRpIdSchema,
     webIdentityWrapSchema,
-    webIdentityEnvelopeV1Schema,
-    webIdentityEnvelopeV2Schema,
     webIdentityEnvelopeSchema,
     webIdentityEnvelopeUploadSchema,
     webIdentityHolderSchema,
     webIdentityEnvelopeResponseSchema,
-    webIdentityEnvelopeProofSchema,
-    webIdentityEnvelopeV2ProofFieldsSchema,
+    webIdentityEnvelopeProofFieldsSchema,
     webIdentityEnvelopeActionSchema,
     webIdentityEnvelopePutSchema,
     webauthnAssertionResponseSchema,
@@ -643,13 +639,12 @@ export {
     IDENTITY_MOVE_TTL_MS,
     IDENTITY_MOVE_STATUSES,
     IDENTITY_MOVE_QR_PREFIX,
-    IDENTITY_MOVE_PROTOCOL_VERSION,
-    IDENTITY_MOVE_PROTOCOL_VERSIONS,
     identityMoveRevealRequestSchema,
     buildMoveCommitmentInput,
-    buildMoveSasInputV2,
+    buildMoveSasInput,
+    buildMoveSealPayload,
     buildMoveCiphertextDigestInput,
-    buildMoveReceiptMessageV2,
+    buildMoveReceiptMessage,
     identityMoveIdSchema,
     identityMoveEphemeralKeySchema,
     identityMoveCreateRequestSchema,
@@ -668,23 +663,18 @@ export type {
     IdentityMoveSealRequest,
     IdentityMoveReceiptRequest,
     IdentityMoveRevealRequest,
-    IdentityMoveProtocolVersion,
     IdentityMoveState,
 } from './identityMove';
 
 export type {
     WebIdentityWrap,
     WebIdentityEnvelope,
-    WebIdentityEnvelopeV1,
-    WebIdentityEnvelopeV2,
-    WebIdentityEnvelopeVersion,
     WebIdentitySecretKind,
     WebIdentityHolder,
     WebIdentityEnvelopeAction,
     WebauthnAssertionResponse,
     WebIdentityEnvelopeUpload,
     WebIdentityEnvelopeResponse,
-    WebIdentityEnvelopeProof,
     WebIdentityEnvelopePut,
     WebIdentityEnvelopeEstablish,
 } from './webIdentityCarrier';
@@ -762,27 +752,6 @@ export type {
     WebauthnRegisterVerifyRequest,
     WebauthnLoginVerifyRequest,
 } from './webauthn';
-
-export {
-    // Schemas
-    devicePairingStatusSchema,
-    deviceTransferInitRequestSchema,
-    deviceTransferInitResponseSchema,
-    deviceTransferInfoResponseSchema,
-    deviceTransferApproveRequestSchema,
-    deviceTransferApproveResponseSchema,
-    deviceTransferDenyResponseSchema,
-} from './devicePairing';
-
-export type {
-    DevicePairingStatus,
-    DeviceTransferInitRequest,
-    DeviceTransferInitResponse,
-    DeviceTransferInfoResponse,
-    DeviceTransferApproveRequest,
-    DeviceTransferApproveResponse,
-    DeviceTransferDenyResponse,
-} from './devicePairing';
 
 export {
     // Schemas — transparency log (checkpoints + inclusion proofs)

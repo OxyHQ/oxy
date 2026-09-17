@@ -9,14 +9,14 @@
 import {
   deriveIdentityFromPrivateKey,
   deriveMoveKey,
-  deriveMoveSasV2,
+  deriveMoveSas,
   digestIdentityPayload,
   digestMoveCiphertext,
   generateMoveEphemeralKeyPair,
   generateWebIdentity,
   openMovedIdentity,
   sealWebIdentity,
-  signMoveReceiptV2,
+  signMoveReceipt,
   unlockWebIdentity,
   verifyMoveCommitment,
 } from '@oxy.so/core';
@@ -24,6 +24,7 @@ import {
   IDENTITY_ERROR_CODES,
   IDENTITY_PROOF_AUDIENCE,
   buildIdentityProofMessage,
+  buildMoveSealPayload,
   type IdentityMoveState,
   type IdentityProof,
   type IdentityProofAction,
@@ -117,6 +118,7 @@ function fakePorts(
     envelope: server.envelope,
     revision: server.envelope ? server.revision : 0,
     rootLinked: server.account.publicKey !== null,
+    holders: (server.envelope?.wraps ?? []).map((wrap) => ({ credentialId: wrap.credentialId, rpId: wrap.rpId, verifiedAt: wrap.verifiedAt ?? null, createdAt: wrap.createdAt })),
     phraseConfirmedAt: server.phraseConfirmedAt,
     recoveryVerifiedAt: server.recoveryVerifiedAt,
     updatedAt: server.envelope ? '2026-09-16T00:00:00.000Z' : null,
@@ -217,7 +219,6 @@ function fakePorts(
       server.move = {
         moveId: '0123456789abcdef0123456789abcdef',
         status: 'pending',
-        protocolVersion: 2,
         initiatorCommitment,
         initiatorCommitmentNonce: null,
         publicKey: server.account.publicKey as string,
@@ -226,7 +227,6 @@ function fakePorts(
         nonce: null,
         ciphertext: null,
         receiptSignature: null,
-        receiptTimestamp: null,
         expiresAt: '2026-09-16T00:05:00.000Z',
       };
       return { moveId: server.move.moveId, expiresAt: server.move.expiresAt };
@@ -240,8 +240,13 @@ function fakePorts(
       server.move = { ...move, initiatorEphemeralPublicKey, initiatorCommitmentNonce: commitmentNonce };
       return { ...server.move };
     },
-    sealMove: async (_moveId, body) => {
+    sealMove: async (moveId, body) => {
       server.calls.push('seal');
+      await checkProof(server, 'identity_move_seal', server.account.publicKey as string, body.proof, {
+        subject: server.account.userId,
+        actor: server.account.userId,
+        payload: buildMoveSealPayload(moveId, body),
+      });
       server.move = { ...(server.move as IdentityMoveState), status: 'sealed', nonce: body.nonce, ciphertext: body.ciphertext };
       return server.move;
     },
@@ -298,7 +303,7 @@ const newServer = (publicKey: string | null = null): FakeServer => ({
 const sessionOf = (server: FakeServer): CarrierSession => ({ account: server.account, credentialId: CREDENTIAL, rpId: RP_ID });
 
 function sealed(identity: ReturnType<typeof generateWebIdentity>, credentialId = CREDENTIAL, fill = 7): WebIdentityEnvelope {
-  const { envelope, dataKey } = sealWebIdentity(identity, { prfOutput: prf(fill), credentialId, rpId: RP_ID }, new Date(), { version: 2 });
+  const { envelope, dataKey } = sealWebIdentity(identity, { prfOutput: prf(fill), credentialId, rpId: RP_ID });
   dataKey.fill(0);
   return envelope;
 }
@@ -539,7 +544,7 @@ describe('phrase confirmation', () => {
   });
 });
 
-describe('giving the root to Commons (ADR 0024 D6, protocol version 2)', () => {
+describe('giving the root to Commons (ADR 0024 D6)', () => {
   async function readyAccount() {
     const identity = generateWebIdentity();
     const server = newServer(identity.publicKey);
@@ -564,7 +569,7 @@ describe('giving the root to Commons (ADR 0024 D6, protocol version 2)', () => {
     const { identity, server, ports, session } = context;
     const move = await startMove(ports, session);
     // Only the commitment is public until Commons joined.
-    expect(server.move).toMatchObject({ protocolVersion: 2, initiatorEphemeralPublicKey: null, initiatorCommitment: move.commitment });
+    expect(server.move).toMatchObject({ initiatorEphemeralPublicKey: null, initiatorCommitment: move.commitment });
 
     const { commons, commitmentSeen } = join(server);
     const { progress } = await readMove(ports, move);
@@ -574,7 +579,7 @@ describe('giving the root to Commons (ADR 0024 D6, protocol version 2)', () => {
     // Commons checks the revealed key against the commitment it read BEFORE joining, and shows the same code.
     expect(verifyMoveCommitment(revealed.initiatorEphemeralPublicKey as string, revealed.initiatorCommitmentNonce as string, commitmentSeen as string)).toBe(true);
     expect(progress.sas).toBe(
-      deriveMoveSasV2({ moveId: revealed.moveId, initiatorEphemeralPublicKey: revealed.initiatorEphemeralPublicKey as string, responderEphemeralPublicKey: commons.publicKey, initiatorCommitment: commitmentSeen as string }),
+      deriveMoveSas({ moveId: revealed.moveId, initiatorEphemeralPublicKey: revealed.initiatorEphemeralPublicKey as string, responderEphemeralPublicKey: commons.publicKey, initiatorCommitment: commitmentSeen as string }),
     );
 
     await sendMove(ports, session, move, progress.sas);
@@ -583,14 +588,14 @@ describe('giving the root to Commons (ADR 0024 D6, protocol version 2)', () => {
     const received = openMovedIdentity(payload, deriveMoveKey(commons.privateKey, revealed.initiatorEphemeralPublicKey as string, move.moveId), move.moveId, sealedMove.publicKey);
     expect(received.mnemonic).toBe(identity.mnemonic);
     expect(server.envelope).not.toBeNull();
-    const receipt = await signMoveReceiptV2((message) => signMessage(message, received.privateKey), {
+    const receipt = await signMoveReceipt((message: string) => signMessage(message, received.privateKey), {
       moveId: move.moveId,
       rootPublicKey: identity.publicKey,
       initiatorEphemeralPublicKey: revealed.initiatorEphemeralPublicKey as string,
       responderEphemeralPublicKey: commons.publicKey,
       ciphertextDigest: digestMoveCiphertext(payload),
     });
-    server.move = { ...sealedMove, status: 'completed', nonce: null, ciphertext: null, receiptSignature: receipt.signature, receiptTimestamp: 1 };
+    server.move = { ...sealedMove, status: 'completed', nonce: null, ciphertext: null, receiptSignature: receipt.signature };
     const done = await readMove(ports, move);
     await completeMove(ports, session, move, done.state, { keepWebHolder });
     return { ...context, move, commons, payload };
@@ -625,14 +630,14 @@ describe('giving the root to Commons (ADR 0024 D6, protocol version 2)', () => {
   it('keeps everything when the relay claims completion with a receipt that is not the root’s', async () => {
     const { server, ports, local, session, move, commons } = await upToSent();
     const sealedMove = server.move as IdentityMoveState;
-    const forged = await signMoveReceiptV2((message) => signMessage(message, generateWebIdentity().privateKey), {
+    const forged = await signMoveReceipt((message: string) => signMessage(message, generateWebIdentity().privateKey), {
       moveId: move.moveId,
       rootPublicKey: sealedMove.publicKey,
       initiatorEphemeralPublicKey: move.ephemeral.publicKey,
       responderEphemeralPublicKey: commons.publicKey,
       ciphertextDigest: move.ciphertextDigest as string,
     });
-    server.move = { ...sealedMove, status: 'completed', receiptSignature: forged.signature, receiptTimestamp: 1 };
+    server.move = { ...sealedMove, status: 'completed', receiptSignature: forged.signature };
     await expect(completeMove(ports, session, move, await ports.api.getMove(move.moveId), { keepWebHolder: false })).rejects.toThrow('did not prove');
     expect(server.envelope).not.toBeNull();
     expect(local.get('user-1')).toBeDefined();
@@ -641,14 +646,14 @@ describe('giving the root to Commons (ADR 0024 D6, protocol version 2)', () => {
   it('keeps everything when the root’s receipt covers different ciphertext than this browser sealed', async () => {
     const { identity, server, ports, session, move, commons } = await upToSent();
     const sealedMove = server.move as IdentityMoveState;
-    const receipt = await signMoveReceiptV2((message) => signMessage(message, identity.privateKey), {
+    const receipt = await signMoveReceipt((message: string) => signMessage(message, identity.privateKey), {
       moveId: move.moveId,
       rootPublicKey: identity.publicKey,
       initiatorEphemeralPublicKey: move.ephemeral.publicKey,
       responderEphemeralPublicKey: commons.publicKey,
       ciphertextDigest: 'ab'.repeat(32),
     });
-    server.move = { ...sealedMove, status: 'completed', receiptSignature: receipt.signature, receiptTimestamp: 1 };
+    server.move = { ...sealedMove, status: 'completed', receiptSignature: receipt.signature };
     await expect(completeMove(ports, session, move, await ports.api.getMove(move.moveId), { keepWebHolder: false })).rejects.toThrow('did not prove');
     expect(server.calls).not.toContain('delete');
   });

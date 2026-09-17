@@ -250,7 +250,7 @@ router.post(
         envelope.publicKey.toLowerCase() !== root ||
         envelope.wraps.length !== 1 ||
         envelope.wraps[0].credentialId !== credentialId ||
-        (envelope.wraps[0].rpId !== undefined && envelope.wraps[0].rpId !== rpID)
+        envelope.wraps[0].rpId !== rpID
       ) {
         throw new ApiError(400, 'The identity must be sealed with exactly the new passkey', IDENTITY_ERROR_CODES.enrollmentInvalid);
       }

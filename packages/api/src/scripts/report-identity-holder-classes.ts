@@ -35,9 +35,8 @@ export interface IdentityHolderCensus {
   };
   webHolders: {
     total: number;
-    envelopeV1: number;
-    envelopeV2Mnemonic: number;
-    envelopeV2RawKey: number;
+    mnemonic: number;
+    rawKey: number;
     /** Envelopes whose sealed root is no longer the account's (unreadable by design). */
     staleRoot: number;
     singleWrap: number;
@@ -49,7 +48,8 @@ export interface IdentityHolderCensus {
   };
   /** Linked roots with no current web holder: kept in Commons, or holder location unknown. */
   rootsWithoutWebHolder: number;
-  transfers: { inFlightV1: number; inFlightV2: number };
+  /** Transfers to Commons not yet completed, cancelled or expired. */
+  transfersInFlight: number;
 }
 
 function n(value: unknown): number {
@@ -82,9 +82,8 @@ export async function reportIdentityHolderClasses(): Promise<IdentityHolderCensu
 
   const [holders] = await db.execute<Record<string, string>>(sql`
     select count(*)::text as total,
-           count(*) filter (where e.version = 1)::text as v1,
-           count(*) filter (where e.version = 2 and e.secret_kind = 'mnemonic-entropy')::text as v2_mnemonic,
-           count(*) filter (where e.version = 2 and e.secret_kind = 'raw-private-key')::text as v2_raw,
+           count(*) filter (where e.secret_kind = 'mnemonic-entropy')::text as mnemonic,
+           count(*) filter (where e.secret_kind = 'raw-private-key')::text as raw,
            count(*) filter (where u.public_key is null or lower(btrim(u.public_key)) <> e.public_key)::text as stale,
            count(*) filter (where jsonb_array_length(e.wraps) = 1)::text as single_wrap,
            count(*) filter (where jsonb_array_length(e.wraps) > 1)::text as multiple_wraps,
@@ -106,8 +105,7 @@ export async function reportIdentityHolderClasses(): Promise<IdentityHolderCensu
   `);
 
   const [transfers] = await db.execute<Record<string, string>>(sql`
-    select count(*) filter (where protocol_version = 1)::text as v1,
-           count(*) filter (where protocol_version = 2)::text as v2
+    select count(*)::text as count
       from identity_moves
      where status in ('pending', 'joined', 'sealed') and expires_at > now()
   `);
@@ -117,9 +115,8 @@ export async function reportIdentityHolderClasses(): Promise<IdentityHolderCensu
     roots: { linked: n(accounts?.linked), keylessWithPasskey: n(keyless?.with_passkey), keylessWithoutMethod: n(keyless?.without_method) },
     webHolders: {
       total: n(holders?.total),
-      envelopeV1: n(holders?.v1),
-      envelopeV2Mnemonic: n(holders?.v2_mnemonic),
-      envelopeV2RawKey: n(holders?.v2_raw),
+      mnemonic: n(holders?.mnemonic),
+      rawKey: n(holders?.raw),
       staleRoot: n(holders?.stale),
       singleWrap: n(holders?.single_wrap),
       multipleWraps: n(holders?.multiple_wraps),
@@ -128,7 +125,7 @@ export async function reportIdentityHolderClasses(): Promise<IdentityHolderCensu
       recoveryVerified: n(holders?.recovery_verified),
     },
     rootsWithoutWebHolder: n(withoutHolder?.count),
-    transfers: { inFlightV1: n(transfers?.v1), inFlightV2: n(transfers?.v2) },
+    transfersInFlight: n(transfers?.count),
   };
 }
 
