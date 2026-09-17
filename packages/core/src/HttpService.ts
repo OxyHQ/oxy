@@ -187,6 +187,34 @@ const TOKEN_REFRESH_COOLDOWN_MS = 15000;
 const EXPIRED_TOKEN_REFRESH_COOLDOWN_MS = 1000;
 
 /**
+ * Cooldown (ms) applied after the refresh endpoint answered 429 Too Many
+ * Requests. Overrides BOTH cooldowns above, because neither of them is about
+ * this failure.
+ *
+ * The other two ask "is the current token still usable?" and answer a server
+ * that is unreachable or erroring. A 429 is the opposite situation: the server
+ * is perfectly reachable and is telling this client, specifically, that it is
+ * asking too often. `EXPIRED_TOKEN_REFRESH_COOLDOWN_MS` then becomes actively
+ * harmful — an expired token drives the request-time preflight and the 401
+ * retry lanes at one mint per second (60/min) against a mint budget of 30/min,
+ * so the client's own retries hold the limiter tripped and it can never fall
+ * back under the ceiling. The limit stops being self-clearing and becomes
+ * self-sustaining for as long as the app keeps issuing requests.
+ *
+ * Sized to the mint limiter's own window (60s, `packages/api/src/routes/sessionDevice.ts`)
+ * so ONE attempt lands per window: enough to discover the moment the budget has
+ * drained, never enough to consume it. The per-device lockout answers 429 for
+ * far longer (15 min), and that is fine — one probe a minute against it is
+ * negligible traffic and the session recovers the instant the lockout lifts.
+ *
+ * NOT routed through the scheduler's exponential backoff: that backoff is
+ * effect-local to `startTokenRefreshScheduler` and governs only the scheduled
+ * lane, while the lanes that actually produce the storm here (preflight, 401
+ * retry) are request-driven and are throttled solely by this cooldown.
+ */
+const RATE_LIMITED_REFRESH_COOLDOWN_MS = 60_000;
+
+/**
  * Lead time (seconds) before access-token expiry at which a preflight refresh
  * is triggered. A token within this window of `exp` is treated as effectively
  * expired so the request carries a fresh bearer rather than racing the clock.
@@ -293,6 +321,17 @@ export class HttpService {
    * fixed deadline that could not shrink once the token expired mid-cooldown.
    */
   private lastRefreshFailureAt = 0;
+  /**
+   * Whether the last refresh failure was the server answering 429. Selects
+   * {@link RATE_LIMITED_REFRESH_COOLDOWN_MS} over the two token-state cooldowns
+   * for the NEXT attempt, and is cleared by any success or any other failure.
+   *
+   * A boolean beside {@link lastRefreshFailureAt} rather than a stored deadline,
+   * for the same reason that field gives: the cooldown stays a function of the
+   * current state, so it can still shorten if the situation changes underneath
+   * it, and there is exactly one timestamp to reason about.
+   */
+  private lastRefreshWasRateLimited = false;
   private authRefreshHandler: AuthRefreshHandler | null = null;
   private accessTokenProvider: AccessTokenProvider | null = null;
   private deviceSecretMintInFlight: Promise<DeviceSecretMintOutcome> | null = null;
@@ -1156,20 +1195,29 @@ export class HttpService {
       return null;
     }
 
-    // Post-failure cooldown. A genuinely EXPIRED current token uses a much
-    // shorter cooldown than a still-valid (proactive, near-expiry) one: an
-    // expired token is unusable, so re-mint as soon as the endpoint is reachable
-    // again rather than waiting out the full window while requests carry a stale
-    // bearer. Both cooldowns are measured from the last failure, so the moment a
-    // still-valid token crosses `exp` mid-cooldown the shorter window applies.
-    const cooldownMs = this.isAccessTokenExpired()
-      ? EXPIRED_TOKEN_REFRESH_COOLDOWN_MS
-      : TOKEN_REFRESH_COOLDOWN_MS;
+    // Post-failure cooldown. A 429 names its own window regardless of token
+    // state — the server is reachable and is rationing this client, so retrying
+    // at the expired-token rate would spend the very budget being waited on.
+    // Otherwise a genuinely EXPIRED current token uses a much shorter cooldown
+    // than a still-valid (proactive, near-expiry) one: an expired token is
+    // unusable, so re-mint as soon as the endpoint is reachable again rather
+    // than waiting out the full window while requests carry a stale bearer. All
+    // three are measured from the last failure, so the moment a still-valid
+    // token crosses `exp` mid-cooldown the shorter window applies.
+    const cooldownMs = this.lastRefreshWasRateLimited
+      ? RATE_LIMITED_REFRESH_COOLDOWN_MS
+      : this.isAccessTokenExpired()
+        ? EXPIRED_TOKEN_REFRESH_COOLDOWN_MS
+        : TOKEN_REFRESH_COOLDOWN_MS;
     if (Date.now() - this.lastRefreshFailureAt < cooldownMs) {
       return null;
     }
 
     if (!this.tokenRefreshPromise) {
+      // Cleared before the attempt, never after it: the handler reports a 429
+      // by calling `noteRefreshRateLimited()` from INSIDE this call, so clearing
+      // on the way out would discard the flag it just set.
+      this.lastRefreshWasRateLimited = false;
       this.tokenRefreshPromise = this.authRefreshHandler(reason)
         .then((newToken) => {
           if (!newToken) {
@@ -1183,6 +1231,7 @@ export class HttpService {
           // A success clears the failure timestamp so the next refresh is never
           // throttled by a stale cooldown.
           this.lastRefreshFailureAt = 0;
+          this.lastRefreshWasRateLimited = false;
           this.logger.debug('Token refreshed via the auth refresh handler');
           return newToken;
         })
@@ -1197,6 +1246,22 @@ export class HttpService {
     }
 
     return this.tokenRefreshPromise;
+  }
+
+  /**
+   * Report that the refresh/mint endpoint answered 429 Too Many Requests, so the
+   * next attempt waits {@link RATE_LIMITED_REFRESH_COOLDOWN_MS} instead of one of
+   * the token-state cooldowns.
+   *
+   * Called by the refresh handler (`refreshDeviceSecretArm`) from inside the
+   * `authRefreshHandler` call, because the handler's `Promise<string | null>`
+   * contract cannot carry WHY a refresh failed and 429 is the one failure whose
+   * correct retry interval is set by the server rather than by the token.
+   *
+   * Public because the handler lives in `session/refresh.ts`, not on this class.
+   */
+  noteRefreshRateLimited(): void {
+    this.lastRefreshWasRateLimited = true;
   }
 
   /**
