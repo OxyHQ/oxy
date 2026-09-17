@@ -66,6 +66,7 @@ import { APPLICATION_SCOPES } from "../src/utils/applicationScopes";
 import { isCredentialUsable } from "../src/utils/credentialUsability";
 import { logger } from "../src/utils/logger";
 import { reconcilePendingCredentials } from "../src/utils/serviceCredentialPendingReconciliation";
+import { isRegisteredScopeRotation } from "../src/utils/serviceCredentialScopeRotations";
 
 // ── Mirror routes/applications.ts credential generation EXACTLY ──────────────
 const CREDENTIAL_PUBLIC_KEY_PREFIX = "oxy_dk_";
@@ -254,14 +255,12 @@ async function run(): Promise<void> {
 	const scopes = parseAndValidateScopes(process.env.SCOPES);
 	if (
 		rotateScopeMismatch &&
-		(requestedAppId !== "6a2f851751b784a86fd0e934" ||
-			environment !== "production" ||
-			credentialName !== "Oxy service (production)" ||
-			!hasExactScopeSet(scopes, [
-				"user:read",
-				"inference:invoke",
-				"capabilities:read",
-			]))
+		!isRegisteredScopeRotation({
+			applicationId: requestedAppId,
+			environment,
+			credentialName,
+			scopes,
+		})
 	) {
 		throw new Error(
 			"ROTATE_SCOPE_MISMATCH is not registered for this exact application credential lane.",
