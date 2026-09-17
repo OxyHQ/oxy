@@ -39,6 +39,39 @@ export const Button = ({
 export const Loading = () => createElement('span', null, 'loading');
 
 /**
+ * `@oxy.so/bloom/social-button` stubs. Mirrors the parts `OxySignInButton`
+ * relies on: the label (`children`, hidden when `iconOnly`), the accessible
+ * name, press, and `disabled`.
+ */
+const SOCIAL_ACTION_PHRASE = { continue: 'Continue with', signIn: 'Sign in with', signUp: 'Sign up with' } as const;
+
+export const socialButtonLabel = (
+  brandLabel: string,
+  action: keyof typeof SOCIAL_ACTION_PHRASE = 'continue',
+): string => `${SOCIAL_ACTION_PHRASE[action]} ${brandLabel}`;
+
+export const SocialButton = ({
+  children,
+  onPress,
+  disabled,
+  iconOnly,
+  accessibilityLabel,
+  testID,
+}: {
+  children?: ReactNode;
+  onPress?: () => void;
+  disabled?: boolean;
+  iconOnly?: boolean;
+  accessibilityLabel?: string;
+  testID?: string;
+} & Record<string, unknown>) =>
+  createElement(
+    'button',
+    { type: 'button', onClick: onPress, disabled, 'aria-label': accessibilityLabel, 'data-testid': testID },
+    iconOnly ? null : children,
+  );
+
+/**
  * `@oxy.so/bloom/accordion` stubs — Bloom's CONTROLLED disclosure, which replaced
  * the deleted `Collapsible` in 1.0.0. Mirrors the behaviour the auth chooser's
  * "Having trouble?" affordance depends on: the trigger is always rendered, and

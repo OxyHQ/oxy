@@ -108,6 +108,7 @@
     "loading": "S'estan carregant els comptes...",
     "qrHeadline": "Inicia sessió amb la teva identitat d'Oxy",
     "signInWithOxy": "Inicia sessió amb Oxy",
+    "signUpWithOxy": "Registra't amb Oxy",
     "useIdentityOnDevice": "No tens Commons? Fes servir una clau d'accés en aquest dispositiu",
     "getCommons": "Descarrega Commons",
     "commonsNotInstalled": "No tens Commons? Descarrega l'app per iniciar sessió amb el teu Oxy ID.",

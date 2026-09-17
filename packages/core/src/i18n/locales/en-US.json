@@ -416,6 +416,7 @@
     "scanQr": "Scan QR code",
     "qrHeadline": "Sign in with your Oxy identity",
     "signInWithOxy": "Sign in with Oxy",
+    "signUpWithOxy": "Sign up with Oxy",
     "useIdentityOnDevice": "No Commons? Use a passkey on this device instead",
     "getCommons": "Get Commons",
     "commonsNotInstalled": "Don't have Commons? Get the app to sign in with your Oxy ID.",

@@ -104,13 +104,26 @@ afterEach(() => {
 
 describe('OxySignInButton', () => {
   // ── Label ─────────────────────────────────────────────────────────────────
-  // The relying party surfaces exactly ONE primary action and it reads
-  // "Continue with Oxy" (issue #691). "Sign in with Oxy" stays the name of the
-  // mechanism everywhere else — only this button's default label changed.
+  // The button is Bloom's `SocialButton brand="oxy"`; `action` picks the verb.
   describe('label', () => {
-    it('renders the localized "Continue with Oxy" primary action by default', () => {
+    it('renders the localized "Sign in with Oxy" by default', () => {
       render(<OxySignInButton />);
+      expect(screen.getByRole('button').textContent).toBe('Sign in with Oxy');
+    });
+
+    it('words the label by action', () => {
+      const { unmount } = render(<OxySignInButton action="continue" />);
       expect(screen.getByRole('button').textContent).toBe('Continue with Oxy');
+      unmount();
+      render(<OxySignInButton action="signUp" />);
+      expect(screen.getByRole('button').textContent).toBe('Sign up with Oxy');
+    });
+
+    it('names an icon-only button with the localized action phrase', () => {
+      render(<OxySignInButton iconOnly />);
+      const button = screen.getByRole('button');
+      expect(button.textContent).toBe('');
+      expect(button.getAttribute('aria-label')).toBe('Sign in with Oxy');
     });
 
     it('lets a caller-supplied text prop win over the default label', () => {

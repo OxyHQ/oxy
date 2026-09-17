@@ -108,6 +108,7 @@
     "loading": "アカウントを読み込み中...",
     "qrHeadline": "Oxy IDでサインイン",
     "signInWithOxy": "Oxyでサインイン",
+    "signUpWithOxy": "Oxyで登録",
     "useIdentityOnDevice": "Commonsがありませんか？このデバイスのパスキーを使用",
     "getCommons": "Commonsを入手",
     "commonsNotInstalled": "Commonsがありませんか？アプリを入手してOxy IDでサインインしましょう。",
