@@ -432,7 +432,11 @@ export const SEED_APPS: SeedAppSpec[] = [
     // The website's MCP server (website-api.oxy.so/mcp) signs people in through
     // Oxy's MCP OAuth. Its service credential registers the website catalog so
     // Oxy can resolve that resource; introspection needs no further scope.
-    scopes: ['user:read', 'catalogs:write'],
+    // `clarity:search` is what the careers page reads Oxy's open roles with:
+    // they are authored in Mention and indexed by Clarity, and the website
+    // stores none of them. The mint intersects credential scopes with these, so
+    // without it Clarity answers `scope_missing` for every job search.
+    scopes: ['user:read', 'catalogs:write', 'clarity:search'],
     capabilities: [catalogApplicationCapability('website')],
   },
   {
