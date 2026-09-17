@@ -320,6 +320,17 @@ export const SEED_APPS: SeedAppSpec[] = [
     // origin as the redirect surface.
     redirectUris: ['https://auth.oxy.so'],
   },
+  {
+    name: 'Oxy Identity',
+    description:
+      'The web identity carrier (id.oxy.so): keeps an account\'s self-custody identity sealed under the person\'s passkey. Oxy never holds it.',
+    websiteUrl: 'https://id.oxy.so',
+    type: 'first_party',
+    // Trusted first-party origin: it calls the API with a bearer (passkey
+    // sign-in, the sealed web envelope, account deletion). The envelope routes
+    // additionally accept NO origin but this one (`IDENTITY_WEB_ORIGIN`).
+    redirectUris: ['https://id.oxy.so'],
+  },
   // ── Ecosystem first-party apps ──
   {
     id: MENTION_APPLICATION_ID,
@@ -382,24 +393,12 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Alia',
     description: 'Official Oxy AI platform (chat app, console, canvas, gateway).',
     websiteUrl: 'https://alia.onl',
-    // `internal`, not `first_party`, and this is the load-bearing field of the
-    // whole workstream-14 registration rather than a label.
-    //
-    // `resolveCatalogueViewer` (`services/inferenceCatalogue.service.ts`) grants
-    // the `internal_alia` availability scope to `internal`/`system` applications
-    // ONLY, and it excludes `first_party` on purpose: Console and Accounts are
-    // first-party and customer-facing, so handing that type the internal
-    // audience would put internal-only routes in front of customers. Alia
-    // registered as `first_party` is therefore a PUBLIC catalogue viewer — it
-    // cannot be routed to the very deployments whose availability scope is named
-    // after it, and the symptom is a model that silently is not offered rather
-    // than an error.
-    //
-    // Nothing else narrows: `isTrustedApplication()` already accepts `internal`
-    // exactly as it accepts `first_party`, so the credentialed CORS lane, OAuth
-    // consent auto-approval, service-credential creation and the sign-in dialog
-    // are all unchanged. `computeSeedApplicationPlan` derives `isInternal` from
-    // this field, so the flag follows without a second declaration.
+    // Alia remains `internal` because rollout/canary gates distinguish the agent
+    // runtime from customer-facing official products. Catalogue availability no
+    // longer carries an Alia-specific identity: both `first_party` and `internal`
+    // applications may consume reviewed `platform_internal` Kaana routes.
+    // `computeSeedApplicationPlan` derives `isInternal` from this field, so the
+    // flag follows without a second declaration.
     type: 'internal',
     redirectUris: ['https://alia.onl'],
     // See ALIA_APPLICATION_SCOPES for the grant and, more importantly, for the
@@ -430,6 +429,15 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://oxy.so',
     type: 'first_party',
     redirectUris: ['https://oxy.so', 'https://fairco.in'],
+    // The website's MCP server (website-api.oxy.so/mcp) signs people in through
+    // Oxy's MCP OAuth. Its service credential registers the website catalog so
+    // Oxy can resolve that resource; introspection needs no further scope.
+    // `clarity:search` is what the careers page reads Oxy's open roles with:
+    // they are authored in Mention and indexed by Clarity, and the website
+    // stores none of them. The mint intersects credential scopes with these, so
+    // without it Clarity answers `scope_missing` for every job search.
+    scopes: ['user:read', 'catalogs:write', 'clarity:search'],
+    capabilities: [catalogApplicationCapability('website')],
   },
   {
     name: 'Peable',

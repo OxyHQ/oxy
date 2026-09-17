@@ -85,6 +85,19 @@ import { users } from './users';
  * TypeScript PROPERTY names, because that is what a drizzle selection object is
  * keyed by — `sqlColumnName` is for talking to the catalogue, not for this.
  */
+/**
+ * `users` columns protected for a reason that has nothing to do with
+ * Mongoose's `select: false` — there is no Mongo-era expectation to hold them
+ * against, because the column did not exist before this migration.
+ * `dateOfBirth` is the first: raw PII added directly in Postgres, gated the
+ * same way `phone` already is. Kept as its own list (rather than appended
+ * inline below) so `__tests__/protectedColumns.test.ts` can state, as an
+ * independent assertion, that the FULL `users` registry is exactly the
+ * Mongoose set plus this one deliberate addition — not silently whatever the
+ * array below happens to contain.
+ */
+export const USERS_POST_MONGO_PROTECTED_COLUMNS = ['dateOfBirth'] as const;
+
 export const USERS_PROTECTED_COLUMNS = [
   'phone',
   'hashedEmail',
@@ -93,6 +106,7 @@ export const USERS_PROTECTED_COLUMNS = [
   'emailSignature',
   'autoForwardTo',
   'autoForwardKeepCopy',
+  ...USERS_POST_MONGO_PROTECTED_COLUMNS,
 ] as const;
 
 /**
@@ -365,6 +379,14 @@ export const PROTECTED_COLUMNS: readonly ProtectedColumn[] = [
     reason:
       'Only meaningful next to `auto_forward_to`, and leaks the same fact — ' +
       'that forwarding is configured.',
+  },
+  {
+    table: users,
+    column: users.dateOfBirth,
+    reason:
+      'Raw date of birth. Owner-only, like `phone` — a caller that needs to ' +
+      "gate on age reads the derived `isAdult` boolean instead, which never " +
+      'reveals the underlying date.',
   },
   {
     table: sessions,

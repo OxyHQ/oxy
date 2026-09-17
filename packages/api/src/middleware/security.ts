@@ -1,3 +1,4 @@
+import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import slowDown from "express-slow-down";
 import { type Request, Response, NextFunction } from "express";
@@ -84,78 +85,169 @@ export function isFederationServiceToServicePath(path: string): boolean {
 }
 
 /**
- * Exact paths that are EXCLUSIVELY service-to-service (each gated by
- * `serviceAuthMiddleware`) yet live UNDER a user-facing prefix, and that a
- * relying app's federation/connectors backfill calls in BULK — all fanned
- * through ONE NAT egress IP:
- *   - PUT  /users/resolve             (find-or-create a federated/agent user)
- *   - POST /assets/service/cache      (mirror remote media into the cache ns)
- *   - POST /assets/service/federation (persist durable federated media)
- *   - POST /assets/service/user-media (persist media for a local user; MCP)
- *   - POST /assets/service/by-ids     (resolve asset metadata for a batch of ids)
- *   - POST /assets/service/by-sha256  (reverse-resolve assets by content hash)
- *   - POST /assets/service/linked-url (mint download URLs for owner-linked files)
- *   - POST /auth/mcp/oauth/introspect (live MCP resource-token validation)
- *
- * Because these share a prefix with genuine browser/user routes (`/users/*`,
- * `/assets/*`), a PURE path match — as used for the IdP worker / federation
- * paths, whose whole prefix is service-only — is unsafe here: it could exempt a
- * future sibling browser route and would leave UNauthenticated floods of the
- * path unbounded. The exemption is therefore additionally gated on the request
- * carrying a VALID service token (see {@link isServiceToServiceBulkRequest}).
- *
- * The `/api/` prefix is already stripped by the time the limiters run (the strip
- * middleware is mounted before them), so the bare forms suffice.
+ * NOTE — the token-gated BULK-PATH exemption that used to live here
+ * (`SERVICE_TO_SERVICE_BULK_PATHS` + `isServiceToServiceBulkRequest`) is gone,
+ * subsumed by {@link isFirstPartyServiceRequest}: a valid service credential is
+ * now exempt from the per-IP browser budget on EVERY path and charged to its own
+ * per-credential budget instead, so an exact-path allow-list that had to be kept
+ * in sync by hand (and twice was not — see the `/assets/service/by-ids` note in
+ * the history) no longer decides whether real service traffic gets throttled.
+ * The route-level service limiters it pointed at are unchanged and remain the
+ * tighter per-surface ceilings.
  */
-const SERVICE_TO_SERVICE_BULK_PATHS: ReadonlySet<string> = new Set([
-  '/users/resolve',
-  '/assets/service/cache',
-  '/assets/service/federation',
-  '/assets/service/user-media',
-  // The two bulk READ lookups. Omitting them was not a judgement call — they
-  // were introduced after this set and never added, so a relying app's metadata
-  // backfill ran under the 1000/15min browser budget and absorbed 24,423
-  // consecutive 429s in one run. Both carry `assetServiceLookupLimiter`, which
-  // is what the MOUNT-ORDER INVARIANT below requires of every entry here.
-  '/assets/service/by-ids',
-  '/assets/service/by-sha256',
-  // The URL mint. Exempt for the same reason as the two above — a relying app's
-  // download traffic fans through one NAT egress IP — but it carries its OWN
-  // limiter (`assetLinkedUrlLimiter`, a fifth of the lookup ceiling) rather than
-  // sharing theirs, because what it bounds is outstanding bearer credentials for
-  // file contents, not a projected read of rows.
-  '/assets/service/linked-url',
-  '/auth/mcp/oauth/introspect',
-]);
 
 /**
- * True when the request targets a {@link SERVICE_TO_SERVICE_BULK_PATHS} path AND
- * carries a valid `service`-type token. Used to exempt genuine internal backfill
- * traffic from the per-IP BROWSER protections (rl:general + slowDown) WITHOUT
- * weakening them for user-facing traffic or unauthenticated floods — anything
- * lacking a valid service token is NOT exempted and stays under the general
- * per-IP budget.
- *
- * MOUNT-ORDER INVARIANT: every exempt path MUST carry its own dedicated service
- * limiter at its route — `/users/resolve` → `userResolveServiceLimiter`
- * (routes/users.ts), `/assets/service/{cache,federation,user-media}` →
- * `cacheUploadLimiter`, `/assets/service/{by-ids,by-sha256}` →
- * `assetServiceLookupLimiter`, `/assets/service/linked-url` →
- * `assetLinkedUrlLimiter` (all in routes/assets.ts). The path set here and
- * those route limiters must be kept in sync: an entry added here WITHOUT a route
- * limiter is not a smaller fix, it is a regression — it removes the only ceiling
- * that authenticated service traffic on that path has.
+ * Cache slot for {@link servicePrincipal}. Four limiters ask the same question of
+ * the same request, and the answer is a JWT signature verification — memoised per
+ * request so it is computed at most once, and on the request object rather than
+ * in a module map so it cannot outlive the request or leak across them.
  */
-export function isServiceToServiceBulkRequest(req: Request): boolean {
-  const originalPath = req.originalUrl?.split('?', 1)[0];
-  const requestPath = originalPath?.startsWith('/api/')
-    ? originalPath.slice('/api'.length)
-    : originalPath;
-  if (!SERVICE_TO_SERVICE_BULK_PATHS.has(requestPath ?? req.path)) return false;
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) return false;
-  return verifyServiceToken(authHeader.slice('Bearer '.length)).ok;
+const SERVICE_PRINCIPAL = Symbol('oxy.rateLimit.servicePrincipal');
+
+interface RequestWithServicePrincipal extends Request {
+  [SERVICE_PRINCIPAL]?: { payload: ReturnType<typeof verifyServiceToken> };
 }
+
+/**
+ * The verified SERVICE principal behind this request, or `undefined` for a
+ * browser, an anonymous caller, a user session, or an invalid/expired token.
+ *
+ * This is a rate-limiting question only: it names the credential a budget should
+ * be charged to. AUTHORISATION still belongs to `serviceAuthMiddleware` at the
+ * route, which verifies the same token again through the same single source of
+ * truth and checks its scopes. Nothing here grants access.
+ */
+function servicePrincipal(req: Request): { appId: string } | undefined {
+  const cached = (req as RequestWithServicePrincipal)[SERVICE_PRINCIPAL];
+  if (cached) {
+    return cached.payload.ok ? { appId: cached.payload.payload.appId } : undefined;
+  }
+
+  const authHeader = req.headers.authorization;
+  const verification = authHeader?.startsWith('Bearer ')
+    ? verifyServiceToken(authHeader.slice('Bearer '.length))
+    : ({ ok: false, reason: 'invalid' } as ReturnType<typeof verifyServiceToken>);
+  (req as RequestWithServicePrincipal)[SERVICE_PRINCIPAL] = { payload: verification };
+  return verification.ok ? { appId: verification.payload.appId } : undefined;
+}
+
+/** Cache slot for {@link userPrincipal}; see {@link SERVICE_PRINCIPAL}. */
+const USER_PRINCIPAL = Symbol('oxy.rateLimit.userPrincipal');
+
+interface RequestWithUserPrincipal extends Request {
+  [USER_PRINCIPAL]?: { userId?: string };
+}
+
+/**
+ * The SESSION SUBJECT behind this request, from a locally verified access
+ * token, or `undefined` for an anonymous caller, a service token, or a token
+ * that does not verify.
+ *
+ * WHY THE LIMITER RESOLVES THIS ITSELF — the per-IP budget has no per-account
+ * attribution, and a relying app's backend reads on its users' behalf from ONE
+ * NAT egress IP. So thousands of signed-in readers share one 1000/15min bucket,
+ * and the app's normal traffic 429s itself: measured on Mention, whose feed
+ * privacy reads (which fail closed) turned those 429s into 500s for readers.
+ * Keying an authenticated request by its SUBJECT is what makes the budget mean
+ * "this account's traffic" wherever it enters from.
+ *
+ * Signature + expiry only, and NO session lookup: this decides whose budget to
+ * charge, never what the caller may do. `authMiddleware` still validates the
+ * session for authorisation, and a forged token verifies as nothing here, so it
+ * falls back to the per-IP key rather than minting itself a fresh bucket.
+ * `sessionId` is required because that is what a real Oxy access token carries
+ * (`authMiddleware` rejects a token without it), so a decorative JWT cannot buy
+ * its own bucket either.
+ */
+function userPrincipal(req: Request): string | undefined {
+  const cached = (req as RequestWithUserPrincipal)[USER_PRINCIPAL];
+  if (cached) return cached.userId;
+
+  const resolve = (): string | undefined => {
+    const secret = process.env.ACCESS_TOKEN_SECRET;
+    const authHeader = req.headers.authorization;
+    if (!secret || !authHeader?.startsWith('Bearer ')) return undefined;
+    try {
+      const decoded = jwt.verify(authHeader.slice('Bearer '.length), secret);
+      if (typeof decoded !== 'object' || decoded === null) return undefined;
+      const claims = decoded as { sessionId?: unknown; userId?: unknown; id?: unknown; _id?: unknown };
+      if (typeof claims.sessionId !== 'string' || claims.sessionId.length === 0) return undefined;
+      for (const candidate of [claims.userId, claims.id, claims._id]) {
+        if (typeof candidate === 'string' && candidate.length > 0) return candidate;
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const userId = resolve();
+  (req as RequestWithUserPrincipal)[USER_PRINCIPAL] = { userId };
+  return userId;
+}
+
+/**
+ * Charge an authenticated request to its SUBJECT and everything else to its IP.
+ *
+ * The `usr:` prefix keeps the two key spaces apart — {@link hashedIpKey} answers
+ * 24 hex characters, so no account id can ever collide with an IP bucket.
+ */
+function subjectOrIpKey(req: Request): string {
+  const userId = userPrincipal(req);
+  return userId ? `usr:${userId}` : hashedIpKey(req);
+}
+
+/**
+ * A first-party SERVICE credential is infrastructure, not a browser.
+ *
+ * A relying app's backend fans EVERY one of its signed-in users' server-side
+ * reads through ONE NAT egress IP, and every app in the cluster shares that IP.
+ * Under the per-IP browser budget (`rl:general`, 1000/15min) that pool is spent
+ * by normal multi-user traffic in seconds, and then EVERY app's calls start
+ * failing at once — which is not a rate limit doing its job, it is one app's
+ * traffic becoming another app's outage. It was measured: Mention's sitemap and
+ * record-signing traffic exhausted the shared budget, and the 429s landed on its
+ * feed's privacy reads, which fail closed, so readers got 500s.
+ *
+ * So service traffic is charged to the CREDENTIAL that made it
+ * ({@link serviceCredentialLimiter}) rather than to whatever IP it left through:
+ * one app's burst is bounded without touching any other app, and a per-IP pool
+ * shared by unrelated services stops existing.
+ *
+ * MOUNT-ORDER INVARIANT: `rl:general` and `slowDown` skip these requests, so
+ * `serviceCredentialLimiter` MUST stay mounted globally, immediately alongside
+ * them in server.ts — it is the only ceiling this traffic has left. The
+ * route-level service limiters (`federationServiceLimiter`,
+ * `assetServiceLookupLimiter`, …) remain the tighter, per-surface budgets on top
+ * of it; each has its own Redis prefix, so nothing double-counts.
+ */
+export function isFirstPartyServiceRequest(req: Request): boolean {
+  return servicePrincipal(req) !== undefined;
+}
+
+/**
+ * Per-CREDENTIAL budget for everything a service token does, keyed by `appId`.
+ *
+ * The ceiling is sized like the federation one (which fans a whole app's
+ * outbound delivery through one credential): 60000/15min ≈ 66 req/s sustained
+ * per app, comfortably above what a relying backend generates at present while
+ * still bounding a runaway loop or a compromised credential — and now it bounds
+ * it to the app that owns it, instead of to everyone sharing its egress IP.
+ *
+ * Keyed by `appId`, NOT by credential id: rotating a credential must not hand
+ * the same application a second budget.
+ */
+const serviceCredentialLimiter = rateLimit({
+  ...makeStore('rl:service:credential:'),
+  ...rateLimitValidate,
+  windowMs: 15 * 60 * 1000,
+  max: isProd ? 60000 : 120000,
+  message: "Too many requests for this service credential, please slow down.",
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => servicePrincipal(req)?.appId ?? hashedIpKey(req),
+  skip: (req: Request) => !isFirstPartyServiceRequest(req),
+});
 
 // General rate limiting middleware (exclude file uploads). The previous
 // ceiling of 150/15min was below what a single signed-in user generates
@@ -169,15 +261,18 @@ const rateLimiter = rateLimit({
   ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 1000 : 2000,
-  message: "Too many requests from this IP, please try again later.",
+  message: "Too many requests, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: hashedIpKey,
+  // Per SUBJECT for an authenticated caller, per IP for everyone else — see
+  // `userPrincipal`. A shared backend egress IP would otherwise pool every
+  // signed-in reader of a relying app into ONE bucket.
+  keyGenerator: subjectOrIpKey,
   skip: (req: Request) =>
     req.path.startsWith('/files/upload') ||
     isIdpServiceToServicePath(req.path) ||
     isFederationServiceToServicePath(req.path) ||
-    isServiceToServiceBulkRequest(req),
+    isFirstPartyServiceRequest(req),
 });
 
 // Dedicated high-ceiling limiter for the federation sign-on-behalf surface
@@ -246,12 +341,28 @@ const authRateLimiter = rateLimit({
   skip: (req: Request) => req.path.startsWith('/files/upload'),
 });
 
-// Per-user rate limiting for authenticated requests
+/**
+ * Per-user rate limiting for authenticated requests.
+ *
+ * The ceiling was 200/15min — about 13 requests a minute — which describes a
+ * human clicking a browser and nothing else. A RELYING APP's backend also reads
+ * Oxy on the signed-in user's behalf (Mention's feed alone resolves the viewer's
+ * blocked, restricted, following and follower lists per request), and those
+ * reads are charged to the same account, so one reader scrolling spent the
+ * budget in under a minute and the app 429'd itself. Mention's privacy reads
+ * fail CLOSED, so what the reader actually saw was a 500 on every feed request.
+ *
+ * 2000/15min (≈2.2 req/s sustained) is above what a reader plus the app reading
+ * for them generates, and still bounds one account: a compromised session or a
+ * runaway client is throttled long before it is a load problem, and it is
+ * throttled ALONE — this budget is per account, so it cannot become anyone
+ * else's outage.
+ */
 const userRateLimiter = rateLimit({
   ...makeStore('rl:user:'),
   ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
-  max: isProd ? 200 : 2000,
+  max: isProd ? 2000 : 4000,
   message: "Too many requests, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
@@ -272,12 +383,16 @@ const bruteForceProtection = slowDown({
   windowMs: 15 * 60 * 1000,
   delayAfter: isProd ? 100 : 1000,
   delayMs: () => isProd ? 500 : 100,
-  keyGenerator: hashedIpKey,
+  // Same key as the general limiter: an authenticated request is charged to its
+  // SUBJECT. Keyed purely by IP, a relying app's shared egress crossed
+  // `delayAfter` almost immediately and every signed-in reader behind it paid a
+  // 500ms penalty per request — a latency-shaped version of the same pooling.
+  keyGenerator: subjectOrIpKey,
   skip: (req: Request) =>
     req.path.startsWith('/files/upload') ||
     isIdpServiceToServicePath(req.path) ||
     isFederationServiceToServicePath(req.path) ||
-    isServiceToServiceBulkRequest(req),
+    isFirstPartyServiceRequest(req),
 });
 
 /**
@@ -320,4 +435,4 @@ const securityHeaders = helmet({
   // X-Permitted-Cross-Domain-Policies: Restrict Adobe Flash and PDF
 });
 
-export { rateLimiter, idpServiceLimiter, federationServiceLimiter, authRateLimiter, userRateLimiter, bruteForceProtection, securityHeaders };
+export { rateLimiter, serviceCredentialLimiter, idpServiceLimiter, federationServiceLimiter, authRateLimiter, userRateLimiter, bruteForceProtection, securityHeaders };

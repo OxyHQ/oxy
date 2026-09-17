@@ -74,7 +74,9 @@ import {
   PROVIDER_CONNECTION_AUDIT_RETENTION_SECONDS,
   inferenceProviderConnectionAuditEvents,
 } from './schema/inferenceProviderConnectionAuditEvents';
-import { devicePairingSessions } from './schema/devicePairingSessions';
+import { identityMoves } from './schema/identityMoves';
+import { identityProofChallenges } from './schema/identityProofChallenges';
+import { identityRecoveryAttempts } from './schema/identityRecoveryAttempts';
 import { domainVerifications } from './schema/domainVerifications';
 import {
   mcpOauthAccessTokens,
@@ -108,13 +110,10 @@ import {
  * (that is the class-(A) rule above), so the ninety-day entries are indifferent
  * to anything under a day.
  *
- * What is not indifferent is `device_pairing_sessions`, whose registry entry is
- * storage reclamation ONLY: the verdict a user sees comes from the lazy read
- * path, which marks a past-deadline pending row `expired` before the sweep
- * reaches it. That race is decided by this number — an hour leaves an hour for
- * the poll that turns an expired transfer into an *expired* transfer rather
- * than an unknown one. Shortening this interval is therefore not a free
- * "sweep more promptly"; it spends that grace.
+ * What is not indifferent is `identity_moves` and `auth_sessions`, whose entries
+ * keep an hour of grace so a late poll is told "expired" rather than "unknown".
+ * Shortening this interval is therefore not a free "sweep more promptly"; it
+ * spends that grace.
  *
  * The batch ceiling (`@oxy.so/db/expiry`) bounds one run, not the backlog: a
  * table with more expired rows than the ceiling reports `truncated` and is
@@ -207,14 +206,31 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'expiry itself, so nothing depends on the sweep for correctness.',
   },
   {
-    table: devicePairingSessions,
-    column: devicePairingSessions.expiresAt,
+    table: identityMoves,
+    column: identityMoves.expiresAt,
+    retentionSeconds: 3600,
+    reason:
+      'Storage reclamation ONLY, an hour after the deadline so a late poll is ' +
+      'told "expired" rather than "unknown". Every read and transition in ' +
+      '`routes/identityMove.ts` filters on `expires_at` itself.',
+  },
+  {
+    table: identityProofChallenges,
+    column: identityProofChallenges.expiresAt,
     retentionSeconds: 0,
     reason:
-      'Storage reclamation ONLY. The verdict a user sees comes from the lazy ' +
-      'read path (`deviceTransfer.service.ts:98`), which marks a past-deadline ' +
-      'pending row `expired` before the sweep reaches it — deleting it sooner ' +
-      'would turn every expired transfer into an unknown one.',
+      'Housekeeping only — the proof verifier burns `used_at` with an ' +
+      '`expires_at > now()` predicate in the same UPDATE, so a challenge is ' +
+      'unspendable at its deadline whether or not the sweep has run.',
+  },
+  {
+    table: identityRecoveryAttempts,
+    column: identityRecoveryAttempts.expiresAt,
+    retentionSeconds: 3600,
+    reason:
+      'Storage reclamation ONLY, an hour after the deadline. Every transition ' +
+      'in `routes/identityRecovery.ts` filters `expires_at` in the same UPDATE, ' +
+      'so an expired attempt is unspendable whether or not the sweep has run.',
   },
   {
     table: webauthnChallenges,

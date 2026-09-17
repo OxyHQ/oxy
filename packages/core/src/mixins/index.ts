@@ -35,7 +35,6 @@ import { OxyServicesNodesMixin } from './OxyServices.nodes';
 import { OxyServicesFollowGraphMixin } from './OxyServices.followGraph';
 import { OxyServicesInferenceMixin } from './OxyServices.inference';
 import { OxyServicesDeviceBootMixin } from './OxyServices.deviceBoot';
-import { OxyServicesDeviceTransferMixin } from './OxyServices.deviceTransfer';
 
 /**
  * Instance shape of every mixin in the pipeline, intersected. The runtime
@@ -75,7 +74,6 @@ type AllMixinInstances =
   & InstanceType<ReturnType<typeof OxyServicesFollowGraphMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesInferenceMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesDeviceBootMixin<typeof OxyServicesBase>>>
-  & InstanceType<ReturnType<typeof OxyServicesDeviceTransferMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesUtilityMixin<typeof OxyServicesBase>>>;
 
 /**
@@ -169,7 +167,6 @@ const MIXIN_PIPELINE: MixinFunction[] = [
 
     // Device-to-device identity transfer ("add a device"): E2E-encrypted key
     // clone over a short-lived relay (b3 Feature 2).
-    OxyServicesDeviceTransferMixin,
 
     // Utility (last, can use all above)
     OxyServicesUtilityMixin,

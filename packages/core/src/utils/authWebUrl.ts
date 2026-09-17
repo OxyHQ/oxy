@@ -15,3 +15,11 @@
  * the CORS helper (and anything else that needs the central apex) never drifts.
  */
 export const CENTRAL_IDP_APEX = 'oxy.so';
+
+/**
+ * The web identity carrier's origin — where a person signs in or creates an
+ * account with a passkey, and where their self-custody identity is kept sealed
+ * under that passkey (one identity, two carriers). Apps open it; they never
+ * handle the identity themselves.
+ */
+export const IDENTITY_WEB_ORIGIN = `https://id.${CENTRAL_IDP_APEX}`;

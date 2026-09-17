@@ -65,22 +65,9 @@
   "signup": {
     "title": "Crea tu cuenta",
     "subtitle": "Una identidad para todo el ecosistema.",
-    "commonsHeadline": "Crea tu identidad en Commons",
-    "commonsExplainer": "Commons es tu identidad de Oxy con autocustodia completa: una app que funciona en todas partes.",
     "createInCommons": "Crea tu identidad en Commons",
-    "passkeyAlternative": "¿No tienes Commons? Crea una clave de acceso en este dispositivo",
     "createAccount": "Crear cuenta",
-    "creating": "Creando…",
-    "usernamePlaceholder": "Elige un usuario",
-    "usernameChecking": "Comprobando…",
-    "usernameAvailable": "Disponible",
-    "usernameTaken": "Este usuario ya está en uso",
     "backToSignInLink": "¿Ya tienes cuenta? Inicia sesión",
-    "hubExplainer": "Crea tu Oxy ID en una ventana segura y vuelve enseguida.",
-    "continueInWindow": "Continuar en una ventana nueva",
-    "toasts": {
-      "passkeyCreateFailed": "No pudimos crear tu cuenta. Inténtalo de nuevo."
-    },
     "welcome": {
       "title": "¡Te damos la bienvenida a Oxy!",
       "subtitle": "Crea tu cuenta en pocos pasos",
@@ -626,7 +613,6 @@
       "switchSuccess": "¡Cuenta cambiada correctamente!",
       "switchFailed": "Hubo un problema al cambiar de cuenta. Inténtalo de nuevo.",
       "signInFailed": "No se pudo iniciar sesión. Inténtalo de nuevo.",
-      "passkeySignInFailed": "No se pudo iniciar sesión con la llave de acceso. Inténtalo de nuevo.",
       "removeSuccess": "¡Cuenta eliminada correctamente!",
       "removeFailed": "Hubo un problema al eliminar la cuenta. Inténtalo de nuevo.",
       "signOutAllSuccess": "¡Todas las cuentas cerradas correctamente!",
@@ -670,8 +656,8 @@
     "scanQr": "Escanear código QR",
     "qrHeadline": "Inicia sesión con tu identidad de Oxy",
     "signInWithOxy": "Inicia sesión con Oxy",
+    "signUpWithOxy": "Regístrate con Oxy",
     "useIdentityOnDevice": "¿No tienes Commons? Usa una clave de acceso en este dispositivo",
-    "passkeySigningIn": "Iniciando sesión…",
     "getCommons": "Descargar Commons",
     "commonsNotInstalled": "¿No tienes Commons? Descarga la app para iniciar sesión con tu Oxy ID.",
     "showQrAnyway": "Tengo Commons en otro dispositivo",
@@ -696,7 +682,20 @@
     },
     "principal": {
       "signOut": "Cerrar la sesión de {{name}} en este dispositivo"
-    }
+    },
+    "signInFailures": {
+      "denied": "Se rechazó el inicio de sesión en Commons.",
+      "expired": "La solicitud de inicio de sesión ha caducado. Inténtalo de nuevo.",
+      "network": "No se pudo conectar con Oxy. Comprueba tu conexión e inténtalo de nuevo.",
+      "notConfigured": "Esta app aún no está preparada para iniciar sesión.",
+      "unsupportedFlow": "Este inicio de sesión no se puede completar aquí.",
+      "claimFailed": "Se aprobó el inicio de sesión, pero no pudimos completarlo. Inténtalo de nuevo.",
+      "generic": "No se pudo iniciar sesión. Inténtalo de nuevo."
+    },
+    "linkOpenFailed": "No se pudo abrir el enlace. Inténtalo de nuevo.",
+    "continueWithPasskey": "Continuar",
+    "passkeyHint": "Usa tu huella, tu cara o el PIN del dispositivo.",
+    "otherDeviceCommons": "¿Tu cuenta está en otro dispositivo? Escanea con Commons"
   },
   "feedback": {
     "type": {
@@ -1724,7 +1723,8 @@
     "help": "Ayuda y comentarios",
     "signOut": "Cerrar sesión",
     "privacy": "Política de privacidad",
-    "terms": "Términos del servicio"
+    "terms": "Términos del servicio",
+    "identity": "Tu identidad"
   },
   "accounts": {
     "activeAccount": {

@@ -1030,6 +1030,27 @@
     "overwriteConfirm": "Replace and restore",
     "cancel": "Cancel"
   },
+  "identityMove": {
+    "entry": "Add from the Oxy website",
+    "scanTitle": "Scan the code on the web",
+    "scanInstructions": "On your computer, open your Oxy identity, choose “Add my identity to the Commons app”, and point the camera at the code.",
+    "permissionBody": "Allow camera access to scan the code shown on the Oxy website.",
+    "grantPermission": "Allow camera",
+    "invalidCode": "That isn’t an Oxy identity code. On your computer, choose “Add my identity to the Commons app” and scan the code shown there.",
+    "scanAgain": "Scan again",
+    "joining": "Connecting…",
+    "compareTitle": "Check the code",
+    "compareBody": "Your computer shows a code too. Confirm there that it is exactly this one — only then is your identity sent to this phone.",
+    "waiting": "Waiting for you to confirm on your computer…",
+    "importing": "Saving your identity on this phone…",
+    "unavailable": "This code can no longer be used. Start again on the web.",
+    "tampered": "The move could not be verified, so nothing was saved. Start again on the web.",
+    "ended": "The move was cancelled or expired. Nothing was saved.",
+    "failed": "We couldn't save your identity on this phone. Start again on the web.",
+    "identityAlreadyExists": "A different identity already exists on this phone. Remove it from Settings first, then move.",
+    "receiptFailed": "Your identity is saved on this phone, but we couldn't tell the website yet. Check your connection and try again.",
+    "retry": "Try again"
+  },
   "importPrivateKey": {
     "entry": "Import with private key",
     "title": "Import with private key",

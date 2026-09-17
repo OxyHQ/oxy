@@ -31,13 +31,14 @@ import {
 interface PagesHeadersConfig {
   csp?: OxyCspExtensions;
   hsts?: boolean;
+  sensitive?: boolean;
 }
 
 function loadConfig(): OxyPagesHeadersOptions {
   const configPath = resolve(process.cwd(), 'oxy.pages-headers.json');
   if (!existsSync(configPath)) return {};
   const raw = JSON.parse(readFileSync(configPath, 'utf8')) as PagesHeadersConfig;
-  return { csp: raw.csp, hsts: raw.hsts };
+  return { csp: raw.csp, hsts: raw.hsts, sensitive: raw.sensitive };
 }
 
 /**

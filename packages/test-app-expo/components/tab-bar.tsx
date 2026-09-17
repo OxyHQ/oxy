@@ -1,87 +1,85 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { Link, usePathname, type Href } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@oxy.so/bloom/theme';
-
-import { ThemedText } from '@/components/themed-text';
-import { useHapticPress } from '@/hooks/use-haptic-press';
-
-type TabItem = {
-  href: Href;
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-};
-
-const TABS: TabItem[] = [
-  { href: '/', label: 'Home', icon: 'home' },
-  { href: '/explore', label: 'Explore', icon: 'paper-plane' },
-];
+import { useCallback, useMemo } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { TabBar, TabBarButton, type TabBarItem } from '@oxy.so/bloom/tab-bar';
+import {
+  RiHomeFill,
+  RiHomeLine,
+  RiSendPlaneLine,
+} from '@oxy.so/bloom/icons';
+import type { BottomTabBarProps } from 'expo-router/tabs';
 
 /**
- * Custom bottom tab bar built on expo-router's <Link> — the canonical
- * navigation primitive. <Link> renders a real <a href> on web (accessible,
- * middle-click / open-in-new-tab friendly) AND navigates client-side, so
- * switching tabs never triggers a full document reload. Mirrors the
- * Slot + router-driven navigation pattern used across the other Oxy apps,
- * instead of @react-navigation's <Tabs> (incompatible with expo-router on
- * Expo SDK 56). Colors come from Bloom's useTheme() — the single theme
- * source — so the bar tracks the active color preset like the nav chrome.
+ * Route names of the visible tabs, in bar order — the single mapping between a
+ * bar index and a route, so the highlight follows deep links and the Android
+ * back gesture (which move the navigator without going through the bar).
  */
-export function TabBar() {
-  const pathname = usePathname();
-  const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
-  const triggerHaptics = useHapticPress();
+const TAB_ROUTES = ['index', 'explore'] as const;
+
+/** Bloom icons take a size keyword; `md` (20px) is what the bar's glyph box is built for. */
+const ICON_SIZE = 'md';
+
+/** Keeps the pill phone-sized on tablets and wide browser windows (see Commons' bar). */
+const TAB_BAR_MAX_WIDTH = 440;
+
+/**
+ * The playground's bottom bar: Bloom's floating pill, the same component the
+ * rest of the ecosystem ships (see `packages/commons/components/CommonsTabBar.tsx`),
+ * driven by the tab navigator's own state. Colors come from the surrounding
+ * `BloomThemeProvider`, so it follows light/dark and the active preset.
+ */
+export function TestAppTabBar({ state, navigation }: BottomTabBarProps) {
+  const items = useMemo<TabBarItem[]>(
+    () => [
+      {
+        name: 'index',
+        label: 'Home',
+        icon: <RiHomeLine size={ICON_SIZE} />,
+        activeIcon: <RiHomeFill size={ICON_SIZE} />,
+      },
+      {
+        name: 'explore',
+        label: 'Explore',
+        icon: <RiSendPlaneLine size={ICON_SIZE} />,
+      },
+    ],
+    [],
+  );
+
+  // The navigator's route list can carry routes that are not tabs, so the
+  // focused index is resolved by name rather than used as a bar index.
+  const focusedRouteName = state.routes[state.index]?.name;
+  const activeIndex = TAB_ROUTES.findIndex((name) => name === focusedRouteName);
+
+  const handleIndexChange = useCallback(
+    (index: number) => {
+      const route = TAB_ROUTES[index];
+      if (route !== undefined) navigation.navigate(route);
+    },
+    [navigation],
+  );
 
   return (
-    <View
-      style={[
-        styles.bar,
-        {
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
-          paddingBottom: insets.bottom,
-        },
-      ]}
-    >
-      {TABS.map((tab) => {
-        const active =
-          tab.href === '/' ? pathname === '/' : pathname.startsWith(String(tab.href));
-        const color = active ? colors.primary : colors.icon;
-        return (
-          <Link key={tab.label} href={tab.href} asChild>
-            <Pressable
-              style={styles.tab}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={tab.label}
-              onPressIn={triggerHaptics}
-            >
-              <Ionicons name={tab.icon} size={24} color={color} />
-              <ThemedText style={[styles.label, { color }]}>{tab.label}</ThemedText>
-            </Pressable>
-          </Link>
-        );
-      })}
+    <View style={styles.host}>
+      <TabBar activeIndex={activeIndex} onIndexChange={handleIndexChange} maxWidth={TAB_BAR_MAX_WIDTH}>
+        {items.map((item, index) => (
+          <TabBarButton key={item.name} item={item} index={index} />
+        ))}
+      </TabBar>
     </View>
   );
 }
 
+TestAppTabBar.displayName = 'TestAppTabBar';
+
 const styles = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    gap: 2,
-  },
-  label: {
-    fontSize: 11,
-    lineHeight: 14,
+  // A floating bar must not take layout space from the screens: pinned to the
+  // bottom edge, zero-height (Bloom's bar is absolutely positioned against it),
+  // and transparent to touches outside the pill.
+  host: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'box-none',
   },
 });

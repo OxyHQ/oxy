@@ -1,24 +1,24 @@
 /**
  * The sign-in ENTRY (`signin` / `add` views) — ONE primary action.
  *
- * Issue #691, Phase 5: the normal experience presents no menu of authentication
- * methods. The user sees "Continue with Oxy"; Oxy — not the user — then picks
- * how the request reaches their Commons identity, and the request surface shows
- * honest progress. Everything else (a QR from another device, a passkey on this
- * device, getting Commons, creating an account) lives behind "Having trouble?".
+ * Web: "Continue" opens the identity origin (`id.oxy.so`) in a popup, where the
+ * person signs in — or creates an account — with a passkey, and the account's
+ * self-custody identity is created or unsealed (one identity, two carriers). No
+ * philosophy up front: fingerprint, face or device PIN, and they are in. An
+ * account that lives on another device is one subordinate link away (Commons
+ * QR). Nothing auto-starts: a browser only opens a popup from a user gesture.
+ *
+ * Native: "Continue with Oxy" — the Commons flow (shared keychain, else the
+ * request Oxy routes to the person's Commons identity).
  *
  * Existing accounts still render ABOVE the CTA: "continue as one of these" is a
- * choice of WHO, not of HOW, so it is not one of the competing method buttons
- * the issue removes.
- *
- * On web this view is transient — the container auto-starts the flow the instant
- * the view is reached, because the request surface (QR, or "Check Commons on
- * your phone") IS the primary route there, never something behind a tap.
+ * choice of WHO, not of HOW.
  */
 
 import type React from 'react';
 import { View } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
+import { Text } from '@oxy.so/bloom/typography';
 import {
   showsPrincipalHeaders,
   type AccountDialogSnapshot,
@@ -42,7 +42,7 @@ interface SignInEntryViewProps {
   theme: Theme;
   t: Translate;
   handlers: OxyAuthChooserHandlers;
-  /** The ONE primary action. Starts the flow; Oxy chooses the route from there. */
+  /** Native's primary action. Starts the Commons flow; Oxy chooses the route from there. */
   onContinueWithOxy: () => void;
   alternatives: SignInAlternatives;
 }
@@ -56,37 +56,20 @@ const SignInEntryView: React.FC<SignInEntryViewProps> = ({
   onContinueWithOxy,
   alternatives,
 }) => {
-  // The entry has no chosen route yet, so nothing here can have failed: the
-  // alternatives stay behind the disclosure unconditionally.
-  const troubleActions: OxySignInSurfaceAction[] = [
-    {
-      key: 'scan-qr-link',
-      label: t('accountSwitcher.scanQr'),
-      onPress: alternatives.onShowQr,
-    },
-    ...(alternatives.passkeyAvailable
-      ? [
-          {
-            key: 'passkey-signin-link',
-            label: alternatives.passkeyPending
-              ? t('accountSwitcher.passkeySigningIn')
-              : t('accountSwitcher.useIdentityOnDevice'),
-            onPress: alternatives.onSignInWithPasskey,
-            disabled: alternatives.passkeyPending,
-          },
-        ]
-      : []),
-    {
-      key: 'get-commons-link',
-      label: t('accountSwitcher.getCommons'),
-      onPress: alternatives.onGetCommons,
-    },
-  ];
+  const web = alternatives.passkeyAvailable;
+
+  // Web keeps Commons one link away; native keeps its QR/Commons alternatives
+  // behind the disclosure, as before.
+  const troubleActions: OxySignInSurfaceAction[] = web
+    ? [{ key: 'get-commons-link', label: t('accountSwitcher.getCommons'), onPress: alternatives.onGetCommons }]
+    : [
+        { key: 'scan-qr-link', label: t('accountSwitcher.scanQr'), onPress: alternatives.onShowQr },
+        { key: 'get-commons-link', label: t('accountSwitcher.getCommons'), onPress: alternatives.onGetCommons },
+      ];
 
   // Whose route this is only needs naming when the list holds more than one
   // person, or somebody with more than one account — the same rule the account
-  // menu's group headers follow, so the two surfaces agree on when the actor is
-  // worth stating.
+  // menu's group headers follow.
   const namesTheOperator = showsPrincipalHeaders(principals);
   const rows = principals.flatMap((principal) =>
     principal.contexts.map((context) => ({
@@ -117,24 +100,38 @@ const SignInEntryView: React.FC<SignInEntryViewProps> = ({
         </View>
       ) : null}
 
+      {web ? (
+        <Text style={[styles.mutedText, { color: theme.colors.textSecondary }]}>
+          {t('accountSwitcher.passkeyHint')}
+        </Text>
+      ) : null}
+
       <Button
         variant="primary"
-        onPress={onContinueWithOxy}
+        onPress={web ? alternatives.onSignInWithPasskey : onContinueWithOxy}
         style={styles.primaryButton}
         testID="continue-with-oxy"
       >
-        {t('accountSwitcher.continueWithOxy')}
+        {web ? t('accountSwitcher.continueWithPasskey') : t('accountSwitcher.continueWithOxy')}
       </Button>
 
       {/* Account CREATION is not an authentication method — it is the way in for
-          someone who has no Oxy ID yet — so it keeps its own subordinate link
-          rather than hiding behind a troubleshooting affordance. */}
+          someone who has no account yet — so it keeps its own subordinate link. */}
       <SubtleLink
         label={t('signin.createAccountLink')}
         theme={theme}
         onPress={alternatives.onCreateAccount}
         testID="create-account-link"
       />
+
+      {web ? (
+        <SubtleLink
+          label={t('accountSwitcher.otherDeviceCommons')}
+          theme={theme}
+          onPress={alternatives.onShowQr}
+          testID="scan-qr-link"
+        />
+      ) : null}
 
       <TroubleDisclosure actions={troubleActions} revealed={false} theme={theme} t={t} />
     </View>

@@ -25,6 +25,7 @@ jobs:
           bash .github/scripts/test-run-native-product-agent-bootstrap.sh
           bash .github/scripts/test-report-native-product-agent-task-failure.sh
           bash .github/scripts/test-smoke-inbox-mcp.sh
+          bash .github/scripts/test-attest-kaana-catalogue-rollout.sh
           node --test .github/scripts/release-external-identity-packages.test.mjs
           node --test .github/scripts/release-external-identity-publication.test.mjs
           bash .github/scripts/test-run-external-identity-reconciliation.sh
@@ -44,6 +45,7 @@ jobs:
           node scripts/test-service-credential-two-phase.mjs
           node scripts/test-seed-oxy-applications-workflow.mjs
           node scripts/test-native-product-agent-bootstrap-workflow.mjs
+          node scripts/test-kaana-catalogue-bootstrap-workflow.mjs
           node scripts/test-check-kaana-request-v2-rollout.mjs
           node scripts/check-kaana-request-v2-rollout.mjs
           node scripts/test-check-kaana-signed-canary.mjs
@@ -845,6 +847,29 @@ jobs:
       - run: bunx tsc --noEmit
         working-directory: ./packages/auth
 
+  # Identity origin (id.oxy.so) — the web identity carrier. Worker header policy
+  # (node:test) + carrier rules against the real core crypto (Jest, from source).
+  id-test:
+    name: Identity Origin Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+      - run: bun install --frozen-lockfile --minimum-release-age=0
+      - run: bun run test
+        working-directory: ./packages/id
+      - run: |
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
+      - run: bun run build
+        working-directory: ./packages/id
+
   # Commons app tests (Jest — native identity vault)
   commons-test:
     name: Commons Tests
@@ -861,6 +886,10 @@ jobs:
           bun run --filter @oxy.so/core build
           bun run --filter @oxy.so/services build
           bun run --filter @oxy.so/expo-splash build
+      # Jest never compiles the root layout or any screen it does not import, so a
+      # broken JSX tree can reach main green without this.
+      - run: bunx tsc --noEmit -p tsconfig.json
+        working-directory: ./packages/commons
       - run: bun run test
         working-directory: ./packages/commons
 
@@ -1067,6 +1096,7 @@ jobs:
       - node-test
       - services-test
       - auth-test
+      - id-test
       - commons-test
       - accounts-test
       - console-test

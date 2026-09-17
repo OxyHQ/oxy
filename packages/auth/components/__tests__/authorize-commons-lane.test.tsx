@@ -269,7 +269,6 @@ function installMocks(): void {
       isAuthenticated: sessionState.isAuthenticated,
       openAccountDialog: () => undefined,
       handleWebSession: async () => undefined,
-      registerWithPasskey: async () => undefined,
       signInWithPassword: async () => ({ status: "ok" as const }),
       signInWithPasskey: async () => undefined,
       completeTwoFactorSignIn: async () => ({}),

@@ -1,5 +1,3 @@
 {
-  "csp": {
-    "connectSrc": ["https://eu.i.posthog.com"]
-  }
+  "sensitive": true
 }

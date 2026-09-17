@@ -56,6 +56,7 @@ export {
     userNameSchema,
     userRelationshipSchema,
     themePreferenceSchema,
+    dateOfBirthSchema,
     userResponseSchema,
     userProfileUpdateSchema,
     currentUserResponseSchema,
@@ -576,6 +577,109 @@ export type {
 } from './keyRecovery';
 
 export {
+    // Schemas — web identity carrier (one identity, two carriers)
+    WEB_IDENTITY_ENVELOPE_VERSION,
+    WEB_IDENTITY_SECRET_KINDS,
+    webIdentityPublicKeySchema,
+    webauthnCredentialIdSchema,
+    webauthnRpIdSchema,
+    webIdentityWrapSchema,
+    webIdentityEnvelopeSchema,
+    webIdentityEnvelopeUploadSchema,
+    webIdentityHolderSchema,
+    webIdentityEnvelopeResponseSchema,
+    webIdentityEnvelopeProofFieldsSchema,
+    webIdentityEnvelopeActionSchema,
+    webIdentityEnvelopePutSchema,
+    webauthnAssertionResponseSchema,
+    webIdentityEnvelopeEstablishSchema,
+} from './webIdentityCarrier';
+
+export {
+    // Identity proofs (ADR 0024 D7) — the one signed format for root operations
+    IDENTITY_PROOF_VERSION,
+    IDENTITY_PROOF_DOMAIN,
+    IDENTITY_PROOF_AUDIENCE,
+    IDENTITY_PROOF_CHALLENGE_TTL_MS,
+    IDENTITY_PROOF_ACTIONS,
+    IDENTITY_PROOF_ACTION_VALUES,
+    IDENTITY_ERROR_CODES,
+    canonicalJson,
+    buildIdentityProofMessage,
+    identityProofSchema,
+    identityProofChallengeRequestSchema,
+    identityProofChallengeResponseSchema,
+    identityRootStatusSchema,
+} from './identityProof';
+export {
+    // Signed-out recovery (ADR 0024 D5)
+    IDENTITY_RECOVERY_TTL_MS,
+    identityRecoveryChallengeResponseSchema,
+    identityRecoveryStartRequestSchema,
+    identityRecoveryCompleteRequestSchema,
+} from './identityRecovery';
+export type {
+    IdentityRecoveryChallengeResponse,
+    IdentityRecoveryStartRequest,
+    IdentityRecoveryStartResponse,
+    IdentityRecoveryCompleteRequest,
+} from './identityRecovery';
+export type {
+    IdentityProofAction,
+    IdentityErrorCode,
+    IdentityProofClaims,
+    IdentityProof,
+    IdentityProofChallengeRequest,
+    IdentityProofChallengeResponse,
+    IdentityRootStatus,
+} from './identityProof';
+
+export {
+    // Schemas — moving a web identity into Commons
+    IDENTITY_MOVE_TTL_MS,
+    IDENTITY_MOVE_STATUSES,
+    IDENTITY_MOVE_QR_PREFIX,
+    identityMoveRevealRequestSchema,
+    buildMoveCommitmentInput,
+    buildMoveSasInput,
+    buildMoveSealPayload,
+    buildMoveCiphertextDigestInput,
+    buildMoveReceiptMessage,
+    identityMoveIdSchema,
+    identityMoveEphemeralKeySchema,
+    identityMoveCreateRequestSchema,
+    identityMoveCreateResponseSchema,
+    identityMoveJoinRequestSchema,
+    identityMoveSealRequestSchema,
+    identityMoveReceiptRequestSchema,
+    identityMoveStateSchema,
+} from './identityMove';
+
+export type {
+    IdentityMoveStatus,
+    IdentityMoveCreateRequest,
+    IdentityMoveCreateResponse,
+    IdentityMoveJoinRequest,
+    IdentityMoveSealRequest,
+    IdentityMoveReceiptRequest,
+    IdentityMoveRevealRequest,
+    IdentityMoveState,
+} from './identityMove';
+
+export type {
+    WebIdentityWrap,
+    WebIdentityEnvelope,
+    WebIdentitySecretKind,
+    WebIdentityHolder,
+    WebIdentityEnvelopeAction,
+    WebauthnAssertionResponse,
+    WebIdentityEnvelopeUpload,
+    WebIdentityEnvelopeResponse,
+    WebIdentityEnvelopePut,
+    WebIdentityEnvelopeEstablish,
+} from './webIdentityCarrier';
+
+export {
     // Shared primitives
     updatePlatformSchema,
     updateStatusSchema,
@@ -648,27 +752,6 @@ export type {
     WebauthnRegisterVerifyRequest,
     WebauthnLoginVerifyRequest,
 } from './webauthn';
-
-export {
-    // Schemas
-    devicePairingStatusSchema,
-    deviceTransferInitRequestSchema,
-    deviceTransferInitResponseSchema,
-    deviceTransferInfoResponseSchema,
-    deviceTransferApproveRequestSchema,
-    deviceTransferApproveResponseSchema,
-    deviceTransferDenyResponseSchema,
-} from './devicePairing';
-
-export type {
-    DevicePairingStatus,
-    DeviceTransferInitRequest,
-    DeviceTransferInitResponse,
-    DeviceTransferInfoResponse,
-    DeviceTransferApproveRequest,
-    DeviceTransferApproveResponse,
-    DeviceTransferDenyResponse,
-} from './devicePairing';
 
 export {
     // Schemas — transparency log (checkpoints + inclusion proofs)

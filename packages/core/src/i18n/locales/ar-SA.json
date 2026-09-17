@@ -52,19 +52,9 @@
   "signup": {
     "title": "أنشئ حسابك",
     "subtitle": "هوية واحدة لكل النظام البيئي.",
-    "commonsHeadline": "أنشئ هويتك في Commons",
-    "commonsExplainer": "‏Commons هي هوية Oxy الخاصة بك بحفظ ذاتي كامل — تطبيق واحد يعمل في كل مكان.",
     "createInCommons": "أنشئ هويتك في Commons",
-    "passkeyAlternative": "لا تملك Commons؟ أنشئ مفتاح مرور على هذا الجهاز بدلاً من ذلك",
     "createAccount": "إنشاء حساب",
-    "creating": "جارٍ الإنشاء…",
-    "usernamePlaceholder": "اختر اسم مستخدم",
-    "usernameChecking": "جارٍ التحقق…",
-    "usernameAvailable": "متاح",
-    "usernameTaken": "اسم المستخدم هذا مستخدم بالفعل",
     "backToSignInLink": "لديك حساب بالفعل؟ سجّل الدخول",
-    "hubExplainer": "أنشئ هوية Oxy الخاصة بك في نافذة آمنة، ثم عد إلى هنا مباشرة.",
-    "continueInWindow": "المتابعة في نافذة جديدة",
     "welcome": {
       "title": "مرحبًا بك في Oxy!",
       "subtitle": "أنشئ حسابك في خطوات قليلة",
@@ -118,8 +108,8 @@
     "loading": "جارٍ تحميل الحسابات...",
     "qrHeadline": "سجّل الدخول بهوية Oxy الخاصة بك",
     "signInWithOxy": "تسجيل الدخول باستخدام Oxy",
+    "signUpWithOxy": "التسجيل باستخدام Oxy",
     "useIdentityOnDevice": "لا تملك Commons؟ استخدم مفتاح مرور على هذا الجهاز بدلاً من ذلك",
-    "passkeySigningIn": "جارٍ تسجيل الدخول…",
     "getCommons": "احصل على Commons",
     "commonsNotInstalled": "لا تملك Commons؟ احصل على التطبيق لتسجيل الدخول بمعرّف Oxy الخاص بك.",
     "showQrAnyway": "لدي Commons على جهاز آخر",
@@ -136,7 +126,20 @@
       "openedInCommons": "تم الفتح في Commons",
       "confirming": "جارٍ تأكيد الهوية",
       "confirmed": "تم تأكيد الهوية"
-    }
+    },
+    "signInFailures": {
+      "denied": "تم رفض تسجيل الدخول في Commons.",
+      "expired": "انتهت صلاحية طلب تسجيل الدخول. يُرجى المحاولة مرة أخرى.",
+      "network": "تعذّر الاتصال بـ Oxy. تحقّق من اتصالك وحاول مرة أخرى.",
+      "notConfigured": "هذا التطبيق غير مُعدّ لتسجيل الدخول بعد.",
+      "unsupportedFlow": "لا يمكن إكمال تسجيل الدخول هنا.",
+      "claimFailed": "تمت الموافقة على تسجيل الدخول، لكن تعذّر إكماله. يُرجى المحاولة مرة أخرى.",
+      "generic": "تعذّر تسجيل الدخول. يُرجى المحاولة مرة أخرى."
+    },
+    "linkOpenFailed": "تعذّر فتح الرابط. يُرجى المحاولة مرة أخرى.",
+    "continueWithPasskey": "متابعة",
+    "passkeyHint": "استخدم بصمتك أو وجهك أو رمز PIN للجهاز.",
+    "otherDeviceCommons": "حسابك على جهاز آخر؟ امسح الرمز باستخدام Commons"
   },
   "common": {
     "actions": {
@@ -277,6 +280,7 @@
     "help": "المساعدة والملاحظات",
     "signOut": "تسجيل الخروج",
     "privacy": "سياسة الخصوصية",
-    "terms": "شروط الخدمة"
+    "terms": "شروط الخدمة",
+    "identity": "هويتك"
   }
 }

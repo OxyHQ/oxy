@@ -7,7 +7,7 @@
     "start": "node dist/server.js",
     "start:asset-variant-worker": "node dist/asset-variant-worker.js",
     "dev": "bun --watch src/server.ts",
-    "build": "bun run --filter @oxy.so/telemetry build && bun run --filter @oxy.so/contracts build && bun run --filter @oxy.so/protocol build && bun run --filter @oxy.so/core build && bun run --filter @oxy.so/federation build && bun run --filter @oxy.so/db build && bun run --filter @oxy.so/mcp build && tsc",
+    "build": "node ../core/scripts/build-workspace-deps.mjs @oxy.so/telemetry @oxy.so/contracts @oxy.so/protocol @oxy.so/core @oxy.so/federation @oxy.so/db @oxy.so/mcp && tsc",
     "clean": "rm -rf dist",
     "migrate:locations": "bun run src/utils/migrateLocations.ts",
     "register:commons-clients": "bun run scripts/register-commons-clients.ts",
@@ -64,6 +64,7 @@
   "dependencies": {
     "@oxy.so/telemetry": "workspace:*",
     "@aws-sdk/client-s3": "^3.1087.0",
+    "@aws-sdk/client-ecs": "^3.1087.0",
     "@aws-sdk/lib-storage": "3.1076.0",
     "@aws-sdk/s3-request-presigner": "^3.1087.0",
     "@opentelemetry/api": "^1.9.1",

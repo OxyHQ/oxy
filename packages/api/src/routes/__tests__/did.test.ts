@@ -157,7 +157,7 @@ describe('the id format must not decide whether a DID resolves', () => {
     expect(res.body).toEqual({
       '@context': DID_CONTEXT,
       id: did,
-      controller: [did, 'did:web:oxy.so'],
+      controller: [did],
       verificationMethod: [
         {
           id: `${did}#key-1`,
@@ -221,17 +221,16 @@ describe('GET /u/:userId/did.json', () => {
     }
   });
 
-  it('flips the controller back to custodial when the identity key is unlinked', async () => {
-    // Link/unlink is fully reversible, and the document is DERIVED from the
-    // stored rows — so removing the auth method + the account column reverts the
-    // document with no separate state to keep in sync.
+  it('is derived from the stored rows alone — no separate DID state to keep in sync', async () => {
+    // The API never unlinks a root (ADR 0024 D8), but the document must still
+    // follow the rows: if they are cleared, the document reads custodial.
     const userId = await account();
     const publicKey = generateSecp256k1KeyPair().publicKey;
     await linkIdentity(userId, publicKey);
     const did = `did:web:oxy.so:u:${userId}`;
 
     const linked = await get(server, `/u/${userId}/did.json`);
-    expect(linked.body.controller).toEqual([did, 'did:web:oxy.so']);
+    expect(linked.body.controller).toEqual([did]);
 
     await getDb().delete(userAuthMethods).where(eq(userAuthMethods.userId, userId));
     await getDb().update(users).set({ publicKey: null }).where(eq(users.id, userId));
@@ -397,7 +396,7 @@ describe('DID_WEB_DOMAIN override — anchored at api.oxy.so', () => {
     expect(res.body).toEqual({
       '@context': DID_CONTEXT,
       id: did,
-      controller: [did, 'did:web:api.oxy.so'],
+      controller: [did],
       verificationMethod: [
         { id: `${did}#key-1`, type: 'EcdsaSecp256k1VerificationKey2019', controller: did, publicKeyHex: publicKey },
       ],

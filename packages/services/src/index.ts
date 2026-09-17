@@ -56,7 +56,7 @@ export type {
   OxyRuntimeStatus,
   OxyTokenStatus,
 } from './ui/runtime';
-export type { OxyContextState } from './ui/context/OxyContext';
+export type { LogoutResult, OxyContextState } from './ui/context/OxyContext';
 export { useAuth } from './ui/hooks/useAuth';
 export type { AuthState, AuthActions, SignInOutcome, UseAuthReturn } from './ui/hooks/useAuth';
 export { createDeferredProductAnalytics } from './ui/analytics/productAnalytics';

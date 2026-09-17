@@ -1,7 +1,7 @@
 import { logger } from '../../utils/logger';
 
 export type ResolutionPhase = 'actor_fetch' | 'actor_document' | 'identity_policy' | 'webfinger_fetch' | 'webfinger_document';
-export type ResolutionFailureReason = 'transport_unavailable' | 'http_status' | 'unreadable_document' | 'missing_actor_fields' | 'actor_id_mismatch' | 'identity_policy_rejected' | 'missing_self_link' | 'unexpected_failure' | 'invalid_selector';
+export type ResolutionFailureReason = 'transport_unavailable' | 'http_status' | 'unreadable_document' | 'missing_actor_fields' | 'actor_id_mismatch' | 'identity_policy_rejected' | 'missing_self_link' | 'unexpected_failure' | 'invalid_selector' | 'signing_key_unavailable';
 export interface ResolutionFailure {
   operation: 'resolve_external_identity';
   phase: ResolutionPhase;

@@ -9,7 +9,7 @@ import type {
   LoginResult,
   CommonsDenyReason,
 } from '@oxy.so/contracts';
-import { loginResultSchema, safeParseContract } from '@oxy.so/contracts';
+import { loginResultSchema, safeParseContract, type IdentityProof, type WebIdentityEnvelope } from '@oxy.so/contracts';
 import type { SessionLoginResponse } from '../models/session';
 import type { OxyServicesBase } from '../OxyServices.base';
 import type { PublicApplication } from './OxyServices.connectedApps';
@@ -803,6 +803,10 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      *   `timeout`). Interactive callers omit it (defaults keep retries); the
      *   cold-boot `shared-key-signin` step passes `{ retry: false }` so a slow
      *   network cannot multiply boot latency via the inner retry loop.
+     * @param options.plantTokens - Install the returned bearer on this client
+     *   (default `true`). A caller that must decide LATER whether the session is
+     *   still wanted (the account dialog, whose user may have cancelled while the
+     *   request was in flight) passes `false` and plants it itself.
      */
     async verifyChallenge(
       publicKey: string,
@@ -812,6 +816,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
       deviceName?: string,
       deviceFingerprint?: string,
       requestOptions?: { retry?: boolean; timeout?: number },
+      options: { plantTokens?: boolean } = {},
     ): Promise<SessionLoginResponse> {
       try {
         const res = await this.makeRequest<SessionLoginResponse>('POST', '/auth/verify', {
@@ -828,7 +833,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         // its body, so installing it here means callers get an authenticated
         // client without a second round-trip. Refresh stays in the httpOnly
         // cookie slot set by the API.
-        if (res?.accessToken) {
+        if (res?.accessToken && options.plantTokens !== false) {
           this.setTokens(res.accessToken);
         }
 
@@ -944,10 +949,13 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      *   `POST /auth/session/create` at the start of the flow.
      * @param options.deviceFingerprint - Optional fingerprint of the
      *   originating client device.
+     * @param options.plantTokens - Install the claimed bearer on this client
+     *   (default `true`). Pass `false` to install it yourself once you know the
+     *   session is still wanted — see `verifyChallenge`.
      */
     async claimSessionByToken(
       sessionToken: string,
-      options: { deviceFingerprint?: string } = {}
+      options: { deviceFingerprint?: string; plantTokens?: boolean } = {}
     ): Promise<{
       accessToken: string;
       sessionId: string;
@@ -975,7 +983,9 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
           { cache: false, retry: false, skipAuth: true }
         );
 
-        this.setTokens(res.accessToken);
+        if (options.plantTokens !== false) {
+          this.setTokens(res.accessToken);
+        }
 
         return res;
       } catch (error) {
@@ -1021,12 +1031,14 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      *   retries); the cold-boot `shared-key-signin` step passes `{ retry: false }`
      *   so this network step cannot multiply boot latency via the inner retry
      *   loop. The token-refresh scheduler / 401 lane still retry later.
+     * @param opts.plantTokens - Forwarded to `verifyChallenge` (default `true`).
      */
     async signInWithSharedIdentity(
       opts: {
         deviceName?: string;
         deviceFingerprint?: string;
         requestOptions?: { retry?: boolean; timeout?: number };
+        plantTokens?: boolean;
       } = {}
     ): Promise<SessionLoginResponse | null> {
       try {
@@ -1053,6 +1065,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
           opts.deviceName,
           opts.deviceFingerprint,
           opts.requestOptions,
+          { plantTokens: opts.plantTokens },
         );
       } catch (error) {
         throw this.handleError(error);
@@ -1630,6 +1643,12 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         username?: string;
         deviceName?: string;
         deviceFingerprint?: string;
+        /**
+         * Sign-up only: the root created on the holder before this call, sealed
+         * under the passkey being registered, plus its `enroll_identity` proof
+         * (ADR 0024 D4). The account is created WITH it or not at all.
+         */
+        identity?: { envelope: WebIdentityEnvelope; proof: IdentityProof };
       } = {},
     ): Promise<{ success: true; message: string } | LoginResult> {
       try {

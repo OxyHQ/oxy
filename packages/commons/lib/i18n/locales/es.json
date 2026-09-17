@@ -1030,6 +1030,27 @@
     "overwriteConfirm": "Reemplazar y restaurar",
     "cancel": "Cancelar"
   },
+  "identityMove": {
+    "entry": "Añadir desde la web de Oxy",
+    "scanTitle": "Escanea el código de la web",
+    "scanInstructions": "En tu ordenador, abre tu identidad de Oxy, elige «Añadir mi identidad a la app Commons» y apunta la cámara al código.",
+    "permissionBody": "Permite el acceso a la cámara para escanear el código que aparece en la web de Oxy.",
+    "grantPermission": "Permitir cámara",
+    "invalidCode": "Ese no es un código de identidad de Oxy. En tu ordenador, elige «Añadir mi identidad a la app Commons» y escanea el código que aparece allí.",
+    "scanAgain": "Escanear de nuevo",
+    "joining": "Conectando…",
+    "compareTitle": "Comprueba el código",
+    "compareBody": "Tu ordenador también muestra un código. Confirma allí que es exactamente este: solo entonces se envía tu identidad a este teléfono.",
+    "waiting": "Esperando a que confirmes en tu ordenador…",
+    "importing": "Guardando tu identidad en este teléfono…",
+    "unavailable": "Este código ya no se puede usar. Empieza de nuevo en la web.",
+    "tampered": "No se pudo verificar el traspaso, así que no se guardó nada. Empieza de nuevo en la web.",
+    "ended": "El traspaso se canceló o caducó. No se guardó nada.",
+    "failed": "No pudimos guardar tu identidad en este teléfono. Empieza de nuevo en la web.",
+    "identityAlreadyExists": "Ya existe una identidad diferente en este teléfono. Elimínala en Ajustes primero y luego trae esta.",
+    "receiptFailed": "Tu identidad está guardada en este teléfono, pero aún no pudimos avisar a la web. Revisa tu conexión e inténtalo de nuevo.",
+    "retry": "Reintentar"
+  },
   "importPrivateKey": {
     "entry": "Importar con clave privada",
     "title": "Importar con clave privada",

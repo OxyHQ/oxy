@@ -86,8 +86,12 @@ jobs:
           # to that directory, and node resolves a symlinked module to its realpath.
           # A tarball is extracted as real files, exactly like a registry install,
           # and exercises each package's publish-time workspace-range rewriting and
-          # `files` list. create-oxy-app's build already built contracts/core;
-          # services needs its publishable lib output before packing.
+          # `files` list. Every package packed below is built here first:
+          # create-oxy-app's own build compiles only its CLI and builds no
+          # workspace package. core's build builds telemetry before itself.
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
           bun run --cwd packages/db build
           bun run --cwd packages/services build
           for package in contracts telemetry core db services app-preset; do

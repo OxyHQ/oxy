@@ -12,7 +12,7 @@ import sessionDeviceRouter from "./routes/sessionDevice";
 import browserHubRouter from "./routes/browserHub";
 import dotenv from "dotenv";
 import searchRoutes from "./routes/search";
-import { rateLimiter, authRateLimiter, userRateLimiter, federationServiceLimiter, bruteForceProtection, securityHeaders } from "./middleware/security";
+import { rateLimiter, serviceCredentialLimiter, authRateLimiter, userRateLimiter, federationServiceLimiter, bruteForceProtection, securityHeaders } from "./middleware/security";
 import privacyRoutes from "./routes/privacy";
 import analyticsRoutes from "./routes/analytics.routes";
 import paymentRoutes from './routes/payment.routes';
@@ -81,7 +81,10 @@ import appSignalsRouter from './routes/appSignals';
 import identityRoutes from './routes/identity';
 import chainsRoutes from './routes/chains';
 import identityBackupRoutes from './routes/identityBackup';
-import deviceTransferRoutes from './routes/deviceTransfer';
+import identityWebEnvelopeRoutes from './routes/identityWebEnvelope';
+import identityMoveRoutes from './routes/identityMove';
+import identityProofRoutes from './routes/identityProof';
+import identityRecoveryRoutes from './routes/identityRecovery';
 import civicRoutes from './routes/civic';
 import nodeRoutes from './routes/nodes';
 import { sweepValidations } from './services/civic/validator.service';
@@ -396,7 +399,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 // Used for cross-app authentication via QR code
 // ============================================
 import { initAuthSessionNamespace } from './utils/authSessionSocket';
-import { initDevicePairNamespace } from './utils/devicePairSocket';
 
 const authSessionNamespace = io.of('/auth-session');
 authSessionNamespace.use(createSocketRateLimiter(20, 10_000)); // Stricter: 20 events per 10s
@@ -431,41 +433,6 @@ authSessionNamespace.on('connection', (socket) => {
   });
 });
 
-// ============================================
-// Device-Pair Socket Namespace (Unauthenticated)
-// Used for device-to-device identity transfer ("add a device"). The waiting new
-// device joins room `devicepair:<pairingId>`; the server pushes a lightweight
-// status signal when the old device approves/denies. No key material flows over
-// this socket — the transferred bytes are E2E-encrypted regardless.
-// ============================================
-const devicePairNamespace = io.of('/device-pair');
-devicePairNamespace.use(createSocketRateLimiter(20, 10_000)); // Stricter: 20 events per 10s
-initDevicePairNamespace(devicePairNamespace);
-
-devicePairNamespace.on('connection', (socket) => {
-  observePlatformSocket(socket);
-  logger.debug('Device-pair socket connected', { socketId: socket.id });
-
-  socket.on('join', (pairingId: string) => {
-    if (!pairingId || typeof pairingId !== 'string' || pairingId.length < 8) {
-      socket.emit('error', { message: 'Invalid pairing id' });
-      return;
-    }
-    const room = `devicepair:${pairingId}`;
-    socket.join(room);
-    logger.debug('Client joined device-pair room', { socketId: socket.id, room });
-    socket.emit('joined', { pairingId });
-  });
-
-  socket.on('leave', (pairingId: string) => {
-    if (!pairingId || typeof pairingId !== 'string') return;
-    socket.leave(`devicepair:${pairingId}`);
-  });
-
-  socket.on('disconnect', () => {
-    logger.debug('Device-pair socket disconnected', { socketId: socket.id });
-  });
-});
 
 // Helper for emitting session_update
 export function emitSessionUpdate(userId: string, payload: any) {
@@ -676,6 +643,12 @@ app.get('/.well-known/jwks.json', (_request, response) => {
 // Apply rate limiting middleware globally (before application routes)
 // Note: Auth routes have their own stricter rate limiting
 app.use(rateLimiter);
+// The per-CREDENTIAL budget every service token answers to. Mounted HERE, beside
+// the general limiter it replaces for that traffic: both skip requests the other
+// charges, so each request is counted exactly once (see
+// `isFirstPartyServiceRequest`). Removing this mount would leave service traffic
+// with no global ceiling at all.
+app.use(serviceCredentialLimiter);
 app.use(bruteForceProtection);
 
 // CSRF token endpoint (must be before CSRF protection)
@@ -844,11 +817,22 @@ app.use('/app-signals', appSignalsRouter);
 // auth, so no csrfProtection (bearer-write CSRF rule + public GET). Mounted
 // BEFORE `/identity` so the more specific `/identity/backup` prefix wins.
 app.use('/identity/backup', identityBackupRoutes);
-// Device-to-device identity transfer ("add a device"). Mounted BEFORE `/identity`
-// so its specific prefix wins over the identity router. Public init/info/deny +
-// bearer+signature approve; the relay is E2E-encrypted (no CSRF — no ambient
-// cookie credentials, per the bearer-write CSRF rule).
-app.use('/identity/device-transfer', deviceTransferRoutes);
+// Sealed web copy of an identity (one identity, two carriers). Bearer +
+// identity-key proof on every write and restricted to the identity origin; no
+// ambient cookie credentials, so no csrfProtection (bearer-write CSRF rule).
+// Mounted BEFORE `/identity` so its specific prefix wins.
+// One-use challenges for root proofs (ADR 0024 D7) and root readiness metadata.
+// Bearer only; a challenge authorizes nothing until a root signs it, and the
+// status carries no ciphertext. Two exact paths, before `/identity`.
+app.use('/identity', identityProofRoutes);
+// Signed-out recovery from a root proof alone (ADR 0024 D5). Holder origin only,
+// no bearer and no cookies, so no csrfProtection. Before `/identity`.
+app.use('/identity/recovery', identityRecoveryRoutes);
+app.use('/identity/web-envelope', identityWebEnvelopeRoutes);
+// Moving a web identity into Commons: E2E relay (two ephemeral keys + opaque
+// ciphertext), bearer + identity-key proof on the web's writes, identity-key
+// receipt from Commons. No ambient cookies, so no csrfProtection. Before `/identity`.
+app.use('/identity/move', identityMoveRoutes);
 // Self-sovereign identity layer: signed records + verified-domain badges.
 // Mixed public/private routes (each gates its own auth); writes are
 // Bearer-authenticated, so no csrfProtection (bearer-write CSRF rule).

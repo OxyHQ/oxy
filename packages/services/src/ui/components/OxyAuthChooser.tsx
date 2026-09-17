@@ -34,12 +34,12 @@
  */
 
 import type React from 'react';
-import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { Linking, Platform } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { getNormalizedUserHandle, isOxyRpOrigin, type User } from '@oxy.so/core';
+import { IDENTITY_WEB_ORIGIN, getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../context/OxyContext';
 import { useDeviceSwitcher } from '../hooks/useDeviceSwitcher';
@@ -55,6 +55,7 @@ import AccountsMenuView from './authChooser/AccountsMenuView';
 import SignInEntryView from './authChooser/SignInEntryView';
 import SignInRequestView from './authChooser/SignInRequestView';
 import SignUpView from './authChooser/SignUpView';
+import { signInFailureMessage } from './authChooser/signInFailureMessage';
 import {
   resolveAccentHex,
   type AccountHeroModel,
@@ -76,14 +77,23 @@ const COMMONS_CREATE_IDENTITY_URL = 'oxycommons://create-identity';
  */
 const ACCOUNTS_APP_URL = 'https://accounts.oxy.so';
 
+/**
+ * The last sign-in attempt whose failure was toasted, per controller.
+ *
+ * Module-level, not per subscription: a failure is ONE event. Remounting the
+ * chooser (or re-subscribing to the same controller) must not report it again,
+ * while a NEW attempt that fails with the very same message must. The attempt
+ * identity is what tells those apart; the message text cannot.
+ */
+const toastedFailureAttempt = new WeakMap<object, number>();
+
 export interface OxyAuthChooserProps {
   /** Called after a completed switch, sign-in, or sign-up. */
   onComplete?: () => void;
   /**
-   * When false, the web sign-in entry does not auto-start a device-flow
-   * session on mount. Use for hosts (e.g. the cross-origin passkey hub) that
-   * already have a pending `authorizeCode` and must not spawn a second one.
-   * @default true
+   * @deprecated No effect. The web sign-in entry no longer auto-starts a
+   * device-flow request: its primary action opens the identity origin
+   * (`id.oxy.so`) in a popup, which a browser only allows from a user gesture.
    */
   autoStartSignIn?: boolean;
 }
@@ -93,15 +103,10 @@ export interface OxyAuthChooserProps {
  * (wrapped in Bloom's `<Dialog>`) today; mountable bare by any future host that
  * supplies its own `onComplete`.
  */
-const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
-  onComplete,
-  autoStartSignIn: autoStartSignInEnabled = true,
-}) => {
+const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   const {
     accountDialogController: controller,
     showBottomSheet,
-    signInWithPasskey,
-    registerWithPasskey,
     oxyServices,
     logout,
     openAvatarPicker,
@@ -115,114 +120,39 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
   // so the two switchers cannot drift.
   const { principals } = useDeviceSwitcher();
 
-  // A credential minted for `oxy.so` can only be ASSERTED there (or a loopback
-  // dev host) — a hard WebAuthn RP-ID boundary the browser enforces, not
-  // feature detection. On a first-party Oxy web origin the ceremony runs
-  // directly ('direct'). On any OTHER web origin (b2) it can't run locally, so
-  // the passkey action instead opens a popup at the auth.oxy.so passkey hub —
-  // where the SAME ceremony IS first-party — and relays the resulting session
-  // back via `AccountDialogController.startPasskeyHubSignIn` ('hub'). Native
-  // has neither: Commons owns identity there ('none'). `isOxyRpOrigin()` reads
-  // `location` once and is stable for the component's lifetime.
-  const passkeyMode = useMemo<PasskeyMode>(() => {
-    if (!isWebBrowser()) return 'none';
-    return isOxyRpOrigin() ? 'direct' : 'hub';
-  }, []);
-
-  const [signInPasskeyPending, setSignInPasskeyPending] = useState(false);
-  const handleSignInWithPasskey = useCallback(async () => {
-    if (signInPasskeyPending) return;
-    setSignInPasskeyPending(true);
-    try {
-      await signInWithPasskey();
-      onComplete?.();
-    } catch (error) {
-      // A cancelled/failed ceremony keeps the view open so the user can retry
-      // or fall back to the QR — surface the reason as a toast (owner mandate:
-      // errors never render inline inside the dialog), never swallow.
-      toast.error(
-        error instanceof Error && error.message
-          ? error.message
-          : t('accountSwitcher.toasts.passkeySignInFailed'),
-      );
-    } finally {
-      setSignInPasskeyPending(false);
-    }
-  }, [signInPasskeyPending, signInWithPasskey, onComplete, t]);
-
-  const [createPasskeyPending, setCreatePasskeyPending] = useState(false);
-  const handleCreateWithPasskey = useCallback(
-    async (username: string) => {
-      if (createPasskeyPending) return;
-      setCreatePasskeyPending(true);
-      try {
-        await registerWithPasskey({ username });
-        onComplete?.();
-      } catch (error) {
-        toast.error(
-          error instanceof Error && error.message
-            ? error.message
-            : t('signup.toasts.passkeyCreateFailed'),
-        );
-      } finally {
-        setCreatePasskeyPending(false);
-      }
-    },
-    [createPasskeyPending, registerWithPasskey, onComplete, t],
-  );
-
-  // Web: auto-start "Sign in with Oxy" when the sign-in entry becomes the shown
-  // view — the request surface is the PRIMARY web route, not something behind a
-  // second tap (the user's ONE action was the sign-in button that opened this).
-  // `signInWithOxy()` tries the shared keychain first (silently, native-only)
-  // then falls to the device flow, whose route the controller picks. Driven from
-  // the EVENTS that reach that view — the initial `subscribe` pass below (an
-  // open-to-sign-in) and the add / back-to-sign-in handlers — never a watcher
-  // effect. Guarded so it never restarts a live flow (phase must be idle) and is
-  // a no-op on native (button-driven). Reads the live snapshot at call time (an
-  // event callback, not render), so it is stable across renders.
-  const autoStartSignIn = useCallback(() => {
-    if (!autoStartSignInEnabled || !controller || !isWebBrowser()) return;
-    const { view: currentView, signIn } = controller.getSnapshot();
-    if ((currentView !== 'signin' && currentView !== 'add') || signIn.phase !== 'idle') return;
-    void controller.signInWithOxy();
-  }, [autoStartSignInEnabled, controller]);
+  // Web sign-in and sign-up run at the identity origin (`id.oxy.so`), never
+  // on this page, whatever this page's origin: that is where the passkey
+  // ceremony can run for any app AND where the account's identity is created
+  // and kept sealed under the passkey (one identity, two carriers). Native has
+  // no passkey path: Commons owns identity there ('none').
+  const passkeyMode = useMemo<PasskeyMode>(() => (isWebBrowser() ? 'hub' : 'none'), []);
 
   // Bind the headless controller. `getSnapshot` returns a stable reference
   // between changes, so it is `useSyncExternalStore`-safe. Guard the no-provider
   // loading state (`controller` is `null`) with an inert store.
   //
-  // The subscribe callback ALSO carries two owner-mandated reactions to the
-  // controller. These run in the subscribe / notification callbacks — EVENT
-  // callbacks, not render/effect — so neither is a React effect hook:
-  //  1. Sign-in device-flow failures (poll / socket / popup-cancel land on
-  //     `signIn` asynchronously) are toasted at the notification site, deduped
-  //     per subscription — NEVER an inline banner in the request view (owner
-  //     mandate, same contract as account-switch).
-  //  2. On subscribe (mount / re-subscribe — a passive effect, the SAME timing
-  //     the removed effects had) the web sign-in flow auto-starts if the opening
-  //     view is the sign-in entry.
+  // The subscribe callback ALSO toasts sign-in device-flow failures (poll /
+  // socket / popup-cancel land on `signIn` asynchronously) at the notification
+  // site — an EVENT callback, not render/effect — deduped per attempt, NEVER an
+  // inline banner in the request view (owner mandate).
   const subscribe = useCallback(
     (listener: () => void) => {
       if (!controller) return () => undefined;
-      let lastToastedSignInError: string | null = null;
       const maybeToastSignInError = () => {
         const { signIn } = controller.getSnapshot();
-        if (signIn.phase === 'error' && signIn.error && signIn.error !== lastToastedSignInError) {
-          lastToastedSignInError = signIn.error;
-          toast.error(signIn.error);
-        } else if (signIn.phase !== 'error') {
-          lastToastedSignInError = null;
-        }
+        if (signIn.phase !== 'error') return;
+        if (toastedFailureAttempt.get(controller) === signIn.attempt) return;
+        toastedFailureAttempt.set(controller, signIn.attempt);
+        const message = signInFailureMessage(signIn.failure, t);
+        if (message) toast.error(message);
       };
       maybeToastSignInError();
-      autoStartSignIn();
       return controller.subscribe(() => {
         maybeToastSignInError();
         listener();
       });
     },
-    [controller, autoStartSignIn],
+    [controller, t],
   );
   const getSnapshot = useCallback(
     () => (controller ? controller.getSnapshot() : EMPTY_ACCOUNT_DIALOG_SNAPSHOT),
@@ -239,31 +169,30 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
   const handleActivate = useCallback(
     async (contextId: string) => {
       if (!controller) return;
-      if (controller.getSnapshot().activatingContextId) return;
+      // Another switch or removal is already changing this device: the press is
+      // dropped, not queued — and it is not a failure to report.
+      if (controller.isDeviceMutationInFlight()) return;
       // Already live: activating it again bumps nothing server-side, so treat
       // the press as "yes, this one" and close.
       if (contextId === controller.getSnapshot().activeContext?.contextId) {
         onComplete?.();
         return;
       }
-      try {
-        await controller.activateContext(contextId);
-        // Failures are recorded on the controller snapshot rather than thrown,
-        // so the same path works with the real controller and with test doubles
-        // that resolve void.
-        if (controller.getSnapshot().error) {
-          toast.error(t('accountSwitcher.toasts.activateFailed'));
-          return;
-        }
-        // The subject changed, so every account-scoped query is now about
-        // somebody else. The runtime resets its own caches between the bearer
-        // commit and the notify; this drops the Query cache the same way the
-        // account switch did.
-        queryClient.invalidateQueries();
-        onComplete?.();
-      } catch {
+      // The controller's own verdict on the SWITCH — never `snapshot.error`,
+      // which the directory re-read after a successful switch can also set.
+      // Reading that as "the switch failed" left the dialog open on a false
+      // error with the previous account's queries still cached.
+      const switched = await controller.activateContext(contextId).catch(() => false);
+      if (!switched) {
         toast.error(t('accountSwitcher.toasts.activateFailed'));
+        return;
       }
+      // The subject changed, so every account-scoped query is now about
+      // somebody else. The runtime resets its own caches between the bearer
+      // commit and the notify; this drops the Query cache the same way the
+      // account switch did.
+      queryClient.invalidateQueries();
+      onComplete?.();
     },
     [controller, onComplete, queryClient, t],
   );
@@ -278,7 +207,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
    */
   const handleRemoveContext = useCallback(
     async (contextId: string) => {
-      if (!controller) return;
+      if (!controller || controller.isDeviceMutationInFlight()) return;
       const group = principals.find((principal) =>
         principal.contexts.some((context) => context.contextId === contextId),
       );
@@ -308,7 +237,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
   /** Remove ONE PERSON and every account they reach here, and nobody else's. */
   const handleRemovePrincipal = useCallback(
     async (principalId: string) => {
-      if (!controller) return;
+      if (!controller || controller.isDeviceMutationInFlight()) return;
       const group = principals.find((principal) => principal.principalId === principalId);
       if (!group) return;
       const confirmed = await surfaces.confirm({
@@ -329,6 +258,42 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
     [controller, principals, t],
   );
 
+  /**
+   * Sign out of the current account, and close only once that is TRUE.
+   *
+   * Runs under the controller's device-mutation gate, so it can neither race a
+   * switch or removal nor be issued twice by a double press. A failed
+   * revocation keeps the dialog open and says so: closing it would read as
+   * "signed out" while this device still holds the session.
+   */
+  const handleSignOut = useCallback(async () => {
+    if (!controller) return;
+    const outcome = await controller.runDeviceMutation(() => logout());
+    if (!outcome.ran) return;
+    if (outcome.value.status === 'failed') {
+      toast.error(t('common.errors.signOutFailed'));
+      return;
+    }
+    onComplete?.();
+  }, [controller, logout, onComplete, t]);
+
+  /**
+   * Hand a URL to the OS. `Linking.openURL` REJECTS when nothing can open it
+   * (no browser, an unregistered scheme, a blocked navigation) — a press that
+   * then does nothing at all is exactly the dead end this reports instead.
+   */
+  const openExternal = useCallback(
+    (url: string) => {
+      // Wrapped so a synchronous throw lands in the same handler as a rejection.
+      Promise.resolve()
+        .then(() => Linking.openURL(url))
+        .catch(() => {
+          toast.error(t('accountSwitcher.linkOpenFailed'));
+        });
+    },
+    [t],
+  );
+
   const handleManage = useCallback(() => {
     onComplete?.();
     if (consumerHooks?.onNavigateManage) {
@@ -344,11 +309,9 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
       consumerHooks.onAddAccount();
       return;
     }
-    // No consumer override: enter the "add account" view and auto-start the web
-    // sign-in flow, from this handler (the event that reaches the view).
+    // No consumer override: enter the "add account" view.
     controller?.add();
-    autoStartSignIn();
-  }, [consumerHooks, controller, autoStartSignIn, onComplete]);
+  }, [consumerHooks, controller, onComplete]);
 
   const handlers = useMemo<OxyAuthChooserHandlers>(
     () => ({
@@ -390,23 +353,18 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
   const alternatives = useMemo<SignInAlternatives>(
     () => ({
       passkeyAvailable: passkeyMode !== 'none',
-      // The hub-popup flow reports progress through `snapshot.signIn` (already
-      // rendered by the request view) — only the DIRECT ceremony uses this
-      // component-local pending flag. A ceremony FAILURE is toasted by
-      // `handleSignInWithPasskey`, never rendered inline.
-      passkeyPending: passkeyMode === 'direct' ? signInPasskeyPending : false,
-      onSignInWithPasskey: () => {
-        if (passkeyMode === 'direct') {
-          void handleSignInWithPasskey();
-          return;
-        }
-        void controller?.startPasskeyHubSignIn();
-      },
+      // Called straight from the press: the popup opens before any await.
+      onSignInWithPasskey: () => void controller?.startPasskeyHubSignIn(),
       onShowQr: () => void controller?.showQr(),
-      onGetCommons: () => void Linking.openURL(getCommonsAcquisitionUrl(Platform.OS)),
-      onCreateAccount: () => controller?.startSignup(),
+      onGetCommons: () => openExternal(getCommonsAcquisitionUrl(Platform.OS)),
+      // Web: the identity origin creates the account and its identity in the
+      // same window a sign-in uses. Native: Commons creates the identity.
+      onCreateAccount: () => {
+        if (passkeyMode === 'hub') void controller?.startPasskeyHubSignIn();
+        else controller?.startSignup();
+      },
     }),
-    [passkeyMode, signInPasskeyPending, handleSignInWithPasskey, controller],
+    [passkeyMode, controller, openExternal],
   );
 
   // Real storage usage for the account menu's "Oxy storage" block. Disabled
@@ -430,9 +388,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
   // endpoints — the same handoff pattern `handleManage`/`getCommonsAcquisitionUrl`
   // already use.
   const accountMenu = useMemo<AccountsMenuActions>(() => {
-    const openUrl = (url: string) => {
-      void Linking.openURL(url);
-    };
+    const openUrl = openExternal;
     const openSheet = (config: Parameters<NonNullable<typeof showBottomSheet>>[0]) => {
       onComplete?.();
       showBottomSheet?.(config);
@@ -446,9 +402,9 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
       onPrivacy: () => openSheet({ screen: 'LegalDocuments', props: { initialStep: 1 } }),
       onTerms: () => openSheet({ screen: 'LegalDocuments', props: { initialStep: 2 } }),
       onSignOut: () => {
-        void logout();
-        onComplete?.();
+        void handleSignOut();
       },
+      onOpenIdentity: passkeyMode === 'hub' ? () => openUrl(`${IDENTITY_WEB_ORIGIN}/`) : undefined,
       customItems: (consumerHooks?.menuItems ?? []).map((item) => ({
         ...item,
         onPress: () => {
@@ -457,7 +413,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
         },
       })),
     };
-  }, [consumerHooks, onComplete, showBottomSheet, logout]);
+  }, [consumerHooks, onComplete, showBottomSheet, handleSignOut, openExternal, passkeyMode]);
 
   if (!controller) {
     return null;
@@ -483,7 +439,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
       <SignInRequestView
         snapshot={snapshot}
         t={t}
-        onRetry={() => void controller.showQr()}
+        onRetry={() => void controller.retrySignIn()}
         alternatives={alternatives}
       />
     );
@@ -495,17 +451,11 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
         snapshot={snapshot}
         theme={theme}
         t={t}
-        oxyServices={oxyServices}
         passkeyMode={passkeyMode}
-        onCreateWithPasskey={(username) => void handleCreateWithPasskey(username)}
-        createPending={createPasskeyPending}
         onOpenHub={() => void controller.startPasskeyHubSignIn()}
-        onCreateIdentityInCommons={() => void Linking.openURL(COMMONS_CREATE_IDENTITY_URL)}
+        onCreateIdentityInCommons={() => openExternal(COMMONS_CREATE_IDENTITY_URL)}
         onGetCommons={alternatives.onGetCommons}
-        onBackToSignIn={() => {
-          controller.setView('signin');
-          autoStartSignIn();
-        }}
+        onBackToSignIn={() => controller.setView('signin')}
       />
     );
   }

@@ -5,9 +5,10 @@
  * document. The DID is anchored on the stable account id (`did:web:<domain>:u:<userId>`),
  * NOT on the keypair: the keypair is a *verification method* that maps 1:1 to
  * the existing `authMethods[]`. A password-only (custodial) account gets a DID
- * controlled solely by Oxy; creating a Commons key upgrades the account to
- * self-sovereign (`controller = [userDid, OXY_DID]`); the change is fully
- * reversible by linking/unlinking the identity auth method.
+ * controlled solely by Oxy; linking a root makes the account self-sovereign
+ * (`controller = [userDid]`). A root is never unlinked back (ADR 0024 D8/D9):
+ * Oxy is not a controller of a personal root, and Oxy signatures on records are
+ * service attestations, not an alternate authority over the person's DID.
  *
  * The output is validated against `didDocumentSchema` from `@oxy.so/contracts` so
  * the API can never serve a document that drifts from the published contract.
@@ -209,7 +210,7 @@ function oxyCustodialVerificationMethod(): VerificationMethod | null {
 
 /**
  * Derive the W3C DID document for `user`. Self-sovereign accounts (≥1 identity
- * verification method) are controlled by `[userDid, OXY_DID]` and expose their
+ * verification method) are controlled by `[userDid]` alone and expose their
  * own keys; custodial accounts are controlled by `[OXY_DID]` and reference the
  * Oxy custodial key (when configured).
  */
@@ -237,7 +238,8 @@ export function buildDidDocument(user: DidUserInput): DidDocument {
     }
   }
 
-  const controller = isSelfSovereign ? [did, OXY_DID] : [OXY_DID];
+  // ADR 0024 D9: the person controls a self-sovereign DID; Oxy is not a co-controller.
+  const controller = isSelfSovereign ? [did] : [OXY_DID];
 
   const alsoKnownAs: string[] = [];
   const handle = getNormalizedUserHandle({

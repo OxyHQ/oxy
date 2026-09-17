@@ -62,7 +62,7 @@ import type { SessionLoginResponse, MinimalUserData } from '../models/session';
 import type { User } from '../models/interfaces';
 import { logger } from '../logger';
 import { extractErrorStatus } from '../utils/errorUtils';
-import { CENTRAL_IDP_APEX } from '../utils/authWebUrl';
+import { IDENTITY_WEB_ORIGIN } from '../utils/authWebUrl';
 import type { SessionClient } from './SessionClient';
 import { getSocketIO, type MinimalSocket, type SocketIOFactory } from './socketLoader';
 import { resolveActiveContext, type DeviceContext } from './deviceDirectory';
@@ -140,6 +140,30 @@ export type SignInProgress =
   | 'identity-confirmed';
 
 /**
+ * WHY a sign-in attempt ended in `'error'` — a machine-readable reason the UI
+ * turns into localized copy (the controller ships no user-facing prose).
+ *
+ *  - `'cancelled'` — the USER walked away (closed the passkey hub popup). A
+ *    voluntary outcome, not a failure to report.
+ *  - `'denied'` — the approver declined the request in Commons.
+ *  - `'expired'` — the request outlived its server-authoritative expiry.
+ *  - `'network'` — Oxy could not be reached (no response, timeout).
+ *  - `'not-configured'` — the app has no registered `clientId`.
+ *  - `'unsupported-flow'` — an OAuth-bound request, which this surface cannot finalize.
+ *  - `'claim-failed'` — the request WAS approved, but the session could not be claimed.
+ *  - `'unknown'` — anything else; the raw message stays on `error` for logs.
+ */
+export type SignInFailureReason =
+  | 'cancelled'
+  | 'denied'
+  | 'expired'
+  | 'network'
+  | 'not-configured'
+  | 'unsupported-flow'
+  | 'claim-failed'
+  | 'unknown';
+
+/**
  * Minimal structural handle over a popup `Window` — just enough for the
  * cross-origin passkey hub flow ({@link AccountDialogController.startPasskeyHubSignIn}):
  * navigate it once the device-flow session's `authorizeCode` is known, detect
@@ -175,8 +199,13 @@ export interface SignInFlowState {
   qrPayload: string | null;
   /** Server-authoritative expiry (epoch ms), or `null`. */
   expiresAt: number | null;
-  /** Human-readable error for the retry UI, or `null`. */
+  /**
+   * The raw, UNLOCALIZED failure message (diagnostics only), or `null`. A surface
+   * renders {@link failure} instead — this string is English or a server message.
+   */
   error: string | null;
+  /** Why the attempt failed, set together with `phase: 'error'`; `null` otherwise. */
+  failure: SignInFailureReason | null;
   /**
    * The ONE primary delivery route the controller chose for this request
    * ({@link selectCommonsDelivery}), or `null` while it is still being resolved.
@@ -217,14 +246,25 @@ export interface SignInFlowState {
    * cannot drift from them or run ahead of a real signal.
    */
   progress: SignInProgress;
+  /**
+   * Identity of the sign-in ATTEMPT this state belongs to — a counter that moves
+   * whenever an attempt is started, cancelled, or the controller is destroyed.
+   * Not a secret. It lets a surface treat "this attempt failed" as one event (a
+   * re-notification of the same failure is not a second failure, while a new
+   * attempt failing with the same message is).
+   */
+  attempt: number;
 }
 
 /**
  * The observable FACTS of a device flow — {@link SignInFlowState} minus the
- * value derived from them. Every mutation of the flow goes through this shape,
- * which is what makes `progress` structurally impossible to set by hand.
+ * values the controller derives. Every mutation of the flow goes through this
+ * shape, which is what makes `progress` (and `attempt`) impossible to set by hand.
  */
-type SignInFlowFacts = Omit<SignInFlowState, 'progress'>;
+type SignInFlowFacts = Omit<SignInFlowState, 'progress' | 'attempt'>;
+
+/** How the current sign-in attempt was started — what "Try again" repeats. */
+type SignInMethod = 'oxy' | 'qr' | 'passkey-hub';
 
 /**
  * Derive the surface-facing progress from the flow's real facts. Pure, total,
@@ -356,8 +396,16 @@ export interface AccountDialogControllerOptions {
    */
   openPopup?: () => PopupWindowHandle | null;
   /**
-   * Base origin of the auth.oxy.so passkey hub (defaults to
-   * `https://auth.${CENTRAL_IDP_APEX}`). Overridable for local/staging testing.
+   * Origin of the web identity carrier (default `IDENTITY_WEB_ORIGIN`,
+   * `https://id.oxy.so`) — where a passkey sign-in or sign-up runs
+   * and the account's identity is kept sealed under the passkey. The popup opens
+   * `<identityOrigin>/continue?code=…`. Overridable for local/staging testing.
+   */
+  identityOrigin?: string;
+  /**
+   * @deprecated Alias of {@link identityOrigin}, kept for existing
+   * configuration. The popup used to open `auth.oxy.so/hub-passkey`; it now opens
+   * the identity origin's `/continue`, so a value here must be that origin.
    */
   hubBaseUrl?: string;
   /**
@@ -398,30 +446,39 @@ const IDLE_SIGN_IN_FACTS: SignInFlowFacts = {
   qrPayload: null,
   expiresAt: null,
   error: null,
+  failure: null,
   route: null,
   routeFailed: false,
   pushSentAt: null,
   openedAt: null,
 };
 
-const IDLE_SIGN_IN: SignInFlowState = {
-  ...IDLE_SIGN_IN_FACTS,
-  progress: deriveSignInProgress(IDLE_SIGN_IN_FACTS),
-};
-
 /**
- * Terminal SUCCESS state: the session was claimed and committed. Holds no live
+ * Terminal SUCCESS facts: the session was claimed and committed. Holds no live
  * resources and no request handles — only the terminal progress the surface
  * shows ("Identity confirmed") before it closes.
  */
-const COMPLETED_SIGN_IN: SignInFlowState = {
-  ...IDLE_SIGN_IN_FACTS,
-  phase: 'completed',
-  progress: deriveSignInProgress({ ...IDLE_SIGN_IN_FACTS, phase: 'completed' }),
-};
+const COMPLETED_SIGN_IN_FACTS: SignInFlowFacts = { ...IDLE_SIGN_IN_FACTS, phase: 'completed' };
+
+/** The full flow state for `facts`, stamped with the attempt it belongs to. */
+function buildSignIn(facts: SignInFlowFacts, attempt: number): SignInFlowState {
+  return { ...facts, progress: deriveSignInProgress(facts), attempt };
+}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Classify a request that never produced a response. `OxyServices.handleError`
+ * normalizes transport failures to `NETWORK_ERROR` / `TIMEOUT` with status `0`.
+ */
+function requestFailureReason(error: unknown): SignInFailureReason {
+  const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
+  if (code === 'NETWORK_ERROR' || code === 'TIMEOUT' || extractErrorStatus(error) === 0) {
+    return 'network';
+  }
+  return 'unknown';
 }
 
 type SnapshotListener = (snapshot: AccountDialogSnapshot) => void;
@@ -437,7 +494,7 @@ export class AccountDialogController {
   private readonly canOpenApp?: (url: string) => Promise<boolean>;
   private readonly socketFactory?: SocketIOFactory;
   private readonly openPopup?: () => PopupWindowHandle | null;
-  private readonly hubBaseUrl: string;
+  private readonly identityOrigin: string;
   private readonly platform: CommonsDeliveryPlatform;
 
   private readonly listeners = new Set<SnapshotListener>();
@@ -449,10 +506,26 @@ export class AccountDialogController {
   private activatingContextId: string | null = null;
   private removingContextId: string | null = null;
   private removingPrincipalId: string | null = null;
-  private signIn: SignInFlowState = IDLE_SIGN_IN;
+  /**
+   * `true` while an operation run through {@link runDeviceMutation} (a host
+   * sign-out) is in flight. The fourth member of the ONE device-mutation gate,
+   * alongside the three flags above.
+   */
+  private exclusiveMutationInFlight = false;
+  private signIn: SignInFlowState = buildSignIn(IDLE_SIGN_IN_FACTS, 0);
   private commonsAvailability: CommonsAvailability = 'unknown';
 
   // --- Sign-in device-flow bookkeeping ---
+  /**
+   * The CURRENT sign-in attempt. Every asynchronous step of a sign-in captures
+   * it before awaiting and re-checks it after (`isCurrentAttempt`); cancelling,
+   * starting another attempt, or destroying the controller moves it, so a late
+   * response from an abandoned attempt can neither update the surface nor
+   * install a session.
+   */
+  private signInAttempt = 0;
+  /** How the current attempt was started, so a retry repeats the user's choice. */
+  private signInMethod: SignInMethod = 'oxy';
   /** The secret device-flow token of the active QR flow (never surfaced). */
   private signInToken: string | null = null;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -465,9 +538,10 @@ export class AccountDialogController {
   /**
    * Guards {@link pollOnce} against re-entrancy: the fallback timer and a socket
    * `auth_update` wake can fire together — without this both could claim the
-   * single-use token concurrently.
+   * single-use token concurrently. Keyed by token, so a poll still running for an
+   * ABANDONED request never blocks the next request's first poll.
    */
-  private pollInFlight = false;
+  private pollInFlightToken: string | null = null;
   /** The popup opened by {@link startPasskeyHubSignIn}, or `null`. */
   private activePopup: PopupWindowHandle | null = null;
   /** Watches {@link activePopup}'s `closed` state; see {@link watchPopup}. */
@@ -493,7 +567,7 @@ export class AccountDialogController {
     this.canOpenApp = options.canOpenApp;
     this.socketFactory = options.socketFactory;
     this.openPopup = options.openPopup;
-    this.hubBaseUrl = options.hubBaseUrl ?? `https://auth.${CENTRAL_IDP_APEX}`;
+    this.identityOrigin = options.identityOrigin ?? options.hubBaseUrl ?? IDENTITY_WEB_ORIGIN;
     this.platform = options.platform ?? 'unknown';
     this.snapshot = this.computeSnapshot();
   }
@@ -564,6 +638,8 @@ export class AccountDialogController {
    */
   destroy(): void {
     this.started = false;
+    // Nothing still in flight may act on a destroyed controller.
+    this.signInAttempt += 1;
     if (this.unsubscribeSession) {
       this.unsubscribeSession();
       this.unsubscribeSession = null;
@@ -638,7 +714,7 @@ export class AccountDialogController {
     // another view is a NEW intention, so drop it; otherwise a later `add()`
     // would open on the previous sign-in's terminal state.
     if (this.signIn.phase === 'completed') {
-      this.signIn = IDLE_SIGN_IN;
+      this.signIn = buildSignIn(IDLE_SIGN_IN_FACTS, this.signInAttempt);
     }
     this.emit();
   }
@@ -667,8 +743,11 @@ export class AccountDialogController {
    * — and the reconstruction was not merely redundant: it enumerated the
    * CALLER's account graph, which on a device holding two people is one
    * person's answer presented as the device's.
+   *
+   * Resolves `false` when THIS read failed (a 401 is the signed-out edge, not a
+   * failure). Never rejects.
    */
-  async refresh(): Promise<void> {
+  async refresh(): Promise<boolean> {
     const seq = ++this.refreshSeq;
 
     // Never read the directory while signed out: at cold boot the bearer is not
@@ -678,7 +757,7 @@ export class AccountDialogController {
       this.loading = false;
       this.error = null;
       this.emit();
-      return;
+      return true;
     }
 
     // Nothing to show yet is the only state worth a spinner; a re-read behind an
@@ -687,6 +766,7 @@ export class AccountDialogController {
     this.error = null;
     this.emit();
 
+    let failure: string | null = null;
     try {
       await this.sessionClient.refreshDirectory();
     } catch (error) {
@@ -698,14 +778,18 @@ export class AccountDialogController {
       if (extractErrorStatus(error) === 401) {
         logger.debug('[AccountDialogController] directory unauthorized (signed out)', { component: 'AccountDialogController' }, error);
       } else {
-        this.error = errorMessage(error);
+        failure = errorMessage(error);
         logger.warn('[AccountDialogController] directory refresh failed', { component: 'AccountDialogController' }, error);
       }
     }
-    if (seq !== this.refreshSeq) return; // superseded by a newer refresh
+    // Superseded by a newer refresh: that read owns `error` and `loading`, so an
+    // older failure must not overwrite its outcome.
+    if (seq !== this.refreshSeq) return failure === null;
 
+    this.error = failure;
     this.loading = false;
     this.emit();
+    return failure === null;
   }
 
   // =========================================================================
@@ -725,23 +809,22 @@ export class AccountDialogController {
    * A context id is not stable across a removal, so a stale one is an ordinary
    * outcome rather than a bug: the server answers 404 or 403, heals the row, and
    * the refresh below re-reads a directory that no longer offers it.
+   *
+   * Resolves `true` once the SWITCH happened — even if the directory re-read
+   * after it fails (that failure lands on `error`, but the subject did change).
+   * Resolves `false` when the switch failed, or was refused because another
+   * device mutation is in flight ({@link isDeviceMutationInFlight}).
    */
   async activateContext(contextId: string): Promise<boolean> {
-    if (this.activatingContextId) return false;
-    this.activatingContextId = contextId;
-    this.error = null;
-    this.emit();
-    try {
-      await this.sessionClient.activateContext(contextId);
-      await this.refresh();
-      return true;
-    } catch (error) {
-      this.error = errorMessage(error);
-      return false;
-    } finally {
-      this.activatingContextId = null;
-      this.emit();
-    }
+    return this.mutateDevice(
+      () => {
+        this.activatingContextId = contextId;
+      },
+      () => {
+        this.activatingContextId = null;
+      },
+      () => this.sessionClient.activateContext(contextId),
+    );
   }
 
   /**
@@ -757,21 +840,15 @@ export class AccountDialogController {
    * revision — so nothing may hold a context id across this call.
    */
   async signOutContext(contextId: string): Promise<boolean> {
-    if (this.removingContextId || this.removingPrincipalId) return false;
-    this.removingContextId = contextId;
-    this.error = null;
-    this.emit();
-    try {
-      await this.sessionClient.signOutContext(contextId);
-      await this.refresh();
-      return true;
-    } catch (error) {
-      this.error = errorMessage(error);
-      return false;
-    } finally {
-      this.removingContextId = null;
-      this.emit();
-    }
+    return this.mutateDevice(
+      () => {
+        this.removingContextId = contextId;
+      },
+      () => {
+        this.removingContextId = null;
+      },
+      () => this.sessionClient.signOutContext(contextId),
+    );
   }
 
   /**
@@ -783,19 +860,85 @@ export class AccountDialogController {
    * and elects a replacement active context in one transition.
    */
   async signOutPrincipal(principalId: string): Promise<boolean> {
-    if (this.removingContextId || this.removingPrincipalId) return false;
-    this.removingPrincipalId = principalId;
+    return this.mutateDevice(
+      () => {
+        this.removingPrincipalId = principalId;
+      },
+      () => {
+        this.removingPrincipalId = null;
+      },
+      () => this.sessionClient.signOutPrincipal(principalId),
+    );
+  }
+
+  /**
+   * Whether ANY operation that changes who is on this device, or which of them
+   * is active, is in flight: an activation, either removal, or a host operation
+   * run through {@link runDeviceMutation}.
+   *
+   * They share ONE gate because they mutate the same device set: a removal that
+   * elects a replacement active context racing a switch could leave either one
+   * active. A refused call is refused, never queued — a press that could not run
+   * must not fire later, after the user has moved on.
+   */
+  isDeviceMutationInFlight(): boolean {
+    return (
+      this.activatingContextId !== null ||
+      this.removingContextId !== null ||
+      this.removingPrincipalId !== null ||
+      this.exclusiveMutationInFlight
+    );
+  }
+
+  /**
+   * Run a device mutation the controller does not own (the host's sign-out)
+   * under the same gate as {@link activateContext} and the removals.
+   *
+   * Resolves `{ ran: false }` without calling `operation` when another mutation
+   * is in flight; otherwise `{ ran: true, value }`. A rejection from `operation`
+   * propagates, after the gate is released.
+   */
+  async runDeviceMutation<T>(
+    operation: () => Promise<T>,
+  ): Promise<{ ran: true; value: T } | { ran: false }> {
+    if (this.isDeviceMutationInFlight()) return { ran: false };
+    this.exclusiveMutationInFlight = true;
+    try {
+      return { ran: true, value: await operation() };
+    } finally {
+      this.exclusiveMutationInFlight = false;
+    }
+  }
+
+  /**
+   * The shared body of the three controller-owned device mutations: take the
+   * gate, run the mutation, then re-read the directory.
+   *
+   * The mutation's outcome and the re-read's are kept apart. Once `operation`
+   * has resolved the device HAS changed, so this resolves `true` even when the
+   * re-read fails — that failure is the directory's (`error`), and reporting it
+   * as a failed switch would invite the user to repeat something that happened.
+   */
+  private async mutateDevice(
+    mark: () => void,
+    clear: () => void,
+    operation: () => Promise<void>,
+  ): Promise<boolean> {
+    if (this.isDeviceMutationInFlight()) return false;
+    mark();
     this.error = null;
     this.emit();
     try {
-      await this.sessionClient.signOutPrincipal(principalId);
+      try {
+        await operation();
+      } catch (error) {
+        this.error = errorMessage(error);
+        return false;
+      }
       await this.refresh();
       return true;
-    } catch (error) {
-      this.error = errorMessage(error);
-      return false;
     } finally {
-      this.removingPrincipalId = null;
+      clear();
       this.emit();
     }
   }
@@ -808,23 +951,28 @@ export class AccountDialogController {
    * Start "Sign in with Oxy". Native devices with a shared identity mint a
    * session silently (`signInWithSharedIdentity`); everything else (web, or a
    * native device without a shared identity) falls through to the cross-device
-   * QR handoff.
+   * QR handoff — as the SAME attempt, so cancelling during either half stops both.
    */
   async signInWithOxy(): Promise<void> {
+    const attempt = this.beginSignInAttempt('oxy');
     this.setView('qr');
     this.setSignIn({ ...IDLE_SIGN_IN_FACTS, phase: 'starting' });
     try {
-      const session = await this.oxyServices.signInWithSharedIdentity();
+      // Minted WITHOUT planting the bearer: `completeSignIn` installs it only if
+      // this attempt is still the current one when the mint returns.
+      const session = await this.oxyServices.signInWithSharedIdentity({ plantTokens: false });
+      if (!this.isCurrentAttempt(attempt)) return;
       if (session) {
-        await this.completeSignIn(session, session.user);
+        await this.completeSignIn(attempt, session, session.user);
         return;
       }
     } catch (error) {
+      if (!this.isCurrentAttempt(attempt)) return;
       // Shared-key mint failed — log and fall through to the QR handoff rather
       // than dead-ending the sign-in.
       logger.warn('[AccountDialogController] signInWithSharedIdentity failed', { component: 'AccountDialogController' }, error);
     }
-    await this.showQr();
+    await this.startDeviceFlowSession(attempt, { deliver: true });
   }
 
   /**
@@ -834,17 +982,40 @@ export class AccountDialogController {
    * session committed. Requires `clientId`.
    */
   async showQr(): Promise<void> {
-    this.cancelSignIn();
+    const attempt = this.beginSignInAttempt('qr');
     this.setView('qr');
-    await this.startDeviceFlowSession({ deliver: true });
+    await this.startDeviceFlowSession(attempt, { deliver: true });
   }
 
   /**
-   * Web-only: "Sign in with a passkey" on a non-Oxy origin cannot run the
-   * WebAuthn ceremony locally — a credential minted with `WEBAUTHN_RP_ID=oxy.so`
-   * can only be asserted from `oxy.so`/a subdomain/loopback, a browser-enforced
-   * boundary `isOxyRpOrigin()` (consumer-side) already gates on. Instead, open
-   * a popup at the auth.oxy.so passkey hub, scoped to the SAME device-flow
+   * Start a NEW attempt the same way the last one was started — "Try again"
+   * repeats the user's choice rather than silently switching method. A failed
+   * passkey-hub attempt reopens the hub popup; a failed "Sign in with Oxy"
+   * retries that; an explicit QR request shows the QR.
+   *
+   * Call it straight from the press handler: the hub route opens its popup
+   * synchronously, before this method's first `await`, so the browser still
+   * attributes it to the click.
+   */
+  retrySignIn(): Promise<void> {
+    switch (this.signInMethod) {
+      case 'passkey-hub':
+        return this.startPasskeyHubSignIn();
+      case 'qr':
+        return this.showQr();
+      default:
+        return this.signInWithOxy();
+    }
+  }
+
+  /**
+   * Web-only: sign in (or create an account) with a passkey at the web identity
+   * carrier. The ceremony runs on `id.oxy.so`, never on the calling origin, for
+   * two reasons: a credential minted with `WEBAUTHN_RP_ID=oxy.so` can only be
+   * asserted from `oxy.so`/a subdomain/loopback (a browser-enforced boundary),
+   * and only the identity origin may unseal or create the account's identity
+   * (one identity, two carriers). Opens a popup at `<identityOrigin>/continue`,
+   * scoped to the SAME device-flow
    * session {@link showQr} would create (same `authorizeCode`/`sessionToken`
    * pair), and let the SAME poll/socket/claim engine complete it once the hub
    * authorizes the session (`POST /auth/session/authorize-code/:authorizeCode`,
@@ -859,83 +1030,120 @@ export class AccountDialogController {
    * `showQr`'s plain QR rendering — no dead end.
    */
   async startPasskeyHubSignIn(): Promise<void> {
-    this.cancelSignIn();
+    const attempt = this.beginSignInAttempt('passkey-hub');
     this.setView('qr');
     const popup = this.openPopup?.() ?? null;
     if (!popup) {
-      await this.startDeviceFlowSession({ deliver: true });
+      await this.startDeviceFlowSession(attempt, { deliver: true });
       return;
     }
+    // Owned by the attempt from the moment it exists, so cancelling while the
+    // session is still being created closes it instead of leaving a blank
+    // window behind.
+    this.activePopup = popup;
     // The hub popup IS the primary surface here, chosen explicitly by the user —
     // so this flow does NOT run automatic Commons delivery (ringing the user's
     // phone because they asked for a passkey would be exactly the "menu of
     // methods" the one-primary-action rule forbids). The underlying request is
     // the same `AuthSession`, and its Commons route stays the QR the view
     // renders beneath the popup.
-    const handle = await this.startDeviceFlowSession({ deliver: false });
-    if (!handle) {
-      popup.close();
-      return;
-    }
+    const handle = await this.startDeviceFlowSession(attempt, { deliver: false });
+    // `null` means the attempt failed (its teardown closed the popup) or was
+    // abandoned (the cancel closed it).
+    if (!handle) return;
     // The user may have closed the popup during the async session creation
     // above, before any watcher was attached to catch it — guard rather than
     // navigate a dead window (browsers vary on whether that throws).
     if (popup.closed) {
-      this.failSignIn('Sign-in was cancelled.');
+      const pendingCode = this.signIn.authorizeCode;
+      this.failSignIn('cancelled', 'Sign-in was cancelled.');
+      if (pendingCode) void this.withdrawRequest(pendingCode);
       return;
     }
-    this.activePopup = popup;
-    popup.location.href = `${this.hubBaseUrl}/hub-passkey?code=${encodeURIComponent(handle.authorizeCode)}`;
+    popup.location.href = `${this.identityOrigin}/continue?code=${encodeURIComponent(handle.authorizeCode)}`;
     this.watchPopup(popup);
+  }
+
+  /**
+   * End whatever attempt is running (withdrawing its request) and begin a new
+   * one. Returns the new attempt's identity for the caller to re-check after
+   * every `await`.
+   */
+  private beginSignInAttempt(method: SignInMethod): number {
+    this.cancelSignIn();
+    this.signInMethod = method;
+    return this.signInAttempt;
+  }
+
+  /** Whether `attempt` is still the one the surface is waiting on. */
+  private isCurrentAttempt(attempt: number): boolean {
+    return attempt === this.signInAttempt;
   }
 
   /**
    * Shared device-flow session creation for both {@link showQr} (renders the
    * QR) and {@link startPasskeyHubSignIn} (also opens the hub popup) — the
    * same `startCommonsSignIn` → poll/socket wiring either way. Returns the
-   * handle on success (already reflected in `signIn`), or `null` on failure
-   * (already set as `signIn.error`).
+   * handle on success (already reflected in `signIn`), or `null` when the
+   * attempt failed (already set as `signIn.failure`) or was abandoned while the
+   * request was being created.
    *
+   * @param attempt - The attempt this request belongs to. A request that comes
+   *   back for an abandoned attempt is withdrawn server-side and never wired up:
+   *   closing the dialog on a slow connection must not leave an approvable
+   *   request, a socket, and a poll behind it.
    * @param opts.deliver - Whether to run automatic Commons delivery selection
    *   ({@link resolveDeliveryRoute}). `true` for the normal one-primary-action
    *   entry; `false` when the caller already owns the primary surface (the
    *   passkey hub popup), where the request's Commons route is simply the QR.
    */
-  private async startDeviceFlowSession(opts: { deliver: boolean }): Promise<CommonsSignInHandle | null> {
+  private async startDeviceFlowSession(
+    attempt: number,
+    opts: { deliver: boolean },
+  ): Promise<CommonsSignInHandle | null> {
+    if (!this.isCurrentAttempt(attempt)) return null;
     if (!this.clientId) {
-      this.setSignIn({ ...IDLE_SIGN_IN_FACTS, phase: 'error', error: 'This app is not configured for sign-in (missing clientId).' });
+      this.failSignIn('not-configured', 'This app is not configured for sign-in (missing clientId).');
       return null;
     }
     this.setSignIn({ ...IDLE_SIGN_IN_FACTS, phase: 'starting' });
+    let handle: CommonsSignInHandle;
     try {
-      const handle = await this.oxyServices.startCommonsSignIn({ clientId: this.clientId });
-      this.signInToken = handle.sessionToken;
-      this.setSignIn({
-        ...IDLE_SIGN_IN_FACTS,
-        phase: 'waiting',
-        authorizeCode: handle.authorizeCode,
-        qrPayload: handle.qrPayload,
-        expiresAt: handle.expiresAt,
-        // No route yet: the surface shows "Preparing request" until the primary
-        // route is resolved below. It is never guessed in the meantime.
-        route: opts.deliver ? null : 'qr',
-      });
-      // Primary path: an instant `auth_update` wake over the `/auth-session`
-      // socket. The poll below is only the fallback for when the socket can't
-      // connect, so it now runs at the slow fallback cadence.
-      this.openAuthSessionSocket(handle.sessionToken);
-      this.scheduleNextPoll(handle.sessionToken);
-      if (opts.deliver) {
-        // Non-blocking on purpose: the QR/authorizeCode are already renderable
-        // and the popup caller can navigate immediately, while the route (a
-        // local probe plus at most one delivery round-trip) resolves behind it.
-        void this.resolveDeliveryRoute(handle);
-      }
-      return handle;
+      handle = await this.oxyServices.startCommonsSignIn({ clientId: this.clientId });
     } catch (error) {
-      this.setSignIn({ ...IDLE_SIGN_IN_FACTS, phase: 'error', error: errorMessage(error) });
+      if (!this.isCurrentAttempt(attempt)) return null;
+      this.failSignIn(requestFailureReason(error), errorMessage(error));
       return null;
     }
+    if (!this.isCurrentAttempt(attempt)) {
+      // Created after the user walked away. The cancel could not withdraw it (it
+      // had no code yet), so withdraw it now — best effort, like every withdrawal.
+      void this.withdrawRequest(handle.authorizeCode);
+      return null;
+    }
+    this.signInToken = handle.sessionToken;
+    this.setSignIn({
+      ...IDLE_SIGN_IN_FACTS,
+      phase: 'waiting',
+      authorizeCode: handle.authorizeCode,
+      qrPayload: handle.qrPayload,
+      expiresAt: handle.expiresAt,
+      // No route yet: the surface shows "Preparing request" until the primary
+      // route is resolved below. It is never guessed in the meantime.
+      route: opts.deliver ? null : 'qr',
+    });
+    // Primary path: an instant `auth_update` wake over the `/auth-session`
+    // socket. The poll below is only the fallback for when the socket can't
+    // connect, so it now runs at the slow fallback cadence.
+    void this.openAuthSessionSocket(handle.sessionToken);
+    this.scheduleNextPoll(handle.sessionToken);
+    if (opts.deliver) {
+      // Non-blocking on purpose: the QR/authorizeCode are already renderable
+      // and the popup caller can navigate immediately, while the route (a
+      // local probe plus at most one delivery round-trip) resolves behind it.
+      void this.resolveDeliveryRoute(handle);
+    }
+    return handle;
   }
 
   /**
@@ -1061,7 +1269,7 @@ export class AccountDialogController {
       if (this.signIn.phase === 'starting' || this.signIn.phase === 'waiting') {
         // Closing the surface cancels the REQUEST too, not just this listener.
         const pendingCode = this.signIn.authorizeCode;
-        this.failSignIn('Sign-in was cancelled.');
+        this.failSignIn('cancelled', 'Sign-in was cancelled.');
         if (pendingCode) {
           void this.withdrawRequest(pendingCode);
         }
@@ -1128,8 +1336,15 @@ export class AccountDialogController {
    * cancel the request, not just stop listening to it. Without the withdrawal a
    * dismissed QR would stay approvable until it expired, so a later scan of a
    * stale code could authorize a session nobody is waiting for.
+   *
+   * It also ENDS the attempt: anything of it still awaiting a response (the
+   * request being created, a shared-identity mint, a claim) finds itself
+   * superseded when that response arrives, and neither touches the surface nor
+   * installs a session. The withdrawal itself is best effort — cancelling
+   * locally is not proof the server received it (see {@link withdrawRequest}).
    */
   cancelSignIn(): void {
+    this.signInAttempt += 1;
     // Capture before the teardown clears it, and only for a request that can
     // still be approved — a completed/failed flow has nothing to withdraw.
     const pendingCode =
@@ -1140,7 +1355,7 @@ export class AccountDialogController {
     this.closeAuthSessionSocket();
     this.closeActivePopup();
     this.signInToken = null;
-    if (this.signIn !== IDLE_SIGN_IN) {
+    if (this.signIn.phase !== 'idle') {
       this.setSignIn(IDLE_SIGN_IN_FACTS);
     }
     if (pendingCode) {
@@ -1186,12 +1401,13 @@ export class AccountDialogController {
    */
   private async pollOnce(sessionToken: string): Promise<void> {
     // A superseded / cancelled flow must not act; a poll already running owns the claim.
-    if (this.signInToken !== sessionToken || this.pollInFlight) return;
-    this.pollInFlight = true;
+    if (this.signInToken !== sessionToken || this.pollInFlightToken === sessionToken) return;
+    const attempt = this.signInAttempt;
+    this.pollInFlightToken = sessionToken;
     try {
       const expiresAt = this.signIn.expiresAt;
       if (typeof expiresAt === 'number' && Date.now() > expiresAt) {
-        this.failSignIn('Session expired. Please try again.');
+        this.failSignIn('expired', 'Session expired. Please try again.');
         return;
       }
       try {
@@ -1206,20 +1422,20 @@ export class AccountDialogController {
           // OAuth-bound sessions mint no sessionId on approval — they finalize
           // into an authorization code. The account dialog only starts device
           // sign-in today; stop rather than poll until expiry.
-          this.failSignIn('This sign-in flow cannot be completed here. Use the app\'s OAuth sign-in instead.');
+          this.failSignIn('unsupported-flow', 'This sign-in flow cannot be completed here. Use the app\'s OAuth sign-in instead.');
           return;
         }
         if (status.authorized && status.sessionId) {
           this.clearPollTimer();
-          await this.claimAndComplete(status.sessionId, sessionToken);
+          await this.claimAndComplete(attempt, status.sessionId, sessionToken);
           return;
         }
         if (status.status === 'cancelled') {
-          this.failSignIn('Authorization was denied.');
+          this.failSignIn('denied', 'Authorization was denied.');
           return;
         }
         if (status.status === 'expired') {
-          this.failSignIn('Session expired. Please try again.');
+          this.failSignIn('expired', 'Session expired. Please try again.');
           return;
         }
       } catch (error) {
@@ -1230,7 +1446,7 @@ export class AccountDialogController {
         this.scheduleNextPoll(sessionToken);
       }
     } finally {
-      this.pollInFlight = false;
+      if (this.pollInFlightToken === sessionToken) this.pollInFlightToken = null;
     }
   }
 
@@ -1249,7 +1465,7 @@ export class AccountDialogController {
     this.patchSignIn({ pushSentAt: nextPushSentAt, openedAt: nextOpenedAt });
   }
 
-  private async claimAndComplete(sessionId: string, sessionToken: string): Promise<void> {
+  private async claimAndComplete(attempt: number, sessionId: string, sessionToken: string): Promise<void> {
     this.patchSignIn({ phase: 'authorized' });
     let claimed: {
       accessToken: string;
@@ -1260,13 +1476,17 @@ export class AccountDialogController {
       deviceSecret?: string;
     };
     try {
-      claimed = await this.oxyServices.claimSessionByToken(sessionToken);
+      // Claimed WITHOUT planting the bearer — `completeSignIn` installs it only
+      // if the user is still waiting for this attempt when the claim returns.
+      claimed = await this.oxyServices.claimSessionByToken(sessionToken, { plantTokens: false });
     } catch (error) {
-      this.failSignIn(errorMessage(error));
+      if (!this.isCurrentAttempt(attempt)) return;
+      this.failSignIn('claim-failed', errorMessage(error));
       return;
     }
+    if (!this.isCurrentAttempt(attempt)) return;
     if (!claimed?.accessToken || !claimed.user) {
-      this.failSignIn('Authorization succeeded but the session could not be claimed. Please try again.');
+      this.failSignIn('claim-failed', 'Authorization succeeded but the session could not be claimed. Please try again.');
       return;
     }
     // `SessionLoginResponse.user` is the minimal session-carried shape; the claim
@@ -1280,6 +1500,7 @@ export class AccountDialogController {
     };
     try {
       await this.completeSignIn(
+        attempt,
         {
           sessionId: claimed.sessionId || sessionId,
           deviceId: claimed.deviceId ?? '',
@@ -1291,28 +1512,62 @@ export class AccountDialogController {
         minimalUser,
       );
     } catch (error) {
-      this.failSignIn(errorMessage(error));
+      if (this.isCurrentAttempt(attempt)) this.failSignIn('unknown', errorMessage(error));
     }
   }
 
   /**
-   * Commit an authorized session, notify, and return to the account list. Shared
-   * by the shared-key, QR, and mint-switch paths so they cannot drift.
+   * Install an authorized session, notify, and return to the account list.
+   * Shared by the shared-key and QR paths so they cannot drift.
+   *
+   * THE install point, and so the last place an abandoned attempt is stopped:
+   * the bearer is planted and the session committed only while `attempt` is
+   * still current. A commit that fails restores the bearer the client had
+   * before, so a half-installed session never leaves requests going out as an
+   * account the device does not hold.
+   *
+   * A failed commit REJECTS (after that restore), so each caller keeps its own
+   * policy: the QR path fails the attempt, the shared-identity path falls
+   * through to the QR handoff.
+   *
+   * Once the commit has resolved the session IS this device's, whether or not
+   * the user moved on while it ran. It is reported (`onSignedIn`, re-read) either
+   * way; only the surface bookkeeping is skipped for a superseded attempt, so a
+   * newer attempt's state is never overwritten.
+   *
+   * Residual: an attempt abandoned after the server minted its session (a claim
+   * or shared-identity mint that was already in flight) leaves that server
+   * session un-installed on this device — it is never planted or committed here,
+   * but it is not revoked either.
    */
   private async completeSignIn(
+    attempt: number,
     session: SessionLoginResponse,
     user: MinimalUserData,
   ): Promise<void> {
-    await this.commitAuthorizedSession(session, user);
-    this.signInToken = null;
-    this.clearPollTimer();
-    this.closeAuthSessionSocket();
-    this.closeActivePopup();
-    // Terminal SUCCESS, not idle: the surface gets one honest frame to show
-    // "Identity confirmed" before it closes. Cleared on the next view change.
-    this.signIn = COMPLETED_SIGN_IN;
-    this.view = 'accounts';
-    this.emit();
+    if (!this.isCurrentAttempt(attempt)) return;
+    const previousToken = this.oxyServices.getAccessToken();
+    try {
+      if (session.accessToken) this.oxyServices.setTokens(session.accessToken);
+      await this.commitAuthorizedSession(session, user);
+    } catch (error) {
+      if (session.accessToken && this.oxyServices.getAccessToken() === session.accessToken) {
+        if (previousToken) this.oxyServices.setTokens(previousToken);
+        else this.oxyServices.clearTokens();
+      }
+      throw error;
+    }
+    if (this.isCurrentAttempt(attempt)) {
+      this.signInToken = null;
+      this.clearPollTimer();
+      this.closeAuthSessionSocket();
+      this.closeActivePopup();
+      // Terminal SUCCESS, not idle: the surface gets one honest frame to show
+      // "Identity confirmed" before it closes. Cleared on the next view change.
+      this.signIn = buildSignIn(COMPLETED_SIGN_IN_FACTS, this.signInAttempt);
+      this.view = 'accounts';
+      this.emit();
+    }
     this.onSignedIn?.(user);
     await this.refresh();
   }
@@ -1333,12 +1588,16 @@ export class AccountDialogController {
     }
   }
 
-  private failSignIn(message: string): void {
+  /**
+   * End the CURRENT attempt as failed. The attempt keeps its identity (the
+   * failure belongs to it); only a new attempt or a cancel moves it on.
+   */
+  private failSignIn(failure: SignInFailureReason, message: string): void {
     this.clearPollTimer();
     this.closeAuthSessionSocket();
     this.closeActivePopup();
     this.signInToken = null;
-    this.setSignIn({ ...IDLE_SIGN_IN_FACTS, phase: 'error', error: message });
+    this.setSignIn({ ...IDLE_SIGN_IN_FACTS, phase: 'error', error: message, failure });
   }
 
   private clearPollTimer(): void {
@@ -1426,7 +1685,7 @@ export class AccountDialogController {
    * to advance without a fact behind it.
    */
   private setSignIn(facts: SignInFlowFacts): void {
-    this.signIn = { ...facts, progress: deriveSignInProgress(facts) };
+    this.signIn = buildSignIn(facts, this.signInAttempt);
     this.emit();
   }
 
@@ -1438,6 +1697,7 @@ export class AccountDialogController {
       qrPayload,
       expiresAt,
       error,
+      failure,
       route,
       routeFailed,
       pushSentAt,
@@ -1449,6 +1709,7 @@ export class AccountDialogController {
       qrPayload,
       expiresAt,
       error,
+      failure,
       route,
       routeFailed,
       pushSentAt,

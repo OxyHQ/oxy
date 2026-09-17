@@ -7,7 +7,6 @@ import { OxyProvider } from "@oxy.so/services"
 import { getBloomThemeCSS, setBasePreset } from "@/lib/bloom-css"
 import { getApiBaseUrl } from "@/lib/oxy-api-client"
 import { OXY_CLIENT_ID } from "@/lib/oxy-client"
-import { productAnalytics } from "@/lib/product-analytics"
 import { isBrowserHubEnabled } from "@/lib/hub-client"
 import { LayoutProvider } from "@/lib/layout-context"
 import { LocaleProvider } from "@/lib/i18n/locale-context"
@@ -73,7 +72,10 @@ function App() {
                 <OxyProvider
                     baseURL={getApiBaseUrl()}
                     clientId={OXY_CLIENT_ID}
-                    productAnalytics={productAnalytics}
+                    // No product analytics on the origin where people sign in,
+                    // consent and recover (ADR 0024 D1): nothing third-party runs
+                    // here, and the edge's analytics beacon is blocked by this
+                    // origin's CSP (`oxy.pages-headers.json` → `sensitive`).
                     // With the browser hub ON, the durable credential for this
                     // browser profile is the server-side DeviceSession behind
                     // `__Host-oxy-device`, so this origin persists none of its

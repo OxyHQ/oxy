@@ -878,6 +878,8 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
         'iPad',
         'fp-1',
         undefined,
+        // Planting stays the default: only a caller that asks otherwise opts out.
+        { plantTokens: undefined },
       );
       expect(result).toEqual(sessionFixture);
     });
@@ -913,6 +915,7 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
         undefined,
         undefined,
         { retry: false },
+        { plantTokens: undefined },
       );
       expect(result).toEqual(sessionFixture);
     });

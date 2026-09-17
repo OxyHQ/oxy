@@ -14,8 +14,9 @@
  *  - DID = `did:web:oxy.so:u:<userId>` — anchored on the stable account id, NOT
  *    the keypair. The keypair is a *verification method* that maps 1:1 to the
  *    existing `authMethods[]`. Custodial (password-only) users get a DID
- *    controlled solely by Oxy (`OXY_DID`); creating a Commons key upgrades them
- *    to self-sovereign (`controller = [userDid, OXY_DID]`); fully reversible.
+ *    controlled solely by Oxy (`OXY_DID`); linking a root makes them
+ *    self-sovereign (`controller = [userDid]`, ADR 0024 D9). A root is never
+ *    unlinked back into a custodial account.
  *  - Verification methods use the secp256k1 `EcdsaSecp256k1VerificationKey2019`
  *    type with `publicKeyHex` for now (a `Multikey`/`publicKeyMultibase` form may
  *    be added later — see the plan's open risks).

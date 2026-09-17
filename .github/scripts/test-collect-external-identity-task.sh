@@ -45,7 +45,9 @@ aws() {
       if [[ "$*" == *'--next-token last '* ]]; then
         echo '{"events":[],"nextForwardToken":"last"}'
       elif [[ "$*" == *'--next-token second '* ]]; then
-        if [[ "$TEST_MODE" == meta || "$TEST_MODE" == meta_cross ]]; then
+        if [[ "$TEST_MODE" == profile || "$TEST_MODE" == profile_cross ]]; then
+          jq -nc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$EXPECTED_IMAGE_DIGEST" '{events:[{message:({operation:"inspect_profile",readOnly:true,actorUri:"https://bird.makeup/users/example",sourceSha:$sha,imageDigest:$digest,before:{},after:{},visited:1,refused:0}|tojson)}],nextForwardToken:"last"}'
+        elif [[ "$TEST_MODE" == meta || "$TEST_MODE" == meta_cross ]]; then
           jq -nc --arg sha "$EXPECTED_SOURCE_SHA" --arg digest "$EXPECTED_IMAGE_DIGEST" '{events:[{message:({operation:"inspect_meta",readOnly:true,canonicalAcct:"zuck@instagram.com",sourceSha:$sha,imageDigest:$digest,status:"refused",observations:[],visited:1,refused:1}|tojson)}],nextForwardToken:"last"}'
         elif [[ "$TEST_MODE" == completed || "$TEST_MODE" == service || "$TEST_MODE" == live_definition || "$TEST_MODE" == cursor || "$TEST_MODE" == wrong_started_by || "$TEST_MODE" == stuck ]]; then
           echo '{"events":[{"message":"{\"actorUri\":\"https://bird.makeup/users/example\",\"state\":\"refused\"}"},{"message":"{\"apply\":true,\"visited\":1,\"changed\":0,\"refused\":1,\"pending\":0,\"after\":\"https://bird.makeup/users/example\"}"}],"nextForwardToken":"last"}'
@@ -164,3 +166,15 @@ export TEST_ARTIFACT="$TEST_ARTIFACT.cross"
 prepare meta-cross
 if TEST_MODE=meta_cross collect meta-cross; then echo 'Meta diagnostic accepted as apply preview' >&2; exit 1; fi
 echo 'Meta diagnostic recovery and cross-operation rejection: passed'
+
+jq '.operation = "inspect_profile" | .dryRun = true | .identifiers = {actorUri:"https://bird.makeup/users/example"}' "$TEST_ARTIFACT" > "$TEST_ARTIFACT.profile"
+export TEST_ARTIFACT="$TEST_ARTIFACT.profile"
+prepare profile
+TEST_MODE=profile collect profile
+jq -e '.operation == "inspect_profile" and .readOnly' "$test_root/profile/identity-reconciliation-report/summary.json" >/dev/null
+if COLLECTION_MODE=stop_completed TEST_MODE=profile collect profile; then exit 1; fi
+jq '.operation = "reconcile"' "$TEST_ARTIFACT" > "$TEST_ARTIFACT.cross"
+export TEST_ARTIFACT="$TEST_ARTIFACT.cross"
+prepare profile-cross
+if TEST_MODE=profile_cross collect profile-cross; then exit 1; fi
+echo 'Profile diagnostic cannot authorize apply/stop: passed'
