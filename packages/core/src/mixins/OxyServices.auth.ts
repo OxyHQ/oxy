@@ -546,6 +546,24 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
       const secret = apiSecret || this._serviceApiSecret;
 
       if (!key || !secret) {
+        /**
+         * No credential configured — so prove what this process IS instead
+         * (ADR 0026).
+         *
+         * This is what lets an official service drop its api key and secret
+         * WITHOUT a code change: remove the two environment variables, and the
+         * next token comes from the workload path. It is deliberately the
+         * fallback rather than the preference, so a deployment that still has a
+         * credential keeps using it and the migration is one service at a time.
+         *
+         * A process with no credential AND no attestation still gets the
+         * original error: "nothing to authenticate with" is the truth there, and
+         * a local checkout must not be told to go looking for a container
+         * credentials endpoint that is not there.
+         */
+        if (await this._canUseWorkloadIdentity()) {
+          return this._getWorkloadServiceToken();
+        }
         throw new Error('Service credentials not provided. Call configureServiceAuth() or pass apiKey and apiSecret.');
       }
 
@@ -622,6 +640,81 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         if (settled?.pending === pending) {
           settled.pending = null;
         }
+      }
+    }
+
+    /**
+     * Whether this process can prove what it is (ADR 0026).
+     *
+     * The check and the module that performs it are loaded LAZILY and only on a
+     * Node host. `@oxy.so/core`'s root barrel reaches React Native and Expo, and
+     * `server/workloadIdentity` imports `node:crypto` — a static import here
+     * would pull it into every mobile bundle for a path a phone can never take.
+     *
+     * @internal
+     */
+    async _canUseWorkloadIdentity(): Promise<boolean> {
+      if (typeof process === 'undefined' || !process.versions?.node) return false;
+      try {
+        const { canAttestWorkloadIdentity } = await import('../server/workloadIdentity');
+        return canAttestWorkloadIdentity();
+      } catch {
+        // A bundler that dropped the server subpath, or a runtime without it.
+        // "We cannot attest here" is the correct reading, and the caller falls
+        // back to the credential error it would have thrown anyway.
+        return false;
+      }
+    }
+
+    /**
+     * A service token obtained by attestation, cached like a credential's.
+     *
+     * The cache key is a constant, not a credential hash: a process has exactly
+     * one identity, so there is nothing to key on and nothing to keep separate.
+     * The secret-comparison guard the credential path applies has nothing to
+     * compare here, which is the point — there is no secret.
+     *
+     * @internal
+     */
+    async _getWorkloadServiceToken(): Promise<string> {
+      const cacheKey = 'workload-identity';
+      const entry = this._serviceTokenCache.get(cacheKey);
+      const now = Date.now();
+      if (entry?.token && entry.expiresAt > now + 60_000) return entry.token;
+      if (entry?.pending) return entry.pending;
+
+      const { requestWorkloadServiceToken } = await import('../server/workloadIdentity');
+      const seeded = entry ?? {
+        token: '',
+        expiresAt: 0,
+        secretBuf: Buffer.alloc(0),
+        pending: null,
+        apiKey: cacheKey,
+      };
+      this._serviceTokenCache.set(cacheKey, seeded);
+
+      const pending = (async () => {
+        const granted = await requestWorkloadServiceToken({ baseUrl: this.getBaseURL() });
+        const current = this._serviceTokenCache.get(cacheKey);
+        if (current) {
+          current.token = granted.token;
+          current.expiresAt = Date.now() + granted.expiresIn * 1000;
+        }
+        return granted.token;
+      })();
+      seeded.pending = pending;
+
+      try {
+        return await pending;
+      } catch (error) {
+        // Never keep an entry that never held a token: the next caller must try
+        // again rather than inherit a failure.
+        const failed = this._serviceTokenCache.get(cacheKey);
+        if (failed?.pending === pending && !failed.token) this._serviceTokenCache.delete(cacheKey);
+        throw error;
+      } finally {
+        const settled = this._serviceTokenCache.get(cacheKey);
+        if (settled?.pending === pending) settled.pending = null;
       }
     }
 
