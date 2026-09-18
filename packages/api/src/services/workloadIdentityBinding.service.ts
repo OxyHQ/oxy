@@ -114,10 +114,10 @@ const BINDING_COLUMNS = {
  * The shape `canonicalAwsSubject` produces from a real attestation, and the only
  * shape a binding may store.
  *
- * Deliberately as permissive about the partition and the account as the verifier
- * is: this asserts the RESULT, it does not re-decide it, and a pattern stricter
- * than the one upstream would refuse a subject the verifier can genuinely
- * present — which is the same dead binding by the opposite route.
+ * Deliberately as permissive about the partition and the account as
+ * `canonicalAwsSubject` itself: this asserts the RESULT, it does not re-decide
+ * it. A stricter pattern would refuse a subject the verifier can genuinely
+ * present, which is the same dead binding reached from the opposite side.
  */
 const CANONICAL_ROLE_ARN = /^arn:aws[a-z-]*:iam::\d+:role\/[^/]+$/;
 
