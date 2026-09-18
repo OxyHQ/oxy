@@ -63,6 +63,34 @@ describe('native product agent identities', () => {
     expect(createHash('sha256').update(JSON.stringify(handoff)).digest('hex')).toHaveLength(64);
   });
 
+  /**
+   * The CONSUMER's half of the contract, and the only thing that makes this a
+   * contract rather than a publication.
+   *
+   * Alia owns the `agents` rows this hand-off describes, and for as long as it
+   * had no consumer the values above were true and inert: Homiio authenticated,
+   * Alia found no row for the Sindi agent id, and the turn was refused with
+   * `agent_unavailable`. Alia now pins a copy of this hand-off
+   * (`packages/api/src/config/native-product-agents.ts`) and applies it with a
+   * reviewed one-shot, and a copy with no gate is a copy that diverges.
+   *
+   * So both repositories assert the SAME hex over the SAME bytes. Changing this
+   * manifest here turns THIS suite red, naming the file in Alia that has to
+   * change with it — which is the cheap way to make a two-repository contract
+   * fail on the side that broke it, rather than in production in a third
+   * product weeks later.
+   *
+   * `JSON.stringify` preserves insertion order, so the key ORDER in
+   * `aliaNativeAgentBootstrapManifest()` is part of what is pinned. Reordering
+   * the fields is a manifest change even when every value is identical.
+   */
+  it('hashes to the exact hex Alia pins for the same bytes', () => {
+    const handoff = aliaNativeAgentBootstrapManifest();
+    expect(createHash('sha256').update(JSON.stringify(handoff)).digest('hex')).toBe(
+      '4d8b711602fff69d9711202cfa6017090d0559b608fa7ed0e2e2b3c09cd2e4c6',
+    );
+  });
+
   it('grants Clarity only user:read and exact official web/native redirects', () => {
     const app = NATIVE_PRODUCT_AGENTS.products.clarity.application;
     expect(app.scopes).toEqual(['user:read']);
