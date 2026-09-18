@@ -81,7 +81,7 @@ export type {
     PushTokenPlatform,
     RegisterPushTokenInput,
 } from './mixins/OxyServices.notifications';
-export type { ServiceApp, ServiceActingAsVerification } from './mixins/OxyServices.utility';
+export type { ServiceApp, ServiceActingAsVerification, OxyAuthRefusal } from './mixins/OxyServices.utility';
 export type {
     ContactDiscoveryMatch,
     ContactDiscoveryResponse,

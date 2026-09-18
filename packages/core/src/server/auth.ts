@@ -1,9 +1,11 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { OxyServices } from '../OxyServices';
+import type { OxyAuthRefusal } from '../mixins/OxyServices.utility';
+import { logger } from '../logger';
 import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '../utils/oxyServiceEnvironment';
 
 export { OXY_SERVICE_ENVIRONMENTS };
-export type { OxyServiceEnvironment };
+export type { OxyServiceEnvironment, OxyAuthRefusal };
 
 export interface OxyRequestUser {
   id: string;
@@ -40,6 +42,12 @@ export interface OxyAuthRequest extends Request {
   sessionId?: string | null;
   serviceApp?: OxyServiceAppContext;
   serviceActingAs?: OxyServiceActingAsContext;
+  /**
+   * Why the presented credential was refused, when one was and the request
+   * still reached the handler (the optional path). Read it with
+   * {@link getOxyAuthRefusal} — never put it in a response body.
+   */
+  oxyAuthRefusal?: OxyAuthRefusal;
 }
 
 export interface OxyAuthenticatedRequest extends OxyAuthRequest {
@@ -210,9 +218,37 @@ export function getRequiredOxyUserId(req: Request): string {
   return userId;
 }
 
+/**
+ * Why the credential on this request was refused, or `null` when none was
+ * presented (or it was accepted).
+ *
+ * Set by `oxy.auth()` — including the `optional: true` mount the composed
+ * helpers use, where a refusal otherwise leaves no trace: the request simply
+ * arrives unauthenticated and the host answers its own generic 401. Hosts log
+ * this beside their own 401; it is diagnostic and **must not be put into a
+ * response body**, which is exactly what it is kept out of.
+ */
+export function getOxyAuthRefusal(req: Request): OxyAuthRefusal | null {
+  return (req as OxyAuthRequest).oxyAuthRefusal ?? null;
+}
+
 export function requireOxyAuth(req: Request, res: Response, next: NextFunction): void {
   const userId = getOxyUserId(req);
   if (!userId) {
+    // The body stays exactly as generic as it was. The LOG does not: this 401
+    // is the one a caller sees when the optional resolver already refused a
+    // real credential, and printing that code here is what turns "Homiio got
+    // 401, Alia logged nothing" into one greppable line.
+    const refusal = getOxyAuthRefusal(req);
+    if (refusal) {
+      logger.warn(`[oxy.auth] 401 after refusal ${refusal.code}: ${refusal.reason}`, {
+        component: 'auth',
+        method: 'requireOxyAuth',
+        code: refusal.code,
+        stage: refusal.stage,
+        reason: refusal.reason,
+      });
+    }
     res.status(401).json({
       error: 'Unauthorized',
       message: 'Authentication required',

@@ -4,6 +4,13 @@
 
 ### Added
 
+- Auth refusals are observable to the host: `auth()` records
+  `req.oxyAuthRefusal` (`{ code, stage, reason, status, optional }`), logs one
+  `warn` per refusal with a stable code, and accepts an `onRefusal` observer.
+  Read it with `getOxyAuthRefusal(req)` from `@oxy.so/core/server`, which also
+  names the refusal in the log beside `requireOxyAuth`'s generic 401. Response
+  bodies are unchanged and a credential-free request is not a refusal.
+
 - Identity roots (ADR 0024): `signIdentityProof` / `digestIdentityPayload` sign
   the one payload-bound, one-use v2 root proof; web identity envelopes gain
   version 2 (12–24-word phrases or a raw private key, RP-bound wraps, holder
