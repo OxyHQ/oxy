@@ -32,6 +32,7 @@ import {
   inferenceTimestampSchema,
   oxyAccountIdSchema,
   oxyApplicationIdSchema,
+  PADDED_BASE64_PATTERN,
 } from './identifiers';
 
 /**
@@ -133,7 +134,7 @@ const kaanaCredentialSecretBase64Schema = z
   .string()
   .min(1)
   .max(8192)
-  .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)
+  .regex(PADDED_BASE64_PATTERN)
   .refine(isVisibleASCIIProviderCredential, {
     message: 'a decoded provider credential is 1-4096 visible ASCII bytes',
   });

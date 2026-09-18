@@ -1045,6 +1045,8 @@ export {
     // Normalized SSE events.
     inferenceStreamStartEventSchema,
     inferenceStreamDeltaEventSchema,
+    inferenceAudioMediaTypeSchema,
+    MAX_INFERENCE_AUDIO_BYTES,
     inferenceStreamAudioEventSchema,
     inferenceStreamToolCallEventSchema,
     inferenceStreamUsageEventSchema,
@@ -1060,6 +1062,7 @@ export {
 export type {
     InferenceStreamStartEvent,
     InferenceStreamDeltaEvent,
+    InferenceAudioMediaType,
     InferenceStreamAudioEvent,
     InferenceStreamToolCallEvent,
     InferenceStreamUsageEvent,
