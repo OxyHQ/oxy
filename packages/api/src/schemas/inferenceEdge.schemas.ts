@@ -46,6 +46,7 @@ import {
   usageQuantitySchema,
   type InferenceInput,
   type InferenceMessage,
+  type InferenceSpeechParameters,
   type ResponseFormat,
   type RoutingTarget,
   type SamplingParameters,
@@ -304,7 +305,8 @@ export type ChatCompletionsRequest = z.infer<typeof chatCompletionsRequestSchema
  */
 export const speechRequestSchema = z
   .object({
-    model: modelReferenceSchema,
+    model: modelReferenceSchema.optional(),
+    routingProfileId: routingProfileIdSchema.optional(),
     /**
      * The text to speak. Bounded so the ceiling cannot be driven arbitrarily high
      * by one request; the edge's own `MAX_REQUEST_BYTES` is the outer bound and
@@ -316,7 +318,12 @@ export const speechRequestSchema = z
     speed: z.number().min(0.25).max(4).optional(),
     user: z.string().min(1).max(64).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((request, ctx) => {
+    if ((request.model === undefined) === (request.routingProfileId === undefined)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['model'], message: 'name exactly one model or routingProfileId' });
+    }
+  });
 
 export type SpeechRequest = z.infer<typeof speechRequestSchema>;
 
@@ -606,6 +613,7 @@ export interface NormalizedEdgeRequest {
   readonly stream: boolean;
   readonly maxOutputTokens?: number;
   readonly sampling: SamplingParameters;
+  readonly speech?: InferenceSpeechParameters;
   readonly tools: ToolDefinition[];
   readonly toolChoice?: ToolChoice;
   readonly responseFormat?: ResponseFormat;
@@ -774,12 +782,22 @@ function normalizeOpenAiResponseFormat(
  * thing it names.
  */
 export function normalizeSpeechRequest(request: SpeechRequest): NormalizedEdgeRequest {
+  if (request.routingProfileId === undefined && request.model === undefined) {
+    throw new Error('speech requires a model or routingProfileId');
+  }
   return defined({
     operation: { kind: 'speech' as const, characters: request.input.length },
-    target: { kind: 'model' as const, modelReference: request.model },
+    target: request.routingProfileId !== undefined
+      ? { kind: 'routing_profile_id' as const, routingProfileId: request.routingProfileId }
+      : { kind: 'model' as const, modelReference: request.model as string },
     input: { format: 'text' as const, text: request.input },
     stream: false,
     sampling: {},
+    speech: {
+      voice: request.voice,
+      responseFormat: request.response_format ?? 'mp3',
+      ...(request.speed === undefined ? {} : { speed: request.speed }),
+    },
     tools: [],
     delegatedUserId: request.user,
   });

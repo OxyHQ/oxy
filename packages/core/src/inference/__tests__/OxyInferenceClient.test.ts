@@ -832,3 +832,51 @@ describe('OxyInferenceClient', () => {
         expect(calls[0].url).toBe('http://test.invalid/v1/models');
     });
 });
+
+
+describe('speech', () => {
+    it('preserves audio bytes, exact profile and delegated user with the service credential', async () => {
+        const bytes = new Uint8Array([73, 68, 51, 0, 255, 4]);
+        const transport = jest.fn(async () => new Response(bytes, { headers: {
+            'Content-Type': 'audio/mpeg', 'X-Oxy-Request-Id': 'req_speech',
+        } }));
+        const client = new OxyInferenceClient({ credential: async () => 'service-test', fetch: transport });
+        const input = { routingProfileId: 'opaque-reviewed-id', input: 'Hola 👋', voice: 'female', speed: 1.15 };
+        const result = await client.speech(input, { delegatedUserId: 'user_test', idempotencyKey: 'speech_test' });
+        expect(result).toEqual({ audio: bytes, mediaType: 'audio/mpeg', requestId: 'req_speech' });
+        const [url, init] = (transport.mock.calls as unknown as Array<[string, RequestInit]>)[0];
+        expect(url).toBe('https://api.oxy.so/v1/audio/speech');
+        expect(JSON.parse(String(init.body))).toEqual(input);
+        const headers = new Headers(init.headers);
+        expect(headers.get('Authorization')).toBe('Bearer service-test');
+        expect(headers.get('X-Oxy-User-Id')).toBe('user_test');
+        expect(headers.get('Idempotency-Key')).toBe('speech_test');
+    });
+    it('preserves retryable refusal metadata without retrying a paid request', async () => {
+        const transport = jest.fn(async () => new Response(JSON.stringify({ schemaVersion: 1,
+            code: 'rate_limited', message: 'Capacity unavailable', requestId: 'req_throttled',
+            retryable: true, retryAfterMs: 1500 }), { status: 429 }));
+        const client = new OxyInferenceClient({ credential: 'test', fetch: transport });
+        await expect(client.speech({ model: 'xai/tts', input: 'Hola', voice: 'female' }))
+            .rejects.toMatchObject({ code: 'rate_limited', requestId: 'req_throttled', retryAfterMs: 1500 });
+        expect(transport).toHaveBeenCalledTimes(1);
+    });
+    it.each([
+        { body: '', type: 'audio/mpeg' }, { body: '<html>unavailable</html>', type: 'text/html' },
+        { body: '{}', type: 'application/json' },
+    ])('refuses successful HTTP responses without audio: %p', async ({ body, type }) => {
+        const client = new OxyInferenceClient({ credential: 'test', fetch: async () =>
+            new Response(body, { headers: { 'Content-Type': type } }) });
+        await expect(client.speech({ model: 'xai/tts', input: 'Hola', voice: 'female' }))
+            .rejects.toBeInstanceOf(OxyInferenceProtocolError);
+    });
+    it('bounds streamed binary output and cancels the remaining body', async () => {
+        const cancelled = jest.fn();
+        const client = new OxyInferenceClient({ credential: 'test', fetch: async () => new Response(
+            new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(20 * 1024 * 1024 + 1)); }, cancel: cancelled }),
+            { headers: { 'Content-Type': 'audio/mpeg' } }) });
+        await expect(client.speech({ model: 'xai/tts', input: 'Hola', voice: 'female' }))
+            .rejects.toBeInstanceOf(OxyInferenceProtocolError);
+        expect(cancelled).toHaveBeenCalledTimes(1);
+    });
+});

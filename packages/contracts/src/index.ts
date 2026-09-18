@@ -1022,6 +1022,7 @@ export {
     responseFormatSchema,
     clientRequestMetadataSchema,
     inferenceRequestSchema,
+    inferenceSpeechParametersSchema,
 } from './inference/request';
 
 export type {
@@ -1037,12 +1038,14 @@ export type {
     ResponseFormat,
     ClientRequestMetadata,
     InferenceRequest,
+    InferenceSpeechParameters,
 } from './inference/request';
 
 export {
     // Normalized SSE events.
     inferenceStreamStartEventSchema,
     inferenceStreamDeltaEventSchema,
+    inferenceStreamAudioEventSchema,
     inferenceStreamToolCallEventSchema,
     inferenceStreamUsageEventSchema,
     inferenceRouteSwitchDetailSchema,
@@ -1057,6 +1060,7 @@ export {
 export type {
     InferenceStreamStartEvent,
     InferenceStreamDeltaEvent,
+    InferenceStreamAudioEvent,
     InferenceStreamToolCallEvent,
     InferenceStreamUsageEvent,
     InferenceRouteSwitchDetail,

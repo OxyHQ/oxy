@@ -347,6 +347,7 @@ interface StreamedResponse {
   readonly frames: Frame[];
   /** The whole body, for a non-streaming response. */
   readonly body: string;
+  readonly bytes: Buffer;
 }
 
 interface EdgeHarness {
@@ -456,6 +457,7 @@ function clientFor(port: number): EdgeHarness['request'] {
         },
         (res) => {
           let text = '';
+          const binary: Buffer[] = [];
           let pending = '';
           let name = '';
           const data: string[] = [];
@@ -479,6 +481,7 @@ function clientFor(port: number): EdgeHarness['request'] {
           };
 
           res.on('data', (chunk: Buffer) => {
+            binary.push(chunk);
             const piece = chunk.toString('utf8');
             text += piece;
             pending += piece;
@@ -496,11 +499,12 @@ function clientFor(port: number): EdgeHarness['request'] {
               headers: res.headers,
               frames,
               body: text,
+              bytes: Buffer.concat(binary),
             });
           });
           res.on('close', () => {
             if (!destroyed) return;
-            resolve({ status: res.statusCode ?? 0, headers: res.headers, frames, body: text });
+            resolve({ status: res.statusCode ?? 0, headers: res.headers, frames, body: text, bytes: Buffer.concat(binary) });
           });
         }
       );
@@ -545,7 +549,7 @@ const REVISION = '2026-01-01';
 const INPUT_PRICE_PER_TOKEN = 3 / 1_000_000;
 const OUTPUT_PRICE_PER_TOKEN = 15 / 1_000_000;
 
-async function makeFixture(): Promise<Fixture> {
+async function makeFixture(speech = false): Promise<Fixture> {
   const db = getDb();
   const tag = suffix();
 
@@ -593,7 +597,7 @@ async function makeFixture(): Promise<Fixture> {
       slug: modelSlug,
       displayName: `Model ${tag}`,
       inputModalities: ['text'],
-      outputModalities: ['text'],
+      outputModalities: speech ? ['audio'] : ['text'],
       supportsTools: true,
       supportsParallelToolCalls: false,
       supportsStructuredOutput: true,
@@ -613,7 +617,7 @@ async function makeFixture(): Promise<Fixture> {
 
   const [revisionRow] = await db
     .insert(inferenceModelRevisions)
-    .values({ modelId: model.id, revision: REVISION, releasedAt: new Date(), isCurrent: true })
+    .values({ modelId: model.id, revision: REVISION, releasedAt: new Date(), isCurrent: true, ...(speech ? { provenanceMarking: 'none', contentFilteringDefault: 'none' } : {}) })
     .returning({ id: inferenceModelRevisions.id });
 
   await db.insert(inferenceProviders).values({
@@ -637,6 +641,7 @@ async function makeFixture(): Promise<Fixture> {
     .returning({ id: priceVersions.id });
 
   await db.insert(priceVersionUnitPrices).values([
+    ...(speech ? [{ priceVersionId: priceVersion.id, unit: 'characters' as const, amount: '15.000000000000', per: 1_000_000 }] : []),
     {
       priceVersionId: priceVersion.id,
       unit: 'requests',
@@ -800,6 +805,7 @@ function emitter(context: ScriptContext, provider: string) {
   return {
     generationId,
     resolvedModelReference,
+    audio: (data: string, mediaType = 'audio/mpeg') => event({ type: 'audio', outputIndex: 0, mediaType, data }),
     start: () =>
       event({
         type: 'start',
@@ -2168,5 +2174,52 @@ describe('a streaming request is refused by the privacy review gate, before the 
       expect(response.headers['content-type']).toContain('text/event-stream');
       expect(stub.verified).toBe(1);
     });
+  });
+});
+
+
+describe('speech through the signed edge and ledger', () => {
+  it('preserves speech metadata, reassembles padded binary chunks and settles characters exactly', async () => {
+    const fixture = await makeFixture(true);
+    const chunks = [Buffer.from([73, 68, 51, 255]), Buffer.from([0, 128, 1, 4, 255])];
+    const units: UsageQuantity[] = [{ unit: 'characters', quantity: 7 }];
+    await withEdge(async (context) => {
+      expect(context.envelope.modality).toBe('audio');
+      expect(context.envelope.maxOutputTokens).toBeUndefined();
+      expect(context.envelope.speech).toEqual({ voice: 'female', responseFormat: 'mp3', speed: 1.15 });
+      expect(context.envelope.input).toEqual({ format: 'text', text: 'Hola 👋' });
+      const emit = emitter(context, fixture.provider);
+      emit.start();
+      for (const chunk of chunks) emit.audio(chunk.toString('base64'));
+      emit.usage(units); emit.done(); emit.report(units, 'completed');
+    }, async ({ request }) => {
+      const response = await request('POST', '/v1/audio/speech', {
+        model: fixture.modelReference, input: 'Hola 👋', voice: 'female', speed: 1.15,
+      }, bearer(fixture.token));
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toMatch(/^audio\/mpeg/);
+      expect(response.bytes).toEqual(Buffer.concat(chunks));
+    });
+    const receipts = await receiptsOf(fixture.accountId);
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0].outcome).toBe('completed');
+    expect(Number(receipts[0].billedAmount)).toBeCloseTo(7 * 15 / 1_000_000, 9);
+  });
+  it('refuses a stream that changes audio encoding instead of returning corrupt bytes', async () => {
+    const fixture = await makeFixture(true);
+    await withEdge(async (context) => {
+      const emit = emitter(context, fixture.provider); emit.start();
+      emit.audio('SUQz'); emit.audio('SUQz', 'audio/wav');
+      emit.done(); emit.report([{ unit: 'characters', quantity: 4 }], 'completed');
+    }, async ({ request }) => {
+      const response = await request('POST', '/v1/audio/speech', {
+        model: fixture.modelReference, input: 'Hola', voice: 'female',
+      }, bearer(fixture.token));
+      expect(response.status).toBeGreaterThanOrEqual(500);
+      expect(response.headers['content-type']).toMatch(/json/);
+    });
+    const receipts = await receiptsOf(fixture.accountId);
+    expect(receipts).toHaveLength(1);
+    expect(Number(receipts[0].billedAmount)).toBe(0);
   });
 });
