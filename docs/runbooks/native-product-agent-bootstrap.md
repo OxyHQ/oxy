@@ -26,6 +26,12 @@ The immutable bindings are:
 Names are collision diagnostics only. PostgreSQL writes and the Alia hand-off
 use those exact primary keys.
 
+The hand-off also carries each Alia agent's `capabilityGrants` — Sindi exactly
+`web`, `artifacts`, `memory`; Clarity empty, which denies. Oxy writes no
+`agents` row: Alia's own `Bootstrap native product agents` workflow applies
+them, and the manifest SHA-256 both repositories pin changes whenever a grant
+does.
+
 ## Bootstrap
 
 1. Confirm the live Oxy image contains

@@ -31,6 +31,27 @@ export const NATIVE_PRODUCT_AGENTS = {
         id: '01a0646a-078f-7514-9800-9f43ceed7df8',
         oxyAccountId: '01a0646a-078f-7974-9645-a5e8be237f47',
         visibility: 'private',
+        /**
+         * What Sindi may reach inside Alia, in ALIA's vocabulary
+         * (`packages/api/src/domain/capability-grants.ts` there).
+         *
+         * Oxy does not define these names and does not enforce them; it
+         * publishes them because a capability grant is an AUTHORITY, and this
+         * manifest is the hashed, two-repository-reviewed channel every other
+         * authority in the binding already travels through. The alternative —
+         * Alia deciding it alone — makes widening a product agent's reach a
+         * one-repository edit, which is exactly what the application binding
+         * below is not allowed to be.
+         *
+         * Exactly three families, in this order: `web` (search, scraping,
+         * browsing, deep research and the card tools), `artifacts` (canvas and
+         * generated files) and `memory` (what the person has already said).
+         * Nothing that acts in the world: no shell, browser, files, messaging,
+         * automation, delegation, MCP or integration. Oxy app access is NOT
+         * expressible here at all — Oxy's own DelegationGrant records are its
+         * sole authority.
+         */
+        capabilityGrants: ['web', 'artifacts', 'memory'],
       },
     },
     clarity: {
@@ -71,6 +92,8 @@ export const NATIVE_PRODUCT_AGENTS = {
         id: '01a0646a-078f-7642-95ef-439952f4f3f9',
         oxyAccountId: '01a0646a-078f-7120-a993-a03c180c81b0',
         visibility: 'private',
+        /** Nothing granted. Empty DENIES in Alia; it is not "unset". */
+        capabilityGrants: [],
       },
     },
   },
@@ -93,6 +116,14 @@ export type NativeProductAgentManifest = typeof NATIVE_PRODUCT_AGENTS;
  * rather than shipping a manifest whose only consumer still believes the old
  * one. `JSON.stringify` preserves insertion order, so the key order below is
  * part of what is pinned.
+ *
+ * `capabilityGrants` is the one field written in ALIA's vocabulary rather than
+ * Oxy's. It is here, and not in Alia's own seed file beside the tagline,
+ * because it is the only field that decides what the agent may DO: a tagline
+ * that drifts is cosmetic, and a grant that drifts is a product assistant that
+ * quietly gained a tool nobody approved. Publishing it through the hash makes
+ * widening it a change both repositories have to merge. An EMPTY array is a
+ * decision — it denies everything — and never "unset".
  */
 export function aliaNativeAgentBootstrapManifest(): Readonly<{
   schemaVersion: 1;
@@ -103,6 +134,7 @@ export function aliaNativeAgentBootstrapManifest(): Readonly<{
     ownerOxyAccountId: string;
     product: 'homiio' | 'clarity';
     visibility: 'private';
+    capabilityGrants: readonly string[];
   }>[];
 }> {
   return {
@@ -115,6 +147,7 @@ export function aliaNativeAgentBootstrapManifest(): Readonly<{
         ownerOxyAccountId: NATIVE_PRODUCT_AGENTS.products.homiio.project.id,
         product: 'homiio',
         visibility: 'private',
+        capabilityGrants: NATIVE_PRODUCT_AGENTS.products.homiio.aliaAgent.capabilityGrants,
       },
       {
         id: NATIVE_PRODUCT_AGENTS.products.clarity.aliaAgent.id,
@@ -123,6 +156,7 @@ export function aliaNativeAgentBootstrapManifest(): Readonly<{
         ownerOxyAccountId: NATIVE_PRODUCT_AGENTS.products.clarity.project.id,
         product: 'clarity',
         visibility: 'private',
+        capabilityGrants: NATIVE_PRODUCT_AGENTS.products.clarity.aliaAgent.capabilityGrants,
       },
     ],
   };
