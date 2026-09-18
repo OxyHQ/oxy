@@ -7894,6 +7894,126 @@
         "operationId": "postAuthServiceToken"
       }
     },
+    "/auth/service-token/workload": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "POST /auth/service-token/workload",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/auth.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/auth.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "aws-iam"
+                    ]
+                  },
+                  "nonce": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attestation": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "provider",
+                  "nonce",
+                  "attestation"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAuthServiceTokenWorkload"
+      }
+    },
+    "/auth/service-token/workload/challenge": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "The workload-identity mint: a service token for a first-party service that",
+        "description": "holds no credential at all (ADR 0026).\n\nTwo calls, because an attestation is replayable on its own: ask for a nonce,\nthen present an attestation that signs it. Both are rate-limited on the same\nbucket as the credential mint — they are the same resource, and a caller that\ncannot answer a challenge should not be able to spend the mint's budget by\nasking for challenges.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/auth.ts`, naming a Zod schema the file imports."
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "postAuthServiceTokenWorkloadChallenge"
+      }
+    },
     "/auth/session/approve-info/{authorizeCode}": {
       "get": {
         "tags": [
