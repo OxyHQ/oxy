@@ -365,6 +365,12 @@ export const SEED_APPS: SeedAppSpec[] = [
       // sync, link previews and the place lookup alike.
       'clarity:search',
       'clarity:index',
+      // Clarity only indexes a listing whose host is a site the account has
+      // verified, so Mention registers mention.earth as its own Clarity site
+      // (`POST /v1/sites`) against the Oxy-verified domain. Without it every
+      // job ingest is refused with `The listing host is not a verified Clarity
+      // site owned by this account`.
+      'clarity:sites:manage',
     ],
     capabilities: [catalogApplicationCapability('mention')],
   },

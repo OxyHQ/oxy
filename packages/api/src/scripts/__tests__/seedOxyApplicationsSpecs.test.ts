@@ -448,6 +448,7 @@ describe('the canonical official-application registry', () => {
         'capability-audit:write',
         'clarity:search',
         'clarity:index',
+        'clarity:sites:manage',
       ]);
       expect(specNamed('Mention').capabilities).toEqual([
         catalogApplicationCapability('mention'),
