@@ -4,17 +4,6 @@
 
 ### Added
 
-- Auth refusals are observable to the host: `auth()` records
-  `req.oxyAuthRefusal` (`{ code, stage, reason, status, optional }`), logs one
-  `warn` per refusal with a stable code, and accepts an `onRefusal` observer.
-  Read it with `getOxyAuthRefusal(req)` from `@oxy.so/core/server`, which also
-  names the refusal in the log beside `requireOxyAuth`'s generic 401. Response
-  bodies are unchanged and a credential-free request is not a refusal.
-  `onRefusal` is declared on the `OxyServices` interface consumers see, not only
-  on the mixin: that hand-written list is what the published `.d.ts` carries, and
-  1.5.0 shipped without it, so a host passing the option got
-  `TS2345 … has no properties in common with`.
-
 - Identity roots (ADR 0024): `signIdentityProof` / `digestIdentityPayload` sign
   the one payload-bound, one-use v2 root proof; web identity envelopes gain
   version 2 (12–24-word phrases or a raw private key, RP-bound wraps, holder
@@ -55,6 +44,36 @@
   correlated audit trail used by Oxy Settings.
 - Resource-bound external MCP connections can now be listed and revoked without
   exposing access or refresh tokens to clients.
+
+## 1.5.1
+
+Published 2026-09-18 from the maintenance line (tag `@oxy.so/core@1.5.1`: the
+1.5.0 release commit plus the interface declaration it was missing). Everything
+under "Unreleased" above it did NOT ship; the breaking identity work makes the
+next release from `main` a major.
+
+### Fixed
+
+- `onRefusal` is declared on the `OxyServices` interface consumers see, not only
+  on the mixin. `src/OxyServices.ts` re-declares `auth()` / `serviceAuth()` by
+  hand and that hand-written list is what the published `.d.ts` carries, so a
+  host passing the option 1.5.0 advertised got
+  `TS2345 … has no properties in common with`.
+  `src/__tests__/publicInterfaceParity.test.ts` compares the two declarations.
+
+## 1.5.0
+
+Published 2026-09-18 from the maintenance line (tag `@oxy.so/core@1.5.0`).
+
+### Added
+
+- Auth refusals are observable to the host: `auth()` records
+  `req.oxyAuthRefusal` (`{ code, stage, reason, status, optional }`), logs one
+  `warn` per refusal with a stable code, and accepts an `onRefusal` observer.
+  Read it with `getOxyAuthRefusal(req)` from `@oxy.so/core/server`, which also
+  names the refusal in the log beside `requireOxyAuth`'s generic 401. Response
+  bodies are unchanged and a credential-free request is not a refusal. (Passing
+  `onRefusal` needs 1.5.1 — see above.)
 
 ## 1.4.0
 
