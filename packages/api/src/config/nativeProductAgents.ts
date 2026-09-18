@@ -78,7 +78,22 @@ export const NATIVE_PRODUCT_AGENTS = {
 
 export type NativeProductAgentManifest = typeof NATIVE_PRODUCT_AGENTS;
 
-/** Stable hand-off consumed by Alia's separate, exact-PK bootstrap. */
+/**
+ * Stable hand-off consumed by Alia's separate, exact-PK bootstrap.
+ *
+ * The consumer is `packages/api/src/config/native-product-agents.ts` in
+ * OxyHQ/Alia, which pins these exact bytes, and
+ * `scripts/bootstrap-native-product-agents.ts` beside it, which writes the
+ * `agents` rows they describe. Alia owns that table; this function is the only
+ * thing that tells it what to write.
+ *
+ * **Both repositories pin the SHA-256 of `JSON.stringify` of this value**, and
+ * `__tests__/nativeProductAgents.test.ts` asserts it here. Editing the shape or
+ * any value below therefore fails this suite with the Alia file named in it,
+ * rather than shipping a manifest whose only consumer still believes the old
+ * one. `JSON.stringify` preserves insertion order, so the key order below is
+ * part of what is pinned.
+ */
 export function aliaNativeAgentBootstrapManifest(): Readonly<{
   schemaVersion: 1;
   agents: readonly Readonly<{
