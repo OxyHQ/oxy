@@ -69,6 +69,16 @@ export type {
 } from './transparency/checkpoint';
 
 // ---------------------------------------------------------------------------
+// Auth — registration proof-of-work (message format + difficulty check)
+// ---------------------------------------------------------------------------
+export {
+  registrationPowMessage,
+  countLeadingZeroBits,
+  meetsRegistrationPowDifficulty,
+  REGISTRATION_POW_DIFFICULTY_BITS,
+} from './auth/registrationPow';
+
+// ---------------------------------------------------------------------------
 // Identity — injected verification-method resolution + authorization rule
 // ---------------------------------------------------------------------------
 export { isAuthorizedKey } from './identity/resolver';
