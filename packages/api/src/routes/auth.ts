@@ -46,11 +46,16 @@ import { isTrustedApplication } from '../utils/trustedApplication';
 import { authMiddleware, rejectQueryToken, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
-import { BadRequestError, NotFoundError, UnauthorizedError, ForbiddenError } from '../utils/error';
+import { ApiError, BadRequestError, NotFoundError, UnauthorizedError, ForbiddenError } from '../utils/error';
+import { mintServiceToken, SERVICE_TOKEN_EXPIRY } from '../services/serviceTokenMint.service';
+import {
+  exchangeWorkloadAttestation,
+  issueWorkloadChallenge,
+  WorkloadIdentityError,
+} from '../services/workloadIdentity.service';
 import { OAuthError, oauthHandler, sendOAuthSuccess } from '../utils/oauthResponse';
 import { resolveClientAuthentication } from '../utils/oauthClientAuth';
 import { ACCESS_TOKEN_TTL_SECONDS } from '../utils/sessionUtils';
-import { signServiceTokenEd25519 } from '../config/serviceTokenSigning';
 import { logger } from '../utils/logger';
 import SignatureService from '../services/signature.service';
 import { emitAuthSessionUpdate, emitAuthSessionProgress } from '../utils/authSessionSocket';
@@ -97,6 +102,7 @@ import {
   authSessionDenySchema,
   authSessionClaimSchema,
   serviceTokenSchema,
+  workloadServiceTokenSchema,
   oauthAuthorizeSchema,
   oauthTokenSchema,
   oauthClientParams,
@@ -3583,8 +3589,6 @@ router.get(
 // Service Token Authentication (Internal Services)
 // ============================================
 
-const SERVICE_TOKEN_EXPIRY = 3600; // 1 hour in seconds
-
 const serviceTokenLimiter = rateLimit({
   prefix: 'rl:auth:service-token:',
   windowMs: 5 * 60 * 1000, // 5-minute window
@@ -3783,7 +3787,6 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
       ? intersectScopes(credential.scopes, appScopes)
       : appScopes.filter((scope) => !isPrivilegedScope(scope));
   const serviceClaims = {
-    type: 'service',
     appId: app.id,
     appName: app.name,
     credentialId: credential.id,
@@ -3791,26 +3794,9 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
     scopes,
     environment: credential.environment,
   } as const;
-  const now = Math.floor(Date.now() / 1_000);
-  const asymmetricToken = signServiceTokenEd25519({
-    ...serviceClaims,
-    iat: now,
-    exp: now + SERVICE_TOKEN_EXPIRY,
-    iss: 'oxy-auth',
-    aud: 'oxy-api',
-  });
-  if (!asymmetricToken && !process.env.ACCESS_TOKEN_SECRET) {
-    logger.error('[ServiceToken] no asymmetric signing key or legacy access-token key configured');
-    throw new Error('Server configuration error');
-  }
-  // Transitional mint compatibility: signing switches to Ed25519 as soon as
-  // the dedicated key is present. HS256 remains only until the separately
-  // scheduled ADR-0012 retirement window closes.
-  const token = asymmetricToken ?? jwt.sign(
-    serviceClaims,
-    process.env.ACCESS_TOKEN_SECRET as string,
-    { expiresIn: SERVICE_TOKEN_EXPIRY, issuer: 'oxy-auth', audience: 'oxy-api' },
-  );
+  // Signed by `services/serviceTokenMint.service.ts`, which the workload mint
+  // shares: two ways to prove who you are, one claim set.
+  const token = mintServiceToken(serviceClaims);
 
   // Update lastUsedAt on the credential and the application.
   const usedAt = new Date();
@@ -3836,5 +3822,53 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
     appName: app.name,
   });
 }));
+
+/**
+ * The workload-identity mint: a service token for a first-party service that
+ * holds no credential at all (ADR 0026).
+ *
+ * Two calls, because an attestation is replayable on its own: ask for a nonce,
+ * then present an attestation that signs it. Both are rate-limited on the same
+ * bucket as the credential mint — they are the same resource, and a caller that
+ * cannot answer a challenge should not be able to spend the mint's budget by
+ * asking for challenges.
+ */
+router.post('/service-token/workload/challenge', serviceTokenLimiter, asyncHandler(async (_req, res) => {
+  try {
+    sendSuccess(res, await issueWorkloadChallenge());
+  } catch (error: unknown) {
+    throw asWorkloadHttpError(error);
+  }
+}));
+
+router.post(
+  '/service-token/workload',
+  serviceTokenLimiter,
+  validate({ body: workloadServiceTokenSchema }),
+  asyncHandler(async (req, res) => {
+    const { provider, nonce, attestation } = req.body;
+    try {
+      sendSuccess(res, await exchangeWorkloadAttestation({ provider, nonce, attestation }));
+    } catch (error: unknown) {
+      throw asWorkloadHttpError(error);
+    }
+  }),
+);
+
+/**
+ * A refusal the caller can act on, and never more than that.
+ *
+ * `reason` is a bounded token from this module's own vocabulary, so it is safe
+ * to return: it tells an operator whether the attestation was stale, unsigned or
+ * unbound without describing our infrastructure. Anything that is not a
+ * {@link WorkloadIdentityError} is someone else's bug and keeps its 500.
+ */
+function asWorkloadHttpError(error: unknown): unknown {
+  if (!(error instanceof WorkloadIdentityError)) return error;
+  const details = { reason: error.reason };
+  if (error.status === 401) return new UnauthorizedError(error.message, details);
+  if (error.status === 403) return new ForbiddenError(error.message, details);
+  return new ApiError(error.status, error.message, undefined, details);
+}
 
 export default router;

@@ -1,5 +1,6 @@
 import { commonsDenyReasonSchema, usernameSchema } from '@oxy.so/contracts';
 import { z } from 'zod';
+import { ATTESTATION_PROVIDERS } from '../services/workloadAttestation.service';
 
 const deviceIdField = z.string().trim().min(1).max(128).optional();
 
@@ -157,6 +158,18 @@ export const authSessionClaimSchema = z.object({
 export const serviceTokenSchema = z.object({
   apiKey: z.string().trim().min(1),
   apiSecret: z.string().trim().min(1),
+});
+
+// POST /auth/service-token/workload
+// The credential-free mint: a first-party service presents a proof its own
+// infrastructure issued, answering the nonce it was handed a moment earlier.
+// The attestation's SHAPE belongs to its provider and is validated by that
+// provider's verifier, so it is only constrained to "an object" here — a schema
+// that guessed at AWS's fields would have to change to admit the next provider.
+export const workloadServiceTokenSchema = z.object({
+  provider: z.enum(ATTESTATION_PROVIDERS),
+  nonce: z.string().trim().min(1).max(256),
+  attestation: z.record(z.string(), z.unknown()),
 });
 
 // POST /auth/oauth/authorize
