@@ -687,6 +687,13 @@
       "when": 1789599167779,
       "tag": "0098_drop_identity_move_protocol_version",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1789719356755,
+      "tag": "0099_application_workload_identities",
+      "breakpoints": true
     }
   ]
 }

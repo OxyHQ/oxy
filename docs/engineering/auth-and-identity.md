@@ -93,8 +93,34 @@ Internal Oxy ecosystem apps authenticate via short-lived service JWTs (OAuth2 Cl
 3. Service uses JWT as `Authorization: Bearer <token>` + `X-Oxy-User-Id: <userId>` for delegation
 4. `@oxy.so/core` `auth()` middleware recognizes `type: 'service'` JWTs (stateless, no session DB lookup)
 
+**Workload identity — a first-party service with NO credential (ADR 0026):**
+
+An official service does not need step 1 or 2. It proves what it IS to the
+infrastructure it runs on and receives the same 1h JWT:
+
+1. `POST /auth/service-token/workload/challenge` → a single-use nonce (60s, Redis)
+2. `POST /auth/service-token/workload` with `{ provider, nonce, attestation }` → the same 1h JWT
+
+On AWS the attestation is a SigV4-signed `GetCallerIdentity` the caller never
+sends; Oxy replays it to STS and believes STS's answer. The verifier is the only
+module that knows which cloud we are on — another provider is one more
+implementation of `AttestationVerifier`, with no change to callers or verifiers of
+the token.
+
+`application_workload_identities` maps `(provider, subject)` → application. The row
+carries no secret, is created by the platform at deploy time, and deleting it is
+how a workload is cut off. The mint re-applies `isTrustedApplication`, takes the
+application's non-privileged scopes only, and stamps the DEPLOYMENT's environment
+(an attestation cannot ask for one).
+
+Third-party applications keep the credential flow above: they run where we cannot
+attest, which is exactly where registration belongs.
+
 **Key files:**
-- `packages/api/src/routes/auth.ts` — `POST /auth/service-token` endpoint (validates against `ApplicationCredential`)
+- `packages/api/src/routes/auth.ts` — `POST /auth/service-token` (credential) and `/auth/service-token/workload*` (attestation)
+- `packages/api/src/services/workloadAttestation.service.ts` — the provider seam; AWS STS verifier
+- `packages/api/src/services/workloadIdentity.service.ts` — challenge, binding lookup, scope and trust gates
+- `packages/api/src/services/serviceTokenMint.service.ts` — the ONE signer both paths share
 - `packages/api/src/models/Application.ts` — `isInternal`, `type` field
 - `packages/api/src/models/ApplicationCredential.ts` — `publicKey`, `secretHash`, `type: 'service'`
 - `packages/core/src/mixins/OxyServices.utility.ts` — `auth()` service token handling, `serviceAuth()` middleware
