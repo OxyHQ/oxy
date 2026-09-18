@@ -143,6 +143,33 @@ function parseAmzDate(value: string | undefined): number | null {
  * caller's. Anything that is not an STS `GetCallerIdentity` carrying our nonce
  * inside its signature is refused before a single byte leaves this process.
  */
+
+/**
+ * The ROLE an attestation belongs to, not the session that presented it.
+ *
+ * STS answers `GetCallerIdentity` for a task with
+ * `arn:aws:sts::<account>:assumed-role/<RoleName>/<SessionName>`, and the
+ * session name is different for every task — so binding a workload to what STS
+ * literally returns would bind it to one container that has already been
+ * replaced. The stable identity is the role, which is what a binding names.
+ *
+ * Anything that is not an assumed-role ARN is returned unchanged: a plain user
+ * or role ARN is already stable, and inventing a transformation for a shape we
+ * have not seen is how a subject silently becomes a different subject.
+ *
+ * ONE caveat, worth knowing before giving a role a path: an assumed-role ARN
+ * drops the role's IAM path, so a role at `/service/foo` cannot be
+ * reconstructed from it. Oxy's task roles have no path. If one ever does, its
+ * binding must be written with the reconstructed (pathless) ARN this returns,
+ * or it will not match.
+ */
+export function canonicalAwsSubject(arn: string): string {
+  const match = /^arn:(aws[a-z-]*):sts::(\d+):assumed-role\/([^/]+)\/.+$/.exec(arn);
+  if (!match) return arn;
+  const [, partition, account, roleName] = match;
+  return `arn:${partition}:iam::${account}:role/${roleName}`;
+}
+
 export class AwsIamAttestationVerifier implements AttestationVerifier {
   readonly provider = 'aws-iam' as const;
 
@@ -185,7 +212,7 @@ export class AwsIamAttestationVerifier implements AttestationVerifier {
       throw new AttestationError('stale', 'The attestation was signed too long ago.');
     }
 
-    const identity = await this.callSts(host, request.headers);
+    const identity = canonicalAwsSubject(await this.callSts(host, request.headers));
     return {
       provider: this.provider,
       subject: identity,

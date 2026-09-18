@@ -18,7 +18,12 @@
  *     is deliberately no path where the payload can name it.
  */
 
-import { AttestationError, AwsIamAttestationVerifier, ATTESTATION_NONCE_HEADER } from '../workloadAttestation.service';
+import {
+  AttestationError,
+  AwsIamAttestationVerifier,
+  ATTESTATION_NONCE_HEADER,
+  canonicalAwsSubject,
+} from '../workloadAttestation.service';
 
 const NONCE = 'challenge-nonce-value';
 const ARN = 'arn:aws:sts::237343248947:assumed-role/oxy-mention-task/abc123';
@@ -58,7 +63,11 @@ describe('AwsIamAttestationVerifier', () => {
     const fetchImpl = stsResponder(IDENTITY_XML);
     const verified = await verifierWith(fetchImpl).verify(attestation(), NONCE);
 
-    expect(verified).toMatchObject({ provider: 'aws-iam', subject: ARN });
+    // The ROLE, not the per-task session STS actually answered with.
+    expect(verified).toMatchObject({
+      provider: 'aws-iam',
+      subject: 'arn:aws:iam::237343248947:role/oxy-mention-task',
+    });
     expect(verified.attestationId).toMatch(/^wl_[0-9a-f]{24}$/);
   });
 
@@ -88,7 +97,20 @@ describe('AwsIamAttestationVerifier', () => {
   it('accepts a regional STS endpoint', async () => {
     const fetchImpl = stsResponder(IDENTITY_XML);
     const verified = await verifierWith(fetchImpl).verify(attestation({ host: 'sts.us-west-2.amazonaws.com' }), NONCE);
-    expect(verified.subject).toBe(ARN);
+    expect(verified.subject).toBe('arn:aws:iam::237343248947:role/oxy-mention-task');
+  });
+
+  it('resolves two tasks of one service to the SAME subject', async () => {
+    const first = await verifierWith(
+      stsResponder(IDENTITY_XML.replace('/abc123', '/task-one')),
+    ).verify(attestation(), NONCE);
+    const second = await verifierWith(
+      stsResponder(IDENTITY_XML.replace('/abc123', '/task-two')),
+    ).verify(attestation(), NONCE);
+
+    // The whole point: a binding names a role, and a role outlives its tasks.
+    expect(first.subject).toBe(second.subject);
+    expect(first.attestationId).toBe(second.attestationId);
   });
 
   it('refuses a nonce the signature does not cover', async () => {
@@ -168,5 +190,27 @@ describe('AwsIamAttestationVerifier', () => {
     await expect(verifierWith(fetchImpl).verify(attestation(), NONCE)).rejects.toMatchObject({
       reason: 'sts_unreachable',
     });
+  });
+});
+
+describe('canonicalAwsSubject', () => {
+  it('reduces an assumed-role ARN to the role that was assumed', () => {
+    expect(canonicalAwsSubject('arn:aws:sts::237343248947:assumed-role/oxy-mention-task/1a2b3c')).toBe(
+      'arn:aws:iam::237343248947:role/oxy-mention-task',
+    );
+  });
+
+  it('keeps a partition that is not the commercial one', () => {
+    expect(canonicalAwsSubject('arn:aws-us-gov:sts::111122223333:assumed-role/thing/session')).toBe(
+      'arn:aws-us-gov:iam::111122223333:role/thing',
+    );
+  });
+
+  it.each([
+    ['a plain role ARN', 'arn:aws:iam::237343248947:role/oxy-mention-task'],
+    ['a user ARN', 'arn:aws:iam::237343248947:user/PC-EXAMPLE'],
+    ['something that is not an ARN at all', 'not-an-arn'],
+  ])('leaves %s alone', (_label, value) => {
+    expect(canonicalAwsSubject(value)).toBe(value);
   });
 });
