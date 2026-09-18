@@ -10,6 +10,10 @@
   Read it with `getOxyAuthRefusal(req)` from `@oxy.so/core/server`, which also
   names the refusal in the log beside `requireOxyAuth`'s generic 401. Response
   bodies are unchanged and a credential-free request is not a refusal.
+  `onRefusal` is declared on the `OxyServices` interface consumers see, not only
+  on the mixin: that hand-written list is what the published `.d.ts` carries, and
+  1.5.0 shipped without it, so a host passing the option got
+  `TS2345 … has no properties in common with`.
 
 - Identity roots (ADR 0024): `signIdentityProof` / `digestIdentityPayload` sign
   the one payload-bound, one-use v2 root proof; web identity envelopes gain
