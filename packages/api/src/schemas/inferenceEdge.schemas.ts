@@ -38,6 +38,7 @@ import {
   inferenceMessageSchema,
   modelReferenceSchema,
   responseFormatSchema,
+  inferenceSpeechParametersSchema,
   routingProfileIdSchema,
   routingPolicyReferenceSchema,
   routingProfileSlugSchema,
@@ -313,9 +314,9 @@ export const speechRequestSchema = z
      * this is the per-field one.
      */
     input: z.string().min(1).max(100_000),
-    voice: z.string().min(1).max(64),
-    response_format: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
-    speed: z.number().min(0.25).max(4).optional(),
+    voice: inferenceSpeechParametersSchema.shape.voice,
+    response_format: inferenceSpeechParametersSchema.shape.responseFormat.optional(),
+    speed: inferenceSpeechParametersSchema.shape.speed,
     user: z.string().min(1).max(64).optional(),
   })
   .strict()
@@ -782,14 +783,11 @@ function normalizeOpenAiResponseFormat(
  * thing it names.
  */
 export function normalizeSpeechRequest(request: SpeechRequest): NormalizedEdgeRequest {
-  if (request.routingProfileId === undefined && request.model === undefined) {
-    throw new Error('speech requires a model or routingProfileId');
-  }
   return defined({
     operation: { kind: 'speech' as const, characters: request.input.length },
     target: request.routingProfileId !== undefined
       ? { kind: 'routing_profile_id' as const, routingProfileId: request.routingProfileId }
-      : { kind: 'model' as const, modelReference: request.model as string },
+      : { kind: 'model' as const, modelReference: request.model! },
     input: { format: 'text' as const, text: request.input },
     stream: false,
     sampling: {},

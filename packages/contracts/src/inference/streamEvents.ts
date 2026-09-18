@@ -29,6 +29,7 @@ import {
   inferenceTimestampSchema,
   modelIdSchema,
   modelReferenceSchema,
+  PADDED_BASE64_PATTERN,
   requestIdSchema,
 } from './identifiers';
 import { inferenceErrorSchema } from './errors';
@@ -74,6 +75,21 @@ export const inferenceStreamDeltaEventSchema = z.object({
   text: z.string(),
 });
 
+/** The encodings an audio output may carry. */
+export const inferenceAudioMediaTypeSchema = z.enum([
+  'audio/mpeg',
+  'audio/wav',
+  'audio/ogg',
+  'audio/aac',
+  'audio/flac',
+  'audio/pcm',
+]);
+
+export type InferenceAudioMediaType = z.infer<typeof inferenceAudioMediaTypeSchema>;
+
+/** The most bytes one folded audio output may hold, at the edge and in the SDK. */
+export const MAX_INFERENCE_AUDIO_BYTES = 20 * 1024 * 1024;
+
 /** A bounded, independently base64-encoded chunk of one audio output. */
 export const inferenceStreamAudioEventSchema = z.object({
   schemaVersion: z.literal(1),
@@ -81,8 +97,8 @@ export const inferenceStreamAudioEventSchema = z.object({
   requestId: requestIdSchema,
   sequence: z.number().int().nonnegative().safe(),
   outputIndex: z.number().int().nonnegative().safe(),
-  mediaType: z.enum(['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/flac', 'audio/pcm']),
-  data: z.string().min(4).max(65536).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/),
+  mediaType: inferenceAudioMediaTypeSchema,
+  data: z.string().min(4).max(65536).regex(PADDED_BASE64_PATTERN),
 });
 
 /**
