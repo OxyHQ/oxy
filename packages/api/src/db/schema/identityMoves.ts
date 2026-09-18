@@ -8,7 +8,7 @@
  *
  * Expiry is read-side first: every read and transition filters on `expires_at`
  * itself and marks a stale row `expired`; the sweep in `db/expiry.ts` only
- * reclaims storage (same contract as `device_pairing_sessions`).
+ * reclaims storage.
  */
 
 import { sql } from 'drizzle-orm';
@@ -29,7 +29,12 @@ export const identityMoves = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     /** The identity being moved, snapshotted at creation (lowercase uncompressed hex). */
     publicKey: text().notNull(),
-    initiatorEphemeralPublicKey: text().notNull(),
+    /** `H(initiator key, nonce)`, published at creation. */
+    initiatorCommitment: text().notNull(),
+    /** The commitment's nonce, published with the key at reveal. */
+    initiatorCommitmentNonce: text(),
+    /** `null` until revealed, after the join. */
+    initiatorEphemeralPublicKey: text(),
     responderEphemeralPublicKey: text(),
     /** Sealed entropy, written on seal, cleared on completion. */
     nonce: text(),
@@ -51,5 +56,11 @@ export const identityMoves = pgTable(
     // The sealed payload arrives and leaves as a unit.
     check('identity_moves_sealed_payload_check', sql`(${t.nonce} is null) = (${t.ciphertext} is null)`),
     check('identity_moves_receipt_check', sql`(${t.receiptSignature} is null) = (${t.receiptTimestamp} is null)`),
+    // The key is revealed only after a responder joined, and always with its nonce.
+    check(
+      'identity_moves_reveal_after_join_check',
+      sql`${t.initiatorEphemeralPublicKey} is null or ${t.responderEphemeralPublicKey} is not null`,
+    ),
+    check('identity_moves_reveal_nonce_check', sql`(${t.initiatorCommitmentNonce} is null) = (${t.initiatorEphemeralPublicKey} is null)`),
   ],
 );

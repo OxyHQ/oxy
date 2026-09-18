@@ -11,14 +11,15 @@ interface PhraseScreenProps {
 }
 
 /**
- * Show the 12-word recovery phrase, then ask for three of the words back.
+ * Show the recovery phrase, then ask for three of the words back.
  *
  * "I saved it" is demonstrated, not clicked: the phrase is the only way to get
  * an identity back when every device and passkey is gone, and nobody — Oxy
  * included — can reset it.
  */
 export function PhraseScreen({ identity, onConfirmed, onLater }: PhraseScreenProps) {
-  const words = useMemo(() => identity.mnemonic.split(' '), [identity.mnemonic]);
+  // A raw-key root has no phrase, and none is ever derived for it (ADR 0024 D5).
+  const words = useMemo(() => (identity.mnemonic ? identity.mnemonic.split(' ') : []), [identity.mnemonic]);
   const positions = useMemo(() => pickConfirmationPositions(words.length), [words.length]);
   const [step, setStep] = useState<'show' | 'check'>('show');
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -32,7 +33,7 @@ export function PhraseScreen({ identity, onConfirmed, onLater }: PhraseScreenPro
       <section className="card">
         <h1>Your recovery phrase</h1>
         <p>
-          These 12 words are your identity. Write them down and keep them somewhere safe. If you lose every device
+          These {words.length} words are your identity. Write them down and keep them somewhere safe. If you lose every device
           and passkey, they are the only way back — nobody, not even Oxy, can reset them.
         </p>
         <ol className="phrase">

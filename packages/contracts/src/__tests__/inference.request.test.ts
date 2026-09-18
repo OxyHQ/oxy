@@ -577,3 +577,24 @@ describe("inferenceRequestSchema authorizedRoutes", () => {
     ).toBe(false);
   });
 });
+
+
+describe('speech request parameters', () => {
+  const speech = { ...request, modality: 'audio', input: { format: 'text', text: 'Hola 👋' },
+    client: { ...request.client, apiFormat: 'audio_speech', endpoint: '/v1/audio/speech' },
+    speech: { voice: 'female', responseFormat: 'mp3', speed: 1.15 } };
+  it('preserves speech parameters and accepts the additive field being absent', () => {
+    expect(inferenceRequestSchema.parse(speech).speech).toEqual(speech.speech);
+    const { speech: parameters, ...legacy } = speech;
+    expect(parameters.voice).toBe('female');
+    expect(inferenceRequestSchema.safeParse(legacy).success).toBe(true);
+  });
+  it.each([
+    { modality: 'text' }, { stream: true }, { input: request.input },
+    { client: request.client }, { speech: { ...speech.speech, speed: 0 } },
+    { speech: { ...speech.speech, responseFormat: 'json' } },
+    { speech: { ...speech.speech, voice: '' } },
+  ])('rejects contradictory speech envelopes: %p', (patch) => {
+    expect(inferenceRequestSchema.safeParse({ ...speech, ...patch }).success).toBe(false);
+  });
+});

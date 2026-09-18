@@ -18,7 +18,7 @@ const signInWithPasskey = mock(async () => undefined)
 
 // `mock.module` is process-global in bun (last writer wins across files), so
 // expose the full services surface both auth forms consume — including the
-// signup-only `handleWebSession`/`registerWithPasskey` — to stay leak-safe.
+// signup-only `handleWebSession` — to stay leak-safe.
 mock.module("@oxy.so/services", () => ({
     useOxy: () => ({
         openAccountDialog: () => undefined,
@@ -28,7 +28,6 @@ mock.module("@oxy.so/services", () => ({
         completeTwoFactorSignIn: async () => ({}),
         revokeSuspiciousSignIn: async () => undefined,
         handleWebSession: async () => undefined,
-        registerWithPasskey: async () => undefined,
     }),
     useDeviceSwitcher: defaultDeviceSwitcher,
     // No-op stubs — this suite never renders them, but `mock.module` is

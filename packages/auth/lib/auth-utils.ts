@@ -29,7 +29,7 @@ type PostLoginRedirectParams = {
  * error if no authorization request context was provided.
  *
  * No `authuser` hint: the caller has already committed the device-first session
- * through the shared SDK funnel (`signInWithPasskey` / `registerWithPasskey` /
+ * through the shared SDK funnel (`signInWithPasskey` /
  * `handleWebSession`), so the just-authenticated account is the SDK's ACTIVE
  * account. `/authorize`
  * targets that active account and offers the device chooser

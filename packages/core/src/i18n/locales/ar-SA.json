@@ -108,6 +108,7 @@
     "loading": "جارٍ تحميل الحسابات...",
     "qrHeadline": "سجّل الدخول بهوية Oxy الخاصة بك",
     "signInWithOxy": "تسجيل الدخول باستخدام Oxy",
+    "signUpWithOxy": "التسجيل باستخدام Oxy",
     "useIdentityOnDevice": "لا تملك Commons؟ استخدم مفتاح مرور على هذا الجهاز بدلاً من ذلك",
     "getCommons": "احصل على Commons",
     "commonsNotInstalled": "لا تملك Commons؟ احصل على التطبيق لتسجيل الدخول بمعرّف Oxy الخاص بك.",

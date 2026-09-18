@@ -6837,8 +6837,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "Link an identity (publicKey) to the current user account.",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/authLinking.ts` to fill in summary, description, request/response examples.",
+        "summary": "Link a root (`publicKey`) to a personal account that has NONE — first link only",
+        "description": "(ADR 0024 D8).\n\n- An account whose root is this key: idempotent with a root proof, and heals a\n  missing `identity` method row.\n- An account with a DIFFERENT root: 409. Replacing a root is\n  `POST /auth/rotate/*`, which needs the old root's proof too.\n- A keyless account: a root proof (`link_identity`, one-use challenge) AND a\n  fresh assertion by one of the account's existing passkeys over the same\n  challenge. A bearer plus a key generated a moment ago is not authority.",
         "parameters": [],
         "responses": {
           "200": {
@@ -6894,17 +6894,108 @@
                     ]
                   },
                   "publicKey": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   },
-                  "signature": {
-                    "type": "string"
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
                   },
-                  "timestamp": {
-                    "type": "number"
+                  "assertion": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]+$",
+                        "minLength": 16,
+                        "maxLength": 1024
+                      },
+                      "rawId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2048
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "public-key"
+                        ]
+                      },
+                      "response": {
+                        "type": "object",
+                        "properties": {
+                          "clientDataJSON": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
+                          },
+                          "authenticatorData": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
+                          },
+                          "signature": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          },
+                          "userHandle": {
+                            "type": "string",
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": [
+                          "clientDataJSON",
+                          "authenticatorData",
+                          "signature"
+                        ]
+                      },
+                      "clientExtensionResults": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      "authenticatorAttachment": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "rawId",
+                      "type",
+                      "response"
+                    ]
                   }
                 },
                 "required": [
-                  "type"
+                  "type",
+                  "publicKey",
+                  "proof"
                 ]
               }
             }
@@ -6982,79 +7073,6 @@
           }
         ],
         "operationId": "deleteAuthLinkWebauthnCredentialID"
-      }
-    },
-    "/auth/link/{type}": {
-      "delete": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "Unlink an authentication method from the current user account.",
-        "description": "Must keep at least one auth method. Only `identity` is unlinkable by type —\npasskeys are per-credential (see the webauthn route above).",
-        "parameters": [
-          {
-            "name": "type",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "identity"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/authLinking.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "operationId": "deleteAuthLinkType"
       }
     },
     "/auth/lookup/{username}": {
@@ -17338,13 +17356,13 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "initiatorEphemeralPublicKey": {
+                  "initiatorCommitment": {
                     "type": "string",
-                    "pattern": "^04[0-9a-f]{128}$"
+                    "pattern": "^[0-9a-f]{64}$"
                   }
                 },
                 "required": [
-                  "initiatorEphemeralPublicKey"
+                  "initiatorCommitment"
                 ]
               }
             }
@@ -17591,8 +17609,8 @@
         "tags": [
           "Misc"
         ],
-        "summary": "Verified against the move's key AND the account's current key; completing",
-        "description": "clears the ciphertext.",
+        "summary": "root signature over the move, both keys and the digest of the relayed",
+        "description": "ciphertext. Verified against the move's key AND the account's current key;\ncompleting clears the ciphertext.",
         "parameters": [
           {
             "name": "moveId",
@@ -17662,15 +17680,10 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 512
-                  },
-                  "timestamp": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0
                   }
                 },
                 "required": [
-                  "signature",
-                  "timestamp"
+                  "signature"
                 ]
               }
             }
@@ -17679,13 +17692,117 @@
         "operationId": "postIdentityMoveMoveIdReceipt"
       }
     },
+    "/identity/move/{moveId}/reveal": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "must open the commitment published at creation, and only once Commons joined.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityMove.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "moveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityMove.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "initiatorEphemeralPublicKey": {
+                    "type": "string",
+                    "pattern": "^04[0-9a-f]{128}$"
+                  },
+                  "commitmentNonce": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "initiatorEphemeralPublicKey",
+                  "commitmentNonce"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityMoveMoveIdReveal"
+      }
+    },
     "/identity/move/{moveId}/seal": {
       "post": {
         "tags": [
           "Misc"
         ],
-        "summary": "POST /identity/move/{moveId}/seal",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityMove.ts` to fill in summary, description, request/response examples.",
+        "summary": "device, authorized by a one-use root proof over the move and the exact sealed",
+        "description": "bytes. Nothing is sealed before the key it was sealed with is public.",
         "parameters": [
           {
             "name": "moveId",
@@ -17769,29 +17886,140 @@
                   },
                   "ciphertext": {
                     "type": "string",
-                    "pattern": "^[0-9a-f]{64}$"
+                    "pattern": "^(?:[0-9a-f]{64}|[0-9a-f]{72}|[0-9a-f]{80}|[0-9a-f]{88}|[0-9a-f]{96})$"
                   },
-                  "signature": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 512
-                  },
-                  "timestamp": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
                   }
                 },
                 "required": [
                   "nonce",
                   "ciphertext",
-                  "signature",
-                  "timestamp"
+                  "proof"
                 ]
               }
             }
           }
         },
         "operationId": "postIdentityMoveMoveIdSeal"
+      }
+    },
+    "/identity/proof-challenge": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "POST /identity/proof-challenge",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityProof.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityProof.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "web_envelope_establish",
+                      "web_envelope_put",
+                      "web_envelope_phrase_confirmed",
+                      "web_envelope_recovery_verified",
+                      "web_envelope_delete",
+                      "link_identity",
+                      "enroll_identity",
+                      "recover_account_start",
+                      "recover_account_complete",
+                      "identity_move_seal"
+                    ]
+                  }
+                },
+                "required": [
+                  "action"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityProofChallenge"
       }
     },
     "/identity/records": {
@@ -18121,6 +18349,388 @@
         "operationId": "getIdentityRecordsUserIdTypeVerify"
       }
     },
+    "/identity/recovery/challenge": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /identity/recovery/challenge",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityRecovery.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityRecovery.ts`, naming a Zod schema the file imports."
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "postIdentityRecoveryChallenge"
+      }
+    },
+    "/identity/recovery/complete": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "and a session, in one transaction.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityRecovery.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityRecovery.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ticket": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "response": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "envelope": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "algorithm": {
+                        "type": "string",
+                        "enum": [
+                          "xchacha20poly1305"
+                        ]
+                      },
+                      "publicKey": {
+                        "type": "string",
+                        "pattern": "^04[0-9a-f]{128}$"
+                      },
+                      "secretKind": {
+                        "type": "string",
+                        "enum": [
+                          "mnemonic-entropy",
+                          "raw-private-key"
+                        ]
+                      },
+                      "secretNonce": {
+                        "type": "string",
+                        "pattern": "^[0-9a-fA-F]{48}$"
+                      },
+                      "sealedSecret": {
+                        "type": "string",
+                        "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
+                      },
+                      "wraps": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "credentialId": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]+$",
+                              "minLength": 16,
+                              "maxLength": 1024
+                            },
+                            "nonce": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]{48}$"
+                            },
+                            "wrappedKey": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]{96}$"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "rpId": {
+                              "type": "string",
+                              "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
+                              "minLength": 1,
+                              "maxLength": 253
+                            },
+                            "verifiedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "credentialId",
+                            "nonce",
+                            "wrappedKey",
+                            "createdAt",
+                            "rpId"
+                          ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 10
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "algorithm",
+                      "publicKey",
+                      "secretKind",
+                      "secretNonce",
+                      "sealedSecret",
+                      "wraps"
+                    ]
+                  },
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
+                  },
+                  "deviceName": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "deviceFingerprint": {
+                    "type": "string",
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "ticket",
+                  "response",
+                  "envelope",
+                  "proof"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityRecoveryComplete"
+      }
+    },
+    "/identity/recovery/start": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "The signature is checked before anything is read, so a request without the",
+        "description": "root learns nothing, and a failed proof and an unused root answer identically.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityRecovery.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicKey": {
+                    "type": "string",
+                    "pattern": "^04[0-9a-f]{128}$"
+                  },
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
+                  }
+                },
+                "required": [
+                  "publicKey",
+                  "proof"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityRecoveryStart"
+      }
+    },
+    "/identity/root-status": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "GET /identity/root-status",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityProof.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityProof.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getIdentityRootStatus"
+      }
+    },
     "/identity/web-envelope": {
       "get": {
         "tags": [
@@ -18175,8 +18785,8 @@
         "tags": [
           "Misc"
         ],
-        "summary": "Replacing keeps `phrase_confirmed_at`: adding a passkey re-wraps the same",
-        "description": "identity, it does not un-save the phrase.",
+        "summary": "Replacing keeps the readiness facts: re-wrapping the same root does not",
+        "description": "un-save the recovery material.",
         "parameters": [],
         "responses": {
           "200": {
@@ -18241,7 +18851,7 @@
                       "version": {
                         "type": "number",
                         "enum": [
-                          1
+                          2
                         ]
                       },
                       "algorithm": {
@@ -18254,13 +18864,20 @@
                         "type": "string",
                         "pattern": "^04[0-9a-f]{128}$"
                       },
-                      "entropyNonce": {
+                      "secretKind": {
+                        "type": "string",
+                        "enum": [
+                          "mnemonic-entropy",
+                          "raw-private-key"
+                        ]
+                      },
+                      "secretNonce": {
                         "type": "string",
                         "pattern": "^[0-9a-fA-F]{48}$"
                       },
-                      "sealedEntropy": {
+                      "sealedSecret": {
                         "type": "string",
-                        "pattern": "^[0-9a-fA-F]{64}$"
+                        "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
                       },
                       "wraps": {
                         "type": "array",
@@ -18284,13 +18901,24 @@
                             "createdAt": {
                               "type": "string",
                               "format": "date-time"
+                            },
+                            "rpId": {
+                              "type": "string",
+                              "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
+                              "minLength": 1,
+                              "maxLength": 253
+                            },
+                            "verifiedAt": {
+                              "type": "string",
+                              "format": "date-time"
                             }
                           },
                           "required": [
                             "credentialId",
                             "nonce",
                             "wrappedKey",
-                            "createdAt"
+                            "createdAt",
+                            "rpId"
                           ]
                         },
                         "minItems": 1,
@@ -18301,25 +18929,51 @@
                       "version",
                       "algorithm",
                       "publicKey",
-                      "entropyNonce",
-                      "sealedEntropy",
+                      "secretKind",
+                      "secretNonce",
+                      "sealedSecret",
                       "wraps"
                     ]
                   },
-                  "signature": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 512
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
                   },
-                  "timestamp": {
+                  "expectedRevision": {
                     "type": "integer",
-                    "exclusiveMinimum": 0
+                    "minimum": 0
                   }
                 },
                 "required": [
                   "envelope",
-                  "signature",
-                  "timestamp"
+                  "proof",
+                  "expectedRevision"
                 ]
               }
             }
@@ -18331,8 +18985,8 @@
         "tags": [
           "Misc"
         ],
-        "summary": "the identity into Commons). Idempotent. The identity itself is untouched: it",
-        "description": "lives on wherever else it is carried.",
+        "summary": "\"keep only in Commons\"). Idempotent. The root itself is untouched: it lives on",
+        "description": "wherever else it is held. Removing this row does not erase copies that were\nexported, synced or cached before.",
         "parameters": [],
         "responses": {
           "200": {
@@ -18391,19 +19045,44 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "signature": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 512
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
                   },
-                  "timestamp": {
+                  "expectedRevision": {
                     "type": "integer",
-                    "exclusiveMinimum": 0
+                    "minimum": 0
                   }
                 },
                 "required": [
-                  "signature",
-                  "timestamp"
+                  "proof",
+                  "expectedRevision"
                 ]
               }
             }
@@ -18417,8 +19096,8 @@
         "tags": [
           "Misc"
         ],
-        "summary": "first one: link the key and store the envelope in one transaction, so there is",
-        "description": "never a committed link without an envelope (an identity nothing carries).\n\nBoth proofs are by the ENVELOPE's key (there is no linked key yet to check\nagainst). Idempotent for a retry of the same identity; an account that already\nhas a DIFFERENT identity is refused — this can never replace one.",
+        "summary": "its first one: link the key and store the envelope in one transaction, so there",
+        "description": "is never a committed link without a holder.\n\nBesides the root proof, a fresh assertion by one of the account's existing\npasskeys over the same challenge is required — a bearer is not a fresh factor.\nAn account whose root is already linked may add a web holder for THAT root\nonly when it has none; an account with a DIFFERENT root is refused.",
         "parameters": [],
         "responses": {
           "200": {
@@ -18483,7 +19162,7 @@
                       "version": {
                         "type": "number",
                         "enum": [
-                          1
+                          2
                         ]
                       },
                       "algorithm": {
@@ -18496,13 +19175,20 @@
                         "type": "string",
                         "pattern": "^04[0-9a-f]{128}$"
                       },
-                      "entropyNonce": {
+                      "secretKind": {
+                        "type": "string",
+                        "enum": [
+                          "mnemonic-entropy",
+                          "raw-private-key"
+                        ]
+                      },
+                      "secretNonce": {
                         "type": "string",
                         "pattern": "^[0-9a-fA-F]{48}$"
                       },
-                      "sealedEntropy": {
+                      "sealedSecret": {
                         "type": "string",
-                        "pattern": "^[0-9a-fA-F]{64}$"
+                        "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
                       },
                       "wraps": {
                         "type": "array",
@@ -18526,13 +19212,24 @@
                             "createdAt": {
                               "type": "string",
                               "format": "date-time"
+                            },
+                            "rpId": {
+                              "type": "string",
+                              "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
+                              "minLength": 1,
+                              "maxLength": 253
+                            },
+                            "verifiedAt": {
+                              "type": "string",
+                              "format": "date-time"
                             }
                           },
                           "required": [
                             "credentialId",
                             "nonce",
                             "wrappedKey",
-                            "createdAt"
+                            "createdAt",
+                            "rpId"
                           ]
                         },
                         "minItems": 1,
@@ -18543,44 +19240,111 @@
                       "version",
                       "algorithm",
                       "publicKey",
-                      "entropyNonce",
-                      "sealedEntropy",
+                      "secretKind",
+                      "secretNonce",
+                      "sealedSecret",
                       "wraps"
                     ]
                   },
-                  "signature": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 512
-                  },
-                  "timestamp": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0
-                  },
-                  "link": {
+                  "proof": {
                     "type": "object",
                     "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
                       "signature": {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 512
-                      },
-                      "timestamp": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
                       }
                     },
                     "required": [
-                      "signature",
-                      "timestamp"
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
+                  },
+                  "assertion": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]+$",
+                        "minLength": 16,
+                        "maxLength": 1024
+                      },
+                      "rawId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2048
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "public-key"
+                        ]
+                      },
+                      "response": {
+                        "type": "object",
+                        "properties": {
+                          "clientDataJSON": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
+                          },
+                          "authenticatorData": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
+                          },
+                          "signature": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          },
+                          "userHandle": {
+                            "type": "string",
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": [
+                          "clientDataJSON",
+                          "authenticatorData",
+                          "signature"
+                        ]
+                      },
+                      "clientExtensionResults": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      "authenticatorAttachment": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "rawId",
+                      "type",
+                      "response"
                     ]
                   }
                 },
                 "required": [
                   "envelope",
-                  "signature",
-                  "timestamp",
-                  "link"
+                  "proof",
+                  "assertion"
                 ]
               }
             }
@@ -18654,25 +19418,161 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "signature": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 512
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
                   },
-                  "timestamp": {
+                  "expectedRevision": {
                     "type": "integer",
-                    "exclusiveMinimum": 0
+                    "minimum": 0
                   }
                 },
                 "required": [
-                  "signature",
-                  "timestamp"
+                  "proof",
+                  "expectedRevision"
                 ]
               }
             }
           }
         },
         "operationId": "postIdentityWebEnvelopePhraseConfirmed"
+      }
+    },
+    "/identity/web-envelope/recovery-verified": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /identity/web-envelope/recovery-verified",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityWebEnvelope.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityWebEnvelope.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "proof",
+                  "expectedRevision"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityWebEnvelopeRecoveryVerified"
       }
     },
     "/inference/admin/deployments": {
@@ -35424,6 +36324,11 @@
                     "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$",
                     "maxLength": 194
                   },
+                  "routingProfileId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
                   "input": {
                     "type": "string",
                     "minLength": 1,
@@ -35457,7 +36362,6 @@
                   }
                 },
                 "required": [
-                  "model",
                   "input",
                   "voice"
                 ]

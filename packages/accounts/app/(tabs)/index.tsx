@@ -25,6 +25,7 @@ import { useAccountCards } from '@/hooks/home/useAccountCards';
 import { useRecentActivityItems } from '@/hooks/home/useRecentActivityItems';
 import { useQuickStatsCards } from '@/hooks/home/useQuickStatsCards';
 import { useSecurityOverviewItems } from '@/hooks/home/useSecurityOverviewItems';
+import { useIdentityRootStatus, useOpenIdentity } from '@/hooks/useIdentityRootStatus';
 import { useManagedAccountItems } from '@/hooks/home/useManagedAccountItems';
 
 export default function HomeScreen() {
@@ -123,12 +124,15 @@ export default function HomeScreen() {
     handlePersonalInfo: handlers.handlePersonalInfo,
     handleSetUsername: handlers.handleSetUsername,
   });
+  const rootStatus = useIdentityRootStatus();
+  const openIdentity = useOpenIdentity();
   const securityOverviewItems = useSecurityOverviewItems({
     biometricEnabled,
     canEnableBiometric,
     hasBiometricHardware,
     biometricLoading,
-    userEmail: user?.email,
+    rootStatus,
+    handleIdentity: openIdentity,
     handleSecurity: handlers.handleSecurity,
   });
   const managedAccountItems = useManagedAccountItems({

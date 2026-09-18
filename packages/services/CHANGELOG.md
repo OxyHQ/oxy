@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Removed
+
+- **Breaking:** `useOxy().registerWithPasskey`. An Oxy account is created WITH
+  its self-custody root in the account dialog's creation flow
+  (`openAccountDialog('signup')`), never by a local passkey ceremony (ADR 0024
+  D4). No ecosystem app called it; `auth.oxy.so` opens the canonical flow.
+
 ## [30.2.5] - 2026-09-03
 
 ### Added

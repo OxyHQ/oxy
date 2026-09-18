@@ -15,25 +15,21 @@ import { recordCredentialLifecycleEvent } from "../src/services/applicationCrede
 import { isCredentialUsable } from "../src/utils/credentialUsability";
 import { logger } from "../src/utils/logger";
 import { isValidFinalizedPredecessor } from "../src/utils/serviceCredentialFinalization";
+import {
+	findRegisteredScopeRotation,
+	hasExactRegisteredScopes,
+} from "../src/utils/serviceCredentialScopeRotations";
 
-const ALIA_APPLICATION_ID = "6a2f851751b784a86fd0e934";
-const ALIA_CREDENTIAL_NAME = "Oxy service (production)";
-const ALIA_SCOPES = ["user:read", "inference:invoke", "capabilities:read"];
 const ROTATION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
-
-function exactScopes(actual: readonly string[]): boolean {
-	return (
-		actual.length === ALIA_SCOPES.length &&
-		ALIA_SCOPES.every((scope) => actual.includes(scope))
-	);
-}
 
 async function run(): Promise<void> {
 	const appId = process.env.APP_ID;
 	const credentialId = process.env.FINALIZE_CREDENTIAL_ID;
-	if (appId !== ALIA_APPLICATION_ID) {
+	const lane = findRegisteredScopeRotation(appId);
+	if (!appId || !lane) {
 		throw new Error("Finalization is not registered for this application id.");
 	}
+	const { credentialName: laneCredentialName, scopes: laneScopes } = lane;
 	if (!credentialId || !/^[0-9a-f-]{36}$/i.test(credentialId)) {
 		throw new Error("FINALIZE_CREDENTIAL_ID must be one exact credential UUID.");
 	}
@@ -62,12 +58,12 @@ async function run(): Promise<void> {
 			.for("update");
 		if (
 			!credential ||
-			credential.name !== ALIA_CREDENTIAL_NAME ||
+			credential.name !== laneCredentialName ||
 			credential.type !== "service" ||
-			credential.environment !== "production" ||
-			!exactScopes(credential.scopes)
+			credential.environment !== lane.environment ||
+			!hasExactRegisteredScopes(credential.scopes, laneScopes)
 		) {
-			throw new Error("Pending credential does not match the closed Alia rotation registry.");
+			throw new Error("Pending credential does not match the closed scope rotation registry.");
 		}
 
 		if (credential.status === "active") {
@@ -104,7 +100,7 @@ async function run(): Promise<void> {
 				if (
 					!isValidFinalizedPredecessor(predecessor, {
 						applicationId: appId,
-						name: ALIA_CREDENTIAL_NAME,
+						name: laneCredentialName,
 						type: "service",
 						environment: "production",
 					})
@@ -150,7 +146,7 @@ async function run(): Promise<void> {
 			.where(
 				and(
 					eq(applicationCredentials.applicationId, appId),
-					eq(applicationCredentials.name, ALIA_CREDENTIAL_NAME),
+					eq(applicationCredentials.name, laneCredentialName),
 					eq(applicationCredentials.type, "service"),
 					eq(applicationCredentials.environment, "production"),
 					ne(applicationCredentials.id, credentialId),
@@ -159,7 +155,7 @@ async function run(): Promise<void> {
 			.for("update");
 		const usable = namedRows.filter(isCredentialUsable);
 		if (usable.length > 1) {
-			throw new Error("Refusing ambiguous Alia predecessor finalization.");
+			throw new Error("Refusing ambiguous predecessor finalization.");
 		}
 		const predecessor = usable[0] ?? null;
 		if ((credential.rotatedFromCredentialId ?? null) !== (predecessor?.id ?? null)) {
@@ -196,7 +192,7 @@ async function run(): Promise<void> {
 			environment: "production",
 			metadata: {
 				type: "service",
-				scopes: ALIA_SCOPES,
+				scopes: laneScopes,
 				...(predecessor ? { rotatedFromCredentialId: predecessor.id } : {}),
 			},
 		});

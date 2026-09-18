@@ -1,37 +1,47 @@
 /**
- * Moving a web identity into Commons — the relay (`@oxy.so/contracts` `identityMove`).
+ * Giving a web root to Commons — the relay (`@oxy.so/contracts` `identityMove`, ADR 0024 D6).
  *
  * Mounted at `/identity/move`:
- *  - `POST   /`                    (bearer, identity origin) start a move of the caller's identity
- *  - `GET    /:moveId`             (public)   read the move: keys, sealed payload, receipt
+ *  - `POST   /`                    (bearer, holder origin) start a move with a COMMITMENT to the web's ephemeral key
+ *  - `GET    /:moveId`             (public)   read the move: commitment, keys, sealed payload, receipt
  *  - `POST   /:moveId/join`        (public)   Commons registers its ephemeral key
- *  - `POST   /:moveId/seal`        (bearer, identity origin, identity-key proof) the web seals the identity
- *  - `POST   /:moveId/receipt`     (public, identity-key proof) Commons proves it holds the identity
- *  - `DELETE /:moveId`             (bearer, identity origin) cancel
+ *  - `POST   /:moveId/reveal`      (bearer, holder origin) the web reveals its key, only after the join
+ *  - `POST   /:moveId/seal`        (bearer, holder origin, one-use root proof over the sealed bytes)
+ *  - `POST   /:moveId/receipt`     (public, root signature) Commons proves it stored the root
+ *  - `DELETE /:moveId`             (bearer, holder origin) cancel
  *
- * The relay never holds anything that decrypts the sealed identity: two
- * ephemeral public keys and an AEAD ciphertext keyed by their ECDH. The person
- * compares a 6-digit code derived from both keys on both screens, so a relay
- * that substituted a key is caught before anything is sealed. The ciphertext is
- * cleared as soon as the move completes.
+ * The relay never holds anything that decrypts the sealed root: a commitment,
+ * two ephemeral public keys and an AEAD ciphertext keyed by their ECDH. The web's
+ * key stays hidden behind the commitment until Commons joined, so this relay
+ * cannot grind a substituted key into matching 6-digit codes; the receipt binds
+ * the ciphertext actually relayed. This server enforces the ordering; both
+ * clients verify the cryptography themselves, so skipping a check here gains a
+ * dishonest server nothing.
  *
  * Every transition is a single conditional UPDATE on the expected status AND the
  * deadline, so two racing joins, a late seal or a replayed receipt change nothing.
  */
 import crypto from 'node:crypto';
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import { and, eq, gt, inArray } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull } from 'drizzle-orm';
 import {
   IDENTITY_MOVE_TTL_MS,
+  IDENTITY_PROOF_ACTIONS,
+  buildMoveCiphertextDigestInput,
+  buildMoveCommitmentInput,
+  buildMoveReceiptMessage,
+  buildMoveSealPayload,
   identityMoveCreateRequestSchema,
   identityMoveIdSchema,
   identityMoveJoinRequestSchema,
   identityMoveReceiptRequestSchema,
+  identityMoveRevealRequestSchema,
   identityMoveSealRequestSchema,
   type IdentityMoveCreateRequest,
   type IdentityMoveCreateResponse,
   type IdentityMoveJoinRequest,
   type IdentityMoveReceiptRequest,
+  type IdentityMoveRevealRequest,
   type IdentityMoveSealRequest,
   type IdentityMoveState,
 } from '@oxy.so/contracts';
@@ -41,28 +51,18 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, Unauthor
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
-import { isLoopbackOrigin } from '../utils/origin';
-import { getIdentityWebOrigin } from '../config/env';
 import { getDb } from '../config/postgres';
 import { identityMoves } from '../db/schema/identityMoves';
 import { users } from '../db/schema/users';
 import { SignatureService } from '../services/signature.service';
+import { digestIdentityPayload, sha256Hex, verifyIdentityProof } from '../services/identityProof.service';
+import { isHolderOrigin } from './identityWebEnvelope';
 
 const router = Router();
 
-/** The actions the identity key signs during a move — byte-identical to `@oxy.so/core` `buildMoveMessage`. */
-export const IDENTITY_MOVE_SIGNED_ACTIONS = {
-  seal: 'identity_move_seal',
-  received: 'identity_move_received',
-} as const;
-
-export function buildMoveMessage(action: string, moveId: string, timestamp: number): string {
-  return JSON.stringify({ action, moveId: moveId.toLowerCase(), timestamp });
-}
-
-function requireIdentityOrigin(req: Request, _res: Response, next: NextFunction): void {
+function requireHolderOrigin(req: Request, _res: Response, next: NextFunction): void {
   const origin = req.headers.origin;
-  if (typeof origin !== 'string' || (origin !== getIdentityWebOrigin() && !isLoopbackOrigin(origin))) {
+  if (typeof origin !== 'string' || !isHolderOrigin(origin)) {
     next(new ForbiddenError('This endpoint is only available to the Oxy identity origin'));
     return;
   }
@@ -105,15 +105,6 @@ async function linkedPublicKey(userId: string): Promise<string | null> {
   return row?.publicKey ? row.publicKey.trim().toLowerCase() : null;
 }
 
-function assertSigned(publicKey: string, action: string, moveId: string, proof: { signature: string; timestamp: number }): void {
-  if (!SignatureService.isTimestampFresh(proof.timestamp)) {
-    throw new BadRequestError('Signature expired or invalid timestamp - please try again');
-  }
-  if (!SignatureService.verifySignature(buildMoveMessage(action, moveId, proof.timestamp), proof.signature, publicKey)) {
-    throw new UnauthorizedError('Invalid identity signature');
-  }
-}
-
 type MoveRow = typeof identityMoves.$inferSelect;
 
 async function loadMove(moveId: string): Promise<MoveRow> {
@@ -136,21 +127,22 @@ function toState(row: MoveRow): IdentityMoveState {
   return {
     moveId: row.moveId,
     status: row.status,
+    initiatorCommitment: row.initiatorCommitment,
+    initiatorCommitmentNonce: row.initiatorCommitmentNonce,
     publicKey: row.publicKey,
     initiatorEphemeralPublicKey: row.initiatorEphemeralPublicKey,
     responderEphemeralPublicKey: row.responderEphemeralPublicKey,
     nonce: row.status === 'sealed' ? row.nonce : null,
     ciphertext: row.status === 'sealed' ? row.ciphertext : null,
     receiptSignature: row.receiptSignature,
-    receiptTimestamp: row.receiptTimestamp,
     expiresAt: row.expiresAt.toISOString(),
   };
 }
 
-/** POST /identity/move — start moving the caller's identity. */
+/** POST /identity/move — start giving the caller's root to Commons, with a commitment only. */
 router.post(
   '/',
-  requireIdentityOrigin,
+  requireHolderOrigin,
   authMiddleware,
   ownerLimiter,
   validate({ body: identityMoveCreateRequestSchema }),
@@ -162,13 +154,7 @@ router.post(
 
     const moveId = crypto.randomBytes(16).toString('hex');
     const expiresAt = new Date(Date.now() + IDENTITY_MOVE_TTL_MS);
-    await getDb().insert(identityMoves).values({
-      moveId,
-      userId,
-      publicKey,
-      initiatorEphemeralPublicKey: body.initiatorEphemeralPublicKey.toLowerCase(),
-      expiresAt,
-    });
+    await getDb().insert(identityMoves).values({ moveId, userId, publicKey, initiatorCommitment: body.initiatorCommitment, expiresAt });
     const payload: IdentityMoveCreateResponse = { moveId, expiresAt: expiresAt.toISOString() };
     res.status(201).json(payload);
   }),
@@ -202,10 +188,51 @@ router.post(
   }),
 );
 
-/** POST /identity/move/:moveId/seal — the web seals the identity for the joined device. */
+/**
+ * POST /identity/move/:moveId/reveal — the web reveals its ephemeral key, which
+ * must open the commitment published at creation, and only once Commons joined.
+ */
+router.post(
+  '/:moveId/reveal',
+  requireHolderOrigin,
+  authMiddleware,
+  ownerLimiter,
+  validate({ body: identityMoveRevealRequestSchema }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = requireUserId(req);
+    const moveId = parseMoveId(req.params.moveId);
+    const body = req.body as IdentityMoveRevealRequest;
+    const move = await loadMove(moveId);
+    if (move.userId !== userId) throw new NotFoundError('Move not found');
+    const key = body.initiatorEphemeralPublicKey.toLowerCase();
+    if (sha256Hex(buildMoveCommitmentInput(key, body.commitmentNonce)) !== move.initiatorCommitment) {
+      throw new BadRequestError('The key does not match this move’s commitment');
+    }
+    const [revealed] = await getDb()
+      .update(identityMoves)
+      .set({ initiatorEphemeralPublicKey: key, initiatorCommitmentNonce: body.commitmentNonce.toLowerCase() })
+      .where(
+        and(
+          eq(identityMoves.moveId, moveId),
+          eq(identityMoves.status, 'joined'),
+          isNull(identityMoves.initiatorEphemeralPublicKey),
+          gt(identityMoves.expiresAt, new Date()),
+        ),
+      )
+      .returning();
+    if (!revealed) throw new ConflictError('This move is not waiting for the key');
+    res.status(200).json(toState(revealed));
+  }),
+);
+
+/**
+ * POST /identity/move/:moveId/seal — the web seals the root for the joined
+ * device, authorized by a one-use root proof over the move and the exact sealed
+ * bytes. Nothing is sealed before the key it was sealed with is public.
+ */
 router.post(
   '/:moveId/seal',
-  requireIdentityOrigin,
+  requireHolderOrigin,
   authMiddleware,
   ownerLimiter,
   validate({ body: identityMoveSealRequestSchema }),
@@ -215,24 +242,45 @@ router.post(
     const body = req.body as IdentityMoveSealRequest;
     const move = await loadMove(moveId);
     if (move.userId !== userId) throw new NotFoundError('Move not found');
-    const publicKey = await linkedPublicKey(userId);
-    if (!publicKey || publicKey !== move.publicKey) throw new ConflictError('The identity changed since this move started');
-    assertSigned(publicKey, IDENTITY_MOVE_SIGNED_ACTIONS.seal, moveId, body);
 
-    const [sealed] = await getDb()
-      .update(identityMoves)
-      .set({ status: 'sealed', nonce: body.nonce, ciphertext: body.ciphertext })
-      .where(and(eq(identityMoves.moveId, moveId), eq(identityMoves.status, 'joined'), gt(identityMoves.expiresAt, new Date())))
-      .returning();
-    if (!sealed) throw new ConflictError('This move is not waiting to be sealed');
+    const sealed = await getDb().transaction(async (tx) => {
+      const [account] = await tx.select({ publicKey: users.publicKey }).from(users).where(eq(users.id, userId)).for('update').limit(1);
+      const root = account?.publicKey?.trim().toLowerCase() || null;
+      if (!root || root !== move.publicKey) throw new ConflictError('The identity changed since this move started');
+      await verifyIdentityProof(tx, {
+        userId,
+        actor: userId,
+        action: IDENTITY_PROOF_ACTIONS.moveSeal,
+        rootPublicKey: root,
+        mintedRoot: root,
+        payloadDigest: digestIdentityPayload(buildMoveSealPayload(moveId, body)),
+        expectedRevision: null,
+        proof: body.proof,
+      });
+      const [row] = await tx
+        .update(identityMoves)
+        .set({ status: 'sealed', nonce: body.nonce, ciphertext: body.ciphertext })
+        .where(
+          and(
+            eq(identityMoves.moveId, moveId),
+            eq(identityMoves.status, 'joined'),
+            isNotNull(identityMoves.initiatorEphemeralPublicKey),
+            gt(identityMoves.expiresAt, new Date()),
+          ),
+        )
+        .returning();
+      if (!row) throw new ConflictError('This move is not waiting to be sealed');
+      return row;
+    });
     res.status(200).json(toState(sealed));
   }),
 );
 
 /**
- * POST /identity/move/:moveId/receipt — Commons proves it now holds the identity.
- * Verified against the move's key AND the account's current key; completing
- * clears the ciphertext.
+ * POST /identity/move/:moveId/receipt — Commons proves it stored the root: a
+ * root signature over the move, both keys and the digest of the relayed
+ * ciphertext. Verified against the move's key AND the account's current key;
+ * completing clears the ciphertext.
  */
 router.post(
   '/:moveId/receipt',
@@ -245,17 +293,23 @@ router.post(
     if ((await linkedPublicKey(move.userId)) !== move.publicKey) {
       throw new ConflictError('The identity changed since this move started');
     }
-    assertSigned(move.publicKey, IDENTITY_MOVE_SIGNED_ACTIONS.received, moveId, body);
+    if (move.status !== 'sealed' || !move.nonce || !move.ciphertext || !move.initiatorEphemeralPublicKey || !move.responderEphemeralPublicKey) {
+      throw new ConflictError('This move is not waiting for a receipt');
+    }
+    const message = buildMoveReceiptMessage({
+      moveId,
+      rootPublicKey: move.publicKey,
+      initiatorEphemeralPublicKey: move.initiatorEphemeralPublicKey,
+      responderEphemeralPublicKey: move.responderEphemeralPublicKey,
+      ciphertextDigest: sha256Hex(buildMoveCiphertextDigestInput({ nonce: move.nonce, ciphertext: move.ciphertext })),
+    });
+    if (!SignatureService.verifySignature(message, body.signature, move.publicKey)) {
+      throw new UnauthorizedError('Invalid identity signature');
+    }
 
     const [completed] = await getDb()
       .update(identityMoves)
-      .set({
-        status: 'completed',
-        receiptSignature: body.signature,
-        receiptTimestamp: body.timestamp,
-        nonce: null,
-        ciphertext: null,
-      })
+      .set({ status: 'completed', receiptSignature: body.signature, receiptTimestamp: Date.now(), nonce: null, ciphertext: null })
       .where(and(eq(identityMoves.moveId, moveId), eq(identityMoves.status, 'sealed')))
       .returning();
     if (!completed) throw new ConflictError('This move is not waiting for a receipt');
@@ -266,7 +320,7 @@ router.post(
 /** DELETE /identity/move/:moveId — the web gives up before completion. */
 router.delete(
   '/:moveId',
-  requireIdentityOrigin,
+  requireHolderOrigin,
   authMiddleware,
   ownerLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {

@@ -4,11 +4,11 @@
  * Extracted from `OxyContext` so the fixed `options → ceremony → verify → commit`
  * ordering is unit-testable with injected deps — the exact pattern
  * `commitSessionFlow.ts` (`commitDeviceSetAndResolve`) uses. The context methods
- * (`signInWithPasskey` / `registerWithPasskey` / `addPasskey`) are thin wrappers
+ * (`signInWithPasskey` / `addPasskey`) are thin wrappers
  * that supply the real deps: the core `webauthn*` methods, the platform ceremony
  * client (`webauthn/passkeyClient`), and the internal `commitSession` funnel.
  *
- * All three GATE on `isSupported()` first (the platform client returns `false`
+ * Both GATE on `isSupported()` first (the platform client returns `false`
  * off the web) so an unsupported surface fails loudly before touching a ceremony.
  */
 
@@ -81,43 +81,6 @@ export async function runPasskeyLogin(deps: RunPasskeyLoginDeps): Promise<void> 
     deviceFingerprint: deps.deviceFingerprint,
     deviceId: deps.deviceId,
   });
-  await deps.commit(toCommitInput(result));
-}
-
-/** Injected dependencies for {@link runPasskeyRegister}. */
-export interface RunPasskeyRegisterDeps {
-  isSupported: () => boolean;
-  getRegisterOptions: (username: string) => Promise<unknown>;
-  runCeremony: (optionsJSON: unknown) => Promise<unknown>;
-  registerVerify: (
-    response: unknown,
-    envelope: { username: string; deviceName?: string },
-  ) => Promise<PasskeyRegisterVerifyResult>;
-  commit: (input: CommitInput) => Promise<void>;
-  username: string;
-  deviceName?: string;
-}
-
-/**
- * Passkey SIGNUP: create a brand-new account whose first auth method is a
- * passkey. The verify signup branch mints a session (a {@link LoginSessionResult}
- * carrying `sessionId`), which is committed exactly like a password signup.
- */
-export async function runPasskeyRegister(deps: RunPasskeyRegisterDeps): Promise<void> {
-  if (!deps.isSupported()) {
-    throw new Error(PASSKEY_UNSUPPORTED_MESSAGE);
-  }
-  const options = await deps.getRegisterOptions(deps.username);
-  const response = await deps.runCeremony(options);
-  const result = await deps.registerVerify(response, {
-    username: deps.username,
-    deviceName: deps.deviceName,
-  });
-  // Only the signup session arm carries `sessionId`; the link branch
-  // (`{ success, message }`) does not.
-  if (!('sessionId' in result)) {
-    throw new Error('Passkey registration did not establish a session.');
-  }
   await deps.commit(toCommitInput(result));
 }
 

@@ -108,6 +108,7 @@
     "loading": "계정을 불러오는 중...",
     "qrHeadline": "Oxy ID로 로그인",
     "signInWithOxy": "Oxy로 로그인",
+    "signUpWithOxy": "Oxy로 가입하기",
     "useIdentityOnDevice": "Commons가 없으신가요? 이 기기의 패스키를 사용하세요",
     "getCommons": "Commons 다운로드",
     "commonsNotInstalled": "Commons가 없으신가요? 앱을 다운로드하여 Oxy ID로 로그인하세요.",

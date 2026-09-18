@@ -28,31 +28,31 @@ const INFO_SECTIONS: InfoSection[] = [
         id: 'what',
         titleKey: 'learnMoreUsernames.sections.what.title',
         contentKey: 'learnMoreUsernames.sections.what.content',
-        Icon: Icons.At_Stroke2_Corner0_Rounded,
+        Icon: Icons.RiAtLine,
     },
     {
         id: 'rules',
         titleKey: 'learnMoreUsernames.sections.rules.title',
         contentKey: 'learnMoreUsernames.sections.rules.content',
-        Icon: Icons.BulletList_Stroke2_Corner0_Rounded,
+        Icon: Icons.RiListUnordered,
     },
     {
         id: 'unique',
         titleKey: 'learnMoreUsernames.sections.unique.title',
         contentKey: 'learnMoreUsernames.sections.unique.content',
-        Icon: Icons.Key_Stroke2_Corner2_Rounded,
+        Icon: Icons.RiKey2Line,
     },
     {
         id: 'change',
         titleKey: 'learnMoreUsernames.sections.change.title',
         contentKey: 'learnMoreUsernames.sections.change.content',
-        Icon: Icons.ArrowRotateClockwise_Stroke2_Corner0_Rounded,
+        Icon: Icons.RiResetRightLine,
     },
     {
         id: 'tips',
         titleKey: 'learnMoreUsernames.sections.tips.title',
         contentKey: 'learnMoreUsernames.sections.tips.content',
-        Icon: Icons.Sparkle_Stroke2_Corner0_Rounded,
+        Icon: Icons.RiSparklingLine,
     },
 ];
 
@@ -84,7 +84,7 @@ const LearnMoreUsernamesScreen: React.FC<BaseScreenProps> = ({
         <>
             <View className="px-screen-margin pb-space-32">
                 <View className="items-center py-space-24 gap-space-12">
-                    <IconCircle icon={Icons.At_Stroke2_Corner0_Rounded} />
+                    <IconCircle icon={Icons.RiAtLine} />
                     <Text className="font-sans text-body text-text-secondary text-center">
                         {t('learnMoreUsernames.introText')}
                     </Text>

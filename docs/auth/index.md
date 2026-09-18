@@ -11,7 +11,7 @@ out. This page exists so there is one place that is answerable for being right.
 
 ## The model in five nouns
 
-An **identity** is a cryptographic human identity controlled by a Commons key.
+An **identity** is a cryptographic human identity controlled by its owner's root key, held in Commons or in a passkey-sealed web holder ([ADR 0024](../adr/0024-one-oxy-account-root-holders.md)).
 A **principal** is a human who has authenticated onto one device or browser
 profile. An **account** is the subject an application acts as. A **device
 session** is the server's record of one device, its principals, and their
@@ -44,11 +44,20 @@ these before proposing a change to the model:
 - [ADR 0002 — one globally active context, activated through one endpoint](../adr/0002-global-account-context.md)
 - [ADR 0003 — `auth.oxy.so` becomes the browser's first-party DeviceSession hub](../adr/0003-browser-device-session-hub.md)
 - [ADR 0004 — one headless `OxyRuntime` behind one public `OxyProvider`](../adr/0004-single-oxy-runtime-provider.md)
+- [ADR 0024 — one Oxy account: `auth.oxy.so` is the web entry, the root lives in user-controlled holders](../adr/0024-one-oxy-account-root-holders.md)
 
 ## What is NOT built yet
 
 Stated here rather than left for a reader to infer from silence. Each is an
 accepted gap with a named reason, not an oversight:
+
+- **The personal root still lives on an internal holder host (`id.oxy.so`), not
+  in `auth.oxy.so`** ([ADR 0024](../adr/0024-one-oxy-account-root-holders.md) D1).
+  Accounts are created with their root, sign-in never unlocks it, recovery needs
+  only the root, and no copy names the host — but moving the holder into
+  `auth.oxy.so` waits on the holder gate (release manifest, dependency review,
+  no full SDK graph on that origin). Inventory, invariants and open items:
+  [holders-and-recovery.md](../identity/holders-and-recovery.md).
 
 - **ADR 0003's browser hub is BUILT and WIRED, but UNVERIFIED, NOT DEPLOYED, and
   OFF BY DEFAULT.** The server layer

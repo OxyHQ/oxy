@@ -1,22 +1,27 @@
 /**
- * Passkey ceremonies with the WebAuthn PRF extension.
+ * Passkey ceremonies — authentication, and the WebAuthn PRF evaluation only a
+ * ROOT OPERATION asks for (ADR 0024 D3).
  *
  * The Oxy API issues standard WebAuthn options (it knows nothing about PRF) and
- * verifies standard responses. This module adds the one thing the identity
- * carrier needs on top: the PRF evaluation of `WEB_IDENTITY_PRF_INPUT`, returned
- * alongside the response and never sent to the server.
+ * verifies standard responses. Two things are added here:
  *
- * `navigator.credentials` is called directly so the PRF input stays a
- * `BufferSource` and the PRF output is read before the response is serialized.
+ * - **Sign-in never requests PRF.** Authenticating proves who the person is; it
+ *   does not unseal anything. A PRF output is requested only by a ceremony whose
+ *   purpose is to create, open or re-wrap the root.
+ * - **The RP ID is always explicit.** A credential lives under the RP ID it was
+ *   created with; every follow-up ceremony names it rather than trusting the
+ *   browser's default for whatever origin runs the page (ADR 0024 D2).
  *
- * User verification is always REQUIRED here: an authenticator derives a
- * different PRF secret with and without user verification (CTAP `hmac-secret`),
- * so a ceremony that silently skipped it would return a value that never opens
- * the envelope — and a key-unsealing prompt must prove the person anyway.
+ * User verification is REQUIRED on every PRF ceremony: an authenticator derives a
+ * different PRF secret with and without it (CTAP `hmac-secret`), so a ceremony
+ * that silently skipped it would return a value that never opens the envelope.
+ *
+ * Only an actual 32-byte PRF result counts. `prf.enabled` alone, or a
+ * `PublicKeyCredential` that exists, is not support.
  */
 
 import { base64UrlToBuffer, bufferToBase64Url } from './base64url';
-import { WEB_IDENTITY_PRF_INPUT } from '@oxy.so/core';
+import { WEB_IDENTITY_PRF_INPUT, isUsablePrfOutput } from '@oxy.so/core';
 
 /** A JSON-encoded public-key credential descriptor, as the API sends it. */
 interface CredentialDescriptorJSON {
@@ -46,14 +51,36 @@ export interface RequestOptionsJSON {
   userVerification?: UserVerificationRequirement;
 }
 
-/** The outcome of a ceremony: the response for the server and the PRF output for the carrier. */
-export interface CeremonyResult<ResponseJSON> {
-  /** Serializable response to POST to the API's verify endpoint. */
-  response: ResponseJSON;
-  /** The credential id (base64url). */
+/** A created passkey: the response for the server, and PRF if the authenticator gave it at `create()`. */
+export interface CreatedPasskey {
+  response: Record<string, unknown>;
   credentialId: string;
-  /** The 32-byte PRF output, or `null` when the authenticator did not provide one. */
+  /** The RP ID the credential was created under. */
+  rpId: string;
+  /** A usable PRF output, or `null` — many authenticators return none at creation. */
   prfOutput: Uint8Array | null;
+}
+
+/** A sign-in assertion. No PRF, by construction. */
+export interface Assertion {
+  response: Record<string, unknown>;
+  credentialId: string;
+}
+
+/** A root ceremony: which credential answered, its PRF output, and the assertion (usable as a fresh factor). */
+export interface PrfEvaluation {
+  credentialId: string;
+  prfOutput: Uint8Array | null;
+  response: Record<string, unknown>;
+}
+
+/** The credentials a root ceremony may use: every wrap, grouped under the RP ID they live in. */
+export interface PrfRequest {
+  rpId: string;
+  /** Allowed credential ids. Empty = discoverable. */
+  credentialIds: string[];
+  /** The challenge bytes, hex. A server proof challenge when the assertion must count as a fresh factor. */
+  challengeHex?: string;
 }
 
 const prfExtension = (): AuthenticationExtensionsClientInputs =>
@@ -63,11 +90,22 @@ function toDescriptor(descriptor: CredentialDescriptorJSON): PublicKeyCredential
   return { id: base64UrlToBuffer(descriptor.id), type: 'public-key', transports: descriptor.transports };
 }
 
-/** API creation options → browser options, with PRF requested and a discoverable, verified credential. */
+function hexToBytes(hex: string): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let index = 0; index < bytes.length; index += 1) bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+  return bytes;
+}
+
+/** The RP ID a creation ceremony runs under: the one the API named, else this page's host. */
+export function rpIdOf(options: CreationOptionsJSON): string {
+  return options.rp.id ?? window.location.hostname;
+}
+
+/** API creation options → browser options: discoverable, verified, PRF requested (the root is sealed under it). */
 export function toCreationOptions(json: CreationOptionsJSON): PublicKeyCredentialCreationOptions {
   return {
     challenge: base64UrlToBuffer(json.challenge),
-    rp: json.rp,
+    rp: { ...json.rp, id: rpIdOf(json) },
     user: { ...json.user, id: base64UrlToBuffer(json.user.id) },
     pubKeyCredParams: json.pubKeyCredParams,
     timeout: json.timeout,
@@ -84,36 +122,53 @@ export function toCreationOptions(json: CreationOptionsJSON): PublicKeyCredentia
   };
 }
 
-/** API request options → browser options, with PRF requested and user verification required. */
-export function toRequestOptions(json: RequestOptionsJSON): PublicKeyCredentialRequestOptions {
+/** API request options → browser options for SIGN-IN: no PRF extension at all. */
+export function toSignInOptions(json: RequestOptionsJSON): PublicKeyCredentialRequestOptions {
   return {
     challenge: base64UrlToBuffer(json.challenge),
     timeout: json.timeout,
     rpId: json.rpId,
     allowCredentials: json.allowCredentials?.map(toDescriptor),
+    userVerification: json.userVerification ?? 'preferred',
+  };
+}
+
+/** A root ceremony's browser options: explicit RP ID, the wraps' credentials, UV required, PRF requested. */
+export function toPrfOptions(request: PrfRequest): PublicKeyCredentialRequestOptions {
+  let challenge: Uint8Array<ArrayBuffer>;
+  if (request.challengeHex) {
+    challenge = hexToBytes(request.challengeHex);
+  } else {
+    // Unlocking alone needs no server: the PRF output does not depend on the challenge.
+    challenge = new Uint8Array(32);
+    crypto.getRandomValues(challenge);
+  }
+  return {
+    challenge,
+    rpId: request.rpId,
+    allowCredentials: request.credentialIds.map((id) => ({ id: base64UrlToBuffer(id), type: 'public-key' })),
     userVerification: 'required',
     extensions: prfExtension(),
   };
 }
 
-/**
- * The PRF output from a credential's extension results, or `null`.
- *
- * `prf.enabled` alone is not trusted (some providers report support and return
- * nothing): only an actual 32-byte `results.first` counts.
- */
+/** The PRF output from a credential's extension results — only an actual 32-byte value, else `null`. */
 export function readPrfOutput(extensions: AuthenticationExtensionsClientOutputs): Uint8Array | null {
   const first = (extensions as { prf?: { results?: { first?: BufferSource } } }).prf?.results?.first;
   if (!first) return null;
   const bytes = first instanceof ArrayBuffer ? new Uint8Array(first) : new Uint8Array(first.buffer, first.byteOffset, first.byteLength);
-  return bytes.byteLength === 32 ? new Uint8Array(bytes) : null;
+  const copy = new Uint8Array(bytes);
+  return isUsablePrfOutput(copy) ? copy : null;
 }
 
 type AttestationResponse = AuthenticatorAttestationResponse & {
   getTransports?: () => string[];
 };
 
-/** A registration credential → the `RegistrationResponseJSON` the API verifies. */
+/**
+ * A registration credential → the `RegistrationResponseJSON` the API verifies.
+ * `clientExtensionResults` is always empty: a PRF output is never serialized.
+ */
 export function registrationToJSON(credential: PublicKeyCredential): Record<string, unknown> {
   const response = credential.response as AttestationResponse;
   return {
@@ -130,7 +185,10 @@ export function registrationToJSON(credential: PublicKeyCredential): Record<stri
   };
 }
 
-/** An assertion credential → the `AuthenticationResponseJSON` the API verifies. */
+/**
+ * An assertion credential → the `AuthenticationResponseJSON` the API verifies.
+ * `clientExtensionResults` is always empty: a PRF output is never serialized.
+ */
 export function authenticationToJSON(credential: PublicKeyCredential): Record<string, unknown> {
   const response = credential.response as AuthenticatorAssertionResponse;
   return {
@@ -153,45 +211,37 @@ export function supportsPasskeys(): boolean {
   return typeof window !== 'undefined' && typeof window.PublicKeyCredential === 'function' && !!navigator.credentials;
 }
 
-/** Create a passkey, requesting PRF. */
-export async function createPasskey(options: CreationOptionsJSON): Promise<CeremonyResult<Record<string, unknown>>> {
+/** Create a passkey, requesting PRF so a root can be sealed under it. */
+export async function createPasskey(options: CreationOptionsJSON): Promise<CreatedPasskey> {
   const credential = (await navigator.credentials.create({ publicKey: toCreationOptions(options) })) as PublicKeyCredential | null;
   if (!credential) throw new Error('The passkey was not created');
   return {
     response: registrationToJSON(credential),
     credentialId: credential.id,
+    rpId: rpIdOf(options),
     prfOutput: readPrfOutput(credential.getClientExtensionResults()),
   };
 }
 
-/** Sign in with a passkey, requesting PRF from the same ceremony. */
-export async function assertPasskey(options: RequestOptionsJSON): Promise<CeremonyResult<Record<string, unknown>>> {
-  const credential = (await navigator.credentials.get({ publicKey: toRequestOptions(options) })) as PublicKeyCredential | null;
+/** Sign in with a passkey. Authentication only — the root stays sealed. */
+export async function assertPasskey(options: RequestOptionsJSON): Promise<Assertion> {
+  const credential = (await navigator.credentials.get({ publicKey: toSignInOptions(options) })) as PublicKeyCredential | null;
   if (!credential) throw new Error('No passkey was used');
-  return {
-    response: authenticationToJSON(credential),
-    credentialId: credential.id,
-    prfOutput: readPrfOutput(credential.getClientExtensionResults()),
-  };
+  return { response: authenticationToJSON(credential), credentialId: credential.id };
 }
 
 /**
- * Evaluate PRF for one known credential WITHOUT a server round trip.
- *
- * The PRF output does not depend on the challenge, so a locally random one is
- * enough — used right after registration when the authenticator returned no PRF
- * output at `create()` time (common). Nothing from this ceremony is sent anywhere.
+ * A root ceremony: evaluate PRF on one of the given credentials, under their RP
+ * ID. Returns which credential answered, its PRF output (or `null`), and the
+ * assertion — which the API accepts as a fresh factor when `challengeHex` was a
+ * server proof challenge. The PRF output is never sent anywhere.
  */
-export async function evaluatePrf(credentialId: string): Promise<Uint8Array | null> {
-  const challenge = new Uint8Array(32);
-  crypto.getRandomValues(challenge);
-  const credential = (await navigator.credentials.get({
-    publicKey: {
-      challenge,
-      allowCredentials: [{ id: base64UrlToBuffer(credentialId), type: 'public-key' }],
-      userVerification: 'required',
-      extensions: prfExtension(),
-    },
-  })) as PublicKeyCredential | null;
-  return credential ? readPrfOutput(credential.getClientExtensionResults()) : null;
+export async function evaluatePrf(request: PrfRequest): Promise<PrfEvaluation> {
+  const credential = (await navigator.credentials.get({ publicKey: toPrfOptions(request) })) as PublicKeyCredential | null;
+  if (!credential) throw new Error('No passkey was used');
+  return {
+    credentialId: credential.id,
+    prfOutput: readPrfOutput(credential.getClientExtensionResults()),
+    response: authenticationToJSON(credential),
+  };
 }

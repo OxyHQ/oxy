@@ -1,46 +1,47 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CommonsApprovalInfo, OpenedWebIdentity } from '@oxy.so/core';
-import { confirmPhrase, ensureIdentity, signIn, signUp, wipeIdentity, type CarrierSession, type IdentityState } from '../identity/carrier';
+import {
+  confirmPhrase,
+  establishRoot,
+  readIdentityStatus,
+  recoverSignedOut,
+  signIn,
+  signUp,
+  wipeIdentity,
+  type CarrierSession,
+  type IdentityStatus,
+} from '../identity/carrier';
 import { createPorts, messageOf } from '../identity/ports';
 import { PhraseScreen } from './PhraseScreen';
-
-/** What the confirmation screen says about the identity — nothing more is needed there. */
-type IdentityNoteKind = 'saved' | 'phrase-unsaved' | 'elsewhere' | 'locked' | 'unsupported';
-
-function noteFor(identity: IdentityState): IdentityNoteKind {
-  switch (identity.kind) {
-    case 'ready':
-      return identity.phraseConfirmedAt ? 'saved' : 'phrase-unsaved';
-    case 'created':
-      return 'phrase-unsaved';
-    default:
-      return identity.kind;
-  }
-}
+import { RecoveryForm } from './RecoveryForm';
 
 type Stage =
   | { name: 'loading' }
   | { name: 'blocked'; message: string }
   | { name: 'start' }
+  | { name: 'recover' }
   | { name: 'working'; label: string }
+  | { name: 'secure'; session: CarrierSession }
   | { name: 'phrase'; session: CarrierSession; identity: OpenedWebIdentity }
-  | { name: 'confirm'; session: CarrierSession; note: IdentityNoteKind }
+  | { name: 'confirm'; session: CarrierSession; status: IdentityStatus | null; recovered?: boolean }
   | { name: 'done' };
 
 /**
- * `/continue?code=…` — sign in to the app that opened this popup.
+ * `/continue?code=…` — sign in to the app that opened this window.
  *
- * The app created a device-flow request and opened this origin with its
- * authorize code; this page signs the person in with a passkey (creating the
- * account and its identity if needed) and then authorizes THAT request, which
- * the app claims through its existing poll/socket.
+ * The app created a device-flow request and opened this page with its authorize
+ * code; this page signs the person in with a passkey — creating the account WITH
+ * its root, or recovering it from the recovery phrase — and then authorizes THAT
+ * request, which the app claims through its existing poll/socket.
  *
- * SECURITY — the same rules as the passkey hub it succeeds
- * (`packages/auth/src/pages/hub-passkey.tsx`): signing in here only plants a
- * bearer on THIS origin; the authorize call fires ONLY from an explicit press on
- * a screen naming the application and the account, behind an unchecked-by-
- * default acknowledgement. A crafted code from an attacker's own app therefore
- * cannot be authorized by a single tap.
+ * Signing in opens nothing (ADR 0024 D3): the note about the account's identity
+ * comes from metadata. A root is opened only to create one, to confirm the phrase,
+ * or when a legacy account without one chooses to finish securing itself.
+ *
+ * SECURITY — the authorize call fires ONLY from an explicit press on a screen
+ * naming the application and the account, behind an unchecked-by-default
+ * acknowledgement, so a crafted code from an attacker's own app cannot be
+ * authorized by a single tap.
  */
 export function ContinueScreen({ code }: { code: string }) {
   const portsRef = useRef(createPorts());
@@ -52,6 +53,20 @@ export function ContinueScreen({ code }: { code: string }) {
   const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasOpener = typeof window !== 'undefined' && window.opener != null;
+
+  // An opened root lives only while its screen is visible.
+  const openRef = useRef<OpenedWebIdentity | null>(null);
+  useEffect(() => {
+    const previous = openRef.current;
+    openRef.current = stage.name === 'phrase' ? stage.identity : null;
+    if (previous && previous !== openRef.current) wipeIdentity(previous);
+  }, [stage]);
+  useEffect(
+    () => () => {
+      if (openRef.current) wipeIdentity(openRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -74,18 +89,17 @@ export function ContinueScreen({ code }: { code: string }) {
   }, [code, ports]);
 
   async function afterSignIn(session: CarrierSession) {
-    setStage({ name: 'working', label: 'Preparing your identity…' });
-    const identity = await ensureIdentity(ports, session);
-    if (identity.kind === 'created') {
-      setStage({ name: 'phrase', session, identity: identity.identity });
+    setStage({ name: 'working', label: 'Signing you in…' });
+    const status = await readIdentityStatus(ports, session);
+    if (status.kind === 'no-root') {
+      setStage({ name: 'secure', session });
       return;
     }
-    setStage({ name: 'confirm', session, note: noteFor(identity) });
+    setStage({ name: 'confirm', session, status });
   }
 
   /** Run a step; on failure return to the stage it started from, with the reason shown. */
-  function run(label: string, task: () => Promise<void>) {
-    const from = stage;
+  function run(label: string, task: () => Promise<void>, from: Stage = stage) {
     setError(null);
     setStage({ name: 'working', label });
     task().catch((reason: unknown) => {
@@ -120,18 +134,70 @@ export function ContinueScreen({ code }: { code: string }) {
       );
     case 'working':
       return <p className="status">{stage.label}</p>;
+    case 'recover':
+      return (
+        <RecoveryForm
+          title="Recover your account"
+          description="Type your recovery phrase. It stays on this device — it is used here to prove the account is yours, and then to protect it with a new passkey."
+          submitLabel="Recover"
+          error={error}
+          onBack={() => {
+            setError(null);
+            setStage({ name: 'start' });
+          }}
+          onSubmit={(material) =>
+            run(
+              'Recovering your account…',
+              async () => {
+                const session = await recoverSignedOut(ports, material);
+                const status = await readIdentityStatus(ports, session);
+                setStage({ name: 'confirm', session, status, recovered: true });
+              },
+              { name: 'recover' },
+            )
+          }
+        />
+      );
+    case 'secure':
+      return (
+        <section className="card">
+          <h1>Finish securing your account</h1>
+          <p>
+            Your account doesn’t have its own identity yet. Create it now with your passkey — you’ll get a recovery phrase
+            that only you keep.
+          </p>
+          {error ? <p className="error">{error}</p> : null}
+          <div className="actions vertical">
+            <button
+              type="button"
+              className="primary"
+              onClick={() =>
+                run('Creating your identity…', async () => {
+                  const { identity } = await establishRoot(ports, stage.session);
+                  setStage({ name: 'phrase', session: stage.session, identity });
+                })
+              }
+            >
+              Secure my account
+            </button>
+            <button type="button" className="link" onClick={() => setStage({ name: 'confirm', session: stage.session, status: { kind: 'no-root' } })}>
+              Not now
+            </button>
+          </div>
+        </section>
+      );
     case 'phrase':
       return (
         <PhraseScreen
           identity={stage.identity}
           onConfirmed={async () => {
-            await confirmPhrase(ports, stage.session, stage.identity);
-            wipeIdentity(stage.identity);
-            setStage({ name: 'confirm', session: stage.session, note: 'saved' });
+            const status = await confirmPhrase(ports, stage.session, stage.identity);
+            setStage({ name: 'confirm', session: stage.session, status });
           }}
           onLater={() => {
-            wipeIdentity(stage.identity);
-            setStage({ name: 'confirm', session: stage.session, note: 'phrase-unsaved' });
+            void readIdentityStatus(ports, stage.session)
+              .then((status) => setStage({ name: 'confirm', session: stage.session, status }))
+              .catch(() => setStage({ name: 'confirm', session: stage.session, status: null }));
           }}
         />
       );
@@ -144,7 +210,8 @@ export function ContinueScreen({ code }: { code: string }) {
           <p>
             You’ll be signed in as <strong>@{account.username ?? account.userId}</strong>.
           </p>
-          <IdentityNote note={stage.note} />
+          {stage.recovered ? <p>Your account is recovered and protected with your new passkey.</p> : null}
+          <IdentityNote status={stage.status} />
           <label className="check">
             <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
             {approval?.originVerified
@@ -202,7 +269,8 @@ export function ContinueScreen({ code }: { code: string }) {
                 if (!handle) return;
                 run('Creating your account…', async () => {
                   if (!(await ports.api.isUsernameAvailable(handle))) throw new Error('That username is taken.');
-                  await afterSignIn(await signUp(ports, handle));
+                  const { session, identity } = await signUp(ports, handle);
+                  setStage({ name: 'phrase', session, identity });
                 });
               }}
             >
@@ -219,6 +287,16 @@ export function ContinueScreen({ code }: { code: string }) {
               New here? Create an account
             </button>
           )}
+          <button
+            type="button"
+            className="link"
+            onClick={() => {
+              setError(null);
+              setStage({ name: 'recover' });
+            }}
+          >
+            Lost your passkey? Recover your account
+          </button>
           <button type="button" className="link" onClick={cancel}>
             Cancel
           </button>
@@ -227,17 +305,16 @@ export function ContinueScreen({ code }: { code: string }) {
   }
 }
 
-function IdentityNote({ note }: { note: IdentityNoteKind }) {
-  switch (note) {
-    case 'phrase-unsaved':
-      return <p className="note">Your recovery phrase isn’t saved yet. Open id.oxy.so to save it.</p>;
+function IdentityNote({ status }: { status: IdentityStatus | null }) {
+  if (!status) return null;
+  switch (status.kind) {
+    case 'ready':
+      return status.hasPhrase && !status.phraseConfirmedAt ? (
+        <p className="note">Your recovery phrase isn’t saved yet. Save it from your Oxy account’s security settings — it’s the only way back if you lose your passkeys.</p>
+      ) : null;
     case 'elsewhere':
-      return <p className="note">Your identity lives in the Commons app.</p>;
-    case 'locked':
-      return <p className="note">This passkey can’t open your identity here. You can recover it with your phrase at id.oxy.so.</p>;
-    case 'unsupported':
-      return <p className="note">This browser can’t keep your identity. Use Safari, Chrome, or the Commons app to keep it.</p>;
-    default:
-      return null;
+      return <p className="note">Your identity is kept in the Commons app.</p>;
+    case 'no-root':
+      return <p className="note">Your account isn’t fully secured yet. You can finish next time you sign in.</p>;
   }
 }

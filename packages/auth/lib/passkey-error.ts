@@ -2,7 +2,7 @@
  * Turn a thrown WebAuthn passkey ceremony error into a friendly, user-facing
  * message for the auth (IdP) forms.
  *
- * The passkey handlers call the SDK's `signInWithPasskey` / `registerWithPasskey`,
+ * The passkey handlers call the SDK's `signInWithPasskey`,
  * which run a `navigator.credentials` ceremony through `@simplewebauthn/browser`.
  * When the user dismisses the browser's system prompt (or it times out) the
  * ceremony rejects with a `NotAllowedError` / `AbortError` DOMException — often

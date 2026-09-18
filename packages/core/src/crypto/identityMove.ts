@@ -1,10 +1,13 @@
 /**
- * Identity move — the crypto of taking a web identity into Commons.
+ * Identity move — the crypto of giving a web root to Commons (ADR 0024 D6).
  *
- * Both carriers run this: `id.oxy.so` (the initiator, holding the identity) and
- * Commons (the responder, receiving it). The relay in between sees two ephemeral
- * public keys and ciphertext; the 6-digit SAS both screens show is what makes a
- * relay that swapped a key visible to the person.
+ * Both sides run this: the web holder (the initiator, holding the root) and
+ * Commons (the responder, receiving it). The relay in between sees a commitment,
+ * two ephemeral public keys and ciphertext. The initiator commits to its key
+ * before the responder chooses one and reveals it only afterwards, so the 6-digit
+ * code both screens show exposes a relay that substituted a key — it cannot grind
+ * one until the codes agree. The receipt binds the move, the root, both keys and
+ * the ciphertext actually relayed.
  *
  * PURE: no storage, no network. Contract: `@oxy.so/contracts` `identityMove`.
  */
@@ -12,22 +15,27 @@
 import './polyfill';
 import { entropyToMnemonic, mnemonicToEntropy } from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
+import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex, hexToBytes, utf8ToBytes } from '@noble/hashes/utils';
-import { signMessage, verifySignature } from '@oxy.so/protocol';
+import { verifySignature } from '@oxy.so/protocol';
 import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
-import { IDENTITY_MOVE_QR_PREFIX } from '@oxy.so/contracts';
+import {
+  IDENTITY_MOVE_QR_PREFIX,
+  buildMoveCiphertextDigestInput,
+  buildMoveCommitmentInput,
+  buildMoveReceiptMessage,
+  buildMoveSasInput,
+} from '@oxy.so/contracts';
 import { decryptAead, encryptAead, AEAD_KEY_LENGTH } from './aead';
 import { deriveSharedSecret } from './ecdh';
 import { hkdfSha256 } from './kdf';
-import { deriveIdentityFromMnemonic, deriveTransferSas, wipeBytes, type OpenedWebIdentity } from './webIdentityCarrier';
+import { deriveIdentityFromMnemonic, wipeBytes, type OpenedMnemonicIdentity } from './webIdentityCarrier';
 
 const MOVE_KDF_INFO = utf8ToBytes('oxy-identity-move-v1');
 
-/** Actions the identity key signs during a move. */
-export const IDENTITY_MOVE_ACTIONS = {
-  seal: 'identity_move_seal',
-  received: 'identity_move_received',
-} as const;
+function sha256Hex(input: string): string {
+  return bytesToHex(sha256(utf8ToBytes(input)));
+}
 
 /** A fresh ephemeral key pair for one move. Keep the private key in memory only. */
 export function generateMoveEphemeralKeyPair(): { privateKey: string; publicKey: string } {
@@ -44,21 +52,71 @@ export function deriveMoveKey(ownEphemeralPrivateKey: string, otherEphemeralPubl
   }
 }
 
-/** The 6-digit code both screens show, bound to the move and both ephemeral keys in their roles. */
-export function deriveMoveSas(moveId: string, initiatorEphemeralPublicKey: string, responderEphemeralPublicKey: string): string {
-  return deriveTransferSas({ pairingId: moveId, initiatorEphemeralPublicKey, responderEphemeralPublicKey });
+/** Initiator: commit to the ephemeral key before anyone else's key is known. The nonce stays in memory until the reveal. */
+export function createMoveCommitment(initiatorEphemeralPublicKey: string): { commitment: string; nonce: string } {
+  const nonceBytes = new Uint8Array(32);
+  globalThis.crypto.getRandomValues(nonceBytes);
+  const nonce = bytesToHex(nonceBytes);
+  return { commitment: sha256Hex(buildMoveCommitmentInput(initiatorEphemeralPublicKey, nonce)), nonce };
+}
+
+/** Responder: does the revealed key match the commitment read before joining? */
+export function verifyMoveCommitment(initiatorEphemeralPublicKey: string, nonce: string, commitment: string): boolean {
+  return sha256Hex(buildMoveCommitmentInput(initiatorEphemeralPublicKey, nonce)) === commitment.toLowerCase();
+}
+
+/** The 6-digit code, bound to the move, both keys in their roles, and the commitment. */
+export function deriveMoveSas(input: {
+  moveId: string;
+  initiatorEphemeralPublicKey: string;
+  responderEphemeralPublicKey: string;
+  initiatorCommitment: string;
+}): string {
+  const digest = sha256(utf8ToBytes(buildMoveSasInput(input)));
+  const value = ((digest[0] << 24) | (digest[1] << 16) | (digest[2] << 8) | digest[3]) >>> 0;
+  return String(value % 1_000_000).padStart(6, '0');
+}
+
+/** The digest a receipt binds: what was actually relayed. */
+export function digestMoveCiphertext(sealed: { nonce: string; ciphertext: string }): string {
+  return sha256Hex(buildMoveCiphertextDigestInput(sealed));
+}
+
+export interface MoveReceiptClaims {
+  moveId: string;
+  rootPublicKey: string;
+  initiatorEphemeralPublicKey: string;
+  responderEphemeralPublicKey: string;
+  ciphertextDigest: string;
+}
+
+/**
+ * Responder: sign the receipt with a signer that reads the root back from durable
+ * storage (Commons passes its keychain signer), so a receipt exists only for a
+ * root that was actually stored.
+ */
+export async function signMoveReceipt(sign: (message: string) => Promise<string>, claims: MoveReceiptClaims): Promise<{ signature: string }> {
+  return { signature: await sign(buildMoveReceiptMessage(claims)) };
+}
+
+/** Initiator: is this receipt the root's, for exactly this move and ciphertext? */
+export function verifyMoveReceipt(claims: MoveReceiptClaims, signature: string): Promise<boolean> {
+  return verifySignature(buildMoveReceiptMessage(claims), signature, claims.rootPublicKey);
 }
 
 function moveAad(moveId: string, publicKey: string): Uint8Array {
   return utf8ToBytes(JSON.stringify({ v: 1, purpose: 'identity-move', moveId: moveId.toLowerCase(), publicKey: publicKey.toLowerCase() }));
 }
 
-/** Initiator: seal the identity's entropy for the responder. */
+/** Initiator: seal the phrase entropy (12–24 words) for the responder. */
 export function sealIdentityForMove(
-  identity: Pick<OpenedWebIdentity, 'mnemonic' | 'publicKey'>,
+  identity: Pick<OpenedMnemonicIdentity, 'mnemonic' | 'publicKey'>,
   moveKey: Uint8Array,
   moveId: string,
 ): { nonce: string; ciphertext: string } {
+  if (typeof identity.mnemonic !== 'string' || !identity.mnemonic) {
+    throw new Error('Only an identity with a recovery phrase can be moved this way');
+  }
   const entropy = mnemonicToEntropy(identity.mnemonic, wordlist);
   try {
     const { nonce, ciphertext } = encryptAead(moveKey, entropy, moveAad(moveId, identity.publicKey));
@@ -77,7 +135,7 @@ export function openMovedIdentity(
   moveKey: Uint8Array,
   moveId: string,
   expectedPublicKey: string,
-): OpenedWebIdentity {
+): OpenedMnemonicIdentity {
   let entropy: Uint8Array;
   try {
     entropy = decryptAead(moveKey, hexToBytes(sealed.nonce), hexToBytes(sealed.ciphertext), moveAad(moveId, expectedPublicKey));
@@ -93,30 +151,6 @@ export function openMovedIdentity(
   } finally {
     wipeBytes(entropy);
   }
-}
-
-/** The exact bytes a move proof or receipt signs. */
-export function buildMoveMessage(action: string, moveId: string, timestamp: number): string {
-  return JSON.stringify({ action, moveId: moveId.toLowerCase(), timestamp });
-}
-
-/** Sign a move action with the identity key. */
-export async function signMoveAction(
-  identity: Pick<OpenedWebIdentity, 'privateKey'>,
-  action: string,
-  moveId: string,
-  timestamp: number = Date.now(),
-): Promise<{ signature: string; timestamp: number }> {
-  return { signature: await signMessage(buildMoveMessage(action, moveId, timestamp), identity.privateKey), timestamp };
-}
-
-/**
- * Initiator: is this receipt really from the identity? Checked locally with the
- * identity's public key, so a server that claims "completed" without Commons
- * having the key cannot make the web destroy its copy.
- */
-export function verifyMoveReceipt(publicKey: string, moveId: string, receipt: { signature: string; timestamp: number }): Promise<boolean> {
-  return verifySignature(buildMoveMessage(IDENTITY_MOVE_ACTIONS.received, moveId, receipt.timestamp), receipt.signature, publicKey);
 }
 
 /** The QR payload for a move. */

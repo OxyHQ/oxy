@@ -19,8 +19,9 @@
  * moved) returns nothing.
  */
 
-import { index, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import type { WebIdentityWrap } from '@oxy.so/contracts';
+import { sql } from 'drizzle-orm';
+import { check, index, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { WEB_IDENTITY_SECRET_KINDS, type WebIdentityWrap } from '@oxy.so/contracts';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
@@ -38,23 +39,36 @@ export const identityWebEnvelopes = pgTable(
     version: integer().notNull(),
     /** The AEAD that sealed the envelope, `xchacha20poly1305`. */
     algorithm: text().notNull(),
-    /** 24-byte nonce of the entropy seal, hex. */
+    /** What the envelope seals: `mnemonic-entropy` | `raw-private-key`. */
+    secretKind: text({ enum: WEB_IDENTITY_SECRET_KINDS }).notNull(),
+    /** 24-byte nonce of the secret seal, hex (`secretNonce`). */
     entropyNonce: text().notNull(),
-    /** The BIP-39 entropy sealed under the data key, tag appended, hex. Undecryptable here. */
+    /** The secret sealed under the data key, tag appended, hex (`sealedSecret`). Undecryptable here. */
     sealedEntropy: text().notNull(),
     /** One data-key wrap per passkey (`WebIdentityWrap[]`). Undecryptable here. */
     wraps: jsonb().$type<WebIdentityWrap[]>().notNull(),
     /**
      * When the owner proved (with the identity key) that the recovery phrase is
-     * written down, or `null`. Until then the identity is not unlocked on a
-     * second device nor used for key operations (design decision D2).
+     * written down, or `null`. A reminder input only (ADR 0024 D5): it does not
+     * prove the material re-derives the root — `recoveryVerifiedAt` does.
      */
     phraseConfirmedAt: timestamptz(),
+    /** When the recovery material was shown to re-derive this root (ADR 0024 D5), or `null`. */
+    recoveryVerifiedAt: timestamptz(),
+    /**
+     * Compare-and-swap counter. Every write names the revision it replaces and
+     * increments it, so two concurrent holder changes cannot silently drop one
+     * another's wrap.
+     */
+    revision: integer().notNull().default(1),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     unique('identity_web_envelopes_user_id_key').on(t.userId),
     index('identity_web_envelopes_public_key_idx').on(t.publicKey),
+    check('identity_web_envelopes_revision_check', sql`${t.revision} >= 1`),
+    check('identity_web_envelopes_version_check', sql`${t.version} = 2`),
+    check('identity_web_envelopes_secret_kind_check', sql`${t.secretKind} in ('mnemonic-entropy', 'raw-private-key')`),
   ],
 );

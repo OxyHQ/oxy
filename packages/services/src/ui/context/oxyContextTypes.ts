@@ -89,12 +89,6 @@ export interface OxyContextState {
   }) => Promise<void>;
 
   /**
-   * Create a brand-new account whose first authentication method is a passkey.
-   * WEB-ONLY — throws on native or an unsupported browser.
-   */
-  registerWithPasskey: (params: { username: string; deviceName?: string }) => Promise<void>;
-
-  /**
    * Add a passkey to the already-signed-in account (bearer present). Does NOT
    * commit a new session; refreshes the linked auth-methods list on success.
    * WEB-ONLY — throws on native or an unsupported browser.

@@ -63,6 +63,34 @@ describe('native product agent identities', () => {
     expect(createHash('sha256').update(JSON.stringify(handoff)).digest('hex')).toHaveLength(64);
   });
 
+  /**
+   * The CONSUMER's half of the contract, and the only thing that makes this a
+   * contract rather than a publication.
+   *
+   * Alia owns the `agents` rows this hand-off describes, and for as long as it
+   * had no consumer the values above were true and inert: Homiio authenticated,
+   * Alia found no row for the Sindi agent id, and the turn was refused with
+   * `agent_unavailable`. Alia now pins a copy of this hand-off
+   * (`packages/api/src/config/native-product-agents.ts`) and applies it with a
+   * reviewed one-shot, and a copy with no gate is a copy that diverges.
+   *
+   * So both repositories assert the SAME hex over the SAME bytes. Changing this
+   * manifest here turns THIS suite red, naming the file in Alia that has to
+   * change with it — which is the cheap way to make a two-repository contract
+   * fail on the side that broke it, rather than in production in a third
+   * product weeks later.
+   *
+   * `JSON.stringify` preserves insertion order, so the key ORDER in
+   * `aliaNativeAgentBootstrapManifest()` is part of what is pinned. Reordering
+   * the fields is a manifest change even when every value is identical.
+   */
+  it('hashes to the exact hex Alia pins for the same bytes', () => {
+    const handoff = aliaNativeAgentBootstrapManifest();
+    expect(createHash('sha256').update(JSON.stringify(handoff)).digest('hex')).toBe(
+      '4d8b711602fff69d9711202cfa6017090d0559b608fa7ed0e2e2b3c09cd2e4c6',
+    );
+  });
+
   it('grants Clarity only user:read and exact official web/native redirects', () => {
     const app = NATIVE_PRODUCT_AGENTS.products.clarity.application;
     expect(app.scopes).toEqual(['user:read']);
@@ -79,5 +107,31 @@ describe('native product agent identities', () => {
       'user:read',
       'inference:invoke',
     ]);
+  });
+});
+
+describe('present-requester entry points (ADR 0025)', () => {
+  it('admits exactly the Homiio Sindi credential for the Sindi agent and nothing else', () => {
+    const {
+      NATIVE_PRODUCT_AGENT_ENTRY_POINTS,
+      nativeProductAgentEntryPoint,
+    } = jest.requireActual('../nativeProductAgents') as typeof import('../nativeProductAgents');
+    expect(NATIVE_PRODUCT_AGENT_ENTRY_POINTS).toEqual([{
+      product: 'homiio',
+      applicationId: '6a2f851751b784a86fd0e922',
+      credentialId: '01a0648e-ad3f-7608-aa8b-c07bfef6cf73',
+      agentId: '01a0646a-078f-7514-9800-9f43ceed7df8',
+    }]);
+    expect(nativeProductAgentEntryPoint(
+      '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e',
+      '01a0648b-8d74-7240-adba-80707fdfdf9c',
+      '01a0646a-078f-7642-95ef-439952f4f3f9',
+    )).toBeNull();
+  });
+
+  it('pins Alia as the audience application, matching the seeded Alia application', () => {
+    const { ALIA_RESOURCE_SERVER_APPLICATION_ID } = jest.requireActual('../nativeProductAgents') as typeof import('../nativeProductAgents');
+    const { ALIA_APPLICATION_ID } = jest.requireActual('../../scripts/seedOxyApplicationsSpecs') as typeof import('../../scripts/seedOxyApplicationsSpecs');
+    expect(ALIA_RESOURCE_SERVER_APPLICATION_ID).toBe(ALIA_APPLICATION_ID);
   });
 });
