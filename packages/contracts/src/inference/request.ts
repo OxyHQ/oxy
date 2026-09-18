@@ -336,14 +336,6 @@ const modelLineOf = (reference: string): string => {
   return at === -1 ? reference : reference.slice(0, at);
 };
 
-/**
- * The canonical internal request Oxy forwards to the data plane.
- *
- * `target` distinguishes the two questions a caller can ask — "serve THIS
- * model" versus "choose one for me" — structurally. Everything downstream that
- * must not silently substitute a model reads that discriminant rather than
- * inferring intent from a string.
- */
 /** Parameters for text-to-speech, preserved in the signed request. */
 export const inferenceSpeechParametersSchema = z.object({
   voice: z.string().min(1).max(64),
@@ -353,6 +345,14 @@ export const inferenceSpeechParametersSchema = z.object({
 
 export type InferenceSpeechParameters = z.infer<typeof inferenceSpeechParametersSchema>;
 
+/**
+ * The canonical internal request Oxy forwards to the data plane.
+ *
+ * `target` distinguishes the two questions a caller can ask — "serve THIS
+ * model" versus "choose one for me" — structurally. Everything downstream that
+ * must not silently substitute a model reads that discriminant rather than
+ * inferring intent from a string.
+ */
 export const inferenceRequestSchema = z
   .object({
     /** See `version.ts`: this is the Oxy→data-plane request envelope. */
