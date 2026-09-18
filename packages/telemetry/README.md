@@ -129,9 +129,12 @@ installed in each service before this can represent the whole ecosystem.
 
 The authenticated publisher is `createEcosystemTraffic` from `@oxy.so/core/server`.
 It exposes HTTP middleware, `wrapFetch`, `record` for explicit transport events,
-and `stop` for graceful removal. It requires an existing trusted service
-credential and a known infrastructure region (or explicit infrastructure
-coordinates). Credentials, user metadata and paths never enter public snapshots.
+and `stop` for graceful removal. It requires a known infrastructure region (or
+explicit infrastructure coordinates) and one of three ways to authenticate: an
+`OXY_ACTIVITY_API_KEY`/`OXY_ACTIVITY_API_SECRET` pair, an
+`OXY_SERVICE_API_KEY`/`OXY_SERVICE_API_SECRET` pair, or no credential at all
+where the process can attest its workload identity (ADR 0026). Credentials, user
+metadata and paths never enter public snapshots.
 
 ## Development
 
