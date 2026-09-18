@@ -56,8 +56,10 @@ describe('workload identity client', () => {
   });
 
   afterAll(() => {
-    if (previous === undefined) delete process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI;
-    else process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = previous;
+    // Cleared by assignment rather than `delete`: Biome refuses `delete` on a
+    // property access, and an empty value reads as "cannot attest" everywhere
+    // that matters here.
+    process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = previous ?? '';
   });
 
   it('knows whether this process can attest at all', () => {
@@ -116,7 +118,7 @@ describe('workload identity client', () => {
   });
 
   it('throws when the process has no identity to prove', async () => {
-    delete process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI;
+    process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = '';
     const { fetchImpl } = harness();
 
     await expect(
