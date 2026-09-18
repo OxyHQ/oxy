@@ -107,9 +107,11 @@ module that knows which cloud we are on — another provider is one more
 implementation of `AttestationVerifier`, with no change to callers or verifiers of
 the token.
 
-`application_workload_identities` maps `(provider, subject)` → application. The row
-carries no secret, is created by the platform at deploy time, and deleting it is
-how a workload is cut off. The mint re-applies `isTrustedApplication`, takes the
+`application_workload_identities` maps `(provider, subject)` → application. On AWS
+the subject is the ROLE ARN (`arn:aws:iam::<account>:role/<name>`): STS answers with
+the per-task `assumed-role/<name>/<session>`, and the verifier reduces it, so a
+binding survives the tasks that present it. The row carries no secret, is created by
+the platform at deploy time, and deleting it is how a workload is cut off. The mint re-applies `isTrustedApplication`, takes the
 application's non-privileged scopes only, and stamps the DEPLOYMENT's environment
 (an attestation cannot ask for one).
 

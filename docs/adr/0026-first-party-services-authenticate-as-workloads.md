@@ -62,6 +62,11 @@ attached), requires our nonce to be inside the signature's `SignedHeaders` (a no
 the signature does not cover can be swapped by whoever captured it), and refuses a
 signature older than five minutes.
 
+What STS answers is the SESSION — `assumed-role/<RoleName>/<SessionName>`, a
+different string for every task — so the verifier reduces it to the role before
+anything else sees it. A binding names a role, because a role outlives the
+containers that assume it.
+
 ### Portability is a property of the code, not a promise
 
 `AttestationVerifier` is the only seam that knows where we run. Moving to another
