@@ -120,6 +120,24 @@ const result = await oxy.makeServiceRequest('POST', '/some/endpoint', data, user
 app.use('/internal', oxy.serviceAuth());
 ```
 
+**A refusal is always observable to the host, and never to the client.** Every
+branch of `auth()` that rejects a PRESENTED credential records
+`req.oxyAuthRefusal` (`{ code, stage, reason, status, optional }`, read it with
+`getOxyAuthRefusal` from `@oxy.so/core/server`), logs one `warn` carrying that
+code, and calls the optional `onRefusal` observer — on the `optional: true`
+mount too, where the request otherwise continues unauthenticated and the host
+answers its own generic 401 with nothing written down anywhere. Response bodies
+are unchanged, and a request carrying NO credential is an absence, not a
+refusal. Delegation against a verifier that holds no service credential of its
+own cannot reach `/internal/service-acting-as/verify` and so refuses every user:
+verify with a credentialed client, or refuse at startup.
+
+**The failure this was bought for:** `/.well-known/jwks.json` served
+`{"keys":[]}` — no Ed25519 signing key bound — so every service token failed
+`Oxy service-token key set is unavailable`, the optional mount swallowed it,
+and the fault existed in no log on either side. That reason now reaches the
+host's own logs.
+
 ## Self-Sovereign Identity Layer (PR #415)
 
 ### DID document (`did:web:oxy.so:u:<userId>`)
