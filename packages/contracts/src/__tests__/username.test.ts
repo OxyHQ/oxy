@@ -17,6 +17,9 @@ import {
   usernameSchemaForAccountKind,
   BOT_USERNAME_INVALID_MESSAGE,
   BOT_USERNAME_SUFFIX,
+  NUMERIC_USERNAME_MESSAGE,
+  RESERVED_USERNAME_MESSAGE,
+  RESERVED_USERNAMES,
   USERNAME_INVALID_MESSAGE,
   USERNAME_MAX_LENGTH,
   USERNAME_MIN_LENGTH,
@@ -141,6 +144,102 @@ describe('usernameSchema', () => {
       expect(usernameSchema.safeParse('  al ice  ').success).toBe(false);
     });
   });
+});
+
+/**
+ * Names withheld before anybody asks for them, rather than protected only
+ * because an account already holds them — `oxy`, `mention` and `homiio` stay
+ * OUT of this list on purpose (see the docblock on `RESERVED_USERNAMES`) so
+ * the "names that exist today stay legal" block above keeps passing.
+ */
+describe('reserved usernames', () => {
+  it.each([...RESERVED_USERNAMES])('rejects %s, exactly as listed', (reserved) => {
+    expect(usernameSchema.safeParse(reserved).success).toBe(false);
+  });
+
+  it.each(['Admin', 'ADMIN', ' admin ', 'Alia', 'KAANA'])(
+    'rejects %s: comparison folds case and trims, like the unique index',
+    (candidate) => {
+      expect(usernameSchema.safeParse(candidate).success).toBe(false);
+    }
+  );
+
+  it('says the name is reserved, not that the shape is wrong', () => {
+    const parsed = usernameSchema.safeParse('admin');
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0]?.message).toBe(RESERVED_USERNAME_MESSAGE);
+  });
+
+  it.each(['administrator2', 'xadmin', 'superman', 'modern', 'grassroot', 'homeowner'])(
+    'does not reach %s: a substring is not a separated segment',
+    (candidate) => {
+      expect(usernameSchema.safeParse(candidate).success).toBe(true);
+    }
+  );
+
+  it('reaches a bot handle too, since the bot schema only tightens the base policy', () => {
+    expect(botUsernameSchema.safeParse('admin').success).toBe(false);
+  });
+
+  /**
+   * Splitting on `-`/`_` catches a reserved word used to dress up a handle as
+   * official, without banning every word that happens to contain one.
+   */
+  describe('as a separated segment, not just the whole handle', () => {
+    it.each(['official-oxy', 'super-admin', 'team-kaana', 'oxy-support', 'alia_admin'])(
+      'rejects %s',
+      (candidate) => {
+        expect(usernameSchema.safeParse(candidate).success).toBe(false);
+      }
+    );
+
+    it.each(['superman', 'modern', 'grassroot', 'homeowner', 'ecosystem', 'helper'])(
+      'accepts %s: no separator isolates the reserved word from the rest',
+      (candidate) => {
+        expect(usernameSchema.safeParse(candidate).success).toBe(true);
+      }
+    );
+
+    /**
+     * The one exemption: `alia-` is the live internal-cost-centre namespace.
+     * Segment-matching `alia` would refuse the four slugs pinned above as
+     * legal. The bare word `alia` is still refused by the exact-match check.
+     */
+    it.each(['alia-production-chat', 'alia-research', 'alia-voice', 'alia-evaluations'])(
+      'accepts the cost-centre slug %s: alia is exempt from segment matching',
+      (candidate) => {
+        expect(usernameSchema.safeParse(candidate).success).toBe(true);
+      }
+    );
+
+    it('still refuses the bare word the segment exemption is about', () => {
+      expect(usernameSchema.safeParse('alia').success).toBe(false);
+    });
+  });
+});
+
+describe('usernames that are only digits', () => {
+  it.each(['123', '1234', '0000', '9'.repeat(USERNAME_MAX_LENGTH)])(
+    'rejects %s',
+    (candidate) => {
+      expect(usernameSchema.safeParse(candidate).success).toBe(false);
+    }
+  );
+
+  it('says the number is the problem', () => {
+    const parsed = usernameSchema.safeParse('1234');
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0]?.message).toBe(NUMERIC_USERNAME_MESSAGE);
+  });
+
+  it.each(['coolroad168', 'a123', '123a', '1-2'])(
+    'accepts %s: at least one non-digit keeps it a handle, not a number',
+    (candidate) => {
+      expect(usernameSchema.safeParse(candidate).success).toBe(true);
+    }
+  );
 });
 
 describe('isValidUsername', () => {
