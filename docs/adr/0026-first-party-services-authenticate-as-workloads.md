@@ -83,8 +83,20 @@ names an IAM role, so creating a role with the right name is enough to become th
 application, and renaming one silently unmakes it.
 
 A row is not the registration ritual this ADR removes. It carries no secret, it is
-created by the platform when a service is deployed, and it is what makes a
-compromised workload revocable — delete the row.
+created when a service is deployed, and it is what makes a compromised workload
+revocable — delete the row.
+
+It is created by `packages/api/scripts/bind-workload-identity.ts`, run once per
+service by staff against that environment's database — not by a route. Exposing a
+binding over HTTP means designing who may call it, and the honest answer is "an
+operator, out of band, at deploy time". The script refuses to repoint a subject
+that already belongs to another application: a repoint is silent and total, the
+old service keeps receiving tokens and every one of them now carries someone
+else's `applicationId`. Moving a role means deleting the old row first. It also
+refuses a subject that is not a role ARN once reduced — a user, the root, a typo —
+because `canonicalAwsSubject` passes an unrecognised ARN through unchanged, which
+is the right answer for reporting what AWS said and the wrong one for an operator
+at a terminal.
 
 ### What an attestation can never do
 
@@ -100,7 +112,8 @@ compromised workload revocable — delete the row.
 ## Consequences
 
 - An official service needs no credential, no console step and no secret in SSM.
-  Adding one to the ecosystem is a deploy, not a ritual.
+  Adding one to the ecosystem is a deploy plus one binding row, not a ritual — and
+  the row is a fact about our infrastructure, not a secret anybody has to keep.
 - Oxy's auth service becomes load-bearing for service-to-service calls in a new
   way: a workload with no cached token cannot start calling until the mint answers.
   The token lives an hour, so a mint outage degrades over an hour rather than at
