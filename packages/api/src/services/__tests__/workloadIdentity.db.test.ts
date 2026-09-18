@@ -26,11 +26,36 @@
  */
 jest.unmock('jsonwebtoken');
 
+/**
+ * The challenge store, in memory.
+ *
+ * The mint needs Redis to make a nonce single-use across API tasks, and the
+ * `api-test` job has no Redis — so a test that needed one would be asserting
+ * where the suite runs rather than what the code does. `GETDEL` is the whole
+ * contract, and two lines of Map reproduce it exactly, including the property
+ * these cases exist for: the second read of a nonce finds nothing.
+ */
+const challengeStore = new Map<string, string>();
+
+jest.mock('../../config/redis', () => ({
+  getRedisClient: () => ({
+    set: async (key: string, value: string) => {
+      challengeStore.set(key, value);
+      return 'OK';
+    },
+    getdel: async (key: string) => {
+      const value = challengeStore.get(key) ?? null;
+      challengeStore.delete(key);
+      return value;
+    },
+  }),
+  closeRedis: async () => {},
+}));
+
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { closeRedis } from '../../config/redis';
 import { applications } from '../../db/schema/applications';
 import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
 import { users } from '../../db/schema/users';
@@ -68,9 +93,6 @@ afterAll(async () => {
     await getDb().delete(applications).where(eq(applications.id, id));
   }
   await closePostgres();
-  // The challenge store is a real Redis connection; leaving it open keeps the
-  // worker alive after the last assertion.
-  await closeRedis();
 });
 
 async function applicationFixture(overrides: Partial<typeof applications.$inferInsert> = {}) {
