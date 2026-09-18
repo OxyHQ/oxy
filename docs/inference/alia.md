@@ -76,9 +76,18 @@ display name, take the first list result or substitute a fallback.
 
 Each agent's `oxyAccountId` is its exact bot-account primary key, and each
 service application is owned by the corresponding project account so billing
-lands on that product. Sindi's capability grant is exactly `web`; Clarity's is
-exactly `web`, `artifacts`, and `memory`. A client cannot create or rebind these
-relationships through the public agent API.
+lands on that product. A client cannot create or rebind these relationships
+through the public agent API.
+
+`aliaNativeAgentBootstrapManifest()` also publishes each agent's
+`capabilityGrants` — Alia's own vocabulary, carried here because a capability
+grant is an authority and this manifest is the hashed channel both repositories
+review. Sindi's grant is exactly `web`, `artifacts`, `memory`, in that order;
+Clarity's is empty, which DENIES everything rather than meaning unset. Neither
+carries anything that acts in the world (shell, browser, files, messaging,
+automation, delegation) and neither carries a connector: Oxy app access is not
+expressible in that vocabulary at all, and Oxy's normalized DelegationGrant
+records remain its sole authority.
 
 Homiio's project row predates this bootstrap and is adopted by its exact
 primary key. Bootstrap verifies its username, account kind, hierarchy, status
