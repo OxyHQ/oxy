@@ -168,3 +168,12 @@ export { createEcosystemTraffic } from './traffic';
 export type { EcosystemTrafficOptions } from './traffic';
 
 export { observeNodeHttp, withoutNodeHttpObservation } from './trafficNodeHttp';
+
+/**
+ * Workload identity (ADR 0026): a first-party service asks Oxy for a service
+ * token by proving what it IS, with no api key and no secret. Server-only, and
+ * exported from this subpath rather than the root barrel because it reaches the
+ * container credentials endpoint.
+ */
+export { canAttestWorkloadIdentity, requestWorkloadServiceToken } from './workloadIdentity';
+export type { WorkloadServiceToken, WorkloadServiceTokenOptions } from './workloadIdentity';
