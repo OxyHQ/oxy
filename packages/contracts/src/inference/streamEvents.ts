@@ -2,7 +2,7 @@
  * Normalized stream events — what the data plane emits and the Oxy edge
  * forwards as SSE.
  *
- * One discriminated union, seven shapes, all carrying `requestId` and a
+ * One discriminated union, eight shapes, all carrying `requestId` and a
  * monotonic `sequence`. `requestId` is on EVERY event rather than only the
  * first because a proxy that re-frames or a client that reconnects would
  * otherwise be holding events it cannot attribute; `sequence` is what makes a
@@ -72,6 +72,17 @@ export const inferenceStreamDeltaEventSchema = z.object({
   outputIndex: z.number().int().nonnegative().safe(),
   channel: z.enum(['output_text', 'reasoning', 'refusal']),
   text: z.string(),
+});
+
+/** A bounded, independently base64-encoded chunk of one audio output. */
+export const inferenceStreamAudioEventSchema = z.object({
+  schemaVersion: z.literal(1),
+  type: z.literal('audio'),
+  requestId: requestIdSchema,
+  sequence: z.number().int().nonnegative().safe(),
+  outputIndex: z.number().int().nonnegative().safe(),
+  mediaType: z.enum(['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/flac', 'audio/pcm']),
+  data: z.string().min(4).max(65536).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/),
 });
 
 /**
@@ -267,6 +278,7 @@ export const inferenceStreamDoneEventSchema = z.object({
 export const inferenceStreamEventSchema = z.discriminatedUnion('type', [
   inferenceStreamStartEventSchema,
   inferenceStreamDeltaEventSchema,
+  inferenceStreamAudioEventSchema,
   inferenceStreamToolCallEventSchema,
   inferenceStreamUsageEventSchema,
   inferenceStreamRouteSwitchEventSchema,
@@ -276,6 +288,7 @@ export const inferenceStreamEventSchema = z.discriminatedUnion('type', [
 
 export type InferenceStreamStartEvent = z.infer<typeof inferenceStreamStartEventSchema>;
 export type InferenceStreamDeltaEvent = z.infer<typeof inferenceStreamDeltaEventSchema>;
+export type InferenceStreamAudioEvent = z.infer<typeof inferenceStreamAudioEventSchema>;
 export type InferenceStreamToolCallEvent = z.infer<typeof inferenceStreamToolCallEventSchema>;
 export type InferenceStreamUsageEvent = z.infer<typeof inferenceStreamUsageEventSchema>;
 export type InferenceRouteSwitchDetail = z.infer<typeof inferenceRouteSwitchDetailSchema>;
