@@ -1,5 +1,52 @@
 # Changelog — `@oxy.so/core`
 
+## 1.5.1
+
+Maintenance release: 1.5.0's `onRefusal` made reachable.
+
+### Fixed
+
+- `onRefusal` is declared on the `OxyServices` interface consumers see, not only
+  on the mixin. `src/OxyServices.ts` re-declares `auth()` / `serviceAuth()` by
+  hand and that hand-written list is what the published `.d.ts` carries, so a
+  host passing the option 1.5.0 advertised got
+  `TS2345 … has no properties in common with`.
+  `src/__tests__/publicInterfaceParity.test.ts` compares the two declarations.
+
+## 1.5.0
+
+Maintenance release: `1.4.0` plus auth-refusal observability only. It
+deliberately excludes the unreleased, breaking identity changes on `main`
+(#1302), which ship in the next major.
+
+### Added
+
+- Auth refusals are observable to the host: `auth()` records
+  `req.oxyAuthRefusal` (`{ code, stage, reason, status, optional }`), logs one
+  `warn` per refusal with a stable code, and accepts an `onRefusal` observer.
+  Read it with `getOxyAuthRefusal(req)` from `@oxy.so/core/server`, which also
+  names the refusal in the log beside `requireOxyAuth`'s generic 401. Response
+  bodies are unchanged, no reason reaches a client, and a credential-free
+  request is not a refusal. Additive.
+
+## 1.4.0
+
+Maintenance release cut from the `1.3.1` release commit (`f435259d`) plus the
+present-requester assertion work only. It deliberately excludes the unreleased,
+breaking identity changes on `main` (#1302), which ship in the next major.
+
+### Added
+
+- Present-requester assertions (ADR 0025): `OxyServices.mintRequesterAssertion`
+  lets a pinned first-party product backend trade a signed-in person's live
+  session for a one-use, 120-second `OXY-REQUESTER+JWT`, and
+  `OxyServices.introspectRequesterAssertion` lets its audience consume it.
+  `@oxy.so/core/server` adds `createOxyRequesterAssertionAuth` (mount after
+  `createOxyAuthMiddleware`; sets `req.userId` and `req.oxyRequester` only after
+  local JWKS verification, presenter binding and live introspection),
+  `signOxyRequesterAssertion`, `verifyOxyRequesterAssertion` and
+  `createOxyJwksKeyResolver`. Additive.
+
 ## Unreleased
 
 ### Added
