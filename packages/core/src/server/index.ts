@@ -18,6 +18,7 @@
 export {
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
+  getOxyAuthRefusal,
   getOxyBillingPrincipal,
   getOxyDelegatedUserId,
   getOxyRequestAttribution,
@@ -30,6 +31,7 @@ export {
 } from './auth';
 export type {
   OxyAuthenticatedRequest,
+  OxyAuthRefusal,
   OxyAuthMiddlewareOptions,
   OxyAuthRequest,
   OxyBillingPrincipal,

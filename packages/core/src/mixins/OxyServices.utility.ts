@@ -91,6 +91,44 @@ export interface ServiceApp {
 }
 
 /**
+ * Why a request's credential was refused, recorded on the request itself.
+ *
+ * The middleware answers a fixed, deliberately uninformative body to the
+ * client; this is the other half of that trade. A refusal is ALWAYS observable
+ * to the HOST: it is logged at `warn` with a stable `code`, handed to
+ * `onRefusal`, and left on `req.oxyAuthRefusal` for the host's own logs.
+ *
+ * It exists because the opposite cost was measured: Oxy served
+ * `{"keys":[]}` from `/.well-known/jwks.json` with no Ed25519 signing key
+ * bound, every service token failed `Oxy service-token key set is unavailable`,
+ * and on the OPTIONAL path that failure fell straight through to `next()`.
+ * The host then answered its own generic 401 and logged nothing at all, so the
+ * one fact that named the fault — an empty key set — existed nowhere. Hours.
+ *
+ * **Nothing here is ever sent to a client, and `reason` never contains the
+ * token, a signature, a secret or a session id.** It carries the SDK's own
+ * failure message (`kid` unknown, audience mismatch, key set unavailable) plus
+ * the ids already considered safe to log elsewhere in this middleware.
+ */
+export interface OxyAuthRefusal {
+  /** Stable, greppable code. Matches the `code` a non-optional refusal answers. */
+  code: string;
+  /** Which credential lane refused. */
+  stage: 'token' | 'service-token' | 'session';
+  /** Human-readable cause. Never a token, signature, secret or session id. */
+  reason: string;
+  /** The status a NON-optional mount would have answered with. */
+  status: number;
+  /**
+   * `true` when the middleware was mounted with `optional: true`, so this
+   * refusal did not produce a response — the request continued unauthenticated
+   * and whatever the host does next (typically its own generic 401) is the
+   * only thing the client sees.
+   */
+  optional: boolean;
+}
+
+/**
  * Expected JWT audience for tokens issued by the Oxy auth service.
  */
 const OXY_JWT_AUDIENCE = 'oxy-api';
@@ -151,6 +189,17 @@ interface AuthMiddlewareOptions {
   loadUser?: boolean;
   /** Optional auth - attach user if token present but don't block (default: false) */
   optional?: boolean;
+  /**
+   * Called whenever a PRESENTED credential is refused, on the optional path as
+   * well as the blocking one. Runs before the response (if any) and after
+   * `req.oxyAuthRefusal` is set, so a host can raise its own alert or carry the
+   * code into its request log. Throwing from it is swallowed — an observer must
+   * not be able to turn a refusal into a 500.
+   *
+   * Refusal is about a credential that was offered and rejected: a request with
+   * NO `Authorization` header is not refused and does not reach this.
+   */
+  onRefusal?: (refusal: OxyAuthRefusal) => void;
   /**
    * Public JWKS endpoint used for Ed25519 service-token verification. Defaults
    * to `/.well-known/jwks.json` on this Oxy client's configured API origin.
@@ -355,6 +404,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
       const {
         debug = false,
         onError,
+        onRefusal,
         loadUser = false,
         optional = false,
         jwtSecret,
@@ -365,6 +415,50 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
       // Cross-mixin method access: typed as a structural subset of the
       // composed OxyServices we know we have at runtime.
       const oxyInstance = this as unknown as OxyAuthInstance;
+
+      /**
+       * Make a refusal observable to the HOST, without telling the client
+       * anything it is not already told.
+       *
+       * Called at the top of every branch that rejects a PRESENTED credential,
+       * including the ones `optional` then swallows — those are the expensive
+       * ones, because they leave no trace anywhere else. The response bodies
+       * below are untouched by design: what a client sees does not change.
+       *
+       * `warn`, not `debug`: a debug-gated reason is only there for whoever
+       * already suspects this middleware, and the failure mode this exists for
+       * is the one where nobody does. The volume is bounded by refusals, and a
+       * host drowning in them has a fault worth the lines.
+       */
+      const recordRefusal = (
+        req: AuthReq,
+        refusal: { code: string; stage: OxyAuthRefusal['stage']; reason: string; status: number },
+      ): void => {
+        const recorded: OxyAuthRefusal = { ...refusal, optional };
+        req.oxyAuthRefusal = recorded;
+        logger.warn(`[oxy.auth] refused ${recorded.code}: ${recorded.reason}`, {
+          component: 'auth',
+          method: 'auth',
+          code: recorded.code,
+          stage: recorded.stage,
+          reason: recorded.reason,
+          status: recorded.status,
+          // Says whether the client will see this status or the host's own
+          // generic answer — the difference that made the JWKS outage invisible.
+          optional: recorded.optional,
+          path: req.path,
+        });
+        if (onRefusal) {
+          try {
+            onRefusal(recorded);
+          } catch (observerError) {
+            logger.warn('[oxy.auth] onRefusal observer threw', {
+              component: 'auth',
+              method: 'auth',
+            }, observerError);
+          }
+        }
+      };
 
       // Return an async middleware function
       return async (req: AuthReq, res: AuthRes, next: AuthNext) => {
@@ -405,6 +499,12 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
           try {
             decoded = jwtDecode<JwtPayload>(token);
           } catch (decodeError) {
+            recordRefusal(req, {
+              code: 'INVALID_TOKEN_FORMAT',
+              stage: 'token',
+              reason: 'Bearer credential is not a decodable JWT',
+              status: 401,
+            });
             if (debug) {
               logger.debug('[oxy.auth] Token decode failed', {
                 component: 'auth',
@@ -453,6 +553,12 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               if (
                 verifyError instanceof ServiceTokenConfigurationError
               ) {
+                recordRefusal(req, {
+                  code: 'SERVICE_TOKEN_NOT_CONFIGURED',
+                  stage: 'service-token',
+                  reason: verifyError.message,
+                  status: 403,
+                });
                 if (optional) {
                   req.userId = null;
                   req.user = null;
@@ -472,6 +578,20 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
                 verifyError instanceof ServiceTokenSignatureError ||
                 verifyError instanceof ServiceTokenClaimError
               ) {
+                const code = verifyError instanceof ServiceTokenClaimError
+                  ? 'INVALID_SERVICE_TOKEN_CLAIMS'
+                  : 'INVALID_SERVICE_TOKEN';
+                // The SDK's own message is the whole diagnostic value here —
+                // "signing key is unknown" (rotated/unpublished kid), "key set
+                // is unavailable" (JWKS empty, unreachable or malformed) and
+                // "audience mismatch" are three different outages that answer
+                // the client identically.
+                recordRefusal(req, {
+                  code,
+                  stage: 'service-token',
+                  reason: `${verifyError.name}: ${verifyError.message}`,
+                  status: 401,
+                });
                 if (debug) {
                   logger.debug('[oxy.auth] Service token rejected', {
                     component: 'auth',
@@ -485,11 +605,6 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
                   req.user = null;
                   return next();
                 }
-                const code = verifyError instanceof ServiceTokenSignatureError
-                  ? 'INVALID_SERVICE_TOKEN'
-                  : verifyError instanceof ServiceTokenStructureError
-                    ? 'INVALID_SERVICE_TOKEN'
-                    : 'INVALID_SERVICE_TOKEN_CLAIMS';
                 const error = {
                   error: code,
                   message: verifyError.message,
@@ -517,6 +632,14 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
             // Check expiration — reject tokens at exact expiry second (use <=)
             const now = Math.floor(Date.now() / 1000);
             if (!Number.isInteger(decoded.exp) || (decoded.exp as number) <= now) {
+              recordRefusal(req, {
+                code: 'TOKEN_EXPIRED',
+                stage: 'service-token',
+                reason: Number.isInteger(decoded.exp)
+                  ? 'Service token expired'
+                  : 'Service token has no integer exp claim',
+                status: 401,
+              });
               if (optional) {
                 req.userId = null;
                 req.user = null;
@@ -527,6 +650,12 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               return res.status(401).json(error);
             }
             if (decoded.nbf !== undefined && (!Number.isInteger(decoded.nbf) || decoded.nbf > now)) {
+              recordRefusal(req, {
+                code: 'INVALID_SERVICE_TOKEN_CLAIMS',
+                stage: 'service-token',
+                reason: 'Service token is not yet valid (nbf)',
+                status: 401,
+              });
               const error = { error: 'INVALID_SERVICE_TOKEN_CLAIMS', message: 'Service token is not yet valid', code: 'INVALID_SERVICE_TOKEN_CLAIMS', status: 401 };
               if (onError) return onError(error);
               return res.status(401).json(error);
@@ -550,6 +679,22 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               || !decoded.scopes.every((scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim())
               || new Set(decoded.scopes).size !== decoded.scopes.length
             ) {
+              recordRefusal(req, {
+                code: 'INVALID_SERVICE_TOKEN',
+                stage: 'service-token',
+                // Names the field rather than its value: an exact-match claim
+                // failing on invisible whitespace reads as "present" in a log
+                // that only says which claims were missing.
+                reason: `Service token claims unusable (${[
+                  !isExactNonEmptyServiceClaim(appId) ? 'appId' : null,
+                  !isExactNonEmptyServiceClaim(decoded.appName) ? 'appName' : null,
+                  !isExactNonEmptyServiceClaim(credentialId) ? 'credentialId' : null,
+                  !isExactNonEmptyServiceClaim(ownerAccountId) ? 'ownerAccountId' : null,
+                  !isOxyServiceEnvironment(environment) ? 'environment' : null,
+                  !Array.isArray(decoded.scopes) ? 'scopes' : null,
+                ].filter((field) => field !== null).join(', ') || 'scopes'})`,
+                status: 401,
+              });
               if (optional) {
                 req.userId = null;
                 req.user = null;
@@ -564,6 +709,12 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
             const oxyUserIdRaw = req.headers['x-oxy-user-id'];
             const oxyUserId = isExactNonEmptyServiceClaim(oxyUserIdRaw) ? oxyUserIdRaw : null;
             if (oxyUserIdRaw !== undefined && oxyUserId === null) {
+              recordRefusal(req, {
+                code: 'INVALID_SERVICE_TOKEN_CLAIMS',
+                stage: 'service-token',
+                reason: 'X-Oxy-User-Id is not an exact non-empty id',
+                status: 401,
+              });
               const error = {
                 error: 'INVALID_SERVICE_TOKEN_CLAIMS',
                 message: 'Delegated user id must be an exact non-empty id',
@@ -587,6 +738,16 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
                   method: 'auth.serviceToken',
                   appId,
                   attemptedUserId: oxyUserId,
+                });
+                // A verifier with no service credentials of its own cannot
+                // reach the verify endpoint at all, so `null` here can mean
+                // "no grant" OR "this host cannot ask". Both refuse, and both
+                // are worth naming on the request.
+                recordRefusal(req, {
+                  code: 'SERVICE_ACTING_AS_UNAUTHORIZED',
+                  stage: 'service-token',
+                  reason: `No delegation grant for app ${appId} acting as ${oxyUserId} (or this verifier could not reach the grant check)`,
+                  status: 403,
                 });
                 const error = {
                   error: 'SERVICE_ACTING_AS_UNAUTHORIZED',
@@ -636,6 +797,12 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
           // compared against the id the validated session resolves to.
           const claimedUserId = readStringClaim(decoded.userId) ?? readStringClaim(decoded.id);
           if (!claimedUserId) {
+            recordRefusal(req, {
+              code: 'INVALID_TOKEN_PAYLOAD',
+              stage: 'token',
+              reason: 'Token carries no usable user id claim',
+              status: 401,
+            });
             if (optional) {
               req.userId = null;
               req.user = null;
@@ -655,6 +822,12 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
           // Check token expiration locally first (fast path)
           // Reject tokens at exact expiry second (use <=)
           if (decoded.exp && decoded.exp <= Math.floor(Date.now() / 1000)) {
+            recordRefusal(req, {
+              code: 'TOKEN_EXPIRED',
+              stage: 'token',
+              reason: 'User access token expired',
+              status: 401,
+            });
             if (optional) {
               req.userId = null;
               req.user = null;
@@ -678,6 +851,12 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
           // required this.
           const sessionId = readStringClaim(decoded.sessionId);
           if (!sessionId) {
+            recordRefusal(req, {
+              code: 'SESSION_REQUIRED',
+              stage: 'token',
+              reason: 'User access token is not bound to a session',
+              status: 401,
+            });
             if (optional) {
               req.userId = null;
               req.user = null;
@@ -702,6 +881,12 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
             });
 
             if (!validationResult || !validationResult.valid || !validationResult.user) {
+              recordRefusal(req, {
+                code: 'INVALID_SESSION',
+                stage: 'session',
+                reason: 'Session is invalid, revoked or expired',
+                status: 401,
+              });
               if (optional) {
                 req.userId = null;
                 req.user = null;
@@ -721,6 +906,12 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
             // The session — not the token — is the source of truth for identity.
             const validatedUserId = getUserIdentityId(validationResult.user);
             if (!validatedUserId) {
+              recordRefusal(req, {
+                code: 'INVALID_SESSION',
+                stage: 'session',
+                reason: 'Session did not resolve to a usable identity',
+                status: 401,
+              });
               if (optional) {
                 req.userId = null;
                 req.user = null;
@@ -746,6 +937,12 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
                 method: 'auth',
                 claimedUserId,
                 validatedUserId,
+              });
+              recordRefusal(req, {
+                code: 'SESSION_USER_MISMATCH',
+                stage: 'session',
+                reason: 'Token user claim does not own the presented session',
+                status: 401,
               });
 
               if (optional) {
@@ -780,6 +977,15 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
 
             return next();
           } catch (validationError) {
+            recordRefusal(req, {
+              code: 'SESSION_VALIDATION_ERROR',
+              stage: 'session',
+              // Name and transport code only. The message of a failed
+              // `validateSession` can carry the request URL, and that URL
+              // contains the session id — which is a credential.
+              reason: `Session validation call failed (${describeErrorSafely(validationError)})`,
+              status: 401,
+            });
             if (debug) {
               logger.debug('[oxy.auth] Session validation failed', {
                 component: 'auth',
@@ -1251,6 +1457,20 @@ async function verifyServiceTokenSignature(
  * those values out of URL construction and identity comparison, so an
  * unexpected shape becomes a 401 rather than a stringified surprise.
  */
+/**
+ * A short, log-safe description of a thrown value: its class name and, when the
+ * transport attached one, its `code` (`ECONNREFUSED`, `ETIMEDOUT`, `ENOTFOUND`
+ * …). Never the message — a failed request's message can quote the URL it was
+ * made against, and a session-validation URL contains the session id.
+ */
+function describeErrorSafely(error: unknown): string {
+  if (!(error instanceof Error)) return typeof error;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && /^[A-Za-z0-9_]{1,40}$/.test(code)
+    ? `${error.name}: ${code}`
+    : error.name;
+}
+
 function readStringClaim(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
@@ -1315,6 +1535,7 @@ interface AuthReq {
   sessionId?: string | null;
   serviceApp?: ServiceApp;
   serviceActingAs?: { userId: string; scopes: string[] };
+  oxyAuthRefusal?: OxyAuthRefusal;
 }
 
 interface AuthRes {

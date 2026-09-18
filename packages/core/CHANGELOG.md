@@ -1,5 +1,21 @@
 # Changelog — `@oxy.so/core`
 
+## 1.5.0
+
+Maintenance release: `1.4.0` plus auth-refusal observability only. It
+deliberately excludes the unreleased, breaking identity changes on `main`
+(#1302), which ship in the next major.
+
+### Added
+
+- Auth refusals are observable to the host: `auth()` records
+  `req.oxyAuthRefusal` (`{ code, stage, reason, status, optional }`), logs one
+  `warn` per refusal with a stable code, and accepts an `onRefusal` observer.
+  Read it with `getOxyAuthRefusal(req)` from `@oxy.so/core/server`, which also
+  names the refusal in the log beside `requireOxyAuth`'s generic 401. Response
+  bodies are unchanged, no reason reaches a client, and a credential-free
+  request is not a refusal. Additive.
+
 ## 1.4.0
 
 Maintenance release cut from the `1.3.1` release commit (`f435259d`) plus the
