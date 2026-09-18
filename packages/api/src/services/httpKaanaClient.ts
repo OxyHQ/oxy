@@ -61,6 +61,7 @@ import {
   inferenceProviderSlugSchema,
   inferenceRegionSchema,
   inferenceStreamEventSchema,
+  MAX_INFERENCE_AUDIO_BYTES,
   modelReferenceSchema,
   normalizedUsageReportSchema,
   type InferenceError,
@@ -467,13 +468,16 @@ async function foldStream(
           const chunk = Buffer.from(event.data, 'base64');
           const existing = audio.get(event.outputIndex);
           audioBytes += chunk.length;
-          if (chunk.toString('base64') !== event.data || audioBytes > 20 * 1024 * 1024 ||
+          // Re-encoding catches non-canonical padding bits the contract regex admits.
+          if (chunk.toString('base64') !== event.data || audioBytes > MAX_INFERENCE_AUDIO_BYTES ||
               (existing !== undefined && existing.mediaType !== event.mediaType)) {
             throw new KaanaProtocolError('The inference data plane sent invalid or oversized audio.');
           }
-          const output = existing ?? { mediaType: event.mediaType, chunks: [] };
-          output.chunks.push(chunk);
-          audio.set(event.outputIndex, output);
+          if (existing === undefined) {
+            audio.set(event.outputIndex, { mediaType: event.mediaType, chunks: [chunk] });
+          } else {
+            existing.chunks.push(chunk);
+          }
           break;
         }
         case 'tool_call': {
@@ -613,18 +617,22 @@ function foldedOutput(
     return [{ role: 'assistant', content: [], toolCalls: calls }];
   }
 
-  return indexes.map((index, position) => ({
-    role: 'assistant' as const,
-    content: [
-      ...(texts.has(index) ? [{ type: 'text' as const, text: texts.get(index) ?? '' }] : []),
-      ...(audio.has(index) ? [{ type: 'audio' as const, source: {
-        kind: 'inline' as const,
-        mediaType: audio.get(index)!.mediaType,
-        data: Buffer.concat(audio.get(index)!.chunks).toString('base64'),
-      } }] : []),
-    ],
-    ...(position === 0 && calls.length > 0 ? { toolCalls: calls } : {}),
-  }));
+  return indexes.map((index, position) => {
+    const text = texts.get(index);
+    const clip = audio.get(index);
+    return {
+      role: 'assistant' as const,
+      content: [
+        ...(text === undefined ? [] : [{ type: 'text' as const, text }]),
+        ...(clip === undefined ? [] : [{ type: 'audio' as const, source: {
+          kind: 'inline' as const,
+          mediaType: clip.mediaType,
+          data: Buffer.concat(clip.chunks).toString('base64'),
+        } }]),
+      ],
+      ...(position === 0 && calls.length > 0 ? { toolCalls: calls } : {}),
+    };
+  });
 }
 
 /* -------------------------------------------------------------------------- */
