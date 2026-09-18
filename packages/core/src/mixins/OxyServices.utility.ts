@@ -1178,6 +1178,8 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      */
     serviceAuth(options: {
       debug?: boolean;
+      /** Observe refusals on the service lane; forwarded straight to `auth()`. */
+      onRefusal?: (refusal: OxyAuthRefusal) => void;
       /** @deprecated Oxy-API-only HS256 transition; external verifiers use JWKS. */
       jwtSecret?: string;
       serviceTokenJwksUrl?: string;
