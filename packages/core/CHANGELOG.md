@@ -1,5 +1,18 @@
 # Changelog — `@oxy.so/core`
 
+## 1.5.1
+
+Maintenance release: 1.5.0's `onRefusal` made reachable.
+
+### Fixed
+
+- `onRefusal` is declared on the `OxyServices` interface consumers see, not only
+  on the mixin. `src/OxyServices.ts` re-declares `auth()` / `serviceAuth()` by
+  hand and that hand-written list is what the published `.d.ts` carries, so a
+  host passing the option 1.5.0 advertised got
+  `TS2345 … has no properties in common with`.
+  `src/__tests__/publicInterfaceParity.test.ts` compares the two declarations.
+
 ## 1.5.0
 
 Maintenance release: `1.4.0` plus auth-refusal observability only. It
