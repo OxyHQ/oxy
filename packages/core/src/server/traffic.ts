@@ -3,6 +3,12 @@ import { observeTrafficSocket, observeTrafficWebSocket, type TrafficWebSocket, t
 import { randomUUID } from 'node:crypto';
 import type { RequestHandler } from 'express';
 import { OxyServices } from '../OxyServices';
+// Static, unlike the lazy import in `mixins/OxyServices.auth.ts`: that module is
+// reachable from the root barrel, which ships to React Native, so pulling
+// `node:crypto` in eagerly there would cost every mobile bundle. This file is
+// server-only and the server barrel already exports `./workloadIdentity`, so
+// there is nothing here for a phone to load.
+import { canAttestWorkloadIdentity } from './workloadIdentity';
 import { createTrafficCollector, instrumentTrafficFetch, trafficMiddleware, type TrafficFlow, type ServiceEndpoint, resolveOxyServiceEndpoint, infrastructureLocation } from '@oxy.so/telemetry/collector';
 
 export interface EcosystemTrafficOptions {
@@ -36,8 +42,32 @@ export function createEcosystemTraffic(options: EcosystemTrafficOptions): {
   }
   const apiKey = activityKey || process.env.OXY_SERVICE_API_KEY;
   const apiSecret = activitySecret || process.env.OXY_SERVICE_API_SECRET;
-  if (!options.credential && (!apiKey || !apiSecret)) throw new Error('Ecosystem activity requires OXY_SERVICE_API_KEY and OXY_SERVICE_API_SECRET');
+  /**
+   * Having no key pair is a legitimate configuration now — but only where this
+   * process can prove what it IS (ADR 0026).
+   *
+   * This used to throw on a missing pair, full stop. Every service in the fleet
+   * boots with `OXY_ECOSYSTEM_ACTIVITY_ENABLED=true`, so deleting
+   * `OXY_SERVICE_API_KEY` and `OXY_SERVICE_API_SECRET` from a task definition —
+   * which is the entire migration ADR 0026 asks for — killed the process at
+   * boot. The ECS circuit breaker then rolled the deploy back and reported the
+   * service stable, so the operator saw a rollback with nothing naming its
+   * cause. That is what one line cost, multiplied by fourteen services holding
+   * a secret they no longer need.
+   *
+   * What is still refused: nothing to authenticate with AND nothing to attest.
+   * That is a laptop or a CI box, where the container credentials endpoint is
+   * not going to turn up later, and the honest answer is to say so at boot
+   * rather than to fail on the first heartbeat.
+   */
+  if (!options.credential && (!apiKey || !apiSecret) && !canAttestWorkloadIdentity()) {
+    throw new Error(
+      'Ecosystem activity needs one of: an OXY_ACTIVITY_API_KEY and OXY_ACTIVITY_API_SECRET pair, an OXY_SERVICE_API_KEY and OXY_SERVICE_API_SECRET pair, or a workload identity this process can attest (ADR 0026).',
+    );
+  }
   const oxy = new OxyServices({ baseURL });
+  // Left unconfigured when there is no pair on purpose: `getServiceToken()`
+  // attests instead of being handed half a credential to fail on.
   if (apiKey && apiSecret) oxy.configureServiceAuth(apiKey, apiSecret);
   const credential = options.credential ?? (() => oxy.getServiceToken());
   const fetcher = globalThis.fetch.bind(globalThis);

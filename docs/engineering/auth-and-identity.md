@@ -115,6 +115,11 @@ deploy time, and deleting it is how a workload is cut off. The mint re-applies
 `isTrustedApplication`, takes the application's non-privileged scopes only, and
 stamps the DEPLOYMENT's environment (an attestation cannot ask for one).
 
+Ecosystem activity publishing follows the same path: `createEcosystemTraffic`
+accepts a process with no key pair when it can attest, so removing
+`OXY_SERVICE_API_KEY`/`OXY_SERVICE_API_SECRET` from a task definition no longer
+kills the service at boot.
+
 Third-party applications keep the credential flow above: they run where we cannot
 attest, which is exactly where registration belongs.
 
