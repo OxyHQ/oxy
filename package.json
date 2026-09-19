@@ -1,7 +1,7 @@
 {
   "name": "@oxy.so/sdk",
   "version": "1.0.0",
-  "description": "OxyHQ SDK Monorepo — core, auth, services, and API packages",
+  "description": "OxyHQ SDK Monorepo \u2014 core, auth, services, and API packages",
   "private": true,
   "trustedDependencies": [
     "@shopify/react-native-skia",
@@ -15,6 +15,7 @@
       "packages/db",
       "packages/core",
       "packages/telemetry",
+      "packages/utils",
       "packages/mcp",
       "packages/services",
       "packages/expo-splash",
