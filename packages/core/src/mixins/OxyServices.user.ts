@@ -202,8 +202,18 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
 
     /**
      * Search user profiles
+     *
+     * Takes an `AbortSignal` because people search is typed into: without one
+     * every keystroke started a search that ran to completion and had its
+     * result discarded, while holding one of the request queue's slots. It was
+     * the only search lane in Mention that could not be cancelled, purely
+     * because this signature had no way to say so.
      */
-    async searchProfiles(query: string, pagination?: PaginationParams): Promise<SearchProfilesResponse> {
+    async searchProfiles(
+      query: string,
+      pagination?: PaginationParams,
+      options?: { signal?: AbortSignal }
+    ): Promise<SearchProfilesResponse> {
       try {
         const response = await this.makeRequest<SearchProfilesResponse>(
           'GET',
@@ -212,6 +222,7 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
           {
             cache: true,
             cacheTTL: 2 * 60 * 1000, // 2 minutes cache
+            signal: options?.signal,
           }
         );
 
