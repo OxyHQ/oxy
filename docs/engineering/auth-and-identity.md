@@ -112,8 +112,23 @@ the subject is the ROLE ARN (`arn:aws:iam::<account>:role/<name>`): STS answers 
 the per-task `assumed-role/<name>/<session>`, and the verifier reduces it, so a
 binding survives the tasks that present it. The row carries no secret, is created at
 deploy time, and deleting it is how a workload is cut off. The mint re-applies
-`isTrustedApplication`, takes the application's non-privileged scopes only, and
-stamps the DEPLOYMENT's environment (an attestation cannot ask for one).
+`isTrustedApplication` and stamps the DEPLOYMENT's environment (an attestation
+cannot ask for one).
+
+**Scopes come from the BINDING, decided exactly as the credential path decides
+them** (ADR 0026, amended 2026-09-19). The binding names scopes → the
+intersection with the application's, so a privileged scope survives only when
+BOTH hold it; the binding names none → the application's non-privileged grants,
+which is what every binding written before the column says. The attestation
+contributes nothing here: it selects a binding, and the binding — a row staff
+wrote, naming one role and one application — names the authority, the way an
+`ApplicationCredential` does. Naming a privileged scope on a binding is
+staff-only, under the same gate as `POST /applications/:appId/credentials`.
+
+**Before a service gives up its key pair, its binding must name every privileged
+scope the credential named.** Not a nicety: removing Mention's pair first cost
+313 × `Missing required scope: federation:write` in one morning. Bind with
+`--scopes`, check the token, then remove the pair.
 
 Ecosystem activity publishing follows the same path: `createEcosystemTraffic`
 accepts a process with no key pair when it can attest, so removing
@@ -130,6 +145,7 @@ bun run packages/api/scripts/bind-workload-identity.ts \
   --app-id <application id> \
   --role-arn arn:aws:iam::237343248947:role/oxy-mention-task \
   [--provider aws-iam] [--description "Mention ECS task role"] \
+  [--scopes federation:write,signals:write,catalogs:write] \
   [--expires-at 2026-12-31T00:00:00Z]
 
 bun run packages/api/scripts/bind-workload-identity.ts --app-id <id> --list
@@ -152,10 +168,21 @@ refuses anything that is not a role ARN afterwards. A role with an IAM path must
 given without it, because the assumed-role ARN omits the path and the pathless form
 is the only one an attestation can present.
 
-A binding grants IDENTITY, never authority. It says which application is calling;
-what that application may do is still its own non-privileged scopes, and the
-environment is still the deployment's. So a binding cannot widen a scope, cannot
-reach a privileged one, and cannot make a staging workload production.
+A binding grants IDENTITY, and — with `--scopes` — the authority the mint gives
+that identity. What it can never do is exceed the application: the app's own
+grants are the ceiling, refused at the write and intersected away at every mint.
+A privileged scope may be named, because a human writes this row; running the
+script IS the staff check `isStaffUser` performs on a route, and the service
+takes that as an explicit claim rather than a default, so a future caller with a
+real actor to check must say so and fails closed if it does not. The environment
+is still the deployment's, so a staging workload can never mint a production
+token.
+
+`--scopes` takes a comma-separated list. OMITTING it leaves an existing
+binding's scopes untouched — the deploy step re-running this command predates
+the flag and must not revoke what it never mentioned, which is exactly how
+Mention's granted `signals:write` was wiped by routine application edits.
+`--scopes=` is the explicit way to say "name none".
 
 What the script refuses, and the failure each refusal prevents:
 
@@ -171,11 +198,30 @@ What the script refuses, and the failure each refusal prevents:
   row would be written, read as a finished rollout, and 403 at every use.
 - **A subject that is not a role** — an IAM user, the account root, a federated
   user, a typo. All of them imply a long-lived secret, a human, or nothing at all.
+- **A scope the application was never granted**, for staff too. The mint would
+  drop it, leaving a row that reads as granting authority every token it
+  produced silently lacked. Granting it on the application is a separate,
+  deliberate act with its own staff gate.
+- **A privileged scope from a caller that is not staff**, or from one that never
+  said who is asking. Omitting an already-named privileged scope does not revoke
+  it either: it is preserved and said out loud, because a re-run's silence is
+  the arguments a deploy step has always carried, not a decision.
+- **A misspelt scope.** It would sit in the table reading as granted while the
+  mint dropped it, and surface as a 403 from another service with nothing
+  pointing back at the row.
 
 Re-running an identical bind is a no-op that reports the existing row, because a
-bind is part of deploying a service and will be run twice. It never edits: a re-run
-asking for a different description or expiry says so and changes nothing, rather
-than letting a create quietly become an edit.
+bind is part of deploying a service and will be run twice. A re-run asking for a
+different description or expiry says so and changes nothing, rather than letting
+a create quietly become an edit.
+
+Scopes are the one field a re-run DOES apply (`updated`, naming what moved), and
+the asymmetry is deliberate: every service migrating today already HAS a binding
+row, so naming its scopes on the existing row is the migration step. Under a
+no-edit rule the only alternative is delete-and-recreate, which cuts a running
+workload off between two commands. And unlike an expiry, a scope change cannot
+be a silent widening — it is bounded by the application's grants and staff-gated
+before the write is reached.
 
 Nothing in the output is a secret. Unlike `create-service-credential.ts`, which
 encrypts what it emits, a binding is an account number, a role name and an
@@ -187,7 +233,7 @@ the whole reason ADR 0026 prefers it to a shared secret.
 - `packages/api/src/services/workloadAttestation.service.ts` — the provider seam; AWS STS verifier
 - `packages/api/src/services/workloadIdentity.service.ts` — challenge, binding lookup, scope and trust gates
 - `packages/api/src/services/workloadIdentityBinding.service.ts` — creating a binding: canonicalisation, idempotence, refusals
-- `packages/api/scripts/bind-workload-identity.ts` — the operator entrypoint (`--app-id`, `--role-arn`, `--list`)
+- `packages/api/scripts/bind-workload-identity.ts` — the operator entrypoint (`--app-id`, `--role-arn`, `--scopes`, `--list`)
 - `packages/api/src/services/serviceTokenMint.service.ts` — the ONE signer both paths share
 - `packages/api/src/models/Application.ts` — `isInternal`, `type` field
 - `packages/api/src/models/ApplicationCredential.ts` — `publicKey`, `secretHash`, `type: 'service'`
