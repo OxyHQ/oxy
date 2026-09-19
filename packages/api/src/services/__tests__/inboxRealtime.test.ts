@@ -319,6 +319,28 @@ describe('buildSnippet', () => {
     expect(buildSnippet(undefined, '<!-- hidden --><p>shown</p>')).toBe('shown');
   });
 
+  /**
+   * The other thing a regex gets wrong: `<[^>]*>` stops at the first `>`, so a
+   * `>` inside a quoted attribute ends the tag early and the rest of it lands
+   * in the preview as text.
+   */
+  it('does not end a tag at a > inside a quoted attribute', () => {
+    expect(buildSnippet(undefined, '<a title="a>b">link</a>')).toBe('link');
+    expect(buildSnippet(undefined, "<a title='x>y'>link</a>")).toBe('link');
+  });
+
+  it('treats an unclosed < as text rather than swallowing the rest', () => {
+    expect(buildSnippet(undefined, '<p>5 < 6</p>')).toBe('5 < 6');
+  });
+
+  it('drops style and title content too, not just script', () => {
+    expect(buildSnippet(undefined, '<title>tab name</title><p>body</p>')).toBe('body');
+  });
+
+  it('drops a raw-text element that is never closed', () => {
+    expect(buildSnippet(undefined, '<p>before</p><script>leak()')).toBe('before');
+  });
+
   it('never exceeds 140 characters', () => {
     expect(buildSnippet('x'.repeat(500)).length).toBe(140);
   });

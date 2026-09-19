@@ -89,9 +89,27 @@ export function isAmazonSigningCertUrl(raw: string): boolean {
     return false;
   }
   if (url.protocol !== 'https:') return false;
-  return /^sns\.[a-z0-9-]+\.amazonaws\.com$/.test(url.hostname)
-    || /^sns\.[a-z0-9-]+\.amazonaws\.com\.cn$/.test(url.hostname);
+  // Credentials in the URL would be sent to the host; SNS never uses them.
+  if (url.username || url.password) return false;
+
+  // Compared label by label against constants rather than matched with a
+  // pattern. `sns.us-west-2.amazonaws.com.evil.example.com` ends with the right
+  // characters and a careless `endsWith` accepts it; only fixing the POSITION
+  // of every label rejects it.
+  const labels = url.hostname.toLowerCase().split('.');
+  const suffix = labels.slice(-2).join('.') === 'amazonaws.com'
+    ? labels.slice(0, -2)
+    : labels.slice(-3).join('.') === 'amazonaws.com.cn'
+      ? labels.slice(0, -3)
+      : null;
+  if (suffix === null) return false;
+
+  // Exactly `sns.<region>` in front of it — no deeper subdomain.
+  return suffix.length === 2 && suffix[0] === 'sns' && REGION_LABEL.test(suffix[1]);
 }
+
+/** An AWS region label: `us-west-2`, `eu-central-1`, `ap-southeast-4`. */
+const REGION_LABEL = /^[a-z]{2,4}(-[a-z]+)+-\d$/;
 
 export interface SnsEnvelope {
   Type?: string;

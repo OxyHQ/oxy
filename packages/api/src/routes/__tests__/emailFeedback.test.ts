@@ -28,6 +28,22 @@ describe('isAmazonSigningCertUrl', () => {
     expect(isAmazonSigningCertUrl('https://amazonaws.com/x.pem')).toBe(false);
   });
 
+  it('rejects a host with an extra label in front', () => {
+    // `evil.sns.us-west-2.amazonaws.com` is a host the attacker can own under a
+    // domain they control that ends the same way; only pinning the position of
+    // every label rejects it.
+    expect(isAmazonSigningCertUrl('https://evil.sns.us-west-2.amazonaws.com/x.pem')).toBe(false);
+    expect(isAmazonSigningCertUrl('https://sns.amazonaws.com/x.pem')).toBe(false);
+  });
+
+  it('rejects a region label that is not shaped like one', () => {
+    expect(isAmazonSigningCertUrl('https://sns.evil.amazonaws.com/x.pem')).toBe(false);
+  });
+
+  it('rejects credentials embedded in the URL', () => {
+    expect(isAmazonSigningCertUrl('https://user:pw@sns.us-west-2.amazonaws.com/x.pem')).toBe(false);
+  });
+
   it('rejects plaintext and malformed URLs', () => {
     expect(isAmazonSigningCertUrl('http://sns.us-west-2.amazonaws.com/x.pem')).toBe(false);
     expect(isAmazonSigningCertUrl('not a url')).toBe(false);

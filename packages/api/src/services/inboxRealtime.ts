@@ -56,24 +56,122 @@ function decodeEntitiesOnce(input: string): string {
   });
 }
 
+/** Elements whose content is raw text, not markup, and must be dropped whole. */
+const RAW_TEXT_ELEMENTS = new Set(['script', 'style', 'title', 'textarea']);
+
 /**
  * Remove markup from a body we are reducing to one line of preview text.
  *
- * `<\/script>` is not the only way to close a script element: `</script >`,
- * `</script\n>` and `</SCRIPT  >` are all valid, and a pattern that misses them
- * leaves the script BODY in the snippet. The character class before `>` is what
- * covers that, and it is why this is not the obvious regex.
+ * A scanner rather than a regex, because the regex version is wrong in two ways
+ * that matter and cannot be patched out of it:
+ *
+ *  - `<[^>]*>` stops at the first `>`, so `<a title="a>b">link</a>` leaves
+ *    `b">link` in the preview. A `>` inside a quoted attribute is ordinary
+ *    text, and only a scanner that tracks quoting knows that.
+ *  - `<\/script>` is not the only valid end tag. `</script >`, `</script\n>`
+ *    and `</SCRIPT  >` all close the element, and a pattern that misses them
+ *    leaves the script BODY in the snippet — the sender's tracking code quoted
+ *    back at the reader as if it were their message.
  *
  * This is preview text rendered into an RN `Text`, never into HTML, so it is
- * not an XSS sink — but a snippet quoting somebody's tracking script is still
- * wrong, and the tag filter is cheap to get right.
+ * not an XSS sink. It is still wrong to show someone a stylesheet.
  */
 function stripMarkup(html: string): string {
-  return html
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ')
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/<[^>]*>/g, ' ');
+  let out = '';
+  let i = 0;
+
+  while (i < html.length) {
+    const lt = html.indexOf('<', i);
+    if (lt === -1) {
+      out += html.slice(i);
+      break;
+    }
+    out += html.slice(i, lt);
+
+    // Comments, CDATA and doctypes end differently from tags.
+    if (html.startsWith('<!--', lt)) {
+      const end = html.indexOf('-->', lt + 4);
+      i = end === -1 ? html.length : end + 3;
+      out += ' ';
+      continue;
+    }
+
+    // A `<` only opens a tag when a name, a slash or a markup declaration
+    // follows it. `5 < 6` is arithmetic, and a browser renders it as such;
+    // treating it as a tag swallows everything up to the next `>`, which is
+    // usually the end of the sentence.
+    if (!/[a-zA-Z/!?]/.test(html[lt + 1] ?? '')) {
+      out += '<';
+      i = lt + 1;
+      continue;
+    }
+
+    const tag = readTag(html, lt);
+    if (!tag) {
+      // An opening `<` that never closes: the remainder is markup we cannot
+      // read, so drop it rather than quote it.
+      break;
+    }
+    out += ' ';
+    i = tag.end;
+
+    if (!tag.closing && RAW_TEXT_ELEMENTS.has(tag.name)) {
+      i = skipRawText(html, i, tag.name);
+    }
+  }
+
+  return out;
+}
+
+interface ScannedTag {
+  name: string;
+  closing: boolean;
+  /** Index just past the tag's `>`. */
+  end: number;
+}
+
+/**
+ * Read one tag starting at `<`, honouring quoted attribute values so a `>`
+ * inside one does not end the tag early. Returns null when it never closes.
+ */
+function readTag(html: string, start: number): ScannedTag | null {
+  let i = start + 1;
+  const closing = html[i] === '/';
+  if (closing) i++;
+
+  const nameStart = i;
+  while (i < html.length && /[a-zA-Z0-9:-]/.test(html[i])) i++;
+  const name = html.slice(nameStart, i).toLowerCase();
+
+  let quote: string | null = null;
+  while (i < html.length) {
+    const ch = html[i];
+    if (quote) {
+      if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === '>') {
+      return { name, closing, end: i + 1 };
+    }
+    i++;
+  }
+  return null;
+}
+
+/**
+ * Skip to just past the end tag of a raw-text element. Whitespace between the
+ * name and `>` is legal, which is exactly what the regex version missed.
+ */
+function skipRawText(html: string, from: number, name: string): number {
+  let i = from;
+  while (i < html.length) {
+    const lt = html.indexOf('<', i);
+    if (lt === -1) return html.length;
+    const tag = readTag(html, lt);
+    if (tag && tag.closing && tag.name === name) return tag.end;
+    i = tag ? tag.end : lt + 1;
+  }
+  return html.length;
 }
 
 /**
