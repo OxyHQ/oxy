@@ -10,6 +10,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { CapabilityTicketClaims } from '@oxy.so/contracts';
 import { emailService } from '../services/email.service';
 import { smtpOutbound } from '../services/smtp.outbound';
+import { findSuppressed } from '../services/emailSuppression.service';
 import { assetService } from '../services/assetServiceSingleton';
 import { resolveEmailAddress } from '../config/email.config';
 import { getDb } from '../config/postgres';
@@ -495,6 +496,31 @@ export async function sendMessageForUser(
   });
 
   const allRecipients = [...to, ...(cc ?? []), ...(bcc ?? [])];
+
+  // Refuse addresses that have already bounced or complained, BEFORE the relay
+  // sees them. Provider-side suppression would drop the message silently, but
+  // the attempt still counts toward the bounce rate that gets a sending domain
+  // suspended — and the sender would be told nothing. One query for the whole
+  // recipient list; see `emailSuppression.service.ts` for the scope rules.
+  const suppressed = await findSuppressed(userId, allRecipients.map((r) => r.address));
+  if (suppressed.length > 0) {
+    const detail = suppressed
+      .map((s) => {
+        const why = s.reason === 'complaint'
+          ? 'marked your mail as spam'
+          : s.reason === 'bounce_permanent'
+            ? 'permanently rejected mail'
+            : s.reason === 'bounce_transient'
+              ? 'is temporarily rejecting mail'
+              : 'was blocked manually';
+        return `${s.address} (${why}${s.diagnostic ? `: ${s.diagnostic}` : ''})`;
+      })
+      .join('; ');
+    throw new BadRequestError(
+      `Cannot send to ${suppressed.length === 1 ? 'this address' : 'these addresses'}: ${detail}`,
+      { suppressed: suppressed.map((s) => ({ address: s.address, reason: s.reason })) },
+    );
+  }
 
   // Resolve { fileId } references → canonical MessageAttachment[] for storage and
   // outbound transport. Throws 400/403 on missing / non-active / unauthorized

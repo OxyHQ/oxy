@@ -64,6 +64,7 @@ import { aiLabelingService } from './aiLabeling.service';
 import { cardExtractionService } from './cardExtraction.service';
 import { smtpOutbound } from './smtp.outbound';
 import { sendInboxEmailPush } from './emailPushDelivery.service';
+import { emitEmailNew, emitEmailChanged } from './inboxRealtime';
 import { assetService } from './assetServiceSingleton';
 import { simpleParser } from 'mailparser';
 import { idempotentMessageId } from './emailIdempotency';
@@ -1668,13 +1669,29 @@ class EmailService {
       throw new NotFoundError('Message not found');
     }
 
-    return readMessageDto(db, updated.id);
+    const dto = await readMessageDto(db, updated.id);
+    await emitEmailChanged({
+      userId,
+      id: dto.id,
+      mailboxIds: [dto.mailboxId],
+      reason: 'flags',
+    });
+    return dto;
   }
 
   async moveMessage(userId: string, messageId: string, targetMailboxId: string): Promise<MessageDto> {
     const db = getDb();
     const targetMailbox = await this.getMailboxById(userId, targetMailboxId);
     if (!targetMailbox) throw new NotFoundError('Target mailbox not found');
+
+    // Read the source mailbox BEFORE the update: a client viewing the folder the
+    // message is leaving needs to hear about it just as much as one viewing the
+    // folder it lands in, and after the write that id is gone.
+    const [before] = await db
+      .select({ mailboxId: messages.mailboxId })
+      .from(messages)
+      .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
+      .limit(1);
 
     const [moved] = await db
       .update(messages)
@@ -1684,7 +1701,14 @@ class EmailService {
 
     if (!moved) throw new NotFoundError('Message not found');
 
-    return readMessageDto(db, moved.id);
+    const dto = await readMessageDto(db, moved.id);
+    await emitEmailChanged({
+      userId,
+      id: dto.id,
+      mailboxIds: [before?.mailboxId, targetMailbox.id],
+      reason: 'moved',
+    });
+    return dto;
   }
 
   /**
@@ -1727,7 +1751,18 @@ class EmailService {
       .update(messages)
       .set(flags)
       .where(and(owned, or(...differs)))
-      .returning({ id: messages.id });
+      .returning({ id: messages.id, mailboxId: messages.mailboxId });
+
+    // One event per changed message: a client folds them into the same
+    // invalidation, and a single aggregate event would not say which rows moved.
+    for (const row of modified) {
+      await emitEmailChanged({
+        userId,
+        id: row.id,
+        mailboxIds: [row.mailboxId],
+        reason: 'flags',
+      });
+    }
 
     return { matchedCount, modifiedCount: modified.length };
   }
@@ -1744,6 +1779,14 @@ class EmailService {
     const db = getDb();
     const owned = and(inArray(messages.id, messageIds), eq(messages.userId, userId));
 
+    // Source mailboxes, read before the write for the same reason as in
+    // `moveMessage`.
+    const sources = await db
+      .select({ id: messages.id, mailboxId: messages.mailboxId })
+      .from(messages)
+      .where(owned);
+    const sourceById = new Map(sources.map((row) => [row.id, row.mailboxId]));
+
     const [[matchedRow], modified] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(messages).where(owned),
       db
@@ -1753,13 +1796,22 @@ class EmailService {
         .returning({ id: messages.id }),
     ]);
 
+    for (const row of modified) {
+      await emitEmailChanged({
+        userId,
+        id: row.id,
+        mailboxIds: [sourceById.get(row.id), targetMailbox.id],
+        reason: 'moved',
+      });
+    }
+
     return { matchedCount: matchedRow?.count ?? 0, modifiedCount: modified.length };
   }
 
   async deleteMessage(userId: string, messageId: string, permanent = false): Promise<void> {
     const db = getDb();
     const [message] = await db
-      .select({ id: messages.id, messageId: messages.messageId })
+      .select({ id: messages.id, messageId: messages.messageId, mailboxId: messages.mailboxId })
       .from(messages)
       .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
       .limit(1);
@@ -1770,6 +1822,12 @@ class EmailService {
       // lifecycle. The `message_attachments` rows themselves CASCADE.
       await this.deleteMessageAttachments(message);
       await db.delete(messages).where(eq(messages.id, messageId));
+      await emitEmailChanged({
+        userId,
+        id: message.id,
+        mailboxIds: [message.mailboxId],
+        reason: 'deleted',
+      });
     } else {
       // Move to Trash
       const trash = await this.getMailboxBySpecialUse(userId, '\\Trash');
@@ -1960,7 +2018,30 @@ class EmailService {
       });
     }
 
-    return readMessageDto(db, storedMessageId);
+    const dto = await readMessageDto(db, storedMessageId);
+
+    // Realtime fan-out lives HERE, at the one chokepoint every ingest path goes
+    // through, and no longer in `routes/emailInbound.ts`. When the emit sat in
+    // that route, only mail arriving via the Cloudflare Email Routing webhook
+    // reached a connected client; the SMTP listener, `.eml` import and the
+    // welcome message all stored a row and announced nothing. Awaited, not
+    // fire-and-forget, so the ordering "row committed, then announced" is the
+    // one callers and tests observe.
+    await emitEmailNew({
+      userId,
+      id: dto.id,
+      messageId: dto.messageId,
+      mailboxId: dto.mailboxId,
+      receivedAt: dto.receivedAt,
+      from: params.from.name
+        ? { name: params.from.name, address: params.from.address }
+        : { address: params.from.address },
+      subject: params.subject,
+      text: params.text,
+      html: params.html,
+    });
+
+    return dto;
   }
 
   // ─── Read Receipt (MDN) ────────────────────────────────────────────
@@ -2214,7 +2295,16 @@ class EmailService {
       messageData.attachments ?? [],
     );
 
-    return readMessageDto(db, created);
+    const dto = await readMessageDto(db, created);
+    // A second device showing the Sent folder should see the message the moment
+    // it is dispatched, not on its next refresh.
+    await emitEmailChanged({
+      userId,
+      id: dto.id,
+      mailboxIds: [dto.mailboxId],
+      reason: 'sent',
+    });
+    return dto;
   }
 
   // ─── Snooze ──────────────────────────────────────────────────────────
@@ -2664,7 +2754,14 @@ class EmailService {
 
     if (!updated) throw new NotFoundError('Message not found');
 
-    return readMessageDto(db, updated.id);
+    const dto = await readMessageDto(db, updated.id);
+    await emitEmailChanged({
+      userId,
+      id: dto.id,
+      mailboxIds: [dto.mailboxId],
+      reason: 'labels',
+    });
+    return dto;
   }
 
   // ─── Filters ─────────────────────────────────────────────────────────
