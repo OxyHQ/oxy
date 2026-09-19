@@ -36,7 +36,11 @@ import type { FollowApplicationMode, FollowStatus } from '@oxy.so/contracts';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
-import { RiArrowDownSLine as ChevronDown } from '@oxy.so/bloom/icons';
+// Per glyph, never `@oxy.so/bloom/icons`. That barrel re-exports all 461 Remix
+// glyphs and Metro does not tree-shake, so one import of it here re-ships every
+// glyph — 313,123 B, measured — to every app in this package's graph, and no
+// consumer can opt out of what a dependency asks for.
+import { RiArrowDownSLine as ChevronDown } from '@oxy.so/bloom/icons/RiArrowDownSLine';
 import {
   DropdownMenu,
   DropdownMenuContent,
