@@ -2,8 +2,10 @@ import nodemailer, { type Transporter } from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import {
   SMTP_OUTBOUND_CONFIG,
+  SMTP_RELAYS,
   DKIM_CONFIG,
   EMAIL_DOMAIN,
+  type SmtpRelayConfig,
 } from '../config/email.config';
 import { emailService } from './email.service';
 import { assetService } from './assetServiceSingleton';
@@ -15,6 +17,7 @@ import { getRedisClient } from '../config/redis';
 import { idempotencyCacheKey as buildIdempotencyCacheKey, idempotentMessageId } from './emailIdempotency';
 import { enqueueEmailOutbox } from './emailOutbox.service';
 import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
+import { ServiceUnavailableError } from '../utils/error';
 
 interface OutboundMessage {
   userId: string;
@@ -40,43 +43,121 @@ const SECURE_MAIL_CONTENT_OPTIONS = {
   disableUrlAccess: true,
 } satisfies Pick<SMTPTransport.Options, 'disableFileAccess' | 'disableUrlAccess'>;
 
+/**
+ * Thrown when outbound email cannot be attempted at all because the relay is
+ * not configured. NOT an SMTP failure: nothing was ever said to a server.
+ *
+ * It is a subclass of {@link ServiceUnavailableError} so the route answers 503
+ * with an actionable message instead of 202 `queued`.
+ */
+export class SmtpConfigurationError extends ServiceUnavailableError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SmtpConfigurationError';
+  }
+}
+
+/**
+ * SMTP auth rejections. nodemailer reports a bad credential as `EAUTH`, and the
+ * server's own 5xx (`535 Authentication credentials invalid`) may or may not
+ * survive onto the error object depending on where the handshake died.
+ */
+function isAuthenticationFailure(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const e = error as { code?: unknown; responseCode?: unknown; command?: unknown };
+  if (e.code === 'EAUTH') return true;
+  return e.responseCode === 535 && e.command === 'AUTH PLAIN';
+}
+
+/**
+ * Is this failure worth retrying later, or is it permanent?
+ *
+ * The old answer was "anything without a numeric `responseCode` is transient",
+ * and that is how a MISCONFIGURATION became invisible: `createTransporter()`
+ * throwing "SMTP_RELAY_HOST is required" has no `responseCode`, so it was
+ * classified as a transient SMTP hiccup, the message was queued, the API
+ * answered 202 `Message queued for delivery`, and the worker then failed the
+ * same way on every retry until it gave up. Nothing was sent and nothing looked
+ * broken.
+ *
+ * Three things are permanent, and none of them get queued:
+ *  - a configuration error (no relay) — retrying cannot fix it, an operator must;
+ *  - an authentication failure — the credential is wrong, not busy;
+ *  - a 5xx SMTP reply — the server has refused this message, by definition
+ *    permanently (RFC 5321 §4.2.1).
+ *
+ * Everything else — a timeout, a connection reset, a 4xx greylisting — is
+ * genuinely transient and belongs in the durable outbox.
+ */
 export function isRetryableSmtpFailure(error: unknown): boolean {
+  if (error instanceof SmtpConfigurationError) return false;
+  if (isAuthenticationFailure(error)) return false;
   if (typeof error !== 'object' || error === null || !('responseCode' in error)) return true;
   const responseCode = error.responseCode;
   return typeof responseCode !== 'number' || responseCode < 500 || responseCode >= 600;
 }
 
+/**
+ * Whether an outbound relay is configured at all. Read at boot by
+ * {@link assertOutboundRelayConfigured} so a deployment that cannot send says
+ * so on startup rather than on a user's first message.
+ */
+export function isOutboundRelayConfigured(): boolean {
+  return SMTP_RELAYS.length > 0;
+}
+
+/**
+ * Is this failure the RELAY's fault rather than the message's?
+ *
+ * Only these advance to the next configured relay. A 5xx on the message itself
+ * is a verdict about the message, and re-offering it elsewhere would spend a
+ * second provider's reputation on mail that is going to be refused again.
+ */
+function isRelayTransportFailure(error: unknown): boolean {
+  if (error instanceof SmtpConfigurationError) return false;
+  if (isAuthenticationFailure(error)) return true;
+  if (typeof error !== 'object' || error === null) return false;
+  const e = error as { code?: unknown; responseCode?: unknown };
+  if (typeof e.code === 'string'
+    && ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'EDNS', 'ENOTFOUND', 'EHOSTUNREACH'].includes(e.code)) {
+    return true;
+  }
+  // 421 "service not available" and 451 are the shapes a provider uses when it
+  // has stopped carrying your traffic.
+  return e.responseCode === 421 || e.responseCode === 451;
+}
+
 class SmtpOutboundService {
-  private _transporter: Transporter | null = null;
+  private transporters = new Map<string, Transporter>();
   private idempotencyInFlight = new Map<string, Promise<{ messageId: string; queued: boolean }>>();
 
-  private get transporter(): Transporter {
-    if (!this._transporter) {
-      this._transporter = this.createTransporter();
-    }
-    return this._transporter;
-  }
-
-  private createTransporter(): Transporter {
-    if (!SMTP_OUTBOUND_CONFIG.relayHost) {
-      throw new Error(
-        'SMTP_RELAY_HOST is required for outbound email. Nodemailer removed the legacy ' +
-          '`{ direct: true }` MX-resolution path; configure a relay (e.g. AWS SES, SMTP server) ' +
-          'via SMTP_RELAY_HOST/SMTP_RELAY_PORT/SMTP_RELAY_USER/SMTP_RELAY_PASS.'
+  /** The configured relays, in preference order. */
+  private get relays(): SmtpRelayConfig[] {
+    if (SMTP_RELAYS.length === 0) {
+      throw new SmtpConfigurationError(
+        'Outbound email is not configured on this server: SMTP_RELAY_HOST is unset. ' +
+          'Nodemailer removed the legacy `{ direct: true }` MX-resolution path, so a relay ' +
+          'is mandatory; set SMTP_RELAY_HOST/SMTP_RELAY_PORT/SMTP_RELAY_USER/SMTP_RELAY_PASS. ' +
+          'The host accepts a comma-separated list for failover.'
       );
     }
+    return SMTP_RELAYS;
+  }
 
+  private transporterFor(relay: SmtpRelayConfig): Transporter {
+    const existing = this.transporters.get(relay.name);
+    if (existing) return existing;
+    const created = this.createTransporter(relay);
+    this.transporters.set(relay.name, created);
+    return created;
+  }
+
+  private createTransporter(relay: SmtpRelayConfig): Transporter {
     const transportConfig: SMTPTransport.Options = {
-      host: SMTP_OUTBOUND_CONFIG.relayHost,
-      port: SMTP_OUTBOUND_CONFIG.relayPort,
-      secure: SMTP_OUTBOUND_CONFIG.relayPort === 465,
-      auth:
-        SMTP_OUTBOUND_CONFIG.relayUser && SMTP_OUTBOUND_CONFIG.relayPass
-          ? {
-              user: SMTP_OUTBOUND_CONFIG.relayUser,
-              pass: SMTP_OUTBOUND_CONFIG.relayPass,
-            }
-          : undefined,
+      host: relay.host,
+      port: relay.port,
+      secure: relay.port === 465,
+      auth: relay.user && relay.pass ? { user: relay.user, pass: relay.pass } : undefined,
       ...SECURE_MAIL_CONTENT_OPTIONS,
     };
 
@@ -89,6 +170,44 @@ class SmtpOutboundService {
     }
 
     return nodemailer.createTransport(transportConfig);
+  }
+
+  /**
+   * Hand `mailOptions` to the first relay that will take it.
+   *
+   * Advances only on a transport failure; a message-level refusal is rethrown
+   * immediately so it is never re-offered elsewhere. If every relay fails on
+   * transport, the LAST error propagates — it is the one describing the state
+   * the system ended in.
+   */
+  private async deliverThroughRelays(mailOptions: Parameters<Transporter['sendMail']>[0]): Promise<void> {
+    const relays = this.relays;
+    let lastError: unknown;
+    for (let i = 0; i < relays.length; i++) {
+      const relay = relays[i];
+      try {
+        await this.transporterFor(relay).sendMail(mailOptions);
+        if (i > 0) {
+          logger.warn('Outbound email delivered through a fallback relay', {
+            relay: relay.name,
+            skipped: relays.slice(0, i).map((r) => r.name).join(', '),
+          });
+        }
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!isRelayTransportFailure(error) || i === relays.length - 1) throw error;
+        logger.warn('Outbound relay unavailable, trying the next one', {
+          relay: relay.name,
+          next: relays[i + 1].name,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // A transporter that just failed on transport may be holding a dead
+        // pooled connection; drop it so the next attempt reconnects.
+        this.transporters.delete(relay.name);
+      }
+    }
+    throw lastError;
   }
 
   async send(message: OutboundMessage): Promise<{ messageId: string; queued: boolean }> {
@@ -152,7 +271,7 @@ class SmtpOutboundService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
+      await this.deliverThroughRelays(mailOptions);
 
       const size = Buffer.byteLength((message.text || '') + (message.html || ''), 'utf8');
       await emailService.storeSentMessage(message.userId, {
@@ -181,7 +300,17 @@ class SmtpOutboundService {
       }
       return result;
     } catch (error) {
-      if (!isRetryableSmtpFailure(error)) throw error;
+      if (!isRetryableSmtpFailure(error)) {
+        // Permanent. Do NOT queue: a row in the outbox is a promise that this
+        // message will go out later, and that promise would be a lie. Let it
+        // propagate so the caller answers with a real failure.
+        logger.error(
+          'Email send permanently rejected; not queued',
+          error instanceof Error ? error : new Error(String(error)),
+          { messageId, to: message.to.map((a) => a.address).join(', ') },
+        );
+        throw error;
+      }
       logger.error('Email send failed, queuing for retry', error instanceof Error ? error : new Error(String(error)));
       await this.enqueue({ ...message, messageId });
       const result = { messageId, queued: true };
@@ -218,7 +347,7 @@ class SmtpOutboundService {
       ...SECURE_MAIL_CONTENT_OPTIONS,
     };
 
-    await this.transporter.sendMail(mailOptions);
+    await this.deliverThroughRelays(mailOptions);
 
     logger.info('Scheduled email sent', {
       messageId,
@@ -291,7 +420,8 @@ class SmtpOutboundService {
       `--${boundary}--`,
     ].join('\r\n');
 
-    await this.transporter.sendMail({
+    // An MDN is ordinary outbound mail and gets the same failover.
+    await this.deliverThroughRelays({
       envelope: {
         from: params.from.address,
         to: params.to,
@@ -364,10 +494,10 @@ class SmtpOutboundService {
   }
 
   shutdown(): void {
-    if (this._transporter) {
-      this._transporter.close();
-      this._transporter = null;
+    for (const transporter of this.transporters.values()) {
+      transporter.close();
     }
+    this.transporters.clear();
   }
 }
 
