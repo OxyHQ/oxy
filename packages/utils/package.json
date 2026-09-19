@@ -1,8 +1,7 @@
 {
   "name": "@oxy.so/utils",
-  "version": "1.0.0",
-  "description": "Dependency-free helpers shared across every Oxy service — SQL LIKE-pattern escaping, page-window clamping, and the small pure functions that were being copied between repos.",
-  "type": "module",
+  "version": "1.0.1",
+  "description": "Dependency-free helpers shared across every Oxy service \u2014 SQL LIKE-pattern escaping, page-window clamping, and the small pure functions that were being copied between repos.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
@@ -84,7 +83,7 @@
   "scripts": {
     "build": "bun run clean && bun run build:cjs && bun run build:esm && bun run build:types",
     "build:cjs": "tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
-    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:esm": "tsc -p tsconfig.esm.json && node scripts/mark-esm.mjs",
     "build:types": "tsc -p tsconfig.types.json",
     "clean": "rm -rf dist",
     "typescript": "tsc --noEmit",

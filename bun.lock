@@ -966,7 +966,7 @@
     },
     "packages/utils": {
       "name": "@oxy.so/utils",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "devDependencies": {
         "@biomejs/biome": "catalog:",
         "@types/jest": "^30.0.0",
