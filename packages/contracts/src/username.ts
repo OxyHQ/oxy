@@ -115,6 +115,77 @@ export const USERNAME_INVALID_MESSAGE =
   'start and end with a letter or number, and never repeat a separator';
 
 /**
+ * Exact-match handles nobody may newly claim, regardless of account kind.
+ *
+ * This is NOT a namespace tightening like the bot suffix — it is a list of
+ * names withheld from `users_lower_username_key` before anybody asks for
+ * them. Compared against the same normalization the unique index applies
+ * (`lower(btrim(username))`), so `Admin`, ` ADMIN ` and `admin` are the one
+ * name this list means.
+ *
+ * `oxy`, `mention`, `homiio`, `clarity`, `faircoin`, `astro` and `mercaria`
+ * are deliberately NOT here: each already has an `organization`/`project`
+ * row, so the unique index already refuses a second one, and `oxy` is the
+ * name `USERNAME_MIN_LENGTH` is pinned against in
+ * `__tests__/username.test.ts` — listing it would make
+ * `usernameSchema.safeParse('oxy')` fail and falsify that comment. A brand
+ * with no account of its own yet (measured 2026-09-18: Alia, Allo, TNP,
+ * Kaana, Bloom) has no row to protect it, so it is listed until one exists.
+ */
+export const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
+  // Oxy product lines with no account row of their own yet.
+  'alia',
+  'allo',
+  'tnp',
+  'kaana',
+  'bloom',
+  // System / role words a signup impersonating staff or Oxy itself would reach for.
+  'admin',
+  'administrator',
+  'root',
+  'superadmin',
+  'super',
+  'superuser',
+  'support',
+  'staff',
+  'moderator',
+  'mod',
+  'security',
+  'system',
+  'official',
+  'help',
+  'noreply',
+  'anonymous',
+  'everyone',
+  'owner',
+]);
+
+/** The 400 / inline-validation copy for a handle on {@link RESERVED_USERNAMES}. */
+export const RESERVED_USERNAME_MESSAGE = 'This username is reserved and cannot be registered';
+
+/**
+ * {@link RESERVED_USERNAMES}, minus `alia`, checked against each `-`/`_`
+ * separated SEGMENT of a candidate rather than the whole string — so
+ * `official-oxy`, `super-admin` and `team-kaana` are refused the same as the
+ * bare words, without banning every word that merely CONTAINS one as a
+ * substring (`superman`, `modern`, `grassroot`, `homeowner` all stay legal:
+ * none of them separates the reserved word from the rest with `-` or `_`).
+ *
+ * `alia` is excluded because `alia-` is the live internal-cost-centre
+ * namespace: `alia-production-chat` is a minted account and
+ * `alia-research` / `alia-voice` / `alia-evaluations` are pinned as legal
+ * slugs in `__tests__/username.test.ts` and `internalCostCenterSpecs.test.ts`.
+ * Segment-matching `alia` would refuse all four. The bare word `alia` is
+ * still refused — {@link RESERVED_USERNAMES} above catches it exactly.
+ */
+const RESERVED_USERNAME_SEGMENTS: ReadonlySet<string> = new Set(
+  [...RESERVED_USERNAMES].filter((word) => word !== 'alia')
+);
+
+/** The 400 / inline-validation copy for a handle that is only digits. */
+export const NUMERIC_USERNAME_MESSAGE = 'Username cannot be only numbers';
+
+/**
  * Alphanumeric runs joined by single separators, as a SOURCE string.
  *
  * A string rather than a literal because the OpenAPI docblocks that publish this
@@ -152,7 +223,14 @@ export const usernameSchema = z
   .trim()
   .min(USERNAME_MIN_LENGTH, USERNAME_INVALID_MESSAGE)
   .max(USERNAME_MAX_LENGTH, USERNAME_INVALID_MESSAGE)
-  .regex(USERNAME_PATTERN, USERNAME_INVALID_MESSAGE);
+  .regex(USERNAME_PATTERN, USERNAME_INVALID_MESSAGE)
+  .refine((username) => !/^[0-9]+$/.test(username), NUMERIC_USERNAME_MESSAGE)
+  .refine((username) => !RESERVED_USERNAMES.has(username.toLowerCase()), RESERVED_USERNAME_MESSAGE)
+  .refine(
+    (username) =>
+      !username.split(/[-_]/).some((segment) => RESERVED_USERNAME_SEGMENTS.has(segment.toLowerCase())),
+    RESERVED_USERNAME_MESSAGE
+  );
 
 /**
  * Whether a candidate handle is storable — the boolean form, for input surfaces

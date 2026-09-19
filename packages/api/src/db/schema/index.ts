@@ -35,6 +35,7 @@ export * from './appUpdates';
 export * from './appUserSignals';
 export * from './applicationCredentialAuditEvents';
 export * from './applicationCredentials';
+export * from './applicationWorkloadIdentities';
 export * from './applicationModerationTrust';
 export * from './applications';
 export * from './authChallenges';
