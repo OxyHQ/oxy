@@ -19,6 +19,7 @@ export {
 } from '../utils/commonsApproval';
 import { OxyAuthenticationError } from '../OxyServices.errors';
 import { KeyManager } from '../crypto/keyManager';
+import { solveRegistrationPow } from '../crypto/registrationPow';
 import { SignatureService } from '../crypto/signatureService';
 import { loadNodeCrypto } from '@oxy.so/protocol';
 import { logger } from '../logger';
@@ -844,10 +845,16 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
       timestamp: number
     ): Promise<{ message: string; user: User }> {
       try {
+        // Advisory for now (server soft-enforces — see
+        // `SessionController.register`), but solved unconditionally so every
+        // client is already sending it once the server starts requiring it.
+        const powNonce = await solveRegistrationPow(publicKey, timestamp);
+
         const res = await this.makeRequest<{ message: string; user: User }>('POST', '/auth/register', {
           publicKey,
           signature,
           timestamp,
+          powNonce,
         }, { cache: false, skipAuth: true });
 
         if (!res || (typeof res === 'object' && Object.keys(res).length === 0)) {
