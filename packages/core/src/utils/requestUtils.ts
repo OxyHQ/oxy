@@ -4,6 +4,28 @@
  * Provides reusable components for request deduplication, queuing, and logging
  */
 
+import { createCancelledError } from './errorUtils';
+
+/**
+ * The error to reject an aborted request with.
+ *
+ * ALWAYS the SDK's own cancellation error, with the signal's `reason` preserved
+ * as `cause` rather than substituted for it. The tempting version —
+ * `reason ?? createCancelledError()` — is wrong twice: `controller.abort()`
+ * always populates `reason` with a default `DOMException`, so the fallback
+ * would never run, and that `DOMException` carries none of the fields the retry
+ * predicates and consumers key off (`code: 'CANCELLED'`, `cancelled: true`).
+ * A cancellation that is not recognisable as one is the whole defect.
+ */
+function abortReason(signal: AbortSignal): unknown {
+  const reason = (signal as AbortSignal & { reason?: unknown }).reason;
+  const error = createCancelledError('Request cancelled') as Error & { cause?: unknown };
+  if (reason !== undefined) {
+    error.cause = reason;
+  }
+  return error;
+}
+
 /**
  * Request deduplication - prevents duplicate concurrent requests
  * 
@@ -31,20 +53,48 @@ export class RequestDeduplicator {
    */
   async deduplicate<T>(
     key: string,
-    requestFn: () => Promise<T>
+    requestFn: () => Promise<T>,
+    signal?: AbortSignal
   ): Promise<T> {
-    const existing = this.pendingRequests.get(key);
-    if (existing) {
-      return existing;
+    if (signal?.aborted) {
+      throw abortReason(signal);
     }
 
-    const promise = requestFn()
-      .finally(() => {
+    let promise = this.pendingRequests.get(key) as Promise<T> | undefined;
+    if (!promise) {
+      promise = requestFn().finally(() => {
         this.pendingRequests.delete(key);
       });
+      this.pendingRequests.set(key, promise);
+    }
 
-    this.pendingRequests.set(key, promise);
-    return promise;
+    // Callers SHARE the work but own their cancellation separately.
+    //
+    // Returning the shared promise directly meant one caller's abort rejected
+    // every other caller on the same key — including ones that never cancelled
+    // anything, and which had no way to tell that the failure was not theirs.
+    // Racing each caller's own signal against the shared work keeps the single
+    // in-flight request (the point of deduplication) while making cancellation
+    // per-caller. The shared promise is left running: another caller may still
+    // want it, and if nobody does its own abort domain ends it.
+    if (!signal) {
+      return promise;
+    }
+
+    // `promise` is already owned by the map's `finally`, so attach a no-op
+    // catch to the copy we race: without it, a rejection settled by the race's
+    // loser surfaces as an unhandled rejection.
+    const shared = promise;
+    shared.catch(() => { /* ownership stays with the caller(s) awaiting it */ });
+
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = (): void => reject(abortReason(signal));
+      signal.addEventListener('abort', onAbort, { once: true });
+      shared.then(
+        (value) => { signal.removeEventListener('abort', onAbort); resolve(value); },
+        (error) => { signal.removeEventListener('abort', onAbort); reject(error); },
+      );
+    });
   }
 
   /**
@@ -99,21 +149,62 @@ export class RequestQueue {
    * @param requestFn Function that returns a promise
    * @returns Promise that resolves when request completes
    */
-  async enqueue<T>(requestFn: () => Promise<T>): Promise<T> {
+  async enqueue<T>(requestFn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     if (this.queue.length >= this.maxQueueSize) {
       throw new Error('Request queue is full');
     }
 
+    // A slot is the scarce resource — ten by default — so a request whose
+    // caller has already given up must never consume one. Without this, a
+    // burst of cancelled work (a search box being typed into, say) keeps every
+    // slot busy on results nobody will read, and the ONE request the user is
+    // waiting on queues behind them. This is the change that actually returns
+    // the slots; refusing to retry a cancellation only stops making more.
+    if (signal?.aborted) {
+      throw abortReason(signal);
+    }
+
     return new Promise<T>((resolve, reject) => {
-      this.queue.push(async () => {
+      let settled = false;
+      const finish = (fn: () => void): void => {
+        if (settled) return;
+        settled = true;
+        signal?.removeEventListener('abort', onAbort);
+        fn();
+      };
+
+      const entry = async (): Promise<void> => {
+        // Re-checked at the moment of execution, not just at enqueue: a request
+        // can sit in the queue for as long as the slots stay busy, and the
+        // caller may well have moved on in the meantime.
+        if (signal?.aborted) {
+          finish(() => reject(abortReason(signal)));
+          return;
+        }
         try {
           const result = await requestFn();
-          resolve(result);
+          finish(() => resolve(result));
         } catch (error) {
-          reject(error);
+          finish(() => reject(error));
         }
-      });
+      };
 
+      const abortingSignal = signal;
+      function onAbort(this: void): void {
+        if (!abortingSignal) return;
+        // Drop it from the queue if it has not started. An entry already
+        // running is left to its own abort domain — the queue must still see it
+        // finish, or `running` never decrements and the slot leaks for good.
+        const index = queueRef.indexOf(entry);
+        if (index !== -1) {
+          queueRef.splice(index, 1);
+        }
+        finish(() => reject(abortReason(abortingSignal)));
+      }
+
+      const queueRef = this.queue;
+      signal?.addEventListener('abort', onAbort, { once: true });
+      this.queue.push(entry);
       this.process();
     });
   }

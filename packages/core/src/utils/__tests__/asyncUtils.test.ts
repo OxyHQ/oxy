@@ -1,5 +1,5 @@
 import { retryAsync } from '../asyncUtils';
-import { handleHttpError } from '../errorUtils';
+import { createCancelledError, ErrorCodes, handleHttpError } from '../errorUtils';
 
 /**
  * Regression coverage for the 1.11.11 retry storm:
@@ -183,5 +183,97 @@ describe('handleHttpError preserves HTTP status for retry predicates', () => {
     const result = handleHttpError(fetchError);
     expect(result.status).toBe(500);
     expect(result.code).toBe('INTERNAL_ERROR');
+  });
+});
+
+describe('retryAsync refuses to retry a cancellation', () => {
+  it('stops after one attempt on a cancellation, whatever the retry budget', async () => {
+    const operation = jest.fn(async () => { throw createCancelledError(); });
+
+    await expect(retryAsync(operation, { maxRetries: 3, baseDelay: 1 })).rejects.toMatchObject({
+      code: ErrorCodes.CANCELLED,
+    });
+    // This is the defect in one assertion: a cancellation carries no HTTP
+    // status, `status: 0` is not 4xx, so the status-only predicate passed it
+    // into the retry loop and the SDK re-issued abandoned requests.
+    expect(operation).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a cancellation even when a custom shouldRetry says yes', async () => {
+    const operation = jest.fn(async () => { throw createCancelledError(); });
+
+    await expect(
+      retryAsync(operation, { maxRetries: 3, baseDelay: 1, shouldRetry: () => true }),
+    ).rejects.toBeDefined();
+    // A custom predicate decides which FAILURES deserve another attempt. It has
+    // no business overriding an explicit instruction to stop.
+    expect(operation).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a bare AbortError as a cancellation', async () => {
+    const operation = jest.fn(async () => {
+      throw new DOMException('The operation was aborted.', 'AbortError');
+    });
+
+    await expect(retryAsync(operation, { maxRetries: 3, baseDelay: 1 })).rejects.toBeDefined();
+    // An unclassified abort is assumed to be a cancellation: refusing to retry
+    // something abandoned costs nothing, retrying it is the bug.
+    expect(operation).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('retryAsync timeout policy', () => {
+  afterEach(() => { jest.restoreAllMocks(); });
+
+  const timeoutError = (): Error => {
+    const error = new Error('timed out') as Error & { code?: string; timeout?: boolean; status?: number };
+    error.code = ErrorCodes.TIMEOUT;
+    error.timeout = true;
+    error.status = 0;
+    return error;
+  };
+
+  it('does not retry a timeout by default', async () => {
+    const operation = jest.fn(async () => { throw timeoutError(); });
+
+    await expect(retryAsync(operation, { maxRetries: 3, baseDelay: 1 })).rejects.toBeDefined();
+    expect(operation).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a timeout when asked to', async () => {
+    const operation = jest.fn(async () => { throw timeoutError(); });
+
+    await expect(
+      retryAsync(operation, { maxRetries: 2, baseDelay: 1, retryOnTimeout: true }),
+    ).rejects.toBeDefined();
+    expect(operation).toHaveBeenCalledTimes(3);
+  });
+
+  it('stops at the deadline rather than at the attempt budget', async () => {
+    // Jitter pinned so the backoff is exactly baseDelay * 2**attempt; otherwise
+    // this measures Math.random() rather than the deadline.
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+    const operation = jest.fn(async () => { throw new Error('5xx-ish'); });
+
+    const started = Date.now();
+    await expect(
+      retryAsync(operation, { maxRetries: 10, baseDelay: 50, deadline: Date.now() + 120 }),
+    ).rejects.toBeDefined();
+
+    // The point of a deadline: the wall clock a caller feels is bounded by a
+    // budget it stated, not by arithmetic over attempts x timeout + backoff.
+    expect(Date.now() - started).toBeLessThan(400);
+    expect(operation.mock.calls.length).toBeLessThan(11);
+  });
+});
+
+describe('retryAsync keeps its positional signature working', () => {
+  it('accepts the legacy (operation, maxRetries, baseDelay, shouldRetry) call', async () => {
+    const operation = jest.fn(async () => { throw new Error('transient'); });
+
+    await expect(retryAsync(operation, 2, 1)).rejects.toThrow('transient');
+    // In-tree callers pass positionally, so the options object had to be an
+    // overload rather than a replacement.
+    expect(operation).toHaveBeenCalledTimes(3);
   });
 });

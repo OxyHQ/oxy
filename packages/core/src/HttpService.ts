@@ -16,7 +16,7 @@
 import { TTLCache, registerCacheForCleanup } from './utils/cache';
 import { RequestDeduplicator, RequestQueue, SimpleLogger } from './utils/requestUtils';
 import { retryAsync } from './utils/asyncUtils';
-import { handleHttpError, parseHttpErrorBody } from './utils/errorUtils';
+import { createCancelledError, ErrorCodes, handleHttpError, isCancelledError, parseHttpErrorBody } from './utils/errorUtils';
 import { jwtDecode } from 'jwt-decode';
 import { isNative, getPlatformOS } from './utils/platform';
 import { isReactNative } from '@oxy.so/protocol';
@@ -85,6 +85,25 @@ export interface RequestOptions {
   deduplicate?: boolean;
   retry?: boolean;
   maxRetries?: number;
+  /**
+   * Retry an attempt that hit {@link timeout}. Default `false`.
+   *
+   * Off by default because a timeout usually means the SERVER is slow, so more
+   * attempts add load to the thing already struggling — and because retrying
+   * one behind a short per-attempt timeout is how a single slow endpoint used
+   * to cost ~28s of wall clock. Turn it on for an idempotent read where a
+   * retry is genuinely likely to help, and pair it with {@link deadline}.
+   */
+  retryOnTimeout?: boolean;
+  /**
+   * Wall-clock budget in ms for the WHOLE call, retries and backoff included.
+   *
+   * {@link timeout} bounds one attempt; this bounds the call. Without it the
+   * total is `attempts x timeout + backoff`, which is arithmetic nobody does
+   * at the call site — so a caller who wants "never more than 8 seconds" can
+   * say that instead of deriving it.
+   */
+  deadline?: number;
   timeout?: number;
   signal?: AbortSignal;
   headers?: Record<string, string>;
@@ -289,8 +308,47 @@ class TokenStore {
 }
 
 /**
+ * Propagate `parent`'s abort to `child`, returning a disposer.
+ *
+ * Three things a bare `parent.addEventListener('abort', ...)` gets wrong, all
+ * of which this exists to stop repeating:
+ *
+ * 1. **An already-aborted parent never fires again.** `abort` is a once-only
+ *    event, so linking to a signal that has already fired silently links to
+ *    nothing — which is how a cancelled request got re-issued on every retry.
+ *    The `aborted` pre-check is the whole point.
+ * 2. **The listener outlives the request.** A long-lived caller signal (one
+ *    React Query owns for a query's lifetime, say) accumulates one listener per
+ *    attempt per request with nothing ever removing them.
+ * 3. **The reason is dropped**, so the child cannot tell WHY it was aborted.
+ *
+ * `AbortSignal.any` does all this natively and is not used: Hermes support is
+ * not safe to assume, and this SDK ships to React Native. The pattern is the
+ * one `uploadViaXHR` already had right; this is that code, shared.
+ */
+function isAbortLike(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'AbortError'
+  );
+}
+
+function linkAbort(parent: AbortSignal, child: AbortController): () => void {
+  if (parent.aborted) {
+    child.abort((parent as AbortSignal & { reason?: unknown }).reason);
+    return () => { /* nothing was ever attached */ };
+  }
+  const onAbort = (): void => {
+    child.abort((parent as AbortSignal & { reason?: unknown }).reason);
+  };
+  parent.addEventListener('abort', onAbort, { once: true });
+  return () => parent.removeEventListener('abort', onAbort);
+}
+
+/**
  * Unified HTTP Service
- * 
+ *
  * Consolidates HttpClient + RequestManager into a single efficient class.
  * Uses native fetch instead of axios for smaller bundle size.
  */
@@ -543,9 +601,58 @@ export class HttpService {
     const edgeRegionHeader = await getBrowserEdgeRegionHeader();
     const activityIdHeader = getBrowserActivityIdHeader();
 
+    // A request the caller has ALREADY abandoned takes no queue slot and makes
+    // no network call. Checked here, before enqueue, because a slot is the
+    // scarce resource: ten of them, and a dead request holding one is a live
+    // request waiting for nothing.
+    if (signal?.aborted) {
+      throw createCancelledError('Request cancelled before it was sent');
+    }
+
+    // ONE abort domain for the whole call, linked to the caller's signal ONCE.
+    //
+    // The bug this replaces: the controller used to be built INSIDE `requestFn`
+    // — the function `retryAsync` re-invokes — and the caller's signal was
+    // linked to each new controller with a bare `addEventListener`. An `abort`
+    // event fires once, so on attempt 2 the caller's already-fired signal could
+    // not abort the freshly built controller, and the request the caller had
+    // cancelled went out for real. Hoisting the linkage means a cancellation
+    // arrives once and is then true for every attempt, including ones not yet
+    // started.
+    const callController = new AbortController();
+    const disposeCallerLink = signal ? linkAbort(signal, callController) : undefined;
+
+    /**
+     * Which of our own timers fired, so a timeout can be told apart from a
+     * cancellation. Both reach us from `fetch` as an indistinguishable
+     * `AbortError`, and collapsing them (as this used to) is what let the retry
+     * predicate treat an abandoned request as a transient failure.
+     */
+    let timedOut = false;
+
     // Request function
     const requestFn = async (): Promise<T> => {
       const startTime = Date.now();
+      // Re-checked per attempt so no retry can issue a network call after the
+      // caller gave up — belt to `retryAsync`'s braces, and the one that holds
+      // if a custom `shouldRetry` ever says yes to a cancellation.
+      if (callController.signal.aborted) {
+        throw createCancelledError('Request cancelled');
+      }
+
+      // This attempt's controller carries its own timeout and inherits the
+      // call-wide abort domain. Declared OUTSIDE the `try` so the `finally`
+      // that releases them can see them — the timer and the listener are
+      // exactly what leaked when they lived inside it.
+      const controller = new AbortController();
+      const disposeCallLink = linkAbort(callController.signal, controller);
+      const timeoutId = timeout
+        ? setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+          }, timeout)
+        : null;
+
       try {
         // Build URL with params
         const fullUrl = this.buildURL(url, params);
@@ -553,14 +660,6 @@ export class HttpService {
         // Determine if data is FormData using robust detection
         const isFormData = this.isFormData(data);
         const isUrlEncoded = this.isUrlSearchParams(data);
-
-        // Make fetch request
-        const controller = new AbortController();
-        const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : null;
-        
-        if (signal) {
-          signal.addEventListener('abort', () => controller.abort());
-        }
 
         // Build headers - start with defaults
         const headers: Record<string, string> = {
@@ -657,6 +756,8 @@ export class HttpService {
               credentials: this.getCredentialsMode(fullUrl),
             });
 
+        // Cleared as early as possible; the `finally` below is what GUARANTEES
+        // it, including on every throw between here and there.
         if (timeoutId) clearTimeout(timeoutId);
 
         // Handle response
@@ -787,41 +888,90 @@ export class HttpService {
         this.updateMetrics(false, duration);
         this.config.onRequestEnd?.(url, method, duration, false);
         this.config.onRequestError?.(url, method, error instanceof Error ? error : new Error(String(error)));
-        
-        // Handle AbortError specifically for better error messages
-        if (error instanceof Error && error.name === 'AbortError') {
-          throw handleHttpError(error);
+
+        // An abort is the one failure whose CAUSE the error cannot carry on its
+        // own: `fetch` reports a caller cancellation and our own timeout as the
+        // same `AbortError`. `timedOut` is set by the timer callback, so it is
+        // the only thing here that knows which happened — and getting this
+        // wrong is not cosmetic. Both used to collapse to `TIMEOUT` with
+        // `status: 0`, and because `status: 0` is not 4xx the retry predicate
+        // read every cancellation as a transient failure worth another try.
+        // Tested by NAME, not `instanceof Error`. `fetch` rejects an abort with a
+        // `DOMException`, and `instanceof` is realm-bound: the exception can be
+        // constructed in a different realm from the `Error` this module closes
+        // over (a Jest VM context, a worker, an iframe), in which case the check
+        // silently fails and the abort is misreported as a generic 500. That was
+        // happening; a structural check cannot be fooled that way.
+        if (isAbortLike(error)) {
+          if (timedOut) {
+            const timeoutError = new Error(`Request timed out after ${timeout}ms`) as Error & {
+              status?: number;
+              code?: string;
+              timeout?: boolean;
+            };
+            timeoutError.status = 0;
+            timeoutError.code = ErrorCodes.TIMEOUT;
+            timeoutError.timeout = true;
+            throw timeoutError;
+          }
+          throw createCancelledError('Request cancelled');
         }
-        
+
         throw handleHttpError(error);
+      } finally {
+        // Both of these leaked before: `clearTimeout` sat on the success path
+        // only, so any throw between the fetch and the return (a 404, a parse
+        // failure) left the timer armed; and nothing ever removed the abort
+        // listener, so a long-lived caller signal collected one per attempt.
+        if (timeoutId) clearTimeout(timeoutId);
+        disposeCallLink();
       }
     };
 
-    // Wrap with retry if enabled
+    // Wrap with retry if enabled.
+    //
+    // `retryOnTimeout` defaults to false in `retryAsync`, which is what makes
+    // the pathological total unreachable: a timeout now costs ONE attempt
+    // instead of four-plus-backoff (~28s at the 5s default), and a cancellation
+    // costs none. `deadline` bounds whatever retries do happen by wall clock
+    // rather than by attempts x timeout + backoff.
     const requestWithRetry = retry
-      ? () => retryAsync(requestFn, maxRetries, this.config.retryDelay || 1000)
+      ? () => retryAsync(requestFn, {
+          maxRetries,
+          baseDelay: this.config.retryDelay || 1000,
+          retryOnTimeout: config.retryOnTimeout ?? false,
+          deadline: config.deadline !== undefined ? Date.now() + config.deadline : undefined,
+        })
       : requestFn;
 
     // Wrap with deduplication if enabled (use optimized key generation)
     const dedupeKey = deduplicate ? this.generateCacheKey(method, url, data || params) : null;
     const finalRequest = dedupeKey
-      ? () => this.deduplicator.deduplicate(dedupeKey, requestWithRetry)
+      ? () => this.deduplicator.deduplicate(dedupeKey, requestWithRetry, callController.signal)
       : requestWithRetry;
 
-    // Execute the request. Control-plane calls the auth lane depends on
-    // (`bypassQueue`, e.g. the device-secret mint) run DIRECTLY — a queued mint
-    // could never acquire a slot when every slot is parked awaiting it.
-    const result = config.bypassQueue
-      ? await finalRequest()
-      : await this.requestQueue.enqueue(finalRequest);
+    try {
+      // Execute the request. Control-plane calls the auth lane depends on
+      // (`bypassQueue`, e.g. the device-secret mint) run DIRECTLY — a queued mint
+      // could never acquire a slot when every slot is parked awaiting it.
+      const result = config.bypassQueue
+        ? await finalRequest()
+        : await this.requestQueue.enqueue(finalRequest, callController.signal);
 
-    // Cache the result if caching is enabled
-    if (cache && cacheKey && result) {
-      this.cache.set(cacheKey, result, cacheTTL);
-      this.warnIfCacheOversized();
+      // Cache the result if caching is enabled
+      if (cache && cacheKey && result) {
+        this.cache.set(cacheKey, result, cacheTTL);
+        this.warnIfCacheOversized();
+      }
+
+      return result;
+    } finally {
+      // The call-wide link to the CALLER's signal, released once the call is
+      // over however it ended. Without this a caller signal that outlives the
+      // request — the normal case for a React Query query signal — accrues one
+      // listener per request for its whole lifetime.
+      disposeCallerLink?.();
     }
-
-    return result;
   }
 
   /**

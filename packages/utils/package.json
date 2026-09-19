@@ -1,0 +1,101 @@
+{
+  "name": "@oxy.so/utils",
+  "version": "1.0.1",
+  "description": "Dependency-free helpers shared across every Oxy service \u2014 SQL LIKE-pattern escaping, page-window clamping, and the small pure functions that were being copied between repos.",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/types/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "sql": [
+        "dist/types/sql.d.ts"
+      ],
+      "paging": [
+        "dist/types/paging.d.ts"
+      ],
+      "text": [
+        "dist/types/text.d.ts"
+      ]
+    }
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./sql": {
+      "import": {
+        "types": "./dist/types/sql.d.ts",
+        "default": "./dist/esm/sql.js"
+      },
+      "require": {
+        "types": "./dist/types/sql.d.ts",
+        "default": "./dist/cjs/sql.js"
+      }
+    },
+    "./paging": {
+      "import": {
+        "types": "./dist/types/paging.d.ts",
+        "default": "./dist/esm/paging.js"
+      },
+      "require": {
+        "types": "./dist/types/paging.d.ts",
+        "default": "./dist/cjs/paging.js"
+      }
+    },
+    "./text": {
+      "import": {
+        "types": "./dist/types/text.d.ts",
+        "default": "./dist/esm/text.js"
+      },
+      "require": {
+        "types": "./dist/types/text.d.ts",
+        "default": "./dist/cjs/text.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oxyhq/sdk",
+    "directory": "packages/utils"
+  },
+  "license": "Apache-2.0",
+  "author": "Oxy",
+  "homepage": "https://oxy.so",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "bun run clean && bun run build:cjs && bun run build:esm && bun run build:types",
+    "build:cjs": "tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
+    "build:esm": "tsc -p tsconfig.esm.json && node scripts/mark-esm.mjs",
+    "build:types": "tsc -p tsconfig.types.json",
+    "clean": "rm -rf dist",
+    "typescript": "tsc --noEmit",
+    "test": "jest",
+    "lint": "biome lint --error-on-warnings ./src",
+    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run typescript && bun run test && bun run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.5.1",
+    "ts-jest": "^29.4.12",
+    "typescript": "^5.9.2"
+  }
+}

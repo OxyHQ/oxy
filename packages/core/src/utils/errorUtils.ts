@@ -33,7 +33,21 @@ export const ErrorCodes = {
   
   // Network errors
   NETWORK_ERROR: 'NETWORK_ERROR',
-  CONNECTION_FAILED: 'CONNECTION_FAILED'
+  CONNECTION_FAILED: 'CONNECTION_FAILED',
+
+  /**
+   * The CALLER cancelled this request — it did not fail.
+   *
+   * Distinct from {@link ErrorCodes.TIMEOUT} on purpose, and the distinction is
+   * load-bearing rather than cosmetic. Both arrive from `fetch` as an
+   * `AbortError` carrying no status, so for a long time both collapsed to
+   * `TIMEOUT` with `status: 0` — and since `status: 0` is not 4xx, the retry
+   * predicate treated a cancellation as a transient failure and re-issued the
+   * request the caller had just abandoned. A cancellation is an INSTRUCTION;
+   * nothing may retry it. See `retryAsync`'s default predicate, which refuses
+   * this code specifically.
+   */
+  CANCELLED: 'CANCELLED'
 } as const;
 
 /**
@@ -158,6 +172,59 @@ export function createApiError(
 }
 
 /**
+ * The error a CALLER-cancelled request rejects with.
+ *
+ * Carries both identities on purpose, because consumers check for
+ * cancellation two different ways and both are legitimate:
+ *
+ * - `name: 'AbortError'` is what every `fetch`-era consumer tests, and what
+ *   React Query and friends recognise. Dropping it would silently turn
+ *   cancellations into errors in every app that already handles aborts.
+ * - `code: ErrorCodes.CANCELLED` / `cancelled: true` is what code inside this
+ *   SDK tests, because `handleHttpError` returns PLAIN objects (not `Error`s)
+ *   for most failures, so `name` is not a reliable discriminator across the
+ *   whole surface.
+ *
+ * It is an `Error` rather than a bare `ApiError` object so a stack survives and
+ * `instanceof Error` holds — the shape the abort path always looked like it
+ * produced, and never did.
+ */
+export type CancelledError = Error & ApiError & { cancelled: true };
+
+export function createCancelledError(message = 'Request cancelled'): CancelledError {
+  const error = new Error(message) as CancelledError;
+  error.name = 'AbortError';
+  error.code = ErrorCodes.CANCELLED;
+  error.status = 0;
+  error.cancelled = true;
+  return error;
+}
+
+/**
+ * Whether an error represents a CALLER cancellation rather than a failure.
+ *
+ * Structural, never message-based: a message is localizable and rewordable,
+ * and a retry predicate that keys off one is a bug waiting for a copy edit.
+ */
+function isAbortLike(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'AbortError'
+  );
+}
+
+export function isCancelledError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; cancelled?: unknown; name?: unknown };
+  return (
+    candidate.cancelled === true ||
+    candidate.code === ErrorCodes.CANCELLED ||
+    candidate.name === 'AbortError'
+  );
+}
+
+/**
  * Handle common HTTP errors and convert to ApiError
  */
 export function handleHttpError(error: unknown): ApiError {
@@ -174,8 +241,16 @@ export function handleHttpError(error: unknown): ApiError {
     return apiError;
   }
 
-  // Handle AbortError (timeout or cancelled requests)
-  if (error instanceof Error && error.name === 'AbortError') {
+  // Handle AbortError (timeout or cancelled requests).
+  //
+  // Matched by NAME rather than `instanceof Error`, because `fetch` rejects an
+  // abort with a `DOMException` and `instanceof` is realm-bound — an exception
+  // built in another realm (a test VM, a worker, an iframe) fails the check and
+  // falls through to the generic 500 branch below. `HttpService` classifies its
+  // own aborts before reaching here, so this is the fallback for aborts raised
+  // anywhere else, and it stays TIMEOUT: a caller that never passed a signal
+  // cannot have cancelled anything.
+  if (isAbortLike(error)) {
     return createApiError(
       'Request timeout or cancelled',
       ErrorCodes.TIMEOUT,
