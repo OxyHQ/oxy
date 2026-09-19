@@ -456,10 +456,32 @@ describe('storing the envelope', () => {
     expect((await put(identity, userId, envelope, 0)).status).toBe(200);
 
     const [row] = await getDb().select().from(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, userId));
-    const serialized = JSON.stringify(row);
-    expect(serialized).not.toContain(identity.privateKey);
-    for (const word of new Set((identity.mnemonic as string).split(' '))) {
-      expect(serialized).not.toMatch(new RegExp(`\\b${word}\\b`));
+
+    /**
+     * Scan the stored VALUES, never the serialised row.
+     *
+     * A secret can only escape as a value; a column NAME is structure this test
+     * chose itself. Scanning `JSON.stringify(row)` conflated the two, and BIP39
+     * makes that collision reachable rather than theoretical: `version`, `true`
+     * and `false` are all in the 2048-word English list, and `version` is a
+     * column here. A 24-word phrase draws `version` about 1.2% of the time, so
+     * roughly one run in eighty failed reporting a leak that had not happened —
+     * and the message named the word, which reads exactly like a real one.
+     */
+    const storedValues: string[] = [];
+    const collect = (value: unknown): void => {
+      if (typeof value === 'string') storedValues.push(value);
+      else if (Array.isArray(value)) value.forEach(collect);
+      else if (value && typeof value === 'object') Object.values(value).forEach(collect);
+    };
+    collect(row);
+
+    for (const value of storedValues) {
+      expect(value).not.toContain(identity.privateKey);
+      expect(value).not.toContain(identity.mnemonic);
+      for (const word of new Set((identity.mnemonic as string).split(' '))) {
+        expect(value).not.toMatch(new RegExp(`\\b${word}\\b`));
+      }
     }
   });
 
