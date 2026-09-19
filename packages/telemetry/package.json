@@ -112,7 +112,7 @@
     "url": "https://github.com/oxyhq/sdk",
     "directory": "packages/telemetry"
   },
-  "license": "Apache-2.0",
+  "license": "SEE LICENSE IN LICENSE",
   "author": "Oxy",
   "homepage": "https://oxy.so",
   "engines": {
