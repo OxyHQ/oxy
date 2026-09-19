@@ -50,6 +50,7 @@ import { userLocations } from '../db/schema/userLocations';
 import { users } from '../db/schema/users';
 import { logger } from '../utils/logger';
 import performanceMonitor from '../utils/performanceMonitor';
+import { likeContains } from '@oxy.so/utils/sql';
 
 /**
  * The text-search configuration `user_locations.search_vector` is generated
@@ -254,7 +255,7 @@ function toLocationMatch(row: LocationRow): LocationMatch {
  * would have done, which the Mongo version never did.
  */
 function substringMatch(column: Column, value: string): SQL {
-  const pattern = `%${value.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+  const pattern = likeContains(value);
   return sql`${qualified(column)} ilike ${pattern}`;
 }
 
