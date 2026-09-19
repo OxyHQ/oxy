@@ -96,7 +96,7 @@ const getUserIdsFromRequestBody = (body: unknown): unknown => {
 
 import { PAGINATION } from '../utils/constants';
 import { MAX_MUTUAL_IDS, MAX_FOLLOWS_OF_FOLLOWS_IDS } from '../utils/recommendationWeights';
-import { federationService } from '../services/federation.service';
+import { federationService, storedAvatarFileId } from '../services/federation.service';
 import { isPublicGraphTarget } from '../utils/profileQuery';
 
 // Initialize router and controller
@@ -1858,14 +1858,15 @@ router.put(
     // resolves the user fresh, honours the throttle + conditional requests, and
     // invalidates the cache again once the new file id is persisted. Never
     // awaited — must not delay the response.
-    const hasExistingStoredAvatar = typeof existingAvatarFileId === 'string'
-      && existingAvatarFileId.length > 0
-      && !existingAvatarFileId.startsWith('http');
-    if (remoteAvatarUrl && (forceAvatarRefresh || !hasExistingStoredAvatar)) {
+    // Read as a FILE ID, through the one helper that owns that question: the third
+    // argument below is the file the download DELETES when it replaces it, and
+    // `users.avatar` can now also hold a source URL awaiting replacement.
+    const existingStoredFileId = storedAvatarFileId(existingAvatarFileId);
+    if (remoteAvatarUrl && (forceAvatarRefresh || existingStoredFileId === undefined)) {
       federationService.scheduleAvatarRefresh(
         resolvedUserId,
         remoteAvatarUrl,
-        existingAvatarFileId,
+        existingStoredFileId,
         { force: forceAvatarRefresh },
       );
     }

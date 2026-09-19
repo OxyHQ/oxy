@@ -380,6 +380,7 @@ describe('GET /profiles/resolve — wire shape', () => {
       redirectedUserIds: [],
       createdAt: stored.createdAt.toISOString(),
       updatedAt: stored.updatedAt.toISOString(),
+      reputationTier: 'new',
       type: 'federated',
       federation: {
         actorUri: `https://mastodon.social/users/${localPart}`,
