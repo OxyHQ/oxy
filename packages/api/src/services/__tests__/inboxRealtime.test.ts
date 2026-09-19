@@ -287,6 +287,38 @@ describe('buildSnippet', () => {
     expect(buildSnippet(undefined, html)).toBe('Hi & bye');
   });
 
+  /**
+   * `</script >` is a valid end tag. A pattern matching only `</script>` leaves
+   * the script BODY in the preview — which is the sender's text, quoted back at
+   * the reader as if it were their message.
+   */
+  it.each([
+    ['</script >', '<script>trackMe()</script >after'],
+    ['</script\n>', '<script>trackMe()</script\n>after'],
+    ['uppercase', '<SCRIPT>trackMe()</SCRIPT  >after'],
+    ['with attributes', '<script type="text/javascript">trackMe()</script>after'],
+  ])('strips a script closed with %s', (_label, html) => {
+    const snippet = buildSnippet(undefined, html);
+    expect(snippet).not.toContain('trackMe');
+    expect(snippet).toContain('after');
+  });
+
+  /**
+   * Chained replaces double-unescape: `&amp;lt;` becomes `&lt;` becomes `<`.
+   * The sender writes that string, so it decides what the preview shows.
+   */
+  it('decodes entities once, so &amp;lt; stays literal', () => {
+    expect(buildSnippet(undefined, '<p>&amp;lt;b&amp;gt;</p>')).toBe('&lt;b&gt;');
+  });
+
+  it('leaves an entity it does not know alone', () => {
+    expect(buildSnippet(undefined, '<p>caf&eacute;</p>')).toBe('caf&eacute;');
+  });
+
+  it('drops comments rather than quoting them', () => {
+    expect(buildSnippet(undefined, '<!-- hidden --><p>shown</p>')).toBe('shown');
+  });
+
   it('never exceeds 140 characters', () => {
     expect(buildSnippet('x'.repeat(500)).length).toBe(140);
   });

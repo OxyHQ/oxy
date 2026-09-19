@@ -24,7 +24,7 @@
  */
 
 import { Router } from 'express';
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { createVerify, timingSafeEqual } from 'node:crypto';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -40,6 +40,28 @@ import { extractUsername } from '../config/email.config';
 const router = Router();
 
 const BREVO_WEBHOOK_SECRET = getEnvVar('BREVO_WEBHOOK_SECRET', '');
+/**
+ * Refuse anything arriving with a cookie.
+ *
+ * Neither SNS nor Brevo sends one. A request that does is a browser acting on
+ * somebody's ambient session — which is exactly the shape CSRF describes, and
+ * this router cannot use the normal `csrfProtection` because a webhook has no
+ * token to present. Rejecting cookie-bearing requests outright is the stronger
+ * statement anyway: this endpoint is not reachable with a user's credentials at
+ * all, so there is no session for a cross-site request to ride.
+ */
+function rejectCookieAuthenticatedRequests(req: Request, res: Response, next: NextFunction): void {
+  if (req.headers.cookie) {
+    logger.warn('Email feedback request rejected: arrived with cookies');
+    res.status(403).json({ error: 'This endpoint does not accept cookie-authenticated requests' });
+    return;
+  }
+  next();
+}
+
+router.use(rejectCookieAuthenticatedRequests);
+
+
 
 export const feedbackRateLimit = rateLimit({
   prefix: 'rl:email:feedback:',
@@ -108,12 +130,46 @@ export function snsStringToSign(msg: SnsEnvelope): string | null {
   return out;
 }
 
+/**
+ * Fetch a URL that MUST be an Amazon SNS endpoint.
+ *
+ * Both outbound requests this route makes — the signing certificate and the
+ * subscription confirmation — take their URL from the request body. That is a
+ * server-side request forgery primitive unless the host is constrained, and
+ * "the signature covered the field" is not a sufficient answer on its own,
+ * because the signature is only trustworthy once the certificate has already
+ * been fetched from somewhere. One function, one allowlist, no ordering to get
+ * wrong.
+ */
+// `Response` here is Express's, so name the fetch one structurally.
+type FetchResponse = Awaited<ReturnType<typeof fetch>>;
+
+async function fetchAmazonUrl(url: string): Promise<FetchResponse | null> {
+  if (!isAmazonSigningCertUrl(url)) {
+    logger.warn('Refused an SNS fetch to a non-Amazon host');
+    return null;
+  }
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000), redirect: 'error' });
+    return response.ok ? response : null;
+  } catch (err) {
+    logger.warn('SNS fetch failed', { error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
 const certCache = new Map<string, string>();
 
 async function fetchSigningCert(url: string): Promise<string | null> {
+  // Re-checked HERE rather than only at the call site. The guard and the
+  // request it guards belong next to each other: a future caller that forgets
+  // the check would otherwise turn this into a server-side request forgery
+  // primitive, with the payload choosing the host.
+  if (!isAmazonSigningCertUrl(url)) return null;
   const cached = certCache.get(url);
   if (cached) return cached;
-  const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+  const response = await fetchAmazonUrl(url);
+  if (!response) return null;
   if (!response.ok) return null;
   const pem = await response.text();
   if (!pem.includes('BEGIN CERTIFICATE')) return null;
@@ -168,6 +224,20 @@ interface SesNotification {
 }
 
 /**
+ * The address out of a `Name <user@host>` header, or the whole string when
+ * there are no angle brackets.
+ *
+ * Deliberately not a regex. `source` is an envelope header a third party wrote,
+ * and `/<([^>]+)>/` backtracks quadratically on input like `<<<<<<<…` — a free
+ * denial of service on an endpoint anyone can POST to. `indexOf` cannot.
+ */
+export function extractAngleAddress(source: string): string {
+  const open = source.indexOf('<');
+  const close = open === -1 ? -1 : source.indexOf('>', open + 1);
+  return (close > open ? source.slice(open + 1, close) : source).trim().toLowerCase();
+}
+
+/**
  * Which Oxy account sent a message, from its envelope `From`. A complaint is
  * scoped to the sender; when we cannot resolve one, the complaint is DROPPED
  * rather than applied globally — blocking an address for every user because one
@@ -175,8 +245,7 @@ interface SesNotification {
  */
 async function resolveSenderUserId(source: string | undefined): Promise<string | null> {
   if (!source) return null;
-  const match = source.match(/<([^>]+)>/);
-  const address = (match ? match[1] : source).trim().toLowerCase();
+  const address = extractAngleAddress(source);
   const username = extractUsername(address);
   if (!username) return null;
   const [row] = await getDb()
@@ -261,11 +330,12 @@ router.post(
     }
 
     if (body.Type === 'SubscriptionConfirmation' && body.SubscribeURL) {
-      // Confirm by fetching the URL Amazon gave us — already proven authentic
-      // by the signature check above.
-      const confirmed = await fetch(body.SubscribeURL, { signal: AbortSignal.timeout(5000) });
-      logger.info('SNS subscription confirmation', { ok: confirmed.ok, topic: body.TopicArn });
-      res.status(200).json({ confirmed: confirmed.ok });
+      // The signature above covers SubscribeURL, but the host is constrained
+      // anyway: a signature is only as good as the certificate it was checked
+      // against, and this keeps the two independent.
+      const confirmed = await fetchAmazonUrl(body.SubscribeURL);
+      logger.info('SNS subscription confirmation', { ok: Boolean(confirmed), topic: body.TopicArn });
+      res.status(200).json({ confirmed: Boolean(confirmed) });
       return;
     }
 

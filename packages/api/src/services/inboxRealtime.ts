@@ -30,6 +30,52 @@ import type {
 
 const SNIPPET_MAX_LENGTH = 140;
 
+/** One pass over the named entities this snippet cares about. */
+const HTML_ENTITIES: Record<string, string> = {
+  nbsp: ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  '#39': "'",
+  apos: "'",
+};
+
+/**
+ * Decode entities in a SINGLE pass.
+ *
+ * Chained `.replace()` calls double-unescape: decoding `&amp;` to `&` first
+ * turns `&amp;lt;` into `&lt;`, which the next call then turns into `<`. The
+ * sender controls that string, so the snippet would show markup they wrote as
+ * an entity. One regex, one substitution per match, no second look.
+ */
+function decodeEntitiesOnce(input: string): string {
+  return input.replace(/&(nbsp|amp|lt|gt|quot|apos|#39);/gi, (match, name: string) => {
+    const decoded = HTML_ENTITIES[name.toLowerCase()];
+    return decoded === undefined ? match : decoded;
+  });
+}
+
+/**
+ * Remove markup from a body we are reducing to one line of preview text.
+ *
+ * `<\/script>` is not the only way to close a script element: `</script >`,
+ * `</script\n>` and `</SCRIPT  >` are all valid, and a pattern that misses them
+ * leaves the script BODY in the snippet. The character class before `>` is what
+ * covers that, and it is why this is not the obvious regex.
+ *
+ * This is preview text rendered into an RN `Text`, never into HTML, so it is
+ * not an XSS sink — but a snippet quoting somebody's tracking script is still
+ * wrong, and the tag filter is cheap to get right.
+ */
+function stripMarkup(html: string): string {
+  return html
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<[^>]*>/g, ' ');
+}
+
 /**
  * Build a short plain-text snippet from a message body. Prefers `text` when
  * present; otherwise strips tags and entities from `html` with a minimal
@@ -40,16 +86,7 @@ export function buildSnippet(text?: string | null, html?: string | null): string
   const source = text && text.trim().length > 0
     ? text
     : html
-      ? html
-          .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-          .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/&nbsp;/gi, ' ')
-          .replace(/&amp;/gi, '&')
-          .replace(/&lt;/gi, '<')
-          .replace(/&gt;/gi, '>')
-          .replace(/&quot;/gi, '"')
-          .replace(/&#39;/gi, "'")
+      ? decodeEntitiesOnce(stripMarkup(html))
       : '';
   // A snippet is a ONE-LINE preview of a message body written by a third party,
   // so the canonical inline normalizer applies: every line break the sender's

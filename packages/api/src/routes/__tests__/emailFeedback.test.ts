@@ -10,7 +10,7 @@
  * checks out against the wrong key.
  */
 
-import { isAmazonSigningCertUrl, snsStringToSign } from '../emailFeedback';
+import { extractAngleAddress, isAmazonSigningCertUrl, snsStringToSign } from '../emailFeedback';
 
 describe('isAmazonSigningCertUrl', () => {
   it('accepts Amazon SNS signing hosts', () => {
@@ -76,5 +76,31 @@ describe('snsStringToSign', () => {
 
   it('refuses an unknown message type instead of signing something arbitrary', () => {
     expect(snsStringToSign({ Type: 'SomethingElse', MessageId: 'm' })).toBeNull();
+  });
+});
+
+describe('extractAngleAddress', () => {
+  it('pulls the address out of a display-name header', () => {
+    expect(extractAngleAddress('Nate <nate@oxy.so>')).toBe('nate@oxy.so');
+  });
+
+  it('accepts a bare address', () => {
+    expect(extractAngleAddress('  Nate@Oxy.SO ')).toBe('nate@oxy.so');
+  });
+
+  /**
+   * The reason this is not a regex. `/<([^>]+)>/` against this input backtracks
+   * quadratically, on an endpoint anyone can POST to. Asserting the bound
+   * rather than the shape: a regex would not return promptly.
+   */
+  it('returns promptly on pathological input', () => {
+    const hostile = '<'.repeat(50_000);
+    const started = Date.now();
+    expect(extractAngleAddress(hostile)).toBe(hostile.toLowerCase());
+    expect(Date.now() - started).toBeLessThan(100);
+  });
+
+  it('ignores an unclosed bracket instead of scanning for one', () => {
+    expect(extractAngleAddress('Nate <nate@oxy.so')).toBe('nate <nate@oxy.so');
   });
 });
