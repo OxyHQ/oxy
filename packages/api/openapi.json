@@ -7981,7 +7981,7 @@
           "Authentication"
         ],
         "summary": "The workload-identity mint: a service token for a first-party service that",
-        "description": "holds no credential at all (ADR 0026).\n\nTwo calls, because an attestation is replayable on its own: ask for a nonce,\nthen present an attestation that signs it. Both are rate-limited on the same\nbucket as the credential mint — they are the same resource, and a caller that\ncannot answer a challenge should not be able to spend the mint's budget by\nasking for challenges.",
+        "description": "holds no credential at all (ADR 0026).\n\nTwo calls, because an attestation is replayable on its own: ask for a nonce,\nthen present an attestation that signs it.",
         "parameters": [],
         "responses": {
           "200": {
