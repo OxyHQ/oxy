@@ -2,7 +2,7 @@
   "name": "@oxy.so/ship",
   "version": "1.0.0",
   "description": "oxy-ship — publish Expo OTA updates to the Oxy Updates service",
-  "license": "Apache-2.0",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "commonjs",
   "bin": {
     "oxy-ship": "dist/cli.js"
