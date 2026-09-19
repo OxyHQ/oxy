@@ -81,7 +81,7 @@
     "directory": "packages/protocol"
   },
   "author": "OxyHQ",
-  "license": "Apache-2.0",
+  "license": "SEE LICENSE IN LICENSE",
   "homepage": "https://oxy.so",
   "engines": {
     "node": ">=18.0.0"

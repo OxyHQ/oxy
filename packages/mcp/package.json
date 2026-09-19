@@ -2,6 +2,7 @@
   "name": "@oxy.so/mcp",
   "version": "1.0.0",
   "description": "Canonical Oxy app catalog to MCP transport and OAuth resource validation",
+  "license": "SEE LICENSE IN LICENSE",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
