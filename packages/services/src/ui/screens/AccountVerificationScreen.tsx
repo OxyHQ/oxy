@@ -12,7 +12,14 @@ import { Button } from '@oxy.so/bloom/button';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { BenefitList, BenefitRow } from '../components/BenefitList';
-import * as Icons from '@oxy.so/bloom/icons';
+// Per glyph, never `@oxy.so/bloom/icons`. That barrel re-exports all 461 Remix
+// glyphs and Metro does not tree-shake, so one import of it here re-ships every
+// glyph — 313,123 B, measured — to every app in this package's graph, and no
+// consumer can opt out of what a dependency asks for.
+import { RiInformationLine } from '@oxy.so/bloom/icons/RiInformationLine';
+import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
+import { RiVerifiedBadgeLine } from '@oxy.so/bloom/icons/RiVerifiedBadgeLine';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/OxyContext';
@@ -82,7 +89,7 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({
             <View className="px-screen-margin pb-space-32">
                 {/* Hero */}
                 <View className="items-center py-space-24 gap-space-12">
-                    <IconCircle icon={Icons.RiVerifiedBadgeLine} />
+                    <IconCircle icon={RiVerifiedBadgeLine} />
                     <H4 className="text-headerBold font-headerBold text-text text-center">
                         {t('accountVerification.heroTitle') || 'Get a verified badge'}
                     </H4>
@@ -97,15 +104,15 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({
                     accessibilityLabel={t('accountVerification.sections.benefits') || 'What verification gives you'}
                 >
                     <BenefitRow
-                        icon={<Icons.RiShieldCheckLine size="sm" style={{ color: bloomTheme.colors.primary }} />}
+                        icon={<RiShieldCheckLine size="sm" style={{ color: bloomTheme.colors.primary }} />}
                         label={t('accountVerification.benefits.authenticity') || 'Confirms your identity is authentic and trusted'}
                     />
                     <BenefitRow
-                        icon={<Icons.RiVerifiedBadgeLine size="sm" style={{ color: bloomTheme.colors.primary }} />}
+                        icon={<RiVerifiedBadgeLine size="sm" style={{ color: bloomTheme.colors.primary }} />}
                         label={t('accountVerification.benefits.badge') || 'Displays a verified badge across the platform'}
                     />
                     <BenefitRow
-                        icon={<Icons.RiSparklingLine size="sm" style={{ color: bloomTheme.colors.primary }} />}
+                        icon={<RiSparklingLine size="sm" style={{ color: bloomTheme.colors.primary }} />}
                         label={t('accountVerification.benefits.credibility') || 'Builds credibility with people who follow you'}
                     />
                 </BenefitList>
@@ -161,7 +168,7 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({
                 </Button>
 
                 <View className="flex-row items-start gap-space-8 mt-space-24">
-                    <Icons.RiInformationLine
+                    <RiInformationLine
                         size="sm"
                         style={{ color: bloomTheme.colors.textTertiary }}
                     />
