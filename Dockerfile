@@ -66,6 +66,7 @@ COPY packages/protocol/ packages/protocol/
 COPY packages/contracts/ packages/contracts/
 COPY packages/federation/ packages/federation/
 COPY packages/db/ packages/db/
+COPY packages/utils/ packages/utils/
 COPY packages/api/ packages/api/
 
 # drizzle-orm's runtime migrator reads the SQL files and meta/_journal.json.
@@ -80,7 +81,8 @@ RUN mkdir -p packages/api/drizzle-runtime/meta \
 # (HTTP signatures for outbound ActivityPub fetches), then core (api imports
 # @oxy.so/core/server — safeFetch etc.), then db (every entry point in
 # @oxy.so/db resolves into dist/, which is gitignored and produced by no install
-# hook), then api.
+# hook), then utils (same shape — `@oxy.so/utils/sql` is types-and-all inside
+# dist/, and packages/api imports it), then api.
 RUN bun run --filter @oxy.so/contracts build
 RUN bun run --filter @oxy.so/protocol build
 RUN bun run --filter @oxy.so/telemetry build
@@ -93,6 +95,7 @@ RUN bun run --cwd packages/federation build:cjs \
     && bun run --cwd packages/federation build:esm \
     && bun run --cwd packages/federation build:types
 RUN bun run --filter @oxy.so/db build
+RUN bun run --filter @oxy.so/utils build
 RUN bun run --cwd packages/api tsc -p tsconfig.json
 
 # ── Production dependency tree ────────────────────────────────────
@@ -141,6 +144,7 @@ COPY --from=builder /app/packages/protocol/dist packages/protocol/dist
 COPY --from=builder /app/packages/contracts/dist packages/contracts/dist
 COPY --from=builder /app/packages/federation/dist packages/federation/dist
 COPY --from=builder /app/packages/db/dist packages/db/dist
+COPY --from=builder /app/packages/utils/dist packages/utils/dist
 
 # Copy admin scripts + their src dependencies so one-shot ECS tasks can run them
 # via `bun run packages/api/scripts/<name>.ts`. Scripts intentionally live outside
