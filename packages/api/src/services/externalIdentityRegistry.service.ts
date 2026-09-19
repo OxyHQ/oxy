@@ -270,7 +270,7 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
       let userId = sameSubject?.userId ?? named?.id ?? legacy?.id;
       if (!userId) {
         const [user] = await tx.insert(users).values({ username: canonicalAcct, type: 'federated', federationActorUri: input.actorUri,
-          federationDomain: network, nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null }).returning();
+          federationDomain: network, nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null, avatar: input.profile.avatarUrl || null }).returning();
         userId = user.id;
         createdUser = true;
       }
@@ -282,8 +282,17 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
         stableId: input.stableId ?? identity.stableId }).where(eq(externalIdentities.canonicalAcct, canonicalAcct)).returning();
     }
     if (legacy) await mergeUsers(tx, await resolvePhysicalUserId(legacy.id, tx), identity.userId);
+    // `avatar` fills an EMPTY column only, which is why it is a coalesce rather than
+    // a plain assignment like the fields beside it. The source URL is the INTERIM
+    // value: `resolveExternalActorIdentity` schedules a download whenever the stored
+    // avatar is absent or still `http`, and `downloadAvatarForUser` then replaces it
+    // with an Oxy Cloud file id. Assigning unconditionally would walk that file id
+    // back to a remote URL on every resolve. `nullif` covers the empty string, which
+    // is a real state reaching this column from the Mongo backfill (see
+    // `utils/profileQuery.ts`), not a defensive flourish.
     await tx.update(users).set({ username: canonicalAcct, federationDomain: network,
       nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null,
+      avatar: sql`coalesce(nullif(${users.avatar}, ''), ${input.profile.avatarUrl ?? null})`,
       federationLastResolvedAt: new Date(), federationUnavailableAt: null, federationUnavailableReason: null }).where(eq(users.id, identity.userId));
     const actorValues = { canonicalAcct, transportAcct: normalizeExternalAcct(input.transportAcct), protocol: input.protocol, evidenceLinks: input.evidenceLinks ?? [] };
     await tx.insert(externalIdentityActors).values({ actorUri: input.actorUri, ...actorValues })

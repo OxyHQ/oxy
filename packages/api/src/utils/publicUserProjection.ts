@@ -132,10 +132,15 @@ const linksMetadataAggregate: SQL<LinkMetadataDto[]> = sql`coalesce((
 /**
  * Every column a client may see on SOMEONE ELSE's profile.
  *
- * `account_status`, `reputation_tier` and `privacy_is_private_account` are GATE
- * columns: route handlers read them to decide discoverability
- * (`isPublicGraphTarget`). {@link toPublicUserView} carries them, and the
- * serializers never emit them.
+ * `account_status` and `privacy_is_private_account` are GATE columns: route
+ * handlers read them to decide discoverability (`isPublicGraphTarget`).
+ * {@link toPublicUserView} carries them, and the serializers never emit them.
+ *
+ * `reputation_tier` is the one exception, and only since consuming apps began
+ * ranking accounts by standing: it is BOTH a gate column here and a public field
+ * that `UserService.formatUserResponse` emits. What keeps that safe is the gate
+ * itself — `discoverableUserPredicate()` drops `restricted` rows before any list
+ * read reaches the serializer, so the punitive tier is never the one published.
  */
 export const publicUserColumns = {
   id: users.id,

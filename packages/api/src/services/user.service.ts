@@ -129,6 +129,8 @@ export interface UserResponseSource {
   linksMetadata?: unknown;
   createdAt?: unknown;
   updatedAt?: unknown;
+  /** Standing, emitted publicly — see the note at its assignment in the serializer. */
+  reputationTier?: unknown;
   phone?: unknown;
   address?: unknown;
   birthday?: unknown;
@@ -2235,6 +2237,15 @@ export class UserService {
       linksMetadata: Array.isArray(user.linksMetadata) ? user.linksMetadata : undefined,
       createdAt: user.createdAt instanceof Date ? user.createdAt : undefined,
       updatedAt: user.updatedAt instanceof Date ? user.updatedAt : undefined,
+      // The ONE gate column this serializer emits, and the exception is deliberate:
+      // consuming apps rank accounts and have no other way to ask how much standing
+      // an account has. It costs no query — `publicUserColumns` already selects it
+      // and `selfUserColumns` spreads that set — and it discloses nothing a reader
+      // could not already infer, because `restricted` never reaches this serializer:
+      // `discoverableUserPredicate()` excludes those rows from every list read and
+      // `GET /users/:userId` 404s on them. The observable range is therefore
+      // `new | trusted | high_trust | verified`.
+      reputationTier: stringOrUndefined(user.reputationTier),
     };
 
     if (options.includePrivateFields) {
