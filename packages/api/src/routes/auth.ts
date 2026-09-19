@@ -246,6 +246,13 @@ router.use('/webauthn', webauthnRouter);
  *                 minLength: 3
  *                 maxLength: 30
  *                 pattern: '^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$'
+ *               powNonce:
+ *                 type: string
+ *                 description: >
+ *                   Lightweight anti-automation proof-of-work nonce (see
+ *                   `@oxy.so/protocol`'s `auth/registrationPow.ts`). Optional
+ *                   and currently advisory — the server logs but does not yet
+ *                   reject a missing or invalid one.
  *     responses:
  *       200:
  *         description: Account created and the first session issued.
@@ -259,8 +266,25 @@ router.use('/webauthn', webauthnRouter);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
+ *       429:
+ *         description: Rate limit exceeded (5 / minute / IP).
  */
-router.post('/register', validate({ body: registerPublicKeySchema }), SessionController.register);
+// Every success here mints a durable account, not just a session — at least as
+// sensitive as `/verify`'s failed-login guessing, so it gets the same strict
+// budget rather than sharing the generic `authRateLimiter` (300/15min) mounted
+// on all of `/auth/*` in `server.ts`. Defense in depth: this is layered ON TOP
+// of that shared limiter, not a replacement for it.
+const registerLimiter = rateLimit({
+  prefix: 'rl:auth:register:',
+  windowMs: 60 * 1000,
+  max: process.env.NODE_ENV === 'development' ? 50 : 5 // 5 per minute (50 in dev)
+});
+router.post(
+  '/register',
+  registerLimiter,
+  validate({ body: registerPublicKeySchema }),
+  SessionController.register
+);
 
 /**
  * @openapi
