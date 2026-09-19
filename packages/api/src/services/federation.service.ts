@@ -1139,14 +1139,7 @@ class FederationService {
       const [source] = await getDb().select({ avatar: users.avatar }).from(users).where(eq(users.id, result.identity.userId));
       const avatar = source?.avatar ?? undefined;
       if (opts.forceAvatarRefresh || !avatar || avatar.startsWith('http')) {
-        // Third argument is an existing FILE ID, deleted when the download
-        // replaces it — so a stored value that is still the source URL must not
-        // be handed over as one. `registerExternalIdentity` now seeds that URL
-        // synchronously, which is what makes this distinction load-bearing
-        // rather than theoretical: before it, a fresh identity simply had no
-        // avatar here.
-        const existingFileId = avatar && !avatar.startsWith('http') ? avatar : undefined;
-        this.scheduleAvatarRefresh(result.identity.userId, profile.avatarUrl, existingFileId, { force: opts.forceAvatarRefresh === true });
+        this.scheduleAvatarRefresh(result.identity.userId, profile.avatarUrl, this.storedAvatarFileId(avatar), { force: opts.forceAvatarRefresh === true });
       }
     }
     const [externalIdentities, redirectedUserIds] = await Promise.all([
@@ -1159,6 +1152,26 @@ class FederationService {
         actorUri: profile.actorUri, transportAcct: profile.transportAcct, userId: canonicalUserId, sourceUserId },
       externalIdentities, redirectedUserIds, identityProof,
     };
+  }
+
+  /**
+   * The stored avatar READ AS A FILE ID, or `undefined` when it is not one.
+   *
+   * `users.avatar` holds either an Oxy Cloud file id or, since
+   * `registerExternalIdentity` began seeding a federated actor's source picture
+   * synchronously, the remote URL it is still waiting to replace. Only the first
+   * is a file id, and the download path treats that argument as one — it DELETES
+   * what it names when a new image replaces it.
+   *
+   * Every reader goes through here rather than testing the prefix itself. The
+   * three that existed each assumed "whatever is in the column is a file id",
+   * which was true right up until the column could also hold a URL; fixing them
+   * one at a time is how the fourth reader gets written wrong.
+   */
+  private storedAvatarFileId(avatar: string | null | undefined): string | undefined {
+    return typeof avatar === 'string' && avatar.length > 0 && !avatar.startsWith('http')
+      ? avatar
+      : undefined;
   }
 
   /**
@@ -1556,7 +1569,7 @@ class FederationService {
         return;
       }
 
-      const storedAvatar = typeof user.avatar === 'string' ? user.avatar : existingAvatarFileId;
+      const storedAvatar = this.storedAvatarFileId(user.avatar) ?? existingAvatarFileId;
       const alreadyHasFileId = typeof storedAvatar === 'string'
         && storedAvatar.length > 0
         && !storedAvatar.startsWith('http');
@@ -1707,7 +1720,7 @@ class FederationService {
           .from(users)
           .where(eq(users.id, userId))
           .limit(1);
-        const stored = await this.downloadAndStoreAvatar(profile.avatarUrl, validators?.avatar ?? undefined, {
+        const stored = await this.downloadAndStoreAvatar(profile.avatarUrl, this.storedAvatarFileId(validators?.avatar), {
           etag: validators?.etag ?? undefined,
           lastModified: validators?.lastModified ?? undefined,
         }, userId);
