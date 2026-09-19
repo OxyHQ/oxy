@@ -10,7 +10,17 @@ import {
     AccordionTrigger,
     AccordionContent,
 } from '@oxy.so/bloom/accordion';
-import * as Icons from '@oxy.so/bloom/icons';
+// Per glyph, never `@oxy.so/bloom/icons`. That barrel re-exports all 461 Remix
+// glyphs and Metro does not tree-shake, so one import of it here re-ships every
+// glyph — 313,123 B, measured — to every app in this package's graph, and no
+// consumer can opt out of what a dependency asks for.
+import { RiAtLine } from '@oxy.so/bloom/icons/RiAtLine';
+import { RiKey2Line } from '@oxy.so/bloom/icons/RiKey2Line';
+import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
+import { RiResetRightLine } from '@oxy.so/bloom/icons/RiResetRightLine';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
+// `Props` has no per-glyph subpath and needs none: `import type` is erased
+// before any bundler sees it, so the barrel is named here and never loaded.
 import type { Props as IconProps } from '@oxy.so/bloom/icons';
 import type { BaseScreenProps } from '../types/navigation';
 import { useI18n } from '../hooks/useI18n';
@@ -28,31 +38,31 @@ const INFO_SECTIONS: InfoSection[] = [
         id: 'what',
         titleKey: 'learnMoreUsernames.sections.what.title',
         contentKey: 'learnMoreUsernames.sections.what.content',
-        Icon: Icons.RiAtLine,
+        Icon: RiAtLine,
     },
     {
         id: 'rules',
         titleKey: 'learnMoreUsernames.sections.rules.title',
         contentKey: 'learnMoreUsernames.sections.rules.content',
-        Icon: Icons.RiListUnordered,
+        Icon: RiListUnordered,
     },
     {
         id: 'unique',
         titleKey: 'learnMoreUsernames.sections.unique.title',
         contentKey: 'learnMoreUsernames.sections.unique.content',
-        Icon: Icons.RiKey2Line,
+        Icon: RiKey2Line,
     },
     {
         id: 'change',
         titleKey: 'learnMoreUsernames.sections.change.title',
         contentKey: 'learnMoreUsernames.sections.change.content',
-        Icon: Icons.RiResetRightLine,
+        Icon: RiResetRightLine,
     },
     {
         id: 'tips',
         titleKey: 'learnMoreUsernames.sections.tips.title',
         contentKey: 'learnMoreUsernames.sections.tips.content',
-        Icon: Icons.RiSparklingLine,
+        Icon: RiSparklingLine,
     },
 ];
 
@@ -84,7 +94,7 @@ const LearnMoreUsernamesScreen: React.FC<BaseScreenProps> = ({
         <>
             <View className="px-screen-margin pb-space-32">
                 <View className="items-center py-space-24 gap-space-12">
-                    <IconCircle icon={Icons.RiAtLine} />
+                    <IconCircle icon={RiAtLine} />
                     <Text className="font-sans text-body text-text-secondary text-center">
                         {t('learnMoreUsernames.introText')}
                     </Text>

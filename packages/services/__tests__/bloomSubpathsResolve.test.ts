@@ -22,6 +22,13 @@
  * Reads the export map rather than calling `require.resolve`, because the
  * specifiers resolve through the `react-native` condition that Jest's resolver
  * is not configured for.
+ *
+ * An export key may be a subpath PATTERN — Bloom 3.2.0 publishes one glyph per
+ * module behind `"./icons/Ri*"` — so a key set alone cannot answer the question.
+ * A pattern is matched the way Node matches it (one `*`, longest key wins) and
+ * then the substituted TARGET is required to exist on disk, because that is the
+ * half that fails: `@oxy.so/bloom/icons/RiNotAGlyph` matches `./icons/Ri*`
+ * perfectly and still resolves to a file that is not there.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,13 +36,52 @@ import path from 'node:path';
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 const SRC_ROOT = path.join(PACKAGE_ROOT, 'src');
 
+type ExportMap = { dir: string; entries: Record<string, unknown> };
+
 /** `@oxy.so/bloom`'s manifest, from wherever this package actually resolves it. */
-function readBloomExports(): Set<string> {
+function readBloomExports(): ExportMap {
   const manifestPath = require.resolve('@oxy.so/bloom/package.json', { paths: [PACKAGE_ROOT] });
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
     exports?: Record<string, unknown>;
   };
-  return new Set(Object.keys(manifest.exports ?? {}));
+  return { dir: path.dirname(manifestPath), entries: manifest.exports ?? {} };
+}
+
+/** Every file path an export target can resolve to, across all conditions. */
+function targetPaths(target: unknown): string[] {
+  if (typeof target === 'string') return [target];
+  if (Array.isArray(target)) return target.flatMap(targetPaths);
+  if (target && typeof target === 'object') return Object.values(target).flatMap(targetPaths);
+  return [];
+}
+
+/**
+ * Does the installed Bloom really serve this subpath? Exact key first, then the
+ * pattern keys, longest-prefix first, as Node does — and a pattern only counts
+ * when a file it substitutes to is actually on disk.
+ */
+function resolvesAgainst({ dir, entries }: ExportMap, subpath: string): boolean {
+  if (Object.hasOwn(entries, subpath)) return true;
+
+  const patterns = Object.keys(entries)
+    .filter((key) => key.split('*').length === 2)
+    .sort((a, b) => b.indexOf('*') - a.indexOf('*'));
+
+  for (const key of patterns) {
+    const [prefix, suffix] = key.split('*');
+    if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix)) continue;
+    if (subpath.length < prefix.length + suffix.length) continue;
+    const star = subpath.slice(prefix.length, subpath.length - suffix.length);
+    // EVERY `*` in the target, not the first. A pattern KEY may hold only one,
+    // but Node substitutes the match into every occurrence in the target, and a
+    // gate that models the resolver loosely is a gate that passes a specifier
+    // the resolver would reject.
+    const served = targetPaths(entries[key]).some((target) =>
+      fs.existsSync(path.join(dir, target.split('*').join(star))),
+    );
+    if (served) return true;
+  }
+  return false;
 }
 
 function sourceFiles(dir: string): string[] {
@@ -76,17 +122,26 @@ describe('every @oxy.so/bloom subpath this package imports exists', () => {
   // Floors. A scan that read nothing reports the same clean pass as a scan that
   // read everything and found no problem, so pin both sides to a real number.
   it('the scan actually read Bloom and this package', () => {
-    expect(exported.size).toBeGreaterThan(50);
+    expect(Object.keys(exported.entries).length).toBeGreaterThan(50);
     expect(imported.size).toBeGreaterThan(10);
     // A known-present subpath, so a wholesale regex failure cannot pass as clean.
     expect(imported.has('./surfaces')).toBe(true);
+    // A glyph subpath, so a pattern matcher that quietly stopped working cannot
+    // pass as clean either — this is how every icon in this package resolves.
+    expect(imported.has('./icons/RiSparklingLine')).toBe(true);
   });
 
   it('resolves every imported subpath against the installed export map', () => {
     const missing = [...imported.entries()]
-      .filter(([subpath]) => !exported.has(subpath))
+      .filter(([subpath]) => !resolvesAgainst(exported, subpath))
       .map(([subpath, where]) => `${subpath} <- ${where.join(', ')}`);
 
     expect(missing).toEqual([]);
+  });
+
+  // The pattern branch has to be able to say no, or it is not a gate. Node would
+  // fail this specifier at read time; so must we, before it reaches a consumer.
+  it('refuses a glyph subpath that matches the pattern but has no file', () => {
+    expect(resolvesAgainst(exported, './icons/RiNotAGlyphThatExists')).toBe(false);
   });
 });
