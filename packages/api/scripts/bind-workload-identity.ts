@@ -35,6 +35,20 @@
  * The environment is still the DEPLOYMENT's — an attestation cannot ask for
  * one, so a staging workload can never mint a production token.
  *
+ * ## What a consumer pins
+ *
+ * Every binding this prints carries an `attestationId` — `wl_…`, the
+ * `credentialId` claim every token minted through that binding will carry. It
+ * is a function of the role ARN and nothing else, so it is the same value on
+ * every task, every deploy and every year, which is what makes it something a
+ * consumer can pin. A service that today asserts a fixed `credentialId` against
+ * its key pair's id (Homiio's Sindi check, Clarity's exact-claims check) accepts
+ * this value as well, deploys, migrates, and then drops the old one.
+ *
+ * It is printed because there is otherwise nowhere to read it. Capturing a live
+ * token to find out what to pin is a worse way to learn a value than being told
+ * it by the command that created the thing it names.
+ *
  * ## Nothing here is a secret
  *
  * Unlike `create-service-credential.ts`, which encrypts its output because it
@@ -130,6 +144,12 @@ async function run(invocation: BindWorkloadIdentityInvocation): Promise<void> {
       { applicationId: result.binding.applicationId, ignoredChanges: result.ignoredChanges },
     );
   }
+  // `attestationId` rides along inside `result.binding`; named again here
+  // because it is the one value somebody reading this output has come to get.
+  logger.info('[BindWorkloadIdentity] tokens from this binding will carry', {
+    credentialId: result.binding.attestationId,
+    scopes: result.binding.scopes.length > 0 ? result.binding.scopes : '(the application\'s non-privileged grants)',
+  });
   emit({ mode: 'bind', ...result });
 }
 

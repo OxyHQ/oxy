@@ -138,6 +138,43 @@ scope its credential named. Removing the pair first is exactly what took
 Mention's federation worker down. The order is: bind with scopes, verify the
 minted token carries them, then remove the pair.
 
+### What a token says minted it, and what a consumer pins
+
+*(Amendment, 2026-09-19.)*
+
+An attested token's `credentialId` is `wl_` plus 96 bits of SHA-256 over the
+canonical subject — the ROLE, since `canonicalAwsSubject` reduces STS's per-task
+answer before anything sees it. So it is one value for every task of a service,
+across every deploy: `oxy-mention-task` is `wl_d61be5cd068abb658ed4d193` today
+and next year.
+
+That was already true, but nothing said so and nothing tested it, so it read as
+per-attestation. A claim a consumer believes is per-attestation is a claim no
+consumer can pin, and two were held back from this ADR on exactly that belief —
+Homiio pins `payload.credentialId` against its Sindi credential id, and Clarity
+asserts exact service-token claims. **There is something here to pin.** The
+handle now has a name (`workloadAttestationHandle`), one definition shared by
+the verifier and the binding writer, tests that hold its stability as a
+property, and it is printed by `bind-workload-identity.ts` so an operator learns
+it without capturing a live token.
+
+It was considered and REJECTED to replace the claim with the binding row's own
+id. It is less stable in the direction that bites — this path deliberately has
+no repoint and no in-place subject change, so moving or re-creating a binding
+mints a new row id and breaks every downstream pin, for an operator action that
+changed nothing about the identity — and it is not derivable, so pinning it
+would need a query against production Postgres where a role-derived handle can
+be computed from a task definition.
+
+Attribution is unchanged: the `wl_` prefix still tells a verifier that a token
+was attested rather than credential-minted, so no audit trail reads a workload
+mint as a credential somebody could revoke, and the handle still names exactly
+one workload — one-way, so the token does not carry our role names around.
+
+A consumer that asserts a fixed `credentialId` migrates in three steps: accept
+BOTH its credential id and its `wl_…` handle, deploy that, move the service to
+attestation, then drop the credential id.
+
 ### A binding row, not a naming convention
 
 `application_workload_identities` maps `(provider, subject)` to an application.

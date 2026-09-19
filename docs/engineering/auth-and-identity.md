@@ -125,6 +125,17 @@ wrote, naming one role and one application — names the authority, the way an
 `ApplicationCredential` does. Naming a privileged scope on a binding is
 staff-only, under the same gate as `POST /applications/:appId/credentials`.
 
+**What an attested token says minted it.** `credentialId` is `wl_` + 96 bits of
+SHA-256 over the canonical subject — the ROLE — so it is ONE value for every
+task of a service, across every deploy, forever. It is a thing a consumer can
+pin, and `bind-workload-identity.ts` prints it so nobody has to capture a token
+to learn it. A service that asserts a fixed `credentialId` today (Homiio's Sindi
+check, Clarity's exact-claims check) accepts both its credential id and the
+`wl_…` handle, deploys, migrates, then drops the old one. The binding row's id
+was considered instead and rejected: delete-and-recreate is this path's only way
+to move a binding, so a row id would break every pin on an operator action that
+changed no identity, and it is not derivable without a production query.
+
 **Before a service gives up its key pair, its binding must name every privileged
 scope the credential named.** Not a nicety: removing Mention's pair first cost
 313 × `Missing required scope: federation:write` in one morning. Bind with
@@ -230,7 +241,7 @@ the whole reason ADR 0026 prefers it to a shared secret.
 
 **Key files:**
 - `packages/api/src/routes/auth.ts` — `POST /auth/service-token` (credential) and `/auth/service-token/workload*` (attestation)
-- `packages/api/src/services/workloadAttestation.service.ts` — the provider seam; AWS STS verifier
+- `packages/api/src/services/workloadAttestation.service.ts` — the provider seam; AWS STS verifier; `workloadAttestationHandle` (the pinnable `wl_…` id)
 - `packages/api/src/services/workloadIdentity.service.ts` — challenge, binding lookup, scope and trust gates
 - `packages/api/src/services/workloadIdentityBinding.service.ts` — creating a binding: canonicalisation, idempotence, refusals
 - `packages/api/scripts/bind-workload-identity.ts` — the operator entrypoint (`--app-id`, `--role-arn`, `--scopes`, `--list`)

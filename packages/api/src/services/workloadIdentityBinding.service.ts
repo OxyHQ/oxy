@@ -13,6 +13,7 @@ import { isTrustedApplication } from '../utils/trustedApplication';
 import {
   canonicalAwsSubject,
   isAttestationProvider,
+  workloadAttestationHandle,
   type AttestationProvider,
 } from './workloadAttestation.service';
 
@@ -96,6 +97,17 @@ export interface WorkloadBindingRow {
   description: string | null;
   /** What the mint will intersect with the application's grants. Empty means "names none". */
   scopes: string[];
+  /**
+   * The `credentialId` every token minted through this binding will carry.
+   *
+   * Derived, not stored: it is a function of the subject and nothing else
+   * ({@link workloadAttestationHandle}), so storing it would be a second copy
+   * of a value the mint recomputes on every issue. Reported because an operator
+   * otherwise has no way to learn it — a consumer that pins the claim (Homiio,
+   * Clarity) would have to capture a live token to read it out, which is a
+   * worse way to obtain a value than being told it at bind time.
+   */
+  attestationId: string;
   expiresAt: Date | null;
   createdAt: Date;
 }
@@ -173,6 +185,16 @@ export interface WorkloadBindingResult {
    * of re-running a create.
    */
   ignoredChanges?: string[];
+}
+
+/**
+ * Add the derived handle to a row on its way out.
+ *
+ * One function rather than a spread at each call site, so a path that forgets it
+ * is a type error rather than a row that silently reports no handle.
+ */
+function withAttestationId(row: Omit<WorkloadBindingRow, 'attestationId'>): WorkloadBindingRow {
+  return { ...row, attestationId: workloadAttestationHandle(row.subject) };
 }
 
 const BINDING_COLUMNS = {
@@ -437,7 +459,7 @@ async function findBinding(
       ),
     )
     .limit(1);
-  return row;
+  return row ? withAttestationId(row) : undefined;
 }
 
 /**
@@ -517,7 +539,7 @@ async function reconcileExisting(
 
   return {
     state: 'updated',
-    binding: updated,
+    binding: withAttestationId(updated),
     changed: [describeScopeChange(existing.scopes, authorized)],
     ...(ignoredChanges.length > 0 ? { ignoredChanges } : {}),
   };
@@ -612,7 +634,7 @@ export async function bindWorkloadIdentity(
         ...(expiresAt !== null ? { expiresAt } : {}),
       })
       .returning(BINDING_COLUMNS);
-    return { state: 'created', binding: created };
+    return { state: 'created', binding: withAttestationId(created) };
   } catch (error: unknown) {
     /**
      * Two operators binding the same subject at once both read "no row" and
@@ -642,11 +664,12 @@ export async function listWorkloadIdentityBindings(
   applicationId: string,
 ): Promise<WorkloadBindingRow[]> {
   await requireApplication(applicationId);
-  return getDb()
+  const rows = await getDb()
     .select(BINDING_COLUMNS)
     .from(applicationWorkloadIdentities)
     .where(eq(applicationWorkloadIdentities.applicationId, applicationId))
     .orderBy(asc(applicationWorkloadIdentities.provider), asc(applicationWorkloadIdentities.subject));
+  return rows.map(withAttestationId);
 }
 
 /* ------------------------------------------------------------------ */
