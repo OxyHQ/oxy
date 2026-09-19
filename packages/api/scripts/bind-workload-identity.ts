@@ -12,11 +12,42 @@
  *
  * ## What it grants, and what it does not
  *
- * A binding is a statement of IDENTITY: "this IAM role is Mention". It grants
- * no authority of its own. The token the mint later issues carries the
- * application's own non-privileged scopes and the DEPLOYMENT's environment, so
- * a binding can never widen what an application may do, never reach a
- * privileged scope, and never make a staging workload production.
+ * A binding is first a statement of IDENTITY: "this IAM role is Mention". With
+ * `--scopes` it also names the authority the mint gives that identity — exactly
+ * as a service credential's scopes do, and bounded the same way:
+ *
+ *   * The application's own grants are the ceiling. A binding can never name a
+ *     scope the application was not granted; the mint intersects the two at
+ *     every issue, so losing it on the application loses it here too.
+ *   * A PRIVILEGED scope may be named, because this row is a deliberate human
+ *     act — staff wrote it, it names one role and one application, and it
+ *     carries a description somebody typed. What still cannot name one is the
+ *     attestation: it selects a binding, it never decides what a binding says.
+ *   * Naming no scopes is what every binding written before this flag existed
+ *     says, and it still means the application's non-privileged grants.
+ *
+ * Running this script IS the staff check `isStaffUser` performs on a route:
+ * there is no route, and the entry fee is a terminal with this environment's
+ * `DATABASE_URL`. The service gate takes that as an explicit claim rather than
+ * a default (see `WorkloadBindingActor`), so a future caller that has an actual
+ * actor to check must say so and fails closed if it does not.
+ *
+ * The environment is still the DEPLOYMENT's — an attestation cannot ask for
+ * one, so a staging workload can never mint a production token.
+ *
+ * ## What a consumer pins
+ *
+ * Every binding this prints carries an `attestationId` — `wl_…`, the
+ * `credentialId` claim every token minted through that binding will carry. It
+ * is a function of the role ARN and nothing else, so it is the same value on
+ * every task, every deploy and every year, which is what makes it something a
+ * consumer can pin. A service that today asserts a fixed `credentialId` against
+ * its key pair's id (Homiio's Sindi check, Clarity's exact-claims check) accepts
+ * this value as well, deploys, migrates, and then drops the old one.
+ *
+ * It is printed because there is otherwise nowhere to read it. Capturing a live
+ * token to find out what to pin is a worse way to learn a value than being told
+ * it by the command that created the thing it names.
  *
  * ## Nothing here is a secret
  *
@@ -31,9 +62,20 @@
  *     --app-id <application id> \
  *     --role-arn arn:aws:iam::237343248947:role/oxy-mention-task \
  *     [--provider aws-iam] [--description "Mention ECS task role"] \
+ *     [--scopes federation:write,signals:write,catalogs:write] \
  *     [--expires-at 2026-12-31T00:00:00Z]
  *
  *   bun run packages/api/scripts/bind-workload-identity.ts --app-id <id> --list
+ *
+ * `--scopes` takes a comma-separated list. OMITTING it leaves an existing
+ * binding's scopes exactly as they are — the deploy step that re-runs this
+ * command was written before the flag existed and must not revoke what it never
+ * mentioned. `--scopes=` (empty) is the explicit way to say "name none".
+ *
+ * Re-running with the SAME scopes is a no-op that reports `unchanged`; running
+ * with different ones reports `updated` and says which scopes moved. Both exit
+ * 0 — a bind is a deploy step and a deploy step that already happened is not a
+ * failure.
  *
  * `--role-arn` also accepts the `arn:aws:sts::…:assumed-role/<role>/<session>`
  * form a running task reports; it is canonicalised by the same function the
@@ -72,7 +114,28 @@ async function run(invocation: BindWorkloadIdentityInvocation): Promise<void> {
     return;
   }
 
-  const result = await bindWorkloadIdentity(invocation.request);
+  const result = await bindWorkloadIdentity({
+    ...invocation.request,
+    /**
+     * The staff claim, stated rather than defaulted.
+     *
+     * Reaching this line means holding this environment's `DATABASE_URL` and
+     * running a one-off task against it, which is the access `isStaffUser`
+     * stands in for on a route. The gate refuses a privileged scope when the
+     * claim is absent, so the value of writing it here is that the NEXT caller
+     * — a Console surface, a deploy job, an agent — has to write its own and
+     * cannot inherit this one by omission.
+     */
+    actor: { isPlatformStaff: true, describedAs: 'an operator with direct database access' },
+  });
+  if (result.changed) {
+    // The only feedback a one-off ECS task gives is what it prints, and "the
+    // bind succeeded" is not an answer to "did my scopes land?".
+    logger.info('[BindWorkloadIdentity] the existing binding was UPDATED', {
+      applicationId: result.binding.applicationId,
+      changed: result.changed,
+    });
+  }
   if (result.ignoredChanges) {
     // Reported, never applied: a create that quietly became an edit is how an
     // expiry gets set on a row nobody meant to change.
@@ -81,6 +144,12 @@ async function run(invocation: BindWorkloadIdentityInvocation): Promise<void> {
       { applicationId: result.binding.applicationId, ignoredChanges: result.ignoredChanges },
     );
   }
+  // `attestationId` rides along inside `result.binding`; named again here
+  // because it is the one value somebody reading this output has come to get.
+  logger.info('[BindWorkloadIdentity] tokens from this binding will carry', {
+    credentialId: result.binding.attestationId,
+    scopes: result.binding.scopes.length > 0 ? result.binding.scopes : '(the application\'s non-privileged grants)',
+  });
   emit({ mode: 'bind', ...result });
 }
 

@@ -13,9 +13,16 @@
  *  3. **The trust gate is re-applied here.** A binding row should only ever name
  *     an official application, but the mint checks rather than assuming — that
  *     is the difference between a rule and a hope.
- *  4. **An attestation cannot widen authority.** Privileged scopes never travel
- *     on this path, whatever the application holds, because nothing a human
- *     granted deliberately should be reachable by a workload merely existing.
+ *  4. **An attestation cannot widen authority, and the BINDING is what names
+ *     it.** The attestation selects a binding and says nothing else; the
+ *     binding — a row staff wrote, naming one role and one application — names
+ *     the scopes, exactly as a credential does on the other path. So the cases
+ *     below are the credential path's cases: a binding that names none gets the
+ *     application's non-privileged grants (what this path did before the column
+ *     existed, and what every binding written before today still gets), a
+ *     binding that names some gets the intersection with the application's, and
+ *     a privileged scope survives only when BOTH hold it. The application's
+ *     grants remain the ceiling; nothing a workload does can raise it.
  */
 
 /**
@@ -112,13 +119,25 @@ async function applicationFixture(overrides: Partial<typeof applications.$inferI
   return application;
 }
 
-async function bind(applicationId: string, subject: string, expiresAt?: Date) {
+async function bind(
+  applicationId: string,
+  subject: string,
+  options: { expiresAt?: Date; scopes?: string[] } = {},
+) {
   await getDb().insert(applicationWorkloadIdentities).values({
     applicationId,
     provider: 'aws-iam',
     subject,
-    ...(expiresAt ? { expiresAt } : {}),
+    ...(options.scopes ? { scopes: options.scopes } : {}),
+    ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
   });
+}
+
+/** The scopes a token actually carries, or a failure naming why there is none. */
+function scopesOf(token: string): string[] {
+  const verified = verifyServiceToken(token);
+  if (!verified.ok) throw new Error('the mint produced a token that does not verify');
+  return verified.payload.scopes;
 }
 
 async function exchange(subject: string) {
@@ -207,7 +226,7 @@ describe('workload-identity mint', () => {
   it('refuses a binding that has expired, without deleting it', async () => {
     const application = await applicationFixture();
     const subject = `${SUBJECT}-expired`;
-    await bind(application.id, subject, new Date(Date.now() - 60_000));
+    await bind(application.id, subject, { expiresAt: new Date(Date.now() - 60_000) });
 
     await expect(exchange(subject)).rejects.toMatchObject({ reason: 'unbound_workload' });
     const [row] = await getDb()
@@ -217,14 +236,97 @@ describe('workload-identity mint', () => {
     expect(row).toBeDefined();
   });
 
-  it('never carries a privileged scope, however the application was granted', async () => {
-    const application = await applicationFixture({ scopes: ['user:read', 'federation:write'] });
-    const subject = `${SUBJECT}-privileged`;
-    await bind(application.id, subject);
+  /**
+   * The scope rules, which are the credential path's rules.
+   *
+   * Every case here is measured against a real production failure: Mention's
+   * federation worker lost `federation:write` the moment its key pair came off
+   * the task definition and failed every six minutes until the pair was put
+   * back, because the mint filtered privileged scopes out of the application's
+   * grants rather than reading them off the binding.
+   */
+  describe('scopes', () => {
+    it('gives the application\'s non-privileged grants when the binding names none', async () => {
+      // The pre-existing behaviour, pinned. Every binding written before the
+      // scopes column reads as this case, so this is the assertion that says a
+      // deployment carrying old rows is unchanged by the column arriving.
+      const application = await applicationFixture({ scopes: ['user:read', 'federation:write'] });
+      const subject = `${SUBJECT}-names-none`;
+      await bind(application.id, subject);
 
-    const grant = await exchange(subject);
+      expect(scopesOf((await exchange(subject)).token)).toEqual(['user:read']);
+    });
 
-    const verified = verifyServiceToken(grant.token);
-    expect(verified.ok && verified.payload.scopes).toEqual(['user:read']);
+    it('carries exactly what a binding names, which may be LESS than the application holds', async () => {
+      // A binding names authority, it does not merely fail to remove it: an
+      // implementation that ignored the column and kept returning the app's
+      // grants would put `files:read` in this token too.
+      const application = await applicationFixture({ scopes: ['user:read', 'files:read'] });
+      const subject = `${SUBJECT}-narrower`;
+      await bind(application.id, subject, { scopes: ['user:read'] });
+
+      expect(scopesOf((await exchange(subject)).token)).toEqual(['user:read']);
+    });
+
+    it('carries a privileged scope BOTH the binding and the application hold', async () => {
+      // The case the whole change exists for, in Mention's own shape. Under the
+      // old rule this token carried `user:read` alone and the federation worker
+      // got `Missing required scope: federation:write` every six minutes.
+      const application = await applicationFixture({
+        scopes: ['user:read', 'federation:write', 'signals:write', 'catalogs:write'],
+      });
+      const subject = `${SUBJECT}-privileged-both`;
+      await bind(application.id, subject, {
+        scopes: ['federation:write', 'signals:write', 'catalogs:write'],
+      });
+
+      expect(scopesOf((await exchange(subject)).token).sort()).toEqual([
+        'catalogs:write',
+        'federation:write',
+        'signals:write',
+      ]);
+    });
+
+    it('drops a scope the APPLICATION does not hold, however the binding was written', async () => {
+      // The ceiling, enforced at every mint and not only at the write. The
+      // binding writer refuses to store this (see the binding tests), so
+      // reaching the mint means the application LOST a scope it once had —
+      // which must take it away from the workload at the next mint, exactly as
+      // it does for a credential.
+      const application = await applicationFixture({ scopes: ['user:read'] });
+      const subject = `${SUBJECT}-above-ceiling`;
+      await getDb()
+        .insert(applicationWorkloadIdentities)
+        .values({
+          applicationId: application.id,
+          provider: 'aws-iam',
+          subject,
+          scopes: ['user:read', 'federation:write'],
+        });
+
+      expect(scopesOf((await exchange(subject)).token)).toEqual(['user:read']);
+    });
+
+    it('drops a privileged scope the binding names once the application loses it', async () => {
+      // Stated separately from the case above because the direction that
+      // matters is the REVOCATION: taking a privileged scope off an
+      // application is a staff act, and it has to reach a workload token
+      // without anyone touching the binding row.
+      const application = await applicationFixture({ scopes: ['user:read', 'signals:write'] });
+      const subject = `${SUBJECT}-app-revoked`;
+      await bind(application.id, subject, { scopes: ['user:read', 'signals:write'] });
+
+      expect(scopesOf((await exchange(subject)).token).sort()).toEqual([
+        'signals:write',
+        'user:read',
+      ]);
+
+      await getDb()
+        .update(applications)
+        .set({ scopes: ['user:read'] })
+        .where(eq(applications.id, application.id));
+
+      expect(scopesOf((await exchange(subject)).token)).toEqual(['user:read']);
+    });
   });
 });

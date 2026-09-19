@@ -71,11 +71,59 @@ export interface AttestedWorkload {
    */
   subject: string;
   /**
-   * A short, stable, non-secret handle for the attestation itself, so a minted
-   * token can be attributed to the workload that asked for it without carrying
-   * the subject (which can be long and names our infrastructure).
+   * A short, non-secret handle for the WORKLOAD, so a minted token can be
+   * attributed to it without carrying the subject (which is long and names our
+   * infrastructure).
+   *
+   * Stable, and that word is load-bearing: see
+   * {@link workloadAttestationHandle}. It is a function of the canonical
+   * subject and of nothing else, so every attestation a role ever makes yields
+   * the same handle — which is what lets a consumer PIN it.
    */
   attestationId: string;
+}
+
+/**
+ * The stable handle for a workload — the value a minted token carries as
+ * `credentialId`, and the one a consumer pins.
+ *
+ * ## It is stable, and that is not an accident to be relied on quietly
+ *
+ * The handle is `wl_` plus 96 bits of SHA-256 over the CANONICAL subject. The
+ * canonical subject is the role (`canonicalAwsSubject` reduces STS's per-task
+ * `assumed-role/<role>/<session>` answer before anything sees it), so every
+ * task of a service, across every deploy, produces one identical handle —
+ * `wl_d61be5cd068abb658ed4d193` for `oxy-mention-task`, today and next year.
+ *
+ * That was already true when the handle was computed inline in the AWS
+ * verifier, but nothing SAID so and nothing tested it, so it read as
+ * per-attestation — and a consumer that believes a claim is per-attestation
+ * cannot pin it. Homiio pins `payload.credentialId` and Clarity asserts exact
+ * claims; both were held back from ADR 0026 on the belief that there was
+ * nothing here to pin. There is. Lifting the computation out of the verifier
+ * makes it one definition with one name, so the value an operator is told and
+ * the value the mint emits cannot drift, and `workloadAttestation.test.ts`
+ * holds the stability as a property rather than a remark.
+ *
+ * ## Why this and not the binding row's id
+ *
+ * The binding row id is the obvious alternative and is worse on both counts
+ * that matter. It is LESS stable in the direction that bites: this path has no
+ * repoint and no in-place subject change, so moving or re-creating a binding —
+ * a routine operator action that changes nothing about the identity — mints a
+ * new row id and breaks every downstream pin. And it is not derivable: an
+ * operator would have to query production Postgres to learn what to pin, where
+ * a role-derived handle can be computed from a task definition anyone on the
+ * team can read.
+ *
+ * Attribution survives either way and survives here: the `wl_` prefix still
+ * tells a verifier this token was attested rather than credential-minted (so no
+ * audit trail reads a workload mint as a credential somebody could revoke), and
+ * the handle still names exactly one workload. It names it one-way, so the
+ * token does not carry our infrastructure's role names around.
+ */
+export function workloadAttestationHandle(canonicalSubject: string): string {
+  return `wl_${crypto.createHash('sha256').update(canonicalSubject).digest('hex').slice(0, 24)}`;
 }
 
 export class AttestationError extends Error {
@@ -216,7 +264,7 @@ export class AwsIamAttestationVerifier implements AttestationVerifier {
     return {
       provider: this.provider,
       subject: identity,
-      attestationId: `wl_${crypto.createHash('sha256').update(identity).digest('hex').slice(0, 24)}`,
+      attestationId: workloadAttestationHandle(identity),
     };
   }
 
