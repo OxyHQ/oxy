@@ -1,18 +1,16 @@
 /**
- * Inbound email Socket.IO emit tests, against a REAL Postgres.
+ * Cloudflare Email Routing webhook tests, against a REAL Postgres.
  *
- * The route's own three reads — resolving the recipient by username, resolving
- * the destination folder's name and special-use, and counting the mailbox's
- * unread messages — now go to the database, so they are exercised rather than
- * stubbed. The email SERVICE, the spam service and the Socket.IO singleton stay
- * stubbed at the module boundary: this file is about the route, and the service
- * has its own suite.
+ * What this route still owns after the realtime emit moved out of it: parsing
+ * the envelope, resolving each recipient to an Oxy account by username, the
+ * spam gate, and answering Cloudflare. The email SERVICE and the spam service
+ * are stubbed at the module boundary.
  *
- * The unread count is the one to watch. It replaced the denormalized
- * `mailboxes.unseen_messages` column, so it is now a filtered aggregate that
- * can return 0 for a reason that is not "no unread mail" — a wrong predicate
- * returns 0 just as quietly. It is asserted as an exact NON-ZERO number against
- * rows written in the same test.
+ * The socket emit is deliberately NOT tested here any more. It used to live in
+ * this route, which is exactly why mail arriving any other way was silent; it
+ * now lives in `EmailService.storeIncomingMessage` via
+ * `services/inboxRealtime.ts`, and `services/__tests__/inboxRealtime.test.ts`
+ * covers it for EVERY ingest path rather than only this one.
  */
 
 import express from 'express';
@@ -22,15 +20,10 @@ import type { AddressInfo } from 'net';
 const TEST_WEBHOOK_SECRET = 'test-inbound-secret';
 process.env.EMAIL_INBOUND_WEBHOOK_SECRET = TEST_WEBHOOK_SECRET;
 
-const mockGetIO = jest.fn();
 const mockStoreIncomingMessage = jest.fn();
 const mockSpamCheck = jest.fn();
 const mockSpamShouldReject = jest.fn();
 const mockLoggerWarn = jest.fn();
-
-jest.mock('../../utils/socket', () => ({
-  getIO: (...args: unknown[]) => mockGetIO(...args),
-}));
 
 jest.mock('../../services/email.service', () => ({
   emailService: {
@@ -194,8 +187,8 @@ beforeEach(() => {
   mockSpamShouldReject.mockReturnValue(false);
 });
 
-describe('POST /email/inbound socket emit', () => {
-  it('emits email:new and email:unread_count to the recipient user room', async () => {
+describe('POST /email/inbound', () => {
+  it('stores one message per valid recipient and reports it to Cloudflare', async () => {
     const user = await recipient();
     const mailboxId = await folder(user.id, '\\Inbox', 'INBOX');
     await seedUnread(user.id, mailboxId, 7);
@@ -206,10 +199,6 @@ describe('POST /email/inbound socket emit', () => {
       mailboxId,
       receivedAt: new Date('2024-01-01T00:00:00.000Z'),
     });
-
-    const emit = jest.fn();
-    const to = jest.fn().mockReturnValue({ emit });
-    mockGetIO.mockReturnValue({ to });
 
     const res = await postRaw(
       server,
@@ -224,61 +213,19 @@ describe('POST /email/inbound socket emit', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.accepted).toBe(1);
+    expect(res.body.rejected).toBe(0);
     expect(mockStoreIncomingMessage).toHaveBeenCalledTimes(1);
 
-    expect(to).toHaveBeenCalledWith(`user:${user.id}`);
-
-    const emailNewCall = emit.mock.calls.find(([event]) => event === 'email:new');
-    expect(emailNewCall).toBeDefined();
-    const emailNewPayload = emailNewCall?.[1] as Record<string, unknown>;
-    expect(emailNewPayload).toEqual(
+    // The parsed MIME reaches the service intact; the service is what decides
+    // where it lands and what gets announced.
+    const stored = mockStoreIncomingMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect(stored).toEqual(
       expect.objectContaining({
-        messageId,
-        mailboxId,
-        folder: 'inbox',
-        from: { name: 'Alice Sender', address: 'alice@example.com' },
+        recipientUsername: user.username,
         subject: 'Hello there',
-        receivedAt: '2024-01-01T00:00:00.000Z',
-        unread: true,
+        from: { name: 'Alice Sender', address: 'alice@example.com' },
       })
     );
-    expect(typeof emailNewPayload.snippet).toBe('string');
-    expect((emailNewPayload.snippet as string).length).toBeGreaterThan(0);
-    expect((emailNewPayload.snippet as string).length).toBeLessThanOrEqual(140);
-    expect(emailNewPayload.snippet).toBe('This is a plain text body that should become the snippet.');
-
-    const unreadCall = emit.mock.calls.find(([event]) => event === 'email:unread_count');
-    expect(unreadCall).toBeDefined();
-    // Exact and non-zero: the seven unseen rows, not the eight total, and not
-    // the zero a predicate that matched nothing would report.
-    expect(unreadCall?.[1]).toEqual({ mailboxId, unread: 7 });
-  });
-
-  it('reports the spam folder as its own, not as the inbox', async () => {
-    const user = await recipient();
-    const junkId = await folder(user.id, '\\Junk', 'Spam');
-    await seedUnread(user.id, junkId, 1);
-
-    mockStoreIncomingMessage.mockResolvedValueOnce({
-      id: unique(),
-      mailboxId: junkId,
-      receivedAt: new Date('2024-01-01T00:00:00.000Z'),
-    });
-    const emit = jest.fn();
-    mockGetIO.mockReturnValue({ to: jest.fn().mockReturnValue({ emit }) });
-
-    await postRaw(
-      server,
-      '/email/inbound',
-      {
-        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
-        'x-envelope-to': user.address,
-      },
-      rawMessage(user.address)
-    );
-
-    const payload = emit.mock.calls.find(([event]) => event === 'email:new')?.[1] as Record<string, unknown>;
-    expect(payload.folder).toBe('spam');
   });
 
   it('rejects an envelope whose recipient has no account', async () => {
@@ -305,7 +252,6 @@ describe('POST /email/inbound socket emit', () => {
       mailboxId,
       receivedAt: new Date('2024-01-01T00:00:00.000Z'),
     });
-    mockGetIO.mockReturnValue(null);
 
     const res = await postRaw(
       server,
@@ -319,35 +265,6 @@ describe('POST /email/inbound socket emit', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.accepted).toBe(1);
-  });
-
-  it('still returns 200 when Socket.IO is unavailable (failure isolation)', async () => {
-    const user = await recipient();
-    const mailboxId = await folder(user.id, '\\Inbox', 'INBOX');
-
-    mockStoreIncomingMessage.mockResolvedValueOnce({
-      id: unique(),
-      mailboxId,
-      receivedAt: new Date('2024-01-01T00:00:00.000Z'),
-    });
-    mockGetIO.mockReturnValue(null);
-
-    const res = await postRaw(
-      server,
-      '/email/inbound',
-      {
-        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
-        'x-envelope-from': 'alice@example.com',
-        'x-envelope-to': user.address,
-      },
-      rawMessage(user.address)
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.body.accepted).toBe(1);
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      expect.stringContaining('Socket.IO not initialised')
-    );
   });
 
   // The shared-secret guard is NOT asserted here: `verifyEmailInboundWebhookSecret`

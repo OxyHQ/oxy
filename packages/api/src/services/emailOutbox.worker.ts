@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { SMTP_OUTBOUND_CONFIG } from '../config/email.config';
-import { smtpOutbound } from './smtp.outbound';
+import { smtpOutbound, isRetryableSmtpFailure } from './smtp.outbound';
 import { emailService } from './email.service';
 import {
   claimEmailOutbox,
   markEmailOutboxFailed,
   markEmailOutboxSent,
+  markEmailOutboxTerminal,
 } from './emailOutbox.service';
 import { logger } from '../utils/logger';
 
@@ -44,6 +45,20 @@ export async function processEmailOutbox(): Promise<number> {
       await markEmailOutboxSent(row.id);
       processed++;
     } catch (error) {
+      // A permanent failure must not walk the retry ladder. Before this split,
+      // an unset relay failed identically on all five attempts over five hours
+      // and then sat in `failed` forever, indistinguishable from a message that
+      // was merely waiting for the next try.
+      if (!isRetryableSmtpFailure(error)) {
+        await markEmailOutboxTerminal(row.id, error);
+        logger.error(
+          'Durable outbound email permanently undeliverable; no further attempts',
+          error instanceof Error ? error : new Error(String(error)),
+          { outboxId: row.id, messageId: row.messageId, attempt: row.attempts },
+        );
+        processed++;
+        continue;
+      }
       const delayIndex = Math.min(row.attempts, SMTP_OUTBOUND_CONFIG.retryDelays.length - 1);
       const nextAttemptAt = new Date(Date.now() + SMTP_OUTBOUND_CONFIG.retryDelays[delayIndex]);
       await markEmailOutboxFailed(row.id, error, nextAttemptAt);

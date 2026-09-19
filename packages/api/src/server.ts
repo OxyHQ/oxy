@@ -55,6 +55,7 @@ import emailInboundRoutes, {
   inboundRateLimit,
   verifyEmailInboundWebhookSecret,
 } from './routes/emailInbound';
+import emailFeedbackRoutes, { feedbackRateLimit } from './routes/emailFeedback';
 import creditsRoutes from './routes/credits';
 import billingRoutes from './routes/billing';
 import accountBillingRoutes from './routes/accountBilling';
@@ -115,6 +116,7 @@ import transparencyRoutes from './routes/transparency';
 import updatesManifestRoutes from './routes/updates';
 import updatesAdminRoutes from './routes/updatesAdmin';
 import { startSmtpInbound, stopSmtpInbound } from './services/smtp.inbound';
+import { isOutboundRelayConfigured } from './services/smtp.outbound';
 import { smtpOutbound } from './services/smtp.outbound';
 import {
   startFollowOutboxWorker,
@@ -259,6 +261,13 @@ app.use(
   inboundRateLimit,
   express.raw({ type: '*/*', limit: '25mb' })
 );
+// Amazon SNS posts its notifications as `text/plain`, so the global JSON parser
+// leaves req.body empty and the signature check has nothing to verify. Parse
+// this one path as text and let the handler JSON.parse it. Rate-limited first:
+// signature verification fetches a certificate, so an unauthenticated flood
+// must not be able to drive that.
+app.use('/email/feedback/ses', feedbackRateLimit, express.text({ type: '*/*', limit: '256kb' }));
+
 // Skip the global body parsers for routes that require raw bodies so their
 // handlers receive the request in the expected format.
 const jsonParser = express.json({ limit: '1mb' });
@@ -746,6 +755,11 @@ app.use('/security', userRateLimiter, csrfProtection, securityRoutes);
 app.use('/subscription', userRateLimiter, csrfProtection, subscriptionRoutes);
 app.use('/email/proxy', emailProxyRoutes); // public, no auth — must be before /email
 app.use('/email/inbound', emailInboundRoutes); // Cloudflare Email Routing webhook — must be before /email
+// Bounce/complaint ingestion from SES (SNS) and Brevo. Unauthenticated by
+// necessity — neither provider carries an Oxy session — so each half
+// authenticates itself: an SNS signature, or a shared secret. Must be before
+// /email, which requires a session.
+app.use('/email/feedback', feedbackRateLimit, emailFeedbackRoutes);
 app.use('/email', userRateLimiter, csrfProtection, emailRoutes);
 // The public inference edge (issue #972 workstream 4, ADR 0010). Mounted at
 // `/v1` BEFORE `/v1/models`, so it owns `/v1/responses`,
@@ -1322,6 +1336,16 @@ export async function bootstrap(
       );
   }, RECONCILIATION_SWEEP_INTERVAL_MS);
   reconciliationSweep.unref();
+
+  // Outbound relay readiness. Say it at boot: without a relay every send is
+  // refused, and the failure is otherwise only discoverable by a user trying to
+  // send a message and being told it was queued.
+  if (!isOutboundRelayConfigured()) {
+    logger.error(
+      'Outbound email is DISABLED: SMTP_RELAY_HOST is unset. Every send will be refused with 503. ' +
+        'Configure SMTP_RELAY_HOST/SMTP_RELAY_PORT/SMTP_RELAY_USER/SMTP_RELAY_PASS.',
+    );
+  }
 
   // Start SMTP inbound server if enabled
   if (getEnvBoolean('SMTP_ENABLED', false)) {

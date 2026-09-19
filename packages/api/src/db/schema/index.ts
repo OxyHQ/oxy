@@ -66,6 +66,7 @@ export * from './emailFilterConditions';
 export * from './emailFilters';
 export * from './emailTemplates';
 export * from './emailOutbox';
+export * from './emailSuppressions';
 export * from './emailSavedSearches';
 export * from './federationKeyPairs';
 export * from './fileLinks';

@@ -34,13 +34,77 @@ export const SMTP_INBOUND_CONFIG = {
   },
 };
 
+/**
+ * One configured outbound relay. A deployment can declare several; see
+ * {@link SMTP_RELAYS}.
+ */
+export interface SmtpRelayConfig {
+  /** Stable label for logs and metrics, derived from the host. */
+  name: string;
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+}
+
+/**
+ * The ordered relay list.
+ *
+ * `SMTP_RELAY_HOST` accepts a comma-separated list; `SMTP_RELAY_PORT`, `_USER`
+ * and `_PASS` accept lists too, positionally aligned, and a single value is
+ * reused for every relay. One host behaves exactly as it always did.
+ *
+ * Order is preference: the first entry is the primary, the rest are fallbacks.
+ * Failing over is NOT "retry the message somewhere else" — see
+ * `isRetryableSmtpFailure`. Only a TRANSPORT failure (connection refused, bad
+ * credential, provider suspended the account) advances to the next relay; a
+ * message the receiving side refused with a 5xx is refused everywhere, and
+ * re-offering it through a second provider only burns that provider's
+ * reputation too.
+ *
+ * This exists because the failure it covers is the one this platform actually
+ * hit: a single relay decided it would not carry the traffic, and outbound mail
+ * stopped with no second path.
+ */
+export function parseRelayList(): SmtpRelayConfig[] {
+  const split = (raw: string): string[] =>
+    raw.split(',').map((part) => part.trim()).filter((part) => part.length > 0);
+
+  const hosts = split(getEnvVar('SMTP_RELAY_HOST', ''));
+  if (hosts.length === 0) return [];
+
+  const ports = split(getEnvVar('SMTP_RELAY_PORT', '587'));
+  const users = split(getEnvVar('SMTP_RELAY_USER', ''));
+  const passes = getEnvVar('SMTP_RELAY_PASS', '').split(',').map((p) => p.trim());
+
+  // A single value applies to every relay; otherwise entries align by position.
+  const pick = (list: string[], index: number, fallback: string): string =>
+    list.length === 0 ? fallback : list.length === 1 ? list[0] : (list[index] ?? fallback);
+
+  return hosts.map((host, index) => {
+    const port = Number.parseInt(pick(ports, index, '587'), 10);
+    return {
+      name: host,
+      host,
+      port: Number.isFinite(port) ? port : 587,
+      user: pick(users, index, ''),
+      pass: pick(passes.filter((p) => p.length > 0), index, ''),
+    };
+  });
+}
+
+export const SMTP_RELAYS: SmtpRelayConfig[] = parseRelayList();
+
 /** SMTP outbound / sending settings */
 export const SMTP_OUTBOUND_CONFIG = {
-  /** Optional relay host (empty = direct delivery) */
-  relayHost: getEnvVar('SMTP_RELAY_HOST', ''),
-  relayPort: getEnvNumber('SMTP_RELAY_PORT', 587),
-  relayUser: getEnvVar('SMTP_RELAY_USER', ''),
-  relayPass: getEnvVar('SMTP_RELAY_PASS', ''),
+  /**
+   * The PRIMARY relay's host, kept for the many call sites and tests that only
+   * ask "is outbound configured at all". The full list is {@link SMTP_RELAYS}.
+   */
+  relayHost: SMTP_RELAYS[0]?.host ?? '',
+  relayPort: SMTP_RELAYS[0]?.port ?? 587,
+  relayUser: SMTP_RELAYS[0]?.user ?? '',
+  relayPass: SMTP_RELAYS[0]?.pass ?? '',
   /** Queue retry schedule (in ms) */
   retryDelays: [60_000, 300_000, 900_000, 3600_000, 14400_000],
   /** Max retries before bouncing */

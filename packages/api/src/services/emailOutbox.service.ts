@@ -11,6 +11,18 @@ export interface EmailOutboxDto {
   messageId: string;
   status: EmailOutboxStatus;
   attempts: number;
+  /** The retry budget. `attempts >= maxAttempts` means no worker will claim this row again. */
+  maxAttempts: number;
+  /**
+   * No further delivery attempt will happen on its own — either the retry
+   * budget is spent or the failure was permanent (bad configuration, rejected
+   * credential, 5xx refusal). A client MUST present this differently from
+   * "still trying": the difference is whether waiting helps.
+   *
+   * A user can still {@link retryEmailOutbox} it, which refills the budget —
+   * exactly what you want after an operator fixes the relay.
+   */
+  terminal: boolean;
   nextAttemptAt: Date;
   lastError: string | null;
   sentAt: Date | null;
@@ -33,6 +45,8 @@ function toDto(row: typeof emailOutbox.$inferSelect): EmailOutboxDto {
     messageId: row.messageId,
     status: row.status,
     attempts: row.attempts,
+    maxAttempts: MAX_ATTEMPTS,
+    terminal: row.status === 'failed' && row.attempts >= MAX_ATTEMPTS,
     nextAttemptAt: row.nextAttemptAt,
     lastError: row.lastError,
     sentAt: row.sentAt,
@@ -123,6 +137,13 @@ export async function markEmailOutboxSent(id: string): Promise<void> {
     .where(eq(emailOutbox.id, id));
 }
 
+function errorText(error: unknown): string {
+  return error instanceof Error
+    ? error.message.slice(0, 2000)
+    : String(error).slice(0, 2000);
+}
+
+/** Record a TRANSIENT failure and schedule the next attempt. */
 export async function markEmailOutboxFailed(id: string, error: unknown, nextAttemptAt: Date): Promise<void> {
   await getDb()
     .update(emailOutbox)
@@ -131,7 +152,32 @@ export async function markEmailOutboxFailed(id: string, error: unknown, nextAtte
       nextAttemptAt,
       lockedAt: null,
       lockedBy: null,
-      lastError: error instanceof Error ? error.message.slice(0, 2000) : String(error).slice(0, 2000),
+      lastError: errorText(error),
+    })
+    .where(eq(emailOutbox.id, id));
+}
+
+/**
+ * Record a PERMANENT failure: stop retrying now, instead of burning the whole
+ * retry ladder on a condition no amount of waiting can change (an unset relay,
+ * a rejected credential, a 5xx refusal).
+ *
+ * Implemented by spending the retry budget rather than by adding a status,
+ * because `attempts < MAX_ATTEMPTS` is already the single gate
+ * {@link claimEmailOutbox} gives a worker — this makes the claim query say
+ * "never again" without a schema migration, and {@link retryEmailOutbox}
+ * refills it when an operator has fixed the cause. `attempts` is a budget, not
+ * a history counter; `lastError` carries what actually happened.
+ */
+export async function markEmailOutboxTerminal(id: string, error: unknown): Promise<void> {
+  await getDb()
+    .update(emailOutbox)
+    .set({
+      status: 'failed',
+      attempts: MAX_ATTEMPTS,
+      lockedAt: null,
+      lockedBy: null,
+      lastError: errorText(error),
     })
     .where(eq(emailOutbox.id, id));
 }
