@@ -1,11 +1,9 @@
 import { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { TabBar, TabBarButton, type TabBarItem } from '@oxy.so/bloom/tab-bar';
-import {
-  RiHomeFill,
-  RiHomeLine,
-  RiSendPlaneLine,
-} from '@oxy.so/bloom/icons';
+import { RiHomeFill } from '@oxy.so/bloom/icons/RiHomeFill';
+import { RiHomeLine } from '@oxy.so/bloom/icons/RiHomeLine';
+import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
 import type { BottomTabBarProps } from 'expo-router/tabs';
 
 /**

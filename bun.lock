@@ -307,7 +307,7 @@
     },
     "packages/commons": {
       "name": "commons",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "dependencies": {
         "@expo/vector-icons": "^15.1.1",
         "@oxy.so/app-preset": "workspace:*",
