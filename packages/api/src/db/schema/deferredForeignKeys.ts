@@ -44,7 +44,6 @@ import { followEvents } from './followEvents';
 import { bookmarks } from './bookmarks';
 import { conductStrikes } from './conductStrikes';
 import { deviceAccountContexts } from './deviceAccountContexts';
-import { devicePairingSessions } from './devicePairingSessions';
 import { devicePrincipalBackfillConflicts } from './devicePrincipalBackfillConflicts';
 import { devicePrincipals } from './devicePrincipals';
 import { deviceSessionAccounts } from './deviceSessionAccounts';
@@ -357,13 +356,6 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'destroy the single-use guarantee; SET NULL would be worse, resurrecting ' +
       "a spent request as un-finalized when the code's own 5-minute sweep ran " +
       'and letting it mint a SECOND authorization code.',
-  },
-  {
-    table: devicePairingSessions,
-    column: devicePairingSessions.pairingId,
-    reason:
-      "(a) This row's own single-use QR handle, which doubles as the HKDF salt " +
-      'for the transfer key. Id-shaped by name only.',
   },
   {
     table: identityBindings,

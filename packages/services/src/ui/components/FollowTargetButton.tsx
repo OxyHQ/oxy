@@ -36,7 +36,7 @@ import type { FollowApplicationMode, FollowStatus } from '@oxy.so/contracts';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
-import { ChevronBottom_Stroke2_Corner0_Rounded as ChevronDown } from '@oxy.so/bloom/icons';
+import { RiArrowDownSLine as ChevronDown } from '@oxy.so/bloom/icons';
 import {
   DropdownMenu,
   DropdownMenuContent,

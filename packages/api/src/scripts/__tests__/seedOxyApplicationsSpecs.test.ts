@@ -367,6 +367,22 @@ describe('the canonical official-application registry', () => {
     });
   });
 
+  describe('Oxy Website owns only its catalog registration and job-search authority', () => {
+    it('can register a catalog, read users and search Clarity Jobs, nothing more', () => {
+      expect(specNamed('Oxy Website').scopes).toEqual([
+        'user:read',
+        'catalogs:write',
+        'clarity:search',
+      ]);
+    });
+
+    it('is bound to the website catalog namespace and no other platform capability', () => {
+      expect(specNamed('Oxy Website').capabilities).toEqual([
+        catalogApplicationCapability('website'),
+      ]);
+    });
+  });
+
   describe('Noted owns only its catalog service authority', () => {
     const NOTED_SERVICE_SCOPES = [
       'user:read',
@@ -420,7 +436,7 @@ describe('the canonical official-application registry', () => {
       expect(MENTION_APPLICATION_ID).toBe('6a2f851751b784a86fd0e916');
     });
 
-    it('can register, reauthorize and audit its catalog without coordinator authority', () => {
+    it('can register, reauthorize and audit its catalog, and reach Clarity, without coordinator authority', () => {
       expect(specNamed('Mention').scopes).toEqual([
         'user:read',
         'files:read',
@@ -430,6 +446,9 @@ describe('the canonical official-application registry', () => {
         'catalogs:write',
         'capabilities:read',
         'capability-audit:write',
+        'clarity:search',
+        'clarity:index',
+        'clarity:sites:manage',
       ]);
       expect(specNamed('Mention').capabilities).toEqual([
         catalogApplicationCapability('mention'),

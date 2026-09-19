@@ -16,7 +16,7 @@
 import { TTLCache, registerCacheForCleanup } from './utils/cache';
 import { RequestDeduplicator, RequestQueue, SimpleLogger } from './utils/requestUtils';
 import { retryAsync } from './utils/asyncUtils';
-import { handleHttpError, parseHttpErrorBody } from './utils/errorUtils';
+import { createCancelledError, ErrorCodes, handleHttpError, isCancelledError, parseHttpErrorBody } from './utils/errorUtils';
 import { jwtDecode } from 'jwt-decode';
 import { isNative, getPlatformOS } from './utils/platform';
 import { isReactNative } from '@oxy.so/protocol';
@@ -85,6 +85,25 @@ export interface RequestOptions {
   deduplicate?: boolean;
   retry?: boolean;
   maxRetries?: number;
+  /**
+   * Retry an attempt that hit {@link timeout}. Default `false`.
+   *
+   * Off by default because a timeout usually means the SERVER is slow, so more
+   * attempts add load to the thing already struggling — and because retrying
+   * one behind a short per-attempt timeout is how a single slow endpoint used
+   * to cost ~28s of wall clock. Turn it on for an idempotent read where a
+   * retry is genuinely likely to help, and pair it with {@link deadline}.
+   */
+  retryOnTimeout?: boolean;
+  /**
+   * Wall-clock budget in ms for the WHOLE call, retries and backoff included.
+   *
+   * {@link timeout} bounds one attempt; this bounds the call. Without it the
+   * total is `attempts x timeout + backoff`, which is arithmetic nobody does
+   * at the call site — so a caller who wants "never more than 8 seconds" can
+   * say that instead of deriving it.
+   */
+  deadline?: number;
   timeout?: number;
   signal?: AbortSignal;
   headers?: Record<string, string>;
@@ -187,6 +206,34 @@ const TOKEN_REFRESH_COOLDOWN_MS = 15000;
 const EXPIRED_TOKEN_REFRESH_COOLDOWN_MS = 1000;
 
 /**
+ * Cooldown (ms) applied after the refresh endpoint answered 429 Too Many
+ * Requests. Overrides BOTH cooldowns above, because neither of them is about
+ * this failure.
+ *
+ * The other two ask "is the current token still usable?" and answer a server
+ * that is unreachable or erroring. A 429 is the opposite situation: the server
+ * is perfectly reachable and is telling this client, specifically, that it is
+ * asking too often. `EXPIRED_TOKEN_REFRESH_COOLDOWN_MS` then becomes actively
+ * harmful — an expired token drives the request-time preflight and the 401
+ * retry lanes at one mint per second (60/min) against a mint budget of 30/min,
+ * so the client's own retries hold the limiter tripped and it can never fall
+ * back under the ceiling. The limit stops being self-clearing and becomes
+ * self-sustaining for as long as the app keeps issuing requests.
+ *
+ * Sized to the mint limiter's own window (60s, `packages/api/src/routes/sessionDevice.ts`)
+ * so ONE attempt lands per window: enough to discover the moment the budget has
+ * drained, never enough to consume it. The per-device lockout answers 429 for
+ * far longer (15 min), and that is fine — one probe a minute against it is
+ * negligible traffic and the session recovers the instant the lockout lifts.
+ *
+ * NOT routed through the scheduler's exponential backoff: that backoff is
+ * effect-local to `startTokenRefreshScheduler` and governs only the scheduled
+ * lane, while the lanes that actually produce the storm here (preflight, 401
+ * retry) are request-driven and are throttled solely by this cooldown.
+ */
+const RATE_LIMITED_REFRESH_COOLDOWN_MS = 60_000;
+
+/**
  * Lead time (seconds) before access-token expiry at which a preflight refresh
  * is triggered. A token within this window of `exp` is treated as effectively
  * expired so the request carries a fresh bearer rather than racing the clock.
@@ -261,8 +308,47 @@ class TokenStore {
 }
 
 /**
+ * Propagate `parent`'s abort to `child`, returning a disposer.
+ *
+ * Three things a bare `parent.addEventListener('abort', ...)` gets wrong, all
+ * of which this exists to stop repeating:
+ *
+ * 1. **An already-aborted parent never fires again.** `abort` is a once-only
+ *    event, so linking to a signal that has already fired silently links to
+ *    nothing — which is how a cancelled request got re-issued on every retry.
+ *    The `aborted` pre-check is the whole point.
+ * 2. **The listener outlives the request.** A long-lived caller signal (one
+ *    React Query owns for a query's lifetime, say) accumulates one listener per
+ *    attempt per request with nothing ever removing them.
+ * 3. **The reason is dropped**, so the child cannot tell WHY it was aborted.
+ *
+ * `AbortSignal.any` does all this natively and is not used: Hermes support is
+ * not safe to assume, and this SDK ships to React Native. The pattern is the
+ * one `uploadViaXHR` already had right; this is that code, shared.
+ */
+function isAbortLike(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'AbortError'
+  );
+}
+
+function linkAbort(parent: AbortSignal, child: AbortController): () => void {
+  if (parent.aborted) {
+    child.abort((parent as AbortSignal & { reason?: unknown }).reason);
+    return () => { /* nothing was ever attached */ };
+  }
+  const onAbort = (): void => {
+    child.abort((parent as AbortSignal & { reason?: unknown }).reason);
+  };
+  parent.addEventListener('abort', onAbort, { once: true });
+  return () => parent.removeEventListener('abort', onAbort);
+}
+
+/**
  * Unified HTTP Service
- * 
+ *
  * Consolidates HttpClient + RequestManager into a single efficient class.
  * Uses native fetch instead of axios for smaller bundle size.
  */
@@ -293,6 +379,17 @@ export class HttpService {
    * fixed deadline that could not shrink once the token expired mid-cooldown.
    */
   private lastRefreshFailureAt = 0;
+  /**
+   * Whether the last refresh failure was the server answering 429. Selects
+   * {@link RATE_LIMITED_REFRESH_COOLDOWN_MS} over the two token-state cooldowns
+   * for the NEXT attempt, and is cleared by any success or any other failure.
+   *
+   * A boolean beside {@link lastRefreshFailureAt} rather than a stored deadline,
+   * for the same reason that field gives: the cooldown stays a function of the
+   * current state, so it can still shorten if the situation changes underneath
+   * it, and there is exactly one timestamp to reason about.
+   */
+  private lastRefreshWasRateLimited = false;
   private authRefreshHandler: AuthRefreshHandler | null = null;
   private accessTokenProvider: AccessTokenProvider | null = null;
   private deviceSecretMintInFlight: Promise<DeviceSecretMintOutcome> | null = null;
@@ -504,9 +601,58 @@ export class HttpService {
     const edgeRegionHeader = await getBrowserEdgeRegionHeader();
     const activityIdHeader = getBrowserActivityIdHeader();
 
+    // A request the caller has ALREADY abandoned takes no queue slot and makes
+    // no network call. Checked here, before enqueue, because a slot is the
+    // scarce resource: ten of them, and a dead request holding one is a live
+    // request waiting for nothing.
+    if (signal?.aborted) {
+      throw createCancelledError('Request cancelled before it was sent');
+    }
+
+    // ONE abort domain for the whole call, linked to the caller's signal ONCE.
+    //
+    // The bug this replaces: the controller used to be built INSIDE `requestFn`
+    // — the function `retryAsync` re-invokes — and the caller's signal was
+    // linked to each new controller with a bare `addEventListener`. An `abort`
+    // event fires once, so on attempt 2 the caller's already-fired signal could
+    // not abort the freshly built controller, and the request the caller had
+    // cancelled went out for real. Hoisting the linkage means a cancellation
+    // arrives once and is then true for every attempt, including ones not yet
+    // started.
+    const callController = new AbortController();
+    const disposeCallerLink = signal ? linkAbort(signal, callController) : undefined;
+
+    /**
+     * Which of our own timers fired, so a timeout can be told apart from a
+     * cancellation. Both reach us from `fetch` as an indistinguishable
+     * `AbortError`, and collapsing them (as this used to) is what let the retry
+     * predicate treat an abandoned request as a transient failure.
+     */
+    let timedOut = false;
+
     // Request function
     const requestFn = async (): Promise<T> => {
       const startTime = Date.now();
+      // Re-checked per attempt so no retry can issue a network call after the
+      // caller gave up — belt to `retryAsync`'s braces, and the one that holds
+      // if a custom `shouldRetry` ever says yes to a cancellation.
+      if (callController.signal.aborted) {
+        throw createCancelledError('Request cancelled');
+      }
+
+      // This attempt's controller carries its own timeout and inherits the
+      // call-wide abort domain. Declared OUTSIDE the `try` so the `finally`
+      // that releases them can see them — the timer and the listener are
+      // exactly what leaked when they lived inside it.
+      const controller = new AbortController();
+      const disposeCallLink = linkAbort(callController.signal, controller);
+      const timeoutId = timeout
+        ? setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+          }, timeout)
+        : null;
+
       try {
         // Build URL with params
         const fullUrl = this.buildURL(url, params);
@@ -514,14 +660,6 @@ export class HttpService {
         // Determine if data is FormData using robust detection
         const isFormData = this.isFormData(data);
         const isUrlEncoded = this.isUrlSearchParams(data);
-
-        // Make fetch request
-        const controller = new AbortController();
-        const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : null;
-        
-        if (signal) {
-          signal.addEventListener('abort', () => controller.abort());
-        }
 
         // Build headers - start with defaults
         const headers: Record<string, string> = {
@@ -618,6 +756,8 @@ export class HttpService {
               credentials: this.getCredentialsMode(fullUrl),
             });
 
+        // Cleared as early as possible; the `finally` below is what GUARANTEES
+        // it, including on every throw between here and there.
         if (timeoutId) clearTimeout(timeoutId);
 
         // Handle response
@@ -748,41 +888,90 @@ export class HttpService {
         this.updateMetrics(false, duration);
         this.config.onRequestEnd?.(url, method, duration, false);
         this.config.onRequestError?.(url, method, error instanceof Error ? error : new Error(String(error)));
-        
-        // Handle AbortError specifically for better error messages
-        if (error instanceof Error && error.name === 'AbortError') {
-          throw handleHttpError(error);
+
+        // An abort is the one failure whose CAUSE the error cannot carry on its
+        // own: `fetch` reports a caller cancellation and our own timeout as the
+        // same `AbortError`. `timedOut` is set by the timer callback, so it is
+        // the only thing here that knows which happened — and getting this
+        // wrong is not cosmetic. Both used to collapse to `TIMEOUT` with
+        // `status: 0`, and because `status: 0` is not 4xx the retry predicate
+        // read every cancellation as a transient failure worth another try.
+        // Tested by NAME, not `instanceof Error`. `fetch` rejects an abort with a
+        // `DOMException`, and `instanceof` is realm-bound: the exception can be
+        // constructed in a different realm from the `Error` this module closes
+        // over (a Jest VM context, a worker, an iframe), in which case the check
+        // silently fails and the abort is misreported as a generic 500. That was
+        // happening; a structural check cannot be fooled that way.
+        if (isAbortLike(error)) {
+          if (timedOut) {
+            const timeoutError = new Error(`Request timed out after ${timeout}ms`) as Error & {
+              status?: number;
+              code?: string;
+              timeout?: boolean;
+            };
+            timeoutError.status = 0;
+            timeoutError.code = ErrorCodes.TIMEOUT;
+            timeoutError.timeout = true;
+            throw timeoutError;
+          }
+          throw createCancelledError('Request cancelled');
         }
-        
+
         throw handleHttpError(error);
+      } finally {
+        // Both of these leaked before: `clearTimeout` sat on the success path
+        // only, so any throw between the fetch and the return (a 404, a parse
+        // failure) left the timer armed; and nothing ever removed the abort
+        // listener, so a long-lived caller signal collected one per attempt.
+        if (timeoutId) clearTimeout(timeoutId);
+        disposeCallLink();
       }
     };
 
-    // Wrap with retry if enabled
+    // Wrap with retry if enabled.
+    //
+    // `retryOnTimeout` defaults to false in `retryAsync`, which is what makes
+    // the pathological total unreachable: a timeout now costs ONE attempt
+    // instead of four-plus-backoff (~28s at the 5s default), and a cancellation
+    // costs none. `deadline` bounds whatever retries do happen by wall clock
+    // rather than by attempts x timeout + backoff.
     const requestWithRetry = retry
-      ? () => retryAsync(requestFn, maxRetries, this.config.retryDelay || 1000)
+      ? () => retryAsync(requestFn, {
+          maxRetries,
+          baseDelay: this.config.retryDelay || 1000,
+          retryOnTimeout: config.retryOnTimeout ?? false,
+          deadline: config.deadline !== undefined ? Date.now() + config.deadline : undefined,
+        })
       : requestFn;
 
     // Wrap with deduplication if enabled (use optimized key generation)
     const dedupeKey = deduplicate ? this.generateCacheKey(method, url, data || params) : null;
     const finalRequest = dedupeKey
-      ? () => this.deduplicator.deduplicate(dedupeKey, requestWithRetry)
+      ? () => this.deduplicator.deduplicate(dedupeKey, requestWithRetry, callController.signal)
       : requestWithRetry;
 
-    // Execute the request. Control-plane calls the auth lane depends on
-    // (`bypassQueue`, e.g. the device-secret mint) run DIRECTLY — a queued mint
-    // could never acquire a slot when every slot is parked awaiting it.
-    const result = config.bypassQueue
-      ? await finalRequest()
-      : await this.requestQueue.enqueue(finalRequest);
+    try {
+      // Execute the request. Control-plane calls the auth lane depends on
+      // (`bypassQueue`, e.g. the device-secret mint) run DIRECTLY — a queued mint
+      // could never acquire a slot when every slot is parked awaiting it.
+      const result = config.bypassQueue
+        ? await finalRequest()
+        : await this.requestQueue.enqueue(finalRequest, callController.signal);
 
-    // Cache the result if caching is enabled
-    if (cache && cacheKey && result) {
-      this.cache.set(cacheKey, result, cacheTTL);
-      this.warnIfCacheOversized();
+      // Cache the result if caching is enabled
+      if (cache && cacheKey && result) {
+        this.cache.set(cacheKey, result, cacheTTL);
+        this.warnIfCacheOversized();
+      }
+
+      return result;
+    } finally {
+      // The call-wide link to the CALLER's signal, released once the call is
+      // over however it ended. Without this a caller signal that outlives the
+      // request — the normal case for a React Query query signal — accrues one
+      // listener per request for its whole lifetime.
+      disposeCallerLink?.();
     }
-
-    return result;
   }
 
   /**
@@ -1156,20 +1345,29 @@ export class HttpService {
       return null;
     }
 
-    // Post-failure cooldown. A genuinely EXPIRED current token uses a much
-    // shorter cooldown than a still-valid (proactive, near-expiry) one: an
-    // expired token is unusable, so re-mint as soon as the endpoint is reachable
-    // again rather than waiting out the full window while requests carry a stale
-    // bearer. Both cooldowns are measured from the last failure, so the moment a
-    // still-valid token crosses `exp` mid-cooldown the shorter window applies.
-    const cooldownMs = this.isAccessTokenExpired()
-      ? EXPIRED_TOKEN_REFRESH_COOLDOWN_MS
-      : TOKEN_REFRESH_COOLDOWN_MS;
+    // Post-failure cooldown. A 429 names its own window regardless of token
+    // state — the server is reachable and is rationing this client, so retrying
+    // at the expired-token rate would spend the very budget being waited on.
+    // Otherwise a genuinely EXPIRED current token uses a much shorter cooldown
+    // than a still-valid (proactive, near-expiry) one: an expired token is
+    // unusable, so re-mint as soon as the endpoint is reachable again rather
+    // than waiting out the full window while requests carry a stale bearer. All
+    // three are measured from the last failure, so the moment a still-valid
+    // token crosses `exp` mid-cooldown the shorter window applies.
+    const cooldownMs = this.lastRefreshWasRateLimited
+      ? RATE_LIMITED_REFRESH_COOLDOWN_MS
+      : this.isAccessTokenExpired()
+        ? EXPIRED_TOKEN_REFRESH_COOLDOWN_MS
+        : TOKEN_REFRESH_COOLDOWN_MS;
     if (Date.now() - this.lastRefreshFailureAt < cooldownMs) {
       return null;
     }
 
     if (!this.tokenRefreshPromise) {
+      // Cleared before the attempt, never after it: the handler reports a 429
+      // by calling `noteRefreshRateLimited()` from INSIDE this call, so clearing
+      // on the way out would discard the flag it just set.
+      this.lastRefreshWasRateLimited = false;
       this.tokenRefreshPromise = this.authRefreshHandler(reason)
         .then((newToken) => {
           if (!newToken) {
@@ -1183,6 +1381,7 @@ export class HttpService {
           // A success clears the failure timestamp so the next refresh is never
           // throttled by a stale cooldown.
           this.lastRefreshFailureAt = 0;
+          this.lastRefreshWasRateLimited = false;
           this.logger.debug('Token refreshed via the auth refresh handler');
           return newToken;
         })
@@ -1197,6 +1396,22 @@ export class HttpService {
     }
 
     return this.tokenRefreshPromise;
+  }
+
+  /**
+   * Report that the refresh/mint endpoint answered 429 Too Many Requests, so the
+   * next attempt waits {@link RATE_LIMITED_REFRESH_COOLDOWN_MS} instead of one of
+   * the token-state cooldowns.
+   *
+   * Called by the refresh handler (`refreshDeviceSecretArm`) from inside the
+   * `authRefreshHandler` call, because the handler's `Promise<string | null>`
+   * contract cannot carry WHY a refresh failed and 429 is the one failure whose
+   * correct retry interval is set by the server rather than by the token.
+   *
+   * Public because the handler lives in `session/refresh.ts`, not on this class.
+   */
+  noteRefreshRateLimited(): void {
+    this.lastRefreshWasRateLimited = true;
   }
 
   /**

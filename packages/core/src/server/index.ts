@@ -18,6 +18,7 @@
 export {
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
+  getOxyAuthRefusal,
   getOxyBillingPrincipal,
   getOxyDelegatedUserId,
   getOxyRequestAttribution,
@@ -30,6 +31,7 @@ export {
 } from './auth';
 export type {
   OxyAuthenticatedRequest,
+  OxyAuthRefusal,
   OxyAuthMiddlewareOptions,
   OxyAuthRequest,
   OxyBillingPrincipal,
@@ -109,6 +111,33 @@ export type {
   CapabilityTicketVerificationOptions,
 } from './capabilityTicket';
 
+// Present-requester assertions (ADR 0025): a product backend trades a signed-in
+// person's live session with Oxy for a one-use assertion its audience consumes.
+export {
+  createOxyJwksKeyResolver,
+  createOxyRequesterAssertionAuth,
+  OXY_REQUESTER_ASSERTION_DEFAULT_ISSUER,
+  OXY_REQUESTER_ASSERTION_HEADER,
+  OXY_REQUESTER_ASSERTION_MAX_TTL_SECONDS,
+  OXY_REQUESTER_ASSERTION_TYPE,
+  OxyRequesterAssertionError,
+  oxyRequesterAssertionClaimsSchema,
+  readOxyRequesterAssertionKeyId,
+  signOxyRequesterAssertion,
+  verifyOxyRequesterAssertion,
+} from './requesterAssertion';
+export type {
+  OxyJwksKeyResolverOptions,
+  OxyRequesterAssertionAuthOptions,
+  OxyRequesterAssertionClaims,
+  OxyRequesterAssertionErrorCode,
+  OxyRequesterAssertionIntrospection,
+  OxyRequesterAssertionIntrospector,
+  OxyRequesterAssertionRequest,
+  OxyRequesterAssertionVerificationOptions,
+  OxyRequesterContext,
+} from './requesterAssertion';
+
 // Constant-time secret comparison.
 export { verifySecret } from './verifySecret';
 
@@ -139,3 +168,12 @@ export { createEcosystemTraffic } from './traffic';
 export type { EcosystemTrafficOptions } from './traffic';
 
 export { observeNodeHttp, withoutNodeHttpObservation } from './trafficNodeHttp';
+
+/**
+ * Workload identity (ADR 0026): a first-party service asks Oxy for a service
+ * token by proving what it IS, with no api key and no secret. Server-only, and
+ * exported from this subpath rather than the root barrel because it reaches the
+ * container credentials endpoint.
+ */
+export { canAttestWorkloadIdentity, requestWorkloadServiceToken } from './workloadIdentity';
+export type { WorkloadServiceToken, WorkloadServiceTokenOptions } from './workloadIdentity';

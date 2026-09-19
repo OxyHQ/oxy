@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy } from '@oxy.so/services';
-import { IdentityAlreadyExistsError, IdentityUnavailableError, type OpenedWebIdentity } from '@oxy.so/core';
+import { IdentityAlreadyExistsError, IdentityUnavailableError, KeyManager, SignatureService, type OpenedMnemonicIdentity } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@/components/ui';
 import { Fonts } from '@/constants/theme';
@@ -12,6 +12,7 @@ import { useIdentity } from '@/hooks/useIdentity';
 import { persistOnboardingFlow } from '@/hooks/identity/identityStore';
 import { IdentityMayExistError } from '@/hooks/identity/identityErrors';
 import {
+  awaitCode,
   confirmReceived,
   createMoveRelay,
   forgetMove,
@@ -25,7 +26,8 @@ const POLL_MS = 2000;
 
 type Stage =
   | { name: 'joining' }
-  | { name: 'compare'; move: IncomingMove }
+  | { name: 'awaiting-code'; move: IncomingMove }
+  | { name: 'compare'; move: IncomingMove & { sas: string } }
   | { name: 'saving' }
   | { name: 'receipt-failed'; move: IncomingMove; synced: boolean }
   | { name: 'failed'; messageKey: string };
@@ -35,9 +37,10 @@ type Stage =
  *
  * Joins the scanned move, shows the code to compare with the computer, and
  * waits. Once the person confirms there, the identity arrives sealed to this
- * phone, is saved exactly like a phrase import, and a receipt signed with the
- * identity key lets the web remove its copy. Until that receipt is sent, the
- * web still holds the identity — nothing is lost if this screen is left.
+ * phone and is saved exactly like a phrase import; the receipt is signed with the
+ * key read back from this phone's keychain, so the web learns it arrived only if
+ * it was really stored. Until that receipt is sent, the web still holds the
+ * identity — nothing is lost if this screen is left.
  */
 export default function MoveIdentityScreen() {
   const router = useRouter();
@@ -51,7 +54,7 @@ export default function MoveIdentityScreen() {
   // A screen reached without a move id has nothing to join — decided on the
   // first render, not in an effect.
   const [stage, setStage] = useState<Stage>(() => (id ? { name: 'joining' } : { name: 'failed', messageKey: 'identityMove.unavailable' }));
-  const identityRef = useRef<OpenedWebIdentity | null>(null);
+  const identityRef = useRef<OpenedMnemonicIdentity | null>(null);
 
   useEffect(() => {
     void persistOnboardingFlow('import');
@@ -81,7 +84,16 @@ export default function MoveIdentityScreen() {
       if (!identity) return;
       setStage({ name: 'saving' });
       try {
-        await confirmReceived(relay, move, identity);
+        // Read the key back from the keychain before vouching for it: a receipt
+        // must mean "stored", not "was in memory a moment ago".
+        const signWithStoredKey = async (message: string) => {
+          const status = await KeyManager.getIdentityStatus({ bypassCache: true });
+          if (status.state !== 'present' || status.publicKey !== move.publicKey) {
+            throw new Error('The identity is not stored on this phone');
+          }
+          return SignatureService.sign(message);
+        };
+        await confirmReceived(relay, move, signWithStoredKey);
       } catch {
         setStage({ name: 'receipt-failed', move, synced });
         return;
@@ -98,7 +110,8 @@ export default function MoveIdentityScreen() {
     let cancelled = false;
     joinMove(relay, id)
       .then((move) => {
-        if (!cancelled) setStage({ name: 'compare', move });
+        if (cancelled) return;
+        setStage({ name: 'awaiting-code', move });
       })
       .catch((error: unknown) => {
         if (!cancelled) failWith(error);
@@ -108,6 +121,35 @@ export default function MoveIdentityScreen() {
     };
   }, [failWith, id, relay]);
 
+  // Wait for the computer to reveal its key, and show the code only
+  // once that key opens the commitment read before joining.
+  useEffect(() => {
+    if (stage.name !== 'awaiting-code') return;
+    const { move } = stage;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = async () => {
+      try {
+        if (await awaitCode(relay, move)) {
+          if (!stopped) setStage({ name: 'compare', move: move as IncomingMove & { sas: string } });
+          return;
+        }
+      } catch (error) {
+        if (!stopped) {
+          forgetMove(move);
+          failWith(error);
+        }
+        return;
+      }
+      if (!stopped) timer = setTimeout(() => void tick(), POLL_MS);
+    };
+    timer = setTimeout(() => void tick(), POLL_MS);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [failWith, relay, stage]);
+
   // Wait for the person to confirm on the computer; one request at a time.
   useEffect(() => {
     if (stage.name !== 'compare') return;
@@ -116,7 +158,7 @@ export default function MoveIdentityScreen() {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const tick = async () => {
-      let identity: OpenedWebIdentity | null;
+      let identity: OpenedMnemonicIdentity | null;
       try {
         identity = await receiveIdentity(relay, move);
       } catch (error) {
@@ -165,6 +207,7 @@ export default function MoveIdentityScreen() {
 
   switch (stage.name) {
     case 'joining':
+    case 'awaiting-code':
       return (
         <View style={container}>
           <Text style={[styles.body, { color: colors.text }]}>{t('identityMove.joining')}</Text>

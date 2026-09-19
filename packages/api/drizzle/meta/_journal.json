@@ -666,6 +666,48 @@
       "when": 1789551490153,
       "tag": "0095_identity_move_commitment",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1789598677866,
+      "tag": "0096_identity_single_scheme",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1789599149859,
+      "tag": "0097_drop_device_pairing_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1789599167779,
+      "tag": "0098_drop_identity_move_protocol_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1789719356755,
+      "tag": "0099_application_workload_identities",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1789770454891,
+      "tag": "0100_people_search_trigram_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1789813193281,
+      "tag": "0101_email_suppressions",
+      "breakpoints": true
     }
   ]
 }

@@ -31,6 +31,27 @@ export const NATIVE_PRODUCT_AGENTS = {
         id: '01a0646a-078f-7514-9800-9f43ceed7df8',
         oxyAccountId: '01a0646a-078f-7974-9645-a5e8be237f47',
         visibility: 'private',
+        /**
+         * What Sindi may reach inside Alia, in ALIA's vocabulary
+         * (`packages/api/src/domain/capability-grants.ts` there).
+         *
+         * Oxy does not define these names and does not enforce them; it
+         * publishes them because a capability grant is an AUTHORITY, and this
+         * manifest is the hashed, two-repository-reviewed channel every other
+         * authority in the binding already travels through. The alternative —
+         * Alia deciding it alone — makes widening a product agent's reach a
+         * one-repository edit, which is exactly what the application binding
+         * below is not allowed to be.
+         *
+         * Exactly three families, in this order: `web` (search, scraping,
+         * browsing, deep research and the card tools), `artifacts` (canvas and
+         * generated files) and `memory` (what the person has already said).
+         * Nothing that acts in the world: no shell, browser, files, messaging,
+         * automation, delegation, MCP or integration. Oxy app access is NOT
+         * expressible here at all — Oxy's own DelegationGrant records are its
+         * sole authority.
+         */
+        capabilityGrants: ['web', 'artifacts', 'memory'],
       },
     },
     clarity: {
@@ -71,6 +92,8 @@ export const NATIVE_PRODUCT_AGENTS = {
         id: '01a0646a-078f-7642-95ef-439952f4f3f9',
         oxyAccountId: '01a0646a-078f-7120-a993-a03c180c81b0',
         visibility: 'private',
+        /** Nothing granted. Empty DENIES in Alia; it is not "unset". */
+        capabilityGrants: [],
       },
     },
   },
@@ -78,7 +101,30 @@ export const NATIVE_PRODUCT_AGENTS = {
 
 export type NativeProductAgentManifest = typeof NATIVE_PRODUCT_AGENTS;
 
-/** Stable hand-off consumed by Alia's separate, exact-PK bootstrap. */
+/**
+ * Stable hand-off consumed by Alia's separate, exact-PK bootstrap.
+ *
+ * The consumer is `packages/api/src/config/native-product-agents.ts` in
+ * OxyHQ/Alia, which pins these exact bytes, and
+ * `scripts/bootstrap-native-product-agents.ts` beside it, which writes the
+ * `agents` rows they describe. Alia owns that table; this function is the only
+ * thing that tells it what to write.
+ *
+ * **Both repositories pin the SHA-256 of `JSON.stringify` of this value**, and
+ * `__tests__/nativeProductAgents.test.ts` asserts it here. Editing the shape or
+ * any value below therefore fails this suite with the Alia file named in it,
+ * rather than shipping a manifest whose only consumer still believes the old
+ * one. `JSON.stringify` preserves insertion order, so the key order below is
+ * part of what is pinned.
+ *
+ * `capabilityGrants` is the one field written in ALIA's vocabulary rather than
+ * Oxy's. It is here, and not in Alia's own seed file beside the tagline,
+ * because it is the only field that decides what the agent may DO: a tagline
+ * that drifts is cosmetic, and a grant that drifts is a product assistant that
+ * quietly gained a tool nobody approved. Publishing it through the hash makes
+ * widening it a change both repositories have to merge. An EMPTY array is a
+ * decision — it denies everything — and never "unset".
+ */
 export function aliaNativeAgentBootstrapManifest(): Readonly<{
   schemaVersion: 1;
   agents: readonly Readonly<{
@@ -88,6 +134,7 @@ export function aliaNativeAgentBootstrapManifest(): Readonly<{
     ownerOxyAccountId: string;
     product: 'homiio' | 'clarity';
     visibility: 'private';
+    capabilityGrants: readonly string[];
   }>[];
 }> {
   return {
@@ -100,6 +147,7 @@ export function aliaNativeAgentBootstrapManifest(): Readonly<{
         ownerOxyAccountId: NATIVE_PRODUCT_AGENTS.products.homiio.project.id,
         product: 'homiio',
         visibility: 'private',
+        capabilityGrants: NATIVE_PRODUCT_AGENTS.products.homiio.aliaAgent.capabilityGrants,
       },
       {
         id: NATIVE_PRODUCT_AGENTS.products.clarity.aliaAgent.id,
@@ -108,7 +156,56 @@ export function aliaNativeAgentBootstrapManifest(): Readonly<{
         ownerOxyAccountId: NATIVE_PRODUCT_AGENTS.products.clarity.project.id,
         product: 'clarity',
         visibility: 'private',
+        capabilityGrants: NATIVE_PRODUCT_AGENTS.products.clarity.aliaAgent.capabilityGrants,
       },
     ],
   };
+}
+
+/**
+ * Alia's Oxy application — the only audience a present-requester assertion is
+ * minted for, and the only application allowed to introspect (and consume) one.
+ * Pinned beside the seed spec's `ALIA_APPLICATION_ID`; a test compares them.
+ */
+export const ALIA_RESOURCE_SERVER_APPLICATION_ID = '6a2f851751b784a86fd0e934';
+
+/** The `aud` of a present-requester assertion. */
+export const REQUESTER_ASSERTION_AUDIENCE = 'alia';
+
+export interface NativeProductAgentEntryPoint {
+  readonly product: 'homiio';
+  readonly applicationId: string;
+  readonly credentialId: string;
+  readonly agentId: string;
+}
+
+/**
+ * The exact (application, credential, agent) triples that may trade a present
+ * requester's live session for a present-requester assertion (ADR 0025).
+ *
+ * Deliberately NOT derived from "every product in the manifest": being a
+ * native product agent does not by itself mean the product's backend should be
+ * able to enter Alia for a signed-in person. Adding a product here is a reviewed
+ * authority change, not a side effect of provisioning its agent.
+ */
+export const NATIVE_PRODUCT_AGENT_ENTRY_POINTS: readonly NativeProductAgentEntryPoint[] = [
+  {
+    product: 'homiio',
+    applicationId: NATIVE_PRODUCT_AGENTS.products.homiio.applicationId,
+    credentialId: NATIVE_PRODUCT_AGENTS.products.homiio.sindiServiceCredential.id,
+    agentId: NATIVE_PRODUCT_AGENTS.products.homiio.aliaAgent.id,
+  },
+];
+
+/** The entry point matching all three identifiers exactly, or `null`. */
+export function nativeProductAgentEntryPoint(
+  applicationId: string,
+  credentialId: string,
+  agentId: string,
+): NativeProductAgentEntryPoint | null {
+  return NATIVE_PRODUCT_AGENT_ENTRY_POINTS.find((entry) => (
+    entry.applicationId === applicationId
+    && entry.credentialId === credentialId
+    && entry.agentId === agentId
+  )) ?? null;
 }

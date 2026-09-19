@@ -26,7 +26,7 @@
 import { and, eq, gte, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { federatedUsernameFromUpstreamUrl } from '@oxy.so/federation';
 import { qualified } from '@oxy.so/db';
-import { users } from '../db/schema/users';
+import { PEOPLE_SEARCH_TRGM_EXPRESSION, users } from '../db/schema/users';
 import { userLocations } from '../db/schema/userLocations';
 
 export const FEDERATED_RECOMMENDATION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -68,6 +68,17 @@ export function peopleSearchPredicate(): SQL {
 
 /** Longest fuzzy/substring people-search term honoured. */
 export const MAX_PEOPLE_SEARCH_TERM_LENGTH = 100;
+
+/**
+ * Shortest term that still gets a SUBSTRING match.
+ *
+ * Three, because that is `pg_trgm`'s trigram width: a pattern with no
+ * wildcard-free run of at least three characters yields no trigrams, so
+ * `users_people_search_trgm_idx` cannot be used and the query becomes a
+ * sequential scan with a concatenation on top. Shorter terms get an anchored
+ * prefix match instead — see {@link peopleSearchMatch}.
+ */
+export const MIN_FUZZY_TERM_LENGTH = 3;
 
 /**
  * Pasted profile URLs can carry long tracking query strings. They are parsed
@@ -146,7 +157,35 @@ export function peopleSearchMatch(
     return sql`lower(btrim(${users.username})) = ${upstreamUsername}`;
   }
 
-  const pattern = `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+  const escaped = term.replace(/[\\%_]/g, (char) => `\\${char}`);
+
+  // Below three characters, switch from substring to anchored PREFIX.
+  //
+  // `pg_trgm` extracts trigrams only from a pattern's wildcard-free runs, so
+  // `%ab%` yields none and the GIN index cannot be used at all — the query
+  // degrades to a sequential scan PLUS a concatenation per row, i.e. slower
+  // than before the index existed. That is the cheapest request in the product
+  // to issue and the most expensive to serve, which is a denial-of-service
+  // shape, not merely a slow path.
+  //
+  // This IS a behaviour change for 1-2 character queries: they no longer match
+  // mid-word. It is the right trade — "substring anywhere" is not a useful
+  // answer to a one-letter query, and the alternative is a guaranteed table
+  // scan behind the easiest query to fire. `description` is deliberately left
+  // out of the prefix branch: a prefix match against the first word of a bio
+  // answers nothing anyone asked.
+  if (escaped.length < MIN_FUZZY_TERM_LENGTH) {
+    const prefix = `${escaped}%`;
+    return (
+      or(
+        sql`lower(btrim(${users.username})) like ${prefix}`,
+        sql`lower(${users.nameFirst}) like ${prefix}`,
+        sql`lower(${users.nameLast}) like ${prefix}`
+      ) ?? sql`false`
+    );
+  }
+
+  const pattern = `%${escaped}%`;
 
   const clauses: SQL[] = [
     sql`${users.username} ilike ${pattern}`,
@@ -173,7 +212,30 @@ export function peopleSearchMatch(
     )`);
   }
 
-  return or(...clauses) ?? sql`false`;
+  const exactMatch = or(...clauses) ?? sql`false`;
+
+  // A coarse, INDEX-SERVABLE prefilter AND the exact match above.
+  //
+  // The prefilter is `<concatenated text> ILIKE '%term%'`, written against the
+  // very expression `users_people_search_trgm_idx` is built on, so Postgres can
+  // answer it from the GIN index instead of reading the table. Because a
+  // substring of any part is a substring of the concatenation, the prefilter
+  // can only ever admit MORE rows than the real answer — never fewer — so the
+  // exact clauses remain the predicate the result actually depends on. Same
+  // escaped, bound pattern goes to both, so no input can widen one and not the
+  // other.
+  //
+  // The location branch is NOT covered by this index (it lives on a different
+  // table), so `GET /search`'s `includeLocations: true` variant still needs its
+  // own index before that half stops scanning `user_locations`. Adding the
+  // prefilter as an AND would be WRONG there: a user whose only match is a city
+  // name has nothing matching in the `users` concatenation, so the prefilter
+  // would exclude a row the predicate should return.
+  if (includeLocations) {
+    return exactMatch;
+  }
+
+  return and(sql`${PEOPLE_SEARCH_TRGM_EXPRESSION} ilike ${pattern}`, exactMatch) ?? sql`false`;
 }
 
 /**

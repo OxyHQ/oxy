@@ -81,15 +81,11 @@ export type {
     PushTokenPlatform,
     RegisterPushTokenInput,
 } from './mixins/OxyServices.notifications';
-export type { ServiceApp, ServiceActingAsVerification } from './mixins/OxyServices.utility';
+export type { ServiceApp, ServiceActingAsVerification, OxyAuthRefusal } from './mixins/OxyServices.utility';
 export type {
     ContactDiscoveryMatch,
     ContactDiscoveryResponse,
 } from './mixins/OxyServices.contacts';
-export type {
-    InitDeviceTransferResult,
-    DeviceTransferOutcome,
-} from './mixins/OxyServices.deviceTransfer';
 export type {
     BulkFollowEntry,
     BulkFollowResult,
@@ -136,6 +132,8 @@ export type {
     DelegationCatalogBinding,
     DelegationGrantView,
     PutAccountCapabilityPolicyInput,
+    RequesterAssertionGrant,
+    RequesterAssertionIntrospection,
     UpdateDelegationGrantInput,
 } from './mixins/OxyServices.agency';
 
@@ -232,7 +230,6 @@ export {
 export { buildUserDid } from './mixins/OxyServices.identity';
 export type {
     IdentityRecordType,
-    UnlinkableAuthMethodType,
     LinkAuthMethodResult,
     PublishRecordResult,
     VerifyRecordResult,
@@ -336,19 +333,17 @@ export {
 export type { AeadResult } from './crypto/aead';
 export { deriveSharedSecret } from './crypto/ecdh';
 
-// Web identity carrier — the same identity as Commons, sealed under a passkey's
-// PRF output (docs/superpowers/specs/2026-09-15-one-identity-two-carriers-design.md)
+// Web identity holder — the same root as Commons, sealed under a passkey's PRF
+// output; identity proofs; transfer to Commons (docs/adr/0024-one-oxy-account-root-holders.md)
 export {
     WEB_IDENTITY_PRF_INPUT,
     WebIdentityUnlockError,
     WEB_IDENTITY_PRF_OUTPUT_LENGTH,
     addWrap,
-    buildIdentityActionMessage,
     deriveIdentityFromMnemonic,
     deriveIdentityFromPrivateKey,
     deriveIdentityFromRecoveryMaterial,
     deriveKeyEncryptionKey,
-    deriveTransferSas,
     generateDataKey,
     generateWebIdentity,
     isUsablePrfOutput,
@@ -358,12 +353,10 @@ export {
     parseRecoveryMaterial,
     removeWrap,
     sealWebIdentity,
-    signIdentityAction,
     unlockWebIdentity,
     unwrapDataKey,
     wipeBytes,
     wipeOpenedIdentity,
-    wrapDataKey,
 } from './crypto/webIdentityCarrier';
 export type {
     OpenedMnemonicIdentity,
@@ -375,25 +368,20 @@ export type {
 } from './crypto/webIdentityCarrier';
 export { digestIdentityPayload, signIdentityProof } from './crypto/identityProof';
 export {
-    IDENTITY_MOVE_ACTIONS,
-    buildMoveMessage,
     buildMoveQrPayload,
     createMoveCommitment,
     deriveMoveKey,
     deriveMoveSas,
-    deriveMoveSasV2,
     digestMoveCiphertext,
-    signMoveReceiptV2,
-    verifyMoveCommitment,
-    verifyMoveReceiptV2,
     generateMoveEphemeralKeyPair,
     openMovedIdentity,
     parseMoveQrPayload,
     sealIdentityForMove,
-    signMoveAction,
+    signMoveReceipt,
+    verifyMoveCommitment,
     verifyMoveReceipt,
 } from './crypto/identityMove';
-export type { MoveReceiptV2Claims } from './crypto/identityMove';
+export type { MoveReceiptClaims } from './crypto/identityMove';
 
 // ---------------------------------------------------------------------------
 // Devices
@@ -930,6 +918,8 @@ export type {
     OxyInferenceResponse,
     OxyGenerationReceipt,
     OxyResponsesRequest,
+    OxySpeechRequest,
+    OxySpeechResponse,
 } from './inference/OxyInferenceClient';
 
 export { runSessionColdBoot } from './boot/sessionColdBoot';

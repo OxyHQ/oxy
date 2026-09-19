@@ -54,6 +54,7 @@ import {
 } from '@oxy.so/core';
 import { IDENTITY_ERROR_CODES, IDENTITY_PROOF_AUDIENCE, type WebIdentityEnvelope } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { getWebauthnRpId } from '../../config/env';
 import { identityRecoveryAttempts } from '../../db/schema/identityRecoveryAttempts';
 import { identityWebEnvelopes } from '../../db/schema/identityWebEnvelopes';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
@@ -162,7 +163,7 @@ async function completeBody(
 ) {
   let envelope = overrides.envelope;
   if (!envelope) {
-    const sealed = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(8), credentialId }, new Date(), { version: 2 });
+    const sealed = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(8), credentialId, rpId: getWebauthnRpId() });
     sealed.dataKey.fill(0);
     envelope = sealed.envelope;
   }
@@ -187,7 +188,7 @@ describe('signed-out recovery', () => {
     const identity = generateWebIdentity();
     const userId = await accountWithRoot(identity);
     // A stale web holder from before (a lost passkey).
-    const lost = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(1), credentialId: 'lost-passkey-aaaaaaaaaaaa' }, new Date(), { version: 2 });
+    const lost = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(1), credentialId: 'lost-passkey-aaaaaaaaaaaa', rpId: getWebauthnRpId() });
     lost.dataKey.fill(0);
     await getDb().insert(identityWebEnvelopes).values({
       userId,
@@ -195,8 +196,8 @@ describe('signed-out recovery', () => {
       version: 2,
       algorithm: 'xchacha20poly1305',
       secretKind: 'mnemonic-entropy',
-      entropyNonce: lost.envelope.version === 2 ? lost.envelope.secretNonce : '',
-      sealedEntropy: lost.envelope.version === 2 ? lost.envelope.sealedSecret : '',
+      entropyNonce: lost.envelope.secretNonce,
+      sealedEntropy: lost.envelope.sealedSecret,
       wraps: lost.envelope.wraps,
       revision: 4,
     });
@@ -284,7 +285,7 @@ describe('signed-out recovery', () => {
     const credentialId = newCredentialId();
     acceptRegistration(credentialId);
 
-    const other = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(2), credentialId: 'some-other-passkey-aaaaaa' }, new Date(), { version: 2 });
+    const other = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(2), credentialId: 'some-other-passkey-aaaaaa', rpId: getWebauthnRpId() });
     other.dataKey.fill(0);
     expect((await request('/complete', await completeBody(identity, body, credentialId, { envelope: other.envelope }))).status).toBe(400);
     expect((await request('/complete', await completeBody(identity, body, credentialId, { challengeHex: 'ab'.repeat(32) }))).status).toBe(401);

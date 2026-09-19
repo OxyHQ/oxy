@@ -82,7 +82,10 @@ export interface IdentityApi {
     envelope: WebIdentityEnvelope;
     proof: IdentityProof;
   }): Promise<CarrierAccount>;
-  createMove(initiatorEphemeralPublicKey: string): Promise<IdentityMoveCreateResponse>;
+  /** Version 2: publish only the commitment to the ephemeral key. */
+  createMove(initiatorCommitment: string): Promise<IdentityMoveCreateResponse>;
+  /** Version 2: reveal the committed key, after Commons joined. */
+  revealMove(moveId: string, initiatorEphemeralPublicKey: string, commitmentNonce: string): Promise<IdentityMoveState>;
   getMove(moveId: string): Promise<IdentityMoveState>;
   sealMove(moveId: string, body: IdentityMoveSealRequest): Promise<IdentityMoveState>;
   cancelMove(moveId: string): Promise<void>;
@@ -166,8 +169,16 @@ export function createIdentityApi(baseURL: string): IdentityApi {
       oxy.setTokens(result.accessToken);
       return resolveAccount(result);
     },
-    createMove(initiatorEphemeralPublicKey) {
-      return oxy.makeRequest<IdentityMoveCreateResponse>('POST', '/identity/move', { initiatorEphemeralPublicKey }, { cache: false });
+    createMove(initiatorCommitment) {
+      return oxy.makeRequest<IdentityMoveCreateResponse>('POST', '/identity/move', { initiatorCommitment }, { cache: false });
+    },
+    revealMove(moveId, initiatorEphemeralPublicKey, commitmentNonce) {
+      return oxy.makeRequest<IdentityMoveState>(
+        'POST',
+        `/identity/move/${encodeURIComponent(moveId)}/reveal`,
+        { initiatorEphemeralPublicKey, commitmentNonce },
+        { cache: false },
+      );
     },
     getMove(moveId) {
       return oxy.makeRequest<IdentityMoveState>('GET', `/identity/move/${encodeURIComponent(moveId)}`, undefined, { cache: false });

@@ -31,7 +31,6 @@ export const defaultDeviceSwitcher = () => ({
 
 export const defaultUseOxyValue = {
     handleWebSession: async () => undefined,
-    registerWithPasskey: async () => undefined,
     openAccountDialog: () => undefined,
     oxyServices: {
         lookupUsername: async () => ({ username: "", name: {}, avatar: null, color: null }),

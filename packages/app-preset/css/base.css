@@ -61,14 +61,14 @@
    restatement is not a re-skin, it is what stops NativeWind's own unlayered default
    from overriding Bloom. Do not "tidy" it away. */
 :root {
-  --font-sans: var(--bloom-font-sans, BlomusModernus, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  --font-sans: var(--bloom-font-sans, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 
   @media ios {
-    --font-sans: BlomusModernus;
+    --font-sans: Inter;
   }
 
   @media android {
-    --font-sans: BlomusModernus;
+    --font-sans: Inter;
   }
 }
 

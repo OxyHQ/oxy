@@ -61,6 +61,7 @@ import { AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeo
 
 // Import mixin composition helper
 import { composeOxyServices } from './mixins';
+import type { OxyAuthRefusal } from './mixins/OxyServices.utility';
 
 /**
  * OxyServices - Unified client library for interacting with the Oxy API
@@ -120,11 +121,18 @@ export interface OxyServices extends InstanceType<ReturnType<typeof composeOxySe
   createLinkedClient(config: OxyConfig): LinkedHttpClient;
 
   // Express.js middleware
+  //
+  // This list is the one CONSUMERS see: `OxyAuthMiddlewareOptions` in
+  // `server/auth.ts` is `Parameters<OxyServices['auth']>[0]`, so an option that
+  // exists on the mixin and not here does not exist for anybody outside this
+  // package. `onRefusal` shipped in 1.5.0 exactly that way — present in the
+  // implementation, invisible to every host that tried to pass it.
   auth(options?: {
     debug?: boolean;
     onError?: (error: unknown) => unknown;
     loadUser?: boolean;
     optional?: boolean;
+    onRefusal?: (refusal: OxyAuthRefusal) => void;
     serviceTokenJwksUrl?: string;
     jwtSecret?: string;
     expectedIssuer?: string;
@@ -139,6 +147,7 @@ export interface OxyServices extends InstanceType<ReturnType<typeof composeOxySe
   // Service-token-only middleware (delegates to auth() internally)
   serviceAuth(options?: {
     debug?: boolean;
+    onRefusal?: (refusal: OxyAuthRefusal) => void;
     serviceTokenJwksUrl?: string;
     jwtSecret?: string;
     expectedIssuer?: string;

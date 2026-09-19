@@ -1,18 +1,18 @@
 /**
- * Web identity carrier — the crypto of "one identity, two carriers".
+ * Web identity holder — the crypto of a browser holding a personal root (ADR 0024).
  *
  * An Oxy root is usually a BIP-39 mnemonic whose seed's first 32 bytes are the
  * secp256k1 key (`recoveryPhrase.ts`), and for a few imported identities a raw
  * private key with no phrase. Commons keeps it in the device keychain. This
  * module lets a browser hold the SAME root without Oxy ever being able to use it:
  *
- *   secret  ──AEAD(DEK)──▶ sealed secret        (v1: 12-word entropy; v2: entropy or raw key)
+    secret  ──AEAD(DEK)──▶ sealed secret        (phrase entropy or raw key)
  *   DEK     ──AEAD(KEK_i)─▶ wraps[i]            KEK_i = HKDF(PRF output of passkey i)
  *
  * The PRF output is produced inside the user's authenticator, behind user
  * verification, and never leaves the page that asked for it. The envelope is
- * therefore safe to store anywhere — the identity origin's IndexedDB and the
- * server copy alike — and opens only with a registered passkey or the phrase.
+ * therefore safe to store anywhere — the holder host's IndexedDB and the server
+ * copy alike — and opens only with a registered passkey or the recovery material.
  *
  * PURE: no storage, no network, no WebAuthn call, no platform globals beyond the
  * CSPRNG the AEAD polyfill guarantees. The caller runs the ceremony and hands the
@@ -27,12 +27,10 @@ import { entropyToMnemonic, generateMnemonic, mnemonicToEntropy, mnemonicToSeedS
 import { wordlist } from '@scure/bip39/wordlists/english';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex, hexToBytes, utf8ToBytes } from '@noble/hashes/utils';
-import { signMessage } from '@oxy.so/protocol';
 import { deriveSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import {
   WEB_IDENTITY_ENVELOPE_VERSION,
   type WebIdentityEnvelope,
-  type WebIdentityEnvelopeVersion,
   type WebIdentitySecretKind,
   type WebIdentityWrap,
 } from '@oxy.so/contracts';
@@ -107,27 +105,12 @@ function aadFor(parts: Record<string, string | number | null>): Uint8Array {
   return utf8ToBytes(JSON.stringify(parts));
 }
 
-/** Version-1 AAD: byte-identical to what every existing v1 envelope was sealed with. */
-function entropyAadV1(publicKey: string): Uint8Array {
-  return aadFor({ v: 1, purpose: 'entropy', publicKey });
+function secretAad(publicKey: string, secretKind: WebIdentitySecretKind): Uint8Array {
+  return aadFor({ v: WEB_IDENTITY_ENVELOPE_VERSION, purpose: 'secret', secretKind, publicKey });
 }
 
-function wrapAadV1(publicKey: string, credentialId: string): Uint8Array {
-  return aadFor({ v: 1, purpose: 'wrap', publicKey, credentialId });
-}
-
-function secretAadV2(publicKey: string, secretKind: WebIdentitySecretKind): Uint8Array {
-  return aadFor({ v: 2, purpose: 'secret', secretKind, publicKey });
-}
-
-function wrapAadV2(publicKey: string, credentialId: string, rpId: string | null): Uint8Array {
-  return aadFor({ v: 2, purpose: 'wrap', publicKey, credentialId, rpId });
-}
-
-function wrapAad(envelope: Pick<WebIdentityEnvelope, 'version' | 'publicKey'>, credentialId: string, rpId: string | null): Uint8Array {
-  return envelope.version === 1
-    ? wrapAadV1(envelope.publicKey, credentialId)
-    : wrapAadV2(envelope.publicKey, credentialId, rpId);
+function wrapAad(publicKey: string, credentialId: string, rpId: string): Uint8Array {
+  return aadFor({ v: WEB_IDENTITY_ENVELOPE_VERSION, purpose: 'wrap', publicKey, credentialId, rpId });
 }
 
 /** Overwrite a buffer holding secret material. Best effort — JS gives no stronger guarantee. */
@@ -228,47 +211,32 @@ export function deriveKeyEncryptionKey(prfOutput: Uint8Array, credentialId: stri
 export interface WrapInput {
   prfOutput: Uint8Array;
   credentialId: string;
-  /** The RP ID the passkey lives under. Bound into version-2 wraps; recorded on every wrap. */
-  rpId?: string;
+  /** The RP ID the passkey lives under; bound into the wrap. */
+  rpId: string;
   /** Set when this PRF output came from a ceremony separate from the one that created the wrap. */
   verifiedAt?: string;
 }
 
 function wrapFor(
-  envelope: Pick<WebIdentityEnvelope, 'version' | 'publicKey'>,
+  publicKey: string,
   dataKey: Uint8Array,
   input: WrapInput,
   now: Date,
 ): WebIdentityWrap {
   const kek = deriveKeyEncryptionKey(input.prfOutput, input.credentialId);
   try {
-    const { nonce, ciphertext } = encryptAead(kek, dataKey, wrapAad(envelope, input.credentialId, input.rpId ?? null));
+    const { nonce, ciphertext } = encryptAead(kek, dataKey, wrapAad(publicKey, input.credentialId, input.rpId));
     return {
       credentialId: input.credentialId,
       nonce: bytesToHex(nonce),
       wrappedKey: bytesToHex(ciphertext),
       createdAt: now.toISOString(),
-      ...(input.rpId ? { rpId: input.rpId } : {}),
+      rpId: input.rpId,
       ...(input.verifiedAt ? { verifiedAt: input.verifiedAt } : {}),
     };
   } finally {
     wipeBytes(kek);
   }
-}
-
-/**
- * Wrap `dataKey` for one passkey of a version-1 envelope.
- *
- * @deprecated Kept for version-1 callers; use {@link addWrap}.
- */
-export function wrapDataKey(
-  dataKey: Uint8Array,
-  prfOutput: Uint8Array,
-  credentialId: string,
-  publicKey: string,
-  now: Date = new Date(),
-): WebIdentityWrap {
-  return wrapFor({ version: 1, publicKey }, dataKey, { prfOutput, credentialId }, now);
 }
 
 function secretOf(identity: OpenedWebIdentity): { kind: WebIdentitySecretKind; bytes: Uint8Array } {
@@ -281,58 +249,39 @@ function secretOf(identity: OpenedWebIdentity): { kind: WebIdentitySecretKind; b
 /**
  * Seal an identity into a new envelope that opens with the given passkey.
  *
- * `version` defaults to {@link WEB_IDENTITY_ENVELOPE_VERSION}. Version 1 can only
- * carry a 12-word phrase; anything else needs version 2.
- *
  * Returns the data key too, so the caller can add further wraps in the same
  * session; wipe it when done.
  */
 export function sealWebIdentity(
-  identity: OpenedWebIdentity | Pick<OpenedMnemonicIdentity, 'mnemonic' | 'publicKey'>,
+  identity: OpenedWebIdentity,
   firstWrap: WrapInput,
   now: Date = new Date(),
-  options: { version?: WebIdentityEnvelopeVersion } = {},
 ): { envelope: WebIdentityEnvelope; dataKey: Uint8Array } {
   const derived: OpenedWebIdentity =
-    'kind' in identity && identity.kind === 'raw-key'
-      ? deriveIdentityFromPrivateKey(identity.privateKey)
-      : deriveIdentityFromMnemonic((identity as { mnemonic: string }).mnemonic);
-  if (derived.publicKey !== identity.publicKey.toLowerCase()) {
+    identity.kind === 'raw-key' ? deriveIdentityFromPrivateKey(identity.privateKey) : deriveIdentityFromMnemonic(identity.mnemonic);
+  const publicKey = identity.publicKey.toLowerCase();
+  if (derived.publicKey !== publicKey) {
+    wipeOpenedIdentity(derived);
     throw new Error('The recovery material does not belong to this identity');
   }
-  const version = options.version ?? WEB_IDENTITY_ENVELOPE_VERSION;
   const secret = secretOf(derived);
   wipeOpenedIdentity(derived);
   const dataKey = generateDataKey();
   try {
-    if (version === 1) {
-      if (secret.kind !== 'mnemonic-entropy' || secret.bytes.length !== 16) {
-        wipeBytes(dataKey);
-        throw new Error('A version-1 envelope carries only a 12-word phrase');
-      }
-      const { nonce, ciphertext } = encryptAead(dataKey, secret.bytes, entropyAadV1(identity.publicKey.toLowerCase()));
-      const base = { version: 1 as const, publicKey: identity.publicKey.toLowerCase() };
-      const envelope: WebIdentityEnvelope = {
-        ...base,
-        algorithm: 'xchacha20poly1305',
-        entropyNonce: bytesToHex(nonce),
-        sealedEntropy: bytesToHex(ciphertext),
-        wraps: [wrapFor(base, dataKey, firstWrap, now)],
-      };
-      return { envelope, dataKey };
-    }
-    const publicKey = identity.publicKey.toLowerCase();
-    const { nonce, ciphertext } = encryptAead(dataKey, secret.bytes, secretAadV2(publicKey, secret.kind));
-    const base = { version: 2 as const, publicKey };
+    const { nonce, ciphertext } = encryptAead(dataKey, secret.bytes, secretAad(publicKey, secret.kind));
     const envelope: WebIdentityEnvelope = {
-      ...base,
+      version: WEB_IDENTITY_ENVELOPE_VERSION,
       algorithm: 'xchacha20poly1305',
+      publicKey,
       secretKind: secret.kind,
       secretNonce: bytesToHex(nonce),
       sealedSecret: bytesToHex(ciphertext),
-      wraps: [wrapFor(base, dataKey, firstWrap, now)],
+      wraps: [wrapFor(publicKey, dataKey, firstWrap, now)],
     };
     return { envelope, dataKey };
+  } catch (error) {
+    wipeBytes(dataKey);
+    throw error;
   } finally {
     wipeBytes(secret.bytes);
   }
@@ -350,7 +299,7 @@ export function unwrapDataKey(
   }
   const kek = deriveKeyEncryptionKey(prfOutput, credentialId);
   try {
-    return decryptAead(kek, hexToBytes(wrap.nonce), hexToBytes(wrap.wrappedKey), wrapAad(envelope, credentialId, wrap.rpId ?? null));
+    return decryptAead(kek, hexToBytes(wrap.nonce), hexToBytes(wrap.wrappedKey), wrapAad(envelope.publicKey, credentialId, wrap.rpId));
   } catch {
     throw new WebIdentityUnlockError('prf-mismatch', 'This passkey returned a different secret than when it was registered');
   } finally {
@@ -366,16 +315,10 @@ export function unwrapDataKey(
  */
 export function openWebIdentity(envelope: WebIdentityEnvelope, dataKey: Uint8Array): OpenedWebIdentity {
   const publicKey = envelope.publicKey.toLowerCase();
+  const kind = envelope.secretKind;
   let secret: Uint8Array;
-  let kind: WebIdentitySecretKind;
   try {
-    if (envelope.version === 1) {
-      kind = 'mnemonic-entropy';
-      secret = decryptAead(dataKey, hexToBytes(envelope.entropyNonce), hexToBytes(envelope.sealedEntropy), entropyAadV1(envelope.publicKey));
-    } else {
-      kind = envelope.secretKind;
-      secret = decryptAead(dataKey, hexToBytes(envelope.secretNonce), hexToBytes(envelope.sealedSecret), secretAadV2(envelope.publicKey, envelope.secretKind));
-    }
+    secret = decryptAead(dataKey, hexToBytes(envelope.secretNonce), hexToBytes(envelope.sealedSecret), secretAad(envelope.publicKey, kind));
   } catch {
     throw new WebIdentityUnlockError('corrupt', 'The sealed identity could not be opened');
   }
@@ -413,28 +356,15 @@ export function unlockWebIdentity(
   }
 }
 
-/**
- * Add (or replace) one passkey's wrap. Requires the data key of an unlocked
- * envelope. Accepts the legacy positional form `(envelope, dataKey, prfOutput,
- * credentialId, now)` as well as a {@link WrapInput}.
- */
-export function addWrap(
-  envelope: WebIdentityEnvelope,
-  dataKey: Uint8Array,
-  input: WrapInput | Uint8Array,
-  credentialIdOrNow?: string | Date,
-  maybeNow?: Date,
-): WebIdentityEnvelope {
-  const wrapInput: WrapInput =
-    input instanceof Uint8Array ? { prfOutput: input, credentialId: credentialIdOrNow as string } : input;
-  const now = (input instanceof Uint8Array ? maybeNow : (credentialIdOrNow as Date | undefined)) ?? new Date();
+/** Add (or replace) one passkey's wrap. Requires the data key of an unlocked envelope. */
+export function addWrap(envelope: WebIdentityEnvelope, dataKey: Uint8Array, wrapInput: WrapInput, now: Date = new Date()): WebIdentityEnvelope {
   // Proves `dataKey` belongs to THIS envelope before anything new can open it.
   wipeOpenedIdentity(openWebIdentity(envelope, dataKey));
   const others = envelope.wraps.filter((entry) => entry.credentialId !== wrapInput.credentialId);
   return {
     ...envelope,
-    wraps: [...others, wrapFor(envelope, dataKey, wrapInput, now)],
-  } as WebIdentityEnvelope;
+    wraps: [...others, wrapFor(envelope.publicKey, dataKey, wrapInput, now)],
+  };
 }
 
 /**
@@ -451,7 +381,7 @@ export function markWrapVerified(envelope: WebIdentityEnvelope, credentialId: st
     wraps: envelope.wraps.map((entry) =>
       entry.credentialId === credentialId ? { ...entry, verifiedAt: now.toISOString() } : entry,
     ),
-  } as WebIdentityEnvelope;
+  };
 }
 
 /** Remove one passkey's wrap. The last wrap can never be removed — an envelope nobody can open is a loss. */
@@ -460,51 +390,5 @@ export function removeWrap(envelope: WebIdentityEnvelope, credentialId: string):
   if (remaining.length === 0) {
     throw new Error('An identity envelope must keep at least one passkey');
   }
-  return { ...envelope, wraps: remaining } as WebIdentityEnvelope;
-}
-
-/**
- * The message an identity key signs to authorize an account action
- * (`link_identity`, `web_envelope_delete`, …): `JSON.stringify({ action, userId,
- * timestamp })`, byte-identical to what the API reconstructs.
- */
-export function buildIdentityActionMessage(action: string, userId: string, timestamp: number): string {
-  return JSON.stringify({ action, userId, timestamp });
-}
-
-/** Sign an identity-action message with an opened identity's key. */
-export async function signIdentityAction(
-  identity: Pick<OpenedWebIdentity, 'privateKey'>,
-  action: string,
-  userId: string,
-  timestamp: number = Date.now(),
-): Promise<{ signature: string; timestamp: number }> {
-  const signature = await signMessage(buildIdentityActionMessage(action, userId, timestamp), identity.privateKey);
-  return { signature, timestamp };
-}
-
-/**
- * The 6-digit short authentication string both sides of an identity transfer show.
- *
- * Bound to the pairing and to BOTH ephemeral public keys in their roles, so a relay
- * that substitutes either key produces a different code on each screen. The user
- * comparing the two codes is what makes the transfer safe against the relay itself.
- */
-export function deriveTransferSas(input: {
-  pairingId: string;
-  initiatorEphemeralPublicKey: string;
-  responderEphemeralPublicKey: string;
-}): string {
-  const digest = sha256(
-    utf8ToBytes(
-      JSON.stringify({
-        v: 'oxy-identity-transfer-sas-v1',
-        pairingId: input.pairingId.toLowerCase(),
-        initiator: input.initiatorEphemeralPublicKey.toLowerCase(),
-        responder: input.responderEphemeralPublicKey.toLowerCase(),
-      }),
-    ),
-  );
-  const value = ((digest[0] << 24) | (digest[1] << 16) | (digest[2] << 8) | digest[3]) >>> 0;
-  return String(value % 1_000_000).padStart(6, '0');
+  return { ...envelope, wraps: remaining };
 }

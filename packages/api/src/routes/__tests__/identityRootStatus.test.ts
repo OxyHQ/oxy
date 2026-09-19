@@ -66,7 +66,7 @@ it('reports a root kept elsewhere, and a web holder by its passkey counts — ne
   currentUserId = row.id;
   expect((await status()).body).toMatchObject({ rootLinked: true, webHolder: null });
 
-  const { envelope, dataKey } = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(1), credentialId: 'credential-aaaaaaaaaaaaaaaa' }, new Date(), { version: 2 });
+  const { envelope, dataKey } = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(1), credentialId: 'credential-aaaaaaaaaaaaaaaa', rpId: 'oxy.so' });
   dataKey.fill(0);
   const verified = markWrapVerified(envelope, 'credential-aaaaaaaaaaaaaaaa');
   await getDb().insert(identityWebEnvelopes).values({ userId: row.id, ...envelopeColumns(verified, identity.publicKey), phraseConfirmedAt: new Date() });
@@ -75,14 +75,14 @@ it('reports a root kept elsewhere, and a web holder by its passkey counts — ne
   expect(res.body).toMatchObject({ rootLinked: true, webHolder: { passkeys: 1, verifiedPasskeys: 1 }, hasPhrase: true, phraseConfirmedAt: expect.any(String), recoveryVerifiedAt: null });
   const serialized = JSON.stringify(res.body);
   expect(serialized).not.toContain(verified.wraps[0].wrappedKey);
-  expect(serialized).not.toContain(verified.version === 2 ? verified.sealedSecret : '');
+  expect(serialized).not.toContain(verified.sealedSecret);
 });
 
 it('ignores a web holder sealing a root the account no longer has', async () => {
   const identity = generateWebIdentity();
   const [row] = await getDb().insert(users).values({ publicKey: generateWebIdentity().publicKey }).returning({ id: users.id });
   currentUserId = row.id;
-  const { envelope, dataKey } = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(1), credentialId: 'credential-aaaaaaaaaaaaaaaa' }, new Date(), { version: 2 });
+  const { envelope, dataKey } = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(1), credentialId: 'credential-aaaaaaaaaaaaaaaa', rpId: 'oxy.so' });
   dataKey.fill(0);
   await getDb().insert(identityWebEnvelopes).values({ userId: row.id, ...envelopeColumns(envelope, identity.publicKey) });
   expect((await status()).body).toMatchObject({ rootLinked: true, webHolder: null, hasPhrase: null });

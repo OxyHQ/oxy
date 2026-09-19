@@ -1,22 +1,26 @@
 import {
   deriveMoveKey,
   deriveMoveSas,
+  digestMoveCiphertext,
   generateMoveEphemeralKeyPair,
-  IDENTITY_MOVE_ACTIONS,
   openMovedIdentity,
-  signMoveAction,
+  signMoveReceipt,
+  verifyMoveCommitment,
   type OpenedMnemonicIdentity,
 } from '@oxy.so/core';
 import type { IdentityMoveState } from '@oxy.so/contracts';
 
 /**
- * Receiving an identity moved from the web (`id.oxy.so`) — the Commons side.
+ * Receiving an identity from the web — the Commons side (ADR 0024 D6).
  *
- * The web shows a QR carrying only a move id. This device joins with a fresh
- * ephemeral key, both screens show the same 6-digit code, and once the person
- * confirms on the web the identity arrives sealed to this device's key. After
- * the identity is stored here, a receipt signed with the identity key tells the
- * web it may destroy its copy.
+ * The web shows a QR carrying only a move id. This device reads the move — whose
+ * web key is hidden behind a commitment — and joins with a fresh ephemeral key.
+ * Only then does the web reveal its key; this device shows the 6-digit code only
+ * once that key opens the commitment it read BEFORE choosing its own. A relay
+ * therefore cannot grind substituted keys until both codes agree. After the
+ * person confirms on the web, the identity arrives sealed to this device's key,
+ * is stored, and a receipt signed with the key READ BACK from storage tells the
+ * web it arrived.
  *
  * Every read re-checks that the move still names the keys this device joined
  * with, so a relay that swaps a key mid-move gets nothing opened or imported.
@@ -26,7 +30,7 @@ import type { IdentityMoveState } from '@oxy.so/contracts';
 export interface MoveRelay {
   getMove(moveId: string): Promise<IdentityMoveState>;
   joinMove(moveId: string, responderEphemeralPublicKey: string): Promise<IdentityMoveState>;
-  postReceipt(moveId: string, receipt: { signature: string; timestamp: number }): Promise<IdentityMoveState>;
+  postReceipt(moveId: string, receipt: { signature: string }): Promise<IdentityMoveState>;
 }
 
 type RequestClient = {
@@ -49,10 +53,15 @@ export interface IncomingMove {
   moveId: string;
   /** The identity being moved, as declared when the web started the move. */
   publicKey: string;
-  initiatorEphemeralPublicKey: string;
+  /** The commitment read before joining. */
+  initiatorCommitment: string;
+  /** The web's key, once revealed AND shown to open the commitment. */
+  initiatorEphemeralPublicKey: string | null;
   ephemeral: { privateKey: string; publicKey: string };
-  /** The code to compare with the web screen. */
-  sas: string;
+  /** The code to compare with the web screen; `null` until it can be computed honestly. */
+  sas: string | null;
+  /** The digest of the ciphertext this device opened, bound into the receipt. */
+  ciphertextDigest?: string;
 }
 
 export class MoveError extends Error {
@@ -65,8 +74,22 @@ export class MoveError extends Error {
   }
 }
 
-/** Join the move in a scanned QR and compute the code to compare. */
+/** Read the move, then join it with a fresh key. The code comes later, from {@link awaitCode}. */
 export async function joinMove(relay: MoveRelay, moveId: string): Promise<IncomingMove> {
+  let before: IdentityMoveState;
+  try {
+    before = await relay.getMove(moveId);
+  } catch (error) {
+    throw new MoveError('unavailable', error instanceof Error ? error.message : 'This code can no longer be used');
+  }
+  if (before.moveId !== moveId || before.status !== 'pending') {
+    throw new MoveError('unavailable', 'This code can no longer be used');
+  }
+  if (!before.initiatorCommitment || before.initiatorEphemeralPublicKey !== null) {
+    // A key that is already public was not committed to first.
+    throw new MoveError('tampered', 'The move could not be verified');
+  }
+
   const ephemeral = generateMoveEphemeralKeyPair();
   let state: IdentityMoveState;
   try {
@@ -74,18 +97,56 @@ export async function joinMove(relay: MoveRelay, moveId: string): Promise<Incomi
   } catch (error) {
     throw new MoveError('unavailable', error instanceof Error ? error.message : 'This code can no longer be used');
   }
-  // A move whose initiator key is not public at join is a protocol this build
-  // does not speak (version 2 hides it until later): refuse rather than guess.
-  if (state.moveId !== moveId || state.status !== 'joined' || state.responderEphemeralPublicKey !== ephemeral.publicKey || !state.initiatorEphemeralPublicKey) {
+  if (
+    state.moveId !== moveId ||
+    state.status !== 'joined' ||
+    state.responderEphemeralPublicKey !== ephemeral.publicKey ||
+    state.publicKey !== before.publicKey ||
+    state.initiatorCommitment !== before.initiatorCommitment
+  ) {
     throw new MoveError('tampered', 'The move could not be verified');
   }
   return {
     moveId,
     publicKey: state.publicKey,
-    initiatorEphemeralPublicKey: state.initiatorEphemeralPublicKey,
+    initiatorCommitment: before.initiatorCommitment,
+    initiatorEphemeralPublicKey: null,
     ephemeral,
-    sas: deriveMoveSas(moveId, state.initiatorEphemeralPublicKey, ephemeral.publicKey),
+    sas: null,
   };
+}
+
+/**
+ * Once the web revealed its key, check it against the commitment read before
+ * joining and compute the code. Returns `true` when the code is ready, `false`
+ * while the web has not revealed yet.
+ */
+export async function awaitCode(relay: MoveRelay, move: IncomingMove): Promise<boolean> {
+  if (move.sas) return true;
+  const state = await relay.getMove(move.moveId);
+  if (
+    state.moveId !== move.moveId ||
+    state.publicKey !== move.publicKey ||
+    state.responderEphemeralPublicKey !== move.ephemeral.publicKey ||
+    state.initiatorCommitment !== move.initiatorCommitment
+  ) {
+    throw new MoveError('tampered', 'The move could not be verified');
+  }
+  if (state.status !== 'joined' && state.status !== 'sealed') {
+    throw new MoveError('ended', 'The move was cancelled or expired');
+  }
+  if (!state.initiatorEphemeralPublicKey) return false;
+  if (!state.initiatorCommitmentNonce || !verifyMoveCommitment(state.initiatorEphemeralPublicKey, state.initiatorCommitmentNonce, move.initiatorCommitment)) {
+    throw new MoveError('tampered', 'The move could not be verified');
+  }
+  move.initiatorEphemeralPublicKey = state.initiatorEphemeralPublicKey;
+  move.sas = deriveMoveSas({
+    moveId: move.moveId,
+    initiatorEphemeralPublicKey: state.initiatorEphemeralPublicKey,
+    responderEphemeralPublicKey: move.ephemeral.publicKey,
+    initiatorCommitment: move.initiatorCommitment,
+  });
+  return true;
 }
 
 /**
@@ -94,12 +155,16 @@ export async function joinMove(relay: MoveRelay, moveId: string): Promise<Incomi
  * while the person has not confirmed yet.
  */
 export async function receiveIdentity(relay: MoveRelay, move: IncomingMove): Promise<OpenedMnemonicIdentity | null> {
+  if (!move.initiatorEphemeralPublicKey || !move.sas) {
+    throw new MoveError('tampered', 'The move could not be verified');
+  }
   const state = await relay.getMove(move.moveId);
   if (
     state.moveId !== move.moveId ||
     state.publicKey !== move.publicKey ||
     state.initiatorEphemeralPublicKey !== move.initiatorEphemeralPublicKey ||
-    state.responderEphemeralPublicKey !== move.ephemeral.publicKey
+    state.responderEphemeralPublicKey !== move.ephemeral.publicKey ||
+    state.initiatorCommitment !== move.initiatorCommitment
   ) {
     throw new MoveError('tampered', 'The move could not be verified');
   }
@@ -109,7 +174,9 @@ export async function receiveIdentity(relay: MoveRelay, move: IncomingMove): Pro
   }
   const moveKey = deriveMoveKey(move.ephemeral.privateKey, move.initiatorEphemeralPublicKey, move.moveId);
   try {
-    return openMovedIdentity({ nonce: state.nonce, ciphertext: state.ciphertext }, moveKey, move.moveId, move.publicKey);
+    const identity = openMovedIdentity({ nonce: state.nonce, ciphertext: state.ciphertext }, moveKey, move.moveId, move.publicKey);
+    move.ciphertextDigest = digestMoveCiphertext({ nonce: state.nonce, ciphertext: state.ciphertext });
+    return identity;
   } catch {
     throw new MoveError('tampered', 'The identity could not be opened');
   } finally {
@@ -117,9 +184,23 @@ export async function receiveIdentity(relay: MoveRelay, move: IncomingMove): Pro
   }
 }
 
-/** Tell the web this device holds the identity, proven with the identity key. */
-export async function confirmReceived(relay: MoveRelay, move: IncomingMove, identity: Pick<OpenedMnemonicIdentity, 'privateKey'>): Promise<void> {
-  const receipt = await signMoveAction(identity, IDENTITY_MOVE_ACTIONS.received, move.moveId);
+/**
+ * Tell the web this device holds the identity: a receipt over the move, the root,
+ * both keys and the ciphertext it opened, signed by `signWithStoredKey` — a signer
+ * that reads the key back from this device's keychain. A receipt therefore exists
+ * only for a root that was actually stored and re-read.
+ */
+export async function confirmReceived(relay: MoveRelay, move: IncomingMove, signWithStoredKey: (message: string) => Promise<string>): Promise<void> {
+  if (!move.initiatorEphemeralPublicKey || !move.ciphertextDigest) {
+    throw new MoveError('tampered', 'The move could not be verified');
+  }
+  const receipt = await signMoveReceipt(signWithStoredKey, {
+    moveId: move.moveId,
+    rootPublicKey: move.publicKey,
+    initiatorEphemeralPublicKey: move.initiatorEphemeralPublicKey,
+    responderEphemeralPublicKey: move.ephemeral.publicKey,
+    ciphertextDigest: move.ciphertextDigest,
+  });
   await relay.postReceipt(move.moveId, receipt);
 }
 

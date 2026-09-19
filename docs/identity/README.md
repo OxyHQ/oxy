@@ -6,7 +6,7 @@
 > engine is in `@oxy.so/api`; the crypto + SDK surface is in `@oxy.so/core`; wire
 > types are in `@oxy.so/contracts`.
 >
-> Related: [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
+> Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
 > [External identities and aliases](external-identities.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
 
 ---
@@ -203,14 +203,14 @@ capped at `MAX_LOG_LIMIT = 500`.
 (`verificationMethodId` is present only for `identity` and links to a DID VM
 fragment).
 
-- `linkIdentityKey()` — native-only; signs a JSON proof with the on-device key →
-  `POST /auth/link`. Makes the DID self-sovereign.
-- `linkPassword(email, password)` → `POST /auth/link`.
-- `unlinkAuthMethod(type)` → `DELETE /auth/link/:type`; refuses to remove the last
-  remaining method. Reverts the DID to custodial if the last `identity` key is
-  removed.
+- `POST /auth/link` — first link of a root only (ADR 0024 D8): a root proof,
+  plus a fresh passkey assertion for a keyless account. Clients reach it through
+  the holder flow on `id.oxy.so` (web) or Commons (native), not an SDK method.
+- `removePasskey(credentialId)` → `DELETE /auth/link/webauthn/:id`; refuses to
+  drop the last web holder wrap.
+- A root is never unlinked; it is replaced only by `rotateKey()`.
 
-Every link/unlink invalidates the identity caches (`_invalidateIdentityCaches`:
+Every identity mutation invalidates the identity caches (`_invalidateIdentityCaches`:
 `GET:/users/me*`, `GET:/auth/methods`, `GET:/identity/domains`, the DID doc).
 
 ---

@@ -49,6 +49,8 @@ export {
     USERNAME_MAX_LENGTH,
     USERNAME_INVALID_MESSAGE,
     BOT_USERNAME_INVALID_MESSAGE,
+    RESERVED_USERNAME_MESSAGE,
+    NUMERIC_USERNAME_MESSAGE,
 } from './username';
 
 export {
@@ -579,20 +581,16 @@ export type {
 export {
     // Schemas — web identity carrier (one identity, two carriers)
     WEB_IDENTITY_ENVELOPE_VERSION,
-    WEB_IDENTITY_ENVELOPE_VERSIONS,
     WEB_IDENTITY_SECRET_KINDS,
     webIdentityPublicKeySchema,
     webauthnCredentialIdSchema,
     webauthnRpIdSchema,
     webIdentityWrapSchema,
-    webIdentityEnvelopeV1Schema,
-    webIdentityEnvelopeV2Schema,
     webIdentityEnvelopeSchema,
     webIdentityEnvelopeUploadSchema,
     webIdentityHolderSchema,
     webIdentityEnvelopeResponseSchema,
-    webIdentityEnvelopeProofSchema,
-    webIdentityEnvelopeV2ProofFieldsSchema,
+    webIdentityEnvelopeProofFieldsSchema,
     webIdentityEnvelopeActionSchema,
     webIdentityEnvelopePutSchema,
     webauthnAssertionResponseSchema,
@@ -643,13 +641,12 @@ export {
     IDENTITY_MOVE_TTL_MS,
     IDENTITY_MOVE_STATUSES,
     IDENTITY_MOVE_QR_PREFIX,
-    IDENTITY_MOVE_PROTOCOL_VERSION,
-    IDENTITY_MOVE_PROTOCOL_VERSIONS,
     identityMoveRevealRequestSchema,
     buildMoveCommitmentInput,
-    buildMoveSasInputV2,
+    buildMoveSasInput,
+    buildMoveSealPayload,
     buildMoveCiphertextDigestInput,
-    buildMoveReceiptMessageV2,
+    buildMoveReceiptMessage,
     identityMoveIdSchema,
     identityMoveEphemeralKeySchema,
     identityMoveCreateRequestSchema,
@@ -668,23 +665,18 @@ export type {
     IdentityMoveSealRequest,
     IdentityMoveReceiptRequest,
     IdentityMoveRevealRequest,
-    IdentityMoveProtocolVersion,
     IdentityMoveState,
 } from './identityMove';
 
 export type {
     WebIdentityWrap,
     WebIdentityEnvelope,
-    WebIdentityEnvelopeV1,
-    WebIdentityEnvelopeV2,
-    WebIdentityEnvelopeVersion,
     WebIdentitySecretKind,
     WebIdentityHolder,
     WebIdentityEnvelopeAction,
     WebauthnAssertionResponse,
     WebIdentityEnvelopeUpload,
     WebIdentityEnvelopeResponse,
-    WebIdentityEnvelopeProof,
     WebIdentityEnvelopePut,
     WebIdentityEnvelopeEstablish,
 } from './webIdentityCarrier';
@@ -762,27 +754,6 @@ export type {
     WebauthnRegisterVerifyRequest,
     WebauthnLoginVerifyRequest,
 } from './webauthn';
-
-export {
-    // Schemas
-    devicePairingStatusSchema,
-    deviceTransferInitRequestSchema,
-    deviceTransferInitResponseSchema,
-    deviceTransferInfoResponseSchema,
-    deviceTransferApproveRequestSchema,
-    deviceTransferApproveResponseSchema,
-    deviceTransferDenyResponseSchema,
-} from './devicePairing';
-
-export type {
-    DevicePairingStatus,
-    DeviceTransferInitRequest,
-    DeviceTransferInitResponse,
-    DeviceTransferInfoResponse,
-    DeviceTransferApproveRequest,
-    DeviceTransferApproveResponse,
-    DeviceTransferDenyResponse,
-} from './devicePairing';
 
 export {
     // Schemas — transparency log (checkpoints + inclusion proofs)
@@ -1053,6 +1024,7 @@ export {
     responseFormatSchema,
     clientRequestMetadataSchema,
     inferenceRequestSchema,
+    inferenceSpeechParametersSchema,
 } from './inference/request';
 
 export type {
@@ -1068,12 +1040,16 @@ export type {
     ResponseFormat,
     ClientRequestMetadata,
     InferenceRequest,
+    InferenceSpeechParameters,
 } from './inference/request';
 
 export {
     // Normalized SSE events.
     inferenceStreamStartEventSchema,
     inferenceStreamDeltaEventSchema,
+    inferenceAudioMediaTypeSchema,
+    MAX_INFERENCE_AUDIO_BYTES,
+    inferenceStreamAudioEventSchema,
     inferenceStreamToolCallEventSchema,
     inferenceStreamUsageEventSchema,
     inferenceRouteSwitchDetailSchema,
@@ -1088,6 +1064,8 @@ export {
 export type {
     InferenceStreamStartEvent,
     InferenceStreamDeltaEvent,
+    InferenceAudioMediaType,
+    InferenceStreamAudioEvent,
     InferenceStreamToolCallEvent,
     InferenceStreamUsageEvent,
     InferenceRouteSwitchDetail,

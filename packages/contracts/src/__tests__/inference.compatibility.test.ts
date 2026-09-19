@@ -149,6 +149,7 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   // Stream events
   inferenceStreamStartEventSchema: 1,
   inferenceStreamDeltaEventSchema: 1,
+  inferenceStreamAudioEventSchema: 1,
   inferenceStreamToolCallEventSchema: 1,
   inferenceStreamUsageEventSchema: 2,
   inferenceStreamRouteSwitchEventSchema: 1,
@@ -238,6 +239,7 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
   "inboxSmartRepliesResponseSchema",
   "inboxThreadSummaryResponseSchema",
   "inferenceMessageSchema",
+  "inferenceSpeechParametersSchema",
   "inferenceToolCallSchema",
   "kaanaCredentialIdentitySchema",
   "modelCapabilitiesSchema",
@@ -564,6 +566,10 @@ const FIXTURES: Record<string, unknown> = {
     startedAt: "2026-08-15T09:41:00.120Z",
   },
 
+  inferenceStreamAudioEventSchema: {
+    schemaVersion: 1, type: "audio", requestId: "req_speech", sequence: 1,
+    outputIndex: 0, mediaType: "audio/mpeg", data: "SUQz",
+  },
   inferenceStreamDeltaEventSchema: {
     schemaVersion: 1,
     type: "delta",
@@ -1395,11 +1401,12 @@ describe("inference contract census", () => {
     }
   });
 
-  it("builds the stream union out of exactly the seven exported events", () => {
+  it("builds the stream union out of exactly the eight exported events", () => {
     const options = streamEvents.inferenceStreamEventSchema.options;
     expect(options).toEqual([
       streamEvents.inferenceStreamStartEventSchema,
       streamEvents.inferenceStreamDeltaEventSchema,
+      streamEvents.inferenceStreamAudioEventSchema,
       streamEvents.inferenceStreamToolCallEventSchema,
       streamEvents.inferenceStreamUsageEventSchema,
       streamEvents.inferenceStreamRouteSwitchEventSchema,

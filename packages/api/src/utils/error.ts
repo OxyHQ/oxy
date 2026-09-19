@@ -137,6 +137,23 @@ export class InternalServerError extends ApiError {
 }
 
 /**
+ * The request was well-formed and authorised, but a dependency this server
+ * needs is absent or misconfigured, so it cannot be served AT ALL — and
+ * retrying the same request changes nothing until an operator acts.
+ *
+ * Distinct from {@link InternalServerError}, which says "something went wrong
+ * here"; this says "this capability is not configured". Outbound email uses it
+ * when no SMTP relay is set: answering 202 "queued" to a message that can never
+ * leave is worse than answering 503, because the sender is told it was sent.
+ */
+export class ServiceUnavailableError extends ApiError {
+  constructor(message = 'Service unavailable', details?: Record<string, unknown>) {
+    super(503, message, ErrorCodes.SERVICE_UNAVAILABLE, details);
+    this.name = 'ServiceUnavailableError';
+  }
+}
+
+/**
  * Handle HTTP errors and convert to ApiError
  * Useful for converting axios errors and other HTTP errors to ApiError instances
  */

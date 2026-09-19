@@ -108,6 +108,7 @@
     "loading": "正在加载账户...",
     "qrHeadline": "使用您的 Oxy 身份登录",
     "signInWithOxy": "使用 Oxy 登录",
+    "signUpWithOxy": "使用 Oxy 注册",
     "useIdentityOnDevice": "没有 Commons？改用此设备上的通行密钥",
     "getCommons": "获取 Commons",
     "commonsNotInstalled": "没有 Commons？获取应用以使用您的 Oxy ID 登录。",

@@ -55,6 +55,7 @@ import emailInboundRoutes, {
   inboundRateLimit,
   verifyEmailInboundWebhookSecret,
 } from './routes/emailInbound';
+import emailFeedbackRoutes, { feedbackRateLimit } from './routes/emailFeedback';
 import creditsRoutes from './routes/credits';
 import billingRoutes from './routes/billing';
 import accountBillingRoutes from './routes/accountBilling';
@@ -85,7 +86,6 @@ import identityWebEnvelopeRoutes from './routes/identityWebEnvelope';
 import identityMoveRoutes from './routes/identityMove';
 import identityProofRoutes from './routes/identityProof';
 import identityRecoveryRoutes from './routes/identityRecovery';
-import deviceTransferRoutes from './routes/deviceTransfer';
 import civicRoutes from './routes/civic';
 import nodeRoutes from './routes/nodes';
 import { sweepValidations } from './services/civic/validator.service';
@@ -116,6 +116,7 @@ import transparencyRoutes from './routes/transparency';
 import updatesManifestRoutes from './routes/updates';
 import updatesAdminRoutes from './routes/updatesAdmin';
 import { startSmtpInbound, stopSmtpInbound } from './services/smtp.inbound';
+import { isOutboundRelayConfigured } from './services/smtp.outbound';
 import { smtpOutbound } from './services/smtp.outbound';
 import {
   startFollowOutboxWorker,
@@ -260,6 +261,13 @@ app.use(
   inboundRateLimit,
   express.raw({ type: '*/*', limit: '25mb' })
 );
+// Amazon SNS posts its notifications as `text/plain`, so the global JSON parser
+// leaves req.body empty and the signature check has nothing to verify. Parse
+// this one path as text and let the handler JSON.parse it. Rate-limited first:
+// signature verification fetches a certificate, so an unauthenticated flood
+// must not be able to drive that.
+app.use('/email/feedback/ses', feedbackRateLimit, express.text({ type: '*/*', limit: '256kb' }));
+
 // Skip the global body parsers for routes that require raw bodies so their
 // handlers receive the request in the expected format.
 const jsonParser = express.json({ limit: '1mb' });
@@ -400,7 +408,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 // Used for cross-app authentication via QR code
 // ============================================
 import { initAuthSessionNamespace } from './utils/authSessionSocket';
-import { initDevicePairNamespace } from './utils/devicePairSocket';
 
 const authSessionNamespace = io.of('/auth-session');
 authSessionNamespace.use(createSocketRateLimiter(20, 10_000)); // Stricter: 20 events per 10s
@@ -435,41 +442,6 @@ authSessionNamespace.on('connection', (socket) => {
   });
 });
 
-// ============================================
-// Device-Pair Socket Namespace (Unauthenticated)
-// Used for device-to-device identity transfer ("add a device"). The waiting new
-// device joins room `devicepair:<pairingId>`; the server pushes a lightweight
-// status signal when the old device approves/denies. No key material flows over
-// this socket — the transferred bytes are E2E-encrypted regardless.
-// ============================================
-const devicePairNamespace = io.of('/device-pair');
-devicePairNamespace.use(createSocketRateLimiter(20, 10_000)); // Stricter: 20 events per 10s
-initDevicePairNamespace(devicePairNamespace);
-
-devicePairNamespace.on('connection', (socket) => {
-  observePlatformSocket(socket);
-  logger.debug('Device-pair socket connected', { socketId: socket.id });
-
-  socket.on('join', (pairingId: string) => {
-    if (!pairingId || typeof pairingId !== 'string' || pairingId.length < 8) {
-      socket.emit('error', { message: 'Invalid pairing id' });
-      return;
-    }
-    const room = `devicepair:${pairingId}`;
-    socket.join(room);
-    logger.debug('Client joined device-pair room', { socketId: socket.id, room });
-    socket.emit('joined', { pairingId });
-  });
-
-  socket.on('leave', (pairingId: string) => {
-    if (!pairingId || typeof pairingId !== 'string') return;
-    socket.leave(`devicepair:${pairingId}`);
-  });
-
-  socket.on('disconnect', () => {
-    logger.debug('Device-pair socket disconnected', { socketId: socket.id });
-  });
-});
 
 // Helper for emitting session_update
 export function emitSessionUpdate(userId: string, payload: any) {
@@ -783,6 +755,11 @@ app.use('/security', userRateLimiter, csrfProtection, securityRoutes);
 app.use('/subscription', userRateLimiter, csrfProtection, subscriptionRoutes);
 app.use('/email/proxy', emailProxyRoutes); // public, no auth — must be before /email
 app.use('/email/inbound', emailInboundRoutes); // Cloudflare Email Routing webhook — must be before /email
+// Bounce/complaint ingestion from SES (SNS) and Brevo. Unauthenticated by
+// necessity — neither provider carries an Oxy session — so each half
+// authenticates itself: an SNS signature, or a shared secret. Must be before
+// /email, which requires a session.
+app.use('/email/feedback', feedbackRateLimit, emailFeedbackRoutes);
 app.use('/email', userRateLimiter, csrfProtection, emailRoutes);
 // The public inference edge (issue #972 workstream 4, ADR 0010). Mounted at
 // `/v1` BEFORE `/v1/models`, so it owns `/v1/responses`,
@@ -870,11 +847,6 @@ app.use('/identity/web-envelope', identityWebEnvelopeRoutes);
 // ciphertext), bearer + identity-key proof on the web's writes, identity-key
 // receipt from Commons. No ambient cookies, so no csrfProtection. Before `/identity`.
 app.use('/identity/move', identityMoveRoutes);
-// Device-to-device identity transfer ("add a device"). Mounted BEFORE `/identity`
-// so its specific prefix wins over the identity router. Public init/info/deny +
-// bearer+signature approve; the relay is E2E-encrypted (no CSRF — no ambient
-// cookie credentials, per the bearer-write CSRF rule).
-app.use('/identity/device-transfer', deviceTransferRoutes);
 // Self-sovereign identity layer: signed records + verified-domain badges.
 // Mixed public/private routes (each gates its own auth); writes are
 // Bearer-authenticated, so no csrfProtection (bearer-write CSRF rule).
@@ -1364,6 +1336,16 @@ export async function bootstrap(
       );
   }, RECONCILIATION_SWEEP_INTERVAL_MS);
   reconciliationSweep.unref();
+
+  // Outbound relay readiness. Say it at boot: without a relay every send is
+  // refused, and the failure is otherwise only discoverable by a user trying to
+  // send a message and being told it was queued.
+  if (!isOutboundRelayConfigured()) {
+    logger.error(
+      'Outbound email is DISABLED: SMTP_RELAY_HOST is unset. Every send will be refused with 503. ' +
+        'Configure SMTP_RELAY_HOST/SMTP_RELAY_PORT/SMTP_RELAY_USER/SMTP_RELAY_PASS.',
+    );
+  }
 
   // Start SMTP inbound server if enabled
   if (getEnvBoolean('SMTP_ENABLED', false)) {

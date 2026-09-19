@@ -108,6 +108,7 @@
     "loading": "Chargement des comptes...",
     "qrHeadline": "Connectez-vous avec votre identité Oxy",
     "signInWithOxy": "Se connecter avec Oxy",
+    "signUpWithOxy": "S'inscrire avec Oxy",
     "useIdentityOnDevice": "Pas de Commons ? Utilisez une clé d'accès sur cet appareil",
     "getCommons": "Obtenir Commons",
     "commonsNotInstalled": "Pas de Commons ? Téléchargez l'app pour vous connecter avec votre Oxy ID.",

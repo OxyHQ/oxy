@@ -314,6 +314,31 @@ const HASHED_PHONE_EXPRESSION = sql.raw(
     `else ${sha256Hex(`'+' || regexp_replace(phone, '[^0-9]', '', 'g')`)} end`
 );
 
+/**
+ * The text `peopleSearchMatch` searches, as ONE expression.
+ *
+ * Shared verbatim between `users_people_search_trgm_idx` (below) and the query
+ * predicate in `utils/profileQuery.ts`. Holding it in one place is the whole
+ * point: an index and a predicate that merely LOOK alike drift, and the failure
+ * is silent — the index stops being used and the query goes back to scanning
+ * the table with nothing to notice but latency.
+ *
+ * `sql.raw` with snake_case names, following `contacts.ts`'s
+ * `SEARCH_VECTOR_EXPRESSION`: an index expression is built before the table
+ * object exists, so there are no columns to interpolate. `coalesce` and `||`
+ * are both IMMUTABLE, which is what makes the expression legal in an index.
+ *
+ * Separators are single spaces, so a term containing one can match ACROSS two
+ * fields in the coarse filter (`"alice bob"` against first name `alice` and
+ * last name `bob`). That is a false positive by design and the exact `ILIKE`
+ * recheck removes it — pinned by a test, because the tempting "simplification"
+ * is to drop the recheck and trust the index.
+ */
+export const PEOPLE_SEARCH_TRGM_EXPRESSION = sql.raw(
+  "(coalesce(username, '') || ' ' || coalesce(name_first, '') || ' ' || " +
+    "coalesce(name_last, '') || ' ' || coalesce(description, ''))"
+);
+
 export const users = pgTable(
   'users',
   {
@@ -676,6 +701,51 @@ export const users = pgTable(
     // — in its own migration, the same way `applications.capabilities` earned
     // its GIN index by having a query that reads it by element. Adding it now
     // would be an index maintained for a query nobody wrote.
+    // ---- people search ----------------------------------------------------
+    // The ONLY index that can serve `peopleSearchMatch`. Its predicate is four
+    // OR-ed leading-wildcard `ILIKE '%term%'` tests, which is a SUBSTRING
+    // question — no b-tree and no `tsvector` can answer it, so every people
+    // search read this whole table sequentially.
+    //
+    // An EXPRESSION index over the concatenation, not four separate indexes and
+    // not a stored `search_text` column:
+    //
+    //   * One concatenated expression is a strict SUPERSET filter, because a
+    //     substring of any part is a substring of the whole. So the four exact
+    //     `ILIKE`s stay in the WHERE as the recheck and the semantics are
+    //     unchanged, including the LIKE-escaping of the term. The only false
+    //     positives are matches spanning a separator, which the recheck drops.
+    //     One bitmap scan and one index to maintain per write, instead of a
+    //     `BitmapOr` over four and four lots of write amplification.
+    //   * An expression index rather than a generated column avoids adding a
+    //     column to `users` (which would force a `protectedColumns.ts`
+    //     decision) and stores nothing twice. Expression indexes are already
+    //     this table's idiom — see `users_lower_username_key` below.
+    //
+    // `PEOPLE_SEARCH_TRGM_EXPRESSION` is shared with `utils/profileQuery.ts` so
+    // the index and the predicate cannot drift; `peopleSearchIndexes.test.ts`
+    // asserts the catalogue's `indexdef` still contains it, which is what stops
+    // a fifth searched column silently restoring the sequential scan.
+    index('users_people_search_trgm_idx').using(
+      'gin',
+      sql`${PEOPLE_SEARCH_TRGM_EXPRESSION} gin_trgm_ops`
+    ),
+    // `pg_trgm` extracts no trigrams from a pattern whose wildcard-free run is
+    // shorter than three characters, so `%ab%` cannot use the GIN index at all.
+    // `peopleSearchMatch` therefore switches to an anchored PREFIX match below
+    // that length, and these are what serve it. `text_pattern_ops` is required:
+    // under a non-C collation a plain b-tree cannot answer `LIKE 'ab%'`, which
+    // is why the existing `users_lower_username_key` cannot do this job.
+    index('users_lower_username_prefix_idx').on(
+      sql`lower(btrim(${t.username})) text_pattern_ops`
+    ),
+    index('users_lower_name_first_prefix_idx').on(
+      sql`lower(${t.nameFirst}) text_pattern_ops`
+    ),
+    index('users_lower_name_last_prefix_idx').on(
+      sql`lower(${t.nameLast}) text_pattern_ops`
+    ),
+
     index('users_reputation_rank_weight_idx').on(t.reputationRankWeight),
     index('users_reputation_tier_idx').on(t.reputationTier),
     index('users_is_sensitive_idx').on(t.isSensitive),

@@ -357,6 +357,20 @@ export const SEED_APPS: SeedAppSpec[] = [
       'catalogs:write',
       'capabilities:read',
       'capability-audit:write',
+      // Mention publishes its own job listings to Clarity's index
+      // (`clarity.jobs.ingest`) and resolves shared links through it
+      // (`/v1/resolve`), which are `clarity:index`; the employer's place picker
+      // and job discovery read `clarity:search`. The credential carried
+      // neither, so every one of those calls has been failing closed — job
+      // sync, link previews and the place lookup alike.
+      'clarity:search',
+      'clarity:index',
+      // Clarity only indexes a listing whose host is a site the account has
+      // verified, so Mention registers mention.earth as its own Clarity site
+      // (`POST /v1/sites`) against the Oxy-verified domain. Without it every
+      // job ingest is refused with `The listing host is not a verified Clarity
+      // site owned by this account`.
+      'clarity:sites:manage',
     ],
     capabilities: [catalogApplicationCapability('mention')],
   },
@@ -429,6 +443,15 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://oxy.so',
     type: 'first_party',
     redirectUris: ['https://oxy.so', 'https://fairco.in'],
+    // The website's MCP server (website-api.oxy.so/mcp) signs people in through
+    // Oxy's MCP OAuth. Its service credential registers the website catalog so
+    // Oxy can resolve that resource; introspection needs no further scope.
+    // `clarity:search` is what the careers page reads Oxy's open roles with:
+    // they are authored in Mention and indexed by Clarity, and the website
+    // stores none of them. The mint intersects credential scopes with these, so
+    // without it Clarity answers `scope_missing` for every job search.
+    scopes: ['user:read', 'catalogs:write', 'clarity:search'],
+    capabilities: [catalogApplicationCapability('website')],
   },
   {
     name: 'Peable',

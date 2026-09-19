@@ -142,6 +142,9 @@ export const sha256DigestSchema = z
   .string()
   .regex(/^sha256:[a-f0-9]{64}$/, 'digest must be sha256:<64 lowercase hex>');
 
+/** Standard base64 in whole, padded 4-character groups. */
+export const PADDED_BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+
 /* -------------------------------------------------------------------------- */
 /*  Catalogue references                                                      */
 /* -------------------------------------------------------------------------- */

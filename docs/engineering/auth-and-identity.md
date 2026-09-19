@@ -93,8 +93,102 @@ Internal Oxy ecosystem apps authenticate via short-lived service JWTs (OAuth2 Cl
 3. Service uses JWT as `Authorization: Bearer <token>` + `X-Oxy-User-Id: <userId>` for delegation
 4. `@oxy.so/core` `auth()` middleware recognizes `type: 'service'` JWTs (stateless, no session DB lookup)
 
+**Workload identity — a first-party service with NO credential (ADR 0026):**
+
+An official service does not need step 1 or 2. It proves what it IS to the
+infrastructure it runs on and receives the same 1h JWT:
+
+1. `POST /auth/service-token/workload/challenge` → a single-use nonce (60s, Redis)
+2. `POST /auth/service-token/workload` with `{ provider, nonce, attestation }` → the same 1h JWT
+
+On AWS the attestation is a SigV4-signed `GetCallerIdentity` the caller never
+sends; Oxy replays it to STS and believes STS's answer. The verifier is the only
+module that knows which cloud we are on — another provider is one more
+implementation of `AttestationVerifier`, with no change to callers or verifiers of
+the token.
+
+`application_workload_identities` maps `(provider, subject)` → application. On AWS
+the subject is the ROLE ARN (`arn:aws:iam::<account>:role/<name>`): STS answers with
+the per-task `assumed-role/<name>/<session>`, and the verifier reduces it, so a
+binding survives the tasks that present it. The row carries no secret, is created at
+deploy time, and deleting it is how a workload is cut off. The mint re-applies
+`isTrustedApplication`, takes the application's non-privileged scopes only, and
+stamps the DEPLOYMENT's environment (an attestation cannot ask for one).
+
+Ecosystem activity publishing follows the same path: `createEcosystemTraffic`
+accepts a process with no key pair when it can attest, so removing
+`OXY_SERVICE_API_KEY`/`OXY_SERVICE_API_SECRET` from a task definition no longer
+kills the service at boot.
+
+Third-party applications keep the credential flow above: they run where we cannot
+attest, which is exactly where registration belongs.
+
+**Creating a binding — the one manual step:**
+
+```bash
+bun run packages/api/scripts/bind-workload-identity.ts \
+  --app-id <application id> \
+  --role-arn arn:aws:iam::237343248947:role/oxy-mention-task \
+  [--provider aws-iam] [--description "Mention ECS task role"] \
+  [--expires-at 2026-12-31T00:00:00Z]
+
+bun run packages/api/scripts/bind-workload-identity.ts --app-id <id> --list
+```
+
+Once per service, against that environment's database, by staff. There is no
+route: a binding says one service IS one application, and exposing that over HTTP
+means designing who may call it when the honest answer is "an operator, out of
+band, when the service is deployed". The script is a thin entrypoint over
+`services/workloadIdentityBinding.service.ts`, which is where the decisions are and
+where they are tested. Exit codes: `0` done, `1` bad invocation, `2` refused.
+
+`--role-arn` takes either form — the role ARN, or the `assumed-role/<name>/<session>`
+one a running task reports — and runs it through the verifier's own
+`canonicalAwsSubject`, so what is stored and what will be attested are the same
+string by construction rather than by inspection. What that function does NOT do is
+judge: it passes an ARN it does not recognise through unchanged, which is right for
+reporting what AWS said and wrong for an operator at a terminal, so the script
+refuses anything that is not a role ARN afterwards. A role with an IAM path must be
+given without it, because the assumed-role ARN omits the path and the pathless form
+is the only one an attestation can present.
+
+A binding grants IDENTITY, never authority. It says which application is calling;
+what that application may do is still its own non-privileged scopes, and the
+environment is still the deployment's. So a binding cannot widen a scope, cannot
+reach a privileged one, and cannot make a staging workload production.
+
+What the script refuses, and the failure each refusal prevents:
+
+- **Repointing a subject already bound to another application.** The loud one. A
+  repoint is silent and total — the old service keeps attesting, keeps receiving
+  tokens, and every token now carries someone else's `applicationId`, so its writes
+  land in another tenant's data with confident audit attribution to the wrong party.
+  Moving a role means deleting the old row first, which leaves a trace.
+- **An unknown application id**, on bind and on `--list` alike. An empty list and a
+  mistyped id look identical in a terminal, and what follows the mistake is a second
+  binding created under the id somebody meant.
+- **An inactive or third-party application.** The mint re-applies both gates, so the
+  row would be written, read as a finished rollout, and 403 at every use.
+- **A subject that is not a role** — an IAM user, the account root, a federated
+  user, a typo. All of them imply a long-lived secret, a human, or nothing at all.
+
+Re-running an identical bind is a no-op that reports the existing row, because a
+bind is part of deploying a service and will be run twice. It never edits: a re-run
+asking for a different description or expiry says so and changes nothing, rather
+than letting a create quietly become an edit.
+
+Nothing in the output is a secret. Unlike `create-service-credential.ts`, which
+encrypts what it emits, a binding is an account number, a role name and an
+application id — worthless without possession of the IAM role it names, which is
+the whole reason ADR 0026 prefers it to a shared secret.
+
 **Key files:**
-- `packages/api/src/routes/auth.ts` — `POST /auth/service-token` endpoint (validates against `ApplicationCredential`)
+- `packages/api/src/routes/auth.ts` — `POST /auth/service-token` (credential) and `/auth/service-token/workload*` (attestation)
+- `packages/api/src/services/workloadAttestation.service.ts` — the provider seam; AWS STS verifier
+- `packages/api/src/services/workloadIdentity.service.ts` — challenge, binding lookup, scope and trust gates
+- `packages/api/src/services/workloadIdentityBinding.service.ts` — creating a binding: canonicalisation, idempotence, refusals
+- `packages/api/scripts/bind-workload-identity.ts` — the operator entrypoint (`--app-id`, `--role-arn`, `--list`)
+- `packages/api/src/services/serviceTokenMint.service.ts` — the ONE signer both paths share
 - `packages/api/src/models/Application.ts` — `isInternal`, `type` field
 - `packages/api/src/models/ApplicationCredential.ts` — `publicKey`, `secretHash`, `type: 'service'`
 - `packages/core/src/mixins/OxyServices.utility.ts` — `auth()` service token handling, `serviceAuth()` middleware
@@ -119,6 +213,24 @@ const result = await oxy.makeServiceRequest('POST', '/some/endpoint', data, user
 // Only allows service tokens (rejects user JWTs and API keys)
 app.use('/internal', oxy.serviceAuth());
 ```
+
+**A refusal is always observable to the host, and never to the client.** Every
+branch of `auth()` that rejects a PRESENTED credential records
+`req.oxyAuthRefusal` (`{ code, stage, reason, status, optional }`, read it with
+`getOxyAuthRefusal` from `@oxy.so/core/server`), logs one `warn` carrying that
+code, and calls the optional `onRefusal` observer — on the `optional: true`
+mount too, where the request otherwise continues unauthenticated and the host
+answers its own generic 401 with nothing written down anywhere. Response bodies
+are unchanged, and a request carrying NO credential is an absence, not a
+refusal. Delegation against a verifier that holds no service credential of its
+own cannot reach `/internal/service-acting-as/verify` and so refuses every user:
+verify with a credentialed client, or refuse at startup.
+
+**The failure this was bought for:** `/.well-known/jwks.json` served
+`{"keys":[]}` — no Ed25519 signing key bound — so every service token failed
+`Oxy service-token key set is unavailable`, the optional mount swallowed it,
+and the fault existed in no log on either side. That reason now reaches the
+host's own logs.
 
 ## Self-Sovereign Identity Layer (PR #415)
 
@@ -168,7 +280,7 @@ Domain verification = a **badge** only (`alsoKnownAs` in DID). NOT domain-as-han
 
 ### Core Identity Mixin (`OxyServices.identity.ts`)
 
-Registered in `MIXIN_PIPELINE` + `AllMixinInstances`. Methods: `resolveDid`, `getMyDid`, `listAuthMethods`, `linkIdentityKey` (sign + `/auth/link`), `unlinkAuthMethod`, `linkPassword`, `signRecord`, `publishRecord`, `getRecord`, `verifyRecord`, `exportMyData`, `requestDomainVerification`, `verifyDomain`, `listDomains`, `removeDomain`. Cache-sweeps `/users/me` + DID cache after mutations. Exports new types + `canonicalize` + `buildSignedRecord`.
+Registered in `MIXIN_PIPELINE` + `AllMixinInstances`. Methods: `resolveDid`, `getMyDid`, `listAuthMethods`, `getIdentityRootStatus`, `removePasskey`, `rotateKey`, `signRecord`, `publishRecord`, `getRecord`, `verifyRecord`, `exportMyData`, `requestDomainVerification`, `verifyDomain`, `listDomains`, `removeDomain`. Cache-sweeps `/users/me` + DID cache after mutations. Exports new types + `canonicalize` + `buildSignedRecord`.
 
 ## Web identity carrier — `id.oxy.so` (one identity, two carriers)
 

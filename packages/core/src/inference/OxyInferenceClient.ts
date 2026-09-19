@@ -58,7 +58,9 @@ import type {
     InferenceFinishReason,
     InferenceMessage,
     InferenceRequestOutcome,
+    InferenceAudioMediaType,
     InferenceStreamEvent,
+    InferenceSpeechParameters,
     ModelCatalogueEntry,
     ResponseFormat,
     RoutingPolicyReference,
@@ -69,7 +71,13 @@ import type {
     UsageQuantity,
     UsageSource,
 } from '@oxy.so/contracts';
-import { INFERENCE_ERROR_CODES, inferenceStreamEventSchema, modelIdSchema } from '@oxy.so/contracts';
+import {
+    INFERENCE_ERROR_CODES,
+    MAX_INFERENCE_AUDIO_BYTES,
+    inferenceAudioMediaTypeSchema,
+    inferenceStreamEventSchema,
+    modelIdSchema,
+} from '@oxy.so/contracts';
 
 /** The base URL of the Oxy API, when a caller names none. */
 export const OXY_INFERENCE_BASE_URL = 'https://api.oxy.so';
@@ -136,6 +144,23 @@ export interface OxyResponsesRequest {
     readonly labels?: Readonly<Record<string, string>>;
     /** Your own correlation id, echoed on the response. */
     readonly clientRequestId?: string;
+}
+
+/** Speech uses the same credential and delegation lane as responses. */
+export type OxySpeechRequest = (
+    | { readonly model: string; readonly routingProfileId?: never }
+    | { readonly routingProfileId: string; readonly model?: never }
+) & {
+    readonly input: string;
+    readonly voice: string;
+    readonly response_format?: InferenceSpeechParameters['responseFormat'];
+    readonly speed?: number;
+};
+
+export interface OxySpeechResponse {
+    readonly audio: Uint8Array;
+    readonly mediaType: InferenceAudioMediaType;
+    readonly requestId: string;
 }
 
 export interface OxyInferenceRequestOptions {
@@ -434,6 +459,57 @@ export class OxyInferenceClient {
         });
     }
 
+    /** Generate audio bytes through Oxy's authenticated inference edge. */
+    async speech(
+        request: OxySpeechRequest,
+        options: OxyInferenceRequestOptions = {},
+    ): Promise<OxySpeechResponse> {
+        const response = await this.#fetch(`${this.#baseURL}/v1/audio/speech`, {
+            method: 'POST',
+            headers: await this.#headers('audio/*', {
+                hasBody: true,
+                ...(options.idempotencyKey === undefined
+                    ? {}
+                    : { idempotencyKey: options.idempotencyKey }),
+                ...(options.delegatedUserId === undefined
+                    ? {}
+                    : { delegatedUserId: options.delegatedUserId }),
+            }),
+            body: JSON.stringify(request),
+            ...(options.signal === undefined ? {} : { signal: options.signal }),
+        });
+        const requestId = response.headers.get('X-Oxy-Request-Id') ?? '';
+        if (!response.ok) {
+            throw toInferenceError(await response.json().catch(() => undefined), response.status, requestId);
+        }
+        const mediaType = inferenceAudioMediaTypeSchema.safeParse(mediaTypeOf(response));
+        if (!mediaType.success || !response.body) {
+            await cancelUnreadResponse(response);
+            throw protocolError('The inference API returned no supported audio body.', requestId);
+        }
+        const reader = response.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let size = 0;
+        let completed = false;
+        try {
+            while (true) {
+                const next = await reader.read();
+                if (next.done) { completed = true; break; }
+                size += next.value.byteLength;
+                if (size > MAX_INFERENCE_AUDIO_BYTES) throw protocolError('The inference audio exceeds the response limit.', requestId);
+                chunks.push(next.value);
+            }
+        } finally {
+            if (!completed) await reader.cancel().catch(() => undefined);
+            reader.releaseLock();
+        }
+        if (size === 0) throw protocolError('The inference API returned empty audio.', requestId);
+        const audio = new Uint8Array(size);
+        let offset = 0;
+        for (const chunk of chunks) { audio.set(chunk, offset); offset += chunk.byteLength; }
+        return { audio, mediaType: mediaType.data, requestId };
+    }
+
     /**
      * Stream one inference request from `POST /v1/responses`.
      *
@@ -481,11 +557,7 @@ export class OxyInferenceClient {
         }
 
         const requestId = response.headers.get('X-Oxy-Request-Id') ?? undefined;
-        const mediaType = response.headers
-            .get('Content-Type')
-            ?.split(';', 1)[0]
-            ?.trim()
-            .toLowerCase();
+        const mediaType = mediaTypeOf(response);
         if (mediaType !== 'text/event-stream') {
             await cancelUnreadResponse(response);
             throw protocolError(
@@ -607,7 +679,7 @@ export class OxyInferenceClient {
 
     /** Build the authenticated headers for one request, re-reading its bearer. */
     async #headers(
-        accept: 'application/json' | 'text/event-stream',
+        accept: 'application/json' | 'text/event-stream' | 'audio/*',
         options: {
             hasBody: boolean;
             idempotencyKey?: string;
@@ -692,6 +764,11 @@ interface RawInferenceStreamFrame {
 
 function protocolError(message: string, requestId?: string): OxyInferenceProtocolError {
     return new OxyInferenceProtocolError(message, requestId);
+}
+
+/** The bare, lowercased media type of a response's `Content-Type`, if any. */
+function mediaTypeOf(response: Response): string | undefined {
+    return response.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase();
 }
 
 /** Cancel a nominally successful response whose stream contract is unreadable. */

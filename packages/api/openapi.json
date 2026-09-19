@@ -6838,7 +6838,7 @@
           "Authentication"
         ],
         "summary": "Link a root (`publicKey`) to a personal account that has NONE — first link only",
-        "description": "(ADR 0024 D8).\n\n- An account whose root is this key: idempotent, and heals a missing\n  `identity` method row. A v1 signature by the key is enough — it changes\n  nothing but a derived row.\n- An account with a DIFFERENT root: 409. Replacing a root is\n  `POST /auth/rotate/*`, which needs the old root's proof too.\n- A keyless account: a v2 root proof (`link_identity`, one-use challenge) AND a\n  fresh assertion by one of the account's existing passkeys over the same\n  challenge. A bearer plus a key generated a moment ago is not authority.",
+        "description": "(ADR 0024 D8).\n\n- An account whose root is this key: idempotent with a root proof, and heals a\n  missing `identity` method row.\n- An account with a DIFFERENT root: 409. Replacing a root is\n  `POST /auth/rotate/*`, which needs the old root's proof too.\n- A keyless account: a root proof (`link_identity`, one-use challenge) AND a\n  fresh assertion by one of the account's existing passkeys over the same\n  challenge. A bearer plus a key generated a moment ago is not authority.",
         "parameters": [],
         "responses": {
           "200": {
@@ -6885,149 +6885,117 @@
           "content": {
             "application/json": {
               "schema": {
-                "oneOf": [
-                  {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "identity"
+                    ]
+                  },
+                  "publicKey": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "proof": {
                     "type": "object",
                     "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
+                  },
+                  "assertion": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]+$",
+                        "minLength": 16,
+                        "maxLength": 1024
+                      },
+                      "rawId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2048
+                      },
                       "type": {
                         "type": "string",
                         "enum": [
-                          "identity"
+                          "public-key"
                         ]
                       },
-                      "publicKey": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "proof": {
+                      "response": {
                         "type": "object",
                         "properties": {
-                          "v": {
-                            "type": "number",
-                            "enum": [
-                              2
-                            ]
-                          },
-                          "challenge": {
+                          "clientDataJSON": {
                             "type": "string",
-                            "pattern": "^[0-9a-f]{64}$"
+                            "minLength": 1,
+                            "maxLength": 8192
                           },
-                          "expiresAt": {
-                            "type": "integer",
-                            "exclusiveMinimum": 0
+                          "authenticatorData": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
                           },
                           "signature": {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 512
+                            "maxLength": 2048
+                          },
+                          "userHandle": {
+                            "type": "string",
+                            "maxLength": 2048
                           }
                         },
                         "required": [
-                          "v",
-                          "challenge",
-                          "expiresAt",
+                          "clientDataJSON",
+                          "authenticatorData",
                           "signature"
                         ]
                       },
-                      "assertion": {
+                      "clientExtensionResults": {
                         "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9_-]+$",
-                            "minLength": 16,
-                            "maxLength": 1024
-                          },
-                          "rawId": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 2048
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "public-key"
-                            ]
-                          },
-                          "response": {
-                            "type": "object",
-                            "properties": {
-                              "clientDataJSON": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 8192
-                              },
-                              "authenticatorData": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 8192
-                              },
-                              "signature": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 2048
-                              },
-                              "userHandle": {
-                                "type": "string",
-                                "maxLength": 2048
-                              }
-                            },
-                            "required": [
-                              "clientDataJSON",
-                              "authenticatorData",
-                              "signature"
-                            ]
-                          },
-                          "clientExtensionResults": {
-                            "type": "object",
-                            "additionalProperties": {}
-                          },
-                          "authenticatorAttachment": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "rawId",
-                          "type",
-                          "response"
-                        ]
+                        "additionalProperties": {}
+                      },
+                      "authenticatorAttachment": {
+                        "type": "string"
                       }
                     },
                     "required": [
+                      "id",
+                      "rawId",
                       "type",
-                      "publicKey",
-                      "proof"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string",
-                        "enum": [
-                          "identity"
-                        ]
-                      },
-                      "publicKey": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "signature": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "timestamp": {
-                        "type": "number"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "publicKey",
-                      "signature",
-                      "timestamp"
+                      "response"
                     ]
                   }
+                },
+                "required": [
+                  "type",
+                  "publicKey",
+                  "proof"
                 ]
               }
             }
@@ -7105,79 +7073,6 @@
           }
         ],
         "operationId": "deleteAuthLinkWebauthnCredentialID"
-      }
-    },
-    "/auth/link/{type}": {
-      "delete": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "`identity` is the only type, and a root is never unlinked (ADR 0024 D8):",
-        "description": "turning a self-custody account back into a keyless one is not an operation a\nbearer — or anyone — performs. A root is replaced by rotation, which proves the\nold root and the new one. Kept as an explicit refusal so an old client gets a\nstable code instead of a 404.",
-        "parameters": [
-          {
-            "name": "type",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "identity"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/authLinking.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "operationId": "deleteAuthLinkType"
       }
     },
     "/auth/lookup/{username}": {
@@ -7997,6 +7892,126 @@
           }
         },
         "operationId": "postAuthServiceToken"
+      }
+    },
+    "/auth/service-token/workload": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "POST /auth/service-token/workload",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/auth.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/auth.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "aws-iam"
+                    ]
+                  },
+                  "nonce": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attestation": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "provider",
+                  "nonce",
+                  "attestation"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAuthServiceTokenWorkload"
+      }
+    },
+    "/auth/service-token/workload/challenge": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "The workload-identity mint: a service token for a first-party service that",
+        "description": "holds no credential at all (ADR 0026).\n\nTwo calls, because an attestation is replayable on its own: ask for a nonce,\nthen present an attestation that signs it. Both are rate-limited on the same\nbucket as the credential mint — they are the same resource, and a caller that\ncannot answer a challenge should not be able to spend the mint's budget by\nasking for challenges.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/auth.ts`, naming a Zod schema the file imports."
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "postAuthServiceTokenWorkloadChallenge"
       }
     },
     "/auth/session/approve-info/{authorizeCode}": {
@@ -17459,38 +17474,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "protocolVersion": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "initiatorCommitment": {
-                        "type": "string",
-                        "pattern": "^[0-9a-f]{64}$"
-                      }
-                    },
-                    "required": [
-                      "protocolVersion",
-                      "initiatorCommitment"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "initiatorEphemeralPublicKey": {
-                        "type": "string",
-                        "pattern": "^04[0-9a-f]{128}$"
-                      }
-                    },
-                    "required": [
-                      "initiatorEphemeralPublicKey"
-                    ]
+                "type": "object",
+                "properties": {
+                  "initiatorCommitment": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
                   }
+                },
+                "required": [
+                  "initiatorCommitment"
                 ]
               }
             }
@@ -17737,8 +17729,8 @@
         "tags": [
           "Misc"
         ],
-        "summary": "Verified against the move's key AND the account's current key; completing",
-        "description": "clears the ciphertext.",
+        "summary": "root signature over the move, both keys and the digest of the relayed",
+        "description": "ciphertext. Verified against the move's key AND the account's current key;\ncompleting clears the ciphertext.",
         "parameters": [
           {
             "name": "moveId",
@@ -17802,45 +17794,16 @@
           "content": {
             "application/json": {
               "schema": {
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "v": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "signature": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 512
-                      }
-                    },
-                    "required": [
-                      "v",
-                      "signature"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "signature": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 512
-                      },
-                      "timestamp": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
-                      }
-                    },
-                    "required": [
-                      "signature",
-                      "timestamp"
-                    ]
+                "type": "object",
+                "properties": {
+                  "signature": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
                   }
+                },
+                "required": [
+                  "signature"
                 ]
               }
             }
@@ -17854,8 +17817,8 @@
         "tags": [
           "Misc"
         ],
-        "summary": "key, which must open the commitment published at creation, and only once a",
-        "description": "responder has joined.",
+        "summary": "must open the commitment published at creation, and only once Commons joined.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityMove.ts` to fill in summary, description, request/response examples.",
         "parameters": [
           {
             "name": "moveId",
@@ -17958,8 +17921,8 @@
         "tags": [
           "Misc"
         ],
-        "summary": "POST /identity/move/{moveId}/seal",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityMove.ts` to fill in summary, description, request/response examples.",
+        "summary": "device, authorized by a one-use root proof over the move and the exact sealed",
+        "description": "bytes. Nothing is sealed before the key it was sealed with is public.",
         "parameters": [
           {
             "name": "moveId",
@@ -18045,21 +18008,41 @@
                     "type": "string",
                     "pattern": "^(?:[0-9a-f]{64}|[0-9a-f]{72}|[0-9a-f]{80}|[0-9a-f]{88}|[0-9a-f]{96})$"
                   },
-                  "signature": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 512
-                  },
-                  "timestamp": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
                   }
                 },
                 "required": [
                   "nonce",
                   "ciphertext",
-                  "signature",
-                  "timestamp"
+                  "proof"
                 ]
               }
             }
@@ -18144,7 +18127,8 @@
                       "link_identity",
                       "enroll_identity",
                       "recover_account_start",
-                      "recover_account_complete"
+                      "recover_account_complete",
+                      "identity_move_seal"
                     ]
                   }
                 },
@@ -18586,177 +18570,93 @@
                     "additionalProperties": {}
                   },
                   "envelope": {
-                    "oneOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "version": {
-                            "type": "number",
-                            "enum": [
-                              1
-                            ]
-                          },
-                          "algorithm": {
-                            "type": "string",
-                            "enum": [
-                              "xchacha20poly1305"
-                            ]
-                          },
-                          "publicKey": {
-                            "type": "string",
-                            "pattern": "^04[0-9a-f]{128}$"
-                          },
-                          "entropyNonce": {
-                            "type": "string",
-                            "pattern": "^[0-9a-fA-F]{48}$"
-                          },
-                          "sealedEntropy": {
-                            "type": "string",
-                            "pattern": "^[0-9a-fA-F]{64}$"
-                          },
-                          "wraps": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "credentialId": {
-                                  "type": "string",
-                                  "pattern": "^[A-Za-z0-9_-]+$",
-                                  "minLength": 16,
-                                  "maxLength": 1024
-                                },
-                                "nonce": {
-                                  "type": "string",
-                                  "pattern": "^[0-9a-fA-F]{48}$"
-                                },
-                                "wrappedKey": {
-                                  "type": "string",
-                                  "pattern": "^[0-9a-fA-F]{96}$"
-                                },
-                                "createdAt": {
-                                  "type": "string",
-                                  "format": "date-time"
-                                },
-                                "rpId": {
-                                  "type": "string",
-                                  "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                                  "minLength": 1,
-                                  "maxLength": 253
-                                },
-                                "verifiedAt": {
-                                  "type": "string",
-                                  "format": "date-time"
-                                }
-                              },
-                              "required": [
-                                "credentialId",
-                                "nonce",
-                                "wrappedKey",
-                                "createdAt"
-                              ]
-                            },
-                            "minItems": 1,
-                            "maxItems": 10
-                          }
-                        },
-                        "required": [
-                          "version",
-                          "algorithm",
-                          "publicKey",
-                          "entropyNonce",
-                          "sealedEntropy",
-                          "wraps"
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "number",
+                        "enum": [
+                          2
                         ]
                       },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "version": {
-                            "type": "number",
-                            "enum": [
-                              2
-                            ]
-                          },
-                          "algorithm": {
-                            "type": "string",
-                            "enum": [
-                              "xchacha20poly1305"
-                            ]
-                          },
-                          "publicKey": {
-                            "type": "string",
-                            "pattern": "^04[0-9a-f]{128}$"
-                          },
-                          "secretKind": {
-                            "type": "string",
-                            "enum": [
-                              "mnemonic-entropy",
-                              "raw-private-key"
-                            ]
-                          },
-                          "secretNonce": {
-                            "type": "string",
-                            "pattern": "^[0-9a-fA-F]{48}$"
-                          },
-                          "sealedSecret": {
-                            "type": "string",
-                            "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
-                          },
-                          "wraps": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "credentialId": {
-                                  "type": "string",
-                                  "pattern": "^[A-Za-z0-9_-]+$",
-                                  "minLength": 16,
-                                  "maxLength": 1024
-                                },
-                                "nonce": {
-                                  "type": "string",
-                                  "pattern": "^[0-9a-fA-F]{48}$"
-                                },
-                                "wrappedKey": {
-                                  "type": "string",
-                                  "pattern": "^[0-9a-fA-F]{96}$"
-                                },
-                                "createdAt": {
-                                  "type": "string",
-                                  "format": "date-time"
-                                },
-                                "rpId": {
-                                  "type": "string",
-                                  "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                                  "minLength": 1,
-                                  "maxLength": 253
-                                },
-                                "verifiedAt": {
-                                  "type": "string",
-                                  "format": "date-time"
-                                }
-                              },
-                              "required": [
-                                "credentialId",
-                                "nonce",
-                                "wrappedKey",
-                                "createdAt"
-                              ]
-                            },
-                            "minItems": 1,
-                            "maxItems": 10
-                          }
-                        },
-                        "required": [
-                          "version",
-                          "algorithm",
-                          "publicKey",
-                          "secretKind",
-                          "secretNonce",
-                          "sealedSecret",
-                          "wraps"
+                      "algorithm": {
+                        "type": "string",
+                        "enum": [
+                          "xchacha20poly1305"
                         ]
+                      },
+                      "publicKey": {
+                        "type": "string",
+                        "pattern": "^04[0-9a-f]{128}$"
+                      },
+                      "secretKind": {
+                        "type": "string",
+                        "enum": [
+                          "mnemonic-entropy",
+                          "raw-private-key"
+                        ]
+                      },
+                      "secretNonce": {
+                        "type": "string",
+                        "pattern": "^[0-9a-fA-F]{48}$"
+                      },
+                      "sealedSecret": {
+                        "type": "string",
+                        "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
+                      },
+                      "wraps": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "credentialId": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]+$",
+                              "minLength": 16,
+                              "maxLength": 1024
+                            },
+                            "nonce": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]{48}$"
+                            },
+                            "wrappedKey": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]{96}$"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "rpId": {
+                              "type": "string",
+                              "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
+                              "minLength": 1,
+                              "maxLength": 253
+                            },
+                            "verifiedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "credentialId",
+                            "nonce",
+                            "wrappedKey",
+                            "createdAt",
+                            "rpId"
+                          ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 10
                       }
+                    },
+                    "required": [
+                      "version",
+                      "algorithm",
+                      "publicKey",
+                      "secretKind",
+                      "secretNonce",
+                      "sealedSecret",
+                      "wraps"
                     ]
                   },
                   "proof": {
@@ -19063,418 +18963,137 @@
           "content": {
             "application/json": {
               "schema": {
-                "oneOf": [
-                  {
+                "type": "object",
+                "properties": {
+                  "envelope": {
                     "type": "object",
                     "properties": {
-                      "envelope": {
-                        "oneOf": [
-                          {
-                            "type": "object",
-                            "properties": {
-                              "version": {
-                                "type": "number",
-                                "enum": [
-                                  1
-                                ]
-                              },
-                              "algorithm": {
-                                "type": "string",
-                                "enum": [
-                                  "xchacha20poly1305"
-                                ]
-                              },
-                              "publicKey": {
-                                "type": "string",
-                                "pattern": "^04[0-9a-f]{128}$"
-                              },
-                              "entropyNonce": {
-                                "type": "string",
-                                "pattern": "^[0-9a-fA-F]{48}$"
-                              },
-                              "sealedEntropy": {
-                                "type": "string",
-                                "pattern": "^[0-9a-fA-F]{64}$"
-                              },
-                              "wraps": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "credentialId": {
-                                      "type": "string",
-                                      "pattern": "^[A-Za-z0-9_-]+$",
-                                      "minLength": 16,
-                                      "maxLength": 1024
-                                    },
-                                    "nonce": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{48}$"
-                                    },
-                                    "wrappedKey": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{96}$"
-                                    },
-                                    "createdAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    },
-                                    "rpId": {
-                                      "type": "string",
-                                      "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                                      "minLength": 1,
-                                      "maxLength": 253
-                                    },
-                                    "verifiedAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    }
-                                  },
-                                  "required": [
-                                    "credentialId",
-                                    "nonce",
-                                    "wrappedKey",
-                                    "createdAt"
-                                  ]
-                                },
-                                "minItems": 1,
-                                "maxItems": 10
-                              }
-                            },
-                            "required": [
-                              "version",
-                              "algorithm",
-                              "publicKey",
-                              "entropyNonce",
-                              "sealedEntropy",
-                              "wraps"
-                            ]
-                          },
-                          {
-                            "type": "object",
-                            "properties": {
-                              "version": {
-                                "type": "number",
-                                "enum": [
-                                  2
-                                ]
-                              },
-                              "algorithm": {
-                                "type": "string",
-                                "enum": [
-                                  "xchacha20poly1305"
-                                ]
-                              },
-                              "publicKey": {
-                                "type": "string",
-                                "pattern": "^04[0-9a-f]{128}$"
-                              },
-                              "secretKind": {
-                                "type": "string",
-                                "enum": [
-                                  "mnemonic-entropy",
-                                  "raw-private-key"
-                                ]
-                              },
-                              "secretNonce": {
-                                "type": "string",
-                                "pattern": "^[0-9a-fA-F]{48}$"
-                              },
-                              "sealedSecret": {
-                                "type": "string",
-                                "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
-                              },
-                              "wraps": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "credentialId": {
-                                      "type": "string",
-                                      "pattern": "^[A-Za-z0-9_-]+$",
-                                      "minLength": 16,
-                                      "maxLength": 1024
-                                    },
-                                    "nonce": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{48}$"
-                                    },
-                                    "wrappedKey": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{96}$"
-                                    },
-                                    "createdAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    },
-                                    "rpId": {
-                                      "type": "string",
-                                      "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                                      "minLength": 1,
-                                      "maxLength": 253
-                                    },
-                                    "verifiedAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    }
-                                  },
-                                  "required": [
-                                    "credentialId",
-                                    "nonce",
-                                    "wrappedKey",
-                                    "createdAt"
-                                  ]
-                                },
-                                "minItems": 1,
-                                "maxItems": 10
-                              }
-                            },
-                            "required": [
-                              "version",
-                              "algorithm",
-                              "publicKey",
-                              "secretKind",
-                              "secretNonce",
-                              "sealedSecret",
-                              "wraps"
-                            ]
-                          }
+                      "version": {
+                        "type": "number",
+                        "enum": [
+                          2
                         ]
                       },
-                      "proof": {
-                        "type": "object",
-                        "properties": {
-                          "v": {
-                            "type": "number",
-                            "enum": [
-                              2
-                            ]
+                      "algorithm": {
+                        "type": "string",
+                        "enum": [
+                          "xchacha20poly1305"
+                        ]
+                      },
+                      "publicKey": {
+                        "type": "string",
+                        "pattern": "^04[0-9a-f]{128}$"
+                      },
+                      "secretKind": {
+                        "type": "string",
+                        "enum": [
+                          "mnemonic-entropy",
+                          "raw-private-key"
+                        ]
+                      },
+                      "secretNonce": {
+                        "type": "string",
+                        "pattern": "^[0-9a-fA-F]{48}$"
+                      },
+                      "sealedSecret": {
+                        "type": "string",
+                        "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
+                      },
+                      "wraps": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "credentialId": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]+$",
+                              "minLength": 16,
+                              "maxLength": 1024
+                            },
+                            "nonce": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]{48}$"
+                            },
+                            "wrappedKey": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]{96}$"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "rpId": {
+                              "type": "string",
+                              "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
+                              "minLength": 1,
+                              "maxLength": 253
+                            },
+                            "verifiedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
                           },
-                          "challenge": {
-                            "type": "string",
-                            "pattern": "^[0-9a-f]{64}$"
-                          },
-                          "expiresAt": {
-                            "type": "integer",
-                            "exclusiveMinimum": 0
-                          },
-                          "signature": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 512
-                          }
+                          "required": [
+                            "credentialId",
+                            "nonce",
+                            "wrappedKey",
+                            "createdAt",
+                            "rpId"
+                          ]
                         },
-                        "required": [
-                          "v",
-                          "challenge",
-                          "expiresAt",
-                          "signature"
-                        ]
-                      },
-                      "expectedRevision": {
-                        "type": "integer",
-                        "minimum": 0
+                        "minItems": 1,
+                        "maxItems": 10
                       }
                     },
                     "required": [
-                      "envelope",
-                      "proof",
-                      "expectedRevision"
+                      "version",
+                      "algorithm",
+                      "publicKey",
+                      "secretKind",
+                      "secretNonce",
+                      "sealedSecret",
+                      "wraps"
                     ]
                   },
-                  {
+                  "proof": {
                     "type": "object",
                     "properties": {
-                      "envelope": {
-                        "oneOf": [
-                          {
-                            "type": "object",
-                            "properties": {
-                              "version": {
-                                "type": "number",
-                                "enum": [
-                                  1
-                                ]
-                              },
-                              "algorithm": {
-                                "type": "string",
-                                "enum": [
-                                  "xchacha20poly1305"
-                                ]
-                              },
-                              "publicKey": {
-                                "type": "string",
-                                "pattern": "^04[0-9a-f]{128}$"
-                              },
-                              "entropyNonce": {
-                                "type": "string",
-                                "pattern": "^[0-9a-fA-F]{48}$"
-                              },
-                              "sealedEntropy": {
-                                "type": "string",
-                                "pattern": "^[0-9a-fA-F]{64}$"
-                              },
-                              "wraps": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "credentialId": {
-                                      "type": "string",
-                                      "pattern": "^[A-Za-z0-9_-]+$",
-                                      "minLength": 16,
-                                      "maxLength": 1024
-                                    },
-                                    "nonce": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{48}$"
-                                    },
-                                    "wrappedKey": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{96}$"
-                                    },
-                                    "createdAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    },
-                                    "rpId": {
-                                      "type": "string",
-                                      "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                                      "minLength": 1,
-                                      "maxLength": 253
-                                    },
-                                    "verifiedAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    }
-                                  },
-                                  "required": [
-                                    "credentialId",
-                                    "nonce",
-                                    "wrappedKey",
-                                    "createdAt"
-                                  ]
-                                },
-                                "minItems": 1,
-                                "maxItems": 10
-                              }
-                            },
-                            "required": [
-                              "version",
-                              "algorithm",
-                              "publicKey",
-                              "entropyNonce",
-                              "sealedEntropy",
-                              "wraps"
-                            ]
-                          },
-                          {
-                            "type": "object",
-                            "properties": {
-                              "version": {
-                                "type": "number",
-                                "enum": [
-                                  2
-                                ]
-                              },
-                              "algorithm": {
-                                "type": "string",
-                                "enum": [
-                                  "xchacha20poly1305"
-                                ]
-                              },
-                              "publicKey": {
-                                "type": "string",
-                                "pattern": "^04[0-9a-f]{128}$"
-                              },
-                              "secretKind": {
-                                "type": "string",
-                                "enum": [
-                                  "mnemonic-entropy",
-                                  "raw-private-key"
-                                ]
-                              },
-                              "secretNonce": {
-                                "type": "string",
-                                "pattern": "^[0-9a-fA-F]{48}$"
-                              },
-                              "sealedSecret": {
-                                "type": "string",
-                                "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
-                              },
-                              "wraps": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "credentialId": {
-                                      "type": "string",
-                                      "pattern": "^[A-Za-z0-9_-]+$",
-                                      "minLength": 16,
-                                      "maxLength": 1024
-                                    },
-                                    "nonce": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{48}$"
-                                    },
-                                    "wrappedKey": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{96}$"
-                                    },
-                                    "createdAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    },
-                                    "rpId": {
-                                      "type": "string",
-                                      "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                                      "minLength": 1,
-                                      "maxLength": 253
-                                    },
-                                    "verifiedAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    }
-                                  },
-                                  "required": [
-                                    "credentialId",
-                                    "nonce",
-                                    "wrappedKey",
-                                    "createdAt"
-                                  ]
-                                },
-                                "minItems": 1,
-                                "maxItems": 10
-                              }
-                            },
-                            "required": [
-                              "version",
-                              "algorithm",
-                              "publicKey",
-                              "secretKind",
-                              "secretNonce",
-                              "sealedSecret",
-                              "wraps"
-                            ]
-                          }
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
                         ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
                       },
                       "signature": {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 512
-                      },
-                      "timestamp": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
                       }
                     },
                     "required": [
-                      "envelope",
-                      "signature",
-                      "timestamp"
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
                     ]
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0
                   }
+                },
+                "required": [
+                  "envelope",
+                  "proof",
+                  "expectedRevision"
                 ]
               }
             }
@@ -19544,68 +19163,46 @@
           "content": {
             "application/json": {
               "schema": {
-                "oneOf": [
-                  {
+                "type": "object",
+                "properties": {
+                  "proof": {
                     "type": "object",
                     "properties": {
-                      "proof": {
-                        "type": "object",
-                        "properties": {
-                          "v": {
-                            "type": "number",
-                            "enum": [
-                              2
-                            ]
-                          },
-                          "challenge": {
-                            "type": "string",
-                            "pattern": "^[0-9a-f]{64}$"
-                          },
-                          "expiresAt": {
-                            "type": "integer",
-                            "exclusiveMinimum": 0
-                          },
-                          "signature": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 512
-                          }
-                        },
-                        "required": [
-                          "v",
-                          "challenge",
-                          "expiresAt",
-                          "signature"
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
                         ]
                       },
-                      "expectedRevision": {
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
                         "type": "integer",
-                        "minimum": 0
-                      }
-                    },
-                    "required": [
-                      "proof",
-                      "expectedRevision"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
+                        "exclusiveMinimum": 0
+                      },
                       "signature": {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 512
-                      },
-                      "timestamp": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
                       }
                     },
                     "required": [
-                      "signature",
-                      "timestamp"
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
                     ]
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0
                   }
+                },
+                "required": [
+                  "proof",
+                  "expectedRevision"
                 ]
               }
             }
@@ -19620,7 +19217,7 @@
           "Misc"
         ],
         "summary": "its first one: link the key and store the envelope in one transaction, so there",
-        "description": "is never a committed link without a holder.\n\nv2 requires, besides the root proof, a fresh assertion by one of the account's\nexisting passkeys over the same challenge — a bearer is not a fresh factor.\nAn account whose root is already linked may add a web holder for THAT root\nonly when it has none; an account with a DIFFERENT root is refused.",
+        "description": "is never a committed link without a holder.\n\nBesides the root proof, a fresh assertion by one of the account's existing\npasskeys over the same challenge is required — a bearer is not a fresh factor.\nAn account whose root is already linked may add a web holder for THAT root\nonly when it has none; an account with a DIFFERENT root is refused.",
         "parameters": [],
         "responses": {
           "200": {
@@ -19677,497 +19274,197 @@
           "content": {
             "application/json": {
               "schema": {
-                "oneOf": [
-                  {
+                "type": "object",
+                "properties": {
+                  "envelope": {
                     "type": "object",
                     "properties": {
-                      "envelope": {
-                        "oneOf": [
-                          {
-                            "type": "object",
-                            "properties": {
-                              "version": {
-                                "type": "number",
-                                "enum": [
-                                  1
-                                ]
-                              },
-                              "algorithm": {
-                                "type": "string",
-                                "enum": [
-                                  "xchacha20poly1305"
-                                ]
-                              },
-                              "publicKey": {
-                                "type": "string",
-                                "pattern": "^04[0-9a-f]{128}$"
-                              },
-                              "entropyNonce": {
-                                "type": "string",
-                                "pattern": "^[0-9a-fA-F]{48}$"
-                              },
-                              "sealedEntropy": {
-                                "type": "string",
-                                "pattern": "^[0-9a-fA-F]{64}$"
-                              },
-                              "wraps": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "credentialId": {
-                                      "type": "string",
-                                      "pattern": "^[A-Za-z0-9_-]+$",
-                                      "minLength": 16,
-                                      "maxLength": 1024
-                                    },
-                                    "nonce": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{48}$"
-                                    },
-                                    "wrappedKey": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{96}$"
-                                    },
-                                    "createdAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    },
-                                    "rpId": {
-                                      "type": "string",
-                                      "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                                      "minLength": 1,
-                                      "maxLength": 253
-                                    },
-                                    "verifiedAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    }
-                                  },
-                                  "required": [
-                                    "credentialId",
-                                    "nonce",
-                                    "wrappedKey",
-                                    "createdAt"
-                                  ]
-                                },
-                                "minItems": 1,
-                                "maxItems": 10
-                              }
-                            },
-                            "required": [
-                              "version",
-                              "algorithm",
-                              "publicKey",
-                              "entropyNonce",
-                              "sealedEntropy",
-                              "wraps"
-                            ]
-                          },
-                          {
-                            "type": "object",
-                            "properties": {
-                              "version": {
-                                "type": "number",
-                                "enum": [
-                                  2
-                                ]
-                              },
-                              "algorithm": {
-                                "type": "string",
-                                "enum": [
-                                  "xchacha20poly1305"
-                                ]
-                              },
-                              "publicKey": {
-                                "type": "string",
-                                "pattern": "^04[0-9a-f]{128}$"
-                              },
-                              "secretKind": {
-                                "type": "string",
-                                "enum": [
-                                  "mnemonic-entropy",
-                                  "raw-private-key"
-                                ]
-                              },
-                              "secretNonce": {
-                                "type": "string",
-                                "pattern": "^[0-9a-fA-F]{48}$"
-                              },
-                              "sealedSecret": {
-                                "type": "string",
-                                "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
-                              },
-                              "wraps": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "credentialId": {
-                                      "type": "string",
-                                      "pattern": "^[A-Za-z0-9_-]+$",
-                                      "minLength": 16,
-                                      "maxLength": 1024
-                                    },
-                                    "nonce": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{48}$"
-                                    },
-                                    "wrappedKey": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{96}$"
-                                    },
-                                    "createdAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    },
-                                    "rpId": {
-                                      "type": "string",
-                                      "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                                      "minLength": 1,
-                                      "maxLength": 253
-                                    },
-                                    "verifiedAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    }
-                                  },
-                                  "required": [
-                                    "credentialId",
-                                    "nonce",
-                                    "wrappedKey",
-                                    "createdAt"
-                                  ]
-                                },
-                                "minItems": 1,
-                                "maxItems": 10
-                              }
-                            },
-                            "required": [
-                              "version",
-                              "algorithm",
-                              "publicKey",
-                              "secretKind",
-                              "secretNonce",
-                              "sealedSecret",
-                              "wraps"
-                            ]
-                          }
+                      "version": {
+                        "type": "number",
+                        "enum": [
+                          2
                         ]
                       },
-                      "proof": {
-                        "type": "object",
-                        "properties": {
-                          "v": {
-                            "type": "number",
-                            "enum": [
-                              2
-                            ]
-                          },
-                          "challenge": {
-                            "type": "string",
-                            "pattern": "^[0-9a-f]{64}$"
-                          },
-                          "expiresAt": {
-                            "type": "integer",
-                            "exclusiveMinimum": 0
-                          },
-                          "signature": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 512
-                          }
-                        },
-                        "required": [
-                          "v",
-                          "challenge",
-                          "expiresAt",
-                          "signature"
+                      "algorithm": {
+                        "type": "string",
+                        "enum": [
+                          "xchacha20poly1305"
                         ]
                       },
-                      "assertion": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9_-]+$",
-                            "minLength": 16,
-                            "maxLength": 1024
-                          },
-                          "rawId": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 2048
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "public-key"
-                            ]
-                          },
-                          "response": {
-                            "type": "object",
-                            "properties": {
-                              "clientDataJSON": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 8192
-                              },
-                              "authenticatorData": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 8192
-                              },
-                              "signature": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 2048
-                              },
-                              "userHandle": {
-                                "type": "string",
-                                "maxLength": 2048
-                              }
-                            },
-                            "required": [
-                              "clientDataJSON",
-                              "authenticatorData",
-                              "signature"
-                            ]
-                          },
-                          "clientExtensionResults": {
-                            "type": "object",
-                            "additionalProperties": {}
-                          },
-                          "authenticatorAttachment": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "rawId",
-                          "type",
-                          "response"
+                      "publicKey": {
+                        "type": "string",
+                        "pattern": "^04[0-9a-f]{128}$"
+                      },
+                      "secretKind": {
+                        "type": "string",
+                        "enum": [
+                          "mnemonic-entropy",
+                          "raw-private-key"
                         ]
+                      },
+                      "secretNonce": {
+                        "type": "string",
+                        "pattern": "^[0-9a-fA-F]{48}$"
+                      },
+                      "sealedSecret": {
+                        "type": "string",
+                        "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
+                      },
+                      "wraps": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "credentialId": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]+$",
+                              "minLength": 16,
+                              "maxLength": 1024
+                            },
+                            "nonce": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]{48}$"
+                            },
+                            "wrappedKey": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]{96}$"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "rpId": {
+                              "type": "string",
+                              "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
+                              "minLength": 1,
+                              "maxLength": 253
+                            },
+                            "verifiedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "credentialId",
+                            "nonce",
+                            "wrappedKey",
+                            "createdAt",
+                            "rpId"
+                          ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 10
                       }
                     },
                     "required": [
-                      "envelope",
-                      "proof",
-                      "assertion"
+                      "version",
+                      "algorithm",
+                      "publicKey",
+                      "secretKind",
+                      "secretNonce",
+                      "sealedSecret",
+                      "wraps"
                     ]
                   },
-                  {
+                  "proof": {
                     "type": "object",
                     "properties": {
-                      "envelope": {
-                        "oneOf": [
-                          {
-                            "type": "object",
-                            "properties": {
-                              "version": {
-                                "type": "number",
-                                "enum": [
-                                  1
-                                ]
-                              },
-                              "algorithm": {
-                                "type": "string",
-                                "enum": [
-                                  "xchacha20poly1305"
-                                ]
-                              },
-                              "publicKey": {
-                                "type": "string",
-                                "pattern": "^04[0-9a-f]{128}$"
-                              },
-                              "entropyNonce": {
-                                "type": "string",
-                                "pattern": "^[0-9a-fA-F]{48}$"
-                              },
-                              "sealedEntropy": {
-                                "type": "string",
-                                "pattern": "^[0-9a-fA-F]{64}$"
-                              },
-                              "wraps": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "credentialId": {
-                                      "type": "string",
-                                      "pattern": "^[A-Za-z0-9_-]+$",
-                                      "minLength": 16,
-                                      "maxLength": 1024
-                                    },
-                                    "nonce": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{48}$"
-                                    },
-                                    "wrappedKey": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{96}$"
-                                    },
-                                    "createdAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    },
-                                    "rpId": {
-                                      "type": "string",
-                                      "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                                      "minLength": 1,
-                                      "maxLength": 253
-                                    },
-                                    "verifiedAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    }
-                                  },
-                                  "required": [
-                                    "credentialId",
-                                    "nonce",
-                                    "wrappedKey",
-                                    "createdAt"
-                                  ]
-                                },
-                                "minItems": 1,
-                                "maxItems": 10
-                              }
-                            },
-                            "required": [
-                              "version",
-                              "algorithm",
-                              "publicKey",
-                              "entropyNonce",
-                              "sealedEntropy",
-                              "wraps"
-                            ]
-                          },
-                          {
-                            "type": "object",
-                            "properties": {
-                              "version": {
-                                "type": "number",
-                                "enum": [
-                                  2
-                                ]
-                              },
-                              "algorithm": {
-                                "type": "string",
-                                "enum": [
-                                  "xchacha20poly1305"
-                                ]
-                              },
-                              "publicKey": {
-                                "type": "string",
-                                "pattern": "^04[0-9a-f]{128}$"
-                              },
-                              "secretKind": {
-                                "type": "string",
-                                "enum": [
-                                  "mnemonic-entropy",
-                                  "raw-private-key"
-                                ]
-                              },
-                              "secretNonce": {
-                                "type": "string",
-                                "pattern": "^[0-9a-fA-F]{48}$"
-                              },
-                              "sealedSecret": {
-                                "type": "string",
-                                "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
-                              },
-                              "wraps": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "credentialId": {
-                                      "type": "string",
-                                      "pattern": "^[A-Za-z0-9_-]+$",
-                                      "minLength": 16,
-                                      "maxLength": 1024
-                                    },
-                                    "nonce": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{48}$"
-                                    },
-                                    "wrappedKey": {
-                                      "type": "string",
-                                      "pattern": "^[0-9a-fA-F]{96}$"
-                                    },
-                                    "createdAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    },
-                                    "rpId": {
-                                      "type": "string",
-                                      "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                                      "minLength": 1,
-                                      "maxLength": 253
-                                    },
-                                    "verifiedAt": {
-                                      "type": "string",
-                                      "format": "date-time"
-                                    }
-                                  },
-                                  "required": [
-                                    "credentialId",
-                                    "nonce",
-                                    "wrappedKey",
-                                    "createdAt"
-                                  ]
-                                },
-                                "minItems": 1,
-                                "maxItems": 10
-                              }
-                            },
-                            "required": [
-                              "version",
-                              "algorithm",
-                              "publicKey",
-                              "secretKind",
-                              "secretNonce",
-                              "sealedSecret",
-                              "wraps"
-                            ]
-                          }
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
                         ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
                       },
                       "signature": {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 512
-                      },
-                      "timestamp": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
-                      },
-                      "link": {
-                        "type": "object",
-                        "properties": {
-                          "signature": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 512
-                          },
-                          "timestamp": {
-                            "type": "integer",
-                            "exclusiveMinimum": 0
-                          }
-                        },
-                        "required": [
-                          "signature",
-                          "timestamp"
-                        ]
                       }
                     },
                     "required": [
-                      "envelope",
-                      "signature",
-                      "timestamp",
-                      "link"
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
+                  },
+                  "assertion": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]+$",
+                        "minLength": 16,
+                        "maxLength": 1024
+                      },
+                      "rawId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2048
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "public-key"
+                        ]
+                      },
+                      "response": {
+                        "type": "object",
+                        "properties": {
+                          "clientDataJSON": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
+                          },
+                          "authenticatorData": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
+                          },
+                          "signature": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          },
+                          "userHandle": {
+                            "type": "string",
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": [
+                          "clientDataJSON",
+                          "authenticatorData",
+                          "signature"
+                        ]
+                      },
+                      "clientExtensionResults": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      "authenticatorAttachment": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "rawId",
+                      "type",
+                      "response"
                     ]
                   }
+                },
+                "required": [
+                  "envelope",
+                  "proof",
+                  "assertion"
                 ]
               }
             }
@@ -20239,68 +19536,46 @@
           "content": {
             "application/json": {
               "schema": {
-                "oneOf": [
-                  {
+                "type": "object",
+                "properties": {
+                  "proof": {
                     "type": "object",
                     "properties": {
-                      "proof": {
-                        "type": "object",
-                        "properties": {
-                          "v": {
-                            "type": "number",
-                            "enum": [
-                              2
-                            ]
-                          },
-                          "challenge": {
-                            "type": "string",
-                            "pattern": "^[0-9a-f]{64}$"
-                          },
-                          "expiresAt": {
-                            "type": "integer",
-                            "exclusiveMinimum": 0
-                          },
-                          "signature": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 512
-                          }
-                        },
-                        "required": [
-                          "v",
-                          "challenge",
-                          "expiresAt",
-                          "signature"
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
                         ]
                       },
-                      "expectedRevision": {
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
                         "type": "integer",
-                        "minimum": 0
-                      }
-                    },
-                    "required": [
-                      "proof",
-                      "expectedRevision"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
+                        "exclusiveMinimum": 0
+                      },
                       "signature": {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 512
-                      },
-                      "timestamp": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
                       }
                     },
                     "required": [
-                      "signature",
-                      "timestamp"
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
                     ]
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0
                   }
+                },
+                "required": [
+                  "proof",
+                  "expectedRevision"
                 ]
               }
             }
@@ -20372,68 +19647,46 @@
           "content": {
             "application/json": {
               "schema": {
-                "oneOf": [
-                  {
+                "type": "object",
+                "properties": {
+                  "proof": {
                     "type": "object",
                     "properties": {
-                      "proof": {
-                        "type": "object",
-                        "properties": {
-                          "v": {
-                            "type": "number",
-                            "enum": [
-                              2
-                            ]
-                          },
-                          "challenge": {
-                            "type": "string",
-                            "pattern": "^[0-9a-f]{64}$"
-                          },
-                          "expiresAt": {
-                            "type": "integer",
-                            "exclusiveMinimum": 0
-                          },
-                          "signature": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 512
-                          }
-                        },
-                        "required": [
-                          "v",
-                          "challenge",
-                          "expiresAt",
-                          "signature"
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
                         ]
                       },
-                      "expectedRevision": {
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
                         "type": "integer",
-                        "minimum": 0
-                      }
-                    },
-                    "required": [
-                      "proof",
-                      "expectedRevision"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
+                        "exclusiveMinimum": 0
+                      },
                       "signature": {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 512
-                      },
-                      "timestamp": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
                       }
                     },
                     "required": [
-                      "signature",
-                      "timestamp"
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
                     ]
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0
                   }
+                },
+                "required": [
+                  "proof",
+                  "expectedRevision"
                 ]
               }
             }
@@ -37191,6 +36444,11 @@
                     "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$",
                     "maxLength": 194
                   },
+                  "routingProfileId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
                   "input": {
                     "type": "string",
                     "minLength": 1,
@@ -37224,7 +36482,6 @@
                   }
                 },
                 "required": [
-                  "model",
                   "input",
                   "voice"
                 ]

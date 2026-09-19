@@ -170,9 +170,9 @@ SHA-256 of the canonical JSON of the exact payload (the envelope, the move
 receipt fields, …). Envelope writes also carry `expectedRevision`; the write is
 a compare-and-swap on `identity_web_envelopes.revision`. Wrong action, subject,
 actor, root, payload, revision, audience, an expired or replayed challenge all
-fail closed. The v1 `{action,userId,timestamp}` format is accepted only during
-the rollout window stated in the implementing PRs and then removed; rollback
-does not re-enable it.
+fail closed. The v1 `{action,userId,timestamp}` format is gone: production had
+no holder or transfer that depended on it, so it was removed outright rather
+than kept for a rollout window.
 
 ### D8 — Root authority
 
@@ -183,8 +183,8 @@ does not re-enable it.
   challenge the new root signs. A bearer, however recent, is not that proof.
 - Replacing a root is `POST /auth/rotate/*` only (old-root and new-root proofs,
   one-use challenge bound to the current root).
-- `DELETE /auth/link/identity` is refused for personal accounts. A root is not
-  "unlinked" back into a keyless account.
+- No route unlinks a root; `DELETE /auth/link/:type` does not exist. A root is
+  not "unlinked" back into a keyless account.
 - No staff flag, service token, delegated account context, OAuth or MCP grant is
   authority over a personal root; every root-changing route checks the personal
   principal's own proof.
