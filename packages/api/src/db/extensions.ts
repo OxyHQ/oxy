@@ -26,4 +26,17 @@ export const REQUIRED_EXTENSIONS: readonly RequiredExtension[] = [
       'GiST index; `geography`, `ST_MakePoint`, `ST_DWithin` and `ST_Distance` ' +
       'all come from PostGIS.',
   },
+  {
+    name: 'pg_trgm',
+    reason:
+      '`users_people_search_trgm_idx` is a GIN index over the concatenated ' +
+      'people-search text using `gin_trgm_ops`, and it is the only thing that ' +
+      'can serve the people-search predicate. That predicate is four OR-ed ' +
+      "leading-wildcard `ILIKE '%term%'` tests (username, first name, last " +
+      'name, bio) — a substring match, not a lexeme match, so no b-tree and no ' +
+      '`tsvector` can answer it and every people search was a sequential scan ' +
+      'of `users`. Unlike PostGIS this is a TRUSTED extension (PG13+), so a ' +
+      'database owner can create it without `rds_superuser`, and it ships with ' +
+      'every mainline `postgres` / `postgis/postgis` image.',
+  },
 ];

@@ -694,6 +694,13 @@
       "when": 1789719356755,
       "tag": "0099_application_workload_identities",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1789770454891,
+      "tag": "0100_people_search_trigram_index",
+      "breakpoints": true
     }
   ]
 }

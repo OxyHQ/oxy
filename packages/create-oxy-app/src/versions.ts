@@ -13,9 +13,18 @@ export const VERSIONS = {
   // installs from npm, not from this workspace. So a pin tracks the PUBLISHED
   // version, never `packages/<pkg>/package.json`: a workspace version that has
   // been bumped but not yet published names a range nothing can resolve.
+  // PAIRED WITH `oxyBloom` BELOW, and the pairing is load-bearing.
+  // `@oxy.so/services` caps its Bloom peer at the major it was measured against,
+  // so services 2.x + Bloom 3.x makes a package manager resolve a SECOND, nested
+  // Bloom — and Bloom 3's composition contracts are React contexts, which do not
+  // cross copies. Raise this to `^3.0.0` the moment services 3.0.0 is on npm; it
+  // is not here yet, and the rule above forbids naming a range that cannot
+  // resolve. CI is not exposed to the gap: `scaffold-smoke` installs the
+  // generated app from HEAD tarballs, so it already pairs Bloom 3 with the
+  // services in this working tree.
   oxyServices: '^2.0.0', // @oxy.so/services
   oxyCore: '^23.3.0', // @oxy.so/core
-  oxyBloom: '^2.1.0', // @oxy.so/bloom
+  oxyBloom: '^3.0.1', // @oxy.so/bloom
   oxyContracts: '^1.0.0', // @oxy.so/contracts
   oxyAppPreset: '^2.0.0', // @oxy.so/app-preset
 

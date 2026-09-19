@@ -18,6 +18,18 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   moduleNameMapper: {
+    // Same rationale as @oxy.so/contracts and @oxy.so/protocol below: resolve
+    // from SOURCE so the api-test job needs no prior build of this package.
+    // Without it, `locationQueryService` fails to load with
+    // `Cannot find module '@oxy.so/utils/sql'` and takes every test that
+    // transitively imports a route with it — which is how seven `/v1 mount
+    // order` assertions went red for a reason that had nothing to do with
+    // mount order. The package is dependency-free, so its source needs nothing
+    // from node_modules.
+    '^@oxy.so/utils$': '<rootDir>/../utils/src/index.ts',
+    '^@oxy.so/utils/sql$': '<rootDir>/../utils/src/sql.ts',
+    '^@oxy.so/utils/paging$': '<rootDir>/../utils/src/paging.ts',
+    '^@oxy.so/utils/text$': '<rootDir>/../utils/src/text.ts',
     '^@oxy.so/telemetry/collector$': '<rootDir>/../telemetry/src/collector.ts',
     '^@oxy.so/telemetry/socket$': '<rootDir>/../telemetry/src/socket.ts',
     '^@oxy.so/telemetry/server$': '<rootDir>/../telemetry/src/server.ts',
