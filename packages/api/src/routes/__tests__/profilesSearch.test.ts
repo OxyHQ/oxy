@@ -519,6 +519,9 @@ describe('GET /profiles/search — wire shape', () => {
         linksMetadata: [],
         createdAt: stored.createdAt.toISOString(),
         updatedAt: stored.updatedAt.toISOString(),
+        // Standing is public; the other two gate columns are not. See
+        // `publicUserProjection` on why publishing this one is safe.
+        reputationTier: 'new',
         type: 'local',
         kind: 'personal',
         isFederated: false,

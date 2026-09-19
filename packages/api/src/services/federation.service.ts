@@ -668,6 +668,26 @@ export async function getInstanceActor(domain: string = AP_DOMAIN): Promise<Reco
  * - Anything that cannot be resolved publicly (missing/private avatar) is
  *   omitted rather than advertising an unreachable URL.
  */
+/**
+ * The stored avatar READ AS A FILE ID, or `undefined` when it is not one.
+ *
+ * `users.avatar` holds either an Oxy Cloud file id or, since
+ * `registerExternalIdentity` began seeding a federated actor's source picture
+ * synchronously, the remote URL it is still waiting to replace. Only the first is
+ * a file id, and the download path treats that argument as one — it DELETES what
+ * it names when a new image replaces it.
+ *
+ * EXPORTED, and module-level rather than a method, because the readers are not
+ * all in this file: `routes/users.ts` reads the column too. A private helper
+ * would have left that one deriving the rule by hand, which is exactly how it is
+ * written today and exactly the failure this is meant to end.
+ */
+export function storedAvatarFileId(avatar: string | null | undefined): string | undefined {
+  return typeof avatar === 'string' && avatar.length > 0 && !avatar.startsWith('http')
+    ? avatar
+    : undefined;
+}
+
 async function resolveActorAvatarUrl(avatar: unknown): Promise<string | undefined> {
   if (typeof avatar !== 'string' || avatar.length === 0) {
     return undefined;
@@ -793,12 +813,13 @@ function getAssetService(): AssetService {
 
 class FederationService {
   private async storedAvatarExists(fileId: unknown): Promise<boolean> {
-    if (typeof fileId !== 'string' || !fileId || fileId.startsWith('http')) {
+    const stored = storedAvatarFileId(typeof fileId === 'string' ? fileId : undefined);
+    if (stored === undefined) {
       return false;
     }
 
     try {
-      return await getAssetService().fileContentExists(fileId);
+      return await getAssetService().fileContentExists(stored);
     } catch (err) {
       logger.warn(
         `Failed checking stored federated avatar ${fileId}: ${err instanceof Error ? err.message : String(err)}`,
@@ -1139,7 +1160,7 @@ class FederationService {
       const [source] = await getDb().select({ avatar: users.avatar }).from(users).where(eq(users.id, result.identity.userId));
       const avatar = source?.avatar ?? undefined;
       if (opts.forceAvatarRefresh || !avatar || avatar.startsWith('http')) {
-        this.scheduleAvatarRefresh(result.identity.userId, profile.avatarUrl, avatar, { force: opts.forceAvatarRefresh === true });
+        this.scheduleAvatarRefresh(result.identity.userId, profile.avatarUrl, storedAvatarFileId(avatar), { force: opts.forceAvatarRefresh === true });
       }
     }
     const [externalIdentities, redirectedUserIds] = await Promise.all([
@@ -1348,13 +1369,10 @@ class FederationService {
 
       // Delete the replaced avatar only after the new durable file is present.
       // If dedupe returned the same file, keep it.
-      if (
-        existingAvatarFileId &&
-        !existingAvatarFileId.startsWith('http') &&
-        existingAvatarFileId !== fileId
-      ) {
+      const priorFileId = storedAvatarFileId(existingAvatarFileId);
+      if (priorFileId !== undefined && priorFileId !== fileId) {
         try {
-          await assetService.deleteFile(existingAvatarFileId, true);
+          await assetService.deleteFile(priorFileId, true);
         } catch {
           // Old file may already be gone — not critical
         }
@@ -1549,10 +1567,10 @@ class FederationService {
         return;
       }
 
-      const storedAvatar = typeof user.avatar === 'string' ? user.avatar : existingAvatarFileId;
-      const alreadyHasFileId = typeof storedAvatar === 'string'
-        && storedAvatar.length > 0
-        && !storedAvatar.startsWith('http');
+      // `storedAvatar` is already a file id or nothing — the helper guarantees it —
+      // so the question is simply whether there is one.
+      const storedAvatar = storedAvatarFileId(user.avatar) ?? storedAvatarFileId(existingAvatarFileId);
+      const alreadyHasFileId = storedAvatar !== undefined;
 
       // Persisted authority: skip a forced re-download inside the throttle window.
       // The in-memory guard in scheduleAvatarRefresh handles the common in-process
@@ -1700,7 +1718,7 @@ class FederationService {
           .from(users)
           .where(eq(users.id, userId))
           .limit(1);
-        const stored = await this.downloadAndStoreAvatar(profile.avatarUrl, validators?.avatar ?? undefined, {
+        const stored = await this.downloadAndStoreAvatar(profile.avatarUrl, storedAvatarFileId(validators?.avatar), {
           etag: validators?.etag ?? undefined,
           lastModified: validators?.lastModified ?? undefined,
         }, userId);
