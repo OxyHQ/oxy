@@ -3848,16 +3848,44 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
 }));
 
 /**
+ * The workload mint gets its own budget, and it has to be a fleet-sized one.
+ *
+ * The credential limiter above is 10 per 5 minutes because an api key and
+ * secret are GUESSABLE: a wide budget there is a brute-force budget. Nothing
+ * about the workload path is guessable. The challenge hands out a nonce that
+ * expires in 60 seconds and authorises nothing, and the exchange only mints if
+ * AWS itself confirms which IAM role signed the request — an attacker who can
+ * produce that already has the role.
+ *
+ * The sharing was not a neutral choice, it was a fleet-wide outage waiting for
+ * adoption. Every deployed service egresses through the same NAT address, the
+ * bucket is keyed on the caller's address, and one mint costs TWO requests
+ * (challenge, then exchange). So the whole estate shared five mints per five
+ * minutes: about thirty services, each re-minting an hourly token on every
+ * task, plus every retry and every deploy. Measured on 2026-09-19, verifying
+ * the fourth service of the migration: `Oxy refused to issue a workload
+ * challenge (429)` — from a handful of hand-run checks, with most of the fleet
+ * not yet migrated.
+ *
+ * 600 per 5 minutes is two a second sustained, which is far more than the
+ * estate can need — a token lasts an hour — and far less than a useful flood.
+ * The nonce store is the thing being protected here, and it is a Redis key with
+ * a 60-second TTL.
+ */
+const workloadTokenLimiter = rateLimit({
+  prefix: 'rl:auth:service-token-workload:',
+  windowMs: 5 * 60 * 1000,
+  max: process.env.NODE_ENV === 'development' ? 2_000 : 600,
+});
+
+/**
  * The workload-identity mint: a service token for a first-party service that
  * holds no credential at all (ADR 0026).
  *
  * Two calls, because an attestation is replayable on its own: ask for a nonce,
- * then present an attestation that signs it. Both are rate-limited on the same
- * bucket as the credential mint — they are the same resource, and a caller that
- * cannot answer a challenge should not be able to spend the mint's budget by
- * asking for challenges.
+ * then present an attestation that signs it.
  */
-router.post('/service-token/workload/challenge', serviceTokenLimiter, asyncHandler(async (_req, res) => {
+router.post('/service-token/workload/challenge', workloadTokenLimiter, asyncHandler(async (_req, res) => {
   try {
     sendSuccess(res, await issueWorkloadChallenge());
   } catch (error: unknown) {
@@ -3867,7 +3895,7 @@ router.post('/service-token/workload/challenge', serviceTokenLimiter, asyncHandl
 
 router.post(
   '/service-token/workload',
-  serviceTokenLimiter,
+  workloadTokenLimiter,
   validate({ body: workloadServiceTokenSchema }),
   asyncHandler(async (req, res) => {
     const { provider, nonce, attestation } = req.body;
