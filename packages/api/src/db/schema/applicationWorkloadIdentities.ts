@@ -62,8 +62,16 @@ export const applicationWorkloadIdentities = pgTable(
      * Kubernetes service-account URI, a certificate subject.
      *
      * Stored exactly as the provider states it and compared exactly. Not parsed,
-     * not normalised, not pattern-matched — every one of those is a way for two
-     * different workloads to resolve to one application.
+     * not normalised, not pattern-matched here — every one of those is a way for
+     * two different workloads to resolve to one application.
+     *
+     * Reducing a provider's per-invocation identity to the one stable form that
+     * belongs in this column happens once, in that provider's verifier
+     * (`canonicalAwsSubject` on AWS). Both the writer
+     * (`services/workloadIdentityBinding.service.ts`) and the reader
+     * (`services/workloadIdentity.service.ts`) work from its output, so a
+     * subject an operator supplies and a subject an attestation proves are the
+     * same string or the binding is refused before it is written.
      */
     subject: text().notNull(),
 
