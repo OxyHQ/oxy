@@ -964,6 +964,17 @@
         "vite-plugin-react-native-web": "catalog:",
       },
     },
+    "packages/utils": {
+      "name": "@oxy.so/utils",
+      "version": "1.0.1",
+      "devDependencies": {
+        "@biomejs/biome": "catalog:",
+        "@types/jest": "^30.0.0",
+        "jest": "^30.5.1",
+        "ts-jest": "^29.4.12",
+        "typescript": "^5.9.2",
+      },
+    },
   },
   "trustedDependencies": [
     "better-sqlite3",
@@ -2082,6 +2093,8 @@
     "@oxy.so/ship": ["@oxy.so/ship@workspace:packages/ship"],
 
     "@oxy.so/telemetry": ["@oxy.so/telemetry@workspace:packages/telemetry"],
+
+    "@oxy.so/utils": ["@oxy.so/utils@workspace:packages/utils"],
 
     "@paralleldrive/cuid2": ["@paralleldrive/cuid2@2.3.1", "", { "dependencies": { "@noble/hashes": "^1.1.5" } }, "sha512-XO7cAxhnTZl0Yggq6jOgjiOHhbgcO4NqFqwSmQpjK3b6TEE6Uj/jfSk6wzYyemh3+I0sHirKSetjQwn5cZktFw=="],
 
