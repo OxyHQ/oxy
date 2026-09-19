@@ -11,6 +11,9 @@ export const registerPublicKeySchema = z.object({
   timestamp: z.number(),
   email: z.string().trim().email().optional(),
   username: usernameSchema.optional(),
+  // Optional and unenforced for now — see the comment at the check site in
+  // `SessionController.register` for why and what flips it to required.
+  powNonce: z.string().trim().min(1).max(64).optional(),
 });
 
 // POST /auth/challenge

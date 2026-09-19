@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import type { Request, Response } from 'express';
 import { and, asc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { publicColumns } from '@oxy.so/db/assert';
@@ -25,6 +26,11 @@ import securityActivityService from '../services/securityActivityService';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
 import type { AuthRequest } from '../middleware/auth';
 import { isValidUsername, USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
+import {
+  meetsRegistrationPowDifficulty,
+  REGISTRATION_POW_DIFFICULTY_BITS,
+  registrationPowMessage,
+} from '@oxy.so/protocol';
 import { normalizeUsername } from '../utils/username';
 import type { SessionCreateOptions } from '../types/session.types';
 
@@ -148,6 +154,35 @@ export class SessionController {
         return res.status(401).json({
           message: 'Invalid signature. Please sign the registration request with your private key.'
         });
+      }
+
+      // Registration proof-of-work — ADVISORY ONLY for now, never rejects.
+      // `powNonce` is optional on the wire (`registerPublicKeySchema`) and every
+      // Oxy app consumes the SDK as a PUBLISHED package, not this monorepo
+      // live — hard-rejecting a missing/invalid nonce today would break signup
+      // in any app still pinned to an SDK build older than the one that starts
+      // sending it. This only logs the outcome so there is telemetry for when
+      // that stops being true. TO HARD-ENFORCE LATER: turn the two
+      // `logger.warn` branches below into `return res.status(400).json(...)`.
+      const { powNonce } = req.body as { powNonce?: unknown };
+      if (typeof powNonce !== 'string' || powNonce.length === 0) {
+        logger.warn('Registration proof-of-work missing', {
+          component: 'SessionController',
+          method: 'register',
+          powResult: 'missing',
+        });
+      } else {
+        const digest = crypto
+          .createHash('sha256')
+          .update(registrationPowMessage(publicKey, timestamp, powNonce))
+          .digest('hex');
+        if (!meetsRegistrationPowDifficulty(digest, REGISTRATION_POW_DIFFICULTY_BITS)) {
+          logger.warn('Registration proof-of-work invalid', {
+            component: 'SessionController',
+            method: 'register',
+            powResult: 'invalid',
+          });
+        }
       }
 
       // Check if user already exists (by publicKey only - that's the identity).
