@@ -1,0 +1,66 @@
+-- oxy:deploy-phase=pre
+--
+-- Four indexes so people search stops reading the whole `users` table.
+--
+-- WHY. `peopleSearchMatch` is four OR-ed leading-wildcard `ILIKE '%term%'`
+-- tests over `username`, `name_first`, `name_last` and `description`. That is a
+-- SUBSTRING question: no b-tree can serve it, and no `tsvector` can either
+-- (`user@bsky.social` is not a sentence, and a partial-word match like `ali` →
+-- `alice` is the documented behaviour). Before this file there was no trigram
+-- or full-text index on `users` at all, so every people search — the query
+-- behind `GET /profiles/search`, `GET /search` and `POST /users/search`, fired
+-- from a search box as the user types — was a sequential scan.
+--
+-- `users_people_search_trgm_idx` is a GIN index over the CONCATENATION of the
+-- four columns rather than four separate indexes. The concatenation is a strict
+-- superset filter (a substring of any part is a substring of the whole), so the
+-- query keeps the four exact `ILIKE`s as a recheck and the semantics are
+-- unchanged; the only false positives are matches spanning a separator, which
+-- the recheck drops. One bitmap scan, and one index to maintain per write
+-- instead of four.
+--
+-- The three `text_pattern_ops` b-trees serve terms SHORTER than three
+-- characters. `pg_trgm` extracts trigrams only from a pattern's wildcard-free
+-- runs, so `%ab%` yields none and cannot use the GIN index at all — a two-letter
+-- query would be a sequential scan plus a concatenation per row, i.e. worse than
+-- before. Those terms get an anchored prefix match instead, and
+-- `text_pattern_ops` is what makes `LIKE 'ab%'` index-servable under a non-C
+-- collation (the existing `users_lower_username_key` cannot do it).
+--
+-- PRE, and purely additive: creating an index changes no row and no contract,
+-- and it is correct against both the image still serving and the one arriving.
+-- The old image simply gets a faster plan for a query it already issues.
+--
+-- ## THE ONE OPERATIONAL DECISION IN THIS FILE, STATED RATHER THAN BURIED
+--
+-- `CREATE INDEX` takes SHARE on `users`: reads continue, WRITES BLOCK until the
+-- transaction commits. Drizzle wraps every pending migration in one
+-- transaction (`PgDialect.migrate`), so `CREATE INDEX CONCURRENTLY` — which
+-- cannot run inside a transaction — is not available to this migrator. Building
+-- a GIN index over four text columns of `users` is proportional to the table,
+-- so on a large `users` this is a write outage for the duration, not
+-- milliseconds of catalogue work like 0023 was.
+--
+-- `IF NOT EXISTS` is therefore load-bearing, not defensive: it makes the
+-- preferred production route possible. Build the indexes OUT OF BAND first —
+--
+--   CREATE INDEX CONCURRENTLY users_people_search_trgm_idx ON users USING gin (...);
+--
+-- against the live database, with no transaction and no write lock — and this
+-- migration then no-ops, keeping the schema and the journal honest. Run as
+-- written only where `users` is small enough that the build fits the deploy
+-- window, or where a write pause is acceptable.
+--
+-- Deliberately NO `lock_timeout` here, unlike 0023. There the timeout was the
+-- point: the work was milliseconds and any wait meant a blocking session, so
+-- failing fast was strictly better. Here the statement itself legitimately
+-- takes a long time, so a short ceiling would abort a healthy build and a long
+-- one would protect nothing. Bounding this belongs in the decision above — run
+-- it concurrently, out of band — not in a timeout that cannot tell a queue from
+-- honest work. 0023's `SET LOCAL lock_timeout` also leaks into every later
+-- migration sharing its transaction, which is a second reason not to add one
+-- casually.
+CREATE INDEX IF NOT EXISTS "users_people_search_trgm_idx" ON "users" USING gin ((coalesce(username, '') || ' ' || coalesce(name_first, '') || ' ' || coalesce(name_last, '') || ' ' || coalesce(description, '')) gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "users_lower_username_prefix_idx" ON "users" USING btree (lower(btrim("username")) text_pattern_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "users_lower_name_first_prefix_idx" ON "users" USING btree (lower("name_first") text_pattern_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "users_lower_name_last_prefix_idx" ON "users" USING btree (lower("name_last") text_pattern_ops);
