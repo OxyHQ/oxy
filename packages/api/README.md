@@ -319,7 +319,3 @@ Response:
 This package is licensed under the **Breathe License 1.0** (`LicenseRef-Breathe-1.0`), (c) The Oxy Collective, Inc. See the [LICENSE](LICENSE) and [NOTICE](NOTICE) files in this directory.
 
 Non commercial use is free. Commercial use requires a paid licence; the trigger is revenue and it includes internal use. Source publication and attribution are required of everyone, including paying customers, and cannot be waived. This is **source available, not open source**.
-
-Versions up to and including `1.0.3` were published as MIT and stay MIT permanently; a licence change binds future versions only.
-
-The SDK packages in this monorepo are Apache-2.0, not Breathe. The repository root [LICENSE](../../LICENSE) states which package is under which.
