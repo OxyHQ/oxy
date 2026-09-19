@@ -7615,6 +7615,10 @@
                     "minLength": 3,
                     "maxLength": 30,
                     "pattern": "^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$"
+                  },
+                  "powNonce": {
+                    "type": "string",
+                    "description": "Lightweight anti-automation proof-of-work nonce (see `@oxy.so/protocol`'s `auth/registrationPow.ts`). Optional and currently advisory — the server logs but does not yet reject a missing or invalid one.\n"
                   }
                 }
               }
@@ -7641,6 +7645,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded (5 / minute / IP)."
           }
         },
         "operationId": "postAuthRegister"
