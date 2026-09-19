@@ -215,6 +215,9 @@ describe('GET /profiles/username/:username — wire shape', () => {
       linksMetadata: [],
       createdAt: stored.createdAt.toISOString(),
       updatedAt: stored.updatedAt.toISOString(),
+      // Public since consuming apps began ranking accounts by standing. It is
+      // the ONE gate column the serializer emits; see `publicUserProjection`.
+      reputationTier: 'trusted',
       type: 'local',
       kind: 'personal',
       isFederated: false,
@@ -280,16 +283,32 @@ describe('GET /profiles/username/:username — wire shape', () => {
     expect(res.raw).not.toContain('elsewhere@example.com');
   });
 
-  it('never emits the discoverability gate columns it reads', async () => {
+  it('emits standing, but never the other gate columns it reads', async () => {
     const username = handle('gated');
     await account({ username, accountStatus: 'active', reputationTier: 'high_trust' });
 
     const res = await lookup(username);
 
     expect(res.status).toBe(200);
+    // `reputationTier` is the deliberate exception: consuming apps rank accounts
+    // and have no other way to ask what standing one has. Publishing it discloses
+    // nothing a reader could not already infer, because the punitive tier never
+    // reaches this route — `discoverableUserPredicate()` drops `restricted` rows
+    // before the serializer runs, leaving `new | trusted | high_trust | verified`.
+    expect(res.body.data?.reputationTier).toBe('high_trust');
+    // The other two stay read-only gates, and this is the assertion that keeps
+    // them that way.
     expect(res.body.data).not.toHaveProperty('accountStatus');
-    expect(res.body.data).not.toHaveProperty('reputationTier');
     expect(res.body.data).not.toHaveProperty('privacySettings');
+  });
+
+  it('never emits a restricted account at all, so its tier cannot leak', async () => {
+    const username = handle('sanctioned');
+    await account({ username, accountStatus: 'active', reputationTier: 'restricted' });
+
+    // The discoverability gate, not the serializer, is what makes publishing the
+    // tier safe — so it is asserted here rather than assumed above.
+    expect((await lookup(username)).status).toBe(404);
   });
 });
 

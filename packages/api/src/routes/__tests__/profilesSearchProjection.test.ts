@@ -215,7 +215,7 @@ describe('GET /profiles/search — protected columns', () => {
     expectNoSecrets(res, seeded.values);
   });
 
-  it('emits none of the ordering/gate columns the query reads', async () => {
+  it('emits standing, and none of the other ordering/gate columns the query reads', async () => {
     const seeded = await seedUserWithEverySecret({
       accountStatus: 'active',
       reputationTier: 'trusted',
@@ -225,8 +225,12 @@ describe('GET /profiles/search — protected columns', () => {
     const res = await search(seeded.term);
 
     const row = res.body.data?.[0];
+    // `reputationTier` is public — consuming apps rank accounts by standing and
+    // have no other way to ask for it. The RANK WEIGHT beside it stays private:
+    // it is the ordering input, and publishing it would hand out the shape of
+    // the ranking rather than a fact about the account.
+    expect(row?.reputationTier).toBe('trusted');
     expect(row).not.toHaveProperty('accountStatus');
-    expect(row).not.toHaveProperty('reputationTier');
     expect(row).not.toHaveProperty('reputationRankWeight');
   });
 
@@ -246,7 +250,6 @@ describe('GET /profiles/search — protected columns', () => {
     expect(row?.fediverseSharing).toBe(true);
     expect(row).not.toHaveProperty('privacySettings');
     expect(row).not.toHaveProperty('accountStatus');
-    expect(row).not.toHaveProperty('reputationTier');
     expect(row).not.toHaveProperty('reputationRankWeight');
   });
 });

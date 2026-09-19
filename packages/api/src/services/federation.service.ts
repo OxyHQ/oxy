@@ -1139,7 +1139,14 @@ class FederationService {
       const [source] = await getDb().select({ avatar: users.avatar }).from(users).where(eq(users.id, result.identity.userId));
       const avatar = source?.avatar ?? undefined;
       if (opts.forceAvatarRefresh || !avatar || avatar.startsWith('http')) {
-        this.scheduleAvatarRefresh(result.identity.userId, profile.avatarUrl, avatar, { force: opts.forceAvatarRefresh === true });
+        // Third argument is an existing FILE ID, deleted when the download
+        // replaces it — so a stored value that is still the source URL must not
+        // be handed over as one. `registerExternalIdentity` now seeds that URL
+        // synchronously, which is what makes this distinction load-bearing
+        // rather than theoretical: before it, a fresh identity simply had no
+        // avatar here.
+        const existingFileId = avatar && !avatar.startsWith('http') ? avatar : undefined;
+        this.scheduleAvatarRefresh(result.identity.userId, profile.avatarUrl, existingFileId, { force: opts.forceAvatarRefresh === true });
       }
     }
     const [externalIdentities, redirectedUserIds] = await Promise.all([
