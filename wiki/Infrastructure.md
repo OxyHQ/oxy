@@ -34,7 +34,7 @@ All tasks run with `assign_public_ip = true` (no NAT gateway).
 | Resource | Where | Why |
 |----------|-------|-----|
 | LiveKit | external managed host | Migration to AWS pending |
-| Athina, FairCoin, TNP, OpenSearch (`genai-shark`) | DigitalOcean | Outside the Oxy ecosystem migration scope |
+| Athina, FairCoin, TNP, OpenSearch (`genai-shark`) | external host | Outside the Oxy ecosystem migration scope |
 
 ## Networking
 
