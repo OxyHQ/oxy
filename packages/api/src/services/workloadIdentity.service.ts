@@ -6,7 +6,7 @@ import { applications } from '../db/schema/applications';
 import { applicationWorkloadIdentities } from '../db/schema/applicationWorkloadIdentities';
 import { getRedisClient } from '../config/redis';
 import { isProduction } from '../config/env';
-import { isPrivilegedScope } from '../utils/applicationScopes';
+import { intersectScopes, isPrivilegedScope } from '../utils/applicationScopes';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { logger } from '../utils/logger';
 import { mintServiceToken, SERVICE_TOKEN_EXPIRY } from './serviceTokenMint.service';
@@ -127,7 +127,10 @@ export async function exchangeWorkloadAttestation(input: {
       applicationId: applicationWorkloadIdentities.applicationId,
       appName: applications.name,
       ownerAccountId: applications.ownerAccountId,
-      scopes: applications.scopes,
+      /** What this binding names, or empty for "names none" — see the scope block below. */
+      bindingScopes: applicationWorkloadIdentities.scopes,
+      /** The ceiling. Nothing the binding names can exceed it.  */
+      applicationScopes: applications.scopes,
       status: applications.status,
       type: applications.type,
       isOfficial: applications.isOfficial,
@@ -171,14 +174,63 @@ export async function exchangeWorkloadAttestation(input: {
   }
 
   /**
-   * Scopes are the application's own non-privileged grants.
+   * Scopes, decided exactly as the credential path decides them.
    *
-   * Identical to what a scopeless credential receives on the other path, and
-   * for the same reason: privileged authority must be named on something a
-   * human granted deliberately. An attestation says WHAT is calling, never what
-   * it may do, so it can never widen an application's authority.
+   * ## The rule that has not changed
+   *
+   * Privileged authority must be named on something a human granted
+   * deliberately. An attestation says WHAT is calling, never what it may do, so
+   * an attestation can never widen an application's authority — and the ceiling
+   * is still the application's own grants, so nothing here can exceed what a
+   * human granted the application.
+   *
+   * ## What that rule was being read to mean, and why it was wrong
+   *
+   * It was read as "a workload token can never carry a privileged scope", by
+   * filtering privileged scopes out of the APPLICATION's grants. That conflated
+   * two different things. The attestation is not the only deliberate human act
+   * on this path: the binding row is one too. A row in
+   * `application_workload_identities` is written by staff, names exactly one IAM
+   * role and exactly one application, carries a human-authored `description`,
+   * and is gated at creation by the same staff check that gates a credential's
+   * scopes (`services/workloadIdentityBinding.service.ts`). It is the
+   * attestation path's equivalent of an `ApplicationCredential` — so it names
+   * authority the same way one does, and the rule above is satisfied by it, not
+   * violated.
+   *
+   * The attestation still names nothing. It selects a binding; the binding
+   * names the scopes. A workload that proves what it is gains no say at all in
+   * what it may do.
+   *
+   * ## The rule, then
+   *
+   * Identical to `POST /auth/service-token`, deliberately — two ways to prove
+   * who you are must not be two authorities:
+   *
+   *   * The binding NAMES scopes → the intersection with the application's, so
+   *     a privileged scope survives only when BOTH the binding and the
+   *     application hold it. Either one losing it is enough to lose it here.
+   *   * The binding names NONE → the application's non-privileged grants, which
+   *     is what this path did before the column existed and what a scopeless
+   *     credential still receives. Every binding written before today reads as
+   *     this case, so nothing changed under an existing deployment.
+   *
+   * ## Why this had to change
+   *
+   * Because the old reading was not "privileged scopes are unreachable here",
+   * it was "a service holding one cannot migrate". Mention's credential named
+   * `federation:write`, `signals:write` and `catalogs:write`; taking the pair
+   * off its task definition took all three away and its federation worker
+   * failed every six minutes until the pair was restored. mention-mcp needs
+   * `catalogs:write` for its own post-deploy registration and Alia needs
+   * `capabilities:read` to build its tool catalogue — so the filter was not
+   * holding a line, it was making ADR 0026's clean cut impossible for exactly
+   * the services it was written for.
    */
-  const scopes = binding.scopes.filter((scope) => !isPrivilegedScope(scope));
+  const scopes =
+    binding.bindingScopes.length > 0
+      ? intersectScopes(binding.bindingScopes, binding.applicationScopes)
+      : binding.applicationScopes.filter((scope) => !isPrivilegedScope(scope));
 
   const token = mintServiceToken({
     appId: binding.applicationId,
@@ -208,6 +260,10 @@ export async function exchangeWorkloadAttestation(input: {
     appName: binding.appName,
     provider: attested.provider,
     attestationId: attested.attestationId,
+    // The scopes, because the question an operator asks after a 403 is "what
+    // did that token actually carry?" and the binding is where the answer is
+    // now decided. Scope names are a bounded vocabulary, not caller data.
+    scopes,
   });
 
   return { token, expiresIn: SERVICE_TOKEN_EXPIRY, appName: binding.appName };

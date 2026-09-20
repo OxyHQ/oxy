@@ -31,9 +31,11 @@
  * token.
  */
 
-import { index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
+import { sql } from 'drizzle-orm';
+import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
 
+import { APPLICATION_SCOPES } from '../../utils/applicationScopes';
 import { applications } from './applications';
 
 /**
@@ -79,6 +81,37 @@ export const applicationWorkloadIdentities = pgTable(
     description: text(),
 
     /**
+     * Scopes this binding may mint, or empty for "names none".
+     *
+     * Same column shape, same default and the same CHECK as
+     * `application_credentials.scopes`, because it plays the same part: the
+     * mint intersects it with the owning application's scopes
+     * (`intersectScopes`), so a binding can never exceed its application's
+     * authority, and empty means the legacy answer — the application's
+     * non-privileged grants.
+     *
+     * ## Why a binding may name authority when a bare attestation may not
+     *
+     * An attestation says WHAT is calling and nothing about what it may do, so
+     * it can never widen an application's authority. That rule is unchanged.
+     * This column is not the attestation: it is a row staff wrote, naming one
+     * IAM role and one application, with a human-authored `description` beside
+     * it — the attestation path's equivalent of an `ApplicationCredential`, and
+     * gated the same way when it is written
+     * (`services/workloadIdentityBinding.service.ts`). Privileged authority is
+     * therefore still named on something a human granted deliberately; the only
+     * change is which deliberate thing.
+     *
+     * Empty was the whole vocabulary before this column existed, and it still
+     * means exactly what the mint did then — so every binding written before it
+     * keeps behaving identically without a backfill.
+     */
+    scopes: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+
+    /**
      * When set, the binding stops working at this instant.
      *
      * Present so a workload being retired can be wound down on a schedule rather
@@ -101,5 +134,18 @@ export const applicationWorkloadIdentities = pgTable(
      */
     unique('application_workload_identities_provider_subject_key').on(table.provider, table.subject),
     index('application_workload_identities_application_idx').on(table.applicationId),
+    /**
+     * Only real scopes, mirroring `application_credentials_scopes_check`.
+     *
+     * The mint drops an unknown scope anyway (`intersectScopes` refuses
+     * anything outside the vocabulary), so this is not what makes the mint
+     * safe. What it prevents is the row: a typo'd scope written here would sit
+     * in the table reading as granted, and the failure would surface as a 403
+     * from some other service with nothing pointing back at this row.
+     */
+    check(
+      'application_workload_identities_scopes_check',
+      sql`${table.scopes} <@ ${sql.raw(textArrayLiteral(APPLICATION_SCOPES))}`
+    ),
   ],
 );
