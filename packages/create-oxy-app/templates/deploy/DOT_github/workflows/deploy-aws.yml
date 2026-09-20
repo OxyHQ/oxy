@@ -41,21 +41,32 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
+        # Each secret is named EXPLICITLY below. Reading the whole secrets
+        # context in one expression is forbidden fleet-wide (oxy-infra
+        # `AGENTS.md` §Secrets): GitHub reads that as an exfiltration payload,
+        # and every run then completes `action_required` with ZERO jobs until a
+        # human approves it, per run. That expression is not spelled out
+        # anywhere in this file on purpose — the detector is worth assuming is
+        # textual, and a comment is still text. The failure is invisible in the
+        # worst way: a run with no jobs reads as "no checks reported", which is
+        # indistinguishable from "nothing to do" unless you gate on job NAMES.
+        #
+        # This list IS the allowlist now, rather than a filter applied to
+        # everything: an unrelated CI token cannot reach SSM because it is never
+        # read in the first place. Adding a runtime secret means adding it here
+        # AND to the ECS task definition's `secrets[]` — the task definition is
+        # the authority on what the service actually receives.
         env:
-          SECRETS_JSON: ${{ toJSON(secrets) }}
-          # Explicit backend runtime allowlist — do not sync unrelated CI tokens.
-          SSM_SECRET_ALLOWLIST: >-
-            DATABASE_URL REDIS_URL
-            OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          OXY_SERVICE_API_KEY: ${{ secrets.OXY_SERVICE_API_KEY }}
+          OXY_SERVICE_API_SECRET: ${{ secrets.OXY_SERVICE_API_SECRET }}
         run: |
-          echo "$SECRETS_JSON" | jq -r --arg allowlist "$SSM_SECRET_ALLOWLIST" '
-            ($allowlist | split(" ")) as $allowed
-            | to_entries[]
-            | select(.key as $k | $allowed | index($k))
-            | [.key,.value]|@tsv
-          ' | \
-          while IFS=$'\t' read -r k v; do
-            [ -z "$k" ] && continue
+          set -euo pipefail
+          for k in DATABASE_URL REDIS_URL OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET; do
+            v="${!k-}"
+            # A placeholder is worse than an absent secret: the sync would
+            # overwrite a real SSM value and crash-loop the service.
             if [ -z "$v" ] || [ "$v" = "-" ]; then
               echo "::warning::skip empty/placeholder secret $k; SSM unchanged"
               continue

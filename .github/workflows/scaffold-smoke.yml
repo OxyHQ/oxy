@@ -132,6 +132,17 @@ jobs:
           ! grep -rniE 'mongo' . --exclude-dir=node_modules
           docker compose -f docker-compose.postgres.yml config -q
 
+      - name: Every Oxy range the scaffold ships resolves on the public registry
+        # BEFORE the overrides below, which is the whole point: the install step
+        # replaces every Oxy dependency with a HEAD tarball, so it proves the
+        # generated app works against THIS tree and never that the ranges it
+        # actually ships resolve for somebody running `bun create oxy-app`. That
+        # blind spot shipped a `@oxy.so/core` pin carrying a pre-rename major —
+        # an E404 that the generated root package.json repeats into `overrides`
+        # and `resolutions`, so no generated app could install at all, while
+        # every job here stayed green.
+        run: node packages/create-oxy-app/scripts/assert-oxy-ranges-resolve.mjs "$RUNNER_TEMP/smoke-app"
+
       - name: Install the generated app with packed Oxy HEAD dependencies
         working-directory: ${{ runner.temp }}/smoke-app
         run: |
