@@ -28,7 +28,21 @@ export const VERSIONS = {
   // `^3.0.0` and not `^3.1.0`: the rule above is "name a range that resolves",
   // 3.0.0 is the published floor, and a caret picks up 3.1.0 on its own.
   oxyServices: '^3.0.0', // @oxy.so/services
-  oxyCore: '^23.3.0', // @oxy.so/core
+  //
+  // `^23.3.0` until now, which is a PRE-RENAME number: the package was
+  // `@oxyhq/core` up to 23.x, and versions RESET at the rename to `@oxy.so/core`,
+  // whose highest published version is 1.x. So the range matched nothing —
+  // `npm view '@oxy.so/core@^23.3.0' version` is an E404 — and because the
+  // generated root `package.json` repeats this pin in `overrides` AND
+  // `resolutions`, a scaffolded app could not `bun install` at all, not even
+  // partially. Every app generated since the rename inherited that.
+  //
+  // 1.7.1 is published and satisfies the `@oxy.so/core: ^1.0.1` peer that
+  // services 3.x declares. The floor is the measured version rather than the
+  // major's first release: services' peer floor is only the compatibility
+  // minimum, while 1.7.1 is what this workspace and `scaffold-smoke` build
+  // against. A caret keeps later 1.x.
+  oxyCore: '^1.7.1', // @oxy.so/core
   oxyBloom: '^3.2.1', // @oxy.so/bloom — services imports its per-glyph icon subpaths
   oxyContracts: '^1.0.0', // @oxy.so/contracts
   oxyAppPreset: '^2.0.0', // @oxy.so/app-preset
