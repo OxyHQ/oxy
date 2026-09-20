@@ -1,14 +1,12 @@
 import { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { TabBar, TabBarButton, type TabBarItem } from '@oxy.so/bloom/tab-bar';
-import {
-  RiUserFill,
-  RiUserLine,
-  RiSettings3Fill,
-  RiSettings3Line,
-  RiStarFill,
-  RiStarLine,
-} from '@oxy.so/bloom/icons';
+import { RiUserFill } from '@oxy.so/bloom/icons/RiUserFill';
+import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
+import { RiSettings3Fill } from '@oxy.so/bloom/icons/RiSettings3Fill';
+import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
+import { RiStarFill } from '@oxy.so/bloom/icons/RiStarFill';
+import { RiStarLine } from '@oxy.so/bloom/icons/RiStarLine';
 import type { BottomTabBarProps } from 'expo-router/tabs';
 
 import { useTranslation } from '@/lib/i18n';

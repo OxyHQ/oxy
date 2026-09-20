@@ -17,14 +17,19 @@ export const VERSIONS = {
   // `@oxy.so/services` caps its Bloom peer at the major it was measured against,
   // so services 2.x + Bloom 3.x makes a package manager resolve a SECOND, nested
   // Bloom — and Bloom 3's composition contracts are React contexts, which do not
-  // cross copies. Raise this to `^3.0.0` the moment services 3.0.0 is on npm; it
-  // is not here yet, and the rule above forbids naming a range that cannot
-  // resolve. CI is not exposed to the gap: `scaffold-smoke` installs the
-  // generated app from HEAD tarballs, so it already pairs Bloom 3 with the
-  // services in this working tree.
-  oxyServices: '^2.0.0', // @oxy.so/services
+  // cross copies.
+  //
+  // Raised, because the condition it was waiting on is met: services 3.1.0 is on
+  // the public registry. Until now a SCAFFOLDED app got the broken pairing — the
+  // gap was invisible in CI by design, since `scaffold-smoke` installs the
+  // generated app from HEAD tarballs and so pairs Bloom 3 with this tree's
+  // services rather than with the `^2.0.0` a real `npm install` resolves.
+  //
+  // `^3.0.0` and not `^3.1.0`: the rule above is "name a range that resolves",
+  // 3.0.0 is the published floor, and a caret picks up 3.1.0 on its own.
+  oxyServices: '^3.0.0', // @oxy.so/services
   oxyCore: '^23.3.0', // @oxy.so/core
-  oxyBloom: '^3.2.0', // @oxy.so/bloom — services imports its per-glyph icon subpaths
+  oxyBloom: '^3.2.1', // @oxy.so/bloom — services imports its per-glyph icon subpaths
   oxyContracts: '^1.0.0', // @oxy.so/contracts
   oxyAppPreset: '^2.0.0', // @oxy.so/app-preset
 
