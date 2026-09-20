@@ -23,6 +23,7 @@ import {
   AwsIamAttestationVerifier,
   ATTESTATION_NONCE_HEADER,
   canonicalAwsSubject,
+  workloadAttestationHandle,
 } from '../workloadAttestation.service';
 
 const NONCE = 'challenge-nonce-value';
@@ -212,5 +213,61 @@ describe('canonicalAwsSubject', () => {
     ['something that is not an ARN at all', 'not-an-arn'],
   ])('leaves %s alone', (_label, value) => {
     expect(canonicalAwsSubject(value)).toBe(value);
+  });
+});
+
+/**
+ * The handle a minted token carries as `credentialId`, and the reason a
+ * consumer may pin it.
+ *
+ * Homiio pins `payload.credentialId` and Clarity asserts exact claims; both
+ * were held back from ADR 0026 on the belief that this value was
+ * per-attestation and therefore unpinnable. It is not — it is a function of the
+ * canonical subject and of nothing else — but nothing said so and nothing held
+ * it, so the belief was reasonable. These cases are what makes it a property of
+ * the code instead of a remark about it: anything that mixed a nonce, a clock,
+ * a session name or a random byte into the handle reddens here rather than
+ * silently breaking every consumer that pinned it.
+ */
+describe('workloadAttestationHandle', () => {
+  it('is one value for every task of a role, whatever session presented it', () => {
+    const handles = [
+      'arn:aws:sts::237343248947:assumed-role/oxy-mention-task/f1e2d3c4b5a60718',
+      'arn:aws:sts::237343248947:assumed-role/oxy-mention-task/0011223344556677',
+      'arn:aws:sts::237343248947:assumed-role/oxy-mention-task/ecs-task-9988',
+      // The operator-supplied form a binding stores, which must agree with the
+      // per-task ones or an operator would be told a value the mint never emits.
+      'arn:aws:iam::237343248947:role/oxy-mention-task',
+    ].map((arn) => workloadAttestationHandle(canonicalAwsSubject(arn)));
+
+    expect(new Set(handles).size).toBe(1);
+  });
+
+  it('is the same value on every call, with no clock or randomness in it', () => {
+    const subject = canonicalAwsSubject(ARN);
+    expect(workloadAttestationHandle(subject)).toBe(workloadAttestationHandle(subject));
+  });
+
+  it('is what the verifier actually puts in the token', async () => {
+    // The one definition, reached from both sides. Two copies of this hash
+    // would agree the day they were written and drift the first time either
+    // moved, and the drift would surface as every pinning consumer rejecting
+    // real traffic.
+    const verified = await verifierWith(stsResponder(IDENTITY_XML)).verify(attestation(), NONCE);
+
+    expect(verified.attestationId).toBe(workloadAttestationHandle(canonicalAwsSubject(ARN)));
+  });
+
+  it('tells an attested mint apart from a credential-minted one', () => {
+    // Attribution, which the stable handle must not cost. A credential id is an
+    // opaque application-credential id; `wl_` says "nothing here is revocable
+    // by deleting a credential — delete the binding row".
+    expect(workloadAttestationHandle(canonicalAwsSubject(ARN)).startsWith('wl_')).toBe(true);
+  });
+
+  it('does not carry the role name it names', () => {
+    // One-way on purpose: the token travels to other services, and our own IAM
+    // role names are not something it should spread around.
+    expect(workloadAttestationHandle(canonicalAwsSubject(ARN))).not.toContain('oxy-mention-task');
   });
 });
