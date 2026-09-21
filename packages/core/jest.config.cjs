@@ -4,6 +4,7 @@ module.exports = {
   testEnvironment: 'node',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'json'],
   moduleNameMapper: {
+    '^@oxy.so/core/internal/workload-identity$': '<rootDir>/src/server/workloadIdentity.ts',
     '^(\\.{1,2}/.*)\\.js$': '$1',
     // Resolve workspace deps from TypeScript SOURCE so core tests do not depend
     // on packages being built first (mirrors packages/api/jest.config.js).

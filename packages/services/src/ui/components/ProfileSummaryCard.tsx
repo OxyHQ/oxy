@@ -37,7 +37,6 @@ export interface ProfileSummaryCardProps {
 }
 
 const cardStyle: ViewStyle = {
-    borderRadius: 20,
     marginBottom: 16,
 };
 
@@ -76,7 +75,7 @@ const ProfileSummaryCard: React.FC<ProfileSummaryCardProps> = ({
     );
 
     return (
-        <Card variant="filled" style={cardStyle}>
+        <Card appearance="subtle" radius="radius-20" style={cardStyle}>
             <View className="items-center px-space-20 py-space-24">
                 {avatarNode}
                 <H4 className="text-text" numberOfLines={1}>

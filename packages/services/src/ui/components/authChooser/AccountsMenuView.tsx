@@ -362,7 +362,7 @@ const AccountsMenuView: React.FC<AccountsMenuViewProps> = ({
             variant, `small` the compact height; it hugs its label instead of
             spanning the surface. */}
         <Button
-          variant="secondary"
+          appearance="subtle" tone="neutral"
           size="small"
           onPress={handlers.onManage}
           accessibilityLabel={manageLabel}

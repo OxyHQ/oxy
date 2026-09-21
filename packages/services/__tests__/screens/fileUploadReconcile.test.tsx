@@ -222,7 +222,6 @@ describe('load error state (distinct from empty)', () => {
         iconColor: '#ff0000',
         titleColor: '#000000',
         descriptionColor: '#666666',
-        buttonColor: '#0000ff',
       }),
     );
     // The error surface shows its own copy — not the "no files yet" empty text.

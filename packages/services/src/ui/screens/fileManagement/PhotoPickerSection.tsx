@@ -1,16 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    ActivityIndicator,
-    RefreshControl,
-    FlatList,
-    Platform,
-    Animated,
-    useWindowDimensions,
-    type LayoutChangeEvent,
-} from 'react-native';
+import { View, TouchableOpacity, ActivityIndicator, RefreshControl, FlatList, Platform, Animated, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import { Image as ExpoImage } from 'expo-image';
 import Ionicons from '../../icons/Ionicons';
 import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
@@ -535,7 +525,6 @@ const PhotoPickerView: React.FC<PhotoPickerViewProps> = ({
                             iconColor="#FF6B6B"
                             titleColor="#FFFFFF"
                             descriptionColor="rgba(255,255,255,0.7)"
-                            buttonColor={primaryColor}
                         />
                     </View>
                 ) : isEmpty && loading ? (

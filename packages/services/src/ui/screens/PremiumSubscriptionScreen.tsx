@@ -599,7 +599,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
                     <View className="flex-row gap-space-12">
                         {subscription.cancelAtPeriodEnd ? (
                             <Button
-                                variant="primary"
+                                appearance="solid" tone="accent"
                                 onPress={handleReactivateSubscription}
                                 className="flex-1"
                                 accessibilityLabel={t('premium.actions.reactivate') || 'Reactivate'}
@@ -608,7 +608,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
                             </Button>
                         ) : (
                             <Button
-                                variant="destructive"
+                                appearance="solid" tone="danger"
                                 onPress={handleCancelSubscription}
                                 className="flex-1"
                                 accessibilityLabel={t('premium.actions.cancelSubBtn') || 'Cancel Subscription'}
@@ -618,7 +618,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
                         )}
 
                         <Button
-                            variant="outline"
+                            appearance="subtle" tone="neutral"
                             onPress={() => navigate?.('PaymentGateway')}
                             className="flex-1"
                             accessibilityLabel={t('premium.actions.manageBilling') || 'Manage Billing'}
@@ -752,7 +752,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
 
                 {isCurrentPlan ? (
                     <Button
-                        variant="secondary"
+                        appearance="subtle" tone="neutral"
                         disabled
                         icon={<Ionicons name="checkmark-circle" size={18} color={colors.success} />}
                         accessibilityLabel={t('premium.plan.current') || 'Current Plan'}
@@ -762,7 +762,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
                     </Button>
                 ) : !availability.available ? (
                     <Button
-                        variant="secondary"
+                        appearance="subtle" tone="neutral"
                         disabled
                         accessibilityLabel={t('premium.plan.notAvailableInApp') || 'Not Available in Current App'}
                         className="w-full"
@@ -895,7 +895,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
 
                 {isIncludedInCurrentPlan ? (
                     <Button
-                        variant="primary"
+                        appearance="solid" tone="accent"
                         disabled
                         icon={<Ionicons name="checkmark-circle" size={16} color={colors.primaryForeground} />}
                         accessibilityLabel={t('premium.feature.includedInPlan') || 'Included in your plan'}
@@ -906,7 +906,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
                 ) : isSubscribed ? (
                     <View className="flex-row gap-space-8">
                         <Button
-                            variant="secondary"
+                            appearance="subtle" tone="neutral"
                             disabled
                             icon={<Ionicons name="checkmark" size={16} color={colors.success} />}
                             accessibilityLabel={t('premium.feature.subscribed') || 'Subscribed'}
@@ -915,7 +915,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
                             {t('premium.feature.subscribed') || 'Subscribed'}
                         </Button>
                         <Button
-                            variant="outline"
+                            appearance="subtle" tone="neutral"
                             onPress={() => handleFeatureUnsubscribe(feature.id)}
                             accessibilityLabel={t('premium.actions.unsubscribe') || 'Unsubscribe'}
                             className="flex-1"
@@ -925,7 +925,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
                     </View>
                 ) : canPurchase ? (
                     <Button
-                        variant="primary"
+                        appearance="solid" tone="accent"
                         onPress={() => handleFeatureSubscribe(feature.id)}
                         disabled={processingPayment}
                         loading={processingPayment}
@@ -936,7 +936,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
                     </Button>
                 ) : (
                     <Button
-                        variant="secondary"
+                        appearance="subtle" tone="neutral"
                         disabled
                         accessibilityLabel={t('premium.feature.plansOnly') || 'Only available in subscription plans'}
                         className="w-full"

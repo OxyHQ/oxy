@@ -19,19 +19,13 @@ export const VERSIONS = {
   // Bloom — and Bloom 3's composition contracts are React contexts, which do not
   // cross copies.
   //
-  // Raised, because the condition it was waiting on is met: services 3.1.0 is on
-  // the public registry. Until now a SCAFFOLDED app got the broken pairing — the
-  // gap was invisible in CI by design, since `scaffold-smoke` installs the
-  // generated app from HEAD tarballs and so pairs Bloom 3 with this tree's
-  // services rather than with the `^2.0.0` a real `npm install` resolves.
-  //
-  // `^3.0.0` and not `^3.1.0`: the rule above is "name a range that resolves",
-  // 3.0.0 is the published floor, and a caret picks up 3.1.0 on its own.
-  oxyServices: '^3.0.0', // @oxy.so/services
-  oxyCore: '^23.3.0', // @oxy.so/core
-  oxyBloom: '^3.2.1', // @oxy.so/bloom — services imports its per-glyph icon subpaths
+  // Keep this set paired. Publish Core, Bloom, Services and App Preset before
+  // releasing the scaffolder: its ranges must resolve outside this workspace.
+  oxyServices: '^4.0.0', // @oxy.so/services — requires the Bloom4 context family
+  oxyCore: '^1.7.3', // @oxy.so/core — native/browser workload identity boundary
+  oxyBloom: '^4.2.0', // @oxy.so/bloom
   oxyContracts: '^1.0.0', // @oxy.so/contracts
-  oxyAppPreset: '^2.0.0', // @oxy.so/app-preset
+  oxyAppPreset: '^2.0.1', // @oxy.so/app-preset
 
   // --- Expo SDK 57 core ---
   expo: '^57.0.6',

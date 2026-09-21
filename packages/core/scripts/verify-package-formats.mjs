@@ -40,6 +40,21 @@ try {
   );
   const imported = spawnSync(process.execPath, [importRunner], { encoding: 'utf8' });
   assert.equal(imported.status, 0, imported.stderr || imported.stdout);
+  // The same import must select a client-only module under bundler conditions.
+  // Checking resolution as well as the return value catches runtime guards
+  // that still drag node:crypto into a mobile/browser graph.
+  const clientRunner = join(temporaryRoot, 'verify-client.mjs');
+  await writeFile(clientRunner, [
+    "import assert from 'node:assert/strict';",
+    "import { canAttestWorkloadIdentity, requestWorkloadServiceToken } from '@oxy.so/core/internal/workload-identity';",
+    "assert.match(import.meta.resolve('@oxy.so/core/internal/workload-identity'), /workloadIdentity\\.client\\.js$/);",
+    "assert.equal(canAttestWorkloadIdentity(), false);",
+    "await assert.rejects(requestWorkloadServiceToken({ baseUrl: 'https://example.test' }), /only available on a Node host/);",
+  ].join('\n'));
+  for (const condition of ['react-native', 'browser']) {
+    const client = spawnSync(process.execPath, [`--conditions=${condition}`, clientRunner], { encoding: 'utf8' });
+    assert.equal(client.status, 0, client.stderr || client.stdout);
+  }
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
 }
