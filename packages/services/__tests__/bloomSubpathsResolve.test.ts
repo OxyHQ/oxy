@@ -32,6 +32,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import ts from 'typescript';
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 const SRC_ROOT = path.join(PACKAGE_ROOT, 'src');
@@ -129,6 +130,21 @@ describe('every @oxy.so/bloom subpath this package imports exists', () => {
     // A glyph subpath, so a pattern matcher that quietly stopped working cannot
     // pass as clean either — this is how every icon in this package resolves.
     expect(imported.has('./icons/RiSparklingLine')).toBe(true);
+  });
+
+  // Metro retains the entire barrel: ProfileButton once pulled 465 icon
+  // modules into Mention's common chunk just to draw login and overflow.
+  it('imports icons through public glyph subpaths instead of the collection barrel', () => {
+    const runtimeBarrels = (imported.get('./icons') ?? []).filter((file) => {
+      const source = ts.createSourceFile(file, fs.readFileSync(path.join(PACKAGE_ROOT, file), 'utf8'), ts.ScriptTarget.Latest);
+      return source.statements.some((statement) =>
+        ts.isImportDeclaration(statement)
+        && !statement.importClause?.isTypeOnly
+        && ts.isStringLiteral(statement.moduleSpecifier)
+        && statement.moduleSpecifier.text === '@oxy.so/bloom/icons',
+      );
+    });
+    expect(runtimeBarrels).toEqual([]);
   });
 
   it('resolves every imported subpath against the installed export map', () => {

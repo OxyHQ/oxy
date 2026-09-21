@@ -5,7 +5,8 @@ import {
     type ViewStyle,
 } from 'react-native';
 import { View } from 'react-native-css/components';
-import * as Icons from '@oxy.so/bloom/icons';
+import { RiLoginBoxLine } from '@oxy.so/bloom/icons/RiLoginBoxLine';
+import { RiMoreLine } from '@oxy.so/bloom/icons/RiMoreLine';
 import { Button } from '@oxy.so/bloom/button';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
@@ -128,13 +129,13 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
             trailing={
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, ...(expanded ? { flex: 1 } : {}) }}>
                     {signedIn ? <Avatar source={avatarUrl} variant="thumb" name={displayName} size={resolvedAvatarSize} />
-                        : <Icons.RiLoginBoxLine width={resolvedAvatarSize / 2} height={resolvedAvatarSize / 2} color={colors.icon} />}
+                        : <RiLoginBoxLine width={resolvedAvatarSize / 2} height={resolvedAvatarSize / 2} color={colors.icon} />}
                     {expanded ? <>
                         <View style={{ flex: 1, minWidth: 0 }}>
                             <Text variant="body-semibold" numberOfLines={1}>{displayName}</Text>
                             {handle ? <Text variant="caption-1-regular" numberOfLines={1} style={{ color: colors.textSecondary }}>@{handle}</Text> : null}
                         </View>
-                        {signedIn ? <Icons.RiMoreLine width={18} height={18} color={colors.textSecondary} /> : null}
+                        {signedIn ? <RiMoreLine width={18} height={18} color={colors.textSecondary} /> : null}
                     </> : null}
                 </View>
             }
