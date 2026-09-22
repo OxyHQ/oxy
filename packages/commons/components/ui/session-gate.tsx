@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { Button } from '@oxy.so/bloom/button';
 import { Redirect } from 'expo-router';
 import { useOxy, useOnlineStatus } from '@oxy.so/services';
 import { logger } from '@oxy.so/core';
@@ -6,7 +7,6 @@ import { useTranslation } from '@/lib/i18n';
 import { useOnboardingStatus } from '@/hooks/useOnboardingStatus';
 import { useSyncIdentity } from '@/hooks/identity/useSyncIdentity';
 import { CenteredState } from './centered-state';
-import { PrimaryButton } from './action-button';
 
 interface SessionGateProps {
   /** The session-dependent content, rendered only once a live session is up. */
@@ -106,7 +106,7 @@ export function SessionGate({ children }: SessionGateProps) {
       icon="offline"
       title={t('civic.sessionGate.error.title')}
       body={t('civic.sessionGate.error.body')}
-      action={<PrimaryButton label={t('common.retry')} onPress={handleRetry} fullWidth={false} />}
+      action={<Button appearance="solid" tone="accent" size="lg" onPress={handleRetry}>{t('common.retry')}</Button>}
     />
   );
 }

@@ -6,7 +6,12 @@ import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { Section } from '@/components/section';
-import { Button, ImportantBanner, KeyboardAwareScrollViewWrapper, ScreenHeader } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  ImportantBanner,
+  KeyboardAwareScrollViewWrapper,
+  ScreenHeader,
+} from '@/components/ui';
 import { useOxy } from '@oxy.so/services';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
@@ -181,23 +186,8 @@ export default function DeleteAccountScreen() {
         )}
 
         <View style={styles.buttonRow}>
-          <Button
-            variant="secondary"
-            onPress={() => router.back()}
-            disabled={isDeleting}
-            style={styles.buttonFlex}
-          >
-            {t('data.deleteAccount.cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            onPress={handleDelete}
-            loading={isDeleting}
-            disabled={!isConfirmValid || isDeleting}
-            style={styles.buttonFlex}
-          >
-            {isDeleting ? t('data.deleteAccount.deleting') : t('data.deleteAccount.deleteCta')}
-          </Button>
+          <Button appearance="outline" tone="neutral" onPress={() => router.back()} disabled={isDeleting} style={styles.buttonFlex}>{t('data.deleteAccount.cancel')}</Button>
+          <Button appearance="solid" tone="accent" onPress={handleDelete} loading={isDeleting} disabled={!isConfirmValid || isDeleting} style={styles.buttonFlex}>{isDeleting ? t('data.deleteAccount.deleting') : t('data.deleteAccount.deleteCta')}</Button>
         </View>
       </Section>
     </>

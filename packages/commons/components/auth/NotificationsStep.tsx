@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
-import { Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
 
 interface NotificationsStepProps {
   error: string | null;
@@ -54,15 +54,7 @@ export function NotificationsStep({
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button
-          variant="primary"
-          onPress={onRequestNotifications}
-          disabled={isRequestingNotifications || isSigningIn}
-          loading={isRequestingNotifications || isSigningIn}
-          style={styles.primaryButton}
-        >
-          Enable notifications
-        </Button>
+        <Button appearance="solid" tone="accent" onPress={onRequestNotifications} disabled={isRequestingNotifications || isSigningIn} loading={isRequestingNotifications || isSigningIn} style={styles.primaryButton}>Enable notifications</Button>
       </View>
     </View>
   );

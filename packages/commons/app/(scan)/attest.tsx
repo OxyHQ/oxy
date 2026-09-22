@@ -1,9 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '@oxy.so/bloom/button';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { parseAttestPayload } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
 import { useColors } from '@/hooks/useColors';
-import { Screen, StackHeader, CenteredState, PrimaryButton, SessionGate } from '@/components/ui';
+import {
+  Screen,
+  StackHeader,
+  CenteredState,
+  SessionGate,
+} from '@/components/ui';
 import { useAttestFlow } from '@/hooks/civic/useAttestFlow';
 import type { AttestSubmitParams } from '@/hooks/civic/attestStore';
 import { AttestReviewSheet, type AttestReviewStatus } from '@/components/civic/AttestReviewSheet';
@@ -109,7 +115,7 @@ export default function AttestDeepLinkScreen() {
         iconColor={colors.error}
         title={t('civic.attest.confirm.error.title')}
         body={body}
-        action={<PrimaryButton label={t('common.close')} onPress={handleClose} fullWidth={false} />}
+        action={<Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>}
       />
     );
   };
@@ -130,7 +136,7 @@ export default function AttestDeepLinkScreen() {
           iconColor={colors.error}
           title={t('civic.attest.confirm.error.title')}
           body={t('civic.attest.error.subject_not_found')}
-          action={<PrimaryButton label={t('common.close')} onPress={handleClose} fullWidth={false} />}
+          action={<Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>}
         />
       );
     }

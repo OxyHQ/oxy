@@ -1,4 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
+import { fullWidthControl } from '@/constants/styles';
+import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AppIcon, Icons } from '@/constants/icons';
@@ -11,8 +13,6 @@ import {
   StackHeader,
   Section,
   GroupedList,
-  PrimaryButton,
-  SecondaryButton,
   Callout,
   CenteredState,
   SessionGate,
@@ -102,7 +102,7 @@ export default function CredentialDetailScreen() {
           body={t('civic.credentials.detail.notFoundBody')}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.back')} onPress={handleBack} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleBack}>{t('common.back')}</Button>
             </View>
           }
         />
@@ -160,12 +160,7 @@ export default function CredentialDetailScreen() {
         )}
 
         {/* Verify action */}
-        <SecondaryButton
-          icon="search"
-          label={verify.state === 'verifying' ? t('civic.credentials.verify.verifying') : t('civic.credentials.verify.cta')}
-          loading={verify.state === 'verifying'}
-          onPress={() => void verify.verify()}
-        />
+        <Button appearance="outline" tone="accent" size="lg" icon={Icons.search} onPress={() => void verify.verify()} loading={verify.state === 'verifying'} style={fullWidthControl}>{verify.state === 'verifying' ? t('civic.credentials.verify.verifying') : t('civic.credentials.verify.cta')}</Button>
 
         {/* Claims */}
         <Section title={t('civic.credentials.detail.claimsTitle')}>
@@ -254,13 +249,7 @@ export default function CredentialDetailScreen() {
                 {t(`civic.credentials.revoke.error.${revoke.errorCode ?? 'generic'}`)}
               </ThemedText>
             )}
-            <PrimaryButton
-              tone="danger"
-              icon="personhood"
-              label={t('civic.credentials.revoke.cta')}
-              loading={revoke.state === 'revoking'}
-              onPress={handleRevoke}
-            />
+            <Button appearance="solid" tone="danger" size="lg" icon={Icons.personhood} onPress={handleRevoke} loading={revoke.state === 'revoking'} style={fullWidthControl}>{t('civic.credentials.revoke.cta')}</Button>
             {revoke.state === 'revoking' && (
               <ThemedText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
                 {t('civic.credentials.revoke.submitting')}

@@ -1,4 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { fullWidthControl } from '@/constants/styles';
+import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet, TextInput, TouchableOpacity, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
@@ -12,8 +14,6 @@ import {
   SoftSurface,
   Callout,
   CenteredState,
-  PrimaryButton,
-  SecondaryButton,
   SessionGate,
 } from '@/components/ui';
 import { CivicBadge } from '@/components/civic/CivicBadge';
@@ -28,7 +28,7 @@ import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { useTranslation } from '@/lib/i18n';
 import type { UserNodeMode, UserNodeStatus } from '@oxy.so/core';
 import type { CivicTone } from '@/lib/civic/card-presentation';
-import type { IconName } from '@/constants/icons';
+import { Icons, type IconName } from '@/constants/icons';
 
 /** A node endpoint is acceptable to send when it parses as a public HTTPS URL. */
 function isValidEndpoint(value: string): boolean {
@@ -155,7 +155,7 @@ export default function NodeScreen() {
           body={t('civic.nodes.provision.done.body')}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.done')} onPress={handleProvisionDone} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleProvisionDone}>{t('common.done')}</Button>
             </View>
           }
         />
@@ -174,7 +174,7 @@ export default function NodeScreen() {
           body={t('civic.nodes.register.done.body')}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.done')} onPress={handleRegisterDone} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleRegisterDone}>{t('common.done')}</Button>
             </View>
           }
         />
@@ -238,12 +238,7 @@ export default function NodeScreen() {
             </Callout>
           ) : (
             <>
-              <SecondaryButton
-                label={t('civic.nodes.selfHost.cta')}
-                icon="terminal"
-                onPress={openForm}
-                disabled={provisionBusy}
-              />
+              <Button appearance="outline" tone="accent" size="lg" icon={Icons.terminal} onPress={openForm} disabled={provisionBusy} style={fullWidthControl}>{t('civic.nodes.selfHost.cta')}</Button>
               <ThemedText style={[styles.choiceHint, { color: colors.textSecondary }]}>
                 {t('civic.nodes.selfHost.ctaSubtitle')}
               </ThemedText>
@@ -363,19 +358,13 @@ export default function NodeScreen() {
       )}
 
       <View style={styles.formActions}>
-        <PrimaryButton
-          icon="personhood"
-          label={t('civic.nodes.form.cta')}
-          loading={registerBusy}
-          disabled={!endpointValid || !publicKeyValid || registerBusy}
-          onPress={handleRegister}
-        />
+        <Button appearance="solid" tone="accent" size="lg" icon={Icons.personhood} onPress={handleRegister} loading={registerBusy} disabled={!endpointValid || !publicKeyValid || registerBusy} style={fullWidthControl}>{t('civic.nodes.form.cta')}</Button>
         {registerBusy && (
           <ThemedText style={[styles.centerMuted, { color: colors.textSecondary }]}>
             {t('civic.nodes.form.submitting')}
           </ThemedText>
         )}
-        <SecondaryButton label={t('civic.nodes.form.cancel')} onPress={closeForm} disabled={registerBusy} />
+        <Button appearance="outline" tone="accent" size="lg" onPress={closeForm} disabled={registerBusy} style={fullWidthControl}>{t('civic.nodes.form.cancel')}</Button>
       </View>
     </>
   );
@@ -482,20 +471,8 @@ export default function NodeScreen() {
               {t('civic.nodes.disconnect.confirmBody')}
             </Callout>
             <View style={styles.confirmActions}>
-              <SecondaryButton
-                label={t('civic.nodes.disconnect.cancel')}
-                onPress={() => setConfirmingDisconnect(false)}
-                disabled={removeBusy}
-                style={styles.confirmButton}
-              />
-              <PrimaryButton
-                tone="danger"
-                icon="personhood"
-                label={t('civic.nodes.disconnect.confirmCta')}
-                loading={removeBusy}
-                onPress={handleDisconnect}
-                style={styles.confirmButton}
-              />
+              <Button appearance="outline" tone="accent" size="lg" onPress={() => setConfirmingDisconnect(false)} disabled={removeBusy} style={[fullWidthControl, styles.confirmButton]}>{t('civic.nodes.disconnect.cancel')}</Button>
+              <Button appearance="solid" tone="danger" size="lg" icon={Icons.personhood} onPress={handleDisconnect} loading={removeBusy} style={[fullWidthControl, styles.confirmButton]}>{t('civic.nodes.disconnect.confirmCta')}</Button>
             </View>
           </Section>
         )}
@@ -529,7 +506,7 @@ export default function NodeScreen() {
           body={t('civic.nodes.error.body')}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.retry')} onPress={() => query.refetch()} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={() => query.refetch()}>{t('common.retry')}</Button>
             </View>
           }
         />

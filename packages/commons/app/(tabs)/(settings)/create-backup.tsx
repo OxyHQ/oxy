@@ -7,7 +7,13 @@ import { KeyManager, RecoveryPhraseService } from '@oxy.so/core';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
-import { Button, ImportantBanner, Callout, KeyboardAwareScrollViewWrapper, StackHeader } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  ImportantBanner,
+  Callout,
+  KeyboardAwareScrollViewWrapper,
+  StackHeader,
+} from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { useTranslation } from '@/lib/i18n';
 import { authenticate } from '@/lib/biometricAuth';
@@ -206,7 +212,7 @@ export default function CreateBackupScreen() {
           backAccessibilityLabel={t('common.back')}
         />
         <ImportantBanner iconSize={20}>{t('backup.identityUnavailable')}</ImportantBanner>
-        <Button variant="primary" onPress={() => router.back()}>
+        <Button appearance="solid" tone="accent" onPress={() => router.back()}>
           {t('backup.goBack')}
         </Button>
       </KeyboardAwareScrollViewWrapper>
@@ -224,16 +230,10 @@ export default function CreateBackupScreen() {
         />
         <ImportantBanner iconSize={20}>{t('backup.missingBanner')}</ImportantBanner>
         <View style={styles.buttonRow}>
-          <Button variant="secondary" onPress={() => router.back()} style={styles.buttonFlex}>
+          <Button appearance="outline" tone="neutral" onPress={() => router.back()} style={styles.buttonFlex}>
             {t('backup.goBack')}
           </Button>
-          <Button
-            variant="primary"
-            onPress={() => router.replace('/(auth)/welcome')}
-            style={styles.buttonFlex}
-          >
-            {t('backup.setupIdentity')}
-          </Button>
+          <Button appearance="solid" tone="accent" onPress={() => router.replace('/(auth)/welcome')} style={styles.buttonFlex}>{t('backup.setupIdentity')}</Button>
         </View>
       </KeyboardAwareScrollViewWrapper>
     );
@@ -269,15 +269,7 @@ export default function CreateBackupScreen() {
           </Text>
         )}
         {backupExists && (
-          <Button
-            variant="ghost"
-            onPress={handleDelete}
-            loading={isDeleting}
-            disabled={isDeleting || isSubmitting}
-            style={styles.deleteButton}
-          >
-            {isDeleting ? t('backup.deleting') : t('backup.delete')}
-          </Button>
+          <Button appearance="subtle" onPress={handleDelete} loading={isDeleting} disabled={isDeleting || isSubmitting} style={styles.deleteButton}>{isDeleting ? t('backup.deleting') : t('backup.delete')}</Button>
         )}
       </View>
 
@@ -303,19 +295,7 @@ export default function CreateBackupScreen() {
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button
-          variant="primary"
-          onPress={handleCreate}
-          loading={isSubmitting}
-          disabled={isSubmitting || isDeleting}
-          style={styles.primaryButton}
-        >
-          {isSubmitting
-            ? t('backup.creating')
-            : backupExists
-              ? t('backup.replace')
-              : t('backup.create')}
-        </Button>
+        <Button appearance="solid" tone="accent" onPress={handleCreate} loading={isSubmitting} disabled={isSubmitting || isDeleting} style={styles.primaryButton}>{isSubmitting ? t('backup.creating') : backupExists ? t('backup.replace') : t('backup.create')}</Button>
       </View>
     </KeyboardAwareScrollViewWrapper>
   );

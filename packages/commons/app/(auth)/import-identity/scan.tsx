@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icons } from '@/constants/icons';
 import { parseMoveQrPayload } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
-import { Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -43,11 +43,11 @@ export default function ScanMoveScreen() {
         <Text style={[styles.title, { color: colors.text }]}>{t('identityMove.scanTitle')}</Text>
         <Text style={[styles.body, { color: colors.text }]}>{t('identityMove.permissionBody')}</Text>
         {permission ? (
-          <Button variant="primary" onPress={() => void requestPermission()} style={styles.button}>
+          <Button appearance="solid" tone="accent" onPress={() => void requestPermission()} style={styles.button}>
             {t('identityMove.grantPermission')}
           </Button>
         ) : null}
-        <Button variant="ghost" onPress={() => router.back()}>
+        <Button appearance="subtle" onPress={() => router.back()}>
           {t('common.back')}
         </Button>
       </View>

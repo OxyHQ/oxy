@@ -18,7 +18,11 @@ import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import { Screen, Section, Callout } from '@/components/ui';
+import {
+  Screen,
+  Section,
+  Callout,
+} from '@/components/ui';
 import { Ticket as OxyID } from '@/components/OxyID';
 import { FrontSide } from '@/components/OxyID/front-side';
 import { BackSide } from '@/components/OxyID/back-side';

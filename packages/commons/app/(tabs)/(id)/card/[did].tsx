@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
-import { AppIcon } from '@/constants/icons';
+import { fullWidthControl } from '@/constants/styles';
+import { Button } from '@oxy.so/bloom/button';
+import { AppIcon, Icons } from '@/constants/icons';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
@@ -10,8 +12,6 @@ import {
   Section,
   GroupedList,
   ListRow,
-  PrimaryButton,
-  SecondaryButton,
   CenteredState,
 } from '@/components/ui';
 import { CivicBadge } from '@/components/civic/CivicBadge';
@@ -99,7 +99,7 @@ export default function ScannedCardScreen() {
           body={t('civic.card.error.body')}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.retry')} onPress={() => cardQuery.refetch()} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={() => cardQuery.refetch()}>{t('common.retry')}</Button>
             </View>
           }
         />
@@ -181,16 +181,8 @@ export default function ScannedCardScreen() {
         {/* Vouch + issue-credential CTAs — only for a card whose signature verified. */}
         {verified && (
           <View style={styles.ctas}>
-            <PrimaryButton
-              icon="vouched"
-              label={t('civic.vouch.cta')}
-              onPress={handleVouch}
-            />
-            <SecondaryButton
-              icon="credential"
-              label={t('civic.credentials.issue.cardCta')}
-              onPress={handleIssueCredential}
-            />
+            <Button appearance="solid" tone="accent" size="lg" icon={Icons.vouched} onPress={handleVouch} style={fullWidthControl}>{t('civic.vouch.cta')}</Button>
+            <Button appearance="outline" tone="accent" size="lg" icon={Icons.credential} onPress={handleIssueCredential} style={fullWidthControl}>{t('civic.credentials.issue.cardCta')}</Button>
           </View>
         )}
 

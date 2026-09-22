@@ -3,7 +3,10 @@ import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-nativ
 import LottieView from 'lottie-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
-import { Button, KeyboardAwareScrollViewWrapper } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  KeyboardAwareScrollViewWrapper,
+} from '@/components/ui';
 import { useUsernameValidation } from '@/hooks/auth/useUsernameValidation';
 import { stripDisallowedUsernameCharacters } from '@oxy.so/contracts';
 import type { OxyServices } from '@oxy.so/core';
@@ -234,36 +237,15 @@ export function UsernameStep({
           <Text style={[styles.errorText, { color: colors.error }]}>{validation.error || updateError}</Text>
         )}
 
-        <Button
-          variant="primary"
-          onPress={handleContinue}
-          disabled={(!canContinue && !isOffline) || isUpdating || isConfirming}
-          loading={isUpdating || isConfirming}
-          style={styles.primaryButton}
-        >
-          {isUpdating ? t('auth.usernameStep.saving') : isConfirming ? t('auth.usernameStep.confirming') : t('auth.usernameStep.confirm')}
-        </Button>
+        <Button appearance="solid" tone="accent" onPress={handleContinue} disabled={(!canContinue && !isOffline) || isUpdating || isConfirming} loading={isUpdating || isConfirming} style={styles.primaryButton}>{isUpdating ? t('auth.usernameStep.saving') : isConfirming ? t('auth.usernameStep.confirming') : t('auth.usernameStep.confirm')}</Button>
 
         {/* Only show skip button if offline and onSkip is provided (for offline fallback) */}
         {isOffline && onSkip && (
-          <Button
-            variant="ghost"
-            onPress={onSkip}
-            style={styles.skipButton}
-            disabled={isUpdating}
-          >
-            {t('auth.usernameStep.skip')}
-          </Button>
+          <Button appearance="subtle" onPress={onSkip} style={styles.skipButton} disabled={isUpdating}>{t('auth.usernameStep.skip')}</Button>
         )}
 
         {!isOffline && (
-          <Button
-            variant="ghost"
-            onPress={learnMoreDialog.open}
-            disabled={isUpdating}
-          >
-            {t('auth.usernameStep.learnMore')}
-          </Button>
+          <Button appearance="subtle" onPress={learnMoreDialog.open} disabled={isUpdating}>{t('auth.usernameStep.learnMore')}</Button>
         )}
       </KeyboardAwareScrollViewWrapper>
 

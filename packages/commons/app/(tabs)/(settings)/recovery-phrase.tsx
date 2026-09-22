@@ -3,7 +3,14 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { KeyManager, IdentityUnavailableError } from '@oxy.so/core';
-import { Screen, StackHeader, Section, Button, Callout, CenteredState } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  Screen,
+  StackHeader,
+  Section,
+  Callout,
+  CenteredState,
+} from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 import { RecoveryPhraseGrid } from '@/components/identity/RecoveryPhraseGrid';
 import { useColors } from '@/hooks/useColors';
@@ -98,7 +105,7 @@ export default function RecoveryPhraseScreen() {
             {t('settings.recoveryPhrase.copyWarning')}
           </ThemedText>
 
-          <Button variant="secondary" onPress={hide}>
+          <Button appearance="outline" tone="neutral" onPress={hide}>
             {t('settings.recoveryPhrase.hide')}
           </Button>
         </Section>
@@ -114,7 +121,7 @@ export default function RecoveryPhraseScreen() {
           title={t('settings.recoveryPhrase.unavailableTitle')}
           body={t('settings.recoveryPhrase.unavailableBody')}
           action={
-            <Button variant="primary" onPress={reveal}>
+            <Button appearance="solid" tone="accent" onPress={reveal}>
               {t('common.retry')}
             </Button>
           }
@@ -126,7 +133,7 @@ export default function RecoveryPhraseScreen() {
           title={t('settings.recoveryPhrase.gateFailedTitle')}
           body={state.message}
           action={
-            <Button variant="primary" onPress={reveal}>
+            <Button appearance="solid" tone="accent" onPress={reveal}>
               {t('common.retry')}
             </Button>
           }
@@ -147,14 +154,7 @@ export default function RecoveryPhraseScreen() {
             {t('settings.recoveryPhrase.warning')}
           </Callout>
 
-          <Button
-            variant="primary"
-            onPress={reveal}
-            loading={state.kind === 'authenticating'}
-            disabled={state.kind === 'authenticating'}
-          >
-            {t('settings.recoveryPhrase.revealButton')}
-          </Button>
+          <Button appearance="solid" tone="accent" onPress={reveal} loading={state.kind === 'authenticating'} disabled={state.kind === 'authenticating'}>{t('settings.recoveryPhrase.revealButton')}</Button>
         </Section>
       )}
     </Screen>

@@ -1,4 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
+import { Icons } from '@/constants/icons';
+import { fullWidthControl } from '@/constants/styles';
+import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
@@ -9,8 +12,6 @@ import {
   Section,
   GroupedList,
   CenteredState,
-  PrimaryButton,
-  SecondaryButton,
   SessionGate,
 } from '@/components/ui';
 import { CivicBadge } from '@/components/civic/CivicBadge';
@@ -58,7 +59,7 @@ export default function ValidationVoteScreen() {
           body={t('civic.validate.vote.done.body')}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.done')} onPress={handleClose} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
         />
@@ -74,7 +75,7 @@ export default function ValidationVoteScreen() {
           body={t(`civic.validate.error.${errorCode ?? 'generic'}`)}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.close')} onPress={handleClose} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
         />
@@ -92,7 +93,7 @@ export default function ValidationVoteScreen() {
           title={t('civic.validate.inbox.error.title')}
           body={t('civic.validate.inbox.error.body')}
           action={
-            <PrimaryButton label={t('common.retry')} onPress={() => refetch()} fullWidth={false} />
+            <Button appearance="solid" tone="accent" size="lg" onPress={() => refetch()}>{t('common.retry')}</Button>
           }
         />
       );
@@ -106,7 +107,7 @@ export default function ValidationVoteScreen() {
           body={t('civic.validate.vote.gone.body')}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.close')} onPress={handleClose} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
         />
@@ -156,25 +157,11 @@ export default function ValidationVoteScreen() {
         )}
 
         <View style={styles.verdictRow}>
-          <PrimaryButton
-            tone="success"
-            icon="check"
-            label={t('civic.validate.vote.valid')}
-            onPress={() => vote('valid')}
-            disabled={busy}
-            style={styles.verdictBtn}
-          />
-          <PrimaryButton
-            tone="danger"
-            icon="close"
-            label={t('civic.validate.vote.invalid')}
-            onPress={() => vote('invalid')}
-            disabled={busy}
-            style={styles.verdictBtn}
-          />
+          <Button appearance="solid" tone="success" size="lg" icon={Icons.check} onPress={() => vote('valid')} disabled={busy} style={[fullWidthControl, styles.verdictBtn]}>{t('civic.validate.vote.valid')}</Button>
+          <Button appearance="solid" tone="danger" size="lg" icon={Icons.close} onPress={() => vote('invalid')} disabled={busy} style={[fullWidthControl, styles.verdictBtn]}>{t('civic.validate.vote.invalid')}</Button>
         </View>
 
-        <SecondaryButton label={t('civic.validate.vote.abstain')} onPress={() => vote('abstain')} disabled={busy} />
+        <Button appearance="outline" tone="accent" size="lg" onPress={() => vote('abstain')} disabled={busy} style={fullWidthControl}>{t('civic.validate.vote.abstain')}</Button>
 
         <TouchableOpacity style={styles.recuse} onPress={deny} disabled={busy} accessibilityRole="button">
           <ThemedText style={[styles.recuseText, { color: colors.textSecondary }]}>

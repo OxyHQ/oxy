@@ -4,7 +4,11 @@ import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColors } from '@/hooks/useColors';
-import { Screen, StackHeader, ImportantBanner } from '@/components/ui';
+import {
+  Screen,
+  StackHeader,
+  ImportantBanner,
+} from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
 

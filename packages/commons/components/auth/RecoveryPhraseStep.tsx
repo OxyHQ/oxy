@@ -4,7 +4,10 @@ import { Checkbox } from 'expo-checkbox';
 import { Icons } from '@/constants/icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
-import { Button, ImportantBanner } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  ImportantBanner,
+} from '@/components/ui';
 import { RecoveryPhraseGrid } from '@/components/identity/RecoveryPhraseGrid';
 import { useTranslation } from '@/lib/i18n';
 
@@ -204,15 +207,7 @@ export function RecoveryPhraseStep({
           </Text>
         </TouchableOpacity>
 
-        <Button
-          variant="primary"
-          onPress={onContinue}
-          disabled={!revealed || !acknowledged || isContinuing}
-          loading={isContinuing}
-          style={styles.continueButton}
-        >
-          {t('auth.recoveryPhrase.continueButton')}
-        </Button>
+        <Button appearance="solid" tone="accent" onPress={onContinue} disabled={!revealed || !acknowledged || isContinuing} loading={isContinuing} style={styles.continueButton}>{t('auth.recoveryPhrase.continueButton')}</Button>
       </ScrollView>
     </View>
   );

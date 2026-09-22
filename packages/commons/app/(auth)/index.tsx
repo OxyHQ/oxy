@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { StaggeredText, type StaggeredTextRef } from '@/components/staggered-text';
 import { RotatingTextAnimation } from '@/components/staggered-text/rotating-text';
-import { Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
 import { CenteredState } from '@/components/ui/centered-state';
 import { useTranslation } from '@/lib/i18n';
 import { useOnboardingStatus, ONBOARDING_IDENTITY_QUERY_KEY, getOnboardingResumeHref } from '@/hooks/useOnboardingStatus';
@@ -159,7 +159,7 @@ export default function AuthIndexScreen() {
           title={t('recovery.lockedTitle')}
           body={t('recovery.lockedBody')}
           action={
-            <Button variant="primary" onPress={handleRetryIdentityProbe}>
+            <Button appearance="solid" tone="accent" onPress={handleRetryIdentityProbe}>
               {t('common.retry')}
             </Button>
           }

@@ -166,7 +166,6 @@ export function InterestTagsCanvas({
     []
   );
 
-
   // One set of shared values per tag, created once. `INTEREST_TAGS` is a static
   // list, so the count never changes.
   const motions = useMemo<TagMotion[]>(

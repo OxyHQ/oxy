@@ -3,7 +3,9 @@ import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { AppIcon, Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { SCREEN_PADDING } from '@/components/ui';
+import {
+  SCREEN_PADDING,
+} from '@/components/ui';
 import { withAlpha } from '@/utils/color';
 import type { IconName } from '@/constants/icons';
 

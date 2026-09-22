@@ -4,7 +4,12 @@ import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { KeyManager } from '@oxy.so/core';
-import { Screen, StackHeader, Callout, Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  Screen,
+  StackHeader,
+  Callout,
+} from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 
@@ -91,7 +96,7 @@ export default function BackupRecoveryScreen() {
           <Callout tone="warning" icon="key">
             {t('backupRecovery.statusAbsent')}
           </Callout>
-          <Button variant="primary" onPress={handleRotateKey}>
+          <Button appearance="solid" tone="accent" onPress={handleRotateKey}>
             {t('backupRecovery.rotateCta')}
           </Button>
         </View>

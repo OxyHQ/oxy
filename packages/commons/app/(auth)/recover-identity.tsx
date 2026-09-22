@@ -6,7 +6,7 @@ import { KeyManager, readIdentityMarker, type IdentityMarker, type IdentityRecov
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
-import { Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
 import { CenteredState } from '@/components/ui/centered-state';
 import { useTranslation } from '@/lib/i18n';
 import {
@@ -175,10 +175,10 @@ export default function RecoverIdentityScreen() {
         })}
         action={
           <View style={styles.actions}>
-            <Button variant="primary" onPress={handleEnterPhrase} style={styles.action}>
+            <Button appearance="solid" tone="accent" onPress={handleEnterPhrase} style={styles.action}>
               {t('recovery.enterPhrase')}
             </Button>
-            <Button variant="secondary" onPress={handleStartOver} style={styles.action}>
+            <Button appearance="outline" tone="neutral" onPress={handleStartOver} style={styles.action}>
               {t('recovery.startOver')}
             </Button>
           </View>

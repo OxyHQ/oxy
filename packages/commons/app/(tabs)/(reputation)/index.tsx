@@ -1,11 +1,16 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
 import { ActivityHeatmap } from '@oxy.so/bloom/activity-heatmap';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { Screen, CenteredState, PrimaryButton, SessionGate } from '@/components/ui';
+import {
+  Screen,
+  CenteredState,
+  SessionGate,
+} from '@/components/ui';
 import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
 import { ReputationHeader } from '@/components/reputation/ReputationHeader';
 import { GetStartedCarousel, type CtaItem } from '@/components/reputation/GetStartedCarousel';
@@ -138,11 +143,7 @@ export default function ReputationScreen() {
           title={t('civic.reputation.error.title')}
           body={t('civic.reputation.error.body')}
           action={
-            <PrimaryButton
-              label={t('common.retry')}
-              onPress={() => balanceQuery.refetch()}
-              fullWidth={false}
-            />
+            <Button appearance="solid" tone="accent" size="lg" onPress={() => balanceQuery.refetch()}>{t('common.retry')}</Button>
           }
         />
       );

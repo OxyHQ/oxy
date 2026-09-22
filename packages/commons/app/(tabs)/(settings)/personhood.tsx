@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
+import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
@@ -10,7 +11,6 @@ import {
   StackHeader,
   Callout,
   CenteredState,
-  PrimaryButton,
   SessionGate,
 } from '@/components/ui';
 import { CivicBadge } from '@/components/civic/CivicBadge';
@@ -70,7 +70,7 @@ export default function PersonhoodScreen() {
           body={t('civic.personhood.error.body')}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.retry')} onPress={() => statusQuery.refetch()} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={() => statusQuery.refetch()}>{t('common.retry')}</Button>
             </View>
           }
         />

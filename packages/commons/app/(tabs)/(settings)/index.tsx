@@ -4,7 +4,10 @@ import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useOxy } from '@oxy.so/services';
-import { Screen, StackHeader } from '@/components/ui';
+import {
+  Screen,
+  StackHeader,
+} from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 

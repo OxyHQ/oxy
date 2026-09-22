@@ -128,7 +128,6 @@ export function RotatingTextAnimation({
         });
     }, [texts.length, totalHeight, textPositions, textHeights, calculatedLineHeight, duration, translateY, containerHeight]);
 
-
     useEffect(() => {
         let isActive = true;
         let intervalId: ReturnType<typeof setInterval>;

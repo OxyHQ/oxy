@@ -3,7 +3,14 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { Screen, StackHeader, GroupedList, ListRow, CenteredState, SessionGate } from '@/components/ui';
+import {
+  Screen,
+  StackHeader,
+  GroupedList,
+  ListRow,
+  CenteredState,
+  SessionGate,
+} from '@/components/ui';
 import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useValidatorInbox } from '@/hooks/useValidatorInbox';
 import { prettyActionType } from '@/lib/civic/validation-format';

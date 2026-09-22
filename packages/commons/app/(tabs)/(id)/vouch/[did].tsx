@@ -1,4 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { fullWidthControl } from '@/constants/styles';
+import { Button } from '@oxy.so/bloom/button';
 import { View, Text, StyleSheet, Image, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
@@ -10,8 +12,6 @@ import {
   Section,
   Callout,
   CenteredState,
-  PrimaryButton,
-  SecondaryButton,
 } from '@/components/ui';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { useVouch } from '@/hooks/useVouch';
@@ -100,14 +100,8 @@ export default function VouchScreen() {
                   {t('civic.vouch.confirm.done.staked', { stake: result.stakeAmount })}
                 </ThemedText>
               </View>
-              <SecondaryButton
-                icon="undo"
-                label={t('civic.vouch.confirm.withdraw')}
-                onPress={withdraw}
-                disabled={busy}
-                fullWidth={false}
-              />
-              <PrimaryButton label={t('common.done')} onPress={handleClose} fullWidth={false} />
+              <Button appearance="outline" tone="accent" size="lg" icon={Icons.undo} onPress={withdraw} disabled={busy}>{t('civic.vouch.confirm.withdraw')}</Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
               {busy && (
                 <ThemedText style={[styles.muted, { color: colors.textSecondary }]}>
                   {t('civic.vouch.confirm.withdrawing')}
@@ -127,7 +121,7 @@ export default function VouchScreen() {
           body={t('civic.vouch.confirm.withdrawn.body', { name: subjectName })}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.done')} onPress={handleClose} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
         />
@@ -143,7 +137,7 @@ export default function VouchScreen() {
           body={t(`civic.vouch.error.${errorCode ?? 'generic'}`)}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.close')} onPress={handleClose} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
         />
@@ -214,12 +208,7 @@ export default function VouchScreen() {
           </ThemedText>
         )}
 
-        <PrimaryButton
-          icon="personhood"
-          label={t('civic.vouch.confirm.cta')}
-          loading={busy}
-          onPress={handleVouch}
-        />
+        <Button appearance="solid" tone="accent" size="lg" icon={Icons.personhood} onPress={handleVouch} loading={busy} style={fullWidthControl}>{t('civic.vouch.confirm.cta')}</Button>
 
         {busy && (
           <ThemedText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>

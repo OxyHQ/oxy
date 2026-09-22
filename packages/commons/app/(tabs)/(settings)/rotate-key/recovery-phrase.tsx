@@ -5,7 +5,11 @@ import { RecoveryPhraseService } from '@oxy.so/core';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { useColors } from '@/hooks/useColors';
 import { RecoveryPhraseStep } from '@/components/auth/RecoveryPhraseStep';
-import { CenteredState, Button, useScreenBottomPad } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  CenteredState,
+  useScreenBottomPad,
+} from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
 
@@ -111,7 +115,7 @@ export default function RotateKeyRecoveryPhraseScreen() {
         iconColor={colors.error}
         title={t('rotateKey.newPhrase.error')}
         action={
-          <Button variant="primary" onPress={handleRetry}>
+          <Button appearance="solid" tone="accent" onPress={handleRetry}>
             {t('rotateKey.newPhrase.retry')}
           </Button>
         }

@@ -6,7 +6,11 @@ import { buildUserDid } from '@oxy.so/core';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { Screen, StackHeader, SessionGate } from '@/components/ui';
+import {
+  Screen,
+  StackHeader,
+  SessionGate,
+} from '@/components/ui';
 import { useOxy } from '@oxy.so/services';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';

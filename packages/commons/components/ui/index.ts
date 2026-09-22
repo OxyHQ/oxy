@@ -1,7 +1,5 @@
 export { AccountCard } from './account-card';
 export { ScreenHeader } from './screen-header';
-export { Button } from './button';
-export type { ButtonProps, ButtonVariant } from './button';
 export { KeyboardAwareScrollViewWrapper } from './keyboard-aware-scroll-view';
 export { ImportantBanner } from './important-banner';
 export { CircleIconBadge } from './circle-icon-badge';
@@ -15,7 +13,6 @@ export { GroupedList } from './grouped-list';
 export { StatColumns } from './stat-columns';
 export type { StatColumn } from './stat-columns';
 export { Pill } from './pill';
-export { PrimaryButton, SecondaryButton } from './action-button';
 export { SoftSurface } from './soft-surface';
 export { Callout } from './callout';
 export { CenteredState } from './centered-state';

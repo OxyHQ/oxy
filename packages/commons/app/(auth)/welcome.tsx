@@ -10,7 +10,7 @@ import { Checkbox } from 'expo-checkbox';
 import { useColors } from '@/hooks/useColors';
 import { StaggeredText, type StaggeredTextRef } from '@/components/staggered-text';
 import { RotatingTextAnimation } from '@/components/staggered-text/rotating-text';
-import { Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
 import { useTranslation } from '@/lib/i18n';
 import { persistOnboardingFlow } from '@/hooks/identity/identityStore';
 
@@ -178,22 +178,9 @@ export default function WelcomeScreen() {
         </View>
 
         <View style={styles.buttonContainer}>
-          <Button
-            variant="secondary"
-            onPress={handleDecline}
-            style={styles.button}
-          >
-            {t('auth.welcome.decline')}
-          </Button>
+          <Button appearance="outline" tone="neutral" onPress={handleDecline} style={styles.button}>{t('auth.welcome.decline')}</Button>
 
-          <Button
-            variant="primary"
-            onPress={handleContinue}
-            disabled={!termsAccepted}
-            style={styles.button}
-          >
-            {t('auth.welcome.accept')}
-          </Button>
+          <Button appearance="solid" tone="accent" onPress={handleContinue} disabled={!termsAccepted} style={styles.button}>{t('auth.welcome.accept')}</Button>
         </View>
 
         <TouchableOpacity

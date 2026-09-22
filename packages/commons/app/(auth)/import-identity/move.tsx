@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy } from '@oxy.so/services';
 import { IdentityAlreadyExistsError, IdentityUnavailableError, KeyManager, SignatureService, type OpenedMnemonicIdentity } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
-import { Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
 import { Fonts } from '@/constants/theme';
 import { useTranslation } from '@/lib/i18n';
 import { useIdentity } from '@/hooks/useIdentity';
@@ -225,15 +225,7 @@ export default function MoveIdentityScreen() {
             {`${stage.move.sas.slice(0, 3)} ${stage.move.sas.slice(3)}`}
           </Text>
           <Text style={[styles.hint, { color: colors.text }]}>{t('identityMove.waiting')}</Text>
-          <Button
-            variant="ghost"
-            onPress={() => {
-              forgetMove(stage.move);
-              router.back();
-            }}
-          >
-            {t('common.cancel')}
-          </Button>
+          <Button appearance="subtle" onPress={() => { forgetMove(stage.move); router.back(); }}>{t('common.cancel')}</Button>
         </View>
       );
     case 'saving':
@@ -246,7 +238,7 @@ export default function MoveIdentityScreen() {
       return (
         <View style={container}>
           <Text style={[styles.body, { color: colors.error }]}>{t('identityMove.receiptFailed')}</Text>
-          <Button variant="primary" onPress={() => void sendReceipt(stage.move, stage.synced)} style={styles.button}>
+          <Button appearance="solid" tone="accent" onPress={() => void sendReceipt(stage.move, stage.synced)} style={styles.button}>
             {t('identityMove.retry')}
           </Button>
         </View>
@@ -255,10 +247,10 @@ export default function MoveIdentityScreen() {
       return (
         <View style={container}>
           <Text style={[styles.body, { color: colors.error }]}>{t(stage.messageKey)}</Text>
-          <Button variant="primary" onPress={() => router.replace('/(auth)/import-identity/scan')} style={styles.button}>
+          <Button appearance="solid" tone="accent" onPress={() => router.replace('/(auth)/import-identity/scan')} style={styles.button}>
             {t('identityMove.scanAgain')}
           </Button>
-          <Button variant="ghost" onPress={() => router.replace('/(auth)/import-identity')}>
+          <Button appearance="subtle" onPress={() => router.replace('/(auth)/import-identity')}>
             {t('common.back')}
           </Button>
         </View>

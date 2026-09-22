@@ -1,9 +1,18 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Icons } from '@/constants/icons';
+import { fullWidthControl } from '@/constants/styles';
+import { Button } from '@oxy.so/bloom/button';
 import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { Screen, StackHeader, Section, Callout, CenteredState, PrimaryButton } from '@/components/ui';
+import {
+  Screen,
+  StackHeader,
+  Section,
+  Callout,
+  CenteredState,
+} from '@/components/ui';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { useIssueCredential } from '@/hooks/useIssueCredential';
 import { userIdFromDid } from '@/lib/civic/did';
@@ -107,7 +116,7 @@ export default function IssueCredentialScreen() {
           body={t('civic.credentials.issue.done.body', { type: issuedTypeLabel, name: displayName })}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.done')} onPress={handleClose} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
         />
@@ -123,7 +132,7 @@ export default function IssueCredentialScreen() {
           body={t(`civic.credentials.issue.error.${errorCode ?? 'generic'}`)}
           action={
             <View style={styles.action}>
-              <PrimaryButton label={t('common.close')} onPress={handleClose} fullWidth={false} />
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
         />
@@ -252,13 +261,7 @@ export default function IssueCredentialScreen() {
           </ThemedText>
         )}
 
-        <PrimaryButton
-          icon="personhood"
-          label={t('civic.credentials.issue.cta')}
-          loading={busy}
-          disabled={!canSubmit}
-          onPress={handleIssue}
-        />
+        <Button appearance="solid" tone="accent" size="lg" icon={Icons.personhood} onPress={handleIssue} loading={busy} disabled={!canSubmit} style={fullWidthControl}>{t('civic.credentials.issue.cta')}</Button>
 
         {busy && (
           <ThemedText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>

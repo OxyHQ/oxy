@@ -42,6 +42,10 @@ module.exports = {
     // sees the one `jest.fn()` instance no matter which specifier the code under
     // test imported it from.
     '^@oxy.so/services/notifications$': '<rootDir>/__mocks__/oxy-services.ts',
+    // Fonts and images are assets to Metro and raw bytes to Jest — see the file.
+    '\\.(woff2?|ttf|otf|eot|png|jpe?g|gif|webp|svg|lottie)$': '<rootDir>/__mocks__/file-asset.js',
+    '^react-native-svg$': '<rootDir>/__mocks__/react-native-svg.js',
+    '^@oxy.so/bloom/button$': '<rootDir>/__mocks__/bloom-button.tsx',
     // Every per-glyph icon subpath resolves to one inert stub — see the file.
     '^@oxy\\.so/bloom/icons/.*$': '<rootDir>/__mocks__/bloom-icon.js',
     '^@oxy.so/bloom/theme$': '<rootDir>/__mocks__/bloom-theme.ts',

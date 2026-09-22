@@ -6,7 +6,13 @@ import { Icons } from '@/constants/icons';
 import { useOxy } from '@oxy.so/services';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
-import { Screen, StackHeader, Button, Callout, ImportantBanner } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  Screen,
+  StackHeader,
+  Callout,
+  ImportantBanner,
+} from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { authenticate } from '@/lib/biometricAuth';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
@@ -96,7 +102,7 @@ export default function RotateKeyConfirmScreen() {
         <Callout icon="verified" tone="info">
           {t('rotateKey.confirm.successBody')}
         </Callout>
-        <Button variant="primary" onPress={finish}>
+        <Button appearance="solid" tone="accent" onPress={finish}>
           {t('rotateKey.confirm.done')}
         </Button>
       </Screen>
@@ -110,7 +116,7 @@ export default function RotateKeyConfirmScreen() {
         <ImportantBanner title={t('rotateKey.confirm.localPersistTitle')} icon="alertStrong">
           {t('rotateKey.confirm.localPersistBody')}
         </ImportantBanner>
-        <Button variant="primary" onPress={finish}>
+        <Button appearance="solid" tone="accent" onPress={finish}>
           {t('rotateKey.confirm.done')}
         </Button>
       </Screen>
@@ -160,14 +166,7 @@ export default function RotateKeyConfirmScreen() {
         />
       </TouchableOpacity>
 
-      <Button
-        variant="primary"
-        onPress={handleRotate}
-        loading={rotating}
-        disabled={rotating}
-      >
-        {rotating ? t('rotateKey.confirm.rotating') : t('rotateKey.confirm.cta')}
-      </Button>
+      <Button appearance="solid" tone="accent" onPress={handleRotate} loading={rotating} disabled={rotating}>{rotating ? t('rotateKey.confirm.rotating') : t('rotateKey.confirm.cta')}</Button>
     </Screen>
   );
 }

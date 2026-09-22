@@ -100,4 +100,3 @@ describe('the glyph vocabulary', () => {
     expect([...unknown]).toEqual([]);
   });
 });
-});

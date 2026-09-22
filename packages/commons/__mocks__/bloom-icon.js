@@ -16,7 +16,6 @@
  * `__esModule` is a read-only property, and assigning the flag the interop
  * needs then throws at import time.
  */
-const React = require('react');
 
 function BloomIconStub() {
   return null;

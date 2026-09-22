@@ -6,7 +6,6 @@ import { useHapticPress } from '@/hooks/use-haptic-press';
 import { darkenColor } from '@/utils/color-utils';
 import type { IconName } from '@/constants/icons';
 
-
 interface GroupedItemProps {
     icon?: IconName;
     iconColor?: string;
