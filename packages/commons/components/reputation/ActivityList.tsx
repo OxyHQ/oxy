@@ -1,7 +1,9 @@
 import React from 'react';
+import { Icons } from '@/constants/icons';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
-import { CenteredState } from '@/components/ui/centered-state';
 import { ActivityRow } from '@/components/reputation/ActivityRow';
 import type { ReputationTransaction } from '@oxy.so/contracts';
 import { useTranslation } from '@/lib/i18n';
@@ -24,17 +26,29 @@ export function ActivityList({ transactions, isLoading, isError }: ActivityListP
   const { t } = useTranslation();
 
   if (isLoading && !transactions) {
-    return <CenteredState loading body={t('civic.reputation.activity.loading')} />;
+    return <EmptyState
+             illustration={<Loading variant="spinner" size="lg" />}
+             description={t('civic.reputation.activity.loading')}
+             minHeight={360}
+           />;
   }
 
   if (isError && !transactions) {
     return (
-      <CenteredState icon="alert" body={t('civic.reputation.activity.error')} />
+      <EmptyState
+        icon={Icons.alert}
+        description={t('civic.reputation.activity.error')}
+        minHeight={360}
+      />
     );
   }
 
   if (!transactions || transactions.length === 0) {
-    return <CenteredState icon="history" body={t('civic.reputation.activity.empty')} />;
+    return <EmptyState
+             icon={Icons.history}
+             description={t('civic.reputation.activity.empty')}
+             minHeight={360}
+           />;
   }
 
   return (

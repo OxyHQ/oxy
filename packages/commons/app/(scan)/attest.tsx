@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button } from '@oxy.so/bloom/button';
+import { Icons } from '@/constants/icons';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { parseAttestPayload } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
@@ -7,7 +9,6 @@ import { useColors } from '@/hooks/useColors';
 import {
   Screen,
   StackHeader,
-  CenteredState,
   SessionGate,
 } from '@/components/ui';
 import { useAttestFlow } from '@/hooks/civic/useAttestFlow';
@@ -110,12 +111,12 @@ export default function AttestDeepLinkScreen() {
       ? t('signInApproval.scan.expiredBody')
       : t(`civic.attest.error.${!parsed || !subjectUserId ? 'generic' : 'subject_not_found'}`);
     return (
-      <CenteredState
-        icon="alert"
-        iconColor={colors.error}
+      <EmptyState
+        illustration={<Icons.alert size="3xl" fill={colors.error} />}
         title={t('civic.attest.confirm.error.title')}
-        body={body}
-        action={<Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>}
+        description={body}
+        action={{ label: t('common.close'), onPress: handleClose }}
+        minHeight={360}
       />
     );
   };
@@ -131,18 +132,22 @@ export default function AttestDeepLinkScreen() {
 
     if (flow.subjectFailed) {
       return (
-        <CenteredState
-          icon="alert"
-          iconColor={colors.error}
+        <EmptyState
+          illustration={<Icons.alert size="3xl" fill={colors.error} />}
           title={t('civic.attest.confirm.error.title')}
-          body={t('civic.attest.error.subject_not_found')}
-          action={<Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>}
+          description={t('civic.attest.error.subject_not_found')}
+          action={{ label: t('common.close'), onPress: handleClose }}
+          minHeight={360}
         />
       );
     }
 
     if (status === 'idle' || (status === 'reviewing' && !flow.subject)) {
-      return <CenteredState loading body={t('civic.attest.confirm.loading')} />;
+      return <EmptyState
+               illustration={<Loading variant="spinner" size="lg" />}
+               description={t('civic.attest.confirm.loading')}
+               minHeight={360}
+             />;
     }
 
     return (

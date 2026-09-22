@@ -1,4 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
 import { AppIcon, Icons } from '@/constants/icons';
@@ -12,19 +15,13 @@ import {
   Section,
   GroupedList,
   ListRow,
-  CenteredState,
 } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { usePersonhood } from '@/hooks/usePersonhood';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { userIdFromDid } from '@/lib/civic/did';
 import { trustTierLabel } from '@oxy.so/core';
-import {
-  getVerificationMeta,
-  getTrustTierMeta,
-  getPersonhoodMeta,
-} from '@/lib/civic/card-presentation';
+import { bloomToneFor, getPersonhoodMeta, getTrustTierMeta, getVerificationMeta } from '@/lib/civic/card-presentation';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -77,31 +74,37 @@ export default function ScannedCardScreen() {
     // The DID could not be parsed into a user id — not a valid Oxy ID.
     if (!userId) {
       return (
-        <CenteredState
-          icon="closeCircle"
+        <EmptyState
+          icon={Icons.closeCircle}
           title={t('civic.card.error.invalidTitle')}
-          body={t('civic.card.error.invalidBody')}
+          description={t('civic.card.error.invalidBody')}
+          minHeight={360}
         />
       );
     }
 
     // First resolve with nothing cached yet.
     if (cardQuery.isPending && !card) {
-      return <CenteredState loading body={t('civic.card.loading')} />;
+      return <EmptyState
+               illustration={<Loading variant="spinner" size="lg" />}
+               description={t('civic.card.loading')}
+               minHeight={360}
+             />;
     }
 
     // Failed to resolve and we have no cached card to fall back to.
     if (cardQuery.isError && !card) {
       return (
-        <CenteredState
-          icon="alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.card.error.title')}
-          body={t('civic.card.error.body')}
-          action={
+          description={t('civic.card.error.body')}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={() => cardQuery.refetch()}>{t('common.retry')}</Button>
             </View>
           }
+          minHeight={360}
         />
       );
     }
@@ -116,17 +119,24 @@ export default function ScannedCardScreen() {
       <>
         {/* Trust verdict — the load-bearing indicator. */}
         <View style={styles.verdict}>
-          <CivicBadge
-            emphasis
-            tone={verification.tone}
-            icon={verified ? 'verified' : 'alertStrong'}
-            label={t(`civic.card.${verification.labelKey}`)}
+          <Badge
+            appearance="subtle"
+            tone={bloomToneFor(verification.tone)}
+            size="label-medium"
+            icon={Icons[verified ? 'verified' : 'alertStrong']}
+            content={t(`civic.card.${verification.labelKey}`)}
           />
           <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
             {t(`civic.card.${verification.labelKey}Desc`)}
           </ThemedText>
           {!isOnline && (
-            <CivicBadge tone="neutral" icon="offline" label={t('civic.card.offline')} />
+            <Badge
+              appearance="subtle"
+              tone="neutral"
+              size="label-small"
+              icon={Icons.offline}
+              content={t('civic.card.offline')}
+            />
           )}
         </View>
 
@@ -155,11 +165,19 @@ export default function ScannedCardScreen() {
           </View>
 
           <View style={styles.badgeRow}>
-            <CivicBadge tone={trust.tone} icon="shieldCheck" label={trustTierLabel(locale, trust.labelKey)} />
-            <CivicBadge
-              tone={personhoodMeta.tone}
-              icon="vouched"
-              label={t(`civic.personhood.${personhoodMeta.labelKey}`)}
+            <Badge
+              appearance="subtle"
+              tone={bloomToneFor(trust.tone)}
+              size="label-small"
+              icon={Icons.shieldCheck}
+              content={trustTierLabel(locale, trust.labelKey)}
+            />
+            <Badge
+              appearance="subtle"
+              tone={bloomToneFor(personhoodMeta.tone)}
+              size="label-small"
+              icon={Icons.vouched}
+              content={t(`civic.personhood.${personhoodMeta.labelKey}`)}
             />
           </View>
 

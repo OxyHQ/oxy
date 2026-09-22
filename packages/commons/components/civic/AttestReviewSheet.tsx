@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
+import { Badge } from '@oxy.so/bloom/badge';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { Icons } from '@/constants/icons';
 import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
@@ -6,9 +8,7 @@ import type { PublicCard, CardTrustTier, RealLifeAttestationResult } from '@oxy.
 import { trustTierLabel } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { CenteredState } from '@/components/ui/centered-state';
-import { CivicBadge } from '@/components/civic/CivicBadge';
-import { getTrustTierMeta } from '@/lib/civic/card-presentation';
+import { bloomToneFor, getTrustTierMeta } from '@/lib/civic/card-presentation';
 import type { AttestErrorCode } from '@/lib/civic/civic-errors';
 import type { IconName } from '@/constants/icons';
 import { useTranslation } from '@/lib/i18n';
@@ -116,10 +116,11 @@ export function AttestReviewSheet({
     // reviewing
     if (subjectFailed) {
       return (
-        <CenteredState
-          icon="alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.attest.review.unresolvedTitle')}
-          body={t('civic.attest.review.unresolvedBody')}
+          description={t('civic.attest.review.unresolvedBody')}
+          minHeight={360}
         />
       );
     }
@@ -160,13 +161,21 @@ export function AttestReviewSheet({
               </ThemedText>
             ) : null}
             <View style={styles.badges}>
-              <CivicBadge
-                tone={getTrustTierMeta(card.trustTier).tone}
-                icon={TIER_ICON[card.trustTier]}
-                label={trustTierLabel(locale, card.trustTier)}
+              <Badge
+                appearance="subtle"
+                tone={bloomToneFor(getTrustTierMeta(card.trustTier).tone)}
+                size="label-small"
+                icon={Icons[TIER_ICON[card.trustTier]]}
+                content={trustTierLabel(locale, card.trustTier)}
               />
               {!verified && (
-                <CivicBadge tone="caution" icon="shield" label={t('civic.attest.review.unverified')} />
+                <Badge
+                  appearance="subtle"
+                  tone="warning"
+                  size="label-small"
+                  icon={Icons.shield}
+                  content={t('civic.attest.review.unverified')}
+                />
               )}
             </View>
           </View>

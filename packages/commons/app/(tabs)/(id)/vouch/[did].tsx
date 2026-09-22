@@ -1,4 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
 import { View, Text, StyleSheet, Image, TextInput } from 'react-native';
@@ -11,7 +13,6 @@ import {
   StackHeader,
   Section,
   Callout,
-  CenteredState,
 } from '@/components/ui';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { useVouch } from '@/hooks/useVouch';
@@ -77,22 +78,22 @@ export default function VouchScreen() {
     // Invalid / unparseable target.
     if (!userId || !did) {
       return (
-        <CenteredState
-          icon="alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.vouch.confirm.invalidTitle')}
-          body={t('civic.vouch.confirm.invalidBody')}
+          description={t('civic.vouch.confirm.invalidBody')}
+          minHeight={360}
         />
       );
     }
 
     if (state === 'done' && result) {
       return (
-        <CenteredState
-          icon="vouched"
-          iconColor={colors.success}
+        <EmptyState
+          illustration={<Icons.vouched size="3xl" fill={colors.success} />}
           title={t('civic.vouch.confirm.done.title')}
-          body={t('civic.vouch.confirm.done.body', { name: subjectName, points: result.points })}
-          action={
+          description={t('civic.vouch.confirm.done.body', { name: subjectName, points: result.points })}
+          footer={
             <View style={styles.resultActions}>
               <View style={styles.stakedChip}>
                 <Icons.lock size='sm' fill={colors.textSecondary} />
@@ -109,44 +110,50 @@ export default function VouchScreen() {
               )}
             </View>
           }
+          minHeight={360}
         />
       );
     }
 
     if (state === 'withdrawn') {
       return (
-        <CenteredState
-          icon="undo"
+        <EmptyState
+          icon={Icons.undo}
           title={t('civic.vouch.confirm.withdrawn.title')}
-          body={t('civic.vouch.confirm.withdrawn.body', { name: subjectName })}
-          action={
+          description={t('civic.vouch.confirm.withdrawn.body', { name: subjectName })}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
+          minHeight={360}
         />
       );
     }
 
     if (state === 'error') {
       return (
-        <CenteredState
-          icon="alert"
-          iconColor={colors.error}
+        <EmptyState
+          illustration={<Icons.alert size="3xl" fill={colors.error} />}
           title={t('civic.vouch.confirm.error.title')}
-          body={t(`civic.vouch.error.${errorCode ?? 'generic'}`)}
-          action={
+          description={t(`civic.vouch.error.${errorCode ?? 'generic'}`)}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
+          minHeight={360}
         />
       );
     }
 
     // Resolving the subject card (name/avatar) for the first time.
     if (cardQuery.isPending && !card) {
-      return <CenteredState loading body={t('civic.vouch.confirm.loading')} />;
+      return <EmptyState
+               illustration={<Loading variant="spinner" size="lg" />}
+               description={t('civic.vouch.confirm.loading')}
+               minHeight={360}
+             />;
     }
 
     return (

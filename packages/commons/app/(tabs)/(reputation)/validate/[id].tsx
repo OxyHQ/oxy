@@ -1,4 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Icons } from '@/constants/icons';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
@@ -11,10 +14,8 @@ import {
   StackHeader,
   Section,
   GroupedList,
-  CenteredState,
   SessionGate,
 } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useValidatorInbox } from '@/hooks/useValidatorInbox';
 import { useValidationVote } from '@/hooks/useValidationVote';
 import { prettyActionType, payloadEntries } from '@/lib/civic/validation-format';
@@ -52,64 +53,67 @@ export default function ValidationVoteScreen() {
   const renderBody = () => {
     if (state === 'done') {
       return (
-        <CenteredState
-          icon="verified"
-          iconColor={colors.success}
+        <EmptyState
+          illustration={<Icons.verified size="3xl" fill={colors.success} />}
           title={t('civic.validate.vote.done.title')}
-          body={t('civic.validate.vote.done.body')}
-          action={
+          description={t('civic.validate.vote.done.body')}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
+          minHeight={360}
         />
       );
     }
 
     if (state === 'error') {
       return (
-        <CenteredState
-          icon="alert"
-          iconColor={colors.error}
+        <EmptyState
+          illustration={<Icons.alert size="3xl" fill={colors.error} />}
           title={t('civic.validate.vote.error.title')}
-          body={t(`civic.validate.error.${errorCode ?? 'generic'}`)}
-          action={
+          description={t(`civic.validate.error.${errorCode ?? 'generic'}`)}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
+          minHeight={360}
         />
       );
     }
 
     if (isPending && !request) {
-      return <CenteredState loading />;
+      return <EmptyState
+               illustration={<Loading variant="spinner" size="lg" />}
+               minHeight={360}
+             />;
     }
 
     if (isError && !request) {
       return (
-        <CenteredState
-          icon="alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.validate.inbox.error.title')}
-          body={t('civic.validate.inbox.error.body')}
-          action={
-            <Button appearance="solid" tone="accent" size="lg" onPress={() => refetch()}>{t('common.retry')}</Button>
-          }
+          description={t('civic.validate.inbox.error.body')}
+          action={{ label: t('common.retry'), onPress: () => refetch() }}
+          minHeight={360}
         />
       );
     }
 
     if (!request) {
       return (
-        <CenteredState
-          icon="validation"
+        <EmptyState
+          icon={Icons.validation}
           title={t('civic.validate.vote.gone.title')}
-          body={t('civic.validate.vote.gone.body')}
-          action={
+          description={t('civic.validate.vote.gone.body')}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
+          minHeight={360}
         />
       );
     }
@@ -123,7 +127,13 @@ export default function ValidationVoteScreen() {
             {prettyActionType(request.actionType)}
           </ThemedText>
           {request.highValue && (
-            <CivicBadge tone="caution" icon="star" label={t('civic.validate.highValue')} />
+            <Badge
+              appearance="subtle"
+              tone="warning"
+              size="label-small"
+              icon={Icons.star}
+              content={t('civic.validate.highValue')}
+            />
           )}
         </View>
 

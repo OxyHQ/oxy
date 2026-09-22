@@ -1,4 +1,8 @@
 import React, { useCallback } from 'react';
+import { Icons } from '@/constants/icons';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
@@ -8,10 +12,8 @@ import {
   StackHeader,
   GroupedList,
   ListRow,
-  CenteredState,
   SessionGate,
 } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useValidatorInbox } from '@/hooks/useValidatorInbox';
 import { prettyActionType } from '@/lib/civic/validation-format';
 import { useTranslation } from '@/lib/i18n';
@@ -36,16 +38,20 @@ export default function ValidatorInboxScreen() {
 
   const renderBody = () => {
     if (isPending) {
-      return <CenteredState loading body={t('civic.validate.inbox.loading')} />;
+      return <EmptyState
+               illustration={<Loading variant="spinner" size="lg" />}
+               description={t('civic.validate.inbox.loading')}
+               minHeight={360}
+             />;
     }
 
     if (isError) {
       return (
-        <CenteredState
-          icon="alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.validate.inbox.error.title')}
-          body={t('civic.validate.inbox.error.body')}
-          action={
+          description={t('civic.validate.inbox.error.body')}
+          footer={
             <TouchableOpacity
               style={[styles.retry, { backgroundColor: colors.tint }]}
               onPress={() => refetch()}
@@ -54,16 +60,18 @@ export default function ValidatorInboxScreen() {
               <ThemedText style={styles.retryText}>{t('common.retry')}</ThemedText>
             </TouchableOpacity>
           }
+          minHeight={360}
         />
       );
     }
 
     if (!data || data.length === 0) {
       return (
-        <CenteredState
-          icon="validation"
+        <EmptyState
+          icon={Icons.validation}
           title={t('civic.validate.inbox.empty.title')}
-          body={t('civic.validate.inbox.empty.body')}
+          description={t('civic.validate.inbox.empty.body')}
+          minHeight={360}
         />
       );
     }
@@ -80,7 +88,13 @@ export default function ValidatorInboxScreen() {
             showChevron
             trailing={
               req.highValue ? (
-                <CivicBadge tone="caution" icon="star" label={t('civic.validate.highValue')} />
+                <Badge
+                  appearance="subtle"
+                  tone="warning"
+                  size="label-small"
+                  icon={Icons.star}
+                  content={t('civic.validate.highValue')}
+                />
               ) : undefined
             }
           />

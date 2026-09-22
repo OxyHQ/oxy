@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Icons } from '@/constants/icons';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { BackHandler, Platform } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { RecoveryPhraseService } from '@oxy.so/core';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { useColors } from '@/hooks/useColors';
 import { RecoveryPhraseStep } from '@/components/auth/RecoveryPhraseStep';
-import { Button } from '@oxy.so/bloom/button';
 import {
-  CenteredState,
   useScreenBottomPad,
 } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
@@ -110,21 +111,21 @@ export default function RotateKeyRecoveryPhraseScreen() {
 
   if (deriveError) {
     return (
-      <CenteredState
-        icon="key"
-        iconColor={colors.error}
+      <EmptyState
+        illustration={<Icons.key size="3xl" fill={colors.error} />}
         title={t('rotateKey.newPhrase.error')}
-        action={
-          <Button appearance="solid" tone="accent" onPress={handleRetry}>
-            {t('rotateKey.newPhrase.retry')}
-          </Button>
-        }
+        action={{ label: t('rotateKey.newPhrase.retry'), onPress: handleRetry }}
+        minHeight={360}
       />
     );
   }
 
   if (!words) {
-    return <CenteredState loading title={t('rotateKey.newPhrase.deriving')} />;
+    return <EmptyState
+             illustration={<Loading variant="spinner" size="lg" />}
+             title={t('rotateKey.newPhrase.deriving')}
+             minHeight={360}
+           />;
   }
 
   return (

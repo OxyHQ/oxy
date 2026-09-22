@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Button } from '@oxy.so/bloom/button';
+import { Icons } from '@/constants/icons';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
@@ -8,7 +10,6 @@ import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
-  CenteredState,
   SessionGate,
 } from '@/components/ui';
 import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
@@ -133,18 +134,21 @@ export default function ReputationScreen() {
 
   const renderContent = () => {
     if (balanceQuery.isPending && !balance) {
-      return <CenteredState loading body={t('civic.reputation.loading')} />;
+      return <EmptyState
+               illustration={<Loading variant="spinner" size="lg" />}
+               description={t('civic.reputation.loading')}
+               minHeight={360}
+             />;
     }
 
     if (balanceQuery.isError && !balance) {
       return (
-        <CenteredState
-          icon="alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.reputation.error.title')}
-          body={t('civic.reputation.error.body')}
-          action={
-            <Button appearance="solid" tone="accent" size="lg" onPress={() => balanceQuery.refetch()}>{t('common.retry')}</Button>
-          }
+          description={t('civic.reputation.error.body')}
+          action={{ label: t('common.retry'), onPress: () => balanceQuery.refetch() }}
+          minHeight={360}
         />
       );
     }

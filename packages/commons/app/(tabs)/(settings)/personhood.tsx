@@ -1,4 +1,8 @@
 import React, { useCallback, useMemo } from 'react';
+import { bloomToneFor } from '@/lib/civic/card-presentation';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -10,10 +14,8 @@ import {
   Screen,
   StackHeader,
   Callout,
-  CenteredState,
   SessionGate,
 } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useMyPersonhood } from '@/hooks/usePersonhood';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { useTranslation } from '@/lib/i18n';
@@ -59,20 +61,25 @@ export default function PersonhoodScreen() {
 
   const renderBody = () => {
     if (statusQuery.isPending && !status) {
-      return <CenteredState loading body={t('civic.personhood.loading')} />;
+      return <EmptyState
+               illustration={<Loading variant="spinner" size="lg" />}
+               description={t('civic.personhood.loading')}
+               minHeight={360}
+             />;
     }
 
     if (statusQuery.isError && !status) {
       return (
-        <CenteredState
-          icon="alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.personhood.error.title')}
-          body={t('civic.personhood.error.body')}
-          action={
+          description={t('civic.personhood.error.body')}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={() => statusQuery.refetch()}>{t('common.retry')}</Button>
             </View>
           }
+          minHeight={360}
         />
       );
     }
@@ -86,16 +93,23 @@ export default function PersonhoodScreen() {
       <>
         <View style={styles.topBlock}>
           {!isOnline && (
-            <CivicBadge tone="neutral" icon="offline" label={t('civic.personhood.offline')} />
+            <Badge
+              appearance="subtle"
+              tone="neutral"
+              size="label-small"
+              icon={Icons.offline}
+              content={t('civic.personhood.offline')}
+            />
           )}
 
           {/* Verified / building hero — flat, no card. */}
           <View style={styles.hero}>
-          <CivicBadge
-            emphasis
-            tone={verified ? 'positive' : 'caution'}
-            icon={verified ? 'vouched' : 'pending'}
-            label={t(verified ? 'civic.personhood.verifiedBadge' : 'civic.personhood.buildingBadge')}
+          <Badge
+            appearance="subtle"
+            tone={bloomToneFor(verified ? 'positive' : 'caution')}
+            size="label-medium"
+            icon={Icons[verified ? 'vouched' : 'pending']}
+            content={t(verified ? 'civic.personhood.verifiedBadge' : 'civic.personhood.buildingBadge')}
           />
 
           <View style={styles.scoreBlock}>

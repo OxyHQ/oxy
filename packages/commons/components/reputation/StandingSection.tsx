@@ -1,8 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Icons } from '@/constants/icons';
+import { Badge } from '@oxy.so/bloom/badge';
 import { View, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { StatColumns, type StatColumn } from '@/components/ui/stat-columns';
 import { CompositionBar, type CompositionCategory } from '@oxy.so/bloom/composition-bar';
 import { CategoryRow } from '@/components/reputation/CategoryRow';
@@ -160,7 +161,7 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
           </ThemedText>
         </View>
         {isOffline && (
-          <CivicBadge tone="neutral" icon="offline" label={t('civic.reputation.offline')} />
+          <Badge appearance="subtle" tone="neutral" size="label-small" icon={Icons.offline} content={t('civic.reputation.offline')} />
         )}
       </View>
 

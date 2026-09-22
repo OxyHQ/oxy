@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import { Icons } from '@/constants/icons';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -10,8 +12,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { StaggeredText, type StaggeredTextRef } from '@/components/staggered-text';
 import { RotatingTextAnimation } from '@/components/staggered-text/rotating-text';
-import { Button } from '@oxy.so/bloom/button';
-import { CenteredState } from '@/components/ui/centered-state';
 import { useTranslation } from '@/lib/i18n';
 import { useOnboardingStatus, ONBOARDING_IDENTITY_QUERY_KEY, getOnboardingResumeHref } from '@/hooks/useOnboardingStatus';
 import { persistOnboardingFlow } from '@/hooks/identity/identityStore';
@@ -153,16 +153,12 @@ export default function AuthIndexScreen() {
   if (status === 'unavailable') {
     return (
       <View style={[styles.container, { backgroundColor }]}>
-        <CenteredState
-          icon="shield"
-          iconColor={textColor}
+        <EmptyState
+          illustration={<Icons.shield size="3xl" fill={textColor} />}
           title={t('recovery.lockedTitle')}
-          body={t('recovery.lockedBody')}
-          action={
-            <Button appearance="solid" tone="accent" onPress={handleRetryIdentityProbe}>
-              {t('common.retry')}
-            </Button>
-          }
+          description={t('recovery.lockedBody')}
+          action={{ label: t('common.retry'), onPress: handleRetryIdentityProbe }}
+          minHeight={360}
         />
       </View>
     );

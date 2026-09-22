@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
@@ -9,7 +10,6 @@ import {
   StackHeader,
   Section,
   Callout,
-  CenteredState,
 } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 import { RecoveryPhraseGrid } from '@/components/identity/RecoveryPhraseGrid';
@@ -110,33 +110,27 @@ export default function RecoveryPhraseScreen() {
           </Button>
         </Section>
       ) : state.kind === 'notStored' ? (
-        <CenteredState
-          icon="error"
+        <EmptyState
+          icon={Icons.error}
           title={t('settings.recoveryPhrase.notStoredTitle')}
-          body={t('settings.recoveryPhrase.notStoredBody')}
+          description={t('settings.recoveryPhrase.notStoredBody')}
+          minHeight={360}
         />
       ) : state.kind === 'unavailable' ? (
-        <CenteredState
-          icon="shield"
+        <EmptyState
+          icon={Icons.shield}
           title={t('settings.recoveryPhrase.unavailableTitle')}
-          body={t('settings.recoveryPhrase.unavailableBody')}
-          action={
-            <Button appearance="solid" tone="accent" onPress={reveal}>
-              {t('common.retry')}
-            </Button>
-          }
+          description={t('settings.recoveryPhrase.unavailableBody')}
+          action={{ label: t('common.retry'), onPress: reveal }}
+          minHeight={360}
         />
       ) : state.kind === 'gateFailed' ? (
-        <CenteredState
-          icon="lock"
-          iconColor={colors.error}
+        <EmptyState
+          illustration={<Icons.lock size="3xl" fill={colors.error} />}
           title={t('settings.recoveryPhrase.gateFailedTitle')}
-          body={state.message}
-          action={
-            <Button appearance="solid" tone="accent" onPress={reveal}>
-              {t('common.retry')}
-            </Button>
-          }
+          description={state.message}
+          action={{ label: t('common.retry'), onPress: reveal }}
+          minHeight={360}
         />
       ) : (
         <Section>

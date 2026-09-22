@@ -1,11 +1,11 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
+import { Badge } from '@oxy.so/bloom/badge';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Icons } from '@/constants/icons';
 import QRCode from 'react-native-qrcode-svg';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useAttestQr } from '@/hooks/useAttestQr';
 import { useTranslation } from '@/lib/i18n';
 
@@ -113,7 +113,7 @@ export function AttestQrSheet({ onClose }: AttestQrSheetProps) {
         </View>
 
         {state === 'ready' && !expired && (
-          <CivicBadge tone="caution" icon="expired" label={t('civic.attest.request.expiresIn', { time: mmss })} />
+          <Badge appearance="subtle" tone="warning" size="label-small" icon={Icons.expired} content={t('civic.attest.request.expiresIn', { time: mmss })} />
         )}
 
         <ThemedText style={[styles.hint, { color: colors.textSecondary }]}>

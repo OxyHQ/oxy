@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect } from 'react';
+import { AppIcon, Icons } from '@/constants/icons';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, ScrollView, StyleSheet, Linking, Platform, BackHandler } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
 import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
 import { useColors } from '@/hooks/useColors';
-import { CenteredState } from '@/components/ui/centered-state';
 import { useTranslation } from '@/lib/i18n';
 import { useCommonsApproval } from '@/hooks/commons-signin/useCommonsApproval';
 import { ApprovalRequest } from '@/components/commons-signin/approval-request';
@@ -133,15 +135,14 @@ export default function ApproveSignInScreen() {
     const approved = state === 'approved';
     content = (
       <View className="px-5 py-2">
-        <CenteredState
-          icon={approved ? 'checkCircle' : 'blocked'}
-          iconColor={approved ? colors.success : colors.textSecondary}
+        <EmptyState
+          illustration={<AppIcon name={approved ? 'checkCircle' : 'blocked'} size="3xl" fill={approved ? colors.success : colors.textSecondary} />}
           title={
             approved
               ? t('signInApproval.approve.approvedTitle')
               : t('signInApproval.approve.deniedTitle')
           }
-          body={
+          description={
             approved
               ? t('signInApproval.approve.approvedBody')
               : // Honest about what was actually recorded: a `not_me` denial is
@@ -153,6 +154,7 @@ export default function ApproveSignInScreen() {
                     : 'signInApproval.approve.deniedBody',
                 )
           }
+          minHeight={360}
         />
       </View>
     );
@@ -161,15 +163,15 @@ export default function ApproveSignInScreen() {
     // --- Error state ---
     content = (
       <View className="px-5 py-2">
-        <CenteredState
-          icon="alert"
-          iconColor={colors.error}
+        <EmptyState
+          illustration={<Icons.alert size="3xl" fill={colors.error} />}
           title={t('signInApproval.approve.errorTitle')}
-          body={
+          description={
             code
               ? (errorMessage ?? t('signInApproval.approve.errorBody'))
               : t('signInApproval.approve.noCode')
           }
+          minHeight={360}
         />
       </View>
     );
@@ -189,7 +191,11 @@ export default function ApproveSignInScreen() {
     // --- Loading ---
     content = (
       <View className="px-5 py-2">
-        <CenteredState loading body={t('signInApproval.approve.loading')} />
+        <EmptyState
+          illustration={<Loading variant="spinner" size="lg" />}
+          description={t('signInApproval.approve.loading')}
+          minHeight={360}
+        />
       </View>
     );
   } else {

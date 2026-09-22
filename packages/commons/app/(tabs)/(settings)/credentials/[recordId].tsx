@@ -1,4 +1,8 @@
 import React, { useCallback, useMemo } from 'react';
+import { bloomToneFor } from '@/lib/civic/card-presentation';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
@@ -14,10 +18,8 @@ import {
   Section,
   GroupedList,
   Callout,
-  CenteredState,
   SessionGate,
 } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useMyCredentials } from '@/hooks/useCredentials';
 import { useVerifyCredential } from '@/hooks/useVerifyCredential';
 import { useRevokeCredential } from '@/hooks/useRevokeCredential';
@@ -91,20 +93,25 @@ export default function CredentialDetailScreen() {
   const renderBody = () => {
     // Resolving the credential from the list for the first time.
     if (!credential && listQuery.isPending) {
-      return <CenteredState loading body={t('civic.credentials.loading')} />;
+      return <EmptyState
+               illustration={<Loading variant="spinner" size="lg" />}
+               description={t('civic.credentials.loading')}
+               minHeight={360}
+             />;
     }
 
     if (!credential) {
       return (
-        <CenteredState
-          icon="alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.credentials.detail.notFoundTitle')}
-          body={t('civic.credentials.detail.notFoundBody')}
-          action={
+          description={t('civic.credentials.detail.notFoundBody')}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={handleBack}>{t('common.back')}</Button>
             </View>
           }
+          minHeight={360}
         />
       );
     }
@@ -126,17 +133,25 @@ export default function CredentialDetailScreen() {
           <ThemedText style={[styles.heroType, { color: colors.text }]} numberOfLines={2}>
             {typeLabel}
           </ThemedText>
-          <CivicBadge
-            tone={statusMeta.tone}
-            icon="credential"
-            label={t(`civic.credentials.status.${statusMeta.labelKey}`)}
+          <Badge
+            appearance="subtle"
+            tone={bloomToneFor(statusMeta.tone)}
+            size="label-small"
+            icon={Icons.credential}
+            content={t(`civic.credentials.status.${statusMeta.labelKey}`)}
           />
         </View>
 
         {/* Verify verdict */}
         {verify.state === 'valid' && (
           <View style={styles.verdict}>
-            <CivicBadge emphasis tone="positive" icon="verified" label={t('civic.credentials.verify.validTitle')} />
+            <Badge
+              appearance="subtle"
+              tone="success"
+              size="label-medium"
+              icon={Icons.verified}
+              content={t('civic.credentials.verify.validTitle')}
+            />
             <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
               {t('civic.credentials.verify.validBody')}
             </ThemedText>
@@ -144,7 +159,13 @@ export default function CredentialDetailScreen() {
         )}
         {verify.state === 'invalid' && (
           <View style={styles.verdict}>
-            <CivicBadge emphasis tone="danger" icon="alertStrong" label={t('civic.credentials.verify.invalidTitle')} />
+            <Badge
+              appearance="subtle"
+              tone="danger"
+              size="label-medium"
+              icon={Icons.alertStrong}
+              content={t('civic.credentials.verify.invalidTitle')}
+            />
             <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
               {t(`civic.credentials.verify.reason.${verify.reasonCode ?? 'generic'}`)}
             </ThemedText>
@@ -152,7 +173,13 @@ export default function CredentialDetailScreen() {
         )}
         {verify.state === 'error' && (
           <View style={styles.verdict}>
-            <CivicBadge emphasis tone="caution" icon="alert" label={t('civic.credentials.verify.errorTitle')} />
+            <Badge
+              appearance="subtle"
+              tone="warning"
+              size="label-medium"
+              icon={Icons.alert}
+              content={t('civic.credentials.verify.errorTitle')}
+            />
             <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
               {t('civic.credentials.verify.errorBody')}
             </ThemedText>

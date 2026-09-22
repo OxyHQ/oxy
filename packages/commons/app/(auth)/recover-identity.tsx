@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useRef } from 'react';
+import { Icons } from '@/constants/icons';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,7 +10,6 @@ import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
-import { CenteredState } from '@/components/ui/centered-state';
 import { useTranslation } from '@/lib/i18n';
 import {
   useOnboardingStatus,
@@ -154,10 +156,11 @@ export default function RecoverIdentityScreen() {
   if (isAttempting || recovered) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <CenteredState
-          loading
+        <EmptyState
+          illustration={<Loading variant="spinner" size="lg" />}
           title={recovered ? t('recovery.restoredTitle') : t('recovery.attemptingTitle')}
-          body={recovered ? t('recovery.restoredBody') : t('recovery.attemptingBody')}
+          description={recovered ? t('recovery.restoredBody') : t('recovery.attemptingBody')}
+          minHeight={360}
         />
       </View>
     );
@@ -166,14 +169,13 @@ export default function RecoverIdentityScreen() {
   // Ladder exhausted (or threw): offer the manual recovery paths.
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <CenteredState
-        icon="shield"
-        iconColor={colors.textSecondary}
+      <EmptyState
+        illustration={<Icons.shield size="3xl" fill={colors.textSecondary} />}
         title={t('recovery.failedTitle')}
-        body={t('recovery.failedBody', {
+        description={t('recovery.failedBody', {
           key: markerKey ? shortenKey(markerKey) : '—',
         })}
-        action={
+        footer={
           <View style={styles.actions}>
             <Button appearance="solid" tone="accent" onPress={handleEnterPhrase} style={styles.action}>
               {t('recovery.enterPhrase')}
@@ -183,6 +185,7 @@ export default function RecoverIdentityScreen() {
             </Button>
           </View>
         }
+        minHeight={360}
       />
     </View>
   );

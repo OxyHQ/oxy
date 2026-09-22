@@ -31,17 +31,6 @@ jest.mock('@/components/ui', () => ({
     React.createElement('button', { onClick: onPress }, children),
 }));
 
-jest.mock('@/components/ui/centered-state', () => ({
-  CenteredState: ({
-    title,
-    body,
-    action,
-  }: {
-    title?: string;
-    body?: string;
-    action?: React.ReactNode;
-  }) => React.createElement('div', null, title, body, action),
-}));
 
 jest.mock('@/hooks/useOnboardingStatus', () => {
   const actual = jest.requireActual('@/hooks/useOnboardingStatus');

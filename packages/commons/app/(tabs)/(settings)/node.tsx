@@ -1,4 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { bloomToneFor } from '@/lib/civic/card-presentation';
+import { Card } from '@oxy.so/bloom/card';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet, TextInput, TouchableOpacity, Platform } from 'react-native';
@@ -11,12 +16,9 @@ import {
   Section,
   GroupedList,
   ListRow,
-  SoftSurface,
   Callout,
-  CenteredState,
   SessionGate,
 } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import {
   useMyNode,
   useRegisterNode,
@@ -148,16 +150,16 @@ export default function NodeScreen() {
     return (
       <Screen gap={24}>
         <StackHeader title={t('civic.nodes.title')} onBack={handleBack} backAccessibilityLabel={t('common.back')} />
-        <CenteredState
-          icon="shieldCheck"
-          iconColor={colors.success}
+        <EmptyState
+          illustration={<Icons.shieldCheck size="3xl" fill={colors.success} />}
           title={t('civic.nodes.provision.done.title')}
-          body={t('civic.nodes.provision.done.body')}
-          action={
+          description={t('civic.nodes.provision.done.body')}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={handleProvisionDone}>{t('common.done')}</Button>
             </View>
           }
+          minHeight={360}
         />
       </Screen>
     );
@@ -167,16 +169,16 @@ export default function NodeScreen() {
     return (
       <Screen gap={24}>
         <StackHeader title={t('civic.nodes.title')} onBack={handleBack} backAccessibilityLabel={t('common.back')} />
-        <CenteredState
-          icon="node"
-          iconColor={colors.success}
+        <EmptyState
+          illustration={<Icons.node size="3xl" fill={colors.success} />}
           title={t('civic.nodes.register.done.title')}
-          body={t('civic.nodes.register.done.body')}
-          action={
+          description={t('civic.nodes.register.done.body')}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={handleRegisterDone}>{t('common.done')}</Button>
             </View>
           }
+          minHeight={360}
         />
       </Screen>
     );
@@ -214,7 +216,14 @@ export default function NodeScreen() {
 
       <Section title={t('civic.nodes.choose.title')} subtitle={t('civic.nodes.choose.subtitle')}>
         <View style={styles.choiceStack}>
-          <SoftSurface tone="primary" onPress={provisionBusy ? undefined : () => void provision.provision()} accessibilityLabel={t('civic.nodes.managed.cta')}>
+          <Card
+            appearance="subtle"
+            tone="accent"
+            radius="radius-24"
+            style={styles.softSurface}
+            onPress={provisionBusy ? undefined : () => void provision.provision()}
+            accessibilityLabel={t('civic.nodes.managed.cta')}
+          >
             <View style={styles.choiceRow}>
               <View style={styles.choiceText}>
                 <ThemedText style={[styles.choiceTitle, { color: colors.tint }]}>
@@ -230,7 +239,7 @@ export default function NodeScreen() {
                 </ThemedText>
               )}
             </View>
-          </SoftSurface>
+          </Card>
 
           {isWeb ? (
             <Callout tone="info" icon="device">
@@ -379,7 +388,13 @@ export default function NodeScreen() {
       <>
         {/* Status hero */}
         <View style={styles.hero}>
-          <CivicBadge emphasis tone={meta.tone} icon={meta.icon} label={t(meta.labelKey)} />
+          <Badge
+            appearance="subtle"
+            tone={bloomToneFor(meta.tone)}
+            size="label-medium"
+            icon={Icons[meta.icon]}
+            content={t(meta.labelKey)}
+          />
           <ThemedText style={[styles.heroType, { color: colors.text }]}>
             {t(isManaged ? 'civic.nodes.type.managed' : 'civic.nodes.type.selfHosted')}
           </ThemedText>
@@ -404,14 +419,14 @@ export default function NodeScreen() {
 
         {/* Endpoint — selectable, full address */}
         <Section title={t('civic.nodes.details.title')}>
-          <SoftSurface tone="card">
+          <Card appearance="subtle" tone="neutral" radius="radius-24" style={styles.softSurface}>
             <ThemedText style={[styles.endpointCaption, { color: colors.textSecondary }]}>
               {t('civic.nodes.details.endpoint')}
             </ThemedText>
             <ThemedText selectable style={[styles.endpointValue, { color: colors.text }]}>
               {current.endpoint}
             </ThemedText>
-          </SoftSurface>
+          </Card>
 
           <GroupedList>
             <ListRow
@@ -495,20 +510,25 @@ export default function NodeScreen() {
 
   const renderBody = () => {
     if (query.isPending && node === undefined) {
-      return <CenteredState loading body={t('civic.nodes.loading')} />;
+      return <EmptyState
+               illustration={<Loading variant="spinner" size="lg" />}
+               description={t('civic.nodes.loading')}
+               minHeight={360}
+             />;
     }
 
     if (query.isError && node === undefined) {
       return (
-        <CenteredState
-          icon="alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.nodes.error.title')}
-          body={t('civic.nodes.error.body')}
-          action={
+          description={t('civic.nodes.error.body')}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={() => query.refetch()}>{t('common.retry')}</Button>
             </View>
           }
+          minHeight={360}
         />
       );
     }
@@ -533,6 +553,13 @@ export default function NodeScreen() {
 }
 
 const styles = StyleSheet.create({
+  /**
+   * The padding the retired `SoftSurface` applied. Bloom's `Card` draws the
+   * surface — fill, corner, press feedback — and leaves its inside to the
+   * caller, which is why `CardBody` exists; this content is not a header/body/
+   * footer stack, so it takes the padding directly.
+   */
+  softSurface: { padding: 18 },
   action: {
     alignItems: 'center',
     marginTop: 4,

@@ -1,4 +1,9 @@
 import React, { useCallback } from 'react';
+import { Icons } from '@/constants/icons';
+import { bloomToneFor } from '@/lib/civic/card-presentation';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { VerifiableCredentialResponse, CredentialStatus } from '@oxy.so/contracts';
@@ -9,10 +14,8 @@ import {
   StackHeader,
   Section,
   GroupedList,
-  CenteredState,
   SessionGate,
 } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { useMyCredentials } from '@/hooks/useCredentials';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
@@ -76,16 +79,20 @@ export default function CredentialsScreen() {
 
   const renderBody = () => {
     if (query.isPending && !credentials) {
-      return <CenteredState loading body={t('civic.credentials.loading')} />;
+      return <EmptyState
+               illustration={<Loading variant="spinner" size="lg" />}
+               description={t('civic.credentials.loading')}
+               minHeight={360}
+             />;
     }
 
     if (query.isError && !credentials) {
       return (
-        <CenteredState
-          icon="alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.credentials.error.title')}
-          body={t('civic.credentials.error.body')}
-          action={
+          description={t('civic.credentials.error.body')}
+          footer={
             <TouchableOpacity
               style={[styles.retry, { backgroundColor: colors.tint }]}
               onPress={() => query.refetch()}
@@ -94,16 +101,18 @@ export default function CredentialsScreen() {
               <ThemedText style={styles.retryText}>{t('common.retry')}</ThemedText>
             </TouchableOpacity>
           }
+          minHeight={360}
         />
       );
     }
 
     if (!credentials || credentials.length === 0) {
       return (
-        <CenteredState
-          icon="credential"
+        <EmptyState
+          icon={Icons.credential}
           title={t('civic.credentials.empty.title')}
-          body={t('civic.credentials.empty.body')}
+          description={t('civic.credentials.empty.body')}
+          minHeight={360}
         />
       );
     }
@@ -115,7 +124,13 @@ export default function CredentialsScreen() {
         </ThemedText>
 
         {!isOnline && (
-          <CivicBadge tone="neutral" icon="offline" label={t('civic.credentials.offline')} />
+          <Badge
+            appearance="subtle"
+            tone="neutral"
+            size="label-small"
+            icon={Icons.offline}
+            content={t('civic.credentials.offline')}
+          />
         )}
 
         <GroupedList>
@@ -177,10 +192,12 @@ function CredentialRow({ credential, colors, t, onPress }: CredentialRowProps) {
           <ThemedText style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
             {typeLabel}
           </ThemedText>
-          <CivicBadge
-            tone={statusMeta.tone}
-            icon={STATUS_ICON[credential.status]}
-            label={t(`civic.credentials.status.${statusMeta.labelKey}`)}
+          <Badge
+            appearance="subtle"
+            tone={bloomToneFor(statusMeta.tone)}
+            size="label-small"
+            icon={Icons[STATUS_ICON[credential.status]]}
+            content={t(`civic.credentials.status.${statusMeta.labelKey}`)}
           />
         </View>
 

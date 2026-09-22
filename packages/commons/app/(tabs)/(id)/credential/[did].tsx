@@ -1,4 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Loading } from '@oxy.so/bloom/loading';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Icons } from '@/constants/icons';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
@@ -11,7 +13,6 @@ import {
   StackHeader,
   Section,
   Callout,
-  CenteredState,
 } from '@/components/ui';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { useIssueCredential } from '@/hooks/useIssueCredential';
@@ -98,10 +99,11 @@ export default function IssueCredentialScreen() {
   const renderBody = () => {
     if (!userId || !did) {
       return (
-        <CenteredState
-          icon="alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.credentials.issue.invalidTitle')}
-          body={t('civic.credentials.issue.invalidBody')}
+          description={t('civic.credentials.issue.invalidBody')}
+          minHeight={360}
         />
       );
     }
@@ -109,38 +111,42 @@ export default function IssueCredentialScreen() {
     if (state === 'done') {
       const issuedTypeLabel = typeTag ? humanizeTypeTag(typeTag) : '';
       return (
-        <CenteredState
-          icon="credential"
-          iconColor={colors.success}
+        <EmptyState
+          illustration={<Icons.credential size="3xl" fill={colors.success} />}
           title={t('civic.credentials.issue.done.title')}
-          body={t('civic.credentials.issue.done.body', { type: issuedTypeLabel, name: displayName })}
-          action={
+          description={t('civic.credentials.issue.done.body', { type: issuedTypeLabel, name: displayName })}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
+          minHeight={360}
         />
       );
     }
 
     if (state === 'error') {
       return (
-        <CenteredState
-          icon="alert"
-          iconColor={colors.error}
+        <EmptyState
+          illustration={<Icons.alert size="3xl" fill={colors.error} />}
           title={t('civic.credentials.issue.error.title')}
-          body={t(`civic.credentials.issue.error.${errorCode ?? 'generic'}`)}
-          action={
+          description={t(`civic.credentials.issue.error.${errorCode ?? 'generic'}`)}
+          footer={
             <View style={styles.action}>
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
+          minHeight={360}
         />
       );
     }
 
     if (cardQuery.isPending && !card) {
-      return <CenteredState loading body={t('civic.credentials.issue.loading')} />;
+      return <EmptyState
+               illustration={<Loading variant="spinner" size="lg" />}
+               description={t('civic.credentials.issue.loading')}
+               minHeight={360}
+             />;
     }
 
     return (
