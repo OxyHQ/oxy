@@ -1,4 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
 import { Text } from '@oxy.so/bloom/typography';
 import { Icons } from '@/constants/icons';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -15,7 +20,6 @@ import {
 import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
 import { ReputationHeader } from '@/components/reputation/ReputationHeader';
 import { GetStartedCarousel, type CtaItem } from '@/components/reputation/GetStartedCarousel';
-import { SegmentedTabs, type SegmentedTabItem } from '@/components/reputation/SegmentedTabs';
 import { StandingSection } from '@/components/reputation/StandingSection';
 import { ActivityList } from '@/components/reputation/ActivityList';
 import { useCivicReputation, useReputationSources } from '@/hooks/useCivicReputation';
@@ -119,7 +123,7 @@ export default function ReputationScreen() {
     [colors, t, pendingValidations, handleAttest, handleOpenInbox, handlePersonhood],
   );
 
-  const tabItems: SegmentedTabItem<ReputationTab>[] = [
+  const tabItems: { key: ReputationTab; label: string }[] = [
     { key: 'overview', label: t('civic.reputation.tabs.overview') },
     { key: 'activity', label: t('civic.reputation.tabs.activity') },
   ];
@@ -168,7 +172,22 @@ export default function ReputationScreen() {
           />
         )}
 
-        <SegmentedTabs items={tabItems} value={tab} onChange={setTab} />
+        {/* `type="tabs"`, not `"radio"`: these switch the panel below rather
+            than choosing a value to submit, and Bloom's own note on this family
+            is that the two look identical and ANNOUNCE differently — a tablist
+            against a radiogroup — so `type` is the decision, not the styling. */}
+        <SegmentedControl<ReputationTab>
+          type="tabs"
+          label={t('civic.reputation.tabs.overview')}
+          value={tab}
+          onValueChange={setTab}
+        >
+          {tabItems.map((item) => (
+            <SegmentedControlItem key={item.key} value={item.key}>
+              <SegmentedControlItemText>{item.label}</SegmentedControlItemText>
+            </SegmentedControlItem>
+          ))}
+        </SegmentedControl>
 
         {tab === 'overview' ? (
           <View style={styles.overview}>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Meter } from '@oxy.so/bloom/stat-bar';
 import { Text } from '@oxy.so/bloom/typography';
 import { AppIcon } from '@/constants/icons';
 import { View, StyleSheet, Pressable } from 'react-native';
@@ -54,9 +55,18 @@ export function CategoryRow({
         <Text style={[styles.label, { color: colors.text }]} numberOfLines={1}>
           {label}
         </Text>
-        <View style={[styles.track, { backgroundColor: colors.backgroundSecondary }]}>
-          <View style={[styles.fill, { backgroundColor: color, width: `${clamped * 100}%` }]} />
-        </View>
+        {/* Bloom's `Meter` is "the one determinate bar behind every progress
+            bar in Bloom", and it announces as a `progressbar` with a name —
+            which the two hand-drawn `View`s it replaces never did. The category
+            keeps its own `fill` colour, because the colour is what ties the row
+            to its segment in the distribution bar above. */}
+        <Meter
+          value={clamped}
+          fill={color}
+          track={colors.backgroundSecondary}
+          accessibilityLabel={label}
+          valueText={`${points}`}
+        />
       </View>
 
       <Text style={[styles.points, { color: isPenalty ? colors.error : colors.text }]}>
@@ -103,15 +113,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: -0.2,
-  },
-  track: {
-    height: 6,
-    borderRadius: 999,
-    overflow: 'hidden',
-  },
-  fill: {
-    height: 6,
-    borderRadius: 999,
   },
   points: {
     fontSize: 16,
