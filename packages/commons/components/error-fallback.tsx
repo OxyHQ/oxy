@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text as BloomText } from '@oxy.so/bloom/typography';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icons } from '@/constants/icons';
@@ -46,57 +46,46 @@ export function ErrorFallback({ error, retry }: ErrorFallbackProps) {
         },
       ]}
     >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View
-          style={[
-            styles.iconBubble,
-            { backgroundColor: colors.error + '22', borderColor: colors.error + '55' },
-          ]}
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* The whole screen IS an empty state — a glyph, a headline, a line of
+            explanation and one action — so it is Bloom's. The glyph keeps its
+            error tint by going through `illustration`; `media="circle"` would
+            draw the ACCENT disc, which is the wrong colour for a crash. The
+            dev-only stack trace goes in `children`, the slot Bloom reserves for
+            "anything between the explanation and the actions".
+
+            `MinimalErrorFallback` below does NOT do this, and must not: it is
+            the fallback for a crash in the theme provider itself, so it can use
+            no Bloom component and keeps its own literal palette — which is why
+            the styles here are still shared with it. */}
+        <EmptyState
+          illustration={<Icons.alert size="3xl" fill={colors.error} />}
+          title={t('errors.boundary.title')}
+          description={t('errors.boundary.subtitle')}
+          action={{
+            label: t('errors.boundary.retry'),
+            onPress: retry,
+            icon: Icons.refresh,
+          }}
         >
-          <Icons.alert size='3xl' fill={colors.error} />
-        </View>
-
-        <BloomText style={[styles.title, { color: colors.text }]}>
-          {t('errors.boundary.title')}
-        </BloomText>
-        <BloomText style={[styles.subtitle, { color: colors.textSecondary }]}>
-          {t('errors.boundary.subtitle')}
-        </BloomText>
-
-        {isDev && (
-          <View
-            style={[
-              styles.devDetails,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <Text style={[styles.devLabel, { color: colors.textSecondary }]}>
-              {t('errors.boundary.details')}
-            </Text>
-            <Text style={[styles.devMessage, { color: colors.text }]} selectable>
-              {error.message}
-            </Text>
-            {error.stack ? (
-              <Text style={[styles.devStack, { color: colors.textSecondary }]} selectable>
-                {error.stack}
+          {isDev ? (
+            <View
+              style={[styles.devDetails, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <Text style={[styles.devLabel, { color: colors.textSecondary }]}>
+                {t('errors.boundary.details')}
               </Text>
-            ) : null}
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[styles.retryButton, { backgroundColor: colors.tint }]}
-          onPress={retry}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={t('errors.boundary.retry')}
-        >
-          <Icons.refresh size='md' fill="#FFFFFF" />
-          <Text style={styles.retryText}>{t('errors.boundary.retry')}</Text>
-        </TouchableOpacity>
+              <Text style={[styles.devMessage, { color: colors.text }]} selectable>
+                {error.message}
+              </Text>
+              {error.stack ? (
+                <Text style={[styles.devStack, { color: colors.textSecondary }]} selectable>
+                  {error.stack}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+        </EmptyState>
       </ScrollView>
     </View>
   );

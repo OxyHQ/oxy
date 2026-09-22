@@ -1,6 +1,7 @@
 import React from 'react';
-import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet } from 'react-native';
+import { Item } from '@oxy.so/bloom/item';
+import { Text } from '@oxy.so/bloom/typography';
 import { AppIcon, Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { CircleIconBadge } from '@/components/ui/circle-icon-badge';
@@ -15,10 +16,22 @@ interface ActivityRowProps {
 }
 
 /**
- * One reputation ledger entry as a clean, borderless row: a soft circular icon
- * badge tinted by the award/penalty sign, a readable action label with an
- * Oxy-signed indicator for crypto-attested actions, the relative time, and the
- * signed point delta (green award / red penalty).
+ * One reputation ledger entry: a soft circular icon badge tinted by the
+ * award/penalty sign, the action label with an Oxy-signed indicator for
+ * crypto-attested actions, the relative time, and the signed point delta.
+ *
+ * Built on Bloom's `Item`, the one row primitive, so this row is the same row —
+ * same height, same text column, same announced semantics — as every other row
+ * in the app. `role="listitem"` because it IS one: `ActivityList` renders these
+ * in sequence and nothing here is pressable.
+ *
+ * It is deliberately NOT `@oxy.so/bloom/activity-feed`, which arrived in Bloom
+ * 4 and looks like a fit by name. It is not one: that family's leading mark is
+ * the ACTOR's avatar with the event kind on its corner, and it groups by a day
+ * STRING the app formats. A reputation ledger has no actor — every entry is
+ * about the reader — and no day headings; it has a signed point delta, which
+ * the feed has nowhere to put. Bloom's own doc for that family spends a table
+ * distinguishing it from shapes like this one.
  */
 export function ActivityRow({ transaction }: ActivityRowProps) {
   const colors = useColors();
@@ -28,60 +41,45 @@ export function ActivityRow({ transaction }: ActivityRowProps) {
   const meta = describeReputationAction(transaction);
   const accent = meta.positive ? colors.success : colors.error;
 
+  const label = t(`civic.reputation.activity.actions.${meta.labelKey}`);
+
   return (
-    <View style={styles.row}>
-      <CircleIconBadge backgroundColor={withAlpha(accent, 0.12)}>
-        <AppIcon name={meta.icon} size='sm' fill={accent} />
-      </CircleIconBadge>
-
-      <View style={styles.text}>
+    <Item
+      role="listitem"
+      leading={
+        <CircleIconBadge backgroundColor={withAlpha(accent, 0.12)}>
+          <AppIcon name={meta.icon} size="sm" fill={accent} />
+        </CircleIconBadge>
+      }
+      // The title is a NODE rather than a string because the signed shield sits
+      // inline after the label — it qualifies the action, not the row.
+      title={
         <View style={styles.labelRow}>
-          <Text style={[styles.label, { color: colors.text }]} numberOfLines={1}>
-            {t(`civic.reputation.activity.actions.${meta.labelKey}`)}
+          <Text numberOfLines={1} style={styles.label}>
+            {label}
           </Text>
-          {meta.signed && (
-            <Icons.shieldCheck size='xs' fill={colors.success} />
-          )}
+          {meta.signed && <Icons.shieldCheck size="xs" fill={colors.success} />}
         </View>
-        <Text style={[styles.time, { color: colors.textSecondary }]} numberOfLines={1}>
-          {relativeTime(transaction.createdAt)}
-        </Text>
-      </View>
-
-      <Text style={[styles.delta, { color: accent }]}>
-        {formatPointsDelta(transaction.points)}
-      </Text>
-    </View>
+      }
+      subtitle={relativeTime(transaction.createdAt)}
+      trailing={
+        <Text style={[styles.delta, { color: accent }]}>{formatPointsDelta(transaction.points)}</Text>
+      }
+      accessibilityLabel={`${label}, ${formatPointsDelta(transaction.points)}`}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 14,
-  },
-  text: {
-    flex: 1,
-    gap: 3,
-  },
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   label: {
-    fontSize: 15,
-    fontWeight: '600',
     flexShrink: 1,
-    letterSpacing: -0.2,
-  },
-  time: {
-    fontSize: 13,
   },
   delta: {
-    fontSize: 16,
     fontWeight: '700',
     minWidth: 44,
     textAlign: 'right',

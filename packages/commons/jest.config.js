@@ -51,6 +51,7 @@ module.exports = {
     '^@oxy.so/bloom/typography$': '<rootDir>/__mocks__/bloom-typography.tsx',
     '^@oxy.so/bloom/divider$': '<rootDir>/__mocks__/bloom-divider.tsx',
     '^@oxy.so/bloom/stat-bar$': '<rootDir>/__mocks__/bloom-stat-bar.tsx',
+    '^@oxy.so/bloom/item$': '<rootDir>/__mocks__/bloom-item.tsx',
     '^@oxy.so/bloom/empty-state$': '<rootDir>/__mocks__/bloom-empty-state.tsx',
     '^@oxy.so/bloom/loading$': '<rootDir>/__mocks__/bloom-loading.tsx',
     // Every per-glyph icon subpath resolves to one inert stub — see the file.
