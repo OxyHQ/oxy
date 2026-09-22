@@ -6,6 +6,8 @@
  *
  *  1. **application → owner account** ({@link resolveApplicationOwnerAccount})
  *  2. **credential → application → owner account** ({@link resolveCredentialAttribution})
+ *  2b. **verified service token → application → owner account, by WHICHEVER
+ *     proof minted it** ({@link resolveServiceTokenPrincipal})
  *  3. **caller → effective account role** ({@link resolveCallerAccountAccess},
  *     and its application-scoped composition {@link resolveCallerApplicationAccess})
  *  4. **owner account → billing profile** ({@link resolveAccountBillingProfile})
@@ -72,7 +74,10 @@
 import { eq, type SQL } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
-import type { ApplicationCredentialStatus } from '../db/schema/applicationCredentials';
+import type {
+  ApplicationCredentialEnvironment,
+  ApplicationCredentialStatus,
+} from '../db/schema/applicationCredentials';
 import { applications } from '../db/schema/applications';
 import type { ApplicationStatus } from '../db/schema/applications';
 import { userCredits } from '../db/schema/userCredits';
@@ -85,7 +90,12 @@ import {
   type AccountRole,
   type ApplicationPermission,
 } from '../utils/accountRoles';
+import { intersectScopes, type ApplicationScope } from '../utils/applicationScopes';
 import { isCredentialUsable } from '../utils/credentialUsability';
+import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
+import { resolveLiveAgencyWorkloadByHandle } from './agencyServicePrincipal.service';
+import { isWorkloadAttestationHandle } from './workloadAttestation.service';
+import type { ServiceTokenPayload } from '../middleware/serviceToken';
 
 /** A stored `application_credentials` row, as this module reads its enums from. */
 type ApplicationCredentialRow = typeof applicationCredentials.$inferSelect;
@@ -315,6 +325,167 @@ async function loadCredentialAttribution(
         ownerAccountId: row.ownerAccountId,
         ownerAccountKind: row.ownerAccountKind,
       },
+    },
+  };
+}
+
+// ===========================================================================
+// 2b. verified service token → application → owner account, by EITHER proof
+// ===========================================================================
+
+/**
+ * What a verified service token is, re-read from the rows that authorise it.
+ *
+ * ## Why this exists rather than two call sites branching
+ *
+ * A service token names its minting identity in `credentialId`, and since ADR
+ * 0026 that is one of TWO things: an `ApplicationCredential` row id, or the
+ * attestation handle of an `application_workload_identities` binding
+ * (`wl_` + 96 bits of SHA-256 over the canonical role ARN). Every consumer that
+ * re-reads live authority has to know which, and every consumer that did not
+ * know treated an attested token as an unresolvable one.
+ *
+ * That is not hypothetical. `resolveCredentialAttributionById` was called
+ * directly by the catalogue's `applicationForBearer` and by the inference
+ * edge's `authenticateEdgeCaller`; both resolved nothing for an attested
+ * caller, and neither said so. The catalogue quietly demoted Alia's attested
+ * readiness probe to the PUBLIC audience, which reported all eight of its chat
+ * routing profiles missing with no error anywhere, and the edge answered 401 to
+ * any first-party service that had given its key pair up — so ADR 0026's whole
+ * migration was blocked by an authentication hop rather than by anything about
+ * inference.
+ *
+ * So the branch lives here, once. A third consumer gets it by calling this
+ * instead of by remembering it exists.
+ */
+export interface ServiceTokenPrincipal {
+  /**
+   * Which proof minted this token — a credential row, or a workload binding.
+   *
+   * Carried because it is the answer to "what row was re-read", which is the
+   * question an operator asks when a token stops working, and because a
+   * consumer that stores an attribution has to know whether `credentialId` is
+   * a foreign key it may write or a handle that names no credential at all.
+   */
+  readonly proof: 'credential' | 'workload';
+  /**
+   * The presented service identity: the credential's row id on the credential
+   * path, the `wl_…` handle on the attested one. What CALLED, never what the
+   * application also happens to hold — see PR #1351 for the same decision on
+   * the native product agent assertion's `cid`.
+   */
+  readonly credentialId: string;
+  readonly applicationId: string;
+  readonly ownerAccountId: string;
+  readonly environment: ApplicationCredentialEnvironment;
+  /** Current database authority, already reduced to what this identity may do. */
+  readonly scopes: ApplicationScope[];
+}
+
+/**
+ * Outcome of {@link resolveServiceTokenPrincipal}.
+ *
+ * Every arm is a refusal a caller must handle, and the arms are distinguished
+ * for the LOG, never for the answer: the catalogue collapses all of them into
+ * the public audience and the edge answers one 401 to all of them. Telling them
+ * apart on the wire would make a public read an oracle on a credential's — or
+ * now a binding's — lifecycle, which is the property `applicationForBearer`
+ * documents and this must not weaken.
+ *
+ * `unknown-workload` is deliberately ONE arm covering an absent binding, an
+ * expired one, one re-pointed at another application, a demoted or suspended
+ * application and a closed owner account. A caller that could tell "no such
+ * binding" from "that binding is expired" could enumerate our infrastructure's
+ * bindings, and no consumer here has any use for the difference.
+ */
+export type ServiceTokenPrincipalResolution =
+  | { status: 'resolved'; principal: ServiceTokenPrincipal }
+  | {
+      status:
+        | 'unknown-credential'
+        | 'unusable-credential'
+        | 'inactive-application'
+        | 'unknown-workload';
+    };
+
+/**
+ * Resolve a VERIFIED service token to the principal it may act as, right now.
+ *
+ * The signature proved who minted the token. This is the hop that makes an
+ * hour-old token stop working the moment the row behind it does, and it is the
+ * SAME promise on both paths:
+ *
+ * | | credential-minted token | attested token |
+ * |---|---|---|
+ * | the row | `application_credentials` | `application_workload_identities` |
+ * | found by | the row id in `credentialId` | the binding whose subject derives to the handle |
+ * | usable | {@link isCredentialUsable} — status and rotation grace | live binding: present, unexpired, still naming this application |
+ * | application | `active` | `active` AND trusted first-party |
+ * | owner | — | active, no closure fence |
+ * | scopes | `intersectScopes(credential, application)` | `workloadBindingScopes(binding, application)` |
+ *
+ * The attested column is not the weaker one. Deleting a binding is how a
+ * compromised workload is cut off, and it takes effect on the very next call
+ * here — the same immediacy revoking a credential has — because
+ * {@link resolveLiveAgencyWorkloadByHandle} re-reads the binding rather than
+ * believing the token that names it. It asks MORE than the credential path
+ * does, not less: a credential path does not care whether the application is
+ * still trusted first-party, and the attested path does, because that is the
+ * gate `exchangeWorkloadAttestation` applies at mint and a live ceiling that
+ * admitted more than a fresh mint would is not a ceiling.
+ *
+ * ## The application is never taken from the claim
+ *
+ * `applicationId`, `ownerAccountId` and `scopes` all come from the rows, on
+ * both paths. `appId` is used on the attested path only to scope the binding
+ * search — see {@link resolveLiveAgencyWorkloadByHandle} for why that is a
+ * filter and not an authority.
+ */
+export async function resolveServiceTokenPrincipal(
+  payload: ServiceTokenPayload
+): Promise<ServiceTokenPrincipalResolution> {
+  if (isWorkloadAttestationHandle(payload.credentialId)) {
+    const binding = await resolveLiveAgencyWorkloadByHandle(payload.appId, payload.credentialId);
+    if (binding === null) {
+      return { status: 'unknown-workload' };
+    }
+    return {
+      status: 'resolved',
+      principal: {
+        proof: 'workload',
+        credentialId: binding.handle,
+        applicationId: binding.applicationId,
+        ownerAccountId: binding.ownerAccountId,
+        // A binding has no environment column: a workload proves what it is,
+        // never which environment it means. `workloadTokenEnvironment` is the
+        // ONE definition the mint itself uses, so what a receipt records and
+        // what the token carries are one value rather than two copies of an
+        // expression.
+        environment: workloadTokenEnvironment(),
+        scopes: [...binding.scopes],
+      },
+    };
+  }
+
+  const attribution = await resolveCredentialAttributionById(payload.credentialId);
+  if (attribution.status !== 'resolved') {
+    return { status: attribution.status };
+  }
+  if (attribution.attribution.application.applicationStatus !== 'active') {
+    return { status: 'inactive-application' };
+  }
+  return {
+    status: 'resolved',
+    principal: {
+      proof: 'credential',
+      credentialId: attribution.attribution.credentialId,
+      applicationId: attribution.attribution.application.applicationId,
+      ownerAccountId: attribution.attribution.application.ownerAccountId,
+      environment: attribution.attribution.credentialEnvironment,
+      scopes: intersectScopes(
+        attribution.attribution.credentialScopes,
+        attribution.attribution.applicationScopes
+      ),
     },
   };
 }
