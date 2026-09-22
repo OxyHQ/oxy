@@ -9,6 +9,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useImageResolver } from '@oxy.so/bloom/image-resolver';
 import { Fonts } from '@/constants/theme';
 import { HolographicLogo } from './holographic-logo';
 import { AVATAR_ELEVATION, ParallaxLayer, TEXT_ELEVATION } from './tilt-context';
@@ -16,7 +17,17 @@ import { AVATAR_ELEVATION, ParallaxLayer, TEXT_ELEVATION } from './tilt-context'
 interface FrontSideProps {
     displayName?: string;
     username?: string;
-    avatarUrl?: string;
+    /**
+     * A BARE Oxy file id, never a URL. It is resolved through Bloom's
+     * `ImageResolver` — the one chokepoint where a media URL is built — so this
+     * card cannot drift from the rest of the ecosystem's rendition handling.
+     *
+     * The portrait is drawn with a plain `<Image>` rather than Bloom's `Avatar`
+     * on purpose: this is the framed photo of a printed ID document, not a UI
+     * avatar, and `Avatar`'s chrome (initials ring, verified badge, clip-shape
+     * registry) is the wrong artwork inside a passport data page.
+     */
+    avatarId?: string;
     accountCreated?: string;
     publicKeyShort?: string;
 }
@@ -38,7 +49,7 @@ const MRZ_WIDTH = 22;
 export const FrontSide: React.FC<FrontSideProps> = ({
     displayName,
     username,
-    avatarUrl,
+    avatarId,
     accountCreated,
     publicKeyShort,
 }) => {
@@ -58,6 +69,9 @@ export const FrontSide: React.FC<FrontSideProps> = ({
         const dd = String(d.getDate()).padStart(2, '0');
         return `${dd}.${mm}.${yy}`;
     }, [accountCreated]);
+
+    const resolveImage = useImageResolver();
+    const avatarUrl = avatarId ? resolveImage?.(avatarId, 'thumb') : undefined;
 
     return (
         <View style={styles.container}>

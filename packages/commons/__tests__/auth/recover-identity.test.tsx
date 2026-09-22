@@ -14,8 +14,15 @@ interface AlertAction {
 const mockAlert = jest.fn();
 const mockToastError = jest.fn();
 
-jest.mock('@oxy.so/bloom', () => ({
+// Mocked per SUBPATH, not on the root barrel. The screen imports
+// `@oxy.so/bloom/surfaces` and `@oxy.so/bloom/toast` directly, and under jsdom
+// those resolve through the `browser` condition to Bloom's raw `.web` sources —
+// which reach `expo-blur`, an ESM-only package this CJS runner cannot load. A
+// barrel mock no longer intercepts either specifier.
+jest.mock('@oxy.so/bloom/surfaces', () => ({
   alert: (...args: unknown[]) => mockAlert(...args),
+}));
+jest.mock('@oxy.so/bloom/toast', () => ({
   toast: { error: (...args: unknown[]) => mockToastError(...args) },
 }));
 

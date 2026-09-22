@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Checkbox } from 'expo-checkbox';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useOxy } from '@oxy.so/services';
-import { toast } from '@oxy.so/bloom';
+import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
 import { Screen, StackHeader, Button, Callout, ImportantBanner } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';

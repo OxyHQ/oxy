@@ -7,7 +7,7 @@ import { useAuthFlowContext } from '@/contexts/auth-flow-context';
 
 import { useTranslation } from '@/lib/i18n';
 import { useIdentityStore } from '@/hooks/identity/identityStore';
-import { alert } from '@oxy.so/bloom';
+import { alert } from '@oxy.so/bloom/surfaces';
 
 /**
  * Recovery Phrase Reveal Screen.

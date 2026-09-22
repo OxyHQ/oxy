@@ -11,7 +11,7 @@ import {
   IdentityUnavailableError,
   handleHttpError,
 } from '@oxy.so/core';
-import { alert } from '@oxy.so/bloom';
+import { alert } from '@oxy.so/bloom/surfaces';
 import { useColors } from '@/hooks/useColors';
 import { Button, KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';

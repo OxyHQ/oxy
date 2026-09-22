@@ -26,7 +26,6 @@ import { IdQrBack } from '@/components/civic/IdQrBack';
 import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
 import { CameraPermissionSheet } from '@/components/civic/CameraPermissionSheet';
 import { useIdentity } from '@/hooks/useIdentity';
-import { useAvatarUrl } from '@/hooks/useAvatarUrl';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { useAttestedEvent, type AttestedEventPayload } from '@/hooks/civic/useAttestedEvent';
 import { getDisplayNameOrNull } from '@/utils/date-utils';
@@ -82,7 +81,6 @@ export default function IdScreen() {
   // `getDisplayNameOrNull` answers `null` for intentional absence; card faces take
   // `displayName?: string` (`undefined`, not `null`).
   const displayName = getDisplayNameOrNull(user) ?? undefined;
-  const avatarUrl = useAvatarUrl(user);
 
   // The public key lives in local secure storage — load it directly so the card
   // renders without waiting on any network call.
@@ -201,7 +199,7 @@ export default function IdScreen() {
               <FrontSide
                 displayName={displayName}
                 username={user?.username}
-                avatarUrl={avatarUrl}
+                avatarId={user?.avatar ?? undefined}
                 accountCreated={user?.createdAt}
                 publicKeyShort={publicKeyShort}
               />
