@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -9,7 +10,6 @@ import {
   Screen,
   StackHeader,
   Section,
-  Callout,
 } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 import { RecoveryPhraseGrid } from '@/components/identity/RecoveryPhraseGrid';
@@ -91,9 +91,9 @@ export default function RecoveryPhraseScreen() {
 
       {state.kind === 'revealed' ? (
         <Section>
-          <Callout tone="danger" icon="alertStrong">
+          <Admonition type="error">
             {t('settings.recoveryPhrase.warning')}
-          </Callout>
+          </Admonition>
 
           <View
             style={[styles.phraseGrid, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -144,9 +144,9 @@ export default function RecoveryPhraseScreen() {
             </ThemedText>
           </View>
 
-          <Callout tone="warning" icon="alertStrong">
+          <Admonition type="warning">
             {t('settings.recoveryPhrase.warning')}
-          </Callout>
+          </Admonition>
 
           <Button appearance="solid" tone="accent" onPress={reveal} loading={state.kind === 'authenticating'} disabled={state.kind === 'authenticating'}>{t('settings.recoveryPhrase.revealButton')}</Button>
         </Section>

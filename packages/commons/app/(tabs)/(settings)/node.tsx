@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
 import { Card } from '@oxy.so/bloom/card';
 import { Badge } from '@oxy.so/bloom/badge';
@@ -16,7 +17,6 @@ import {
   Section,
   GroupedList,
   ListRow,
-  Callout,
   SessionGate,
 } from '@/components/ui';
 import {
@@ -242,9 +242,9 @@ export default function NodeScreen() {
           </Card>
 
           {isWeb ? (
-            <Callout tone="info" icon="device">
+            <Admonition type="info">
               {t('civic.nodes.selfHost.webUnavailable')}
-            </Callout>
+            </Admonition>
           ) : (
             <>
               <Button appearance="outline" tone="accent" size="lg" icon={Icons.terminal} onPress={openForm} disabled={provisionBusy} style={fullWidthControl}>{t('civic.nodes.selfHost.cta')}</Button>
@@ -256,9 +256,9 @@ export default function NodeScreen() {
         </View>
       </Section>
 
-      <Callout tone="info" icon="shield">
+      <Admonition type="info">
         {t('civic.nodes.managed.note')}
-      </Callout>
+      </Admonition>
 
       {provision.biometricFailed && (
         <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
@@ -267,9 +267,9 @@ export default function NodeScreen() {
       )}
 
       {provision.state === 'error' && (
-        <Callout tone="danger" icon="alert">
+        <Admonition type="error">
           {t(`civic.nodes.errors.${provision.errorCode ?? 'generic'}`)}
-        </Callout>
+        </Admonition>
       )}
     </>
   );
@@ -361,9 +361,9 @@ export default function NodeScreen() {
       )}
 
       {register.state === 'error' && (
-        <Callout tone="danger" icon="alert">
+        <Admonition type="error">
           {t(`civic.nodes.errors.${register.errorCode ?? 'generic'}`)}
-        </Callout>
+        </Admonition>
       )}
 
       <View style={styles.formActions}>
@@ -404,17 +404,17 @@ export default function NodeScreen() {
         </View>
 
         {current.status === 'unreachable' && (
-          <Callout tone="warning" icon="alert">
+          <Admonition type="warning">
             {current.lastError
               ? t('civic.nodes.unreachableNote', { reason: current.lastError })
               : t('civic.nodes.unreachableNoteGeneric')}
-          </Callout>
+          </Admonition>
         )}
 
         {current.status === 'revoked' && (
-          <Callout tone="danger" icon="offline">
+          <Admonition type="error">
             {t('civic.nodes.revokedNote')}
-          </Callout>
+          </Admonition>
         )}
 
         {/* Endpoint — selectable, full address */}
@@ -482,9 +482,9 @@ export default function NodeScreen() {
         {/* Inline disconnect confirm */}
         {confirmingDisconnect && (
           <Section title={t('civic.nodes.disconnect.confirmTitle')}>
-            <Callout tone="danger" icon="alertStrong">
+            <Admonition type="error">
               {t('civic.nodes.disconnect.confirmBody')}
-            </Callout>
+            </Admonition>
             <View style={styles.confirmActions}>
               <Button appearance="outline" tone="accent" size="lg" onPress={() => setConfirmingDisconnect(false)} disabled={removeBusy} style={[fullWidthControl, styles.confirmButton]}>{t('civic.nodes.disconnect.cancel')}</Button>
               <Button appearance="solid" tone="danger" size="lg" icon={Icons.personhood} onPress={handleDisconnect} loading={removeBusy} style={[fullWidthControl, styles.confirmButton]}>{t('civic.nodes.disconnect.confirmCta')}</Button>
@@ -498,9 +498,9 @@ export default function NodeScreen() {
           </ThemedText>
         )}
         {remove.state === 'error' && (
-          <Callout tone="danger" icon="alert">
+          <Admonition type="error">
             {t(`civic.nodes.errors.${remove.errorCode ?? 'generic'}`)}
-          </Callout>
+          </Admonition>
         )}
       </>
     );

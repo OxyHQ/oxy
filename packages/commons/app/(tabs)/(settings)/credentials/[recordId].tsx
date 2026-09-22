@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -17,7 +18,6 @@ import {
   StackHeader,
   Section,
   GroupedList,
-  Callout,
   SessionGate,
 } from '@/components/ui';
 import { useMyCredentials } from '@/hooks/useCredentials';
@@ -263,9 +263,9 @@ export default function CredentialDetailScreen() {
         {/* Revoke — issuer-only, active-only */}
         {canRevoke && revoke.state !== 'done' && (
           <View style={styles.revokeBlock}>
-            <Callout tone="danger" icon="alert">
+            <Admonition type="error">
               {t('civic.credentials.revoke.confirmBody')}
-            </Callout>
+            </Admonition>
             {revoke.biometricFailed && (
               <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
                 {t('civic.credentials.revoke.biometricFailed')}

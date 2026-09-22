@@ -1,4 +1,5 @@
 import React from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
 import { Icons } from '@/constants/icons';
 import { LogoIcon } from '@oxy.so/services';
@@ -13,7 +14,6 @@ import { ThemedText } from '@/components/themed-text';
 // Imported from their own modules rather than the `components/ui` barrel: the
 // barrel also exports `Screen`, which pulls Bloom's tab bar (and with it
 // react-native-gesture-handler's native module) into this sheet-only surface.
-import { Callout } from '@/components/ui/callout';
 import { ImportantBanner } from '@/components/ui/important-banner';
 import { useTranslation, type TranslateFn } from '@/lib/i18n';
 import { summarizeScopes, type ScopeLine } from '@/lib/commons-signin/scope-summary';
@@ -198,7 +198,6 @@ export function ApprovalRequest({
       {!originVerified ? (
         <View className="px-5 pt-5">
           <ImportantBanner
-            icon="alert"
             title={t('signInApproval.approve.unverifiedTitle')}
             style={styles.bannerFlush}
           >
@@ -272,9 +271,9 @@ export function ApprovalRequest({
 
       {confirmationIssue ? (
         <View testID="approval-confirmation-issue" className="px-5 pt-3">
-          <Callout tone={confirmationIssue.kind === 'declined' ? 'info' : 'danger'} icon="personhood">
+          <Admonition type="info">
             {t(confirmationIssueKey(confirmationIssue))}
-          </Callout>
+          </Admonition>
         </View>
       ) : null}
 

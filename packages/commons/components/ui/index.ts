@@ -11,5 +11,4 @@ export { ListRow } from './list-row';
 export { GroupedList } from './grouped-list';
 export { StatColumns } from './stat-columns';
 export type { StatColumn } from './stat-columns';
-export { Callout } from './callout';
 export { SessionGate } from './session-gate';

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
@@ -8,7 +9,6 @@ import { Button } from '@oxy.so/bloom/button';
 import {
   Screen,
   StackHeader,
-  Callout,
 } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
@@ -85,17 +85,17 @@ export default function BackupRecoveryScreen() {
 
       {status === 'present' && (
         <View style={styles.gutter}>
-          <Callout tone="info" icon="shieldCheck">
+          <Admonition type="info">
             {t('backupRecovery.statusPresent')}
-          </Callout>
+          </Admonition>
         </View>
       )}
 
       {noPhrase && (
         <View style={[styles.gutter, styles.stack]}>
-          <Callout tone="warning" icon="key">
+          <Admonition type="warning">
             {t('backupRecovery.statusAbsent')}
-          </Callout>
+          </Admonition>
           <Button appearance="solid" tone="accent" onPress={handleRotateKey}>
             {t('backupRecovery.rotateCta')}
           </Button>

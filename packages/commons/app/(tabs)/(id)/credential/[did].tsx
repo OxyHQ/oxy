@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Icons } from '@/constants/icons';
@@ -12,7 +13,6 @@ import {
   Screen,
   StackHeader,
   Section,
-  Callout,
 } from '@/components/ui';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { useIssueCredential } from '@/hooks/useIssueCredential';
@@ -257,9 +257,9 @@ export default function IssueCredentialScreen() {
         </Section>
 
         {/* Attribution warning */}
-        <Callout tone="info" icon="edit">
+        <Admonition type="info">
           {t('civic.credentials.issue.attribution', { name: displayName })}
-        </Callout>
+        </Admonition>
 
         {biometricFailed && (
           <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>

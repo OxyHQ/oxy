@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { H3, Text } from '@oxy.so/bloom/typography';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 
 interface SectionHeaderProps {
   title: string;
@@ -11,21 +11,28 @@ interface SectionHeaderProps {
 }
 
 /**
- * The flat section title block: a confident 17/700 title with an optional muted
- * subtitle beneath it. No card, no rule — sections are separated by the screen's
+ * The flat section title block: a heading with an optional muted subtitle
+ * beneath it. No card, no rule — sections are separated by the screen's
  * whitespace rhythm, not boxes.
+ *
+ * The two texts are Bloom's `H3` and `Text` rather than the hand-set 17/700 and
+ * 13/18 they used to be, so a section title is the same heading as every other
+ * heading in the ecosystem and announces as one on web.
+ *
+ * VISUAL DELTA: `H3` is 24/32 at weight 600 against the previous 17/700, so
+ * section titles are noticeably larger. That is Bloom's ramp; if the flat screens
+ * want the quieter step, `H4` (20/28) or a `subtitle`-role `Text` is the change,
+ * and it is one line here rather than twenty-three call sites.
  */
 export function SectionHeader({ title, subtitle, trailing }: SectionHeaderProps) {
   const colors = useColors();
   return (
     <View style={styles.headerWrap}>
       <View style={styles.titleRow}>
-        <ThemedText style={[styles.title, { color: colors.text }]}>{title}</ThemedText>
+        <H3>{title}</H3>
         {trailing}
       </View>
-      {subtitle && (
-        <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</ThemedText>
-      )}
+      {subtitle && <Text style={{ color: colors.textSecondary }}>{subtitle}</Text>}
     </View>
   );
 }
@@ -63,14 +70,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  subtitle: {
-    fontSize: 13,
-    lineHeight: 18,
   },
 });

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
 import { Icons } from '@/constants/icons';
 import { useRouter } from 'expo-router';
@@ -21,7 +22,6 @@ import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list
 import {
   Screen,
   Section,
-  Callout,
 } from '@/components/ui';
 import { Ticket as OxyID } from '@/components/OxyID';
 import { FrontSide } from '@/components/OxyID/front-side';
@@ -282,9 +282,9 @@ export default function IdScreen() {
 
         {state === 'pending' && (
           <View style={styles.gutter}>
-            <Callout tone="warning" icon="pending">
+            <Admonition type="warning">
               {t('civic.id.pendingNote')}
-            </Callout>
+            </Admonition>
           </View>
         )}
       </Screen>

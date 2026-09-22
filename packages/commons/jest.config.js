@@ -47,6 +47,7 @@ module.exports = {
     '^react-native-svg$': '<rootDir>/__mocks__/react-native-svg.js',
     '^@oxy.so/bloom/button$': '<rootDir>/__mocks__/bloom-button.tsx',
     '^@oxy.so/bloom/badge$': '<rootDir>/__mocks__/bloom-badge.tsx',
+    '^@oxy.so/bloom/admonition$': '<rootDir>/__mocks__/bloom-admonition.tsx',
     '^@oxy.so/bloom/empty-state$': '<rootDir>/__mocks__/bloom-empty-state.tsx',
     '^@oxy.so/bloom/loading$': '<rootDir>/__mocks__/bloom-loading.tsx',
     // Every per-glyph icon subpath resolves to one inert stub — see the file.

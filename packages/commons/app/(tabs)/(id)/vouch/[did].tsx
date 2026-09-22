@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { fullWidthControl } from '@/constants/styles';
@@ -12,7 +13,6 @@ import {
   Screen,
   StackHeader,
   Section,
-  Callout,
 } from '@/components/ui';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { useVouch } from '@/hooks/useVouch';
@@ -205,9 +205,9 @@ export default function VouchScreen() {
         </Section>
 
         {/* Slash warning */}
-        <Callout tone="warning" icon="alert">
+        <Admonition type="warning">
           {t('civic.vouch.confirm.slashWarning')}
-        </Callout>
+        </Admonition>
 
         {biometricFailed && (
           <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>

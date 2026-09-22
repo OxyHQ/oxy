@@ -133,7 +133,7 @@ export function RecoveryPhraseStep({
           </Text>
         </View>
 
-        <ImportantBanner title={t('auth.recoveryPhrase.warningTitle')} icon="alertStrong">
+        <ImportantBanner title={t('auth.recoveryPhrase.warningTitle')}>
           {t('auth.recoveryPhrase.warning')}
         </ImportantBanner>
 

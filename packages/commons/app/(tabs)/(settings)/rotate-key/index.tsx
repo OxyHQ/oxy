@@ -52,7 +52,7 @@ export default function RotateKeyEntryScreen() {
       </View>
 
       <View style={styles.gutter}>
-        <ImportantBanner title={t('rotateKey.warningTitle')} icon="alertStrong">
+        <ImportantBanner title={t('rotateKey.warningTitle')}>
           {t('rotateKey.warning')}
         </ImportantBanner>
       </View>

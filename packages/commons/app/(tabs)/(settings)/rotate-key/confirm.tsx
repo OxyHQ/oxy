@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Checkbox } from 'expo-checkbox';
@@ -10,7 +11,6 @@ import { Button } from '@oxy.so/bloom/button';
 import {
   Screen,
   StackHeader,
-  Callout,
   ImportantBanner,
 } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
@@ -99,9 +99,9 @@ export default function RotateKeyConfirmScreen() {
     return (
       <Screen>
         <StackHeader title={t('rotateKey.confirm.successTitle')} />
-        <Callout icon="verified" tone="info">
+        <Admonition type="info">
           {t('rotateKey.confirm.successBody')}
-        </Callout>
+        </Admonition>
         <Button appearance="solid" tone="accent" onPress={finish}>
           {t('rotateKey.confirm.done')}
         </Button>
@@ -113,7 +113,7 @@ export default function RotateKeyConfirmScreen() {
     return (
       <Screen>
         <StackHeader title={t('rotateKey.confirm.localPersistTitle')} />
-        <ImportantBanner title={t('rotateKey.confirm.localPersistTitle')} icon="alertStrong">
+        <ImportantBanner title={t('rotateKey.confirm.localPersistTitle')}>
           {t('rotateKey.confirm.localPersistBody')}
         </ImportantBanner>
         <Button appearance="solid" tone="accent" onPress={finish}>
@@ -134,11 +134,11 @@ export default function RotateKeyConfirmScreen() {
         backAccessibilityLabel={t('common.back')}
       />
 
-      <Callout icon="info" tone="neutral">
+      <Admonition type="info">
         {proof === 'phrase'
           ? t('rotateKey.confirm.summaryPhrase')
           : t('rotateKey.confirm.summaryDevice')}
-      </Callout>
+      </Admonition>
 
       <TouchableOpacity
         style={[styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border }]}

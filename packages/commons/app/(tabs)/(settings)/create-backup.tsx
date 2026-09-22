@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { AppIcon } from '@/constants/icons';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -10,7 +11,6 @@ import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
 import {
   ImportantBanner,
-  Callout,
   KeyboardAwareScrollViewWrapper,
   StackHeader,
 } from '@/components/ui';
@@ -211,7 +211,7 @@ export default function CreateBackupScreen() {
           onBack={() => router.back()}
           backAccessibilityLabel={t('common.back')}
         />
-        <ImportantBanner iconSize={20}>{t('backup.identityUnavailable')}</ImportantBanner>
+        <ImportantBanner>{t('backup.identityUnavailable')}</ImportantBanner>
         <Button appearance="solid" tone="accent" onPress={() => router.back()}>
           {t('backup.goBack')}
         </Button>
@@ -228,7 +228,7 @@ export default function CreateBackupScreen() {
           onBack={() => router.back()}
           backAccessibilityLabel={t('common.back')}
         />
-        <ImportantBanner iconSize={20}>{t('backup.missingBanner')}</ImportantBanner>
+        <ImportantBanner>{t('backup.missingBanner')}</ImportantBanner>
         <View style={styles.buttonRow}>
           <Button appearance="outline" tone="neutral" onPress={() => router.back()} style={styles.buttonFlex}>
             {t('backup.goBack')}
@@ -273,9 +273,9 @@ export default function CreateBackupScreen() {
         )}
       </View>
 
-      <Callout icon="shield" tone="info">
+      <Admonition type="info">
         {t('backup.howItWorks')}
-      </Callout>
+      </Admonition>
 
       {/* Phrase re-prompt */}
       <View style={styles.phraseSection}>

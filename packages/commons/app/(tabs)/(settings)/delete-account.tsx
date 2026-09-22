@@ -5,12 +5,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { Section } from '@/components/section';
 import { Button } from '@oxy.so/bloom/button';
 import {
   ImportantBanner,
   KeyboardAwareScrollViewWrapper,
   ScreenHeader,
+  Section,
 } from '@/components/ui';
 import { useOxy } from '@oxy.so/services';
 import { alert } from '@oxy.so/bloom/surfaces';
@@ -134,7 +134,7 @@ export default function DeleteAccountScreen() {
         subtitle={t('data.deleteAccount.subtitle')}
       />
 
-      <ImportantBanner title={t('data.deleteAccount.permanentTitle')} icon="alertStrong">
+      <ImportantBanner title={t('data.deleteAccount.permanentTitle')}>
         {t('data.deleteAccount.permanentBody', { name: username || t('data.deleteAccount.thisAccount') })}
       </ImportantBanner>
 

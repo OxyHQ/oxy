@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { AppIcon, Icons } from '@/constants/icons';
+import { StyleSheet, View } from 'react-native';
+import { Item } from '@oxy.so/bloom/item';
+import { AppIcon, Icons, type IconName } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { useHapticPress } from '@/hooks/use-haptic-press';
-import { ThemedText } from '@/components/themed-text';
-import type { IconName } from '@/constants/icons';
+import { useHaptics } from '@oxy.so/bloom/hooks';
+import { Text } from '@oxy.so/bloom/typography';
 
 interface ListRowProps {
   /** A BARE leading glyph — no circle, no chip. Defaults to the muted tertiary tint. */
@@ -25,9 +25,22 @@ interface ListRowProps {
 }
 
 /**
- * One comfortable list row (~56pt). A bare leading icon, a title with optional
- * muted subtitle, and an optional trailing value / element / chevron — flat, no
- * per-row box. Pair with `GroupedList` to share hairline separators.
+ * One comfortable list row — now Bloom's `Item` with this app's slots filled in.
+ *
+ * `Item` is "the one row primitive": it owns the height, the press feedback, the
+ * disabled treatment, the title/subtitle column and the announced role, so a row
+ * here is the same row as one in every other Oxy app. What this wrapper keeps is
+ * the three things that are Commons' own and would otherwise be repeated at
+ * every call site: the leading glyph comes from the app's icon vocabulary rather
+ * than being passed as a node, the right-hand READOUT (a count, a status word)
+ * and the chevron share one trailing slot, and both default their colour from
+ * `useColors()`.
+ *
+ * VISUAL DELTA from the hand-rolled version: the row's geometry is Bloom's
+ * (`comfortable` density) rather than the previous 16pt vertical padding on a
+ * 56pt floor, the title and subtitle take Bloom's type roles instead of 16/500
+ * and 13/18, and the press feedback is Bloom's rather than
+ * `TouchableOpacity activeOpacity={0.6}`.
  */
 export function ListRow({
   icon,
@@ -43,81 +56,47 @@ export function ListRow({
   destructive = false,
 }: ListRowProps) {
   const colors = useColors();
-  const handlePressIn = useHapticPress();
+  const haptics = useHaptics();
 
-  const titleColor = destructive ? colors.error : colors.text;
   const glyphColor = iconColor ?? (destructive ? colors.error : colors.textTertiary);
 
-  const body = (
-    <View style={[styles.row, disabled && styles.disabled]}>
-      {icon && <AppIcon name={icon} size='md' fill={glyphColor} />}
-      <View style={styles.text}>
-        <ThemedText style={[styles.title, { color: titleColor }]} numberOfLines={1}>
-          {title}
-        </ThemedText>
-        {subtitle && (
-          <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={2}>
-            {subtitle}
-          </ThemedText>
+  // One trailing slot has to carry up to three things — a caller's element, the
+  // readout, and the chevron — so they are composed here rather than fighting
+  // over `Item`'s single slot.
+  const tail =
+    trailing || value != null || showChevron ? (
+      <View style={styles.tail}>
+        {trailing}
+        {value != null && (
+          <Text style={[styles.value, { color: valueColor ?? colors.text }]} numberOfLines={1}>
+            {value}
+          </Text>
         )}
+        {showChevron && <Icons.forward size="md" fill={colors.textTertiary} />}
       </View>
-      {trailing}
-      {value != null && (
-        <ThemedText style={[styles.value, { color: valueColor ?? colors.text }]} numberOfLines={1}>
-          {value}
-        </ThemedText>
-      )}
-      {showChevron && (
-        <Icons.forward size='md' fill={colors.textTertiary} />
-      )}
-    </View>
+    ) : undefined;
+
+  return (
+    <Item
+      leading={icon ? <AppIcon name={icon} size="md" fill={glyphColor} /> : undefined}
+      title={title}
+      subtitle={subtitle}
+      trailing={tail}
+      onPress={onPress ? () => { haptics('light'); onPress(); } : undefined}
+      disabled={disabled}
+      destructive={destructive}
+      accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
+    />
   );
-
-  if (onPress && !disabled) {
-    return (
-      <TouchableOpacity
-        onPress={onPress}
-        onPressIn={handlePressIn}
-        activeOpacity={0.6}
-        accessibilityRole="button"
-        accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
-        accessibilityState={{ disabled }}
-      >
-        {body}
-      </TouchableOpacity>
-    );
-  }
-
-  return body;
 }
 
 const styles = StyleSheet.create({
-  row: {
+  tail: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    paddingVertical: 16,
-    minHeight: 56,
-  },
-  disabled: {
-    opacity: 0.45,
-  },
-  text: {
-    flex: 1,
-    gap: 3,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '500',
-    letterSpacing: -0.2,
-  },
-  subtitle: {
-    fontSize: 13,
-    lineHeight: 18,
+    gap: 8,
   },
   value: {
-    fontSize: 15,
-    fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
 });

@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -13,7 +14,6 @@ import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list
 import {
   Screen,
   StackHeader,
-  Callout,
   SessionGate,
 } from '@/components/ui';
 import { useMyPersonhood } from '@/hooks/usePersonhood';
@@ -138,9 +138,9 @@ export default function PersonhoodScreen() {
         </View>
 
           {status.sybilPenalty > 0 && (
-            <Callout tone="warning" icon="alertStrong">
+            <Admonition type="warning">
               {t('civic.personhood.penaltyNote')}
-            </Callout>
+            </Admonition>
           )}
         </View>
 
