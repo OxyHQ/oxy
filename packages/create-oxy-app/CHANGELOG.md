@@ -1,5 +1,41 @@
 # Changelog: `create-oxy-app`
 
+## 0.3.2
+
+### Fixed
+
+- `@oxy.so/core` was pinned at `^23.3.0` — a PRE-RENAME number. The package was
+  `@oxyhq/core` through 23.x and its versions reset at the rename, so the range
+  matched nothing on the registry (E404). Because the generated root
+  `package.json` repeats that pin in `overrides` **and** `resolutions`, a
+  freshly generated app could not `bun install` at all. Now `^1.7.1`, which is
+  published and satisfies the `@oxy.so/core: ^1.0.1` peer that services 3.x
+  declares.
+- The generated AWS deploy workflow no longer enumerates the whole secrets
+  context to filter it with `jq`. GitHub reads that expression as an
+  exfiltration payload and completes every run `action_required` with ZERO jobs
+  until a human approves it — a failure that reads as "no checks reported".
+  Each runtime secret is now named individually in `env:`, and that list is the
+  allowlist; the empty/placeholder guard is unchanged, because a placeholder
+  overwrites a real SSM value and crash-loops the service.
+
+### Changed
+
+- `@oxy.so/services` `^2.0.0` → `^3.0.0` and `@oxy.so/bloom` → `^3.2.1`
+  (unpublished at 0.3.1, so it reaches consumers here). Services 2.x capped its
+  Bloom peer at major 2, so pairing it with Bloom 3 resolved a second, nested
+  Bloom — and Bloom 3's composition contracts are React contexts, which do not
+  cross copies. Services 3 is published and peers `@oxy.so/bloom: ^3.2.0`, so a
+  generated app now resolves exactly one copy of each.
+
+### Added
+
+- `scripts/assert-oxy-ranges-resolve.mjs`, run by the nightly `scaffold-smoke`
+  workflow against the app it generates and BEFORE that workflow overrides every
+  Oxy dependency with a HEAD tarball — the blind spot the bad pin shipped
+  through. A range that resolves to nothing now fails CI instead of reaching a
+  developer's first install.
+
 ## 0.3.1
 
 ### Changed

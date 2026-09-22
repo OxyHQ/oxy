@@ -163,4 +163,51 @@ describe('AWS deploy template', () => {
     expect(rendered).not.toContain('AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY');
     expect(rendered).toContain('path="/oxy/$APP/$k"');
   });
+
+  test('never enumerates the secrets context, and names every synced secret', async () => {
+    // Enumerating the whole secrets context in one expression is forbidden
+    // fleet-wide (oxy-infra `AGENTS.md` §Secrets): GitHub reads it as an
+    // exfiltration payload and every run then completes `action_required` with
+    // ZERO jobs until a human approves it — a failure that reads as "no checks
+    // reported". The scaffolder shipped that shape, so every generated repo
+    // inherited it.
+    //
+    // The forbidden expression is assembled here rather than written out: the
+    // detector is worth assuming is textual, and this assertion should not be
+    // the thing that plants the string in a repository.
+    const enumeration = new RegExp(['to', 'json', '\\s*\\(\\s*', 'secrets', '\\s*\\)'].join(''), 'i');
+
+    const templateFile = path.join(
+      __dirname,
+      '..',
+      '..',
+      'templates',
+      'deploy',
+      'DOT_github',
+      'workflows',
+      'deploy-aws.yml',
+    );
+    const rendered = renderString(await fs.readFile(templateFile, 'utf8'), ctx, templateFile);
+
+    expect(rendered).not.toMatch(enumeration);
+
+    // Every `secrets` reference inside a GitHub expression must name ONE secret.
+    // This catches any other enumerating shape too — a bare `${{ secrets }}`, a
+    // `fromJSON`, a pipe into anything.
+    const offenders = [...rendered.matchAll(/\$\{\{([^}]*)\}\}/g)]
+      .map((match) => match[1])
+      .filter((expression) => /\bsecrets\b/.test(expression))
+      .filter((expression) => !/^\s*secrets\.[A-Za-z0-9_]+\s*$/.test(expression));
+    expect(offenders).toEqual([]);
+
+    // The named list IS the allowlist, so it has to still carry the backend's
+    // runtime secrets — an empty allowlist would satisfy everything above.
+    for (const secret of ['DATABASE_URL', 'REDIS_URL', 'OXY_SERVICE_API_KEY', 'OXY_SERVICE_API_SECRET']) {
+      expect(rendered).toContain(`${secret}: \${{ secrets.${secret} }}`);
+    }
+
+    // A placeholder overwrites a real SSM value and crash-loops the service, so
+    // the guard the old jq pipeline had must survive the port.
+    expect(rendered).toContain('skip empty/placeholder secret $k; SSM unchanged');
+  });
 });
