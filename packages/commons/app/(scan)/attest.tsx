@@ -105,7 +105,7 @@ export default function AttestDeepLinkScreen() {
       : t(`civic.attest.error.${!parsed || !subjectUserId ? 'generic' : 'subject_not_found'}`);
     return (
       <CenteredState
-        icon="alert-circle-outline"
+        icon="alert"
         iconColor={colors.error}
         title={t('civic.attest.confirm.error.title')}
         body={body}
@@ -126,7 +126,7 @@ export default function AttestDeepLinkScreen() {
     if (flow.subjectFailed) {
       return (
         <CenteredState
-          icon="alert-circle-outline"
+          icon="alert"
           iconColor={colors.error}
           title={t('civic.attest.confirm.error.title')}
           body={t('civic.attest.error.subject_not_found')}

@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { KeyManager, IdentityUnavailableError } from '@oxy.so/core';
 import { Screen, StackHeader, Section, Button, Callout, CenteredState } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
@@ -84,7 +84,7 @@ export default function RecoveryPhraseScreen() {
 
       {state.kind === 'revealed' ? (
         <Section>
-          <Callout tone="danger" icon="alert-octagon">
+          <Callout tone="danger" icon="alertStrong">
             {t('settings.recoveryPhrase.warning')}
           </Callout>
 
@@ -104,13 +104,13 @@ export default function RecoveryPhraseScreen() {
         </Section>
       ) : state.kind === 'notStored' ? (
         <CenteredState
-          icon="text-box-remove-outline"
+          icon="error"
           title={t('settings.recoveryPhrase.notStoredTitle')}
           body={t('settings.recoveryPhrase.notStoredBody')}
         />
       ) : state.kind === 'unavailable' ? (
         <CenteredState
-          icon="shield-lock-outline"
+          icon="shield"
           title={t('settings.recoveryPhrase.unavailableTitle')}
           body={t('settings.recoveryPhrase.unavailableBody')}
           action={
@@ -121,7 +121,7 @@ export default function RecoveryPhraseScreen() {
         />
       ) : state.kind === 'gateFailed' ? (
         <CenteredState
-          icon="lock-alert-outline"
+          icon="lock"
           iconColor={colors.error}
           title={t('settings.recoveryPhrase.gateFailedTitle')}
           body={state.message}
@@ -134,7 +134,7 @@ export default function RecoveryPhraseScreen() {
       ) : (
         <Section>
           <View style={styles.lockedHeader}>
-            <MaterialCommunityIcons name="shield-key" size={40} color={colors.tint} />
+            <Icons.shield size='2xl' fill={colors.tint} />
             <ThemedText style={[styles.lockedTitle, { color: colors.text }]}>
               {t('settings.recoveryPhrase.lockedTitle')}
             </ThemedText>
@@ -143,7 +143,7 @@ export default function RecoveryPhraseScreen() {
             </ThemedText>
           </View>
 
-          <Callout tone="warning" icon="alert-octagon">
+          <Callout tone="warning" icon="alertStrong">
             {t('settings.recoveryPhrase.warning')}
           </Callout>
 

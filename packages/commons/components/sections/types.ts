@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 /**
  * A single row rendered by `GroupedSection`.
@@ -11,7 +11,7 @@ import type { MaterialCommunityIconName } from '@/types/icons';
  */
 export interface GroupedItem {
   id: string;
-  icon?: MaterialCommunityIconName;
+  icon?: IconName;
   iconColor?: string;
   title: string;
   subtitle?: string;

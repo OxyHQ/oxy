@@ -134,7 +134,7 @@ export default function ApproveSignInScreen() {
     content = (
       <View className="px-5 py-2">
         <CenteredState
-          icon={approved ? 'check-circle-outline' : 'shield-off-outline'}
+          icon={approved ? 'checkCircle' : 'blocked'}
           iconColor={approved ? colors.success : colors.textSecondary}
           title={
             approved
@@ -162,7 +162,7 @@ export default function ApproveSignInScreen() {
     content = (
       <View className="px-5 py-2">
         <CenteredState
-          icon="alert-circle-outline"
+          icon="alert"
           iconColor={colors.error}
           title={t('signInApproval.approve.errorTitle')}
           body={

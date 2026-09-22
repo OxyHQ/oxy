@@ -1,14 +1,14 @@
 import React, { useMemo } from 'react';
+import { AppIcon } from '@/constants/icons';
 import { View, Text, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 import type { CivicTone } from '@/lib/civic/card-presentation';
 
 interface CivicBadgeProps {
   label: string;
   tone: CivicTone;
-  icon?: MaterialCommunityIconName;
+  icon?: IconName;
   /** Larger, higher-contrast variant for the primary VERIFIED/UNVERIFIED row. */
   emphasis?: boolean;
 }
@@ -45,12 +45,7 @@ export function CivicBadge({ label, tone, icon, emphasis = false }: CivicBadgePr
       ]}
     >
       {icon && (
-        <MaterialCommunityIcons
-          name={icon}
-          size={emphasis ? 18 : 13}
-          color={accent}
-          style={styles.icon}
-        />
+        <AppIcon name={icon} width={emphasis ? 18 : 13} height={emphasis ? 18 : 13} fill={accent} style={styles.icon} />
       )}
       <Text
         style={[styles.label, emphasis && styles.labelEmphasis, { color: accent }]}

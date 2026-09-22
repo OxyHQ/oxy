@@ -1,14 +1,14 @@
 import React from 'react';
+import { AppIcon } from '@/constants/icons';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 interface CenteredStateProps {
   /** Show a spinner instead of the icon (loading state). */
   loading?: boolean;
-  icon?: MaterialCommunityIconName;
+  icon?: IconName;
   /** Override the glyph tint (e.g. a success/error result). Defaults to muted. */
   iconColor?: string;
   title?: string;
@@ -30,7 +30,7 @@ export function CenteredState({ loading = false, icon, iconColor, title, body, a
       {loading ? (
         <ActivityIndicator size="large" color={colors.tint} />
       ) : icon ? (
-        <MaterialCommunityIcons name={icon} size={52} color={iconColor ?? colors.textSecondary} />
+        <AppIcon name={icon} size='3xl' fill={iconColor ?? colors.textSecondary} />
       ) : null}
       {title && <ThemedText style={[styles.title, { color: colors.text }]}>{title}</ThemedText>}
       {body && (

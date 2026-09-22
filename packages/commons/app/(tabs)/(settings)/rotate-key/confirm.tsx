@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Checkbox } from 'expo-checkbox';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useOxy } from '@oxy.so/services';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
@@ -93,7 +93,7 @@ export default function RotateKeyConfirmScreen() {
     return (
       <Screen>
         <StackHeader title={t('rotateKey.confirm.successTitle')} />
-        <Callout icon="check-decagram" tone="info">
+        <Callout icon="verified" tone="info">
           {t('rotateKey.confirm.successBody')}
         </Callout>
         <Button variant="primary" onPress={finish}>
@@ -107,7 +107,7 @@ export default function RotateKeyConfirmScreen() {
     return (
       <Screen>
         <StackHeader title={t('rotateKey.confirm.localPersistTitle')} />
-        <ImportantBanner title={t('rotateKey.confirm.localPersistTitle')} icon="alert-octagon">
+        <ImportantBanner title={t('rotateKey.confirm.localPersistTitle')} icon="alertStrong">
           {t('rotateKey.confirm.localPersistBody')}
         </ImportantBanner>
         <Button variant="primary" onPress={finish}>
@@ -128,7 +128,7 @@ export default function RotateKeyConfirmScreen() {
         backAccessibilityLabel={t('common.back')}
       />
 
-      <Callout icon="information-outline" tone="neutral">
+      <Callout icon="info" tone="neutral">
         {proof === 'phrase'
           ? t('rotateKey.confirm.summaryPhrase')
           : t('rotateKey.confirm.summaryDevice')}
@@ -143,7 +143,7 @@ export default function RotateKeyConfirmScreen() {
         accessibilityLabel={t('rotateKey.confirm.signOutEverywhere')}
         disabled={rotating}
       >
-        <MaterialCommunityIcons name="logout-variant" size={22} color={colors.textSecondary} />
+        <Icons.signOut size='md' fill={colors.textSecondary} />
         <View style={styles.toggleText}>
           <Text style={[styles.toggleTitle, { color: colors.text }]}>
             {t('rotateKey.confirm.signOutEverywhere')}

@@ -1,6 +1,6 @@
 import React from 'react';
+import { AppIcon, type IconName } from '@/constants/icons';
 import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ThemedText } from '../themed-text';
 import { useColors } from '@/hooks/useColors';
 
@@ -8,7 +8,7 @@ interface ImportantBannerProps {
     children: React.ReactNode;
     title?: string;
     style?: StyleProp<ViewStyle>;
-    icon?: keyof typeof MaterialCommunityIcons.glyphMap;
+    icon?: IconName;
     iconSize?: number;
 }
 
@@ -20,7 +20,7 @@ export function ImportantBanner({
     children,
     title = 'Important',
     style,
-    icon = 'alert-circle',
+    icon = 'alert',
     iconSize = 24,
 }: ImportantBannerProps) {
     const colors = useColors();
@@ -37,11 +37,7 @@ export function ImportantBanner({
             ]}
         >
             <View style={styles.header}>
-                <MaterialCommunityIcons
-                    name={icon}
-                    size={iconSize}
-                    color={colors.bannerWarningIcon}
-                />
+                <AppIcon name={icon} width={iconSize} height={iconSize} fill={colors.bannerWarningIcon} />
                 <ThemedText
                     style={[styles.title, { color: colors.bannerWarningText }]}
                 >

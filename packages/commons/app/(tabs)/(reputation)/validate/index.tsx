@@ -35,7 +35,7 @@ export default function ValidatorInboxScreen() {
     if (isError) {
       return (
         <CenteredState
-          icon="cloud-alert"
+          icon="alert"
           title={t('civic.validate.inbox.error.title')}
           body={t('civic.validate.inbox.error.body')}
           action={
@@ -54,7 +54,7 @@ export default function ValidatorInboxScreen() {
     if (!data || data.length === 0) {
       return (
         <CenteredState
-          icon="gavel"
+          icon="validation"
           title={t('civic.validate.inbox.empty.title')}
           body={t('civic.validate.inbox.empty.body')}
         />
@@ -66,14 +66,14 @@ export default function ValidatorInboxScreen() {
         {data.map((req) => (
           <ListRow
             key={req.id}
-            icon="scale-balance"
+            icon="validation"
             title={prettyActionType(req.actionType)}
             subtitle={t('civic.validate.inbox.requestSubtitle')}
             onPress={() => open(req.id)}
             showChevron
             trailing={
               req.highValue ? (
-                <CivicBadge tone="caution" icon="star-circle-outline" label={t('civic.validate.highValue')} />
+                <CivicBadge tone="caution" icon="star" label={t('civic.validate.highValue')} />
               ) : undefined
             }
           />

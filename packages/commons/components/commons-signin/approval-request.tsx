@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { LogoIcon } from '@oxy.so/services';
 import {
   getNormalizedUserHandle,
@@ -131,7 +131,7 @@ export function ApprovalRequest({
         className="absolute right-3 top-3 h-9 w-9 items-center justify-center rounded-full"
         style={{ backgroundColor: colors.backgroundSecondary }}
       >
-        <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+        <Icons.close size='md' fill={colors.textSecondary} />
       </Pressable>
 
       {/* WHO IS ASKING — server-resolved identity, paired with the Oxy mark. */}
@@ -149,7 +149,7 @@ export function ApprovalRequest({
               </ThemedText>
             )}
           </View>
-          <MaterialCommunityIcons name="link-variant" size={18} color={colors.textTertiary} />
+          <Icons.link size='sm' fill={colors.textTertiary} />
           <View
             className="h-14 w-14 items-center justify-center rounded-2xl"
             style={[styles.tile, { backgroundColor: colors.primarySubtle }]}
@@ -183,7 +183,7 @@ export function ApprovalRequest({
 
         {originVerified && application.isOfficial ? (
           <View className="mt-1.5 flex-row items-center gap-1">
-            <MaterialCommunityIcons name="check-decagram" size={14} color={colors.tint} />
+            <Icons.verified size='xs' fill={colors.tint} />
             <ThemedText style={[styles.provenance, { color: colors.tint }]}>
               {t('signInApproval.approve.officialBadge')}
             </ThemedText>
@@ -254,7 +254,7 @@ export function ApprovalRequest({
         {scopeLines.length > 0 ? (
           scopeLines.map((line) => (
             <View key={line.scope} className="flex-row items-start gap-2">
-              <MaterialCommunityIcons name="check" size={16} color={colors.success} />
+              <Icons.check size='sm' fill={colors.success} />
               <ThemedText style={[styles.scopeText, { color: colors.text }]}>
                 {scopeText(line, t)}
               </ThemedText>
@@ -262,7 +262,7 @@ export function ApprovalRequest({
           ))
         ) : (
           <View className="flex-row items-start gap-2">
-            <MaterialCommunityIcons name="check" size={16} color={colors.success} />
+            <Icons.check size='sm' fill={colors.success} />
             <ThemedText style={[styles.scopeText, { color: colors.text }]}>
               {t('signInApproval.approve.receivesBasic')}
             </ThemedText>
@@ -272,7 +272,7 @@ export function ApprovalRequest({
 
       {confirmationIssue ? (
         <View testID="approval-confirmation-issue" className="px-5 pt-3">
-          <Callout tone={confirmationIssue.kind === 'declined' ? 'info' : 'danger'} icon="fingerprint">
+          <Callout tone={confirmationIssue.kind === 'declined' ? 'info' : 'danger'} icon="personhood">
             {t(confirmationIssueKey(confirmationIssue))}
           </Callout>
         </View>

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { KeyManager } from '@oxy.so/core';
 import { Screen, StackHeader, Callout, Button } from '@/components/ui';
@@ -80,7 +80,7 @@ export default function BackupRecoveryScreen() {
 
       {status === 'present' && (
         <View style={styles.gutter}>
-          <Callout tone="info" icon="shield-check">
+          <Callout tone="info" icon="shieldCheck">
             {t('backupRecovery.statusPresent')}
           </Callout>
         </View>
@@ -88,7 +88,7 @@ export default function BackupRecoveryScreen() {
 
       {noPhrase && (
         <View style={[styles.gutter, styles.stack]}>
-          <Callout tone="warning" icon="key-alert">
+          <Callout tone="warning" icon="key">
             {t('backupRecovery.statusAbsent')}
           </Callout>
           <Button variant="primary" onPress={handleRotateKey}>
@@ -99,7 +99,7 @@ export default function BackupRecoveryScreen() {
 
       <SettingsListGroup title={t('backupRecovery.methodsTitle')}>
         <SettingsListItem
-          icon={<MaterialCommunityIcons name="text-box-outline" size={22} color={colors.text} />}
+          icon={<Icons.document size='md' fill={colors.text} />}
           title={t('backupRecovery.phraseTitle')}
           description={
             noPhrase
@@ -111,7 +111,7 @@ export default function BackupRecoveryScreen() {
           disabled={noPhrase}
         />
         <SettingsListItem
-          icon={<MaterialCommunityIcons name="file-lock-outline" size={22} color={colors.text} />}
+          icon={<Icons.sealedDocument size='md' fill={colors.text} />}
           title={t('backupRecovery.encryptedTitle')}
           description={
             noPhrase

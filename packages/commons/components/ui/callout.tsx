@@ -1,15 +1,15 @@
 import React from 'react';
+import { AppIcon } from '@/constants/icons';
 import { View, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 type CalloutTone = 'warning' | 'danger' | 'info' | 'neutral';
 
 interface CalloutProps {
   children: React.ReactNode;
-  icon?: MaterialCommunityIconName;
+  icon?: IconName;
   tone?: CalloutTone;
 }
 
@@ -32,7 +32,7 @@ export function Callout({ children, icon, tone = 'neutral' }: CalloutProps) {
 
   return (
     <View style={[styles.callout, { backgroundColor: `${accent}14` }]}>
-      {icon && <MaterialCommunityIcons name={icon} size={20} color={accent} style={styles.icon} />}
+      {icon && <AppIcon name={icon} size='md' fill={accent} style={styles.icon} />}
       <ThemedText style={[styles.text, { color: colors.text }]}>{children}</ThemedText>
     </View>
   );

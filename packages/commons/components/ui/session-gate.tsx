@@ -87,7 +87,7 @@ export function SessionGate({ children }: SessionGateProps) {
   if (!online) {
     return (
       <CenteredState
-        icon="cloud-off-outline"
+        icon="offline"
         title={t('civic.sessionGate.offline.title')}
         body={t('civic.sessionGate.offline.body')}
       />
@@ -103,7 +103,7 @@ export function SessionGate({ children }: SessionGateProps) {
   // a definitive verdict, not a pending one, so say it and offer the retry.
   return (
     <CenteredState
-      icon="wifi-alert"
+      icon="offline"
       title={t('civic.sessionGate.error.title')}
       body={t('civic.sessionGate.error.body')}
       action={<PrimaryButton label={t('common.retry')} onPress={handleRetry} fullWidth={false} />}

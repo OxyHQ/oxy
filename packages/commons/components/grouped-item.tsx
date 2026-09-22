@@ -1,15 +1,14 @@
 import React, { memo, useMemo } from 'react';
+import { AppIcon, Icons } from '@/constants/icons';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { darkenColor } from '@/utils/color-utils';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 
 interface GroupedItemProps {
-    icon?: MaterialCommunityIconName;
+    icon?: IconName;
     iconColor?: string;
     title: string;
     subtitle?: string;
@@ -57,7 +56,7 @@ const GroupedItemComponent = ({
                 <View style={styles.actionIcon}>{customIcon}</View>
             ) : icon ? (
                 <View style={[styles.iconContainer, { backgroundColor: finalIconColor }]}>
-                    <MaterialCommunityIcons name={icon} size={22} color={darkenColor(finalIconColor)} />
+                    <AppIcon name={icon} size='md' fill={darkenColor(finalIconColor)} />
                 </View>
             ) : null}
             <View style={styles.actionTextContainer}>
@@ -70,7 +69,7 @@ const GroupedItemComponent = ({
             </View>
             {customContent}
             {showChevron && (
-                <Ionicons name="chevron-forward" size={20} color={colors.icon} />
+                <Icons.forward size='md' fill={colors.icon} />
             )}
         </View>
     );

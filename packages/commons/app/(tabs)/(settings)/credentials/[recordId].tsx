@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { AppIcon, Icons } from '@/constants/icons';
 import { useOxy } from '@oxy.so/services';
 import type { VerifiableCredentialResponse } from '@oxy.so/contracts';
 import { useColors } from '@/hooks/useColors';
@@ -32,7 +32,7 @@ import {
 } from '@/lib/civic/credential-display';
 import { formatDate } from '@/utils/date-utils';
 import { useTranslation } from '@/lib/i18n';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 /** Format an epoch-ms timestamp to a short readable date (or empty). */
 function formatMs(ms: number | undefined): string {
@@ -97,7 +97,7 @@ export default function CredentialDetailScreen() {
     if (!credential) {
       return (
         <CenteredState
-          icon="file-document-alert-outline"
+          icon="alert"
           title={t('civic.credentials.detail.notFoundTitle')}
           body={t('civic.credentials.detail.notFoundBody')}
           action={
@@ -128,7 +128,7 @@ export default function CredentialDetailScreen() {
           </ThemedText>
           <CivicBadge
             tone={statusMeta.tone}
-            icon="certificate-outline"
+            icon="credential"
             label={t(`civic.credentials.status.${statusMeta.labelKey}`)}
           />
         </View>
@@ -136,7 +136,7 @@ export default function CredentialDetailScreen() {
         {/* Verify verdict */}
         {verify.state === 'valid' && (
           <View style={styles.verdict}>
-            <CivicBadge emphasis tone="positive" icon="check-decagram" label={t('civic.credentials.verify.validTitle')} />
+            <CivicBadge emphasis tone="positive" icon="verified" label={t('civic.credentials.verify.validTitle')} />
             <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
               {t('civic.credentials.verify.validBody')}
             </ThemedText>
@@ -144,7 +144,7 @@ export default function CredentialDetailScreen() {
         )}
         {verify.state === 'invalid' && (
           <View style={styles.verdict}>
-            <CivicBadge emphasis tone="danger" icon="alert-decagram" label={t('civic.credentials.verify.invalidTitle')} />
+            <CivicBadge emphasis tone="danger" icon="alertStrong" label={t('civic.credentials.verify.invalidTitle')} />
             <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
               {t(`civic.credentials.verify.reason.${verify.reasonCode ?? 'generic'}`)}
             </ThemedText>
@@ -152,7 +152,7 @@ export default function CredentialDetailScreen() {
         )}
         {verify.state === 'error' && (
           <View style={styles.verdict}>
-            <CivicBadge emphasis tone="caution" icon="cloud-alert" label={t('civic.credentials.verify.errorTitle')} />
+            <CivicBadge emphasis tone="caution" icon="alert" label={t('civic.credentials.verify.errorTitle')} />
             <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
               {t('civic.credentials.verify.errorBody')}
             </ThemedText>
@@ -161,7 +161,7 @@ export default function CredentialDetailScreen() {
 
         {/* Verify action */}
         <SecondaryButton
-          icon="shield-search"
+          icon="search"
           label={verify.state === 'verifying' ? t('civic.credentials.verify.verifying') : t('civic.credentials.verify.cta')}
           loading={verify.state === 'verifying'}
           onPress={() => void verify.verify()}
@@ -190,7 +190,7 @@ export default function CredentialDetailScreen() {
         {/* Issuer */}
         <Section title={t('civic.credentials.detail.issuerTitle')}>
           <View style={styles.issuerRow}>
-            <MaterialCommunityIcons name="account-badge-outline" size={22} color={colors.identityIconPublicKey} />
+            <Icons.verifiedOutline size='md' fill={colors.identityIconPublicKey} />
             <View style={styles.issuerText}>
               <ThemedText style={[styles.issuerName, { color: colors.text }]} numberOfLines={1}>
                 {issuerDisplay || t('civic.credentials.unknownIssuer')}
@@ -206,19 +206,19 @@ export default function CredentialDetailScreen() {
         <Section title={t('civic.credentials.detail.datesTitle')}>
           <GroupedList>
             {issuedOn.length > 0 && (
-              <DateRow colors={colors} icon="calendar-check" label={t('civic.credentials.issuedOn', { date: issuedOn })} />
+              <DateRow colors={colors} icon="scheduled" label={t('civic.credentials.issuedOn', { date: issuedOn })} />
             )}
             {credential.status === 'revoked' && revokedOn.length > 0 ? (
               <DateRow
                 colors={colors}
-                icon="close-octagon-outline"
+                icon="closeCircle"
                 tone={colors.error}
                 label={t('civic.credentials.revokedOn', { date: revokedOn })}
               />
             ) : expiresOn.length > 0 ? (
               <DateRow
                 colors={colors}
-                icon="calendar-remove"
+                icon="unscheduled"
                 tone={credential.status === 'expired' ? colors.warning : undefined}
                 label={t(
                   credential.status === 'expired' ? 'civic.credentials.expiredOn' : 'civic.credentials.expiresOn',
@@ -226,7 +226,7 @@ export default function CredentialDetailScreen() {
                 )}
               />
             ) : (
-              <DateRow colors={colors} icon="infinity" label={t('civic.credentials.noExpiry')} />
+              <DateRow colors={colors} icon="unlimited" label={t('civic.credentials.noExpiry')} />
             )}
           </GroupedList>
         </Section>
@@ -241,7 +241,7 @@ export default function CredentialDetailScreen() {
         {/* Revoke — issuer-only, active-only */}
         {canRevoke && revoke.state !== 'done' && (
           <View style={styles.revokeBlock}>
-            <Callout tone="danger" icon="alert-outline">
+            <Callout tone="danger" icon="alert">
               {t('civic.credentials.revoke.confirmBody')}
             </Callout>
             {revoke.biometricFailed && (
@@ -256,7 +256,7 @@ export default function CredentialDetailScreen() {
             )}
             <PrimaryButton
               tone="danger"
-              icon="fingerprint"
+              icon="personhood"
               label={t('civic.credentials.revoke.cta')}
               loading={revoke.state === 'revoking'}
               onPress={handleRevoke}
@@ -271,7 +271,7 @@ export default function CredentialDetailScreen() {
 
         {revoke.state === 'done' && (
           <View style={styles.revokeDone}>
-            <MaterialCommunityIcons name="check-circle-outline" size={20} color={colors.success} />
+            <Icons.checkCircle size='md' fill={colors.success} />
             <ThemedText style={[styles.revokeDoneText, { color: colors.textSecondary }]}>
               {t('civic.credentials.revoke.doneBody')}
             </ThemedText>
@@ -295,7 +295,7 @@ export default function CredentialDetailScreen() {
 
 interface DateRowProps {
   colors: ReturnType<typeof useColors>;
-  icon: MaterialCommunityIconName;
+  icon: IconName;
   label: string;
   tone?: string;
 }
@@ -303,7 +303,7 @@ interface DateRowProps {
 function DateRow({ colors, icon, label, tone }: DateRowProps) {
   return (
     <View style={styles.dateRow}>
-      <MaterialCommunityIcons name={icon} size={20} color={tone ?? colors.textTertiary} />
+      <AppIcon name={icon} size='md' fill={tone ?? colors.textTertiary} />
       <ThemedText style={[styles.dateText, { color: tone ?? colors.text }]}>{label}</ThemedText>
     </View>
   );

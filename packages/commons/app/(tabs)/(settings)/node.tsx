@@ -28,7 +28,7 @@ import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { useTranslation } from '@/lib/i18n';
 import type { UserNodeMode, UserNodeStatus } from '@oxy.so/core';
 import type { CivicTone } from '@/lib/civic/card-presentation';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 /** A node endpoint is acceptable to send when it parses as a public HTTPS URL. */
 function isValidEndpoint(value: string): boolean {
@@ -51,17 +51,17 @@ function isValidPublicKey(value: string): boolean {
 /** Map the liveness badge to a tone + icon + label key. */
 function statusMeta(status: UserNodeStatus['status']): {
   tone: CivicTone;
-  icon: MaterialCommunityIconName;
+  icon: IconName;
   labelKey: string;
 } {
   switch (status) {
     case 'active':
-      return { tone: 'positive', icon: 'check-decagram', labelKey: 'civic.nodes.status.active' };
+      return { tone: 'positive', icon: 'verified', labelKey: 'civic.nodes.status.active' };
     case 'unreachable':
-      return { tone: 'caution', icon: 'cloud-alert', labelKey: 'civic.nodes.status.unreachable' };
+      return { tone: 'caution', icon: 'alert', labelKey: 'civic.nodes.status.unreachable' };
     case 'revoked':
     default:
-      return { tone: 'danger', icon: 'cloud-off-outline', labelKey: 'civic.nodes.status.revoked' };
+      return { tone: 'danger', icon: 'offline', labelKey: 'civic.nodes.status.revoked' };
   }
 }
 
@@ -149,7 +149,7 @@ export default function NodeScreen() {
       <Screen gap={24}>
         <StackHeader title={t('civic.nodes.title')} onBack={handleBack} backAccessibilityLabel={t('common.back')} />
         <CenteredState
-          icon="shield-check"
+          icon="shieldCheck"
           iconColor={colors.success}
           title={t('civic.nodes.provision.done.title')}
           body={t('civic.nodes.provision.done.body')}
@@ -168,7 +168,7 @@ export default function NodeScreen() {
       <Screen gap={24}>
         <StackHeader title={t('civic.nodes.title')} onBack={handleBack} backAccessibilityLabel={t('common.back')} />
         <CenteredState
-          icon="server-network"
+          icon="node"
           iconColor={colors.success}
           title={t('civic.nodes.register.done.title')}
           body={t('civic.nodes.register.done.body')}
@@ -195,17 +195,17 @@ export default function NodeScreen() {
       <Section title={t('civic.nodes.how.title')}>
         <GroupedList>
           <ListRow
-            icon="file-certificate-outline"
+            icon="credential"
             title={t('civic.nodes.how.sourceOfTruth')}
             subtitle={t('civic.nodes.how.sourceOfTruthDesc')}
           />
           <ListRow
-            icon="lightning-bolt-outline"
+            icon="flash"
             title={t('civic.nodes.how.fastCopy')}
             subtitle={t('civic.nodes.how.fastCopyDesc')}
           />
           <ListRow
-            icon="export-variant"
+            icon="share"
             title={t('civic.nodes.how.portable')}
             subtitle={t('civic.nodes.how.portableDesc')}
           />
@@ -233,14 +233,14 @@ export default function NodeScreen() {
           </SoftSurface>
 
           {isWeb ? (
-            <Callout tone="info" icon="cellphone-key">
+            <Callout tone="info" icon="device">
               {t('civic.nodes.selfHost.webUnavailable')}
             </Callout>
           ) : (
             <>
               <SecondaryButton
                 label={t('civic.nodes.selfHost.cta')}
-                icon="console-network-outline"
+                icon="terminal"
                 onPress={openForm}
                 disabled={provisionBusy}
               />
@@ -252,7 +252,7 @@ export default function NodeScreen() {
         </View>
       </Section>
 
-      <Callout tone="info" icon="shield-lock-outline">
+      <Callout tone="info" icon="shield">
         {t('civic.nodes.managed.note')}
       </Callout>
 
@@ -263,7 +263,7 @@ export default function NodeScreen() {
       )}
 
       {provision.state === 'error' && (
-        <Callout tone="danger" icon="alert-circle-outline">
+        <Callout tone="danger" icon="alert">
           {t(`civic.nodes.errors.${provision.errorCode ?? 'generic'}`)}
         </Callout>
       )}
@@ -357,14 +357,14 @@ export default function NodeScreen() {
       )}
 
       {register.state === 'error' && (
-        <Callout tone="danger" icon="alert-circle-outline">
+        <Callout tone="danger" icon="alert">
           {t(`civic.nodes.errors.${register.errorCode ?? 'generic'}`)}
         </Callout>
       )}
 
       <View style={styles.formActions}>
         <PrimaryButton
-          icon="fingerprint"
+          icon="personhood"
           label={t('civic.nodes.form.cta')}
           loading={registerBusy}
           disabled={!endpointValid || !publicKeyValid || registerBusy}
@@ -400,7 +400,7 @@ export default function NodeScreen() {
         </View>
 
         {current.status === 'unreachable' && (
-          <Callout tone="warning" icon="cloud-alert">
+          <Callout tone="warning" icon="alert">
             {current.lastError
               ? t('civic.nodes.unreachableNote', { reason: current.lastError })
               : t('civic.nodes.unreachableNoteGeneric')}
@@ -408,7 +408,7 @@ export default function NodeScreen() {
         )}
 
         {current.status === 'revoked' && (
-          <Callout tone="danger" icon="cloud-off-outline">
+          <Callout tone="danger" icon="offline">
             {t('civic.nodes.revokedNote')}
           </Callout>
         )}
@@ -426,12 +426,12 @@ export default function NodeScreen() {
 
           <GroupedList>
             <ListRow
-              icon="swap-vertical"
+              icon="sort"
               title={t('civic.nodes.details.mode')}
               value={t(current.mode === 'pull' ? 'civic.nodes.mode.pull' : 'civic.nodes.mode.push')}
             />
             <ListRow
-              icon="access-point-network"
+              icon="node"
               title={t('civic.nodes.details.lastSeen')}
               value={relativeTime(current.lastSeenAt, t('civic.nodes.details.never'))}
             />
@@ -454,7 +454,7 @@ export default function NodeScreen() {
               disabled={syncing}
             />
             <ListRow
-              icon="link-off"
+              icon="blocked"
               title={t('civic.nodes.actions.disconnect')}
               subtitle={t('civic.nodes.actions.disconnectDesc')}
               onPress={removeBusy ? undefined : () => setConfirmingDisconnect(true)}
@@ -478,7 +478,7 @@ export default function NodeScreen() {
         {/* Inline disconnect confirm */}
         {confirmingDisconnect && (
           <Section title={t('civic.nodes.disconnect.confirmTitle')}>
-            <Callout tone="danger" icon="alert-octagon-outline">
+            <Callout tone="danger" icon="alertStrong">
               {t('civic.nodes.disconnect.confirmBody')}
             </Callout>
             <View style={styles.confirmActions}>
@@ -490,7 +490,7 @@ export default function NodeScreen() {
               />
               <PrimaryButton
                 tone="danger"
-                icon="fingerprint"
+                icon="personhood"
                 label={t('civic.nodes.disconnect.confirmCta')}
                 loading={removeBusy}
                 onPress={handleDisconnect}
@@ -506,7 +506,7 @@ export default function NodeScreen() {
           </ThemedText>
         )}
         {remove.state === 'error' && (
-          <Callout tone="danger" icon="alert-circle-outline">
+          <Callout tone="danger" icon="alert">
             {t(`civic.nodes.errors.${remove.errorCode ?? 'generic'}`)}
           </Callout>
         )}
@@ -524,7 +524,7 @@ export default function NodeScreen() {
     if (query.isError && node === undefined) {
       return (
         <CenteredState
-          icon="cloud-alert"
+          icon="alert"
           title={t('civic.nodes.error.title')}
           body={t('civic.nodes.error.body')}
           action={

@@ -52,7 +52,7 @@ export default function ValidationVoteScreen() {
     if (state === 'done') {
       return (
         <CenteredState
-          icon="check-decagram"
+          icon="verified"
           iconColor={colors.success}
           title={t('civic.validate.vote.done.title')}
           body={t('civic.validate.vote.done.body')}
@@ -68,7 +68,7 @@ export default function ValidationVoteScreen() {
     if (state === 'error') {
       return (
         <CenteredState
-          icon="alert-circle-outline"
+          icon="alert"
           iconColor={colors.error}
           title={t('civic.validate.vote.error.title')}
           body={t(`civic.validate.error.${errorCode ?? 'generic'}`)}
@@ -88,7 +88,7 @@ export default function ValidationVoteScreen() {
     if (isError && !request) {
       return (
         <CenteredState
-          icon="cloud-alert"
+          icon="alert"
           title={t('civic.validate.inbox.error.title')}
           body={t('civic.validate.inbox.error.body')}
           action={
@@ -101,7 +101,7 @@ export default function ValidationVoteScreen() {
     if (!request) {
       return (
         <CenteredState
-          icon="gavel"
+          icon="validation"
           title={t('civic.validate.vote.gone.title')}
           body={t('civic.validate.vote.gone.body')}
           action={
@@ -122,7 +122,7 @@ export default function ValidationVoteScreen() {
             {prettyActionType(request.actionType)}
           </ThemedText>
           {request.highValue && (
-            <CivicBadge tone="caution" icon="star-circle-outline" label={t('civic.validate.highValue')} />
+            <CivicBadge tone="caution" icon="star" label={t('civic.validate.highValue')} />
           )}
         </View>
 

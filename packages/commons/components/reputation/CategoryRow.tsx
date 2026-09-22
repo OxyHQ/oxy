@@ -1,14 +1,14 @@
 import React from 'react';
+import { AppIcon } from '@/constants/icons';
 import { View, StyleSheet, Pressable } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { CircleIconBadge } from '@/components/ui/circle-icon-badge';
 import { withAlpha } from '@/utils/color';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 interface CategoryRowProps {
-  icon: MaterialCommunityIconName;
+  icon: IconName;
   /** The category accent (matches its bar segment / badge tint). */
   color: string;
   label: string;
@@ -47,7 +47,7 @@ export function CategoryRow({
   const content = (
     <>
       <CircleIconBadge backgroundColor={withAlpha(color, 0.12)}>
-        <MaterialCommunityIcons name={icon} size={18} color={color} />
+        <AppIcon name={icon} size='sm' fill={color} />
       </CircleIconBadge>
 
       <View style={styles.body}>

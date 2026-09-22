@@ -167,7 +167,7 @@ export default function RecoverIdentityScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <CenteredState
-        icon="shield-key-outline"
+        icon="shield"
         iconColor={colors.textSecondary}
         title={t('recovery.failedTitle')}
         body={t('recovery.failedBody', {

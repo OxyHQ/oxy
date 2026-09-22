@@ -107,7 +107,7 @@ export default function RotateKeyRecoveryPhraseScreen() {
   if (deriveError) {
     return (
       <CenteredState
-        icon="key-alert-outline"
+        icon="key"
         iconColor={colors.error}
         title={t('rotateKey.newPhrase.error')}
         action={

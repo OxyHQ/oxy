@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, StyleSheet, ActivityIndicator, Share, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { AppIcon, Icons } from '@/constants/icons';
 import { buildUserDid } from '@oxy.so/core';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColors } from '@/hooks/useColors';
@@ -134,21 +134,21 @@ export default function AboutIdentityScreen() {
     () => [
       {
         id: 'private-key',
-        icon: 'key-variant' as const,
+        icon: 'key' as const,
         iconColor: colors.iconSuccess,
         title: t('aboutIdentity.items.privateKeyTitle'),
         subtitle: t('aboutIdentity.items.privateKeySubtitle'),
       },
       {
         id: 'no-password',
-        icon: 'lock-off-outline' as const,
+        icon: 'lock' as const,
         iconColor: colors.iconInfo,
         title: t('aboutIdentity.items.noPasswordTitle'),
         subtitle: t('aboutIdentity.items.noPasswordSubtitle'),
       },
       {
         id: 'recovery',
-        icon: 'text-box-outline' as const,
+        icon: 'document' as const,
         iconColor: colors.iconWarning,
         title: t('aboutIdentity.items.recoveryTitle'),
         subtitle: t('aboutIdentity.items.recoverySubtitle'),
@@ -169,7 +169,7 @@ export default function AboutIdentityScreen() {
     (short: string) => (
       <View style={styles.valueTrail}>
         <ThemedText style={[styles.valueText, { color: colors.textSecondary }]}>{short}</ThemedText>
-        <MaterialCommunityIcons name="content-copy" size={16} color={colors.tint} />
+        <Icons.copy size='sm' fill={colors.tint} />
       </View>
     ),
     [colors.textSecondary, colors.tint],
@@ -194,7 +194,7 @@ export default function AboutIdentityScreen() {
       <SettingsListGroup title={t('aboutIdentity.identifiersTitle')}>
         {publicKey && (
           <SettingsListItem
-            icon={<MaterialCommunityIcons name="key-outline" size={22} color={colors.tint} />}
+            icon={<Icons.key size='md' fill={colors.tint} />}
             title={t('aboutIdentity.publicKeyRow')}
             rightElement={copyValue(shorten(publicKey))}
             showChevron={false}
@@ -203,7 +203,7 @@ export default function AboutIdentityScreen() {
         )}
         {did && (
           <SettingsListItem
-            icon={<MaterialCommunityIcons name="web" size={22} color={colors.tint} />}
+            icon={<Icons.web size='md' fill={colors.tint} />}
             title={t('aboutIdentity.didRow')}
             rightElement={copyValue(shorten(did, 6, 4))}
             showChevron={false}
@@ -220,7 +220,7 @@ export default function AboutIdentityScreen() {
         {selfCustodyItems.map((item) => (
           <SettingsListItem
             key={item.id}
-            icon={<MaterialCommunityIcons name={item.icon} size={22} color={item.iconColor} />}
+            icon={<AppIcon name={item.icon} size='md' fill={item.iconColor} />}
             title={item.title}
             description={item.subtitle}
             showChevron={false}
@@ -231,7 +231,7 @@ export default function AboutIdentityScreen() {
       {/* Account settings */}
       <SettingsListGroup title={t('aboutIdentity.accountSettings')}>
         <SettingsListItem
-          icon={<MaterialCommunityIcons name="clock-outline" size={22} color={colors.tint} />}
+          icon={<Icons.pending size='md' fill={colors.tint} />}
           title={t('aboutIdentity.accountExpiration')}
           value={formatExpirationSetting(currentExpirationDays)}
           onPress={isSavingExpiration ? undefined : showExpirationPicker}

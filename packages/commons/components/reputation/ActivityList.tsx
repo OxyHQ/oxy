@@ -29,7 +29,7 @@ export function ActivityList({ transactions, isLoading, isError }: ActivityListP
 
   if (isError && !transactions) {
     return (
-      <CenteredState icon="cloud-alert" body={t('civic.reputation.activity.error')} />
+      <CenteredState icon="alert" body={t('civic.reputation.activity.error')} />
     );
   }
 

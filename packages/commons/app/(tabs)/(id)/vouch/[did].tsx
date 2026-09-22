@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Image, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import {
@@ -78,7 +78,7 @@ export default function VouchScreen() {
     if (!userId || !did) {
       return (
         <CenteredState
-          icon="account-alert-outline"
+          icon="alert"
           title={t('civic.vouch.confirm.invalidTitle')}
           body={t('civic.vouch.confirm.invalidBody')}
         />
@@ -88,20 +88,20 @@ export default function VouchScreen() {
     if (state === 'done' && result) {
       return (
         <CenteredState
-          icon="account-check"
+          icon="vouched"
           iconColor={colors.success}
           title={t('civic.vouch.confirm.done.title')}
           body={t('civic.vouch.confirm.done.body', { name: subjectName, points: result.points })}
           action={
             <View style={styles.resultActions}>
               <View style={styles.stakedChip}>
-                <MaterialCommunityIcons name="lock-outline" size={15} color={colors.textSecondary} />
+                <Icons.lock size='sm' fill={colors.textSecondary} />
                 <ThemedText style={[styles.stakedText, { color: colors.textSecondary }]}>
                   {t('civic.vouch.confirm.done.staked', { stake: result.stakeAmount })}
                 </ThemedText>
               </View>
               <SecondaryButton
-                icon="undo-variant"
+                icon="undo"
                 label={t('civic.vouch.confirm.withdraw')}
                 onPress={withdraw}
                 disabled={busy}
@@ -122,7 +122,7 @@ export default function VouchScreen() {
     if (state === 'withdrawn') {
       return (
         <CenteredState
-          icon="undo-variant"
+          icon="undo"
           title={t('civic.vouch.confirm.withdrawn.title')}
           body={t('civic.vouch.confirm.withdrawn.body', { name: subjectName })}
           action={
@@ -137,7 +137,7 @@ export default function VouchScreen() {
     if (state === 'error') {
       return (
         <CenteredState
-          icon="alert-circle-outline"
+          icon="alert"
           iconColor={colors.error}
           title={t('civic.vouch.confirm.error.title')}
           body={t(`civic.vouch.error.${errorCode ?? 'generic'}`)}
@@ -187,7 +187,7 @@ export default function VouchScreen() {
         {/* Stake input */}
         <Section title={t('civic.vouch.confirm.stakeTitle')} subtitle={t('civic.vouch.confirm.stakeHint')}>
           <View style={styles.stakeRow}>
-            <MaterialCommunityIcons name="shield-star-outline" size={22} color={colors.textTertiary} />
+            <Icons.shieldStar size='md' fill={colors.textTertiary} />
             <ThemedText style={[styles.stakeLabel, { color: colors.text }]}>
               {t('civic.vouch.confirm.stakeLabel')}
             </ThemedText>
@@ -204,7 +204,7 @@ export default function VouchScreen() {
         </Section>
 
         {/* Slash warning */}
-        <Callout tone="warning" icon="alert-outline">
+        <Callout tone="warning" icon="alert">
           {t('civic.vouch.confirm.slashWarning')}
         </Callout>
 
@@ -215,7 +215,7 @@ export default function VouchScreen() {
         )}
 
         <PrimaryButton
-          icon="fingerprint"
+          icon="personhood"
           label={t('civic.vouch.confirm.cta')}
           loading={busy}
           onPress={handleVouch}

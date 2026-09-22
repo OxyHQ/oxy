@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Checkbox } from 'expo-checkbox';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { Button, ImportantBanner } from '@/components/ui';
@@ -100,7 +100,7 @@ export function RecoveryPhraseStep({
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <MaterialCommunityIcons name="key-alert-outline" size={36} color={colors.error} />
+            <Icons.key size='2xl' fill={colors.error} />
             <Text style={[styles.title, { color: textColor }]}>
               {t('auth.recoveryPhrase.missingTitle')}
             </Text>
@@ -121,7 +121,7 @@ export function RecoveryPhraseStep({
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <MaterialCommunityIcons name="shield-key" size={36} color={colors.tint} />
+          <Icons.shield size='2xl' fill={colors.tint} />
           <Text style={[styles.title, { color: textColor }]}>
             {t('auth.recoveryPhrase.title')}
           </Text>
@@ -130,7 +130,7 @@ export function RecoveryPhraseStep({
           </Text>
         </View>
 
-        <ImportantBanner title={t('auth.recoveryPhrase.warningTitle')} icon="alert-octagon">
+        <ImportantBanner title={t('auth.recoveryPhrase.warningTitle')} icon="alertStrong">
           {t('auth.recoveryPhrase.warning')}
         </ImportantBanner>
 
@@ -153,7 +153,7 @@ export function RecoveryPhraseStep({
               accessibilityRole="button"
               accessibilityLabel={t('auth.recoveryPhrase.showButton')}
             >
-              <MaterialCommunityIcons name="eye-off-outline" size={28} color={textColor} />
+              <Icons.hidden size='xl' fill={textColor} />
               <Text style={[styles.revealLabel, { color: textColor }]}>
                 {t('auth.recoveryPhrase.showButton')}
               </Text>
@@ -171,7 +171,7 @@ export function RecoveryPhraseStep({
               accessibilityRole="button"
               accessibilityLabel={t('auth.recoveryPhrase.hideButton')}
             >
-              <MaterialCommunityIcons name="eye-off-outline" size={18} color={colors.tint} />
+              <Icons.hidden size='sm' fill={colors.tint} />
               <Text style={[styles.hideLinkText, { color: colors.tint }]}>
                 {t('auth.recoveryPhrase.hideButton')}
               </Text>

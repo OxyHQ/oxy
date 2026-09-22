@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { View, Image, StyleSheet, ActivityIndicator } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
 import type { PublicCard, CardTrustTier, RealLifeAttestationResult } from '@oxy.so/contracts';
 import { trustTierLabel } from '@oxy.so/core';
@@ -10,7 +10,7 @@ import { CenteredState } from '@/components/ui/centered-state';
 import { CivicBadge } from '@/components/civic/CivicBadge';
 import { getTrustTierMeta } from '@/lib/civic/card-presentation';
 import type { AttestErrorCode } from '@/lib/civic/civic-errors';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 import { useTranslation } from '@/lib/i18n';
 
 /** The confirm-lane statuses this sheet renders (a subset of AttestFlowStatus). */
@@ -34,12 +34,12 @@ interface AttestReviewSheetProps {
   onClose: () => void;
 }
 
-const TIER_ICON: Record<CardTrustTier, MaterialCommunityIconName> = {
-  restricted: 'alert-octagon-outline',
-  new: 'account-outline',
-  trusted: 'shield-check-outline',
-  high_trust: 'shield-star-outline',
-  verified: 'check-decagram',
+const TIER_ICON: Record<CardTrustTier, IconName> = {
+  restricted: 'alertStrong',
+  new: 'person',
+  trusted: 'shieldCheck',
+  high_trust: 'shieldStar',
+  verified: 'verified',
 };
 
 /**
@@ -88,7 +88,7 @@ export function AttestReviewSheet({
     if (status === 'done' && result) {
       return (
         <View style={styles.stateBlock}>
-          <MaterialCommunityIcons name="check-decagram" size={64} color={colors.success} />
+          <Icons.verified size='3xl' fill={colors.success} />
           <ThemedText style={[styles.stateTitle, { color: colors.text }]}>
             {t('civic.attest.confirm.done.title')}
           </ThemedText>
@@ -102,7 +102,7 @@ export function AttestReviewSheet({
     if (status === 'error') {
       return (
         <View style={styles.stateBlock}>
-          <MaterialCommunityIcons name="alert-circle-outline" size={64} color={colors.error} />
+          <Icons.alert size='3xl' fill={colors.error} />
           <ThemedText style={[styles.stateTitle, { color: colors.text }]}>
             {t('civic.attest.confirm.error.title')}
           </ThemedText>
@@ -117,7 +117,7 @@ export function AttestReviewSheet({
     if (subjectFailed) {
       return (
         <CenteredState
-          icon="account-alert-outline"
+          icon="alert"
           title={t('civic.attest.review.unresolvedTitle')}
           body={t('civic.attest.review.unresolvedBody')}
         />
@@ -166,7 +166,7 @@ export function AttestReviewSheet({
                 label={trustTierLabel(locale, card.trustTier)}
               />
               {!verified && (
-                <CivicBadge tone="caution" icon="shield-alert-outline" label={t('civic.attest.review.unverified')} />
+                <CivicBadge tone="caution" icon="shield" label={t('civic.attest.review.unverified')} />
               )}
             </View>
           </View>

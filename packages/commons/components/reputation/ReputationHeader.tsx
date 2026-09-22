@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { useTranslation } from '@/lib/i18n';
@@ -37,7 +37,7 @@ export function ReputationHeader({ title, pendingCount, onOpenDuty }: Reputation
         accessibilityLabel={t('civic.validate.dutyTitle')}
         style={[styles.iconButton, { backgroundColor: colors.card, shadowColor: colors.shadow }]}
       >
-        <MaterialCommunityIcons name="scale-balance" size={22} color={colors.text} />
+        <Icons.validation size='md' fill={colors.text} />
         {hasPending && (
           <View
             style={[styles.badge, { backgroundColor: colors.primary, borderColor: colors.background }]}

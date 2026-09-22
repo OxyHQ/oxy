@@ -13,7 +13,7 @@ import {
 } from '@/lib/civic/reputation-standing';
 import type { ReputationSource, ReputationSourceKey } from '@/lib/civic/reputation-sources';
 import type { AppColors } from '@/hooks/useColors';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 import { mixColors } from '@/utils/color';
 import type { ReputationBalance, TrustTier } from '@oxy.so/contracts';
 import { trustTierLabel } from '@oxy.so/core';
@@ -36,11 +36,11 @@ interface CategoryDatum {
 }
 
 /** The leading glyph for each civic reputation source. */
-const SOURCE_ICON: Readonly<Record<ReputationSourceKey, MaterialCommunityIconName>> = {
-  realLife: 'handshake-outline',
-  peerCivic: 'account-group-outline',
-  apps: 'apps',
-  penalties: 'alert-octagon-outline',
+const SOURCE_ICON: Readonly<Record<ReputationSourceKey, IconName>> = {
+  realLife: 'handshake',
+  peerCivic: 'community',
+  apps: 'grid',
+  penalties: 'alertStrong',
 };
 
 /** The soft chip tone for a trust tier — earned tiers escalate through the
@@ -160,7 +160,7 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
           </ThemedText>
         </View>
         {isOffline && (
-          <CivicBadge tone="neutral" icon="cloud-off-outline" label={t('civic.reputation.offline')} />
+          <CivicBadge tone="neutral" icon="offline" label={t('civic.reputation.offline')} />
         )}
       </View>
 

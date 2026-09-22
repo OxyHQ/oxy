@@ -154,7 +154,7 @@ export default function AuthIndexScreen() {
     return (
       <View style={[styles.container, { backgroundColor }]}>
         <CenteredState
-          icon="shield-lock-outline"
+          icon="shield"
           iconColor={textColor}
           title={t('recovery.lockedTitle')}
           body={t('recovery.lockedBody')}

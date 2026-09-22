@@ -1,16 +1,16 @@
 import React from 'react';
+import { AppIcon } from '@/constants/icons';
 import { StyleSheet, TouchableOpacity, ActivityIndicator, type StyleProp, type ViewStyle } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 type ButtonTone = 'primary' | 'success' | 'danger';
 
 interface BaseButtonProps {
   label: string;
   onPress?: () => void;
-  icon?: MaterialCommunityIconName;
+  icon?: IconName;
   disabled?: boolean;
   loading?: boolean;
   tone?: ButtonTone;
@@ -69,7 +69,7 @@ export function PrimaryButton({
         <ActivityIndicator color="#fff" />
       ) : (
         <>
-          {icon && <MaterialCommunityIcons name={icon} size={20} color="#fff" />}
+          {icon && <AppIcon name={icon} size='md' fill="#fff" />}
           <ThemedText style={styles.primaryLabel}>{label}</ThemedText>
         </>
       )}
@@ -115,7 +115,7 @@ export function SecondaryButton({
         <ActivityIndicator color={accent} />
       ) : (
         <>
-          {icon && <MaterialCommunityIcons name={icon} size={20} color={accent} />}
+          {icon && <AppIcon name={icon} size='md' fill={accent} />}
           <ThemedText style={[styles.secondaryLabel, { color: accent }]}>{label}</ThemedText>
         </>
       )}

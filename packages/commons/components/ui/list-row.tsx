@@ -1,14 +1,14 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { AppIcon, Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { ThemedText } from '@/components/themed-text';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 interface ListRowProps {
   /** A BARE leading glyph — no circle, no chip. Defaults to the muted tertiary tint. */
-  icon?: MaterialCommunityIconName;
+  icon?: IconName;
   iconColor?: string;
   title: string;
   subtitle?: string;
@@ -50,7 +50,7 @@ export function ListRow({
 
   const body = (
     <View style={[styles.row, disabled && styles.disabled]}>
-      {icon && <MaterialCommunityIcons name={icon} size={22} color={glyphColor} />}
+      {icon && <AppIcon name={icon} size='md' fill={glyphColor} />}
       <View style={styles.text}>
         <ThemedText style={[styles.title, { color: titleColor }]} numberOfLines={1}>
           {title}
@@ -68,7 +68,7 @@ export function ListRow({
         </ThemedText>
       )}
       {showChevron && (
-        <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textTertiary} />
+        <Icons.forward size='md' fill={colors.textTertiary} />
       )}
     </View>
   );

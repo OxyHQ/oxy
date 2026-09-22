@@ -19,13 +19,13 @@ import { userIdFromDid } from '@/lib/civic/did';
 import { formatDate } from '@/utils/date-utils';
 import { shortenKey } from '@/utils/shorten-key';
 import { useTranslation } from '@/lib/i18n';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 /** Icon per credential status (active = sealed, revoked = struck out, expired = lapsed). */
-const STATUS_ICON: Record<CredentialStatus, MaterialCommunityIconName> = {
-  active: 'certificate-outline',
-  revoked: 'close-octagon-outline',
-  expired: 'clock-alert-outline',
+const STATUS_ICON: Record<CredentialStatus, IconName> = {
+  active: 'credential',
+  revoked: 'closeCircle',
+  expired: 'expired',
 };
 
 /** Format an epoch-ms timestamp to a short readable date (or empty). */
@@ -75,7 +75,7 @@ export default function CredentialsScreen() {
     if (query.isError && !credentials) {
       return (
         <CenteredState
-          icon="cloud-alert"
+          icon="alert"
           title={t('civic.credentials.error.title')}
           body={t('civic.credentials.error.body')}
           action={
@@ -94,7 +94,7 @@ export default function CredentialsScreen() {
     if (!credentials || credentials.length === 0) {
       return (
         <CenteredState
-          icon="certificate-outline"
+          icon="credential"
           title={t('civic.credentials.empty.title')}
           body={t('civic.credentials.empty.body')}
         />
@@ -108,7 +108,7 @@ export default function CredentialsScreen() {
         </ThemedText>
 
         {!isOnline && (
-          <CivicBadge tone="neutral" icon="cloud-off-outline" label={t('civic.credentials.offline')} />
+          <CivicBadge tone="neutral" icon="offline" label={t('civic.credentials.offline')} />
         )}
 
         <GroupedList>

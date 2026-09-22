@@ -84,7 +84,7 @@ export default function ReputationScreen() {
     () => [
       {
         key: 'attest',
-        icon: 'handshake-outline',
+        icon: 'handshake',
         color: colors.success,
         title: t('civic.reputation.cta.attest.title'),
         description: t('civic.reputation.cta.attest.desc'),
@@ -92,7 +92,7 @@ export default function ReputationScreen() {
       },
       {
         key: 'validate',
-        icon: 'scale-balance',
+        icon: 'validation',
         color: colors.primary,
         title: t('civic.reputation.cta.validate.title'),
         description:
@@ -103,7 +103,7 @@ export default function ReputationScreen() {
       },
       {
         key: 'personhood',
-        icon: 'account-heart-outline',
+        icon: 'endorsed',
         color: colors.info,
         title: t('civic.reputation.cta.personhood.title'),
         description: t('civic.reputation.cta.personhood.desc'),
@@ -134,7 +134,7 @@ export default function ReputationScreen() {
     if (balanceQuery.isError && !balance) {
       return (
         <CenteredState
-          icon="cloud-alert"
+          icon="alert"
           title={t('civic.reputation.error.title')}
           body={t('civic.reputation.error.body')}
           action={

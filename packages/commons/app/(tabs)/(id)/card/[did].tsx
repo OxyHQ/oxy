@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
+import { AppIcon } from '@/constants/icons';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import {
@@ -78,7 +78,7 @@ export default function ScannedCardScreen() {
     if (!userId) {
       return (
         <CenteredState
-          icon="qrcode-remove"
+          icon="closeCircle"
           title={t('civic.card.error.invalidTitle')}
           body={t('civic.card.error.invalidBody')}
         />
@@ -94,7 +94,7 @@ export default function ScannedCardScreen() {
     if (cardQuery.isError && !card) {
       return (
         <CenteredState
-          icon="cloud-alert"
+          icon="alert"
           title={t('civic.card.error.title')}
           body={t('civic.card.error.body')}
           action={
@@ -119,14 +119,14 @@ export default function ScannedCardScreen() {
           <CivicBadge
             emphasis
             tone={verification.tone}
-            icon={verified ? 'check-decagram' : 'alert-decagram'}
+            icon={verified ? 'verified' : 'alertStrong'}
             label={t(`civic.card.${verification.labelKey}`)}
           />
           <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
             {t(`civic.card.${verification.labelKey}Desc`)}
           </ThemedText>
           {!isOnline && (
-            <CivicBadge tone="neutral" icon="cloud-off-outline" label={t('civic.card.offline')} />
+            <CivicBadge tone="neutral" icon="offline" label={t('civic.card.offline')} />
           )}
         </View>
 
@@ -155,10 +155,10 @@ export default function ScannedCardScreen() {
           </View>
 
           <View style={styles.badgeRow}>
-            <CivicBadge tone={trust.tone} icon="shield-check" label={trustTierLabel(locale, trust.labelKey)} />
+            <CivicBadge tone={trust.tone} icon="shieldCheck" label={trustTierLabel(locale, trust.labelKey)} />
             <CivicBadge
               tone={personhoodMeta.tone}
-              icon="account-check-outline"
+              icon="vouched"
               label={t(`civic.personhood.${personhoodMeta.labelKey}`)}
             />
           </View>
@@ -166,11 +166,7 @@ export default function ScannedCardScreen() {
           {/* Precise proof-of-personhood status (from getPersonhood). */}
           {personhood && (
             <View style={styles.personhoodLine}>
-              <MaterialCommunityIcons
-                name={personhood.isRealPerson ? 'account-check' : 'account-clock-outline'}
-                size={16}
-                color={personhood.isRealPerson ? colors.success : colors.warning}
-              />
+              <AppIcon name={personhood.isRealPerson ? 'vouched' : 'pending'} size='sm' fill={personhood.isRealPerson ? colors.success : colors.warning} />
               <ThemedText style={[styles.personhoodLineText, { color: colors.textSecondary }]}>
                 {personhood.isRealPerson
                   ? t('civic.vouch.statusLine.verified')
@@ -186,12 +182,12 @@ export default function ScannedCardScreen() {
         {verified && (
           <View style={styles.ctas}>
             <PrimaryButton
-              icon="account-multiple-check-outline"
+              icon="vouched"
               label={t('civic.vouch.cta')}
               onPress={handleVouch}
             />
             <SecondaryButton
-              icon="certificate-outline"
+              icon="credential"
               label={t('civic.credentials.issue.cardCta')}
               onPress={handleIssueCredential}
             />
@@ -202,7 +198,7 @@ export default function ScannedCardScreen() {
           <Section title={t('civic.card.verifiedDomains')}>
             <GroupedList>
               {card.verifiedDomains.map((domain) => (
-                <ListRow key={domain} icon="web-check" iconColor={colors.success} title={domain} />
+                <ListRow key={domain} icon="web" iconColor={colors.success} title={domain} />
               ))}
             </GroupedList>
           </Section>
@@ -214,7 +210,7 @@ export default function ScannedCardScreen() {
               {card.credentialBadges.map((badge) => (
                 <ListRow
                   key={badge}
-                  icon="certificate-outline"
+                  icon="credential"
                   iconColor={colors.identityIconPublicKey}
                   title={badge}
                 />

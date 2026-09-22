@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { AppIcon } from '@/constants/icons';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useOxy } from '@oxy.so/services';
 import { KeyManager, RecoveryPhraseService } from '@oxy.so/core';
 import { alert } from '@oxy.so/bloom/surfaces';
@@ -253,11 +253,7 @@ export default function CreateBackupScreen() {
       {/* Current backup status */}
       <View style={[styles.statusCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.statusRow}>
-          <MaterialCommunityIcons
-            name={backupExists ? 'cloud-check' : 'cloud-off-outline'}
-            size={22}
-            color={backupExists ? colors.success : colors.textSecondary}
-          />
+          <AppIcon name={backupExists ? 'checkCircle' : 'offline'} size='md' fill={backupExists ? colors.success : colors.textSecondary} />
           <Text style={[styles.statusTitle, { color: colors.text }]}>
             {backupExists ? t('backup.existsTrue') : t('backup.existsFalse')}
           </Text>
@@ -285,7 +281,7 @@ export default function CreateBackupScreen() {
         )}
       </View>
 
-      <Callout icon="shield-lock-outline" tone="info">
+      <Callout icon="shield" tone="info">
         {t('backup.howItWorks')}
       </Callout>
 

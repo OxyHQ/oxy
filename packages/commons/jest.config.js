@@ -42,6 +42,8 @@ module.exports = {
     // sees the one `jest.fn()` instance no matter which specifier the code under
     // test imported it from.
     '^@oxy.so/services/notifications$': '<rootDir>/__mocks__/oxy-services.ts',
+    // Every per-glyph icon subpath resolves to one inert stub — see the file.
+    '^@oxy\\.so/bloom/icons/.*$': '<rootDir>/__mocks__/bloom-icon.js',
     '^@oxy.so/bloom/theme$': '<rootDir>/__mocks__/bloom-theme.ts',
     '^@oxy.so/bloom/composition-bar$': '<rootDir>/__mocks__/bloom-composition-bar.tsx',
     '^react-native-reanimated$': '<rootDir>/__mocks__/react-native-reanimated.ts',

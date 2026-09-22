@@ -90,7 +90,7 @@ export default function IssueCredentialScreen() {
     if (!userId || !did) {
       return (
         <CenteredState
-          icon="account-alert-outline"
+          icon="alert"
           title={t('civic.credentials.issue.invalidTitle')}
           body={t('civic.credentials.issue.invalidBody')}
         />
@@ -101,7 +101,7 @@ export default function IssueCredentialScreen() {
       const issuedTypeLabel = typeTag ? humanizeTypeTag(typeTag) : '';
       return (
         <CenteredState
-          icon="certificate"
+          icon="credential"
           iconColor={colors.success}
           title={t('civic.credentials.issue.done.title')}
           body={t('civic.credentials.issue.done.body', { type: issuedTypeLabel, name: displayName })}
@@ -117,7 +117,7 @@ export default function IssueCredentialScreen() {
     if (state === 'error') {
       return (
         <CenteredState
-          icon="alert-circle-outline"
+          icon="alert"
           iconColor={colors.error}
           title={t('civic.credentials.issue.error.title')}
           body={t(`civic.credentials.issue.error.${errorCode ?? 'generic'}`)}
@@ -242,7 +242,7 @@ export default function IssueCredentialScreen() {
         </Section>
 
         {/* Attribution warning */}
-        <Callout tone="info" icon="draw-pen">
+        <Callout tone="info" icon="edit">
           {t('civic.credentials.issue.attribution', { name: displayName })}
         </Callout>
 
@@ -253,7 +253,7 @@ export default function IssueCredentialScreen() {
         )}
 
         <PrimaryButton
-          icon="fingerprint"
+          icon="personhood"
           label={t('civic.credentials.issue.cta')}
           loading={busy}
           disabled={!canSubmit}

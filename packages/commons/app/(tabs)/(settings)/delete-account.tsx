@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, TextInput, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { Section } from '@/components/section';
@@ -129,7 +129,7 @@ export default function DeleteAccountScreen() {
         subtitle={t('data.deleteAccount.subtitle')}
       />
 
-      <ImportantBanner title={t('data.deleteAccount.permanentTitle')} icon="alert-octagon">
+      <ImportantBanner title={t('data.deleteAccount.permanentTitle')} icon="alertStrong">
         {t('data.deleteAccount.permanentBody', { name: username || t('data.deleteAccount.thisAccount') })}
       </ImportantBanner>
 
@@ -142,12 +142,7 @@ export default function DeleteAccountScreen() {
             t('data.deleteAccount.items.settings'),
           ].map((item) => (
             <View key={item} style={styles.bulletRow}>
-              <MaterialCommunityIcons
-                name="close-circle-outline"
-                size={18}
-                color={colors.error}
-                style={styles.bulletIcon}
-              />
+              <Icons.closeCircle size='sm' fill={colors.error} style={styles.bulletIcon} />
               <ThemedText style={[styles.bulletText, { color: colors.text }]}>{item}</ThemedText>
             </View>
           ))}

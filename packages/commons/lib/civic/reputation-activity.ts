@@ -17,12 +17,12 @@
  */
 
 import type { ReputationCategory, ReputationTransaction } from '@oxy.so/contracts';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 /** Presentation metadata for one activity row. */
 export interface ReputationActivityMeta {
   /** Leading icon for the row. */
-  icon: MaterialCommunityIconName;
+  icon: IconName;
   /** i18n suffix — `civic.reputation.activity.actions.<labelKey>`. */
   labelKey: string;
   /** Whether the action carries an Oxy-signed attestation (verifiable). */
@@ -33,28 +33,28 @@ export interface ReputationActivityMeta {
 
 /** Known civic / cross-app action types → icon + label + signed provenance. */
 const ACTION_META: Readonly<
-  Record<string, { icon: MaterialCommunityIconName; labelKey: string; signed: boolean }>
+  Record<string, { icon: IconName; labelKey: string; signed: boolean }>
 > = {
-  real_life_attested: { icon: 'handshake-outline', labelKey: 'realLife', signed: true },
-  peer_validated: { icon: 'account-group-outline', labelKey: 'peerValidated', signed: true },
-  validation_correct: { icon: 'gavel', labelKey: 'validationCorrect', signed: true },
-  validation_incorrect: { icon: 'gavel', labelKey: 'validationIncorrect', signed: true },
-  personhood_vouched: { icon: 'account-heart-outline', labelKey: 'vouched', signed: true },
-  vouch_slashed: { icon: 'account-alert-outline', labelKey: 'vouchSlashed', signed: true },
-  endorsement_received: { icon: 'star-outline', labelKey: 'endorsement', signed: false },
+  real_life_attested: { icon: 'handshake', labelKey: 'realLife', signed: true },
+  peer_validated: { icon: 'community', labelKey: 'peerValidated', signed: true },
+  validation_correct: { icon: 'validation', labelKey: 'validationCorrect', signed: true },
+  validation_incorrect: { icon: 'validation', labelKey: 'validationIncorrect', signed: true },
+  personhood_vouched: { icon: 'endorsed', labelKey: 'vouched', signed: true },
+  vouch_slashed: { icon: 'alert', labelKey: 'vouchSlashed', signed: true },
+  endorsement_received: { icon: 'star', labelKey: 'endorsement', signed: false },
 };
 
 /** Category fallback when an `actionType` is not a known civic action. */
 const CATEGORY_META: Readonly<
-  Record<ReputationCategory, { icon: MaterialCommunityIconName; labelKey: string }>
+  Record<ReputationCategory, { icon: IconName; labelKey: string }>
 > = {
-  content: { icon: 'file-document-outline', labelKey: 'content' },
-  social: { icon: 'account-multiple-outline', labelKey: 'social' },
-  trust: { icon: 'shield-check-outline', labelKey: 'trust' },
-  moderation: { icon: 'flag-outline', labelKey: 'moderation' },
-  physical: { icon: 'map-marker-check-outline', labelKey: 'physical' },
-  penalty: { icon: 'alert-octagon-outline', labelKey: 'penalty' },
-  other: { icon: 'circle-small', labelKey: 'other' },
+  content: { icon: 'document', labelKey: 'content' },
+  social: { icon: 'people', labelKey: 'social' },
+  trust: { icon: 'shieldCheck', labelKey: 'trust' },
+  moderation: { icon: 'report', labelKey: 'moderation' },
+  physical: { icon: 'place', labelKey: 'physical' },
+  penalty: { icon: 'alertStrong', labelKey: 'penalty' },
+  other: { icon: 'bullet', labelKey: 'other' },
 };
 
 /**

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { useTranslation } from '@/lib/i18n';
@@ -56,11 +56,7 @@ export function ErrorFallback({ error, retry }: ErrorFallbackProps) {
             { backgroundColor: colors.error + '22', borderColor: colors.error + '55' },
           ]}
         >
-          <MaterialCommunityIcons
-            name="alert-circle-outline"
-            size={48}
-            color={colors.error}
-          />
+          <Icons.alert size='3xl' fill={colors.error} />
         </View>
 
         <ThemedText style={[styles.title, { color: colors.text }]}>
@@ -98,7 +94,7 @@ export function ErrorFallback({ error, retry }: ErrorFallbackProps) {
           accessibilityRole="button"
           accessibilityLabel={t('errors.boundary.retry')}
         >
-          <MaterialCommunityIcons name="refresh" size={20} color="#FFFFFF" />
+          <Icons.refresh size='md' fill="#FFFFFF" />
           <Text style={styles.retryText}>{t('errors.boundary.retry')}</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -127,7 +123,7 @@ export function MinimalErrorFallback({ error, retry, scheme = 'light' }: Minimal
     <View style={[minimalStyles.container, { backgroundColor: bg }]}>
       <ScrollView contentContainerStyle={minimalStyles.content} showsVerticalScrollIndicator={false}>
         <View style={[minimalStyles.iconBubble, { backgroundColor: errorColor + '22', borderColor: errorColor + '55' }]}>
-          <MaterialCommunityIcons name="alert-circle-outline" size={48} color={errorColor} />
+          <Icons.alert size='3xl' fill={errorColor} />
         </View>
 
         <Text style={[minimalStyles.title, { color: text }]}>Something went wrong</Text>
@@ -156,7 +152,7 @@ export function MinimalErrorFallback({ error, retry, scheme = 'light' }: Minimal
           accessibilityRole="button"
           accessibilityLabel="Try again"
         >
-          <MaterialCommunityIcons name="refresh" size={20} color="#FFFFFF" />
+          <Icons.refresh size='md' fill="#FFFFFF" />
           <Text style={minimalStyles.retryText}>Try again</Text>
         </TouchableOpacity>
       </ScrollView>

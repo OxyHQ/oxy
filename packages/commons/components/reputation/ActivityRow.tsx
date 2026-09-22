@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { AppIcon, Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { CircleIconBadge } from '@/components/ui/circle-icon-badge';
@@ -31,7 +31,7 @@ export function ActivityRow({ transaction }: ActivityRowProps) {
   return (
     <View style={styles.row}>
       <CircleIconBadge backgroundColor={withAlpha(accent, 0.12)}>
-        <MaterialCommunityIcons name={meta.icon} size={18} color={accent} />
+        <AppIcon name={meta.icon} size='sm' fill={accent} />
       </CircleIconBadge>
 
       <View style={styles.text}>
@@ -40,12 +40,7 @@ export function ActivityRow({ transaction }: ActivityRowProps) {
             {t(`civic.reputation.activity.actions.${meta.labelKey}`)}
           </ThemedText>
           {meta.signed && (
-            <MaterialCommunityIcons
-              name="shield-check"
-              size={13}
-              color={colors.success}
-              accessibilityLabel={t('civic.reputation.activity.signed')}
-            />
+            <Icons.shieldCheck size='xs' fill={colors.success} />
           )}
         </View>
         <ThemedText style={[styles.time, { color: colors.textSecondary }]} numberOfLines={1}>

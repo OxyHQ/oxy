@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useRouter } from 'expo-router';
 import { useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
@@ -223,7 +223,7 @@ export default function IdScreen() {
           />
           {attestedVisible && (
             <View style={[styles.attestedBadge, { backgroundColor: colors.card }]}>
-              <MaterialCommunityIcons name="check-decagram" size={18} color={colors.success} />
+              <Icons.verified size='sm' fill={colors.success} />
               <ThemedText style={styles.attestedBadgeText}>{t('civic.attest.confirmed')}</ThemedText>
             </View>
           )}
@@ -239,13 +239,13 @@ export default function IdScreen() {
             footer={t('vault.home.yourIdentitySubtitle')}
           >
             <SettingsListItem
-              icon={<MaterialCommunityIcons name="shield-key" size={22} color={colors.text} />}
+              icon={<Icons.shield size='md' fill={colors.text} />}
               title={t('home.identity.selfCustody')}
               description={t('home.identity.selfCustodySubtitle')}
               onPress={handleAboutIdentity}
             />
             <SettingsListItem
-              icon={<MaterialCommunityIcons name="key-variant" size={22} color={colors.text} />}
+              icon={<Icons.key size='md' fill={colors.text} />}
               title={t('home.identity.publicKey')}
               description={t('home.identity.publicKeySubtitle')}
               onPress={handleAboutIdentity}
@@ -259,7 +259,7 @@ export default function IdScreen() {
           footer={t('civic.attest.section.subtitle')}
         >
           <SettingsListItem
-            icon={<MaterialCommunityIcons name="handshake-outline" size={22} color={colors.text} />}
+            icon={<Icons.handshake size='md' fill={colors.text} />}
             title={t('civic.attest.section.action')}
             description={t('civic.attest.section.actionSubtitle')}
             onPress={handleGetVerified}
@@ -278,7 +278,7 @@ export default function IdScreen() {
 
         {state === 'pending' && (
           <View style={styles.gutter}>
-            <Callout tone="warning" icon="clock-outline">
+            <Callout tone="warning" icon="pending">
               {t('civic.id.pendingNote')}
             </Callout>
           </View>
@@ -299,7 +299,7 @@ export default function IdScreen() {
         offset={tabBarFootprint}
         onPress={handleScan}
         accessibilityLabel={t('civic.id.scanAction')}
-        icon={<MaterialCommunityIcons name="qrcode-scan" size={26} color={colors.primaryForeground} />}
+        icon={<Icons.scan size='lg' fill={colors.primaryForeground} />}
       />
 
       {qrSheetOpen && <AttestQrSheet onClose={() => setQrSheetOpen(false)} />}

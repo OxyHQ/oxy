@@ -1,16 +1,16 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { AppIcon, Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { SCREEN_PADDING } from '@/components/ui';
 import { withAlpha } from '@/utils/color';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 /** One civic-duty call to action rendered as a carousel card. */
 export interface CtaItem {
   key: string;
-  icon: MaterialCommunityIconName;
+  icon: IconName;
   /** Accent color for the card's rounded icon tile. */
   color: string;
   title: string;
@@ -49,7 +49,7 @@ export function GetStartedCarousel({ title, dismissLabel, items, onDismiss }: Ge
           hitSlop={10}
           style={styles.dismiss}
         >
-          <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+          <Icons.close size='md' fill={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -69,7 +69,7 @@ export function GetStartedCarousel({ title, dismissLabel, items, onDismiss }: Ge
             style={[styles.card, { borderColor: colors.border, backgroundColor: colors.background }]}
           >
             <View style={[styles.iconTile, { backgroundColor: withAlpha(item.color, 0.14) }]}>
-              <MaterialCommunityIcons name={item.icon} size={22} color={item.color} />
+              <AppIcon name={item.icon} size='md' fill={item.color} />
             </View>
             <ThemedText style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
               {item.title}

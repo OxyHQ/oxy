@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 
@@ -44,7 +44,7 @@ export function StackHeader({
               accessibilityLabel={backAccessibilityLabel}
               style={[styles.iconBtn, styles.backBtn]}
             >
-              <MaterialCommunityIcons name="chevron-left" size={28} color={colors.text} />
+              <Icons.back size='xl' fill={colors.text} />
             </TouchableOpacity>
           ) : (
             <View style={styles.spacer} />
@@ -56,7 +56,7 @@ export function StackHeader({
               accessibilityLabel={closeAccessibilityLabel}
               style={styles.iconBtn}
             >
-              <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+              <Icons.close size='lg' fill={colors.text} />
             </TouchableOpacity>
           )}
         </View>
