@@ -2,6 +2,8 @@
 
 - Status: accepted
 - Date: 2026-09-17
+- Amended: 2026-09-20 — an entry point may also be proved by ATTESTATION (see
+  "One entry point, two proofs")
 - Scope: first-party product apps entering Alia through a native product agent (Homiio → Sindi first)
 
 ## Context
@@ -39,11 +41,16 @@ Oxy issues an assertion only when ALL hold, re-read live:
 1. the calling `(applicationId, credentialId)` and `agentId` are one exact entry of
    `NATIVE_PRODUCT_AGENT_ENTRY_POINTS`, derived from the reviewed native-agent
    manifest (`config/nativeProductAgents.ts`). Being a trusted application is not
-   enough; the credential is pinned byte for byte;
-2. that application and credential are still live and trusted
-   (`resolveLiveAgencyServicePrincipal`: active app, usable service credential,
-   active owner, no closure fence) and the live scope set includes
-   `inference:invoke`;
+   enough; the service identity is pinned byte for byte — as the entry's
+   credential id, or as the handle DERIVED from the IAM role that entry declares
+   (see "One entry point, two proofs");
+2. the row behind whichever proof was used is still live and trusted, and its
+   live scope set includes `inference:invoke` — the credential
+   (`resolveLiveAgencyCoordinator`: active app, usable service credential, active
+   owner, no closure fence) or the binding (`resolveLiveAgencyWorkload`: the same
+   app, trust, owner and fence checks, plus an unexpired
+   `application_workload_identities` row whose scopes are decided by the same
+   `workloadBindingScopes` the workload mint used);
 3. `subjectToken` passes `sessionService.validateSession` — signature, expiry,
    live session row, managed-session operator authority, and the v2 claim binding;
 4. that session is the shared first-party session (`applicationId` null) or is bound
@@ -63,8 +70,52 @@ distinct `typ` keeps it unusable as a `CapabilityTicket` and vice versa.
 ```text
 iss  https://api.oxy.so      aud  alia                    sub  requester account id
 jti  uuid                    iat/exp  lifetime 120 s      sid  session id
-azp  calling application     cid  calling credential      agentId  exact native agent
+azp  calling application     cid  calling service identity  agentId  exact native agent
 ```
+
+`cid` names WHAT CALLED: the credential id on the credential path, and the
+`wl_…` attestation handle on the workload path. It is not the entry point's
+credential id restated — an assertion a workload asked for must not claim a
+credential that did not call and whose liveness was never checked. It is also
+the only value that works: every verifier of this claim, Oxy's own
+`introspectRequesterAssertion` and `@oxy.so/core`'s `requesterAssertion.ts`
+alike, compares `cid` against the PRESENTER's verified service-token
+`credentialId`, which for an attested presenter is the handle.
+
+### One entry point, two proofs
+
+*(Amendment, 2026-09-20.)*
+
+ADR 0026 lets a first-party service authenticate by attesting its ECS task role
+instead of carrying a key pair, and a token minted that way carries the
+attestation handle as its `credentialId` — never the credential's UUID, because
+there is no credential. Matching an entry point on the UUID alone therefore made
+this lane the one thing a product could not do without a key pair: Homiio
+attesting matched nothing, got `unknown_entry_point`, and every Sindi chat turn
+told a signed-in person to sign in.
+
+An entry may now also declare a `workload` — the provider and the CANONICAL IAM
+role ARN — and a caller matches when its `credentialId` equals either the pinned
+credential id or `workloadAttestationHandle(subject)`. That is one identity with
+two proofs, not two identities.
+
+- **The role is declared, never the digest.** A role ARN is reviewable (it is on
+  a task definition anyone can read) and the handle is computed from it by the
+  same function the mint uses. A hard-coded `wl_…` is a magic constant a reviewer
+  cannot check and an operator cannot reproduce.
+- **The shape authorises nothing.** Only the derived handle matches. Another
+  first-party service's real, valid handle is refused, as is any other
+  `wl_`-shaped value.
+- **Declaring a workload is a reviewed authority change**, exactly as adding a
+  product is. The list does not read `application_workload_identities` — if it
+  did, binding a role would silently hand it a product's entry point, and binding
+  is a routine platform step performed on every deploy.
+- **The binding does not replace the checks, it takes the credential's place in
+  them.** It must name this same application, be unexpired, and still reach
+  `inference:invoke`; the application must still be active and trusted and its
+  owner still live. Deleting the row, expiring it, or dropping the scope ends the
+  lane at the next mint or introspection, which is the immediacy revoking a
+  credential has.
 
 ### How Alia accepts it
 
@@ -117,4 +168,7 @@ introspection.
 - Each chat turn costs one mint (product → Oxy) and one introspection (Alia → Oxy).
   The assertion is single-use, so products do not cache it.
 - Adding a product is a manifest change plus that product's own backend adoption.
+- A product on this lane can give up its key pair. Declaring its role here is the
+  Oxy half; the product's own half is accepting both names for its one service
+  identity wherever it pins `credentialId` (OxyHQ/Homiio#536 did this for Sindi).
 - Oxy's replay protection depends on Redis in production and fails closed without it.

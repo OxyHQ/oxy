@@ -1,3 +1,8 @@
+import {
+  workloadAttestationHandle,
+  type AttestationProvider,
+} from '../services/workloadAttestation.service';
+
 /**
  * Canonical identities for Oxy-native product agents.
  *
@@ -172,21 +177,62 @@ export const ALIA_RESOURCE_SERVER_APPLICATION_ID = '6a2f851751b784a86fd0e934';
 /** The `aud` of a present-requester assertion. */
 export const REQUESTER_ASSERTION_AUDIENCE = 'alia';
 
+/**
+ * A workload an entry point also answers to — the ADR 0026 form of the same
+ * identity.
+ *
+ * The ROLE is declared, never the handle. A role ARN is reviewable (anyone can
+ * read the task definition that names it) and the handle is computed from it
+ * with {@link workloadAttestationHandle}, the one definition the mint itself
+ * uses. A hard-coded `wl_…` digest would be a magic constant no reviewer could
+ * check and no operator could reproduce, and it would silently stop matching if
+ * the derivation ever moved.
+ */
+export interface NativeProductAgentWorkload {
+  readonly provider: AttestationProvider;
+  /**
+   * The CANONICAL subject, exactly as `application_workload_identities.subject`
+   * stores it and `canonicalAwsSubject` produces it: a pathless IAM role ARN,
+   * never the per-task `assumed-role/<role>/<session>` ARN STS reports.
+   */
+  readonly subject: string;
+}
+
 export interface NativeProductAgentEntryPoint {
   readonly product: 'homiio';
   readonly applicationId: string;
   readonly credentialId: string;
   readonly agentId: string;
+  /**
+   * The attested workload that is the SAME product backend, or `null` for an
+   * entry point that may only ever call with a credential.
+   *
+   * Declaring one admits a second way to prove one identity, not a second
+   * identity: the binding row still has to name this application, still has to
+   * be live, and still has to name `inference:invoke` — see
+   * `services/nativeRequesterAssertion.service.ts`. Adding one is as much a
+   * reviewed authority change as adding a product, and for the same reason:
+   * provisioning a workload must not silently hand it a product's entry.
+   */
+  readonly workload: NativeProductAgentWorkload | null;
 }
 
 /**
- * The exact (application, credential, agent) triples that may trade a present
- * requester's live session for a present-requester assertion (ADR 0025).
+ * The exact entry points that may trade a present requester's live session for a
+ * present-requester assertion (ADR 0025).
+ *
+ * Each names one application, one agent, and the service identities that may
+ * call as it: a pinned credential id, and — since ADR 0026 — optionally the IAM
+ * role whose attestation proves the same backend.
  *
  * Deliberately NOT derived from "every product in the manifest": being a
  * native product agent does not by itself mean the product's backend should be
  * able to enter Alia for a signed-in person. Adding a product here is a reviewed
- * authority change, not a side effect of provisioning its agent.
+ * authority change, not a side effect of provisioning its agent — and neither is
+ * adding a `workload`, which is why the role ARN is written out here rather than
+ * read from `application_workload_identities`. A binding row is created by the
+ * platform when a service is deployed; if this list took its word for it, every
+ * bind would be a grant of Homiio's entry point to whatever was just deployed.
  */
 export const NATIVE_PRODUCT_AGENT_ENTRY_POINTS: readonly NativeProductAgentEntryPoint[] = [
   {
@@ -194,18 +240,76 @@ export const NATIVE_PRODUCT_AGENT_ENTRY_POINTS: readonly NativeProductAgentEntry
     applicationId: NATIVE_PRODUCT_AGENTS.products.homiio.applicationId,
     credentialId: NATIVE_PRODUCT_AGENTS.products.homiio.sindiServiceCredential.id,
     agentId: NATIVE_PRODUCT_AGENTS.products.homiio.aliaAgent.id,
+    /**
+     * Homiio's ECS task role. It is bound to this same application
+     * (`bind-workload-identity.ts --app-id 6a2f851751b784a86fd0e922 --role-arn
+     * …/oxy-homiio-task`) and its binding names `inference:invoke` and
+     * `acting-as:offline`, which is what an attested Sindi token was measured
+     * carrying. Without this line an attested Homiio backend matches nothing,
+     * and every Sindi chat turn tells a signed-in person to sign in.
+     */
+    workload: { provider: 'aws-iam', subject: 'arn:aws:iam::237343248947:role/oxy-homiio-task' },
   },
 ];
 
-/** The entry point matching all three identifiers exactly, or `null`. */
+/**
+ * WHICH of an entry point's two proofs a caller presented.
+ *
+ * The distinction is not cosmetic: the two are checked against different rows.
+ * A credential-minted caller is re-read as an `ApplicationCredential`; an
+ * attested caller has no credential row at all and is re-read as its binding.
+ * Losing the distinction here would mean checking one caller's liveness against
+ * the other's row.
+ */
+export type NativeProductAgentPrincipal =
+  | { readonly kind: 'credential'; readonly credentialId: string }
+  | {
+      readonly kind: 'workload';
+      readonly provider: AttestationProvider;
+      readonly subject: string;
+      /** `wl_…`, derived from `subject`; equal to the `credentialId` presented. */
+      readonly handle: string;
+    };
+
+export interface NativeProductAgentEntryPointMatch {
+  readonly entry: NativeProductAgentEntryPoint;
+  readonly principal: NativeProductAgentPrincipal;
+}
+
+/**
+ * The entry point this caller is, with the proof it presented, or `null`.
+ *
+ * `applicationId` and `agentId` match exactly, as they always have.
+ * `credentialId` is the value off the VERIFIED service token — an
+ * `ApplicationCredential` id on the credential path and an attestation handle
+ * on the workload path (`services/serviceTokenMint.service.ts`) — and it must
+ * equal, byte for byte, either the pinned credential or the handle DERIVED from
+ * the declared role. Nothing is inferred from the `wl_` prefix: a `wl_`-shaped
+ * value that is not this role's handle matches nothing, and neither does
+ * another service's real, valid handle.
+ */
 export function nativeProductAgentEntryPoint(
   applicationId: string,
   credentialId: string,
   agentId: string,
-): NativeProductAgentEntryPoint | null {
-  return NATIVE_PRODUCT_AGENT_ENTRY_POINTS.find((entry) => (
-    entry.applicationId === applicationId
-    && entry.credentialId === credentialId
-    && entry.agentId === agentId
-  )) ?? null;
+): NativeProductAgentEntryPointMatch | null {
+  for (const entry of NATIVE_PRODUCT_AGENT_ENTRY_POINTS) {
+    if (entry.applicationId !== applicationId || entry.agentId !== agentId) continue;
+    if (credentialId === entry.credentialId) {
+      return { entry, principal: { kind: 'credential', credentialId: entry.credentialId } };
+    }
+    const workload = entry.workload;
+    if (workload !== null && credentialId === workloadAttestationHandle(workload.subject)) {
+      return {
+        entry,
+        principal: {
+          kind: 'workload',
+          provider: workload.provider,
+          subject: workload.subject,
+          handle: credentialId,
+        },
+      };
+    }
+  }
+  return null;
 }

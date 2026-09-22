@@ -136,6 +136,19 @@ was considered instead and rejected: delete-and-recreate is this path's only way
 to move a binding, so a row id would break every pin on an operator action that
 changed no identity, and it is not derivable without a production query.
 
+**An Oxy lane that pins one credential needs its own line, not just a binding.**
+A check comparing `credentialId` to a fixed UUID refuses an attested caller
+however good its binding is. `NATIVE_PRODUCT_AGENT_ENTRY_POINTS`
+(`config/nativeProductAgents.ts`, ADR 0025) is the one such lane today: an entry
+declares the canonical IAM role beside the credential id and derives the handle
+with `workloadAttestationHandle`, so the value is reviewable and computable from
+a task definition rather than a digest nobody can check. The role is written out
+in that file and NOT read from `application_workload_identities` — binding a role
+is a routine deploy step, and it must never be, by itself, a grant of a pinned
+lane. An attested caller then re-reads its BINDING as the live ceiling
+(`resolveLiveAgencyWorkload`), on the same grounds a credential-minted one
+re-reads its credential.
+
 **Before a service gives up its key pair, its binding must name every privileged
 scope the credential named.** Not a nicety: removing Mention's pair first cost
 313 × `Missing required scope: federation:write` in one morning. Bind with
@@ -244,6 +257,7 @@ the whole reason ADR 0026 prefers it to a shared secret.
 - `packages/api/src/services/workloadAttestation.service.ts` — the provider seam; AWS STS verifier; `workloadAttestationHandle` (the pinnable `wl_…` id)
 - `packages/api/src/services/workloadIdentity.service.ts` — challenge, binding lookup, scope and trust gates
 - `packages/api/src/services/workloadIdentityBinding.service.ts` — creating a binding: canonicalisation, idempotence, refusals
+- `packages/api/src/services/agencyServicePrincipal.service.ts` — the LIVE ceiling for both paths: `resolveLiveAgencyCoordinator` (credential) and `resolveLiveAgencyWorkload` (binding)
 - `packages/api/scripts/bind-workload-identity.ts` — the operator entrypoint (`--app-id`, `--role-arn`, `--scopes`, `--list`)
 - `packages/api/src/services/serviceTokenMint.service.ts` — the ONE signer both paths share
 - `packages/api/src/models/Application.ts` — `isInternal`, `type` field
