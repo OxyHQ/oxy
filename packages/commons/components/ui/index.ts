@@ -1,4 +1,3 @@
-export { ScreenHeader } from './screen-header';
 export { KeyboardAwareScrollViewWrapper } from './keyboard-aware-scroll-view';
 export { ImportantBanner } from './important-banner';
 export { CircleIconBadge } from './circle-icon-badge';

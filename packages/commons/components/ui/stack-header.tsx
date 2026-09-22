@@ -1,8 +1,7 @@
 import React from 'react';
-import { Text } from '@oxy.so/bloom/typography';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { GlyphButton } from '@oxy.so/bloom/button';
 import { Icons } from '@/constants/icons';
-import { useColors } from '@/hooks/useColors';
 
 interface StackHeaderProps {
   title: string;
@@ -16,11 +15,37 @@ interface StackHeaderProps {
 }
 
 /**
- * The large-title screen header for pushed / modal Commons screens. A small
- * affordance row (back chevron and/or close) sits above a confident large title
- * with optional muted subtitle — the spacious iOS large-title rhythm rather than
- * a cramped inline 20pt bar. Lives inside the `Screen` content column, so it
- * inherits the 22pt gutter and the 32pt section rhythm below it.
+ * The header for pushed / modal Commons screens — Bloom's `PageHeader`, with
+ * this app's close affordance in its actions slot.
+ *
+ * ## Why `bar` + `inline`, and not the chrome slot
+ *
+ * Bloom's own model is `Screen header={<PageHeader />}`: floating chrome that
+ * content passes under, with `Screen` reserving its measured footprint. This
+ * header is NOT mounted that way, and the reason is where its 29 call sites
+ * live — fifteen directly inside the app's `Screen` content column, five inside
+ * a `<View>` that pads them, five inside `KeyboardAwareScrollViewWrapper` (which
+ * is not a `Screen` at all) and one nested deeper. Moving all of them into a
+ * chrome slot is a layout change on twenty screens, and it is the kind that
+ * either looks right or leaves content under the header — which cannot be
+ * decided from a bundle.
+ *
+ * So `presentation="bar"` with `placement="inline"`: Bloom's documented in-FLOW
+ * arrangement, where "the header is a sibling ABOVE the content, in a column. It
+ * occupies layout, so nothing passes under it and nothing needs padding." Every
+ * call site keeps its position and Bloom draws the header. Moving to the chrome
+ * slot afterwards is then a per-screen change with a device in front of you.
+ *
+ * ## What it stops drawing by hand
+ *
+ * A back chevron and a close ✕ as bare `TouchableOpacity`s with 40pt boxes and a
+ * −10 margin, a 28/700/−0.5 title and a 15/21 subtitle. The title is now a
+ * heading that announces as one; the back button is `PageHeader`'s own; the
+ * close is a `GlyphButton`, which Bloom names as the neutral transparent icon
+ * button for exactly this (a `ghost` Button would tint it with the accent).
+ *
+ * VISUAL DELTA: the title takes `PageHeader`'s bar step rather than the 28pt
+ * large-title rhythm this app had, so 29 screens get a more compact heading.
  */
 export function StackHeader({
   title,
@@ -30,77 +55,26 @@ export function StackHeader({
   backAccessibilityLabel,
   closeAccessibilityLabel,
 }: StackHeaderProps) {
-  const colors = useColors();
-  const hasBar = !!onBack || !!onClose;
-
   return (
-    <View style={styles.header}>
-      {hasBar && (
-        <View style={styles.bar}>
-          {onBack ? (
-            <TouchableOpacity
-              onPress={onBack}
-              accessibilityRole="button"
-              accessibilityLabel={backAccessibilityLabel}
-              style={[styles.iconBtn, styles.backBtn]}
-            >
-              <Icons.back size='xl' fill={colors.text} />
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.spacer} />
-          )}
-          {onClose && (
-            <TouchableOpacity
-              onPress={onClose}
-              accessibilityRole="button"
-              accessibilityLabel={closeAccessibilityLabel}
-              style={styles.iconBtn}
-            >
-              <Icons.close size='lg' fill={colors.text} />
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-      {subtitle && (
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
-      )}
-    </View>
+    <PageHeader
+      presentation="bar"
+      placement="inline"
+      border="none"
+      title={title}
+      subtitle={subtitle}
+      onBack={onBack}
+      backLabel={backAccessibilityLabel}
+      actions={
+        onClose ? (
+          <GlyphButton
+            icon={Icons.close}
+            onPress={onClose}
+            // GlyphButton REQUIRES a name: it draws only a glyph, so without one
+            // it announces as nothing. Two of the three callers pass their own.
+            accessibilityLabel={closeAccessibilityLabel ?? 'Close'}
+          />
+        ) : undefined
+      }
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  header: {
-    gap: 6,
-  },
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 36,
-    marginBottom: 4,
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backBtn: {
-    marginLeft: -10,
-  },
-  spacer: {
-    width: 40,
-    height: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-    lineHeight: 34,
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 21,
-  },
-});

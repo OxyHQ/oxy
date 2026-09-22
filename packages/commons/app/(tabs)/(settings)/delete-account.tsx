@@ -9,8 +9,8 @@ import { Button } from '@oxy.so/bloom/button';
 import {
   ImportantBanner,
   KeyboardAwareScrollViewWrapper,
-  ScreenHeader,
   Section,
+  StackHeader,
 } from '@/components/ui';
 import { useOxy } from '@oxy.so/services';
 import { alert } from '@oxy.so/bloom/surfaces';
@@ -129,7 +129,7 @@ export default function DeleteAccountScreen() {
 
   const renderContent = () => (
     <>
-      <ScreenHeader
+      <StackHeader
         title={t('data.deleteAccount.title')}
         subtitle={t('data.deleteAccount.subtitle')}
       />
