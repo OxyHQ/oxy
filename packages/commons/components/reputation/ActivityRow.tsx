@@ -1,8 +1,8 @@
 import React from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet } from 'react-native';
 import { AppIcon, Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { CircleIconBadge } from '@/components/ui/circle-icon-badge';
 import { withAlpha } from '@/utils/color';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
@@ -36,21 +36,21 @@ export function ActivityRow({ transaction }: ActivityRowProps) {
 
       <View style={styles.text}>
         <View style={styles.labelRow}>
-          <ThemedText style={[styles.label, { color: colors.text }]} numberOfLines={1}>
+          <Text style={[styles.label, { color: colors.text }]} numberOfLines={1}>
             {t(`civic.reputation.activity.actions.${meta.labelKey}`)}
-          </ThemedText>
+          </Text>
           {meta.signed && (
             <Icons.shieldCheck size='xs' fill={colors.success} />
           )}
         </View>
-        <ThemedText style={[styles.time, { color: colors.textSecondary }]} numberOfLines={1}>
+        <Text style={[styles.time, { color: colors.textSecondary }]} numberOfLines={1}>
           {relativeTime(transaction.createdAt)}
-        </ThemedText>
+        </Text>
       </View>
 
-      <ThemedText style={[styles.delta, { color: accent }]}>
+      <Text style={[styles.delta, { color: accent }]}>
         {formatPointsDelta(transaction.points)}
-      </ThemedText>
+      </Text>
     </View>
   );
 }

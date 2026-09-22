@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { Badge } from '@oxy.so/bloom/badge';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, Image, StyleSheet, ActivityIndicator } from 'react-native';
@@ -7,7 +8,6 @@ import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialo
 import type { PublicCard, CardTrustTier, RealLifeAttestationResult } from '@oxy.so/contracts';
 import { trustTierLabel } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { bloomToneFor, getTrustTierMeta } from '@/lib/civic/card-presentation';
 import type { AttestErrorCode } from '@/lib/civic/civic-errors';
 import type { IconName } from '@/constants/icons';
@@ -78,9 +78,9 @@ export function AttestReviewSheet({
       return (
         <View style={styles.stateBlock}>
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={[styles.stateBody, { color: colors.textSecondary }]}>
+          <Text style={[styles.stateBody, { color: colors.textSecondary }]}>
             {t('civic.attest.review.submitting')}
-          </ThemedText>
+          </Text>
         </View>
       );
     }
@@ -89,12 +89,12 @@ export function AttestReviewSheet({
       return (
         <View style={styles.stateBlock}>
           <Icons.verified size='3xl' fill={colors.success} />
-          <ThemedText style={[styles.stateTitle, { color: colors.text }]}>
+          <Text style={[styles.stateTitle, { color: colors.text }]}>
             {t('civic.attest.confirm.done.title')}
-          </ThemedText>
-          <ThemedText style={[styles.stateBody, { color: colors.textSecondary }]}>
+          </Text>
+          <Text style={[styles.stateBody, { color: colors.textSecondary }]}>
             {t('civic.attest.confirm.done.body', { name: card?.name ?? '', points: result.points })}
-          </ThemedText>
+          </Text>
         </View>
       );
     }
@@ -103,12 +103,12 @@ export function AttestReviewSheet({
       return (
         <View style={styles.stateBlock}>
           <Icons.alert size='3xl' fill={colors.error} />
-          <ThemedText style={[styles.stateTitle, { color: colors.text }]}>
+          <Text style={[styles.stateTitle, { color: colors.text }]}>
             {t('civic.attest.confirm.error.title')}
-          </ThemedText>
-          <ThemedText style={[styles.stateBody, { color: colors.textSecondary }]}>
+          </Text>
+          <Text style={[styles.stateBody, { color: colors.textSecondary }]}>
             {t(`civic.attest.error.${errorCode ?? 'generic'}`)}
-          </ThemedText>
+          </Text>
         </View>
       );
     }
@@ -129,18 +129,18 @@ export function AttestReviewSheet({
       return (
         <View style={styles.stateBlock}>
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={[styles.stateBody, { color: colors.textSecondary }]}>
+          <Text style={[styles.stateBody, { color: colors.textSecondary }]}>
             {t('civic.attest.review.resolving')}
-          </ThemedText>
+          </Text>
         </View>
       );
     }
 
     return (
       <View style={styles.reviewBlock}>
-        <ThemedText style={[styles.heading, { color: colors.text }]}>
+        <Text style={[styles.heading, { color: colors.text }]}>
           {t('civic.attest.review.title')}
-        </ThemedText>
+        </Text>
 
         {/* A's DNI: avatar + name + handle + trust tier */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -148,17 +148,17 @@ export function AttestReviewSheet({
             <Image source={{ uri: card.avatarUrl }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.tint }]}>
-              <ThemedText style={styles.avatarInitial}>{initial}</ThemedText>
+              <Text style={styles.avatarInitial}>{initial}</Text>
             </View>
           )}
           <View style={styles.cardText}>
-            <ThemedText style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+            <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
               {card.name}
-            </ThemedText>
+            </Text>
             {card.username ? (
-              <ThemedText style={[styles.handle, { color: colors.textSecondary }]} numberOfLines={1}>
+              <Text style={[styles.handle, { color: colors.textSecondary }]} numberOfLines={1}>
                 @{card.username}
-              </ThemedText>
+              </Text>
             ) : null}
             <View style={styles.badges}>
               <Badge
@@ -181,9 +181,9 @@ export function AttestReviewSheet({
           </View>
         </View>
 
-        <ThemedText style={[styles.caution, { color: colors.textSecondary }]}>
+        <Text style={[styles.caution, { color: colors.textSecondary }]}>
           {t('civic.attest.review.caution')}
-        </ThemedText>
+        </Text>
 
       </View>
     );

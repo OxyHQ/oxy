@@ -1,9 +1,9 @@
 import React from 'react';
+import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { useTranslation } from '@/lib/i18n';
 import { Fonts } from '@/constants/theme';
 
@@ -59,12 +59,12 @@ export function ErrorFallback({ error, retry }: ErrorFallbackProps) {
           <Icons.alert size='3xl' fill={colors.error} />
         </View>
 
-        <ThemedText style={[styles.title, { color: colors.text }]}>
+        <BloomText style={[styles.title, { color: colors.text }]}>
           {t('errors.boundary.title')}
-        </ThemedText>
-        <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>
+        </BloomText>
+        <BloomText style={[styles.subtitle, { color: colors.textSecondary }]}>
           {t('errors.boundary.subtitle')}
-        </ThemedText>
+        </BloomText>
 
         {isDev && (
           <View

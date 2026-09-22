@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
@@ -8,7 +9,6 @@ import { Button } from '@oxy.so/bloom/button';
 import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   StackHeader,
@@ -163,20 +163,20 @@ export default function IssueCredentialScreen() {
             </View>
           )}
           <View style={styles.identityText}>
-            <ThemedText style={styles.name} numberOfLines={2}>
+            <BloomText style={styles.name} numberOfLines={2}>
               {displayName}
-            </ThemedText>
+            </BloomText>
             {card?.username && (
-              <ThemedText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
+              <BloomText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
                 @{card.username}
-              </ThemedText>
+              </BloomText>
             )}
           </View>
         </View>
 
-        <ThemedText style={[styles.intro, { color: colors.text }]}>
+        <BloomText style={[styles.intro, { color: colors.text }]}>
           {t('civic.credentials.issue.intro', { name: displayName })}
-        </ThemedText>
+        </BloomText>
 
         {/* Credential type */}
         <Section title={t('civic.credentials.issue.typeTitle')} subtitle={t('civic.credentials.issue.typeHint')}>
@@ -204,9 +204,9 @@ export default function IssueCredentialScreen() {
           </View>
           {presetId === 'custom' && (
             <View style={styles.field}>
-              <ThemedText style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+              <BloomText style={[styles.fieldLabel, { color: colors.textSecondary }]}>
                 {t('civic.credentials.issue.customLabel')}
-              </ThemedText>
+              </BloomText>
               <TextInput
                 value={customLabel}
                 onChangeText={setCustomLabel}
@@ -250,9 +250,9 @@ export default function IssueCredentialScreen() {
             style={[styles.input, { color: colors.text, borderColor: colors.border }]}
           />
           {!expiry.valid && (
-            <ThemedText style={[styles.fieldError, { color: colors.warning }]}>
+            <BloomText style={[styles.fieldError, { color: colors.warning }]}>
               {t('civic.credentials.issue.expiryInvalid')}
-            </ThemedText>
+            </BloomText>
           )}
         </Section>
 
@@ -262,17 +262,17 @@ export default function IssueCredentialScreen() {
         </Admonition>
 
         {biometricFailed && (
-          <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+          <BloomText style={[styles.inlineWarn, { color: colors.warning }]}>
             {t('civic.credentials.issue.biometricFailed')}
-          </ThemedText>
+          </BloomText>
         )}
 
         <Button appearance="solid" tone="accent" size="lg" icon={Icons.personhood} onPress={handleIssue} loading={busy} disabled={!canSubmit} style={fullWidthControl}>{t('civic.credentials.issue.cta')}</Button>
 
         {busy && (
-          <ThemedText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
+          <BloomText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
             {t('civic.credentials.issue.submitting')}
-          </ThemedText>
+          </BloomText>
         )}
       </>
     );

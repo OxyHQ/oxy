@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
+import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
@@ -8,7 +9,6 @@ import { AppIcon, Icons } from '@/constants/icons';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   StackHeader,
@@ -126,9 +126,9 @@ export default function ScannedCardScreen() {
             icon={Icons[verified ? 'verified' : 'alertStrong']}
             content={t(`civic.card.${verification.labelKey}`)}
           />
-          <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
+          <BloomText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
             {t(`civic.card.${verification.labelKey}Desc`)}
-          </ThemedText>
+          </BloomText>
           {!isOnline && (
             <Badge
               appearance="subtle"
@@ -153,13 +153,13 @@ export default function ScannedCardScreen() {
               </View>
             )}
             <View style={styles.identityText}>
-              <ThemedText style={styles.name} numberOfLines={2}>
+              <BloomText style={styles.name} numberOfLines={2}>
                 {card.name}
-              </ThemedText>
+              </BloomText>
               {card.username && (
-                <ThemedText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
+                <BloomText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
                   @{card.username}
-                </ThemedText>
+                </BloomText>
               )}
             </View>
           </View>
@@ -185,13 +185,13 @@ export default function ScannedCardScreen() {
           {personhood && (
             <View style={styles.personhoodLine}>
               <AppIcon name={personhood.isRealPerson ? 'vouched' : 'pending'} size='sm' fill={personhood.isRealPerson ? colors.success : colors.warning} />
-              <ThemedText style={[styles.personhoodLineText, { color: colors.textSecondary }]}>
+              <BloomText style={[styles.personhoodLineText, { color: colors.textSecondary }]}>
                 {personhood.isRealPerson
                   ? t('civic.vouch.statusLine.verified')
                   : t('civic.vouch.statusLine.building', {
                       pct: Math.max(0, Math.min(100, Math.round(personhood.score * 100))),
                     })}
-              </ThemedText>
+              </BloomText>
             </View>
           )}
         </View>
@@ -230,9 +230,9 @@ export default function ScannedCardScreen() {
         )}
 
         <Section title={t('civic.card.didLabel')}>
-          <ThemedText style={[styles.didValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
+          <BloomText style={[styles.didValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
             {card.did}
-          </ThemedText>
+          </BloomText>
         </Section>
       </>
     );

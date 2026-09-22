@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
 import { Badge } from '@oxy.so/bloom/badge';
@@ -9,7 +10,6 @@ import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import {
   Screen,
@@ -113,12 +113,12 @@ export default function PersonhoodScreen() {
           />
 
           <View style={styles.scoreBlock}>
-            <ThemedText style={[styles.scoreValue, { color: colors.text }]}>
+            <Text style={[styles.scoreValue, { color: colors.text }]}>
               {t('civic.personhood.scoreValue', { pct: scorePct })}
-            </ThemedText>
-            <ThemedText style={[styles.scoreLabel, { color: colors.textSecondary }]}>
+            </Text>
+            <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>
               {t('civic.personhood.scoreLabel')}
-            </ThemedText>
+            </Text>
           </View>
 
           {/* Progress to the θ threshold */}
@@ -127,14 +127,14 @@ export default function PersonhoodScreen() {
               <View style={[styles.fill, { width: `${scorePct}%`, backgroundColor: fillColor }]} />
               <View style={[styles.thresholdMark, { left: `${thresholdPct}%`, backgroundColor: colors.text }]} />
             </View>
-            <ThemedText style={[styles.thresholdLabel, { color: colors.textSecondary }]}>
+            <Text style={[styles.thresholdLabel, { color: colors.textSecondary }]}>
               {t('civic.personhood.thresholdLabel', { pct: thresholdPct })}
-            </ThemedText>
+            </Text>
           </View>
 
-          <ThemedText style={[styles.heroDesc, { color: colors.textSecondary }]}>
+          <Text style={[styles.heroDesc, { color: colors.textSecondary }]}>
             {t(verified ? 'civic.personhood.verifiedDesc' : 'civic.personhood.buildingDesc')}
-          </ThemedText>
+          </Text>
         </View>
 
           {status.sybilPenalty > 0 && (
@@ -168,9 +168,9 @@ export default function PersonhoodScreen() {
             value={status.biometricBound ? undefined : t('civic.personhood.signals.biometricUnbound')}
             rightElement={
               status.biometricBound ? (
-                <ThemedText style={[styles.boundValue, { color: colors.success }]}>
+                <Text style={[styles.boundValue, { color: colors.success }]}>
                   {t('civic.personhood.signals.biometricBound')}
-                </ThemedText>
+                </Text>
               ) : undefined
             }
           />
@@ -202,9 +202,9 @@ export default function PersonhoodScreen() {
         </SettingsListGroup>
 
         <View style={styles.gutter}>
-          <ThemedText style={[styles.footnote, { color: colors.textSecondary }]}>
+          <Text style={[styles.footnote, { color: colors.textSecondary }]}>
             {t('civic.personhood.footnote')}
-          </ThemedText>
+          </Text>
         </View>
       </>
     );

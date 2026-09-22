@@ -1,8 +1,8 @@
 import React from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { AppIcon } from '@/constants/icons';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { CircleIconBadge } from '@/components/ui/circle-icon-badge';
 import { withAlpha } from '@/utils/color';
 import type { IconName } from '@/constants/icons';
@@ -51,17 +51,17 @@ export function CategoryRow({
       </CircleIconBadge>
 
       <View style={styles.body}>
-        <ThemedText style={[styles.label, { color: colors.text }]} numberOfLines={1}>
+        <Text style={[styles.label, { color: colors.text }]} numberOfLines={1}>
           {label}
-        </ThemedText>
+        </Text>
         <View style={[styles.track, { backgroundColor: colors.backgroundSecondary }]}>
           <View style={[styles.fill, { backgroundColor: color, width: `${clamped * 100}%` }]} />
         </View>
       </View>
 
-      <ThemedText style={[styles.points, { color: isPenalty ? colors.error : colors.text }]}>
+      <Text style={[styles.points, { color: isPenalty ? colors.error : colors.text }]}>
         {isPenalty ? `-${points}` : String(points)}
-      </ThemedText>
+      </Text>
     </>
   );
 

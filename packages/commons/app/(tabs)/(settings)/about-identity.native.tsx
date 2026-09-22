@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet, ActivityIndicator, Share, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AppIcon, Icons } from '@/constants/icons';
 import { buildUserDid } from '@oxy.so/core';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   StackHeader,
@@ -172,7 +172,7 @@ export default function AboutIdentityScreen() {
   const copyValue = useCallback(
     (short: string) => (
       <View style={styles.valueTrail}>
-        <ThemedText style={[styles.valueText, { color: colors.textSecondary }]}>{short}</ThemedText>
+        <Text style={[styles.valueText, { color: colors.textSecondary }]}>{short}</Text>
         <Icons.copy size='sm' fill={colors.tint} />
       </View>
     ),
@@ -184,9 +184,9 @@ export default function AboutIdentityScreen() {
       <Screen contentStyle={styles.flush}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={[styles.loadingText, { color: colors.text }]}>
+          <Text style={[styles.loadingText, { color: colors.text }]}>
             {t('aboutIdentity.loading')}
-          </ThemedText>
+          </Text>
         </View>
       </Screen>
     );
@@ -247,9 +247,9 @@ export default function AboutIdentityScreen() {
         />
       </SettingsListGroup>
 
-      <ThemedText style={[styles.footnote, { color: colors.textSecondary }]}>
+      <Text style={[styles.footnote, { color: colors.textSecondary }]}>
         {t('aboutIdentity.importantNotice')}
-      </ThemedText>
+      </Text>
     </>
   );
 

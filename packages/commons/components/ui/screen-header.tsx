@@ -1,4 +1,5 @@
 import React from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import {
     View,
     StyleSheet,
@@ -7,7 +8,6 @@ import {
     type StyleProp,
     type ViewStyle,
 } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
 
 interface ScreenHeaderProps {
     title: string;
@@ -21,13 +21,13 @@ export function ScreenHeader({ title, subtitle, style }: ScreenHeaderProps) {
 
     return (
         <View style={[isDesktop ? styles.desktopHeader : styles.mobileHeader, style]}>
-            <ThemedText style={isDesktop ? styles.title : styles.mobileTitle}>
+            <Text style={isDesktop ? styles.title : styles.mobileTitle}>
                 {title}
-            </ThemedText>
+            </Text>
             {subtitle && (
-                <ThemedText style={isDesktop ? styles.subtitle : styles.mobileSubtitle}>
+                <Text style={isDesktop ? styles.subtitle : styles.mobileSubtitle}>
                     {subtitle}
-                </ThemedText>
+                </Text>
             )}
         </View>
     );

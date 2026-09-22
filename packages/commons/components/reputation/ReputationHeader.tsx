@@ -1,8 +1,8 @@
 import React from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { useTranslation } from '@/lib/i18n';
 
 interface ReputationHeaderProps {
@@ -26,9 +26,9 @@ export function ReputationHeader({ title, pendingCount, onOpenDuty }: Reputation
 
   return (
     <View style={styles.header}>
-      <ThemedText style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+      <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
         {title}
-      </ThemedText>
+      </Text>
 
       <TouchableOpacity
         activeOpacity={0.8}
@@ -42,9 +42,9 @@ export function ReputationHeader({ title, pendingCount, onOpenDuty }: Reputation
           <View
             style={[styles.badge, { backgroundColor: colors.primary, borderColor: colors.background }]}
           >
-            <ThemedText style={styles.badgeText} numberOfLines={1}>
+            <Text style={styles.badgeText} numberOfLines={1}>
               {pendingCount > 9 ? '9+' : String(pendingCount)}
-            </ThemedText>
+            </Text>
           </View>
         )}
       </TouchableOpacity>

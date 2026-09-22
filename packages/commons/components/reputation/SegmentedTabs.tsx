@@ -1,7 +1,7 @@
 import React from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 
 /** One segmented tab option. */
 export interface SegmentedTabItem<T extends string> {
@@ -36,7 +36,7 @@ export function SegmentedTabs<T extends string>({ items, value, onChange }: Segm
             accessibilityState={{ selected: active }}
             style={[styles.tab, active && { backgroundColor: colors.backgroundSecondary }]}
           >
-            <ThemedText
+            <Text
               style={[
                 styles.label,
                 {
@@ -46,7 +46,7 @@ export function SegmentedTabs<T extends string>({ items, value, onChange }: Segm
               ]}
             >
               {item.label}
-            </ThemedText>
+            </Text>
           </TouchableOpacity>
         );
       })}

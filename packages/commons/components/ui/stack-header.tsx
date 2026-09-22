@@ -1,8 +1,8 @@
 import React from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 
 interface StackHeaderProps {
   title: string;
@@ -61,9 +61,9 @@ export function StackHeader({
           )}
         </View>
       )}
-      <ThemedText style={[styles.title, { color: colors.text }]}>{title}</ThemedText>
+      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
       {subtitle && (
-        <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</ThemedText>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
       )}
     </View>
   );

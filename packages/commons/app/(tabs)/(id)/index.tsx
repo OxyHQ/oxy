@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
 import { Icons } from '@/constants/icons';
@@ -17,7 +18,6 @@ import { buildUserDid } from '@oxy.so/core';
 import { Fab } from '@oxy.so/bloom/fab';
 import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import {
   Screen,
@@ -220,7 +220,7 @@ export default function IdScreen() {
                 <IdQrBack payload={qrPayload} caption={t('civic.id.qrCaption')} />
               ) : (
                 <View style={styles.qrPlaceholder}>
-                  <ThemedText style={styles.qrPlaceholderText}>{t('civic.id.qrPending')}</ThemedText>
+                  <Text style={styles.qrPlaceholderText}>{t('civic.id.qrPending')}</Text>
                 </View>
               )
             }
@@ -228,12 +228,12 @@ export default function IdScreen() {
           {attestedVisible && (
             <View style={[styles.attestedBadge, { backgroundColor: colors.card }]}>
               <Icons.verified size='sm' fill={colors.success} />
-              <ThemedText style={styles.attestedBadgeText}>{t('civic.attest.confirmed')}</ThemedText>
+              <Text style={styles.attestedBadgeText}>{t('civic.attest.confirmed')}</Text>
             </View>
           )}
-          <ThemedText style={[styles.flipHint, { color: colors.textSecondary }]}>
+          <Text style={[styles.flipHint, { color: colors.textSecondary }]}>
             {t('civic.id.flipHint')}
-          </ThemedText>
+          </Text>
         </View>
 
         {/* Self-custody identity actions (native only). */}
@@ -273,9 +273,9 @@ export default function IdScreen() {
         {did && (
           <View style={styles.gutter}>
             <Section title={t('civic.id.didLabel')}>
-              <ThemedText style={[styles.didValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
+              <Text style={[styles.didValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
                 {did}
-              </ThemedText>
+              </Text>
             </Section>
           </View>
         )}

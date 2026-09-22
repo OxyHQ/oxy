@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { Icons } from '@/constants/icons';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
 import { Badge } from '@oxy.so/bloom/badge';
@@ -8,7 +9,6 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { VerifiableCredentialResponse, CredentialStatus } from '@oxy.so/contracts';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   StackHeader,
@@ -98,7 +98,7 @@ export default function CredentialsScreen() {
               onPress={() => query.refetch()}
               accessibilityRole="button"
             >
-              <ThemedText style={styles.retryText}>{t('common.retry')}</ThemedText>
+              <Text style={styles.retryText}>{t('common.retry')}</Text>
             </TouchableOpacity>
           }
           minHeight={360}
@@ -119,9 +119,9 @@ export default function CredentialsScreen() {
 
     return (
       <>
-        <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           {t('civic.credentials.subtitle')}
-        </ThemedText>
+        </Text>
 
         {!isOnline && (
           <Badge
@@ -192,9 +192,9 @@ function CredentialRow({ credential, colors, t, onPress }: CredentialRowProps) {
     <TouchableOpacity onPress={onPress} onPressIn={handlePressIn} accessibilityRole="button" activeOpacity={0.6}>
       <View style={styles.row}>
         <View style={styles.rowHeader}>
-          <ThemedText style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
+          <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
             {typeLabel}
-          </ThemedText>
+          </Text>
           <Badge
             appearance="subtle"
             tone={bloomToneFor(statusMeta.tone)}
@@ -205,19 +205,19 @@ function CredentialRow({ credential, colors, t, onPress }: CredentialRowProps) {
         </View>
 
         {preview.length > 0 && (
-          <ThemedText style={[styles.rowPreview, { color: colors.textSecondary }]} numberOfLines={2}>
+          <Text style={[styles.rowPreview, { color: colors.textSecondary }]} numberOfLines={2}>
             {preview}
-          </ThemedText>
+          </Text>
         )}
 
         <View style={styles.rowMeta}>
-          <ThemedText style={[styles.rowMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
+          <Text style={[styles.rowMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
             {t('civic.credentials.issuedBy', { issuer: issuerRef })}
-          </ThemedText>
+          </Text>
           {issuedOn.length > 0 && (
-            <ThemedText style={[styles.rowMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
+            <Text style={[styles.rowMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
               {t('civic.credentials.issuedOn', { date: issuedOn })}
-            </ThemedText>
+            </Text>
           )}
         </View>
       </View>

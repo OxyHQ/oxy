@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
@@ -11,7 +12,6 @@ import {
   StackHeader,
   Section,
 } from '@/components/ui';
-import { ThemedText } from '@/components/themed-text';
 import { RecoveryPhraseGrid } from '@/components/identity/RecoveryPhraseGrid';
 import { useColors } from '@/hooks/useColors';
 import { authenticate, canUseBiometrics, getErrorMessage } from '@/lib/biometricAuth';
@@ -101,9 +101,9 @@ export default function RecoveryPhraseScreen() {
             <RecoveryPhraseGrid words={state.words} textColor={colors.text} />
           </View>
 
-          <ThemedText style={[styles.copyWarning, { color: colors.warning }]}>
+          <Text style={[styles.copyWarning, { color: colors.warning }]}>
             {t('settings.recoveryPhrase.copyWarning')}
-          </ThemedText>
+          </Text>
 
           <Button appearance="outline" tone="neutral" onPress={hide}>
             {t('settings.recoveryPhrase.hide')}
@@ -136,12 +136,12 @@ export default function RecoveryPhraseScreen() {
         <Section>
           <View style={styles.lockedHeader}>
             <Icons.shield size='2xl' fill={colors.tint} />
-            <ThemedText style={[styles.lockedTitle, { color: colors.text }]}>
+            <Text style={[styles.lockedTitle, { color: colors.text }]}>
               {t('settings.recoveryPhrase.lockedTitle')}
-            </ThemedText>
-            <ThemedText style={[styles.lockedBody, { color: colors.textSecondary }]}>
+            </Text>
+            <Text style={[styles.lockedBody, { color: colors.textSecondary }]}>
               {t('settings.recoveryPhrase.lockedBody')}
-            </ThemedText>
+            </Text>
           </View>
 
           <Admonition type="warning">

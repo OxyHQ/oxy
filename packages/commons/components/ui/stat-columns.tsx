@@ -1,7 +1,7 @@
 import React from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 
 export interface StatColumn {
   label: string;
@@ -27,12 +27,12 @@ export function StatColumns({ items }: StatColumnsProps) {
         <React.Fragment key={item.label}>
           {index > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
           <View style={styles.stat}>
-            <ThemedText style={[styles.label, { color: colors.textSecondary }]} numberOfLines={1}>
+            <Text style={[styles.label, { color: colors.textSecondary }]} numberOfLines={1}>
               {item.label}
-            </ThemedText>
-            <ThemedText style={[styles.value, { color: item.valueColor ?? colors.text }]} numberOfLines={1}>
+            </Text>
+            <Text style={[styles.value, { color: item.valueColor ?? colors.text }]} numberOfLines={1}>
               {item.value}
-            </ThemedText>
+            </Text>
           </View>
         </React.Fragment>
       ))}

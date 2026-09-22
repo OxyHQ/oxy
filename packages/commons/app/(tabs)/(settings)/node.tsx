@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
 import { Card } from '@oxy.so/bloom/card';
@@ -10,7 +11,6 @@ import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet, TextInput, TouchableOpacity, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   StackHeader,
@@ -189,9 +189,9 @@ export default function NodeScreen() {
   const renderNoNode = () => (
     <>
       <Section title={t('civic.nodes.intro.title')}>
-        <ThemedText style={[styles.intro, { color: colors.text }]}>
+        <Text style={[styles.intro, { color: colors.text }]}>
           {t('civic.nodes.intro.body')}
-        </ThemedText>
+        </Text>
       </Section>
 
       <Section title={t('civic.nodes.how.title')}>
@@ -226,17 +226,17 @@ export default function NodeScreen() {
           >
             <View style={styles.choiceRow}>
               <View style={styles.choiceText}>
-                <ThemedText style={[styles.choiceTitle, { color: colors.tint }]}>
+                <Text style={[styles.choiceTitle, { color: colors.tint }]}>
                   {t('civic.nodes.managed.cta')}
-                </ThemedText>
-                <ThemedText style={[styles.choiceSubtitle, { color: colors.textSecondary }]}>
+                </Text>
+                <Text style={[styles.choiceSubtitle, { color: colors.textSecondary }]}>
                   {t('civic.nodes.managed.ctaSubtitle')}
-                </ThemedText>
+                </Text>
               </View>
               {provisionBusy && (
-                <ThemedText style={[styles.choiceBusy, { color: colors.tint }]}>
+                <Text style={[styles.choiceBusy, { color: colors.tint }]}>
                   {t('civic.nodes.provision.submitting')}
-                </ThemedText>
+                </Text>
               )}
             </View>
           </Card>
@@ -248,9 +248,9 @@ export default function NodeScreen() {
           ) : (
             <>
               <Button appearance="outline" tone="accent" size="lg" icon={Icons.terminal} onPress={openForm} disabled={provisionBusy} style={fullWidthControl}>{t('civic.nodes.selfHost.cta')}</Button>
-              <ThemedText style={[styles.choiceHint, { color: colors.textSecondary }]}>
+              <Text style={[styles.choiceHint, { color: colors.textSecondary }]}>
                 {t('civic.nodes.selfHost.ctaSubtitle')}
-              </ThemedText>
+              </Text>
             </>
           )}
         </View>
@@ -261,9 +261,9 @@ export default function NodeScreen() {
       </Admonition>
 
       {provision.biometricFailed && (
-        <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+        <Text style={[styles.inlineWarn, { color: colors.warning }]}>
           {t('civic.nodes.provision.biometricFailed')}
-        </ThemedText>
+        </Text>
       )}
 
       {provision.state === 'error' && (
@@ -280,9 +280,9 @@ export default function NodeScreen() {
     <>
       <Section title={t('civic.nodes.form.title')} subtitle={t('civic.nodes.form.subtitle')}>
         <View style={styles.field}>
-          <ThemedText style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
             {t('civic.nodes.form.endpointLabel')}
-          </ThemedText>
+          </Text>
           <TextInput
             value={endpoint}
             onChangeText={setEndpoint}
@@ -295,17 +295,17 @@ export default function NodeScreen() {
             accessibilityLabel={t('civic.nodes.form.endpointLabel')}
             style={[styles.input, { color: colors.text, borderColor: colors.border }]}
           />
-          <ThemedText style={[styles.fieldHint, { color: colors.textSecondary }]}>
+          <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>
             {endpoint.trim().length > 0 && !endpointValid
               ? t('civic.nodes.form.endpointInvalid')
               : t('civic.nodes.form.endpointHint')}
-          </ThemedText>
+          </Text>
         </View>
 
         <View style={styles.field}>
-          <ThemedText style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
             {t('civic.nodes.form.publicKeyLabel')}
-          </ThemedText>
+          </Text>
           <TextInput
             value={publicKey}
             onChangeText={setPublicKey}
@@ -317,11 +317,11 @@ export default function NodeScreen() {
             accessibilityLabel={t('civic.nodes.form.publicKeyLabel')}
             style={[styles.input, { color: colors.text, borderColor: colors.border }]}
           />
-          <ThemedText style={[styles.fieldHint, { color: colors.textSecondary }]}>
+          <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>
             {publicKey.trim().length > 0 && !publicKeyValid
               ? t('civic.nodes.form.publicKeyInvalid')
               : t('civic.nodes.form.publicKeyHint')}
-          </ThemedText>
+          </Text>
         </View>
       </Section>
 
@@ -342,22 +342,22 @@ export default function NodeScreen() {
                   selected && { backgroundColor: colors.primarySubtle },
                 ]}
               >
-                <ThemedText style={[styles.modeChipText, { color: selected ? colors.tint : colors.text }]}>
+                <Text style={[styles.modeChipText, { color: selected ? colors.tint : colors.text }]}>
                   {t(`civic.nodes.form.mode${option === 'pull' ? 'Pull' : 'Push'}`)}
-                </ThemedText>
+                </Text>
               </TouchableOpacity>
             );
           })}
         </View>
-        <ThemedText style={[styles.fieldHint, { color: colors.textSecondary }]}>
+        <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>
           {t(`civic.nodes.form.mode${mode === 'pull' ? 'Pull' : 'Push'}Desc`)}
-        </ThemedText>
+        </Text>
       </Section>
 
       {register.biometricFailed && (
-        <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+        <Text style={[styles.inlineWarn, { color: colors.warning }]}>
           {t('civic.nodes.form.biometricFailed')}
-        </ThemedText>
+        </Text>
       )}
 
       {register.state === 'error' && (
@@ -369,9 +369,9 @@ export default function NodeScreen() {
       <View style={styles.formActions}>
         <Button appearance="solid" tone="accent" size="lg" icon={Icons.personhood} onPress={handleRegister} loading={registerBusy} disabled={!endpointValid || !publicKeyValid || registerBusy} style={fullWidthControl}>{t('civic.nodes.form.cta')}</Button>
         {registerBusy && (
-          <ThemedText style={[styles.centerMuted, { color: colors.textSecondary }]}>
+          <Text style={[styles.centerMuted, { color: colors.textSecondary }]}>
             {t('civic.nodes.form.submitting')}
-          </ThemedText>
+          </Text>
         )}
         <Button appearance="outline" tone="accent" size="lg" onPress={closeForm} disabled={registerBusy} style={fullWidthControl}>{t('civic.nodes.form.cancel')}</Button>
       </View>
@@ -395,12 +395,12 @@ export default function NodeScreen() {
             icon={Icons[meta.icon]}
             content={t(meta.labelKey)}
           />
-          <ThemedText style={[styles.heroType, { color: colors.text }]}>
+          <Text style={[styles.heroType, { color: colors.text }]}>
             {t(isManaged ? 'civic.nodes.type.managed' : 'civic.nodes.type.selfHosted')}
-          </ThemedText>
-          <ThemedText style={[styles.heroTypeDesc, { color: colors.textSecondary }]}>
+          </Text>
+          <Text style={[styles.heroTypeDesc, { color: colors.textSecondary }]}>
             {t(isManaged ? 'civic.nodes.type.managedDesc' : 'civic.nodes.type.selfHostedDesc')}
-          </ThemedText>
+          </Text>
         </View>
 
         {current.status === 'unreachable' && (
@@ -420,12 +420,12 @@ export default function NodeScreen() {
         {/* Endpoint — selectable, full address */}
         <Section title={t('civic.nodes.details.title')}>
           <Card appearance="subtle" tone="neutral" radius="radius-24" style={styles.softSurface}>
-            <ThemedText style={[styles.endpointCaption, { color: colors.textSecondary }]}>
+            <Text style={[styles.endpointCaption, { color: colors.textSecondary }]}>
               {t('civic.nodes.details.endpoint')}
-            </ThemedText>
-            <ThemedText selectable style={[styles.endpointValue, { color: colors.text }]}>
+            </Text>
+            <Text selectable style={[styles.endpointValue, { color: colors.text }]}>
               {current.endpoint}
-            </ThemedText>
+            </Text>
           </Card>
 
           <GroupedList>
@@ -469,14 +469,14 @@ export default function NodeScreen() {
         </Section>
 
         {syncNode.state === 'done' && (
-          <ThemedText style={[styles.inlineNote, { color: colors.success }]}>
+          <Text style={[styles.inlineNote, { color: colors.success }]}>
             {t('civic.nodes.actions.synced')}
-          </ThemedText>
+          </Text>
         )}
         {syncNode.state === 'error' && (
-          <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+          <Text style={[styles.inlineWarn, { color: colors.warning }]}>
             {t('civic.nodes.actions.syncFailed')}
-          </ThemedText>
+          </Text>
         )}
 
         {/* Inline disconnect confirm */}
@@ -493,9 +493,9 @@ export default function NodeScreen() {
         )}
 
         {remove.biometricFailed && (
-          <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+          <Text style={[styles.inlineWarn, { color: colors.warning }]}>
             {t('civic.nodes.disconnect.biometricFailed')}
-          </ThemedText>
+          </Text>
         )}
         {remove.state === 'error' && (
           <Admonition type="error">

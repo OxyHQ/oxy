@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { Icons } from '@/constants/icons';
 import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
@@ -7,7 +8,6 @@ import { useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
 import { ActivityHeatmap } from '@oxy.so/bloom/activity-heatmap';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   SessionGate,
@@ -175,9 +175,9 @@ export default function ReputationScreen() {
             <StandingSection balance={balance} sources={sources} isOffline={!isOnline} />
 
             <View style={styles.heatmapSection}>
-              <ThemedText style={[styles.heatmapTitle, { color: colors.text }]}>
+              <Text style={[styles.heatmapTitle, { color: colors.text }]}>
                 {t('civic.reputation.activity.heatmapTitle')}
-              </ThemedText>
+              </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -192,9 +192,9 @@ export default function ReputationScreen() {
               </ScrollView>
             </View>
 
-            <ThemedText style={[styles.footnote, { color: colors.textSecondary }]}>
+            <Text style={[styles.footnote, { color: colors.textSecondary }]}>
               {t('civic.reputation.footnote')}
-            </ThemedText>
+            </Text>
           </View>
         ) : (
           <ActivityList

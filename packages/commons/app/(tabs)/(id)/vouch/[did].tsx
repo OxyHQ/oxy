@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
@@ -8,7 +9,6 @@ import { View, Text, StyleSheet, Image, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   StackHeader,
@@ -97,16 +97,16 @@ export default function VouchScreen() {
             <View style={styles.resultActions}>
               <View style={styles.stakedChip}>
                 <Icons.lock size='sm' fill={colors.textSecondary} />
-                <ThemedText style={[styles.stakedText, { color: colors.textSecondary }]}>
+                <BloomText style={[styles.stakedText, { color: colors.textSecondary }]}>
                   {t('civic.vouch.confirm.done.staked', { stake: result.stakeAmount })}
-                </ThemedText>
+                </BloomText>
               </View>
               <Button appearance="outline" tone="accent" size="lg" icon={Icons.undo} onPress={withdraw} disabled={busy}>{t('civic.vouch.confirm.withdraw')}</Button>
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
               {busy && (
-                <ThemedText style={[styles.muted, { color: colors.textSecondary }]}>
+                <BloomText style={[styles.muted, { color: colors.textSecondary }]}>
                   {t('civic.vouch.confirm.withdrawing')}
-                </ThemedText>
+                </BloomText>
               )}
             </View>
           }
@@ -170,28 +170,28 @@ export default function VouchScreen() {
             </View>
           )}
           <View style={styles.identityText}>
-            <ThemedText style={styles.name} numberOfLines={2}>
+            <BloomText style={styles.name} numberOfLines={2}>
               {subjectName || t('civic.vouch.confirm.unknownPerson')}
-            </ThemedText>
+            </BloomText>
             {card?.username && (
-              <ThemedText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
+              <BloomText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
                 @{card.username}
-              </ThemedText>
+              </BloomText>
             )}
           </View>
         </View>
 
-        <ThemedText style={[styles.intro, { color: colors.text }]}>
+        <BloomText style={[styles.intro, { color: colors.text }]}>
           {t('civic.vouch.confirm.intro', { name: subjectName || t('civic.vouch.confirm.unknownPerson') })}
-        </ThemedText>
+        </BloomText>
 
         {/* Stake input */}
         <Section title={t('civic.vouch.confirm.stakeTitle')} subtitle={t('civic.vouch.confirm.stakeHint')}>
           <View style={styles.stakeRow}>
             <Icons.shieldStar size='md' fill={colors.textTertiary} />
-            <ThemedText style={[styles.stakeLabel, { color: colors.text }]}>
+            <BloomText style={[styles.stakeLabel, { color: colors.text }]}>
               {t('civic.vouch.confirm.stakeLabel')}
-            </ThemedText>
+            </BloomText>
             <TextInput
               value={stakeText}
               onChangeText={setStakeText}
@@ -210,17 +210,17 @@ export default function VouchScreen() {
         </Admonition>
 
         {biometricFailed && (
-          <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+          <BloomText style={[styles.inlineWarn, { color: colors.warning }]}>
             {t('civic.vouch.confirm.biometricFailed')}
-          </ThemedText>
+          </BloomText>
         )}
 
         <Button appearance="solid" tone="accent" size="lg" icon={Icons.personhood} onPress={handleVouch} loading={busy} style={fullWidthControl}>{t('civic.vouch.confirm.cta')}</Button>
 
         {busy && (
-          <ThemedText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
+          <BloomText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
             {t('civic.vouch.confirm.submitting')}
-          </ThemedText>
+          </BloomText>
         )}
       </>
     );

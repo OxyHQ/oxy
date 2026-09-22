@@ -1,11 +1,11 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { Badge } from '@oxy.so/bloom/badge';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Icons } from '@/constants/icons';
 import QRCode from 'react-native-qrcode-svg';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { useAttestQr } from '@/hooks/useAttestQr';
 import { useTranslation } from '@/lib/i18n';
 
@@ -77,12 +77,12 @@ export function AttestQrSheet({ onClose }: AttestQrSheetProps) {
       }
     >
       <View style={styles.body}>
-        <ThemedText style={[styles.title, { color: colors.text }]}>
+        <Text style={[styles.title, { color: colors.text }]}>
           {t('civic.attest.request.title')}
-        </ThemedText>
-        <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           {t('civic.attest.request.subtitle')}
-        </ThemedText>
+        </Text>
 
         <View style={[styles.qrSurface, { backgroundColor: colors.card }]}>
           {state === 'loading' && <ActivityIndicator size="large" color={colors.tint} />}
@@ -90,9 +90,9 @@ export function AttestQrSheet({ onClose }: AttestQrSheetProps) {
           {state === 'error' && (
             <View style={styles.qrState}>
               <Icons.alert size='2xl' fill={colors.error} />
-              <ThemedText style={[styles.qrStateText, { color: colors.text }]}>
+              <Text style={[styles.qrStateText, { color: colors.text }]}>
                 {t('civic.attest.request.buildError')}
-              </ThemedText>
+              </Text>
             </View>
           )}
 
@@ -105,9 +105,9 @@ export function AttestQrSheet({ onClose }: AttestQrSheetProps) {
           {state === 'ready' && expired && (
             <View style={styles.qrState}>
               <Icons.expired size='2xl' fill={colors.textSecondary} />
-              <ThemedText style={[styles.qrStateText, { color: colors.textSecondary }]}>
+              <Text style={[styles.qrStateText, { color: colors.textSecondary }]}>
                 {t('civic.attest.request.expired')}
-              </ThemedText>
+              </Text>
             </View>
           )}
         </View>
@@ -116,9 +116,9 @@ export function AttestQrSheet({ onClose }: AttestQrSheetProps) {
           <Badge appearance="subtle" tone="warning" size="label-small" icon={Icons.expired} content={t('civic.attest.request.expiresIn', { time: mmss })} />
         )}
 
-        <ThemedText style={[styles.hint, { color: colors.textSecondary }]}>
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>
           {t('civic.attest.request.hint')}
-        </ThemedText>
+        </Text>
 
       </View>
     </Dialog>

@@ -1,10 +1,10 @@
 import React, { useCallback, useState } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet, TextInput, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { Button } from '@oxy.so/bloom/button';
 import {
   ImportantBanner,
@@ -122,7 +122,7 @@ export default function DeleteAccountScreen() {
   if (oxyLoading) {
     return (
       <View style={[styles.center, styles.flex, { backgroundColor: colors.background }]}>
-        <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('common.loadingShort')}</ThemedText>
+        <Text style={[styles.loadingText, { color: colors.text }]}>{t('common.loadingShort')}</Text>
       </View>
     );
   }
@@ -148,16 +148,16 @@ export default function DeleteAccountScreen() {
           ].map((item) => (
             <View key={item} style={styles.bulletRow}>
               <Icons.closeCircle size='sm' fill={colors.error} style={styles.bulletIcon} />
-              <ThemedText style={[styles.bulletText, { color: colors.text }]}>{item}</ThemedText>
+              <Text style={[styles.bulletText, { color: colors.text }]}>{item}</Text>
             </View>
           ))}
         </View>
       </Section>
 
       <Section title={t('data.deleteAccount.confirm')}>
-        <ThemedText style={[styles.label, { color: colors.text }]}>
-          {t('data.deleteAccount.typeUsername')} <ThemedText style={[styles.usernameHint, { color: colors.error }]}>{username}</ThemedText>
-        </ThemedText>
+        <Text style={[styles.label, { color: colors.text }]}>
+          {t('data.deleteAccount.typeUsername')} <Text style={[styles.usernameHint, { color: colors.error }]}>{username}</Text>
+        </Text>
         <View
           style={[
             styles.inputWrapper,
@@ -180,9 +180,9 @@ export default function DeleteAccountScreen() {
           />
         </View>
         {confirmText.length > 0 && !isConfirmValid && (
-          <ThemedText style={[styles.errorText, { color: colors.error }]}>
+          <Text style={[styles.errorText, { color: colors.error }]}>
             {t('data.deleteAccount.usernameMismatch')}
-          </ThemedText>
+          </Text>
         )}
 
         <View style={styles.buttonRow}>

@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { Icons } from '@/constants/icons';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -6,7 +7,6 @@ import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   StackHeader,
@@ -57,7 +57,7 @@ export default function ValidatorInboxScreen() {
               onPress={() => refetch()}
               accessibilityRole="button"
             >
-              <ThemedText style={styles.retryText}>{t('common.retry')}</ThemedText>
+              <Text style={styles.retryText}>{t('common.retry')}</Text>
             </TouchableOpacity>
           }
           minHeight={360}

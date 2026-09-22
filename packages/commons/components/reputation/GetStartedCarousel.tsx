@@ -1,8 +1,8 @@
 import React from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { AppIcon, Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   SCREEN_PADDING,
 } from '@/components/ui';
@@ -43,7 +43,7 @@ export function GetStartedCarousel({ title, dismissLabel, items, onDismiss }: Ge
   return (
     <View style={styles.section}>
       <View style={styles.headerRow}>
-        <ThemedText style={[styles.heading, { color: colors.text }]}>{title}</ThemedText>
+        <Text style={[styles.heading, { color: colors.text }]}>{title}</Text>
         <TouchableOpacity
           onPress={onDismiss}
           accessibilityRole="button"
@@ -73,15 +73,15 @@ export function GetStartedCarousel({ title, dismissLabel, items, onDismiss }: Ge
             <View style={[styles.iconTile, { backgroundColor: withAlpha(item.color, 0.14) }]}>
               <AppIcon name={item.icon} size='md' fill={item.color} />
             </View>
-            <ThemedText style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+            <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
               {item.title}
-            </ThemedText>
-            <ThemedText
+            </Text>
+            <Text
               style={[styles.cardDesc, { color: colors.textSecondary }]}
               numberOfLines={2}
             >
               {item.description}
-            </ThemedText>
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>

@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
@@ -8,7 +9,6 @@ import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   StackHeader,
@@ -123,9 +123,9 @@ export default function ValidationVoteScreen() {
     return (
       <>
         <View style={styles.headerBlock}>
-          <ThemedText style={[styles.actionType, { color: colors.text }]}>
+          <Text style={[styles.actionType, { color: colors.text }]}>
             {prettyActionType(request.actionType)}
-          </ThemedText>
+          </Text>
           {request.highValue && (
             <Badge
               appearance="subtle"
@@ -137,23 +137,23 @@ export default function ValidationVoteScreen() {
           )}
         </View>
 
-        <ThemedText style={[styles.prompt, { color: colors.textSecondary }]}>
+        <Text style={[styles.prompt, { color: colors.textSecondary }]}>
           {t('civic.validate.vote.prompt')}
-        </ThemedText>
+        </Text>
 
         <Section title={t('civic.validate.vote.detailsTitle')}>
           {entries.length === 0 ? (
-            <ThemedText style={[styles.muted, { color: colors.textSecondary }]}>
+            <Text style={[styles.muted, { color: colors.textSecondary }]}>
               {t('civic.validate.vote.noDetails')}
-            </ThemedText>
+            </Text>
           ) : (
             <GroupedList>
               {entries.map((e) => (
                 <View key={e.key} style={styles.detailRow}>
-                  <ThemedText style={[styles.detailKey, { color: colors.textSecondary }]}>{e.key}</ThemedText>
-                  <ThemedText style={[styles.detailValue, { color: colors.text }]} numberOfLines={3}>
+                  <Text style={[styles.detailKey, { color: colors.textSecondary }]}>{e.key}</Text>
+                  <Text style={[styles.detailValue, { color: colors.text }]} numberOfLines={3}>
                     {e.value}
-                  </ThemedText>
+                  </Text>
                 </View>
               ))}
             </GroupedList>
@@ -161,9 +161,9 @@ export default function ValidationVoteScreen() {
         </Section>
 
         {biometricFailed && (
-          <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+          <Text style={[styles.inlineWarn, { color: colors.warning }]}>
             {t('civic.validate.vote.biometricFailed')}
-          </ThemedText>
+          </Text>
         )}
 
         <View style={styles.verdictRow}>
@@ -174,15 +174,15 @@ export default function ValidationVoteScreen() {
         <Button appearance="outline" tone="accent" size="lg" onPress={() => vote('abstain')} disabled={busy} style={fullWidthControl}>{t('civic.validate.vote.abstain')}</Button>
 
         <TouchableOpacity style={styles.recuse} onPress={deny} disabled={busy} accessibilityRole="button">
-          <ThemedText style={[styles.recuseText, { color: colors.textSecondary }]}>
+          <Text style={[styles.recuseText, { color: colors.textSecondary }]}>
             {t('civic.validate.vote.recuse')}
-          </ThemedText>
+          </Text>
         </TouchableOpacity>
 
         {busy && (
-          <ThemedText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
+          <Text style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
             {t('civic.validate.vote.submitting')}
-          </ThemedText>
+          </Text>
         )}
       </>
     );
