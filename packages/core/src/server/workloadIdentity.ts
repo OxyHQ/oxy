@@ -1,4 +1,7 @@
-import { createHash, createHmac } from 'node:crypto';
+import { loadNodeCrypto } from '@oxy.so/protocol';
+
+/** Just the two primitives this module signs with. */
+type NodeCryptoSubset = Pick<Awaited<ReturnType<typeof loadNodeCrypto>>, 'createHash' | 'createHmac'>;
 
 /**
  * Asking Oxy for a service token by proving what this process IS (ADR 0026).
@@ -92,12 +95,12 @@ async function containerCredentials(fetchImpl: typeof fetch): Promise<ContainerC
   return credentials;
 }
 
-function hmac(key: Buffer | string, data: string): Buffer {
-  return createHmac('sha256', key).update(data, 'utf8').digest();
+function hmac(crypto: NodeCryptoSubset, key: Buffer | string, data: string): Buffer {
+  return crypto.createHmac('sha256', key).update(data, 'utf8').digest();
 }
 
-function sha256Hex(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex');
+function sha256Hex(crypto: NodeCryptoSubset, value: string): string {
+  return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
 /**
@@ -107,7 +110,7 @@ function sha256Hex(value: string): string {
  * attestation whose signature does not cover it, because a nonce the signature
  * does not cover can be swapped by whoever captured the attestation.
  */
-function signGetCallerIdentity(credentials: ContainerCredentials, nonce: string, now: Date): Record<string, string> {
+function signGetCallerIdentity(crypto: NodeCryptoSubset, credentials: ContainerCredentials, nonce: string, now: Date): Record<string, string> {
   const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const dateStamp = amzDate.slice(0, 8);
 
@@ -128,14 +131,18 @@ function signGetCallerIdentity(credentials: ContainerCredentials, nonce: string,
     '',
     canonicalHeaders,
     signedHeaders,
-    sha256Hex(STS_BODY),
+    sha256Hex(crypto, STS_BODY),
   ].join('\n');
 
   const scope = `${dateStamp}/${STS_REGION}/sts/aws4_request`;
-  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonicalRequest)].join('\n');
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(crypto, canonicalRequest)].join('\n');
 
-  const signingKey = hmac(hmac(hmac(hmac(`AWS4${credentials.SecretAccessKey}`, dateStamp), STS_REGION), 'sts'), 'aws4_request');
-  const signature = createHmac('sha256', signingKey).update(stringToSign, 'utf8').digest('hex');
+  const signingKey = hmac(
+    crypto,
+    hmac(crypto, hmac(crypto, hmac(crypto, `AWS4${credentials.SecretAccessKey}`, dateStamp), STS_REGION), 'sts'),
+    'aws4_request',
+  );
+  const signature = crypto.createHmac('sha256', signingKey).update(stringToSign, 'utf8').digest('hex');
 
   return {
     ...headers,
@@ -147,8 +154,29 @@ function signGetCallerIdentity(credentials: ContainerCredentials, nonce: string,
 
 /** The AWS attestation: signed headers, and nothing else. */
 async function awsContainerAttestation(fetchImpl: typeof fetch, nonce: string): Promise<{ headers: Record<string, string> }> {
+  // `loadNodeCrypto()` rather than a static `import ... from 'node:crypto'`.
+  //
+  // This module is reachable from the ROOT barrel — `mixins/OxyServices.auth`
+  // loads it to decide whether this process can attest — and a static
+  // `node:crypto` there stopped every React Native consumer bundling at all.
+  // Measured with `expo export --platform ios` on `packages/commons`: `Unable
+  // to resolve module node:crypto`, through `server/workloadIdentity.js` ->
+  // `mixins/OxyServices.auth.js` -> `index.js`, so importing one error class
+  // from the barrel was enough. Metro resolves the target of a literal
+  // `import()` at BUILD time, so the `await import(...)` at the call site
+  // deferred execution and nothing else.
+  //
+  // Neither a `.native` sibling nor a `"react-native"` package map fixes it
+  // HERE: the built ESM carries the explicit `.js` extension Node's resolver
+  // needs (`scripts/fix-esm-imports.mjs`), and Metro appends its platform
+  // suffixes to the whole specifier, looking for
+  // `workloadIdentity.js.native.js`. `@oxy.so/protocol`'s `loadNodeCrypto` is
+  // the primitive this package already reaches for in `keyManager` and
+  // `signatureService`, and it is platform-split at its own source, so this
+  // file simply stops naming `node:crypto`.
+  const crypto = await loadNodeCrypto();
   const credentials = await containerCredentials(fetchImpl);
-  return { headers: signGetCallerIdentity(credentials, nonce, new Date()) };
+  return { headers: signGetCallerIdentity(crypto, credentials, nonce, new Date()) };
 }
 
 /**
