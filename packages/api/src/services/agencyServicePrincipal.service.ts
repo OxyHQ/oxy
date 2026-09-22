@@ -6,10 +6,17 @@ import { applications } from '../db/schema/applications';
 import { applicationWorkloadIdentities } from '../db/schema/applicationWorkloadIdentities';
 import { users } from '../db/schema/users';
 import { accountClosureFences } from '../db/schema/accountClosureFences';
-import { intersectScopes, workloadBindingScopes } from '../utils/applicationScopes';
+import {
+  intersectScopes,
+  workloadBindingScopes,
+  type ApplicationScope,
+} from '../utils/applicationScopes';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
-import { workloadAttestationHandle } from './workloadAttestation.service';
+import {
+  isWorkloadAttestationHandle,
+  workloadAttestationHandle,
+} from './workloadAttestation.service';
 
 export interface LiveAgencyServicePrincipal {
   readonly applicationId: string;
@@ -119,7 +126,8 @@ export interface LiveAgencyWorkloadPrincipal {
   /** `wl_…` — what a token minted from this binding carries as `credentialId`. */
   readonly handle: string;
   readonly ownerAccountId: string;
-  readonly scopes: readonly string[];
+  /** What `workloadBindingScopes` decides, in its own vocabulary. */
+  readonly scopes: readonly ApplicationScope[];
 }
 
 /**
@@ -194,6 +202,63 @@ export async function resolveLiveAgencyWorkload(
     ownerAccountId: row.ownerAccountId,
     scopes: workloadBindingScopes(row.bindingScopes, row.applicationScopes),
   };
+}
+
+/**
+ * The same live ceiling, addressed by the HANDLE a minted token carries.
+ *
+ * {@link resolveLiveAgencyWorkload} takes the role because its caller declared
+ * one — a native product agent entry point names the ARN it admits. Every other
+ * consumer of an attested token has only what the token says: `credentialId` is
+ * `workloadAttestationHandle(subject)`, and the handle is SHA-256, so the
+ * subject cannot be read back out of it. This resolves the other way round —
+ * find the binding whose subject DERIVES to this handle — and then asks
+ * {@link resolveLiveAgencyWorkload} the liveness question, so there is exactly
+ * one definition of "a live binding" and this cannot drift from it.
+ *
+ * ## Why `applicationId` scopes the search
+ *
+ * The candidate query is the bindings of the application the token names, and
+ * the handle then has to match one of them exactly. `appId` and `credentialId`
+ * are a PAIR this deployment's own mint wrote together
+ * (`services/workloadIdentity.service.ts` takes both from the binding row), and
+ * the pair is covered by the token's signature — so a caller cannot present one
+ * application's handle under another application's name without forging the
+ * JWT, which is the assumption every other re-read on this path already makes.
+ * `resolveLiveAgencyServicePrincipal` scopes its credential lookup by
+ * `token.appId` for the same reason. What it buys is an indexed lookup
+ * (`application_workload_identities_application_idx`) instead of a scan of
+ * every binding in the table on a request path the inference edge is on.
+ *
+ * It is a FILTER and never an answer: everything returned below comes from the
+ * binding row and the rows it joins, and a binding re-pointed at another
+ * application stops matching here — which is the revocation behaviour
+ * {@link resolveLiveAgencyWorkload} documents.
+ */
+export async function resolveLiveAgencyWorkloadByHandle(
+  applicationId: string,
+  handle: string,
+  now: Date = new Date(),
+): Promise<LiveAgencyWorkloadPrincipal | null> {
+  // Cheap and total: the handle space and the credential-id space are disjoint
+  // (`isWorkloadAttestationHandle`), so this refuses a credential id without a
+  // query rather than looking for a binding that could never exist.
+  if (!isWorkloadAttestationHandle(handle)) return null;
+
+  const candidates = await getDb()
+    .select({
+      provider: applicationWorkloadIdentities.provider,
+      subject: applicationWorkloadIdentities.subject,
+    })
+    .from(applicationWorkloadIdentities)
+    .where(eq(applicationWorkloadIdentities.applicationId, applicationId));
+
+  const match = candidates.find(
+    (candidate) => workloadAttestationHandle(candidate.subject) === handle,
+  );
+  if (match === undefined) return null;
+
+  return resolveLiveAgencyWorkload(applicationId, match.provider, match.subject, now);
 }
 
 export function principalHasCatalogCapability(

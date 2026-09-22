@@ -5,8 +5,8 @@ import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import { applicationWorkloadIdentities } from '../db/schema/applicationWorkloadIdentities';
 import { getRedisClient } from '../config/redis';
-import { isProduction } from '../config/env';
 import { workloadBindingScopes } from '../utils/applicationScopes';
+import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { logger } from '../utils/logger';
 import { mintServiceToken, SERVICE_TOKEN_EXPIRY } from './serviceTokenMint.service';
@@ -238,15 +238,11 @@ export async function exchangeWorkloadAttestation(input: {
     credentialId: attested.attestationId,
     ownerAccountId: binding.ownerAccountId,
     /**
-     * The environment is the DEPLOYMENT's, not the caller's.
-     *
-     * A credential carries its own environment because a human chose one when
-     * they issued it. An attestation carries none — a workload proves what it
-     * is, never which environment it means — so the only honest answer is where
-     * this API is running. Taking it from the request would let a caller mint
-     * itself a production token from staging.
+     * The environment is the DEPLOYMENT's, not the caller's — one definition,
+     * shared with the live re-read that meters and charges what this token
+     * goes on to do. See {@link workloadTokenEnvironment}.
      */
-    environment: isProduction() ? 'production' : 'development',
+    environment: workloadTokenEnvironment(),
     scopes,
   });
 
