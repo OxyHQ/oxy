@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
-import { useColors } from '@/hooks/useColors';
-import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
+import React, { useMemo } from 'react';
+import { RefreshControl, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Screen as BloomScreen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { useMinimizeOnScroll, useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 /** Horizontal gutter shared by every Commons screen. */
 export const SCREEN_PADDING = 22;
@@ -17,6 +18,24 @@ export const SECTION_GAP = 32;
  * for the native bar and the FAB together.
  */
 const SCREEN_BOTTOM_CLEARANCE = 44;
+
+/**
+ * Top air above a screen's first element, ON TOP of the safe-area inset.
+ *
+ * PRESERVED GEOMETRY, NOT A DESIGN. The retired `ScreenContentWrapper` padded
+ * its scroller by a `headerHeight` state whose initial estimate was
+ * `insets.top + 10 + 44 + 10`, then kept that estimate forever: the only writer
+ * was a `headerHeight` shared value on the old `ScrollContext`, and NOTHING in
+ * the app ever wrote to it. The old `Screen` then added another 8. So every
+ * screen has been sitting at `insets.top + 72`, and 64 of that is clearance for
+ * a floating header this app does not render.
+ *
+ * That is very probably too much, and it is deliberately NOT changed here: this
+ * commit moves the machinery to Bloom without moving a pixel, so a visual
+ * regression can only come from Bloom. Tightening it is a one-line change to
+ * this constant, and it wants a device to judge.
+ */
+const SCREEN_TOP_AIR = 72;
 
 /**
  * Bottom inset every Commons screen leaves free for the floating tab bar.
@@ -47,45 +66,88 @@ interface ScreenProps {
   /** Air between direct children of the content column. */
   gap?: number;
   contentStyle?: StyleProp<ViewStyle>;
+  /** Overlaid top chrome. Bloom measures it and reserves its footprint. */
+  header?: React.ReactNode;
+  /** `false` while a navigator retains this screen off-screen. */
+  active?: boolean;
 }
 
 /**
  * The canonical Commons scroll surface: a single vertical scroller on the flat
  * `background` (no stacked cards), with a generous 22pt gutter, a 32pt rhythm
- * between sections, and a tab-bar-clearing bottom inset. Separation between
- * sections is WHITESPACE — the children compose freely (hero, sections, rows).
+ * between sections, and a tab-bar-clearing bottom inset.
+ *
+ * It is a COMPOSITION of Bloom's `Screen` + `ScreenScrollView`, not a
+ * reimplementation: Bloom owns the scroll offset, the collapse progress, the
+ * measured chrome footprints, keyboard handling and scroll restoration. What
+ * stays here is the two things Bloom cannot know — this app's gutter and
+ * section rhythm, and the bridge to a tab bar that the NAVIGATOR renders rather
+ * than this screen.
+ *
+ * That bridge is `useMinimizeOnScroll()` passed as `ScreenScrollView`'s
+ * `handler`. The hand-rolled predecessor carried a comment explaining that it
+ * could not use that hook, because "two handlers cannot both own `onScroll`";
+ * Bloom 4 composes them with `useComposedEventHandler`, on the UI thread, so
+ * the workaround — a second copy of the direction/threshold logic driving
+ * `setMinimized` by hand — is deleted rather than ported.
  */
 export function Screen({
   children,
-  refreshing,
+  refreshing = false,
   onRefresh,
   padded = true,
   gap = SECTION_GAP,
   contentStyle,
+  header,
+  active,
 }: ScreenProps) {
-  const colors = useColors();
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const bottomPad = useScreenBottomPad();
+  const minimizeOnScroll = useMinimizeOnScroll();
+
+  const topPad = header ? 0 : insets.top + SCREEN_TOP_AIR;
+
+  const contentContainerStyle = useMemo(
+    () => [
+      styles.content,
+      padded ? { paddingHorizontal: SCREEN_PADDING, gap } : null,
+      { paddingTop: topPad },
+      contentStyle,
+    ],
+    [padded, gap, topPad, contentStyle],
+  );
 
   return (
-    <ScreenContentWrapper refreshing={refreshing} onRefresh={onRefresh}>
-      <View style={[styles.flex, { backgroundColor: colors.background }]}>
-        {padded ? (
-          <View style={[styles.content, { gap, paddingBottom: bottomPad }, contentStyle]}>
-            {children}
-          </View>
-        ) : (
-          children
-        )}
-      </View>
-    </ScreenContentWrapper>
+    <BloomScreen header={header} active={active} contentClearance={bottomPad}>
+      <ScreenScrollView
+        handler={minimizeOnScroll}
+        active={active}
+        contentContainerStyle={contentContainerStyle}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.tint}
+              colors={[colors.tint]}
+              progressViewOffset={topPad + 8}
+              progressBackgroundColor={colors.background}
+            />
+          ) : undefined
+        }
+      >
+        {children}
+      </ScreenScrollView>
+    </BloomScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
   content: {
     flexGrow: 1,
-    paddingHorizontal: SCREEN_PADDING,
-    paddingTop: 8,
+    paddingBottom: 20,
   },
 });
