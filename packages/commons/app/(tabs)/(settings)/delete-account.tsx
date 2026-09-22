@@ -146,7 +146,7 @@ export default function DeleteAccountScreen() {
             t('data.deleteAccount.items.sessions'),
             t('data.deleteAccount.items.settings'),
           ].map((item) => (
-            <View key={item} style={styles.bulletRow}>
+            <View key={item} className="flex-row items-start">
               <Icons.closeCircle size='sm' fill={colors.error} style={styles.bulletIcon} />
               <Text style={[styles.bulletText, { color: colors.text }]}>{item}</Text>
             </View>
@@ -185,9 +185,9 @@ export default function DeleteAccountScreen() {
           </Text>
         )}
 
-        <View style={styles.buttonRow}>
-          <Button appearance="outline" tone="neutral" onPress={() => router.back()} disabled={isDeleting} style={styles.buttonFlex}>{t('data.deleteAccount.cancel')}</Button>
-          <Button appearance="solid" tone="accent" onPress={handleDelete} loading={isDeleting} disabled={!isConfirmValid || isDeleting} style={styles.buttonFlex}>{isDeleting ? t('data.deleteAccount.deleting') : t('data.deleteAccount.deleteCta')}</Button>
+        <View className="flex-row gap-space-12 mt-space-24">
+          <Button appearance="outline" tone="neutral" onPress={() => router.back()} disabled={isDeleting} className="flex-1">{t('data.deleteAccount.cancel')}</Button>
+          <Button appearance="solid" tone="accent" onPress={handleDelete} loading={isDeleting} disabled={!isConfirmValid || isDeleting} className="flex-1">{isDeleting ? t('data.deleteAccount.deleting') : t('data.deleteAccount.deleteCta')}</Button>
         </View>
       </Section>
     </>
@@ -234,10 +234,6 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  bulletRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
   bulletIcon: {
     marginTop: 2,
     marginRight: 10,
@@ -268,13 +264,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 6,
     marginLeft: 4,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 24,
-  },
-  buttonFlex: {
-    flex: 1,
   },
 });

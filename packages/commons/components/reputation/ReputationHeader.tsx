@@ -25,7 +25,7 @@ export function ReputationHeader({ title, pendingCount, onOpenDuty }: Reputation
   const hasPending = pendingCount > 0;
 
   return (
-    <View style={styles.header}>
+    <View className="flex-row items-center justify-between gap-space-12 pt-space-4">
       <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
         {title}
       </Text>
@@ -53,13 +53,6 @@ export function ReputationHeader({ title, pendingCount, onOpenDuty }: Reputation
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    paddingTop: 4,
-  },
   title: {
     flex: 1,
     fontSize: 34,

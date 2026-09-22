@@ -102,7 +102,7 @@ export function RecoveryPhraseStep({
           contentContainerStyle={[styles.scrollContent, { paddingBottom: contentBottomPad }]}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
+          <View className="items-center mb-space-20 px-space-8">
             <Icons.key size='2xl' fill={colors.error} />
             <Text style={[styles.title, { color: textColor }]}>
               {t('auth.recoveryPhrase.missingTitle')}
@@ -123,7 +123,7 @@ export function RecoveryPhraseStep({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
+        <View className="items-center mb-space-20 px-space-8">
           <Icons.shield size='2xl' fill={colors.tint} />
           <Text style={[styles.title, { color: textColor }]}>
             {t('auth.recoveryPhrase.title')}
@@ -187,7 +187,7 @@ export function RecoveryPhraseStep({
         )}
 
         <TouchableOpacity
-          style={styles.checkboxContainer}
+          className="flex-row items-start mt-space-8 mb-space-24"
           onPress={toggleAcknowledged}
           activeOpacity={0.7}
           disabled={!revealed}
@@ -207,7 +207,7 @@ export function RecoveryPhraseStep({
           </Text>
         </TouchableOpacity>
 
-        <Button appearance="solid" tone="accent" onPress={onContinue} disabled={!revealed || !acknowledged || isContinuing} loading={isContinuing} style={styles.continueButton}>{t('auth.recoveryPhrase.continueButton')}</Button>
+        <Button appearance="solid" tone="accent" onPress={onContinue} disabled={!revealed || !acknowledged || isContinuing} loading={isContinuing} className="mt-space-4">{t('auth.recoveryPhrase.continueButton')}</Button>
       </ScrollView>
     </View>
   );
@@ -219,11 +219,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 8,
   },
   title: {
     fontSize: 26,
@@ -277,12 +272,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     fontStyle: 'italic',
   },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: 8,
-    marginBottom: 24,
-  },
   checkbox: {
     width: 22,
     height: 22,
@@ -293,8 +282,5 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
-  },
-  continueButton: {
-    marginTop: 4,
   },
 });

@@ -180,7 +180,7 @@ export default function AuthIndexScreen() {
       accessibilityRole="button"
       accessibilityLabel={t('auth.indexTapToContinue')}
     >
-      <View style={styles.content}>
+      <View className="flex-1 justify-center items-center px-space-24">
         <View style={styles.textContainer}>
           {/* "Hello" text with entrance animation */}
           <Animated.View style={entranceHelloStyle}>
@@ -215,7 +215,7 @@ export default function AuthIndexScreen() {
           textStyle={[styles.tapText, { color: textColor }]}
         />
         <TouchableOpacity
-          style={styles.restoreButton}
+          className="mt-space-24 py-space-8 px-space-16"
           onPress={handleRestore}
           activeOpacity={0.7}
           accessibilityRole="button"
@@ -233,12 +233,6 @@ export default function AuthIndexScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
   },
   textContainer: {
     alignItems: 'flex-start',
@@ -260,11 +254,6 @@ const styles = StyleSheet.create({
   tapText: {
     fontWeight: '400',
     opacity: 0.6,
-  },
-  restoreButton: {
-    marginTop: 24,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
   },
   restoreText: {
     fontSize: 14,

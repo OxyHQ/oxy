@@ -229,11 +229,11 @@ export default function CreateBackupScreen() {
           backAccessibilityLabel={t('common.back')}
         />
         <ImportantBanner>{t('backup.missingBanner')}</ImportantBanner>
-        <View style={styles.buttonRow}>
-          <Button appearance="outline" tone="neutral" onPress={() => router.back()} style={styles.buttonFlex}>
+        <View className="flex-row gap-space-12 mt-space-8">
+          <Button appearance="outline" tone="neutral" onPress={() => router.back()} className="flex-1">
             {t('backup.goBack')}
           </Button>
-          <Button appearance="solid" tone="accent" onPress={() => router.replace('/(auth)/welcome')} style={styles.buttonFlex}>{t('backup.setupIdentity')}</Button>
+          <Button appearance="solid" tone="accent" onPress={() => router.replace('/(auth)/welcome')} className="flex-1">{t('backup.setupIdentity')}</Button>
         </View>
       </KeyboardAwareScrollViewWrapper>
     );
@@ -269,7 +269,7 @@ export default function CreateBackupScreen() {
           </Text>
         )}
         {backupExists && (
-          <Button appearance="subtle" onPress={handleDelete} loading={isDeleting} disabled={isDeleting || isSubmitting} style={styles.deleteButton}>{isDeleting ? t('backup.deleting') : t('backup.delete')}</Button>
+          <Button appearance="subtle" onPress={handleDelete} loading={isDeleting} disabled={isDeleting || isSubmitting} className="mt-space-8 self-start">{isDeleting ? t('backup.deleting') : t('backup.delete')}</Button>
         )}
       </View>
 
@@ -278,7 +278,7 @@ export default function CreateBackupScreen() {
       </Admonition>
 
       {/* Phrase re-prompt */}
-      <View style={styles.phraseSection}>
+      <View className="gap-space-8">
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           {t('backup.enterPhraseTitle')}
         </Text>
@@ -295,7 +295,7 @@ export default function CreateBackupScreen() {
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button appearance="solid" tone="accent" onPress={handleCreate} loading={isSubmitting} disabled={isSubmitting || isDeleting} style={styles.primaryButton}>{isSubmitting ? t('backup.creating') : backupExists ? t('backup.replace') : t('backup.create')}</Button>
+        <Button appearance="solid" tone="accent" onPress={handleCreate} loading={isSubmitting} disabled={isSubmitting || isDeleting} className="mt-space-16">{isSubmitting ? t('backup.creating') : backupExists ? t('backup.replace') : t('backup.create')}</Button>
       </View>
     </KeyboardAwareScrollViewWrapper>
   );
@@ -330,13 +330,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  deleteButton: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
-  },
-  phraseSection: {
-    gap: 8,
-  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
@@ -349,16 +342,5 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 13,
     marginTop: 8,
-  },
-  primaryButton: {
-    marginTop: 16,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  buttonFlex: {
-    flex: 1,
   },
 });

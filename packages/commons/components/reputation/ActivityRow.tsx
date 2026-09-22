@@ -55,7 +55,7 @@ export function ActivityRow({ transaction }: ActivityRowProps) {
       // inline after the label — it qualifies the action, not the row.
       title={
         <View style={styles.labelRow}>
-          <Text numberOfLines={1} style={styles.label}>
+          <Text numberOfLines={1} className="shrink">
             {label}
           </Text>
           {meta.signed && <Icons.shieldCheck size="xs" fill={colors.success} />}

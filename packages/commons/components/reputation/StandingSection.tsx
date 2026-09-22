@@ -143,8 +143,8 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
   })();
 
   return (
-    <View style={styles.section}>
-      <View style={styles.headerRow}>
+    <View className="gap-space-16">
+      <View className="flex-row items-center justify-between gap-space-12">
         <Text style={[styles.heading, { color: colors.text }]}>
           {t('civic.reputation.standingTitle')}
         </Text>
@@ -193,7 +193,7 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
               t('civic.reputation.composition.readout', { points, percent })
             }
           />
-          <View style={styles.categories}>
+          <View className="mt-space-4">
             {categories.map((category) => (
               <CategoryRow
                 key={category.key}
@@ -228,15 +228,6 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
 }
 
 const styles = StyleSheet.create({
-  section: {
-    gap: 16,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
   heading: {
     fontSize: 18,
     fontWeight: '700',
@@ -282,9 +273,6 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-  },
-  categories: {
-    marginTop: 4,
   },
   empty: {
     fontSize: 13,

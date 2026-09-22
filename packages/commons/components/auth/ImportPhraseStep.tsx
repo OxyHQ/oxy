@@ -78,7 +78,7 @@ export function ImportPhraseStep({
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button appearance="solid" tone="accent" onPress={onImport} disabled={isLoading} loading={isLoading} style={styles.primaryButton}>{t('auth.importStep.import')}</Button>
+        <Button appearance="solid" tone="accent" onPress={onImport} disabled={isLoading} loading={isLoading} className="mt-space-32">{t('auth.importStep.import')}</Button>
 
         {onMoveFromWeb && (
           <Button appearance="subtle" onPress={onMoveFromWeb} disabled={isLoading}>{t('identityMove.entry')}</Button>
@@ -123,9 +123,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 22,
     textAlign: 'center',
-  },
-  primaryButton: {
-    marginTop: 32,
   },
   errorText: {
     fontSize: 14,

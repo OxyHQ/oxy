@@ -31,7 +31,7 @@ export function StatColumns({ items }: StatColumnsProps) {
   const colors = useColors();
 
   return (
-    <View style={styles.row}>
+    <View className="flex-row items-center">
       {items.map((item, index) => (
         <React.Fragment key={item.label}>
           {index > 0 && <Divider vertical />}
@@ -50,10 +50,6 @@ export function StatColumns({ items }: StatColumnsProps) {
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   stat: {
     flex: 1,
     gap: 7,

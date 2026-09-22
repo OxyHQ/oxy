@@ -190,11 +190,11 @@ export default function IdScreen() {
   const isNative = Platform.OS !== 'web';
 
   return (
-    <View style={styles.screen}>
+    <View className="flex-1">
       {/* Flush column — Bloom's SettingsListGroup owns its horizontal gutter; the
           centered hero and the DID/callout blocks are padded to align with it. */}
       <Screen contentStyle={styles.flush} gap={16}>
-        <View style={styles.hero}>
+        <View className="items-center gap-space-16 pt-space-8">
           <OxyID
             width={CARD_WIDTH}
             height={CARD_HEIGHT}
@@ -219,7 +219,7 @@ export default function IdScreen() {
               qrPayload ? (
                 <IdQrBack payload={qrPayload} caption={t('civic.id.qrCaption')} />
               ) : (
-                <View style={styles.qrPlaceholder}>
+                <View className="flex-1 items-center justify-center p-space-24">
                   <Text style={styles.qrPlaceholderText}>{t('civic.id.qrPending')}</Text>
                 </View>
               )
@@ -320,16 +320,8 @@ export default function IdScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
   flush: { paddingHorizontal: 0 },
   gutter: { paddingHorizontal: 20 },
-  hero: {
-    alignItems: 'center',
-    gap: 16,
-    paddingTop: 8,
-  },
   qrPlaceholder: {
     flex: 1,
     alignItems: 'center',

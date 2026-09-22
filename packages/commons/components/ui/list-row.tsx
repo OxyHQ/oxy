@@ -65,7 +65,7 @@ export function ListRow({
   // over `Item`'s single slot.
   const tail =
     trailing || value != null || showChevron ? (
-      <View style={styles.tail}>
+      <View className="flex-row items-center gap-space-8">
         {trailing}
         {value != null && (
           <Text style={[styles.value, { color: valueColor ?? colors.text }]} numberOfLines={1}>
@@ -91,11 +91,6 @@ export function ListRow({
 }
 
 const styles = StyleSheet.create({
-  tail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   value: {
     fontVariant: ['tabular-nums'],
   },

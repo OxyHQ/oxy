@@ -150,7 +150,7 @@ export default function RotateKeyConfirmScreen() {
         disabled={rotating}
       >
         <Icons.signOut size='md' fill={colors.textSecondary} />
-        <View style={styles.toggleText}>
+        <View className="flex-1 gap-space-2">
           <Text style={[styles.toggleTitle, { color: colors.text }]}>
             {t('rotateKey.confirm.signOutEverywhere')}
           </Text>
@@ -180,10 +180,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 16,
     borderCurve: 'continuous',
-  },
-  toggleText: {
-    flex: 1,
-    gap: 2,
   },
   toggleTitle: {
     fontSize: 15,

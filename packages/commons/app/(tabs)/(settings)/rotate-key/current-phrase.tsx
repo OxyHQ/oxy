@@ -72,7 +72,7 @@ export default function RotateKeyCurrentPhraseScreen() {
 
       {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-      <Button appearance="solid" tone="accent" onPress={handleContinue} style={styles.primaryButton}>
+      <Button appearance="solid" tone="accent" onPress={handleContinue} className="mt-space-8">
         {t('rotateKey.currentPhrase.continue')}
       </Button>
     </KeyboardAwareScrollViewWrapper>
@@ -88,8 +88,5 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 13,
     textAlign: 'center',
-  },
-  primaryButton: {
-    marginTop: 8,
   },
 });

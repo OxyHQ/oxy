@@ -178,7 +178,7 @@ export const StaggeredText = forwardRef(
           charIndexOffset += wordChars.length;
           
           return (
-            <View key={wordIndex} style={styles.wordGroup}>
+            <View key={wordIndex} className="flex-row shrink-0">
               {wordChars.map((char, charIndex) => (
                 <StaggeredChar
                   key={charIndex}
@@ -203,10 +203,6 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-  },
-  wordGroup: {
-    flexDirection: 'row',
-    flexShrink: 0, // Prevent word groups from shrinking/breaking
   },
 });
 

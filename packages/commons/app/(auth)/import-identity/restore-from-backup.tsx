@@ -211,7 +211,7 @@ export default function RestoreFromBackupScreen() {
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button appearance="solid" tone="accent" onPress={handleRestore} disabled={isLoading} loading={isLoading} style={styles.primaryButton}>{isLoading ? t('restoreBackup.restoring') : t('restoreBackup.restore')}</Button>
+        <Button appearance="solid" tone="accent" onPress={handleRestore} disabled={isLoading} loading={isLoading} className="mt-space-32">{isLoading ? t('restoreBackup.restoring') : t('restoreBackup.restore')}</Button>
 
         <Button appearance="subtle" onPress={() => router.back()} disabled={isLoading}>
           {t('common.back')}
@@ -243,9 +243,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 22,
     textAlign: 'center',
-  },
-  primaryButton: {
-    marginTop: 32,
   },
   errorText: {
     fontSize: 14,

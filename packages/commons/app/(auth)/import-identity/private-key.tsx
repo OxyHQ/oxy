@@ -123,7 +123,7 @@ export default function ImportPrivateKeyScreen() {
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button appearance="solid" tone="accent" onPress={handleImport} disabled={isLoading} loading={isLoading} style={styles.primaryButton}>{isLoading ? t('importPrivateKey.importing') : t('importPrivateKey.import')}</Button>
+        <Button appearance="solid" tone="accent" onPress={handleImport} disabled={isLoading} loading={isLoading} className="mt-space-32">{isLoading ? t('importPrivateKey.importing') : t('importPrivateKey.import')}</Button>
 
         <Button appearance="subtle" onPress={() => router.back()} disabled={isLoading}>
           {t('common.back')}
@@ -164,9 +164,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: Fonts.mono,
     textAlignVertical: 'top',
-  },
-  primaryButton: {
-    marginTop: 32,
   },
   errorText: {
     fontSize: 14,

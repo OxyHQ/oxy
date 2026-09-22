@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { H3, Text } from '@oxy.so/bloom/typography';
 import { useColors } from '@/hooks/useColors';
 
@@ -27,8 +27,8 @@ interface SectionHeaderProps {
 export function SectionHeader({ title, subtitle, trailing }: SectionHeaderProps) {
   const colors = useColors();
   return (
-    <View style={styles.headerWrap}>
-      <View style={styles.titleRow}>
+    <View className="gap-space-4">
+      <View className="flex-row items-center justify-between gap-space-12">
         <H3>{title}</H3>
         {trailing}
       </View>
@@ -61,14 +61,3 @@ export function Section({ title, subtitle, trailing, children, gap = 12, style }
   );
 }
 
-const styles = StyleSheet.create({
-  headerWrap: {
-    gap: 4,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-});

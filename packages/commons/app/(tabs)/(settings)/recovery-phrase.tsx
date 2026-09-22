@@ -134,7 +134,7 @@ export default function RecoveryPhraseScreen() {
         />
       ) : (
         <Section>
-          <View style={styles.lockedHeader}>
+          <View className="items-center gap-space-8 py-space-16">
             <Icons.shield size='2xl' fill={colors.tint} />
             <Text style={[styles.lockedTitle, { color: colors.text }]}>
               {t('settings.recoveryPhrase.lockedTitle')}
@@ -156,11 +156,6 @@ export default function RecoveryPhraseScreen() {
 }
 
 const styles = StyleSheet.create({
-  lockedHeader: {
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 16,
-  },
   lockedTitle: {
     fontSize: 20,
     fontWeight: '700',

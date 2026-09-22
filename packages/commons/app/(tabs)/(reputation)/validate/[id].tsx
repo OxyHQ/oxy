@@ -58,7 +58,7 @@ export default function ValidationVoteScreen() {
           title={t('civic.validate.vote.done.title')}
           description={t('civic.validate.vote.done.body')}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
@@ -74,7 +74,7 @@ export default function ValidationVoteScreen() {
           title={t('civic.validate.vote.error.title')}
           description={t(`civic.validate.error.${errorCode ?? 'generic'}`)}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
@@ -109,7 +109,7 @@ export default function ValidationVoteScreen() {
           title={t('civic.validate.vote.gone.title')}
           description={t('civic.validate.vote.gone.body')}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
@@ -166,14 +166,14 @@ export default function ValidationVoteScreen() {
           </Text>
         )}
 
-        <View style={styles.verdictRow}>
+        <View className="flex-row gap-space-12">
           <Button appearance="solid" tone="success" size="lg" icon={Icons.check} onPress={() => vote('valid')} disabled={busy} style={[fullWidthControl, styles.verdictBtn]}>{t('civic.validate.vote.valid')}</Button>
           <Button appearance="solid" tone="danger" size="lg" icon={Icons.close} onPress={() => vote('invalid')} disabled={busy} style={[fullWidthControl, styles.verdictBtn]}>{t('civic.validate.vote.invalid')}</Button>
         </View>
 
         <Button appearance="outline" tone="accent" size="lg" onPress={() => vote('abstain')} disabled={busy} style={fullWidthControl}>{t('civic.validate.vote.abstain')}</Button>
 
-        <TouchableOpacity style={styles.recuse} onPress={deny} disabled={busy} accessibilityRole="button">
+        <TouchableOpacity className="py-space-12 items-center" onPress={deny} disabled={busy} accessibilityRole="button">
           <Text style={[styles.recuseText, { color: colors.textSecondary }]}>
             {t('civic.validate.vote.recuse')}
           </Text>
@@ -237,10 +237,6 @@ const styles = StyleSheet.create({
   inlineWarn: {
     fontSize: 13,
     lineHeight: 18,
-  },
-  verdictRow: {
-    flexDirection: 'row',
-    gap: 12,
   },
   verdictBtn: {
     flex: 1,

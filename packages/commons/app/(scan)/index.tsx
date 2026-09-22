@@ -183,7 +183,7 @@ export default function ScanSignInScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 justify-center items-center">
       <CameraView
         style={styles.camera}
         facing="back"
@@ -212,7 +212,7 @@ export default function ScanSignInScreen() {
                     : t('signInApproval.scan.invalidBody')}
                 </Text>
                 <TouchableOpacity
-                  style={styles.controlButton}
+                  className="items-center gap-space-8"
                   onPress={handleScanAgain}
                   accessibilityRole="button"
                   accessibilityLabel={t('signInApproval.scan.a11y.scanAgain')}
@@ -225,7 +225,7 @@ export default function ScanSignInScreen() {
               <>
                 <Text style={styles.instructionText}>{t('signInApproval.scan.instructions')}</Text>
                 <TouchableOpacity
-                  style={styles.controlButton}
+                  className="items-center gap-space-8"
                   onPress={toggleFlash}
                   accessibilityRole="button"
                   accessibilityLabel={
@@ -331,10 +331,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 32,
     marginBottom: 24,
-  },
-  controlButton: {
-    alignItems: 'center',
-    gap: 8,
   },
   controlText: {
     color: '#fff',

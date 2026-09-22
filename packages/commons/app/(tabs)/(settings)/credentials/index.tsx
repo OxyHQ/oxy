@@ -190,7 +190,7 @@ function CredentialRow({ credential, colors, t, onPress }: CredentialRowProps) {
 
   return (
     <TouchableOpacity onPress={onPress} onPressIn={handlePressIn} accessibilityRole="button" activeOpacity={0.6}>
-      <View style={styles.row}>
+      <View className="py-space-16 gap-space-8">
         <View style={styles.rowHeader}>
           <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
             {typeLabel}

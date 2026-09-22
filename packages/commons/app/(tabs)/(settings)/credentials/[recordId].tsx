@@ -107,7 +107,7 @@ export default function CredentialDetailScreen() {
           title={t('civic.credentials.detail.notFoundTitle')}
           description={t('civic.credentials.detail.notFoundBody')}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={handleBack}>{t('common.back')}</Button>
             </View>
           }
@@ -129,7 +129,7 @@ export default function CredentialDetailScreen() {
     return (
       <>
         {/* Type + status hero */}
-        <View style={styles.hero}>
+        <View className="gap-space-12 items-start">
           <Text style={[styles.heroType, { color: colors.text }]} numberOfLines={2}>
             {typeLabel}
           </Text>
@@ -144,7 +144,7 @@ export default function CredentialDetailScreen() {
 
         {/* Verify verdict */}
         {verify.state === 'valid' && (
-          <View style={styles.verdict}>
+          <View className="gap-space-8 items-start">
             <Badge
               appearance="subtle"
               tone="success"
@@ -158,7 +158,7 @@ export default function CredentialDetailScreen() {
           </View>
         )}
         {verify.state === 'invalid' && (
-          <View style={styles.verdict}>
+          <View className="gap-space-8 items-start">
             <Badge
               appearance="subtle"
               tone="danger"
@@ -172,7 +172,7 @@ export default function CredentialDetailScreen() {
           </View>
         )}
         {verify.state === 'error' && (
-          <View style={styles.verdict}>
+          <View className="gap-space-8 items-start">
             <Badge
               appearance="subtle"
               tone="warning"
@@ -213,7 +213,7 @@ export default function CredentialDetailScreen() {
         <Section title={t('civic.credentials.detail.issuerTitle')}>
           <View style={styles.issuerRow}>
             <Icons.verifiedOutline size='md' fill={colors.identityIconPublicKey} />
-            <View style={styles.issuerText}>
+            <View className="flex-1 gap-space-2">
               <Text style={[styles.issuerName, { color: colors.text }]} numberOfLines={1}>
                 {issuerDisplay || t('civic.credentials.unknownIssuer')}
               </Text>
@@ -262,7 +262,7 @@ export default function CredentialDetailScreen() {
 
         {/* Revoke — issuer-only, active-only */}
         {canRevoke && revoke.state !== 'done' && (
-          <View style={styles.revokeBlock}>
+          <View className="gap-space-12">
             <Admonition type="error">
               {t('civic.credentials.revoke.confirmBody')}
             </Admonition>
@@ -326,10 +326,6 @@ function DateRow({ colors, icon, label, tone }: DateRowProps) {
 }
 
 const styles = StyleSheet.create({
-  action: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
   hero: {
     gap: 12,
     alignItems: 'flex-start',
@@ -372,10 +368,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
   },
-  issuerText: {
-    flex: 1,
-    gap: 2,
-  },
   issuerName: {
     fontSize: 16,
     fontWeight: '600',
@@ -395,9 +387,6 @@ const styles = StyleSheet.create({
   recordValue: {
     fontSize: 13,
     lineHeight: 19,
-  },
-  revokeBlock: {
-    gap: 12,
   },
   inlineWarn: {
     fontSize: 13,

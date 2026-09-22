@@ -151,7 +151,7 @@ export function AttestReviewSheet({
               <Text style={styles.avatarInitial}>{initial}</Text>
             </View>
           )}
-          <View style={styles.cardText}>
+          <View className="flex-1 gap-space-4">
             <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
               {card.name}
             </Text>
@@ -160,7 +160,7 @@ export function AttestReviewSheet({
                 @{card.username}
               </Text>
             ) : null}
-            <View style={styles.badges}>
+            <View className="flex-row flex-wrap gap-space-8 mt-space-2">
               <Badge
                 appearance="subtle"
                 tone={bloomToneFor(getTrustTierMeta(card.trustTier).tone)}
@@ -279,22 +279,12 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
   },
-  cardText: {
-    flex: 1,
-    gap: 4,
-  },
   name: {
     fontSize: 18,
     fontWeight: '600',
   },
   handle: {
     fontSize: 14,
-  },
-  badges: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 2,
   },
   caution: {
     fontSize: 13,

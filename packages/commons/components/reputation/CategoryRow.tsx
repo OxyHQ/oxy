@@ -51,7 +51,7 @@ export function CategoryRow({
         <AppIcon name={icon} size='sm' fill={color} />
       </CircleIconBadge>
 
-      <View style={styles.body}>
+      <View className="flex-1 gap-space-8">
         <Text style={[styles.label, { color: colors.text }]} numberOfLines={1}>
           {label}
         </Text>
@@ -104,10 +104,6 @@ const styles = StyleSheet.create({
     marginHorizontal: -10,
     borderRadius: 16,
     borderCurve: 'continuous',
-  },
-  body: {
-    flex: 1,
-    gap: 8,
   },
   label: {
     fontSize: 15,

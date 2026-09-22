@@ -116,7 +116,7 @@ export default function IssueCredentialScreen() {
           title={t('civic.credentials.issue.done.title')}
           description={t('civic.credentials.issue.done.body', { type: issuedTypeLabel, name: displayName })}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
@@ -132,7 +132,7 @@ export default function IssueCredentialScreen() {
           title={t('civic.credentials.issue.error.title')}
           description={t(`civic.credentials.issue.error.${errorCode ?? 'generic'}`)}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
@@ -162,7 +162,7 @@ export default function IssueCredentialScreen() {
               </Text>
             </View>
           )}
-          <View style={styles.identityText}>
+          <View className="flex-1">
             <BloomText style={styles.name} numberOfLines={2}>
               {displayName}
             </BloomText>
@@ -180,7 +180,7 @@ export default function IssueCredentialScreen() {
 
         {/* Credential type */}
         <Section title={t('civic.credentials.issue.typeTitle')} subtitle={t('civic.credentials.issue.typeHint')}>
-          <View style={styles.presetRow}>
+          <View className="flex-row flex-wrap gap-space-8">
             {CREDENTIAL_PRESETS.map((preset) => {
               const selected = preset.id === presetId;
               return (
@@ -203,7 +203,7 @@ export default function IssueCredentialScreen() {
             })}
           </View>
           {presetId === 'custom' && (
-            <View style={styles.field}>
+            <View className="gap-space-8 mt-space-4">
               <BloomText style={[styles.fieldLabel, { color: colors.textSecondary }]}>
                 {t('civic.credentials.issue.customLabel')}
               </BloomText>
@@ -291,10 +291,6 @@ export default function IssueCredentialScreen() {
 }
 
 const styles = StyleSheet.create({
-  action: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
   identityRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -313,9 +309,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
   },
-  identityText: {
-    flex: 1,
-  },
   name: {
     fontSize: 20,
     fontWeight: '700',
@@ -328,11 +321,6 @@ const styles = StyleSheet.create({
   intro: {
     fontSize: 15,
     lineHeight: 21,
-  },
-  presetRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
   },
   presetChip: {
     paddingHorizontal: 14,

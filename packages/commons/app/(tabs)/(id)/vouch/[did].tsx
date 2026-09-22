@@ -94,7 +94,7 @@ export default function VouchScreen() {
           title={t('civic.vouch.confirm.done.title')}
           description={t('civic.vouch.confirm.done.body', { name: subjectName, points: result.points })}
           footer={
-            <View style={styles.resultActions}>
+            <View className="items-center gap-space-12 mt-space-4">
               <View style={styles.stakedChip}>
                 <Icons.lock size='sm' fill={colors.textSecondary} />
                 <BloomText style={[styles.stakedText, { color: colors.textSecondary }]}>
@@ -122,7 +122,7 @@ export default function VouchScreen() {
           title={t('civic.vouch.confirm.withdrawn.title')}
           description={t('civic.vouch.confirm.withdrawn.body', { name: subjectName })}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
@@ -138,7 +138,7 @@ export default function VouchScreen() {
           title={t('civic.vouch.confirm.error.title')}
           description={t(`civic.vouch.error.${errorCode ?? 'generic'}`)}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
@@ -169,7 +169,7 @@ export default function VouchScreen() {
               </Text>
             </View>
           )}
-          <View style={styles.identityText}>
+          <View className="flex-1">
             <BloomText style={styles.name} numberOfLines={2}>
               {subjectName || t('civic.vouch.confirm.unknownPerson')}
             </BloomText>
@@ -187,7 +187,7 @@ export default function VouchScreen() {
 
         {/* Stake input */}
         <Section title={t('civic.vouch.confirm.stakeTitle')} subtitle={t('civic.vouch.confirm.stakeHint')}>
-          <View style={styles.stakeRow}>
+          <View className="flex-row items-center gap-space-12 py-space-4">
             <Icons.shieldStar size='md' fill={colors.textTertiary} />
             <BloomText style={[styles.stakeLabel, { color: colors.text }]}>
               {t('civic.vouch.confirm.stakeLabel')}
@@ -235,15 +235,6 @@ export default function VouchScreen() {
 }
 
 const styles = StyleSheet.create({
-  action: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  resultActions: {
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 4,
-  },
   identityRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -262,9 +253,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
   },
-  identityText: {
-    flex: 1,
-  },
   name: {
     fontSize: 20,
     fontWeight: '700',
@@ -277,12 +265,6 @@ const styles = StyleSheet.create({
   intro: {
     fontSize: 15,
     lineHeight: 21,
-  },
-  stakeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 4,
   },
   stakeLabel: {
     flex: 1,

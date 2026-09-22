@@ -190,10 +190,10 @@ export default function ReputationScreen() {
         </SegmentedControl>
 
         {tab === 'overview' ? (
-          <View style={styles.overview}>
+          <View className="gap-space-20">
             <StandingSection balance={balance} sources={sources} isOffline={!isOnline} />
 
-            <View style={styles.heatmapSection}>
+            <View className="gap-space-12">
               <Text style={[styles.heatmapTitle, { color: colors.text }]}>
                 {t('civic.reputation.activity.heatmapTitle')}
               </Text>
@@ -238,12 +238,6 @@ export default function ReputationScreen() {
 }
 
 const styles = StyleSheet.create({
-  overview: {
-    gap: 20,
-  },
-  heatmapSection: {
-    gap: 12,
-  },
   heatmapTitle: {
     fontSize: 18,
     fontWeight: '700',

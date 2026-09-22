@@ -78,7 +78,7 @@ export const StaggeredDigit: React.FC<StaggeredDigitProps> = ({
   });
 
   return (
-    <Animated.View style={styles.container}>
+    <Animated.View className="items-center justify-center">
       <Animated.Text
         style={[
           styles.digit,
@@ -107,10 +107,6 @@ export const StaggeredDigit: React.FC<StaggeredDigitProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   digit: {
     color: 'white',
   },

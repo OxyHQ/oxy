@@ -100,7 +100,7 @@ export default function ScannedCardScreen() {
           title={t('civic.card.error.title')}
           description={t('civic.card.error.body')}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={() => cardQuery.refetch()}>{t('common.retry')}</Button>
             </View>
           }
@@ -118,7 +118,7 @@ export default function ScannedCardScreen() {
     return (
       <>
         {/* Trust verdict — the load-bearing indicator. */}
-        <View style={styles.verdict}>
+        <View className="gap-space-12 items-start">
           <Badge
             appearance="subtle"
             tone={bloomToneFor(verification.tone)}
@@ -141,8 +141,8 @@ export default function ScannedCardScreen() {
         </View>
 
         {/* Identity */}
-        <View style={styles.identity}>
-          <View style={styles.identityRow}>
+        <View className="gap-space-12">
+          <View className="flex-row items-center gap-space-16">
             {card.avatarUrl ? (
               <Image source={{ uri: card.avatarUrl }} style={styles.avatar} resizeMode="cover" />
             ) : (
@@ -152,7 +152,7 @@ export default function ScannedCardScreen() {
                 </Text>
               </View>
             )}
-            <View style={styles.identityText}>
+            <View className="flex-1">
               <BloomText style={styles.name} numberOfLines={2}>
                 {card.name}
               </BloomText>
@@ -164,7 +164,7 @@ export default function ScannedCardScreen() {
             </View>
           </View>
 
-          <View style={styles.badgeRow}>
+          <View className="flex-row flex-wrap gap-space-8">
             <Badge
               appearance="subtle"
               tone={bloomToneFor(trust.tone)}
@@ -198,7 +198,7 @@ export default function ScannedCardScreen() {
 
         {/* Vouch + issue-credential CTAs — only for a card whose signature verified. */}
         {verified && (
-          <View style={styles.ctas}>
+          <View className="gap-space-12">
             <Button appearance="solid" tone="accent" size="lg" icon={Icons.vouched} onPress={handleVouch} style={fullWidthControl}>{t('civic.vouch.cta')}</Button>
             <Button appearance="outline" tone="accent" size="lg" icon={Icons.credential} onPress={handleIssueCredential} style={fullWidthControl}>{t('civic.credentials.issue.cardCta')}</Button>
           </View>
@@ -251,10 +251,6 @@ export default function ScannedCardScreen() {
 }
 
 const styles = StyleSheet.create({
-  action: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
   verdict: {
     gap: 12,
     alignItems: 'flex-start',
@@ -262,14 +258,6 @@ const styles = StyleSheet.create({
   verdictDesc: {
     fontSize: 14,
     lineHeight: 20,
-  },
-  identity: {
-    gap: 12,
-  },
-  identityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
   },
   avatar: {
     width: 64,
@@ -284,9 +272,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '600',
   },
-  identityText: {
-    flex: 1,
-  },
   name: {
     fontSize: 22,
     fontWeight: '700',
@@ -296,11 +281,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginTop: 2,
   },
-  badgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
   personhoodLine: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -308,9 +288,6 @@ const styles = StyleSheet.create({
   },
   personhoodLineText: {
     fontSize: 13,
-  },
-  ctas: {
-    gap: 12,
   },
   didValue: {
     fontSize: 13,

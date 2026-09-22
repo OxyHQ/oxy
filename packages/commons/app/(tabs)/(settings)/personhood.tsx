@@ -75,7 +75,7 @@ export default function PersonhoodScreen() {
           title={t('civic.personhood.error.title')}
           description={t('civic.personhood.error.body')}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={() => statusQuery.refetch()}>{t('common.retry')}</Button>
             </View>
           }
@@ -112,7 +112,7 @@ export default function PersonhoodScreen() {
             content={t(verified ? 'civic.personhood.verifiedBadge' : 'civic.personhood.buildingBadge')}
           />
 
-          <View style={styles.scoreBlock}>
+          <View className="gap-space-4">
             <Text style={[styles.scoreValue, { color: colors.text }]}>
               {t('civic.personhood.scoreValue', { pct: scorePct })}
             </Text>
@@ -238,16 +238,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 17,
   },
-  action: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
   hero: {
     gap: 18,
     alignItems: 'flex-start',
-  },
-  scoreBlock: {
-    gap: 4,
   },
   scoreValue: {
     fontSize: 48,

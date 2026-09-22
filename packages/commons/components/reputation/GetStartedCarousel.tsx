@@ -52,8 +52,8 @@ export function GetStartedCarousel({ title, dismissLabel, items, onDismiss }: Ge
   const colors = useColors();
 
   return (
-    <View style={styles.section}>
-      <View style={styles.headerRow}>
+    <View className="gap-space-12">
+      <View className="flex-row items-center justify-between">
         <H4>{title}</H4>
         <GlyphButton icon={Icons.close} onPress={onDismiss} accessibilityLabel={dismissLabel} />
       </View>
@@ -84,14 +84,6 @@ export function GetStartedCarousel({ title, dismissLabel, items, onDismiss }: Ge
 }
 
 const styles = StyleSheet.create({
-  section: {
-    gap: 12,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
   card: {
     padding: 16,
     gap: 10,

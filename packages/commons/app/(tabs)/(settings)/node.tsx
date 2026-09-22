@@ -155,7 +155,7 @@ export default function NodeScreen() {
           title={t('civic.nodes.provision.done.title')}
           description={t('civic.nodes.provision.done.body')}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={handleProvisionDone}>{t('common.done')}</Button>
             </View>
           }
@@ -174,7 +174,7 @@ export default function NodeScreen() {
           title={t('civic.nodes.register.done.title')}
           description={t('civic.nodes.register.done.body')}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={handleRegisterDone}>{t('common.done')}</Button>
             </View>
           }
@@ -215,7 +215,7 @@ export default function NodeScreen() {
       </Section>
 
       <Section title={t('civic.nodes.choose.title')} subtitle={t('civic.nodes.choose.subtitle')}>
-        <View style={styles.choiceStack}>
+        <View className="gap-space-12">
           <Card
             appearance="subtle"
             tone="accent"
@@ -224,8 +224,8 @@ export default function NodeScreen() {
             onPress={provisionBusy ? undefined : () => void provision.provision()}
             accessibilityLabel={t('civic.nodes.managed.cta')}
           >
-            <View style={styles.choiceRow}>
-              <View style={styles.choiceText}>
+            <View className="flex-row items-center gap-space-12">
+              <View className="flex-1 gap-space-4">
                 <Text style={[styles.choiceTitle, { color: colors.tint }]}>
                   {t('civic.nodes.managed.cta')}
                 </Text>
@@ -279,7 +279,7 @@ export default function NodeScreen() {
   const renderForm = () => (
     <>
       <Section title={t('civic.nodes.form.title')} subtitle={t('civic.nodes.form.subtitle')}>
-        <View style={styles.field}>
+        <View className="gap-space-8">
           <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
             {t('civic.nodes.form.endpointLabel')}
           </Text>
@@ -302,7 +302,7 @@ export default function NodeScreen() {
           </Text>
         </View>
 
-        <View style={styles.field}>
+        <View className="gap-space-8">
           <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
             {t('civic.nodes.form.publicKeyLabel')}
           </Text>
@@ -326,7 +326,7 @@ export default function NodeScreen() {
       </Section>
 
       <Section title={t('civic.nodes.form.modeLabel')}>
-        <View style={styles.modeRow}>
+        <View className="flex-row gap-space-8">
           {(['pull', 'push'] as const).map((option) => {
             const selected = option === mode;
             return (
@@ -366,7 +366,7 @@ export default function NodeScreen() {
         </Admonition>
       )}
 
-      <View style={styles.formActions}>
+      <View className="gap-space-12">
         <Button appearance="solid" tone="accent" size="lg" icon={Icons.personhood} onPress={handleRegister} loading={registerBusy} disabled={!endpointValid || !publicKeyValid || registerBusy} style={fullWidthControl}>{t('civic.nodes.form.cta')}</Button>
         {registerBusy && (
           <Text style={[styles.centerMuted, { color: colors.textSecondary }]}>
@@ -485,7 +485,7 @@ export default function NodeScreen() {
             <Admonition type="error">
               {t('civic.nodes.disconnect.confirmBody')}
             </Admonition>
-            <View style={styles.confirmActions}>
+            <View className="flex-row gap-space-12 mt-space-4">
               <Button appearance="outline" tone="accent" size="lg" onPress={() => setConfirmingDisconnect(false)} disabled={removeBusy} style={[fullWidthControl, styles.confirmButton]}>{t('civic.nodes.disconnect.cancel')}</Button>
               <Button appearance="solid" tone="danger" size="lg" icon={Icons.personhood} onPress={handleDisconnect} loading={removeBusy} style={[fullWidthControl, styles.confirmButton]}>{t('civic.nodes.disconnect.confirmCta')}</Button>
             </View>
@@ -524,7 +524,7 @@ export default function NodeScreen() {
           title={t('civic.nodes.error.title')}
           description={t('civic.nodes.error.body')}
           footer={
-            <View style={styles.action}>
+            <View className="items-center mt-space-4">
               <Button appearance="solid" tone="accent" size="lg" onPress={() => query.refetch()}>{t('common.retry')}</Button>
             </View>
           }
@@ -560,25 +560,9 @@ const styles = StyleSheet.create({
    * footer stack, so it takes the padding directly.
    */
   softSurface: { padding: 18 },
-  action: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
   intro: {
     fontSize: 15,
     lineHeight: 22,
-  },
-  choiceStack: {
-    gap: 12,
-  },
-  choiceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  choiceText: {
-    flex: 1,
-    gap: 4,
   },
   choiceTitle: {
     fontSize: 17,
@@ -627,10 +611,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     fontSize: 15,
   },
-  modeRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   modeChip: {
     flex: 1,
     alignItems: 'center',
@@ -642,9 +622,6 @@ const styles = StyleSheet.create({
   modeChipText: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  formActions: {
-    gap: 12,
   },
   centerMuted: {
     fontSize: 14,
@@ -673,11 +650,6 @@ const styles = StyleSheet.create({
   endpointValue: {
     fontSize: 14,
     lineHeight: 20,
-  },
-  confirmActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
   },
   confirmButton: {
     flex: 1,
