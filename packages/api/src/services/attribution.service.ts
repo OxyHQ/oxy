@@ -346,7 +346,7 @@ async function loadCredentialAttribution(
  * know treated an attested token as an unresolvable one.
  *
  * That is not hypothetical. `resolveCredentialAttributionById` was called
- * directly by the catalogue's `applicationForBearer` and by the inference
+ * directly by the catalogue's `callerForBearer` and by the inference
  * edge's `authenticateEdgeCaller`; both resolved nothing for an attested
  * caller, and neither said so. The catalogue quietly demoted Alia's attested
  * readiness probe to the PUBLIC audience, which reported all eight of its chat
@@ -389,7 +389,7 @@ export interface ServiceTokenPrincipal {
  * for the LOG, never for the answer: the catalogue collapses all of them into
  * the public audience and the edge answers one 401 to all of them. Telling them
  * apart on the wire would make a public read an oracle on a credential's — or
- * now a binding's — lifecycle, which is the property `applicationForBearer`
+ * now a binding's — lifecycle, which is the property `callerForBearer`
  * documents and this must not weaken.
  *
  * `unknown-workload` is deliberately ONE arm covering an absent binding, an

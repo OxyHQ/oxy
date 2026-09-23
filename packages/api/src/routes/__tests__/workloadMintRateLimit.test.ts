@@ -63,7 +63,7 @@ describe('the workload mint has its own budget', () => {
 
     expect(challenge?.[1]).toBe('workloadTokenLimiter');
     expect(exchange?.[1]).toBe('workloadTokenLimiter');
-    // The credential mint keeps the tight budget: its secret is guessable.
+    // The credential mint keeps its own limiter, now keyed on the credential it names.
     expect(credential?.[1]).toBe('serviceTokenLimiter');
   });
 

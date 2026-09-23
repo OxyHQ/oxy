@@ -85,6 +85,35 @@ export function isFederationServiceToServicePath(path: string): boolean {
 }
 
 /**
+ * The service-token MINT: `POST /auth/service-token` (key pair) and the ADR 0026
+ * workload pair under `/auth/service-token/workload`.
+ *
+ * Every Oxy service mints from the cluster's ONE NAT egress address, and a mint
+ * carries no bearer yet, so every per-address budget it passes through was the
+ * whole estate's: `rl:general` (1000/15min), `rl:auth` (300/15min) and the
+ * mint's own. A service whose hourly token expired during another service's
+ * deploy was refused its next token, and every call it made after that failed.
+ * Seen on Alia: chat turns and its deploy readiness gate failed with the SDK
+ * HTTP client's `HTTP 429: Too Many Requests` — the shape a mint refusal takes
+ * (the inference client names its own errors) — and nothing in Oxy's logs,
+ * because a limiter refusal is not logged.
+ *
+ * So these paths are excluded from the shared per-address limiters and the
+ * slowDown penalty, and each mint route carries its OWN budgets instead: the key
+ * pair is charged to the credential it names plus a flood ceiling per address,
+ * and the workload pair to its fleet-sized address ceiling.
+ *
+ * MOUNT-ORDER INVARIANT: `rl:general`, `rl:auth` and `slowDown` skip these
+ * paths, so every route matched here MUST carry its own limiter in
+ * `routes/auth.ts` (`serviceTokenLimiter` + `serviceTokenAddressLimiter`,
+ * `workloadTokenLimiter`). A new route under this prefix without one would be
+ * unthrottled.
+ */
+export function isServiceTokenMintPath(path: string): boolean {
+  return path === '/auth/service-token' || path.startsWith('/auth/service-token/');
+}
+
+/**
  * NOTE — the token-gated BULK-PATH exemption that used to live here
  * (`SERVICE_TO_SERVICE_BULK_PATHS` + `isServiceToServiceBulkRequest`) is gone,
  * subsumed by {@link isFirstPartyServiceRequest}: a valid service credential is
@@ -272,6 +301,7 @@ const rateLimiter = rateLimit({
     req.path.startsWith('/files/upload') ||
     isIdpServiceToServicePath(req.path) ||
     isFederationServiceToServicePath(req.path) ||
+    isServiceTokenMintPath(req.path) ||
     isFirstPartyServiceRequest(req),
 });
 
@@ -338,7 +368,9 @@ const authRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: hashedIpKey,
-  skip: (req: Request) => req.path.startsWith('/files/upload'),
+  // Mounted under `/auth`, so the mount point is in `baseUrl`, not `path`.
+  skip: (req: Request) =>
+    req.path.startsWith('/files/upload') || isServiceTokenMintPath(`${req.baseUrl}${req.path}`),
 });
 
 /**
@@ -392,6 +424,7 @@ const bruteForceProtection = slowDown({
     req.path.startsWith('/files/upload') ||
     isIdpServiceToServicePath(req.path) ||
     isFederationServiceToServicePath(req.path) ||
+    isServiceTokenMintPath(req.path) ||
     isFirstPartyServiceRequest(req),
 });
 
