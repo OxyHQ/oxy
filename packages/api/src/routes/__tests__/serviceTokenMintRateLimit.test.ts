@@ -106,10 +106,11 @@ describe('serviceTokenMintRateLimitKey', () => {
     );
   });
 
-  it('bounds the key length whatever a caller sends', () => {
-    expect(serviceTokenMintRateLimitKey(requestFor('x'.repeat(10_000), '10.0.0.1'))).toHaveLength(
-      'key:'.length + 32
-    );
+  it('bounds the key whatever a caller sends: an oversized or malformed key is charged to its address', () => {
+    const address = serviceTokenMintRateLimitKey(requestFor(undefined, '10.0.0.1'));
+    expect(serviceTokenMintRateLimitKey(requestFor('x'.repeat(10_000), '10.0.0.1'))).toBe(address);
+    expect(serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia\n*', '10.0.0.1'))).toBe(address);
+    expect(serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia', '10.0.0.1'))).toBe('key:oxy_dk_alia');
   });
 
   it('falls back to the address when no key is presented', () => {

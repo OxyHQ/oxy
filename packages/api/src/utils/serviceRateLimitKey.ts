@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { Request } from 'express';
 import { hashedIpKey } from './ipKey';
 
@@ -31,6 +30,9 @@ export function serviceRateLimitKey(service: RateLimitedServicePrincipal | undef
   return service ? `${service.appId}:${service.credentialId}` : 'missing-service-principal';
 }
 
+/** A credential public key: its alphabet, at a length a Redis key can carry. */
+const PUBLIC_KEY_SHAPE = /^[A-Za-z0-9_-]{1,128}$/;
+
 /**
  * The key-pair mint is charged to the CREDENTIAL it names, not to the address
  * it came from.
@@ -47,12 +49,15 @@ export function serviceRateLimitKey(service: RateLimitedServicePrincipal | undef
  * The key is the presented `apiKey`, UNVERIFIED — this runs before the lookup,
  * so a flood of invented keys would each get a fresh bucket. That is what the
  * mint's per-address ceiling (`serviceTokenAddressLimiter`, `routes/auth.ts`)
- * is for. It is hashed so the Redis key has a fixed length whatever a caller
- * sends, and a request with no `apiKey` falls back to its address (the handler
- * answers it 400).
+ * is for. The `apiKey` is the credential's PUBLIC key (`apiSecret` is the
+ * secret), so it is used as-is rather than hashed: a hash of a public value
+ * protects nothing and reads to a scanner as a weakly hashed password. Only a
+ * key of the credential alphabet and a bounded length gets a bucket of its own,
+ * which keeps the Redis key bounded; anything else — absent, oversized or
+ * malformed, all of which the handler refuses — falls back to its address.
  */
 export function serviceTokenMintRateLimitKey(req: Request): string {
   const apiKey = (req.body as { apiKey?: unknown } | undefined)?.apiKey;
-  if (typeof apiKey !== 'string' || apiKey.length === 0) return `addr:${hashedIpKey(req)}`;
-  return `key:${createHash('sha256').update(apiKey).digest('hex').slice(0, 32)}`;
+  if (typeof apiKey !== 'string' || !PUBLIC_KEY_SHAPE.test(apiKey)) return `addr:${hashedIpKey(req)}`;
+  return `key:${apiKey}`;
 }
