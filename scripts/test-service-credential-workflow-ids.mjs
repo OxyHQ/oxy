@@ -207,7 +207,7 @@ assert.deepEqual(resolveLane(canonicalHomiioApplicationId, "activity"), [
 ]);
 assert.equal(resolveLane(canonicalHomiioApplicationId, "edge")[4], "false");
 assert.deepEqual(resolveLane(canonicalAliaApplicationId, "service").slice(1, 6), [
-	"user:read,inference:invoke,capabilities:read",
+	"user:read,inference:invoke,capabilities:read,capability-tickets:issue",
 	"Oxy service (production)",
 	"true",
 	"true",
@@ -280,7 +280,7 @@ assert.match(aliaProvision, /ROTATE_SCOPE_MISMATCH="true"/);
 assert.match(aliaProvision, /ROLLOUT_SERVICE="alia"/);
 assert.match(
 	aliaProvision,
-	/SCOPES="user:read,inference:invoke,capabilities:read"/,
+	/SCOPES="user:read,inference:invoke,capabilities:read,capability-tickets:issue"/,
 );
 assert.doesNotMatch(
 	aliaProvision,
@@ -369,9 +369,13 @@ assert.doesNotMatch(secureParameterScript, /--cli-input-json\s+file:/);
 
 const inboxReconcile = registryArm(reconcile, canonicalInboxApplicationId);
 const homiioReconcile = registryArm(reconcile, canonicalHomiioApplicationId);
+const aliaReconcile = registryArm(reconcile, canonicalAliaApplicationId);
 assert.match(inboxReconcile, new RegExp(canonicalInboxCredentialId));
 assert.match(inboxReconcile, /ADD_SCOPES="inference:invoke"/);
 assert.match(homiioReconcile, /ADD_SCOPES="reputation:write,inference:invoke"/);
+// Alia's coordinator scope is added in place: execution authorizations bind the
+// coordinator credential id, so the reconcile arm must never widen past it.
+assert.match(aliaReconcile, /ADD_SCOPES="capability-tickets:issue"/);
 assert.match(reconcile, /CREDENTIAL_ID.*EXPECTED_CREDENTIAL_ID/);
 
 assert.match(
