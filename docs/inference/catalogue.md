@@ -6,13 +6,14 @@ developer-facing reading of
 [ADR 0008](../adr/0008-catalogue-concept-separation.md), which is the decision
 record.
 
-**Merged source publishes no model rows merely by deploying the API.** The
-tables and read API exist; `seed-inference-catalogue.ts` seeds publisher slugs,
-while `bootstrap-kaana-catalogue.ts` is the separate reviewed, safe-by-default
-command for exact model, revision, deployment, pricing, score and routing-profile
-rows. It requires a fresh signed Kaana inventory and `APPLY=1`. The last
-production readback recorded here (2026-08-17) was empty; that is dated evidence,
-not a permanent assertion. Query the live audience before claiming that the
+**Two writers, one per audience.** The `platform_internal` catalogue that
+official Oxy products (Alia, Inbox, …) read is written automatically by the
+Kaana sync — see [Automatic sync from Kaana](#automatic-sync-from-kaana) and
+[ADR 0027](../adr/0027-automatic-internal-catalogue-from-kaana.md). Nothing public
+is written by it: a `public_payg` route still needs a reviewed resale
+permission. `bootstrap-kaana-catalogue.ts` is no longer the production catalogue
+writer; it remains the reviewed source for Inbox's `kaana-v1` profile and Alia's
+speech route and profile. Query the live audience before claiming that a
 catalogue is empty or available.
 
 No example model id on this page is a callability claim. The values below
@@ -164,8 +165,8 @@ image rolls out. The transition must not be collapsed into one deployment:
    legacy bytes to `platform_internal` before policy evaluation or output, and
    writes only `platform_internal`. Old pods therefore continue to see their
    existing rows during the rolling update. There is no general deployment
-   authoring surface; the reviewed bootstrap is the only production writer in
-   this release, and `APPLY=1` fails closed until its old-task-zero gate below
+   authoring surface; the reviewed bootstrap was the only production writer in
+   that release (the Kaana sync, ADR 0027, came later and is bridge-capable), and `APPLY=1` fails closed until its old-task-zero gate below
    succeeds.
 2. **Backfill and contract (required follow-up).** Only after this release is
    fully deployed and its catalogue/edge readback passes, a separate POST
@@ -268,8 +269,11 @@ embedding the operational descriptors, so no internal deployment id, route id or
 wholesale cost can reach you by being nested one level deeper than anyone looked.
 
 - **Capabilities** — input/output modalities, tools, parallel tool calls,
-  structured output, JSON mode, reasoning, streaming, prompt caching, max context
-  and max output tokens.
+  structured output, JSON mode, reasoning, the `reasoningEfforts` a request may
+  name (`low`/`medium`/`high`; empty means no effort control), streaming, prompt
+  caching, max context and max output tokens.
+- **`releasedAt`** — when the upstream provider reports it published the model;
+  absent when no provider reported one. Never an Oxy or Kaana observation time.
 - **License** — SPDX id where one exists, whether commercial use is permitted,
   and whether attribution is required.
 - **Provenance** — `first_party_original`, `first_party_derived`, `open_weight`
@@ -394,3 +398,100 @@ Upstream provider secrets, internal route ids, deployment health scores and
 wholesale costs. What it does expose, when you selected a concrete route and
 policy allows attribution, is the model and publisher you actually got and the
 provider that served it.
+
+---
+
+## Automatic sync from Kaana
+
+Decided by the owner on 2026-09-25 and recorded in
+[ADR 0027](../adr/0027-automatic-internal-catalogue-from-kaana.md): official Oxy
+products list and call **every** model Kaana discovers, with nothing
+hand-curated in between. `packages/api/src/services/kaanaCatalogueSync.service.ts`
+does it.
+
+### What runs, and when
+
+- Every API task registers a 30-minute schedule (first run a minute after boot);
+  a PostgreSQL advisory lock lets exactly one run at a time and the others
+  return `status: skipped, reason: locked`. A task without the complete Kaana
+  signing binding registers nothing.
+- `POST /inference/admin/catalogue/sync` (staff with `inference:catalogue:publish`)
+  runs it now and returns the summary. `allowMassRetirement: true` confirms a
+  report that would retire more than half of the synced routes.
+- One run is one transaction: a failure writes nothing.
+
+### Where the facts come from
+
+1. `GET /internal/v1/models` (signed): per model line `model`,
+   `modelReference`, `displayName?`, `createdAt?`, `contextTokens?`,
+   `maxOutputTokens?`, `inputModalities?`, `outputModalities?`,
+   `supportsTools?`, `reasoningEfforts?` and `listPrices?` — one
+   `{ deploymentId, provider, currency, input, output }` per deployment whose
+   provider publishes a price, in USD per million tokens.
+2. `POST /internal/v1/deployments/query` (signed, batches of 64): the exact
+   provider, revision-pinned reference and region set of every priced
+   deployment. This is the same evidence the edge's preflight later compares,
+   so the stored route is byte-for-byte what will be signed.
+3. The provider's `inference_providers` row: the route's data policy
+   (retention, training, zero-data-retention, policy URL). A provider without a
+   row is not synced — adding one is the only manual step left.
+
+### What it writes
+
+| Row | Value |
+|---|---|
+| `inference_publishers` | created from the model id's publisher slug when absent |
+| `inference_models` | `catalogue_source = 'kaana_sync'`; limits, modalities, tools and `reasoning_efforts` from Kaana; `provider_released_at` from `createdAt`; licence and provenance as below |
+| `inference_model_revisions` | Kaana's revision label, made current; `released_at` = first observation |
+| `inference_deployments` | `platform_internal`, `standard_application_use`, `approved`, `auto_approval_policy_id = 'kaana-sync'`, the attested regions, the provider's data policy |
+| `price_versions` | USD, from the list price: input, cached input (at the input rate), output, reasoning (at the output rate) per million tokens, `requests` at zero. A changed list price SUPERSEDES the active version |
+| `inference_deployment_routing_scores` | `price` score = minus the cost of 1M input + 1M output tokens in cents; latency, throughput and balanced unscored (`not-measured:kaana-sync`); `standard_payg`, `available` |
+
+Synced licence and legal fields record the policy, not a review:
+`LicenseRef-Oxy-Serving-Provider-Terms`, `commercialUseAllowed: false` (not
+asserted, so `requireCommercialUseRights` excludes these routes),
+`requiresAttribution: true`, `releaseKind: third_party_hosted`, legal evidence
+`auto-approval-policy:kaana-sync` with no reviewer. ADR 0027 has the table.
+
+### What it refuses to do
+
+- **Invent a required value.** A line missing `contextTokens`,
+  `maxOutputTokens` or modalities, or with no priced and attested route, is
+  skipped and counted in the summary (`models.skipped`,
+  `deployments.skipped`, first 200 names in `skippedModels`).
+- **Describe non-text output.** Migration 0050 requires a reviewed provenance
+  marking; image/audio/video/embedding lines are skipped
+  (`non_text_output_unreviewed`). Alia's speech route stays reviewed.
+- **Touch a reviewed row.** Rows with `catalogue_source = 'reviewed'` or
+  `auto_approval_policy_id IS NULL` keep every reviewed fact; only
+  `reasoning_efforts` is kept current on a reviewed model.
+- **Publish `alia/*`**, which is reserved for first-party releases.
+- **Retire on a broken report.** An empty report is refused outright; one that
+  would retire more than half of the synced routes is withheld and logged
+  (`inference.catalogue_sync.retirement_withheld`) unless confirmed.
+
+### Retirement and the emergency brake
+
+A synced deployment Kaana no longer reports is set `status = retired`,
+`permission_state = retired` on the next run, which removes it from every
+catalogue read and route resolution. The same row is revived if Kaana reports it
+again.
+
+`inference_catalogue_blocklist` is empty by default.
+`POST /inference/admin/catalogue/blocklist` `{ modelId, reason }` retires the
+line's synced routes in the same commit and the sync skips it from then on;
+`DELETE /inference/admin/catalogue/blocklist/:publisher/:model` lifts it, and the
+line returns at the next run. `GET` lists it. Setting `enabled = false` on the
+`kaana-sync` row of `inference_catalogue_auto_approval_policies` stops the sync
+entirely; existing routes keep serving until retired.
+
+### Routing a synced model
+
+A synced route carries only a `price` score, so it is selectable under
+`optimiseFor: 'price'`. An official application with no routing policy of its
+own is served under `platform-internal-default@1`, which ranks on `price` and
+authorizes no failover ([routing.md](./routing.md)). A policy optimising for
+latency, throughput or balanced finds no score on a synced route and refuses
+with `no_route_available` (`routing_evidence:missing-score`) until measured
+scores exist.
+

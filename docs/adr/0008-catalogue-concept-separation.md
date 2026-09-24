@@ -2,6 +2,10 @@
 
 - Status: accepted
 - Date: 2026-08-15
+- Changed in part: [ADR 0027](0027-automatic-internal-catalogue-from-kaana.md)
+  (2026-09-25) — the `platform_internal` catalogue is synced from Kaana and
+  approved in bulk by a policy record rather than written row by row by a
+  reviewed bootstrap. Public resale review is unchanged.
 - Issue: #972
 
 ## Context
