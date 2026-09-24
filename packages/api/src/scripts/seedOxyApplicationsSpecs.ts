@@ -148,6 +148,13 @@ export function seedApplicationLookupIdentity(
  *    from Oxy's capability registry before each agent run. Oxy authorises that
  *    read from the effective credential/application scope intersection, so the
  *    application itself must hold this scope as well as its credential.
+ *  - `clarity:search` — Alia's web search tool IS a Clarity search: the
+ *    assistant's "search the web" and its research runs query Clarity's index
+ *    with the service token. Without the scope Clarity refuses every query
+ *    (`The clarity:search scope is required`) and the assistant answers from
+ *    memory while reporting "Search failed". It reads the public index only;
+ *    `clarity:index` and `clarity:sites:manage` — which write to it — are not
+ *    granted, because Alia publishes nothing there. Non-privileged.
  *
  * GRANTED — delegation and coordination. ALL THREE ARE STAFF-GATED
  * ({@link PRIVILEGED_APPLICATION_SCOPES}), so none is self-grantable by the
@@ -233,8 +240,8 @@ export function seedApplicationLookupIdentity(
  *    and this one is self-grantable — it can be added the day a surface needs it,
  *    by the application's own owner, with no staff round trip.
  *
- * Nothing outside the `inference:*` family, `user:read`, `capabilities:read` and
- * those three delegation and coordination scopes is granted. Alia is not a federation peer, does not move reputation,
+ * Nothing outside the `inference:*` family, `user:read`, `capabilities:read`,
+ * `clarity:search` and those three delegation and coordination scopes is granted. Alia is not a federation peer, does not move reputation,
  * writes no signals, sends no notifications and touches no follow graph.
  *
  * These privileged entries — now four: `capabilities:read` and the three above —
@@ -252,6 +259,7 @@ export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
   'inference:usage:read',
   'inference:routing:read',
   'capabilities:read',
+  'clarity:search',
   'acting-as:offline',
   'accounts:act-as-session',
   'capability-tickets:issue',
