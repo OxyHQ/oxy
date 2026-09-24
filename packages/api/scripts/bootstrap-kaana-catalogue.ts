@@ -98,6 +98,7 @@ import {
 import {
   createKaanaCatalogueBootstrapPlan,
   createKaanaCatalogueReviewedFactsSha256,
+  kaanaBootstrapComparableDeployment,
   requireKaanaCatalogueBootstrapApplyAuthorization,
 } from "../src/scripts/kaanaCatalogueBootstrapPlan";
 import { kaanaReviewedScorecardFields } from "../src/scripts/kaanaScorecardRenewal";
@@ -143,8 +144,11 @@ const REVIEWED_CATALOGUE_FACTS = {
     status: "active",
     dedicatedCapacity: false,
     regions: [],
+    // The exact approval note the first bootstrap wrote on the Cerebras and
+    // Groq routes. It records that decision and is never rewritten, so it keeps
+    // its original bytes; later routes carry their own note.
     permissionStateNote:
-      "Owner-approved initial platform-internal route; primary-source review 2026-09-02.",
+      "Owner-approved initial internal Alia route; primary-source review 2026-09-02.",
     upstreamWholesaleCostAmount: null,
     upstreamWholesaleCostCurrency: null,
     upstreamWholesaleCostUnit: null,
@@ -295,7 +299,7 @@ function requireExactlyOne<T>(label: string, rows: readonly T[]): T {
   return row;
 }
 
-async function requireReviewer(tx: Transaction): Promise<void> {
+export async function requireReviewer(tx: Transaction): Promise<void> {
   if (reviewerUserId.length === 0) {
     throw new Error("KAANA_CATALOGUE_REVIEWER_USER_ID is required");
   }
@@ -602,7 +606,14 @@ async function ensureDeployment(
     );
     inserted.push(`deployment:${provider.deploymentId}`);
   }
-  assertFields(`deployment:${provider.deploymentId}`, row, expected);
+  // New rows are written as `platform_internal`; an existing row may still
+  // hold the legacy `internal_alia` spelling of that scope and is compared, never
+  // rewritten, as the scope it means.
+  assertFields(
+    `deployment:${provider.deploymentId}`,
+    kaanaBootstrapComparableDeployment(row),
+    expected,
+  );
 }
 
 async function ensureScorecard(
@@ -787,7 +798,7 @@ async function ensureProfiles(
  * route with its price, deployment and scorecard, then its profiles. Returns
  * the projection only after every row was proven equal to the reviewed facts.
  */
-async function ensureCatalogue(
+export async function ensureCatalogue(
   tx: Transaction,
   catalogue: KaanaReviewedModelCatalogue,
   inserted: string[],
@@ -889,30 +900,33 @@ async function bootstrap(): Promise<BootstrapSummary> {
   return summary;
 }
 
-bootstrap()
-  .then(async (summary) => {
-    const result = {
-      schemaVersion: 1,
-      database: { engine: "postgresql" },
-      ...summary,
-      applied: APPLY,
-    } as const;
-    logger.info(
-      APPLY
-        ? "Kaana catalogue bootstrap applied"
-        : "Kaana catalogue bootstrap dry run",
-      {
-        ...result,
-      },
-    );
-    process.stdout.write(`${RESULT_PREFIX}${JSON.stringify(result)}\n`);
-    await closePostgres();
-  })
-  .catch(async (error: unknown) => {
-    logger.error(
-      "Kaana catalogue bootstrap failed",
-      error instanceof Error ? error : new Error(String(error)),
-    );
-    await closePostgres().catch(() => undefined);
-    process.exit(1);
-  });
+/** The one-shot entrypoint; the tests import the writer without running it. */
+if (require.main === module) {
+  bootstrap()
+    .then(async (summary) => {
+      const result = {
+        schemaVersion: 1,
+        database: { engine: "postgresql" },
+        ...summary,
+        applied: APPLY,
+      } as const;
+      logger.info(
+        APPLY
+          ? "Kaana catalogue bootstrap applied"
+          : "Kaana catalogue bootstrap dry run",
+        {
+          ...result,
+        },
+      );
+      process.stdout.write(`${RESULT_PREFIX}${JSON.stringify(result)}\n`);
+      await closePostgres();
+    })
+    .catch(async (error: unknown) => {
+      logger.error(
+        "Kaana catalogue bootstrap failed",
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      await closePostgres().catch(() => undefined);
+      process.exit(1);
+    });
+}
