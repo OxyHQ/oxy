@@ -9,6 +9,31 @@
   (`openAccountDialog('signup')`), never by a local passkey ceremony (ADR 0024
   D4). No ecosystem app called it; `auth.oxy.so` opens the canonical flow.
 
+## [4.0.1] - 2026-09-21
+
+### Fixed
+
+- `ProfileButton` imports its icons through Bloom's per-glyph subpaths instead
+  of the `@oxy.so/bloom/icons` barrel, which Metro retains whole (465 icon
+  modules in a consumer's common chunk). `bloomSubpathsResolve.test.ts` rejects
+  a runtime import of the barrel.
+
+## [4.0.0] - 2026-09-21
+
+### Changed
+
+- **Breaking:** requires `@oxy.so/bloom` `^4.2.0` and `@oxy.so/core` `^1.7.3`.
+  Apps and Services must share ONE Bloom instance (theme, dialog and
+  interaction contexts). Shared UI adopts Bloom 4 controls: `FollowButton`,
+  `ProfileButton`, user lists, file management, headers and account members.
+  See `docs/engineering/bloom-4-migration.md`.
+- **Breaking:** `OxySignInButton.size` follows Bloom's `SocialButtonSize`
+  (`sm`, `md`), replacing `small` and `medium`.
+
+### Removed
+
+- The duplicate animated file-mode button and the unused PIN renderer.
+
 ## [30.2.5] - 2026-09-03
 
 ### Added

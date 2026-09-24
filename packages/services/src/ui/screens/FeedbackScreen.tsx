@@ -375,7 +375,7 @@ const FeedbackScreen: React.FC<BaseScreenProps> = ({
 
 			<View className="flex-row gap-space-8 mt-space-24 w-full">
 				<Button
-					variant="secondary"
+					appearance="subtle" tone="neutral"
 					onPress={goBack}
 					accessibilityLabel="Go back"
 					icon={<Ionicons name="arrow-back" size={16} color={colors.text} />}
@@ -385,7 +385,7 @@ const FeedbackScreen: React.FC<BaseScreenProps> = ({
 				</Button>
 
 				<Button
-					variant="primary"
+					appearance="solid" tone="accent"
 					onPress={nextStep}
 					disabled={!isTypeStepValid()}
 					accessibilityLabel="Continue to next step"
@@ -485,7 +485,7 @@ const FeedbackScreen: React.FC<BaseScreenProps> = ({
 
 			<View className="flex-row gap-space-8 mt-space-24 w-full">
 				<Button
-					variant="secondary"
+					appearance="subtle" tone="neutral"
 					onPress={prevStep}
 					accessibilityLabel="Go back"
 					icon={<Ionicons name="arrow-back" size={16} color={colors.text} />}
@@ -495,7 +495,7 @@ const FeedbackScreen: React.FC<BaseScreenProps> = ({
 				</Button>
 
 				<Button
-					variant="primary"
+					appearance="solid" tone="accent"
 					onPress={nextStep}
 					disabled={!isDetailsStepValid()}
 					accessibilityLabel="Continue to next step"
@@ -574,7 +574,7 @@ const FeedbackScreen: React.FC<BaseScreenProps> = ({
 
 			<View className="flex-row gap-space-8 mt-space-24 w-full">
 				<Button
-					variant="secondary"
+					appearance="subtle" tone="neutral"
 					onPress={prevStep}
 					accessibilityLabel="Go back"
 					icon={<Ionicons name="arrow-back" size={16} color={colors.text} />}
@@ -584,7 +584,7 @@ const FeedbackScreen: React.FC<BaseScreenProps> = ({
 				</Button>
 
 				<Button
-					variant="primary"
+					appearance="solid" tone="accent"
 					onPress={nextStep}
 					disabled={!isContactStepValid()}
 					accessibilityLabel="Continue to summary"
@@ -653,7 +653,7 @@ const FeedbackScreen: React.FC<BaseScreenProps> = ({
 			</View>
 
 			<Button
-				variant="primary"
+				appearance="solid" tone="accent"
 				onPress={handleSubmitFeedback}
 				disabled={feedbackState.status === "submitting"}
 				loading={feedbackState.status === "submitting"}
@@ -670,7 +670,7 @@ const FeedbackScreen: React.FC<BaseScreenProps> = ({
 
 			<View className="flex-row mt-space-16 w-full">
 				<Button
-					variant="secondary"
+					appearance="subtle" tone="neutral"
 					onPress={prevStep}
 					accessibilityLabel="Go back"
 					icon={<Ionicons name="arrow-back" size={16} color={colors.text} />}
@@ -701,7 +701,7 @@ const FeedbackScreen: React.FC<BaseScreenProps> = ({
 						"Your feedback has been submitted successfully. We'll review it and get back to you soon."}
 				</Text>
 				<Button
-					variant="primary"
+					appearance="solid" tone="accent"
 					onPress={() => {
 						resetForm();
 						setCurrentStep(0);

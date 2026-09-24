@@ -647,17 +647,20 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
     /**
      * Whether this process can prove what it is (ADR 0026).
      *
-     * The check and the module that performs it are loaded LAZILY and only on a
-     * Node host. `@oxy.so/core`'s root barrel reaches React Native and Expo, and
-     * `server/workloadIdentity` imports `node:crypto` — a static import here
-     * would pull it into every mobile bundle for a path a phone can never take.
+     * `#workload-identity` (package.json `imports`) selects a client
+     * implementation for native and browser bundlers, and the signer only for
+     * Node hosts. The runtime Node guard avoids calling attestation on clients;
+     * the module boundary keeps node:crypto out of their bundle graphs (a guard
+     * alone cannot). It is a package import, not a self-reference to an export
+     * subpath: a self-reference only resolves where `@oxy.so/core` is reachable
+     * through `node_modules`, which bundlers inside this workspace are not.
      *
      * @internal
      */
     async _canUseWorkloadIdentity(): Promise<boolean> {
       if (typeof process === 'undefined' || !process.versions?.node) return false;
       try {
-        const { canAttestWorkloadIdentity } = await import('../server/workloadIdentity');
+        const { canAttestWorkloadIdentity } = await import('#workload-identity');
         return canAttestWorkloadIdentity();
       } catch {
         // A bundler that dropped the server subpath, or a runtime without it.
@@ -684,7 +687,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
       if (entry?.token && entry.expiresAt > now + 60_000) return entry.token;
       if (entry?.pending) return entry.pending;
 
-      const { requestWorkloadServiceToken } = await import('../server/workloadIdentity');
+      const { requestWorkloadServiceToken } = await import('#workload-identity');
       const seeded = entry ?? {
         token: '',
         expiresAt: 0,

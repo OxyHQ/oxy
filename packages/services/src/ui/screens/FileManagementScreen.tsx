@@ -1,16 +1,8 @@
+import { Button } from '@oxy.so/bloom/button';
 import type React from 'react';
 import { useState, useCallback, useMemo, useRef } from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    StyleSheet,
-    ScrollView,
-    ActivityIndicator,
-    RefreshControl,
-    TextInput,
-    useWindowDimensions,
-} from 'react-native';
+import { View, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, useWindowDimensions } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image as ExpoImage } from 'expo-image';
 import type { FileManagementScreenProps } from '../types/fileManagement';
@@ -46,11 +38,10 @@ import PhotoPickerView from './fileManagement/PhotoPickerSection';
 import FileListSection, { type FileListItem } from './fileManagement/FileListSection';
 import FileLibraryError from './fileManagement/FileLibraryError';
 import UploadBar from './fileManagement/UploadBar';
-import { AnimatedButton } from '../components/fileManagement/AnimatedButton';
+import { SegmentedControl, SegmentedControlItem } from '@oxy.so/bloom/segmented-control';
+import { Search } from '@oxy.so/bloom/search';
 
-// Genuinely-inline-only styles: `viewModeButton` is spread into an Animated.View
-// style array (interpolated backgroundColor), and the photo tiles are
-// `expo-image` (no className remap). Everything else uses NativeWind classNames.
+// Photo tiles use expo-image dimensions; controls use Bloom primitives.
 // Nav-header slot layout for this screen's action row + review-mode back button.
 const fmHeaderStyles = StyleSheet.create({
     actionsRow: {
@@ -67,15 +58,6 @@ const fmHeaderStyles = StyleSheet.create({
 });
 
 const screenStyles = StyleSheet.create({
-    viewModeButton: {
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 999,
-        minWidth: 36,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginHorizontal: 1,
-    },
     justifiedPhotoImage: { width: '100%', height: '100%', borderRadius: 6 },
 });
 
@@ -799,35 +781,16 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                 },
                 // Hide action buttons when selecting (in selectMode or bulk operations mode)
                 rightElement: (!selectMode && selectedIds.size === 0) ? (
-                    <View className="flex-row items-center gap-[6px] ml-[12px]">
-                        {(isImage || isVideo || file.contentType.includes('pdf')) && (
-                            <TouchableOpacity
-                                className="w-[34px] h-[34px] rounded-[8px] items-center justify-center"
-                                style={{ backgroundColor: colors.backgroundSecondary }}
-                                onPress={() => handleFileOpen(file)}
-                            >
-                                <Ionicons name="eye" size={18} color={colors.primary} />
-                            </TouchableOpacity>
-                        )}
-                        <TouchableOpacity
-                            className="w-[34px] h-[34px] rounded-[8px] items-center justify-center"
-                            style={{ backgroundColor: colors.backgroundSecondary }}
-                            onPress={() => handleFileDownload(file.id, file.filename)}
-                        >
-                            <Ionicons name="download" size={18} color={colors.primary} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            className="w-[34px] h-[34px] rounded-[8px] items-center justify-center"
-                            style={{ backgroundColor: colors.negativeSubtle }}
-                            onPress={() => confirmFileDelete(file.id, file.filename)}
-                            disabled={deletingId === file.id}
-                        >
-                            {deletingId === file.id ? (
-                                <ActivityIndicator size="small" color={colors.error} />
-                            ) : (
-                                <Ionicons name="trash" size={18} color={colors.error} />
-                            )}
-                        </TouchableOpacity>
+                    <View className="flex-row items-center gap-1.5 ml-3">
+                        {(isImage || isVideo || file.contentType.includes('pdf')) ? <Button appearance="subtle" tone="neutral" size="small" iconOnly stopPropagation
+                            accessibilityLabel={`Preview ${file.filename}`} onPress={() => handleFileOpen(file)}
+                            icon={<Ionicons name="eye" size={18} color={colors.text} />} /> : null}
+                        <Button appearance="subtle" tone="neutral" size="small" iconOnly stopPropagation
+                            accessibilityLabel={`Download ${file.filename}`} onPress={() => handleFileDownload(file.id, file.filename)}
+                            icon={<Ionicons name="download" size={18} color={colors.text} />} />
+                        <Button appearance="subtle" tone="danger" size="small" iconOnly stopPropagation loading={deletingId === file.id}
+                            accessibilityLabel={`Delete ${file.filename}`} onPress={() => confirmFileDelete(file.id, file.filename)}
+                            icon={<Ionicons name="trash" size={18} color={colors.error} />} />
                     </View>
                 ) : undefined,
             };
@@ -844,7 +807,6 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
             iconColor={colors.error}
             titleColor={colors.text}
             descriptionColor={colors.textSecondary}
-            buttonColor={colors.primary}
         />
     );
 
@@ -866,21 +828,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                             : t('fileManagement.emptyPhotos.otherDescription')
                     } </Text>
                     {user?.id === targetUserId && (
-                        <TouchableOpacity
-                            className="flex-row items-center px-[24px] py-[12px] rounded-[24px] gap-[8px]"
-                            style={{ backgroundColor: colors.primary }}
-                            onPress={handleFileUpload}
-                            disabled={uploading || isPickingDocument}
-                        >
-                            {(uploading || isPickingDocument) ? (
-                                <ActivityIndicator size="small" color="#FFFFFF" />
-                            ) : (
-                                <>
-                                    <Ionicons name="cloud-upload" size={20} color="#FFFFFF" />
-                                    <Text className="text-white text-[16px] font-semibold">{t('fileManagement.uploadPhotos')}</Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
+                        <Button onPress={handleFileUpload} loading={uploading || isPickingDocument}>{t('fileManagement.uploadPhotos')}</Button>
                     )}
                 </View>
             );
@@ -934,21 +882,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                 }
             </Text>
             {user?.id === targetUserId && (
-                <TouchableOpacity
-                    className="flex-row items-center px-[24px] py-[12px] rounded-[24px] gap-[8px]"
-                    style={{ backgroundColor: colors.primary }}
-                    onPress={handleFileUpload}
-                    disabled={uploading || isPickingDocument}
-                >
-                    {(uploading || isPickingDocument) ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                        <>
-                            <Ionicons name="cloud-upload" size={20} color="#FFFFFF" />
-                            <Text className="text-white text-[16px] font-semibold">{t('fileManagement.uploadFiles')}</Text>
-                        </>
-                    )}
-                </TouchableOpacity>
+                <Button onPress={handleFileUpload} loading={uploading || isPickingDocument}>{t('fileManagement.uploadFiles')}</Button>
             )}
         </View>
     );
@@ -1215,60 +1149,18 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                     className="flex-1"
                     style={{ maxWidth: '80%' }}
                 >
-                    <View
-                        className="flex-row rounded-full p-[2px] overflow-hidden"
-                        style={{ backgroundColor: colors.card }}
-                    >
-                        <AnimatedButton
-                            isSelected={viewMode === 'all'}
-                            onPress={() => setViewMode('all')}
-                            icon={viewMode === 'all' ? 'folder' : 'folder-outline'}
-                            primaryColor={colors.primary}
-                            textColor={colors.text}
-                            style={screenStyles.viewModeButton}
-                            accessibilityLabel={t('fileManagement.a11y.viewAll') || 'Show all files'}
-                        />
-                        <AnimatedButton
-                            isSelected={viewMode === 'photos'}
-                            onPress={() => setViewMode('photos')}
-                            icon={viewMode === 'photos' ? 'image-multiple' : 'image-multiple-outline'}
-                            primaryColor={colors.primary}
-                            textColor={colors.text}
-                            style={screenStyles.viewModeButton}
-                            accessibilityLabel={t('fileManagement.a11y.viewPhotos') || 'Show photos only'}
-                        />
-                        <AnimatedButton
-                            isSelected={viewMode === 'videos'}
-                            onPress={() => setViewMode('videos')}
-                            icon={viewMode === 'videos' ? 'video' : 'video-outline'}
-                            primaryColor={colors.primary}
-                            textColor={colors.text}
-                            style={screenStyles.viewModeButton}
-                            accessibilityLabel={t('fileManagement.a11y.viewVideos') || 'Show videos only'}
-                        />
-                        <AnimatedButton
-                            isSelected={viewMode === 'documents'}
-                            onPress={() => setViewMode('documents')}
-                            icon={viewMode === 'documents' ? 'file-document' : 'file-document-outline'}
-                            primaryColor={colors.primary}
-                            textColor={colors.text}
-                            style={screenStyles.viewModeButton}
-                            accessibilityLabel={t('fileManagement.a11y.viewDocuments') || 'Show documents only'}
-                        />
-                        <AnimatedButton
-                            isSelected={viewMode === 'audio'}
-                            onPress={() => setViewMode('audio')}
-                            icon={viewMode === 'audio' ? 'music-note' : 'music-note-outline'}
-                            primaryColor={colors.primary}
-                            textColor={colors.text}
-                            style={screenStyles.viewModeButton}
-                            accessibilityLabel={t('fileManagement.a11y.viewAudio') || 'Show audio only'}
-                        />
-                    </View>
+                    <SegmentedControl type="radio" label={t('fileManagement.viewMode') || 'File type'}
+                        value={viewMode} onValueChange={setViewMode} size="small">
+                        {(['all', 'photos', 'videos', 'documents', 'audio'] as const).map(mode => (
+                            <SegmentedControlItem key={mode} value={mode} accessibilityLabel={mode}>
+                                <MaterialCommunityIcons
+                                    name={({ all: 'folder-outline', photos: 'image-multiple-outline', videos: 'video-outline', documents: 'file-document-outline', audio: 'music-note-outline' } as const)[mode]}
+                                    size={18} color={colors.text} />
+                            </SegmentedControlItem>
+                        ))}
+                    </SegmentedControl>
                 </ScrollView>
-                <TouchableOpacity
-                    className="flex-row items-center justify-center px-[10px] py-[6px] rounded-full min-w-[36px] gap-[4px]"
-                    style={{ backgroundColor: colors.card }}
+                <Button appearance="subtle" tone="neutral" size="small"
                     accessibilityRole="button"
                     accessibilityLabel={t('fileManagement.a11y.sortBy', {
                         field: sortBy,
@@ -1285,7 +1177,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                             setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
                         }
                     }}
-                >
+                    trailing={<View className="flex-row items-center gap-1">
                     <MaterialCommunityIcons
                         name={
                             sortBy === 'date' ? 'calendar' :
@@ -1300,58 +1192,21 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                         size={14}
                         color={colors.textSecondary}
                     />
-                </TouchableOpacity>
+                </View>} />
                 {user?.id === targetUserId && (!selectMode || allowUploadInSelectMode) && (
-                    <TouchableOpacity
-                        className="h-[44px] w-[44px] rounded-[22px] items-center justify-center"
-                        style={{ backgroundColor: colors.primary }}
-                        onPress={handleFileUpload}
-                        disabled={uploading || isPickingDocument}
-                        accessibilityRole="button"
+                    <Button iconOnly onPress={handleFileUpload} loading={uploading || isPickingDocument}
                         accessibilityLabel={t('fileManagement.a11y.uploadFile') || 'Upload file'}
-                        accessibilityState={{ busy: uploading || isPickingDocument }}
-                    >
-                        {uploading ? (
-                            <View className="items-center justify-center">
-                                <ActivityIndicator size="small" color="#FFFFFF" />
-                                {uploadProgress && (
-                                    <Text className="text-white text-[10px] font-semibold mt-[2px]">
-                                        {uploadProgress.current}/{uploadProgress.total}
-                                    </Text>
-                                )}
-                            </View>
-                        ) : isPickingDocument ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                            <Ionicons name="add" size={22} color="#FFFFFF" />
-                        )}
-                    </TouchableOpacity>
+                        icon={<Ionicons name="add" size={22} color={colors.primaryForeground} />} />
                 )}
             </View>
 
             {/* Search Bar */}
             {files.length > 0 && (viewMode === 'all' || files.some(f => f.contentType.startsWith('image/'))) && (
-                <View
-                    className="flex-row items-center px-[14px] py-[10px] mx-[12px] mb-[12px] rounded-full gap-[10px]"
-                    style={{ backgroundColor: colors.card }}
-                >
-                    <Ionicons name="search" size={22} color={colors.icon} />
-                    <TextInput
-                        className="flex-1 text-[16px] leading-[20px]"
-                        style={{ color: colors.text }}
-                        placeholder={viewMode === 'photos' ? t('fileManagement.searchPhotos') : t('fileManagement.searchFiles')}
-                        placeholderTextColor={colors.textSecondary}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
+                <View className="mx-[12px] mb-[12px]">
+                    <Search
+                        label={viewMode === 'photos' ? t('fileManagement.searchPhotos') : t('fileManagement.searchFiles')}
+                        value={searchQuery} onValueChange={setSearchQuery} onClearText={() => setSearchQuery('')}
                     />
-                    {searchQuery.length > 0 && (
-                        <TouchableOpacity
-                            onPress={() => setSearchQuery('')}
-                            className="p-[4px] rounded-[12px] items-center justify-center"
-                        >
-                            <Ionicons name="close-circle" size={22} color={colors.icon} />
-                        </TouchableOpacity>
-                    )}
                 </View>
             )}
 
@@ -1410,8 +1265,6 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
             {!selectMode && uploading && (
                 <UploadBar
                     uploadProgress={uploadProgress}
-                    isDark={bloomTheme.isDark}
-                    colors={colors}
                     t={t}
                 />
             )}

@@ -5,14 +5,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   FlatList,
-  TouchableOpacity,
   RefreshControl,
 } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { H6, Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { ContactRow } from '@oxy.so/bloom/chat-people';
 import FollowButton from '../components/FollowButton';
 import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
@@ -36,7 +35,6 @@ interface UserListScreenProps extends BaseScreenProps {
 }
 
 const PAGE_SIZE = 20;
-const AVATAR_SIZE = 48;
 const EMPTY_ICON_SIZE = 64;
 const ERROR_ICON_SIZE = 48;
 
@@ -161,42 +159,21 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
       const handle = getAccountFallbackHandle(item);
 
       return (
-        <TouchableOpacity
-          style={styles.userItem}
-          className="px-screen-margin py-space-12 gap-space-12"
-          onPress={() => handleUserPress(item)}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={displayName}
-        >
-          <Avatar
-            source={
-              item.avatar
-                ? oxyServices.getFileDownloadUrl(item.avatar, 'thumb')
-                : undefined
-            }
-            name={displayName}
-            size={AVATAR_SIZE}
-          />
-          <View style={styles.userInfo}>
-            <Text className="text-text font-medium text-base" numberOfLines={1}>
-              {displayName}
-            </Text>
-            {handle ? (
-              <Text className="text-text-secondary text-sm mt-space-2" numberOfLines={1}>
+        <View className="px-screen-margin flex-row items-center gap-space-12">
+          <ContactRow id={itemUserId || displayName} name={displayName}
+            subtitle={handle ? (item.username ? `@${handle}` : handle) : undefined}
+            avatar={item.avatar ? oxyServices.getFileDownloadUrl(item.avatar, 'thumb') : undefined}
+            horizontalInset={0} style={{ flex: 1 }}
+            onPress={() => handleUserPress(item)}
+            identitySlot={<View style={styles.userInfo}>
+              <Text variant="body-medium" numberOfLines={1}>{displayName}</Text>
+              {handle ? <Text className="text-text-secondary text-sm mt-space-2" numberOfLines={1}>
                 {item.username ? `@${handle}` : handle}
-              </Text>
-            ) : null}
-            {description ? (
-              <Text className="text-text-secondary text-sm mt-space-4" numberOfLines={2}>
-                {description}
-              </Text>
-            ) : null}
-          </View>
-          {!isCurrentUser && itemUserId ? (
-            <FollowButton userId={itemUserId} size="small" />
-          ) : null}
-        </TouchableOpacity>
+              </Text> : null}
+              {description ? <Text className="text-text-secondary text-sm mt-space-4" numberOfLines={2}>{description}</Text> : null}
+            </View>} />
+          {!isCurrentUser && itemUserId ? <FollowButton userId={itemUserId} size="small" /> : null}
+        </View>
       );
     },
     [handleUserPress, currentUserId, oxyServices]
@@ -257,7 +234,7 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
         <View style={styles.center} className="px-space-32 gap-space-16">
           <Ionicons name="alert-circle" size={ERROR_ICON_SIZE} color={bloomTheme.colors.error} />
           <Text className="text-text-secondary text-base text-center">{error}</Text>
-          <Button variant="primary" onPress={() => fetchUsers(0)}>
+          <Button appearance="solid" tone="accent" onPress={() => fetchUsers(0)}>
             {t('common.retry') || 'Retry'}
           </Button>
         </View>
@@ -304,17 +281,13 @@ const styles = StyleSheet.create({
   listContent: {
     flexGrow: 1,
   },
-  userItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   userInfo: {
     flex: 1,
   },
   // Inset the hairline separator to align with the start of the user's text
   // content (avatar width + screen margin + gap).
   separator: {
-    marginLeft: 76,
+    marginLeft: 72,
   },
   emptyContainer: {
     flex: 1,

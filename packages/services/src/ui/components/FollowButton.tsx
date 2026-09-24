@@ -5,13 +5,11 @@ import type {
   TextStyle,
   StyleProp,
 } from 'react-native';
-import { ActivityIndicator } from 'react-native';
 import { useOxy } from '../context/OxyContext';
 import { toast } from '@oxy.so/bloom/toast';
-import { Button } from '@oxy.so/bloom/button';
+import { FollowButton as BloomFollowButton } from '@oxy.so/bloom/media-header';
 import { useFollow, useFollowForButton } from '../hooks/useFollow';
 import { useFollowStore } from '../stores/followStore';
-import { useTheme } from '@oxy.so/bloom/theme';
 import type { OxyServices, BulkFollowResult, BulkUnfollowResult } from '@oxy.so/core';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -69,7 +67,6 @@ const FollowButtonInner = memo(function FollowButtonInner({
   showLoadingState = true,
   preventParentActions = true,
 }: SingleFollowButtonProps & { oxyServices: OxyServices }) {
-  const { colors } = useTheme();
 
   const {
     isFollowing,
@@ -111,22 +108,16 @@ const FollowButtonInner = memo(function FollowButtonInner({
   const showSpinner = showLoadingState && isBusy;
 
   return (
-    <Button
-      variant={showFollowing ? 'secondary' : 'primary'}
+    <BloomFollowButton
+      following={showFollowing}
+      onFollowChange={() => { void handlePress(); }}
       size={size}
-      onPress={() => { void handlePress(); }}
+      loading={showSpinner}
       disabled={disabled || isBusy}
       style={style}
       textStyle={textStyle}
-      icon={showSpinner ? (
-        <ActivityIndicator
-          size="small"
-          color={showFollowing ? colors.text : colors.primaryForeground}
-        />
-      ) : undefined}
-    >
-      {showSpinner ? undefined : (isKnown ? (isFollowing ? 'Following' : 'Follow') : undefined)}
-    </Button>
+      label={isKnown || showSpinner ? 'Follow' : ''}
+    />
   );
 });
 
@@ -145,7 +136,6 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
   showLoadingState = true,
   preventParentActions = true,
 }: MultiFollowButtonProps) {
-  const { colors } = useTheme();
   const follow = useFollow(userIds);
   const followAllUsers = 'followAllUsers' in follow ? follow.followAllUsers : undefined;
   const unfollowAllUsers = 'unfollowAllUsers' in follow ? follow.unfollowAllUsers : undefined;
@@ -238,22 +228,17 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
   const showSpinner = showLoadingState && isLoading;
 
   return (
-    <Button
-      variant={allFollowing ? 'secondary' : 'primary'}
+    <BloomFollowButton
+      following={allFollowing}
+      onFollowChange={() => { void handlePress(); }}
+      label={followAllLabel}
+      followingLabel={followedAllLabel}
       size={size}
-      onPress={() => { void handlePress(); }}
+      loading={showSpinner}
       disabled={disabled || isLoading}
       style={style}
       textStyle={textStyle}
-      icon={showSpinner ? (
-        <ActivityIndicator
-          size="small"
-          color={allFollowing ? colors.text : colors.primaryForeground}
-        />
-      ) : undefined}
-    >
-      {showSpinner ? undefined : (allFollowing ? followedAllLabel : followAllLabel)}
-    </Button>
+    />
   );
 });
 

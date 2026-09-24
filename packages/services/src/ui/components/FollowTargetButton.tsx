@@ -35,6 +35,7 @@ import { memo, useCallback, useMemo } from 'react';
 import type { FollowApplicationMode, FollowStatus } from '@oxy.so/contracts';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
+import { FollowButton as BloomFollowButton } from '@oxy.so/bloom/media-header';
 import { Button } from '@oxy.so/bloom/button';
 // Per glyph, never `@oxy.so/bloom/icons`. That barrel re-exports all 461 Remix
 // glyphs and Metro does not tree-shake, so one import of it here re-ships every
@@ -380,18 +381,15 @@ export const FollowTargetButton = memo(function FollowTargetButton({
   );
 
   const primary = (
-    <Button
-      variant={isFollowing ? 'secondary' : 'primary'}
+    <BloomFollowButton
+      following={isFollowing}
+      label={isFollowing ? text.idle : label}
+      followingLabel={label}
       size={size}
-      // Unknown is not "not following": the button stays inert until the first
-      // read settles rather than inviting a follow that may already exist.
       disabled={disabled || isUnknown}
-      loading={isPending}
-      onPress={() => void handlePrimary()}
-      accessibilityLabel={label}
-    >
-      {label}
-    </Button>
+      loading={isPending || isUnknown}
+      onFollowChange={() => void handlePrimary()}
+    />
   );
 
   if (!showOptions || menuItems.length === 0) {
@@ -410,7 +408,7 @@ export const FollowTargetButton = memo(function FollowTargetButton({
         */}
         <DropdownMenuTrigger asChild disabled={disabled || isUnknown}>
           <Button
-            variant="secondary"
+            appearance="subtle" tone="support"
             size={size === 'large' ? 'large' : 'small'}
             icon={<ChevronDown width={16} />}
             disabled={disabled || isUnknown}
