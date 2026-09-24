@@ -20,8 +20,8 @@ export interface RegisteredScopeRotation {
 export const REGISTERED_SCOPE_ROTATIONS: readonly RegisteredScopeRotation[] =
   Object.freeze([
     // Alia: the exact named lane predates capabilities:read, the
-    // coordinator's capability-tickets:issue and its web search's
-    // clarity:search.
+    // coordinator's capability-tickets:issue, its web search's
+    // clarity:search and its page reader's clarity:index.
     Object.freeze({
       applicationId: "6a2f851751b784a86fd0e934",
       environment: "production",
@@ -32,6 +32,7 @@ export const REGISTERED_SCOPE_ROTATIONS: readonly RegisteredScopeRotation[] =
         "capabilities:read",
         "capability-tickets:issue",
         "clarity:search",
+        "clarity:index",
       ]),
     }),
     // Homiio: the production service lane predates reputation:write +
