@@ -598,3 +598,32 @@ describe('speech request parameters', () => {
     expect(inferenceRequestSchema.safeParse({ ...speech, ...patch }).success).toBe(false);
   });
 });
+
+describe("reasoning effort on the envelope", () => {
+  it("carries an optional provider-neutral effort", () => {
+    const parsed = inferenceRequestSchema.parse({
+      ...request,
+      reasoning: { effort: "high" },
+    });
+    expect(parsed.reasoning).toEqual({ effort: "high" });
+    expect(inferenceRequestSchema.parse(request).reasoning).toBeUndefined();
+  });
+
+  it("refuses an effort outside the closed vocabulary", () => {
+    for (const effort of ["minimal", "max", "HIGH", ""]) {
+      expect(
+        inferenceRequestSchema.safeParse({ ...request, reasoning: { effort } })
+          .success,
+      ).toBe(false);
+    }
+  });
+
+  it("refuses a provider-specific knob beside the effort (strict leaf)", () => {
+    expect(
+      inferenceRequestSchema.safeParse({
+        ...request,
+        reasoning: { effort: "low", budget_tokens: 1024 },
+      }).success,
+    ).toBe(false);
+  });
+});

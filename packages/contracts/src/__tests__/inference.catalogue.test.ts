@@ -333,3 +333,25 @@ describe('inferenceDataPolicySchema', () => {
     ).toBe(true);
   });
 });
+
+describe('reasoning efforts on capabilities', () => {
+  it('defaults to no effort control when an older producer omits the field', () => {
+    const parsed = catalogueModelSchema.parse(model);
+    expect(parsed.capabilities.reasoningEfforts).toEqual([]);
+  });
+
+  it('accepts the closed vocabulary and refuses anything else', () => {
+    expect(
+      catalogueModelSchema.safeParse({
+        ...model,
+        capabilities: { ...capabilities, reasoning: true, reasoningEfforts: ['low', 'medium', 'high'] },
+      }).success
+    ).toBe(true);
+    expect(
+      catalogueModelSchema.safeParse({
+        ...model,
+        capabilities: { ...capabilities, reasoningEfforts: ['xhigh'] },
+      }).success
+    ).toBe(false);
+  });
+});
