@@ -132,6 +132,7 @@ import {
 import type { AccountPermission, ApplicationPermission } from '../utils/accountRoles';
 import { KAANA_PROVIDER_CREDENTIAL_VALIDATOR_CAPABILITY } from '../utils/applicationCapabilities';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
+import { serviceRateLimitKey } from '../utils/serviceRateLimitKey';
 
 const router = Router();
 
@@ -160,8 +161,7 @@ export const PROVIDER_VALIDATION_REPORTS_PER_15_MINUTES = 6_000;
 
 /** Exact live service credential bucket; never a shared NAT/IP bucket. */
 export function providerServiceRateLimitKey(req: Request): string {
-  const service = (req as ProviderRequest).serviceApp;
-  return service ? `${service.appId}:${service.credentialId}` : 'missing-service-principal';
+  return serviceRateLimitKey((req as ProviderRequest).serviceApp);
 }
 
 const providerServiceReadLimiter = rateLimit({

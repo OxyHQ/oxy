@@ -2,6 +2,8 @@ import {
   KAANA_INITIAL_INVENTORY_SNAPSHOT_ID,
   KAANA_INITIAL_MODEL_REFERENCE,
   KAANA_INITIAL_PROVIDERS,
+  KAANA_SPEECH_MODEL_REFERENCE,
+  KAANA_SPEECH_PROVIDERS,
 } from '../kaanaInitialCatalogue';
 import {
   assertKaanaInventoryCredentialSource,
@@ -22,6 +24,13 @@ function inventory(): Record<string, unknown> {
         deploymentId: provider.deploymentId,
         provider: provider.slug,
         modelReference: KAANA_INITIAL_MODEL_REFERENCE,
+        upstreamModelId: provider.upstreamModelId,
+        current: true,
+      })),
+      ...KAANA_SPEECH_PROVIDERS.map((provider) => ({
+        deploymentId: provider.deploymentId,
+        provider: provider.slug,
+        modelReference: KAANA_SPEECH_MODEL_REFERENCE,
         upstreamModelId: provider.upstreamModelId,
         current: true,
       })),
@@ -153,6 +162,37 @@ describe('the versioned live Kaana inventory bootstrap gate', () => {
     const value = inventory();
     mutate(value);
     expect(() => validateKaanaInitialInventory(value, 'version-1', NOW)).toThrow();
+  });
+
+  const speechDeployment = (value: Record<string, unknown>): Record<string, unknown> => {
+    const deployment = (value.deployments as Record<string, unknown>[]).find(
+      (entry) => entry.deploymentId === 'dep_xai_tts_observed_2026_09_24'
+    );
+    if (deployment === undefined) throw new Error('fixture lost the speech deployment');
+    return deployment;
+  };
+
+  it.each([
+    ['speech deployment absent', (value: Record<string, unknown>) => {
+      value.deployments = (value.deployments as Record<string, unknown>[]).filter(
+        (entry) => entry.deploymentId !== 'dep_xai_tts_observed_2026_09_24'
+      );
+    }],
+    ['speech bound to the text model', (value: Record<string, unknown>) => {
+      speechDeployment(value).modelReference = KAANA_INITIAL_MODEL_REFERENCE;
+    }],
+    ['speech on another provider', (value: Record<string, unknown>) => {
+      speechDeployment(value).provider = 'openrouter';
+    }],
+    ['speech on a chat endpoint', (value: Record<string, unknown>) => {
+      speechDeployment(value).upstreamModelId = 'grok-4';
+    }],
+  ])('refuses the reviewed speech route when %s', (_label, mutate) => {
+    const value = inventory();
+    mutate(value);
+    expect(() => validateKaanaInitialInventory(value, 'version-1', NOW)).toThrow(
+      /dep_xai_tts_observed_2026_09_24/
+    );
   });
 
   it('refuses stale objects and an absent immutable S3 VersionId', () => {

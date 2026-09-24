@@ -137,3 +137,30 @@ export function assessInferenceRoutingReadiness(
     ? { status: 'ready' }
     : { status: 'incomplete', routes: incomplete };
 }
+
+/**
+ * The earliest evidence expiry across a route set, with the route that owns it.
+ *
+ * Operator diagnostics only: the pass/fail decision stays in
+ * {@link assessInferenceRoutingReadiness}. Reporting the cliff date on every run
+ * lets a scheduled early-warning check say WHEN evidence lapses, not only that
+ * it now falls inside the configured horizon.
+ */
+export function earliestInferenceRoutingEvidenceExpiry(
+  rows: readonly InferenceRoutingReadinessRow[]
+): { readonly deploymentId: string | null; readonly validUntil: Date } | undefined {
+  let earliest: { deploymentId: string | null; validUntil: Date } | undefined;
+  for (const route of rows) {
+    for (const validUntil of [
+      route.latencyValidUntil,
+      route.throughputValidUntil,
+      route.balancedValidUntil,
+    ]) {
+      if (validUntil === null) continue;
+      if (earliest === undefined || validUntil < earliest.validUntil) {
+        earliest = { deploymentId: route.deploymentId, validUntil };
+      }
+    }
+  }
+  return earliest;
+}

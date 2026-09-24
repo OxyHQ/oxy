@@ -342,6 +342,11 @@ cardinality, identity or region-set drift refuses with zero reservation and zero
 inference POST. The resolver never hides incomplete evidence by dropping only
 the bad survivor.
 
+Because one stale score refuses every route, score expiry is a scheduled
+production cliff. A daily read-only monitor requires seven days of validity and
+the same-value renewal is a dry-run-first workflow:
+[renew the reviewed Kaana routing scores](../runbooks/kaana-routing-score-renewal.md).
+
 Enforcement of eleven controls landed in
 [#1012](https://github.com/OxyHQ/oxy/pull/1012), closing
 [#1011](https://github.com/OxyHQ/oxy/issues/1011), which is where the reasoning

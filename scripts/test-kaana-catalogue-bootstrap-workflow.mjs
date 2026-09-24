@@ -26,7 +26,7 @@ function assertPreCommitRolloutFence(source) {
     "await getDb().transaction(async (tx) => {",
   );
   const lastCatalogueWrite = source.indexOf(
-    "const routingProfileIds = await ensureProfiles(tx, revisionId, inserted);",
+    "const speech = await ensureCatalogue(",
     transactionStart,
   );
   const preCommitProof = source.indexOf(
@@ -76,7 +76,9 @@ function assertPreCommitRolloutFence(source) {
 }
 
 assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
-assert.match(workflow, /environment: production/);
+// The OIDC role trusts only ref:refs/heads/main; an environment-bound job
+// presents environment:<name> and cannot assume it.
+assert.doesNotMatch(workflow, /^\s*environment:\s*\S/m);
 assert.match(workflow, /group: deploy-oxy-api/);
 assert.match(workflow, /cancel-in-progress: false/);
 assert.match(workflow, /CLUSTER: oxy-cluster/);
@@ -96,9 +98,29 @@ assert.match(workflow, /verify exact RunTask and iam:PassRole authority/);
 assert.equal(
   workflow.match(/\.github\/scripts\/attest-kaana-catalogue-rollout\.sh/g)
     ?.length,
-  2,
-  "workflow must attest before and after the one-shot",
+  3,
+  "workflow must attest before the dry run, immediately before apply, and after",
 );
+// APPLY refuses without the six platform-scope attestation variables; the
+// stamp must follow the pre-apply attestation and bind the reviewed inputs.
+assert.match(
+  workflow,
+  /attest-kaana-catalogue-rollout\.sh[^\n]*\n[^\n]*\n[^\n]*"\$immutable_image"\n\s*attested_at=\$\(date -u \+%Y-%m-%dT%H:%M:%S\.%3NZ\)\n\s*apply_environment=/,
+);
+for (const variable of [
+  'KAANA_CATALOGUE_PLATFORM_SCOPE_ATTESTED_AT",value:$attestedAt',
+  'KAANA_CATALOGUE_PLATFORM_SCOPE_BOOTSTRAP_TASK_DEFINITION_ARN",value:$bootstrapTask',
+  'KAANA_CATALOGUE_PLATFORM_SCOPE_CLUSTER",value:$cluster',
+  'KAANA_CATALOGUE_PLATFORM_SCOPE_IMAGE",value:$image',
+  'KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE",value:$service',
+  'KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE_TASK_DEFINITION_ARN",value:$liveTask',
+]) {
+  const applyEnvironment = workflow.slice(
+    workflow.indexOf("apply_environment=$(jq"),
+    workflow.indexOf("apply_envelope=$(run_task"),
+  );
+  assert.ok(applyEnvironment.includes(variable), `apply must pass ${variable}`);
+}
 assert.doesNotMatch(
   workflow,
   /EXPECTED_LIVE_TASK_DEFINITION_ARN"\s*=\s*"\$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN/,
@@ -150,9 +172,9 @@ assert.throws(
       bootstrap
         .replace("await rolloutGuard.assertStillComplete();\n", "")
         .replace(
-          "const routingProfileIds = await ensureProfiles(tx, revisionId, inserted);",
-          "await rolloutGuard.assertStillComplete();\n        " +
-            "const routingProfileIds = await ensureProfiles(tx, revisionId, inserted);",
+          "const speech = await ensureCatalogue(",
+          "await rolloutGuard.assertStillComplete();\n      " +
+            "const speech = await ensureCatalogue(",
         ),
     ),
   /must follow every catalogue write/,

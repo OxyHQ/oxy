@@ -116,5 +116,8 @@ test('every application and script routing-score insert states reviewed economic
     visit(source);
   }
 
-  expect(callsites).toHaveLength(10);
+  // 10 -> 13: the validity renewal (scripts/kaanaScorecardRenewal.ts) writes
+  // one score event, and its test seeds the superseded row and its event.
+  // 13 -> 14: kaanaStreaming.test.ts seeds the reviewed speech scorecard.
+  expect(callsites).toHaveLength(14);
 });

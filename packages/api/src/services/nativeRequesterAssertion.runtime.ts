@@ -10,7 +10,7 @@
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import { getRedisClient } from '../config/redis';
 import { logger } from '../utils/logger';
-import { resolveLiveAgencyCoordinator } from './agencyServicePrincipal.service';
+import { resolveLiveAgencyCoordinator, resolveLiveAgencyWorkload } from './agencyServicePrincipal.service';
 import sessionService from './session.service';
 import type {
   ReplayStoreResult,
@@ -112,6 +112,12 @@ export function requesterAssertionRuntime(): RequesterAssertionDependencies {
       const principal = await resolveLiveAgencyCoordinator(applicationId, credentialId);
       return principal
         ? { applicationId: principal.applicationId, credentialId: principal.credentialId, scopes: principal.scopes }
+        : null;
+    },
+    resolveWorkloadPrincipal: async (applicationId, provider, subject) => {
+      const principal = await resolveLiveAgencyWorkload(applicationId, provider, subject);
+      return principal
+        ? { applicationId: principal.applicationId, handle: principal.handle, scopes: principal.scopes }
         : null;
     },
     validateSubjectToken: async (token) => {

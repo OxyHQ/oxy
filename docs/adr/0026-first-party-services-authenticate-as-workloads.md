@@ -175,6 +175,14 @@ A consumer that asserts a fixed `credentialId` migrates in three steps: accept
 BOTH its credential id and its `wl_…` handle, deploy that, move the service to
 attestation, then drop the credential id.
 
+An Oxy lane that PINS a specific credential migrates differently: it declares the
+IAM role beside the credential and derives the handle with
+`workloadAttestationHandle`, so what it admits stays reviewable and stays
+computable from a task definition. `NATIVE_PRODUCT_AGENT_ENTRY_POINTS` (ADR 0025)
+is the first; its `workload` field is deliberately written out rather than read
+from `application_workload_identities`, because binding a role is a routine
+deploy step and must never be, by itself, a grant of a pinned lane.
+
 ### A binding row, not a naming convention
 
 `application_workload_identities` maps `(provider, subject)` to an application.

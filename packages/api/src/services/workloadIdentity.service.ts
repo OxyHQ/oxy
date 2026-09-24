@@ -5,8 +5,8 @@ import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import { applicationWorkloadIdentities } from '../db/schema/applicationWorkloadIdentities';
 import { getRedisClient } from '../config/redis';
-import { isProduction } from '../config/env';
-import { intersectScopes, isPrivilegedScope } from '../utils/applicationScopes';
+import { workloadBindingScopes } from '../utils/applicationScopes';
+import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { logger } from '../utils/logger';
 import { mintServiceToken, SERVICE_TOKEN_EXPIRY } from './serviceTokenMint.service';
@@ -205,7 +205,10 @@ export async function exchangeWorkloadAttestation(input: {
    * ## The rule, then
    *
    * Identical to `POST /auth/service-token`, deliberately — two ways to prove
-   * who you are must not be two authorities:
+   * who you are must not be two authorities. It is `workloadBindingScopes`, one
+   * exported definition, because the live ceiling in
+   * `services/agencyServicePrincipal.service.ts` has to answer this same
+   * question about an hour-old token and must not answer it differently:
    *
    *   * The binding NAMES scopes → the intersection with the application's, so
    *     a privileged scope survives only when BOTH the binding and the
@@ -227,10 +230,7 @@ export async function exchangeWorkloadAttestation(input: {
    * holding a line, it was making ADR 0026's clean cut impossible for exactly
    * the services it was written for.
    */
-  const scopes =
-    binding.bindingScopes.length > 0
-      ? intersectScopes(binding.bindingScopes, binding.applicationScopes)
-      : binding.applicationScopes.filter((scope) => !isPrivilegedScope(scope));
+  const scopes = workloadBindingScopes(binding.bindingScopes, binding.applicationScopes);
 
   const token = mintServiceToken({
     appId: binding.applicationId,
@@ -238,15 +238,11 @@ export async function exchangeWorkloadAttestation(input: {
     credentialId: attested.attestationId,
     ownerAccountId: binding.ownerAccountId,
     /**
-     * The environment is the DEPLOYMENT's, not the caller's.
-     *
-     * A credential carries its own environment because a human chose one when
-     * they issued it. An attestation carries none — a workload proves what it
-     * is, never which environment it means — so the only honest answer is where
-     * this API is running. Taking it from the request would let a caller mint
-     * itself a production token from staging.
+     * The environment is the DEPLOYMENT's, not the caller's — one definition,
+     * shared with the live re-read that meters and charges what this token
+     * goes on to do. See {@link workloadTokenEnvironment}.
      */
-    environment: isProduction() ? 'production' : 'development',
+    environment: workloadTokenEnvironment(),
     scopes,
   });
 

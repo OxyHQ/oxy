@@ -70,12 +70,22 @@ import { accountBalances } from '../../db/schema/accountBalances';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import {
+  inferenceDeploymentRoutingScores,
   inferenceDeployments,
   inferenceModelRevisions,
   inferenceModels,
   inferenceProviders,
   inferencePublishers,
+  inferenceRoutingProfileCandidates,
+  inferenceRoutingProfiles,
 } from '../../db/schema';
+import {
+  KAANA_REVIEWED_CANDIDATE_PRIORITY,
+  KAANA_SPEECH_CATALOGUE,
+  KAANA_SPEECH_ROUTING_PROFILE_ID,
+  kaanaCurrentScorecardReview,
+} from '../../config/kaanaInitialCatalogue';
+import { kaanaReviewedScorecardFields } from '../../scripts/kaanaScorecardRenewal';
 import { inferenceUsageEvents } from '../../db/schema/inferenceUsageEvents';
 import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVersions';
 import { usageReceipts } from '../../db/schema/usageReceipts';
@@ -2221,5 +2231,216 @@ describe('speech through the signed edge and ledger', () => {
     const receipts = await receiptsOf(fixture.accountId);
     expect(receipts).toHaveLength(1);
     expect(Number(receipts[0].billedAmount)).toBe(0);
+  });
+});
+
+/**
+ * The reviewed speech catalogue, as `bootstrap-kaana-catalogue.ts` writes it,
+ * reached the way Alia reaches it: an INTERNAL application naming only the
+ * exact speech profile ID. Proves the reviewed facts themselves — modalities,
+ * capacity, price units, the price-ranked profile and its opaque v4 ID —
+ * resolve to the one xAI route and settle characters at the list price.
+ */
+describe('the reviewed speech catalogue through the signed edge and ledger', () => {
+  const catalogue = KAANA_SPEECH_CATALOGUE;
+  const provider = catalogue.providers[0]!;
+  let fixture: { accountId: string; token: string } | undefined;
+
+  async function seedReviewedSpeechCatalogue(reviewerUserId: string): Promise<void> {
+    const db = getDb();
+    await db.insert(inferencePublishers).values(catalogue.publisher);
+    const [model] = await db
+      .insert(inferenceModels)
+      .values({
+        ...catalogue.model,
+        inputModalities: [...catalogue.model.inputModalities],
+        outputModalities: [...catalogue.model.outputModalities],
+      })
+      .returning({ id: inferenceModels.id, modelId: inferenceModels.modelId });
+    expect(model.modelId).toBe(catalogue.modelId);
+    const [revision] = await db
+      .insert(inferenceModelRevisions)
+      .values({
+        modelId: model.id,
+        ...catalogue.revision,
+        releasedAt: new Date(catalogue.revision.releasedAt),
+      })
+      .returning({ id: inferenceModelRevisions.id });
+    await db.insert(inferenceProviders).values({
+      slug: provider.slug,
+      displayName: provider.displayName,
+      kind: 'third_party',
+      websiteUrl: provider.websiteUrl,
+      retainsPayloads: provider.retainsPayloads,
+      retentionDays: provider.retentionDays,
+      trainsOnCustomerData: provider.trainsOnCustomerData,
+      zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
+      policyUrl: provider.policyUrl,
+    });
+    const [price] = await db
+      .insert(priceVersions)
+      .values({
+        modelReference: catalogue.modelReference,
+        provider: provider.slug,
+        status: 'active',
+        currency: 'USD',
+        effectiveFrom: new Date(provider.priceEffectiveFrom!),
+      })
+      .returning({ id: priceVersions.id });
+    await db.insert(priceVersionUnitPrices).values(
+      provider.unitPrices.map((unitPrice) => ({ priceVersionId: price.id, ...unitPrice }))
+    );
+    await db.insert(inferenceDeployments).values({
+      modelRevisionId: revision.id,
+      providerSlug: provider.slug,
+      regions: [],
+      retainsPayloads: provider.retainsPayloads,
+      retentionDays: provider.retentionDays,
+      trainsOnCustomerData: provider.trainsOnCustomerData,
+      zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
+      policyUrl: provider.policyUrl,
+      availabilityScope: 'platform_internal',
+      commercialPermission: 'standard_application_use',
+      permissionState: 'approved',
+      legalReviewStatus: 'approved',
+      legalReviewEvidenceRef: provider.legalEvidenceRef,
+      legalReviewedAt: new Date(provider.reviewedAt!),
+      legalReviewedByUserId: reviewerUserId,
+      permissionStateChangedAt: new Date(provider.reviewedAt!),
+      permissionStateChangedByUserId: reviewerUserId,
+      permissionStateNote: provider.permissionStateNote!,
+      status: 'active',
+      dedicatedCapacity: false,
+      priceVersionId: price.id,
+      internalRouteId: provider.deploymentId,
+    });
+    // Every reviewed field, except that validity is moved relative to NOW so
+    // this proof does not expire with the reviewed 2026-11-01 horizon.
+    const reviewed = kaanaReviewedScorecardFields(provider, kaanaCurrentScorecardReview(provider), {
+      priceVersionId: price.id,
+      reviewerUserId,
+    });
+    const validUntil = new Date(Date.now() + 3_600_000);
+    await db.insert(inferenceDeploymentRoutingScores).values({
+      ...reviewed,
+      fundingClass: reviewed.fundingClass,
+      fundingState: reviewed.fundingState,
+      fundingEvidenceRef: reviewed.fundingEvidenceRef,
+      latencyValidUntil: validUntil,
+      throughputValidUntil: validUntil,
+      balancedValidUntil: validUntil,
+    });
+    for (const profile of catalogue.routingProfiles) {
+      await db.insert(inferenceRoutingProfiles).values({
+        ...profile,
+        description: `Oxy-owned ${profile.displayName} routing policy over exact Kaana deployments.`,
+        isProductPreset: true,
+      });
+      await db.insert(inferenceRoutingProfileCandidates).values({
+        routingProfileId: profile.id,
+        modelId: null,
+        modelRevisionId: revision.id,
+        priority: KAANA_REVIEWED_CANDIDATE_PRIORITY,
+      });
+    }
+  }
+
+  beforeAll(async () => {
+    const db = getDb();
+    const tag = suffix();
+    const [account] = await db
+      .insert(users)
+      .values({ username: `alia-${tag}`, email: `alia-${tag}@example.test` })
+      .returning({ id: users.id });
+    const scopes = ['inference:invoke', 'inference:usage:read'];
+    const [application] = await db
+      .insert(applications)
+      .values({ name: `Alia ${tag}`, ownerAccountId: account.id, scopes, type: 'internal' })
+      .returning({ id: applications.id });
+    const minted = generateMachineCredentialToken();
+    await db.insert(applicationCredentials).values({
+      applicationId: application.id,
+      name: `key-${tag}`,
+      publicKey: `oxy_dk_${tag}`,
+      tokenPrefix: minted.tokenPrefix,
+      tokenHash: minted.tokenHash,
+      type: 'machine',
+      environment: 'development',
+      scopes,
+      status: 'active',
+    });
+    await seedReviewedSpeechCatalogue(account.id);
+    await provisionBillingProfile({ accountId: account.id });
+    await recordTopUp({
+      idempotencyKey: `alia-speech-top-up-${tag}`,
+      accountId: account.id,
+      currency: 'USD',
+      amount: '10.000000000000',
+      actor: { kind: 'machine' },
+    });
+    fixture = { accountId: account.id, token: minted.token };
+  });
+
+  it('resolves the exact speech profile to the one xAI route and settles characters at $15 per million', async () => {
+    const { accountId, token } = fixture!;
+    await withEdge(async (context) => {
+      expect(context.envelope.target).toEqual({
+        kind: 'routing_profile_id',
+        routingProfileId: KAANA_SPEECH_ROUTING_PROFILE_ID,
+      });
+      expect(context.envelope.modality).toBe('audio');
+      expect(context.envelope.speech).toEqual({ voice: 'male', responseFormat: 'mp3' });
+      expect(
+        context.envelope.authorizedRoutes.map((route) => [route.deploymentId, route.provider, route.modelReference])
+      ).toEqual([[provider.deploymentId, 'xai', catalogue.modelReference]]);
+      const emit = emitter(context, 'xai');
+      emit.start();
+      emit.audio(Buffer.from([73, 68, 51, 4]).toString('base64'));
+      const units: UsageQuantity[] = [{ unit: 'characters', quantity: 7 }];
+      emit.usage(units); emit.done(); emit.report(units, 'completed');
+    }, async ({ request }) => {
+      const response = await request('POST', '/v1/audio/speech', {
+        routingProfileId: KAANA_SPEECH_ROUTING_PROFILE_ID,
+        input: 'Hola 👋',
+        voice: 'male',
+        response_format: 'mp3',
+      }, bearer(token));
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toMatch(/^audio\/mpeg/);
+    });
+    const receipts = await waitForReceipt(accountId);
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0].outcome).toBe('completed');
+    expect(Number(receipts[0].billedAmount)).toBeCloseTo((7 * 15) / 1_000_000, 12);
+  });
+
+  it('admits the 15,000 characters Kaana serves and refuses one more before the data plane', async () => {
+    const { token } = fixture!;
+    await withEdge(async (context) => {
+      const emit = emitter(context, 'xai');
+      emit.start();
+      emit.audio(Buffer.from([73, 68, 51, 4]).toString('base64'));
+      const units: UsageQuantity[] = [{ unit: 'characters', quantity: 15_000 }];
+      emit.usage(units); emit.done(); emit.report(units, 'completed');
+    }, async ({ request, stub }) => {
+      const admitted = await request('POST', '/v1/audio/speech', {
+        routingProfileId: KAANA_SPEECH_ROUTING_PROFILE_ID,
+        input: 'a'.repeat(15_000),
+        voice: 'female',
+        response_format: 'mp3',
+      }, bearer(token));
+      expect(admitted.status).toBe(200);
+      const forwarded = stub.received.length;
+
+      const refused = await request('POST', '/v1/audio/speech', {
+        routingProfileId: KAANA_SPEECH_ROUTING_PROFILE_ID,
+        input: 'a'.repeat(15_001),
+        voice: 'female',
+        response_format: 'mp3',
+      }, bearer(token));
+      expect(refused.status).toBe(400);
+      expect(JSON.parse(refused.body)).toMatchObject({ code: 'context_length_exceeded' });
+      expect(stub.received).toHaveLength(forwarded);
+    });
   });
 });

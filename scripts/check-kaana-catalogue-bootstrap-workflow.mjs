@@ -101,12 +101,27 @@ requireMatch(
 );
 requireMatch(
 	workflow,
+	/XAI_DEPLOYMENT_ID: dep_xai_tts_observed_2026_09_24[\s\S]*?PROFILE_SPEECH_ID: cc2471c8-807e-46ec-b5da-b6f3b39d2db5/,
+	"the workflow environment must pin the exact reviewed speech deployment and profile",
+);
+requireMatch(
+	workflow,
+	/"provider:xai"[\s\S]*?"price:" \+ \$speechRevision \+ ":xai"[\s\S]*?"deployment:dep_xai_tts_observed_2026_09_24"[\s\S]*?"scorecard:dep_xai_tts_observed_2026_09_24"[\s\S]*?"profile:kaana-v1-speech"[\s\S]*?\.speech == \{[\s\S]*?providers:\["xai"\],[\s\S]*?deployments:\[\$xai\],[\s\S]*?routingProfileIds:\[\$speechProfile\]/,
+	"the result validator must allow and require the complete reviewed speech route and profile",
+);
+forbid(
+	workflow,
+	/^\s*environment:\s*\S/m,
+	"the job must not bind an environment: the OIDC role trusts only ref:refs/heads/main",
+);
+requireMatch(
+	workflow,
 	/REVIEWER_USER_ID_EXPECTED: 6981c9178fcdefaf81988ffb[\s\S]*?REVIEWER_USER_ID" != "\$REVIEWER_USER_ID_EXPECTED"/,
 	"the workflow must accept only the exact source-reviewed reviewer primary key",
 );
 
 for (const exact of [
-	"snap_dfd6904a99d6313b",
+	"snap_37548e4f1f8ec610",
 	"openai/gpt-oss-120b",
 	"openai/gpt-oss-120b@observed-2026-09-01",
 	"dep_cerebras_gpt_oss_120b_observed_2026_09_01",
@@ -120,6 +135,9 @@ for (const exact of [
 	"01a06477-94f5-74f0-bc25-5d796b49b616",
 	"01a06477-94f5-74f0-bc25-628b5f45d802",
 	"01a06477-94f5-74f0-bc25-658eeb277737",
+	"x-ai/text-to-speech",
+	"dep_xai_tts_observed_2026_09_24",
+	"cc2471c8-807e-46ec-b5da-b6f3b39d2db5",
 ]) {
 	if (!workflow.includes(exact)) {
 		failures.push(`workflow must pin reviewed identity ${exact}`);
@@ -215,8 +233,13 @@ requireMatch(
 );
 requireMatch(
 	bootstrap,
-	/\.where\(eq\(inferenceModels\.modelId, KAANA_INITIAL_MODEL_ID\)\)/,
+	/\.where\(eq\(inferenceModels\.modelId, catalogue\.modelId\)\)/,
 	"the reviewed model must be selected only by its exact canonical model ID",
+);
+requireMatch(
+	bootstrap,
+	/ensureCatalogue\(tx, KAANA_TEXT_CATALOGUE, inserted\)[\s\S]*?ensureCatalogue\(\s*tx,\s*KAANA_SPEECH_CATALOGUE,/,
+	"the bootstrap must ensure the reviewed text catalogue, then the reviewed speech catalogue",
 );
 requireMatch(
 	bootstrap,

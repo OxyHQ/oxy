@@ -151,22 +151,82 @@ describe('native product agent identities', () => {
 });
 
 describe('present-requester entry points (ADR 0025)', () => {
-  it('admits exactly the Homiio Sindi credential for the Sindi agent and nothing else', () => {
-    const {
-      NATIVE_PRODUCT_AGENT_ENTRY_POINTS,
-      nativeProductAgentEntryPoint,
-    } = jest.requireActual('../nativeProductAgents') as typeof import('../nativeProductAgents');
+  const HOMIIO_ROLE = 'arn:aws:iam::237343248947:role/oxy-homiio-task';
+  /** `oxy-homiio-task`'s handle, which Homiio's own canary pins (OxyHQ/Homiio#536). */
+  const HOMIIO_HANDLE = 'wl_f28159178c5e993eb03b8cc1';
+  /** `oxy-mention-task`'s handle: a REAL, valid handle belonging to another service. */
+  const MENTION_HANDLE = 'wl_d61be5cd068abb658ed4d193';
+  const APP = '6a2f851751b784a86fd0e922';
+  const CREDENTIAL = '01a0648e-ad3f-7608-aa8b-c07bfef6cf73';
+  const AGENT = '01a0646a-078f-7514-9800-9f43ceed7df8';
+
+  const config = () => jest.requireActual('../nativeProductAgents') as typeof import('../nativeProductAgents');
+
+  it('admits exactly the Homiio Sindi credential and the Homiio task role, and nothing else', () => {
+    const { NATIVE_PRODUCT_AGENT_ENTRY_POINTS, nativeProductAgentEntryPoint } = config();
     expect(NATIVE_PRODUCT_AGENT_ENTRY_POINTS).toEqual([{
       product: 'homiio',
-      applicationId: '6a2f851751b784a86fd0e922',
-      credentialId: '01a0648e-ad3f-7608-aa8b-c07bfef6cf73',
-      agentId: '01a0646a-078f-7514-9800-9f43ceed7df8',
+      applicationId: APP,
+      credentialId: CREDENTIAL,
+      agentId: AGENT,
+      workload: { provider: 'aws-iam', subject: HOMIIO_ROLE },
     }]);
     expect(nativeProductAgentEntryPoint(
       '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e',
       '01a0648b-8d74-7240-adba-80707fdfdf9c',
       '01a0646a-078f-7642-95ef-439952f4f3f9',
     )).toBeNull();
+  });
+
+  it('matches the pinned credential, and says the caller proved itself with one', () => {
+    const { nativeProductAgentEntryPoint } = config();
+    const match = nativeProductAgentEntryPoint(APP, CREDENTIAL, AGENT);
+    expect(match?.entry.product).toBe('homiio');
+    expect(match?.principal).toEqual({ kind: 'credential', credentialId: CREDENTIAL });
+  });
+
+  /**
+   * The entry DECLARES a role ARN, never a digest. A reviewer can read the role
+   * off a task definition; nobody can check a `wl_…` literal by eye. So the
+   * handle this list admits is derived here by the same function the mint uses,
+   * and the derivation is asserted against the value Homiio's canary pins — if
+   * either side ever moved, this goes red rather than the lane going quiet.
+   */
+  it('matches the DERIVED handle of the declared role, not a hard-coded digest', () => {
+    const { nativeProductAgentEntryPoint, NATIVE_PRODUCT_AGENT_ENTRY_POINTS } = config();
+    const { workloadAttestationHandle } = jest.requireActual('../../services/workloadAttestation.service') as typeof import('../../services/workloadAttestation.service');
+    const [entry] = NATIVE_PRODUCT_AGENT_ENTRY_POINTS;
+    expect(workloadAttestationHandle(entry.workload!.subject)).toBe(HOMIIO_HANDLE);
+
+    const match = nativeProductAgentEntryPoint(APP, HOMIIO_HANDLE, AGENT);
+    expect(match?.entry.product).toBe('homiio');
+    expect(match?.principal).toEqual({
+      kind: 'workload',
+      provider: 'aws-iam',
+      subject: HOMIIO_ROLE,
+      handle: HOMIIO_HANDLE,
+    });
+  });
+
+  /**
+   * `wl_` is a prefix, not a passphrase. The first case is the one that matters:
+   * a real, valid, currently-minted handle for a DIFFERENT first-party service.
+   * If shape were ever enough, Mention's own token would enter Homiio's lane.
+   */
+  it.each([
+    ["another service's real, valid handle", MENTION_HANDLE],
+    ['the Homiio handle one character off', `${HOMIIO_HANDLE.slice(0, -1)}0`],
+    ['the digest without the prefix', HOMIIO_HANDLE.slice(3)],
+    ['the bare prefix', 'wl_'],
+    ['an arbitrary wl_-shaped value', 'wl_000000000000000000000000'],
+  ])('refuses %s', (_label, credentialId) => {
+    expect(config().nativeProductAgentEntryPoint(APP, credentialId, AGENT)).toBeNull();
+  });
+
+  it('refuses the right handle presented for another application or another agent', () => {
+    const { nativeProductAgentEntryPoint } = config();
+    expect(nativeProductAgentEntryPoint('6a2f851751b784a86fd0e934', HOMIIO_HANDLE, AGENT)).toBeNull();
+    expect(nativeProductAgentEntryPoint(APP, HOMIIO_HANDLE, '01a0646a-078f-7642-95ef-439952f4f3f9')).toBeNull();
   });
 
   it('pins Alia as the audience application, matching the seeded Alia application', () => {

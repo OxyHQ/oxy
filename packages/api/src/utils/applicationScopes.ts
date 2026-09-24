@@ -563,6 +563,40 @@ export function intersectScopes(
 }
 
 /**
+ * Effective scopes for a WORKLOAD BINDING — the attestation path's answer to
+ * {@link intersectScopes}, and the only place it is decided.
+ *
+ * A binding row in `application_workload_identities` is the attestation path's
+ * equivalent of an `ApplicationCredential` (ADR 0026): staff write it, it names
+ * one IAM role and one application, and since #1350 it names scopes. So the
+ * rule is the credential path's rule:
+ *
+ *   * the binding NAMES scopes → the intersection with the application's, so a
+ *     privileged scope survives only when BOTH hold it;
+ *   * the binding names NONE → the application's non-privileged grants, which is
+ *     what this path did before the column existed.
+ *
+ * It lives here, beside `intersectScopes` and with no dependencies, because it
+ * has TWO readers that must agree exactly: the mint
+ * (`services/workloadIdentity.service.ts`), which decides what an attested
+ * token carries, and the live ceiling
+ * (`services/agencyServicePrincipal.service.ts`), which decides what an
+ * hour-old attested token may still do. Two copies of this expression would
+ * agree the day they were written; the drift would be a token that carries a
+ * scope the ceiling no longer believes in, or the reverse — a service refused
+ * with nothing pointing at why.
+ */
+export function workloadBindingScopes(
+  bindingScopes: readonly string[],
+  appScopes: readonly string[]
+): ApplicationScope[] {
+  if (bindingScopes.length > 0) return intersectScopes(bindingScopes, appScopes);
+  return appScopes.filter(
+    (scope): scope is ApplicationScope => isValidApplicationScope(scope) && !isPrivilegedScope(scope)
+  );
+}
+
+/**
  * Reconcile a canonical (declarative) scope set with the scopes already granted
  * on a stored application ADDITIVELY: the result is the UNION of both, in a
  * stable order (canonical first, then any additional already-granted scope),

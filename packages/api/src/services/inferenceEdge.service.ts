@@ -138,7 +138,7 @@ import {
   type MachineCredentialPrincipal,
 } from '../middleware/machineCredential';
 import { verifyServiceToken } from '../middleware/serviceToken';
-import { resolveCredentialAttributionById } from './attribution.service';
+import { resolveServiceTokenPrincipal } from './attribution.service';
 import {
   exceedsAmount,
   resolveCatalogueViewer,
@@ -175,7 +175,7 @@ import {
   type KaanaDeploymentAttestation,
   type KaanaUsageEvidence,
 } from './kaanaClient';
-import { intersectScopes, type ApplicationScope } from '../utils/applicationScopes';
+import { type ApplicationScope } from '../utils/applicationScopes';
 import { buildInferenceError, inferenceErrorStatus } from '../utils/inferenceEdgeErrors';
 import { logger } from '../utils/logger';
 import {
@@ -370,33 +370,71 @@ export async function authenticateEdgeCaller(req: Request): Promise<EdgeAuthenti
     return { ok: false, reason: `service_${verification.reason}` };
   }
 
-  // The credential ROW, not the token's claims, is the authority for the
-  // application and owner hop (ADR 0007) — and re-reading it is what makes a
-  // revocation effective inside the token's own hour of life.
-  const attribution = await resolveCredentialAttributionById(verification.payload.credentialId);
-  if (attribution.status !== 'resolved') {
-    return { ok: false, reason: `credential_${attribution.status}` };
+  // The ROW, not the token's claims, is the authority for the application and
+  // owner hop (ADR 0007) — and re-reading it is what makes a revocation
+  // effective inside the token's own hour of life. WHICH row depends on which
+  // proof minted the token: an `application_credentials` row, or the
+  // `application_workload_identities` binding an ADR 0026 attestation selected.
+  // `resolveServiceTokenPrincipal` owns that branch for this call site and for
+  // the catalogue's, because resolving `credentialId` as a credential id
+  // unconditionally answered 401 to every first-party service that had given up
+  // its key pair — the edge refusing the exact callers the ADR exists for.
+  const resolution = await resolveServiceTokenPrincipal(verification.payload);
+  if (resolution.status !== 'resolved') {
+    return { ok: false, reason: `service_principal_${resolution.status}` };
   }
-  if (attribution.attribution.application.applicationStatus !== 'active') {
-    return { ok: false, reason: 'application_inactive' };
+  const resolved = resolution.principal;
+
+  /**
+   * An attested caller resolves correctly and still cannot spend, YET — and the
+   * blocker is the ledger's schema, not this hop.
+   *
+   * Every row this edge writes carries the authenticating service identity in
+   * `application_credential_id`, and on four tables that column is `NOT NULL`
+   * with a foreign key to `application_credentials.id`
+   * (`usage_reservations`, `usage_receipts`, `inference_usage_events` and
+   * `inference_usage_daily_rollups`, where it is part of the PRIMARY KEY). An
+   * attested identity is a `wl_…` handle naming a binding, so the first
+   * reservation fails the constraint:
+   *
+   *     insert or update on table "usage_reservations" violates foreign key
+   *     constraint "usage_reservations_application_credential_id_application_creden"
+   *
+   * Without this refusal that is a 500 in the middle of an authenticated
+   * request, which is strictly worse than the 401 an attested caller gets
+   * today. With it, the external behaviour of this edge is unchanged and the
+   * log finally names the real reason.
+   *
+   * It is NOT fixed here because fixing it means either dropping those
+   * constraints or splitting the column, and `db/MIGRATION-CONTRACT.md` is
+   * explicit that a relational link is not to be given up silently — "no
+   * quiero perder los vínculos relacionales de nada … when they conflict, STOP
+   * and escalate". So this is the escalation, in the one place a reader of this
+   * function needs it, and the follow-up deletes these five lines.
+   *
+   * The catalogue is unaffected and is fixed: it reads an audience and writes
+   * nothing, so it has no attribution column to carry.
+   */
+  if (resolved.proof === 'workload') {
+    return { ok: false, reason: 'workload_attribution_unsupported' };
   }
 
-  const application = await loadCatalogueApplication(
-    attribution.attribution.application.applicationId
-  );
+  const application = await loadCatalogueApplication(resolved.applicationId);
 
   return {
     ok: true,
     principal: {
+      // One lane. An attested token IS a service token — same mint, same
+      // signature, same hour — and the proof that selected its row is not a
+      // different way of arriving here. Splitting the lane would fork every
+      // receipt, limiter key and telemetry row that reads it, to record
+      // something `proof` already says.
       lane: 'service_token',
-      applicationId: attribution.attribution.application.applicationId,
-      credentialId: attribution.attribution.credentialId,
-      ownerAccountId: attribution.attribution.application.ownerAccountId,
-      environment: attribution.attribution.credentialEnvironment,
-      scopes: intersectScopes(
-        attribution.attribution.credentialScopes,
-        attribution.attribution.applicationScopes
-      ),
+      applicationId: resolved.applicationId,
+      credentialId: resolved.credentialId,
+      ownerAccountId: resolved.ownerAccountId,
+      environment: resolved.environment,
+      scopes: resolved.scopes,
       applicationType: application?.type ?? null,
       applicationIsInternal: application?.isInternal ?? null,
     },

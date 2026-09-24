@@ -1,0 +1,378 @@
+name: Renew reviewed Kaana routing scores
+
+# Manual, dry-run-first, same-value validity renewal of the reviewed Kaana
+# routing scorecards (packages/api/scripts/renew-kaana-routing-scores.ts). It
+# runs in the dedicated oxy-kaana-catalogue-bootstrap task, never the live
+# oxy-api task, and changes only rows that exactly equal the `supersedes` state
+# recorded in packages/api/src/config/kaanaInitialCatalogue.ts. Runtime refuses
+# the whole route set once a selectable score is stale, so run this well before
+# the date the scheduled expiry monitor warns about.
+#
+# Order: dispatch mode=dry-run, read the plan SHA-256 from the job summary,
+# then dispatch mode=apply with that exact SHA-256 and a reason.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Dry-run the exact renewal plan or apply the matching reviewed plan
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - apply
+      expected_live_task_definition_arn:
+        description: Exact reviewed live oxy-api task-definition ARN
+        required: true
+        type: string
+      expected_bootstrap_task_definition_arn:
+        description: Exact dedicated oxy-kaana-catalogue-bootstrap task-definition ARN
+        required: true
+        type: string
+      expected_live_image_digest:
+        description: Exact immutable oxy-api image digest shared by live and bootstrap tasks
+        required: true
+        type: string
+      reviewer_user_id:
+        description: Exact PostgreSQL users.id already authorized to publish the catalogue
+        required: true
+        type: string
+      expected_plan_sha256:
+        description: Exact lowercase SHA-256 emitted by the reviewed dry run (apply only)
+        required: false
+        type: string
+      reason:
+        description: Auditable owner approval or ticket reason (apply only)
+        required: false
+        type: string
+
+concurrency:
+  # Same lock as catalogue bootstrap and API deploys: every catalogue writer
+  # observes and writes against one steady live revision.
+  group: deploy-oxy-api
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  AWS_ACCOUNT_ID: "237343248947"
+  CLUSTER: oxy-cluster
+  SERVICE: oxy-api
+  NETWORK_SERVICE: kaana-publisher
+  LIVE_CONTAINER: oxy-api
+  BOOTSTRAP_CONTAINER: kaana-catalogue-bootstrap
+  CEREBRAS_DEPLOYMENT_ID: dep_cerebras_gpt_oss_120b_observed_2026_09_01
+  GROQ_DEPLOYMENT_ID: dep_groq_openai_gpt_oss_120b_observed_2026_09_01
+  OPENROUTER_DEPLOYMENT_ID: dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01
+  RENEWED_VALID_UNTIL: "2026-11-01T00:00:00.000Z"
+  RENEWED_CHANGED_AT: "2026-09-24T00:00:00.000Z"
+  REVIEWER_USER_ID_EXPECTED: 6981c9178fcdefaf81988ffb
+  # Post-apply proof: the same horizon the scheduled expiry monitor enforces.
+  EXPIRY_WARNING_SECONDS: "604800"
+
+jobs:
+  renew:
+    if: github.ref == 'refs/heads/main'
+    # No `environment:` on purpose. The oxy-github-kaana-catalogue-bootstrap
+    # trust policy accepts only the `ref:refs/heads/main` subject; a job bound
+    # to an environment presents `environment:<name>` instead and cannot assume
+    # the role. The `production` environment has no protection rules, so it
+    # would add no review gate either; main-only + plan hash are the gate.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - name: Check out the dispatched revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-kaana-catalogue-bootstrap
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Attest the live rollout before renewal
+        env:
+          EXPECTED_LIVE_TASK_DEFINITION_ARN: ${{ inputs.expected_live_task_definition_arn }}
+          EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN: ${{ inputs.expected_bootstrap_task_definition_arn }}
+          EXPECTED_LIVE_IMAGE_DIGEST: ${{ inputs.expected_live_image_digest }}
+        run: |
+          set -euo pipefail
+          expected_image="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/oxy/oxy-api@${EXPECTED_LIVE_IMAGE_DIGEST}"
+          .github/scripts/attest-kaana-catalogue-rollout.sh \
+            "$CLUSTER" "$SERVICE" "$EXPECTED_LIVE_TASK_DEFINITION_ARN" "$LIVE_CONTAINER" \
+            "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" "$BOOTSTRAP_CONTAINER" "$expected_image"
+
+      - name: Run the dry-run-first scorecard renewal
+        env:
+          REQUESTED_MODE: ${{ inputs.mode }}
+          EXPECTED_LIVE_TASK_DEFINITION_ARN: ${{ inputs.expected_live_task_definition_arn }}
+          EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN: ${{ inputs.expected_bootstrap_task_definition_arn }}
+          EXPECTED_LIVE_IMAGE_DIGEST: ${{ inputs.expected_live_image_digest }}
+          REVIEWER_USER_ID: ${{ inputs.reviewer_user_id }}
+          EXPECTED_PLAN_SHA256_INPUT: ${{ inputs.expected_plan_sha256 }}
+          RENEWAL_REASON_INPUT: ${{ inputs.reason }}
+          RENEWAL_ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export LC_ALL=C
+
+          if [[ ! "$EXPECTED_LIVE_TASK_DEFINITION_ARN" =~ ^arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:[0-9]+$ ]]; then
+            echo '::error::expected_live_task_definition_arn is not one exact production oxy-api revision'
+            exit 64
+          fi
+          if [[ ! "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" =~ ^arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-catalogue-bootstrap:[0-9]+$ ]]; then
+            echo '::error::expected_bootstrap_task_definition_arn is not one exact dedicated bootstrap revision'
+            exit 64
+          fi
+          if [[ ! "$EXPECTED_LIVE_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo '::error::expected_live_image_digest must be one exact lowercase sha256 digest'
+            exit 64
+          fi
+          if [ "$REVIEWER_USER_ID" != "$REVIEWER_USER_ID_EXPECTED" ]; then
+            echo '::error::reviewer_user_id is not the exact source-reviewed PostgreSQL users.id'
+            exit 64
+          fi
+          case "$REQUESTED_MODE" in
+            dry-run)
+              expected_plan=''
+              renewal_reason='dry-run only'
+              ;;
+            apply)
+              expected_plan="$EXPECTED_PLAN_SHA256_INPUT"
+              renewal_reason="$RENEWAL_REASON_INPUT"
+              if [[ ! "$expected_plan" =~ ^[a-f0-9]{64}$ ]]; then
+                echo '::error::apply requires the exact lowercase SHA-256 from its matching dry run'
+                exit 64
+              fi
+              if [ -z "$renewal_reason" ] || [ "$renewal_reason" != "${renewal_reason# }" ] || [ "$renewal_reason" != "${renewal_reason% }" ] || [[ "$renewal_reason" == *$'\n'* ]] || [[ "$renewal_reason" == *$'\r'* ]] || [ "${#renewal_reason}" -gt 256 ]; then
+                echo '::error::apply reason must be an exact non-empty single line of at most 256 characters'
+                exit 64
+              fi
+              ;;
+            *)
+              echo '::error::unregistered Kaana score renewal mode'
+              exit 64
+              ;;
+          esac
+
+          # The live oxy-api must be at one steady, reviewed, immutable revision.
+          live_service_json=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+          if [ "$(jq -r '.status // "NONE"' <<<"$live_service_json")" != ACTIVE ] || \
+             [ "$(jq '[.deployments[] | select(.status == "PRIMARY" and .rolloutState == "COMPLETED")] | length' <<<"$live_service_json")" != 1 ] || \
+             [ "$(jq '.deployments | length' <<<"$live_service_json")" != 1 ] || \
+             [ "$(jq -r '.taskDefinition' <<<"$live_service_json")" != "$EXPECTED_LIVE_TASK_DEFINITION_ARN" ]; then
+            echo '::error::oxy-api is not at the one completed reviewed deployment'
+            exit 1
+          fi
+          immutable_image="237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@$EXPECTED_LIVE_IMAGE_DIGEST"
+
+          # The dedicated task keeps its reviewed authority: one container, the
+          # bootstrap task role, DATABASE_URL as its only secret, the live image.
+          bootstrap_task_json=$(aws ecs describe-task-definition \
+            --task-definition "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" \
+            --query taskDefinition --output json)
+          if ! jq -e \
+            --arg arn "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" \
+            --arg image "$immutable_image" '
+              .taskDefinitionArn == $arn and
+              .status == "ACTIVE" and
+              .family == "oxy-kaana-catalogue-bootstrap" and
+              .taskRoleArn == "arn:aws:iam::237343248947:role/oxy-kaana-catalogue-bootstrap" and
+              (.containerDefinitions | length) == 1 and
+              .containerDefinitions[0].name == "kaana-catalogue-bootstrap" and
+              .containerDefinitions[0].image == $image and
+              ([.containerDefinitions[0].environment[] | select(.name == "INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS") | .value] == ["3600"]) and
+              .containerDefinitions[0].secrets == [{
+                name:"DATABASE_URL",
+                valueFrom:"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/DATABASE_URL"
+              }] and
+              .containerDefinitions[0].logConfiguration.options["awslogs-group"] == "/oxy/ecs"
+            ' <<<"$bootstrap_task_json" >/dev/null; then
+            echo '::error::dedicated bootstrap task authority or immutable artifact differs from the reviewed shape'
+            exit 1
+          fi
+
+          network_service_json=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$NETWORK_SERVICE" \
+            --query 'services[0]' --output json)
+          NETWORK_JSON=$(jq -ec '
+            .networkConfiguration.awsvpcConfiguration |
+            if (.assignPublicIp == "ENABLED" or .assignPublicIp == "DISABLED") and
+               (.subnets | type == "array" and length > 0) and
+               (.securityGroups | type == "array" and length == 1)
+            then {awsvpcConfiguration:.}
+            else error("invalid publisher network authority") end
+          ' <<<"$network_service_json")
+          export NETWORK_JSON
+          export TASK_DEFINITION_ARN="$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN"
+          export CONTAINER="$BOOTSTRAP_CONTAINER"
+          export STARTED_BY="gh-kaana-score-renewal-${GITHUB_RUN_ID}"
+          LOG_GROUP=$(jq -er '.containerDefinitions[0].logConfiguration.options["awslogs-group"]' <<<"$bootstrap_task_json")
+          LOG_PREFIX=$(jq -er '.containerDefinitions[0].logConfiguration.options["awslogs-stream-prefix"]' <<<"$bootstrap_task_json")
+          export LOG_GROUP LOG_PREFIX
+
+          allowed_operations=$(jq -nc \
+            --arg cerebras "$CEREBRAS_DEPLOYMENT_ID" \
+            --arg groq "$GROQ_DEPLOYMENT_ID" \
+            --arg openrouter "$OPENROUTER_DEPLOYMENT_ID" '
+              ["scorecard-renewal:" + $cerebras, "scorecard-renewal:" + $groq, "scorecard-renewal:" + $openrouter]
+            ')
+
+          # Exact result shape: only the three reviewed deployments, only the
+          # reviewed target validity, only allowlisted operations.
+          validate_renewal_result() {
+            local result="$1"
+            local expected_applied="$2"
+            jq -e \
+              --argjson expectedApplied "$expected_applied" \
+              --arg cerebras "$CEREBRAS_DEPLOYMENT_ID" \
+              --arg groq "$GROQ_DEPLOYMENT_ID" \
+              --arg openrouter "$OPENROUTER_DEPLOYMENT_ID" \
+              --arg validUntil "$RENEWED_VALID_UNTIL" \
+              --arg changedAt "$RENEWED_CHANGED_AT" \
+              --argjson allowed "$allowed_operations" '
+                (keys | sort) == ["applied","database","operations","outcomes","planSha256","schemaVersion"] and
+                .schemaVersion == 1 and
+                .database == {engine:"postgresql"} and
+                .applied == $expectedApplied and
+                (.planSha256 | test("^[a-f0-9]{64}$")) and
+                ([.outcomes[].deploymentId] == [$cerebras,$groq,$openrouter]) and
+                (.outcomes | all(
+                  (.action == "renew" or .action == "current") and
+                  .toValidUntil == $validUntil and
+                  .toChangedAt == $changedAt
+                )) and
+                (.operations | type == "array") and
+                ((.operations - $allowed) | length == 0) and
+                (.operations == [.outcomes[] | select(.action == "renew") | ("scorecard-renewal:" + .deploymentId)])
+              ' <<<"$result" >/dev/null
+          }
+
+          renewal_command='["bun","run","packages/api/scripts/renew-kaana-routing-scores.ts"]'
+          dry_environment=$(jq -nc \
+            --arg reviewer "$REVIEWER_USER_ID" \
+            --arg actor "$RENEWAL_ACTOR" '[
+              {name:"APPLY",value:"0"},
+              {name:"RENEWAL_ACTOR",value:$actor},
+              {name:"RENEWAL_REASON",value:"dry-run only"},
+              {name:"EXPECTED_PLAN_SHA256",value:""},
+              {name:"KAANA_CATALOGUE_REVIEWER_USER_ID",value:$reviewer}
+            ]')
+          dry_envelope=$(.github/scripts/run-kaana-catalogue-one-shot.sh 'dry run' "$renewal_command" "$dry_environment" 'KAANA_SCORE_RENEWAL_RESULT=')
+          if [ "$(jq -r '.exitCode' <<<"$dry_envelope")" != 0 ] || \
+             [ "$(jq -r '.resultCount' <<<"$dry_envelope")" != 1 ]; then
+            echo '::error::renewal dry run failed or did not emit exactly one result (drift is refused; read /oxy/ecs)'
+            exit 1
+          fi
+          dry_result=$(jq -ce '.result' <<<"$dry_envelope")
+          validate_renewal_result "$dry_result" false || {
+            echo '::error::renewal dry run result is not the reviewed renewal projection'
+            exit 1
+          }
+          observed_plan=$(jq -r '.planSha256' <<<"$dry_result")
+
+          echo '──────── Kaana score renewal dry run (operator-safe) ────────'
+          jq '{outcomes,operations,planSha256}' <<<"$dry_result"
+          echo '─────────────────────────────────────────────────────────────'
+          {
+            echo '### Reviewed Kaana routing score renewal dry run'
+            echo
+            echo "- Dedicated task: \`$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN\`"
+            echo "- Immutable image: \`$immutable_image\`"
+            echo "- Renewed validity: \`$RENEWED_VALID_UNTIL\` (changedAt \`$RENEWED_CHANGED_AT\`)"
+            echo "- Plan SHA-256: \`$observed_plan\`"
+            echo "- Planned renewals: \`$(jq -c '.operations' <<<"$dry_result")\`"
+            echo '- PostgreSQL committed writes: 0 (transaction rolled back)'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$REQUESTED_MODE" = dry-run ]; then
+            exit 0
+          fi
+          if [ "$observed_plan" != "$expected_plan" ]; then
+            echo '::error::fresh dry-run plan no longer matches expected_plan_sha256; review the new plan instead of applying'
+            exit 1
+          fi
+
+          apply_environment=$(jq -nc \
+            --arg reviewer "$REVIEWER_USER_ID" \
+            --arg actor "$RENEWAL_ACTOR" \
+            --arg reason "$renewal_reason" \
+            --arg expected "$expected_plan" '[
+              {name:"APPLY",value:"1"},
+              {name:"RENEWAL_ACTOR",value:$actor},
+              {name:"RENEWAL_REASON",value:$reason},
+              {name:"EXPECTED_PLAN_SHA256",value:$expected},
+              {name:"KAANA_CATALOGUE_REVIEWER_USER_ID",value:$reviewer}
+            ]')
+          apply_envelope=$(.github/scripts/run-kaana-catalogue-one-shot.sh 'apply' "$renewal_command" "$apply_environment" 'KAANA_SCORE_RENEWAL_RESULT=')
+          apply_result=$(jq -c '.result' <<<"$apply_envelope")
+          if [ "$(jq -r '.exitCode' <<<"$apply_envelope")" != 0 ] || \
+             [ "$(jq -r '.resultCount' <<<"$apply_envelope")" != 1 ] || \
+             ! validate_renewal_result "$apply_result" true || \
+             [ "$(jq -r '.planSha256 // ""' <<<"$apply_result")" != "$expected_plan" ] || \
+             [ "$(jq -c '.operations' <<<"$apply_result")" != "$(jq -c '.operations' <<<"$dry_result")" ]; then
+            echo '::error::apply outcome is ambiguous; the idempotency dry run below reports the committed state'
+            apply_verified=false
+          else
+            apply_verified=true
+          fi
+
+          noop_envelope=$(.github/scripts/run-kaana-catalogue-one-shot.sh 'idempotency dry run' "$renewal_command" "$dry_environment" 'KAANA_SCORE_RENEWAL_RESULT=')
+          noop_result=$(jq -c '.result' <<<"$noop_envelope")
+          if [ "$(jq -r '.exitCode' <<<"$noop_envelope")" != 0 ] || \
+             [ "$(jq -r '.resultCount' <<<"$noop_envelope")" != 1 ] || \
+             ! validate_renewal_result "$noop_result" false || \
+             [ "$(jq -c '.operations' <<<"$noop_result")" != '[]' ]; then
+            echo '::error::post-apply dry run is not a zero-operation no-op at the renewed state'
+            exit 1
+          fi
+          if [ "$apply_verified" != true ]; then
+            echo '::notice::the rows are at the renewed state, but this run cannot prove its own apply committed them'
+            exit 1
+          fi
+
+          # Read-only proof that the whole selectable census now clears the
+          # scheduled monitor's early-warning horizon, not only the 3600 s gate.
+          readiness_command='["bun","run","packages/api/scripts/verify-inference-routing-readiness.ts"]'
+          readiness_environment=$(jq -nc --arg seconds "$EXPIRY_WARNING_SECONDS" '[
+            {name:"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS",value:$seconds}
+          ]')
+          readiness_envelope=$(.github/scripts/run-kaana-catalogue-one-shot.sh 'readiness' "$readiness_command" "$readiness_environment" 'Kaana routing readiness passed')
+          if [ "$(jq -r '.exitCode' <<<"$readiness_envelope")" != 0 ] || \
+             [ "$(jq -r '.resultCount' <<<"$readiness_envelope")" != 1 ]; then
+            echo '::error::renewal committed, but the selectable census does not clear the early-warning horizon; read /oxy/ecs'
+            exit 1
+          fi
+
+          {
+            echo
+            echo '### Kaana routing score renewal verification'
+            echo
+            echo "- Applied reviewed plan: \`$expected_plan\`"
+            echo "- Renewed: \`$(jq -c '.operations' <<<"$apply_result")\`"
+            echo '- Idempotency dry-run committed writes: 0; planned operations: 0'
+            echo "- Readiness at a ${EXPIRY_WARNING_SECONDS}s horizon: passed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Re-attest the live rollout after renewal
+        if: always()
+        env:
+          EXPECTED_LIVE_TASK_DEFINITION_ARN: ${{ inputs.expected_live_task_definition_arn }}
+          EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN: ${{ inputs.expected_bootstrap_task_definition_arn }}
+          EXPECTED_LIVE_IMAGE_DIGEST: ${{ inputs.expected_live_image_digest }}
+        run: |
+          set -euo pipefail
+          expected_image="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/oxy/oxy-api@${EXPECTED_LIVE_IMAGE_DIGEST}"
+          .github/scripts/attest-kaana-catalogue-rollout.sh \
+            "$CLUSTER" "$SERVICE" "$EXPECTED_LIVE_TASK_DEFINITION_ARN" "$LIVE_CONTAINER" \
+            "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" "$BOOTSTRAP_CONTAINER" "$expected_image"

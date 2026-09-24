@@ -21,10 +21,12 @@ import {
   mintRequesterAssertion,
   type LiveSession,
   type LiveServicePrincipal,
+  type LiveWorkloadPrincipal,
   type RequesterAssertionDependencies,
   type RequesterAssertionStore,
   type ValidatedSubjectSession,
 } from '../nativeRequesterAssertion.service';
+import { workloadAttestationHandle } from '../workloadAttestation.service';
 
 jest.mock('../../config/redis', () => ({ getRedisClient: () => null }));
 
@@ -32,6 +34,15 @@ const HOMIIO = NATIVE_PRODUCT_AGENTS.products.homiio;
 const APP = HOMIIO.applicationId;
 const CREDENTIAL = HOMIIO.sindiServiceCredential.id;
 const AGENT = HOMIIO.aliaAgent.id;
+/**
+ * The SAME product backend, proving itself by attesting its ECS task role
+ * instead of carrying a key pair (ADR 0026). The role is what the entry point
+ * declares; the handle is derived, exactly as the mint derives it.
+ */
+const HOMIIO_ROLE = 'arn:aws:iam::237343248947:role/oxy-homiio-task';
+const HANDLE = workloadAttestationHandle(HOMIIO_ROLE);
+/** A real, valid handle for a DIFFERENT first-party service (`oxy-mention-task`). */
+const OTHER_HANDLE = workloadAttestationHandle('arn:aws:iam::237343248947:role/oxy-mention-task');
 const USER = '6981c9178fcdefaf81988ffb';
 const SESSION = 'session-1';
 const HUMAN_BEARER = 'human-access-token';
@@ -42,6 +53,8 @@ const KEY_ID = 'cap-test';
 interface World {
   now: Date;
   principals: Map<string, LiveServicePrincipal>;
+  /** Binding rows, keyed `applicationId:provider:subject`. */
+  workloads: Map<string, LiveWorkloadPrincipal>;
   bearers: Map<string, ValidatedSubjectSession>;
   sessions: Map<string, LiveSession>;
   store: RequesterAssertionStore;
@@ -55,6 +68,11 @@ function world(): World {
     principals: new Map([[`${APP}:${CREDENTIAL}`, {
       applicationId: APP,
       credentialId: CREDENTIAL,
+      scopes: ['inference:invoke', 'acting-as:offline'],
+    }]]),
+    workloads: new Map([[`${APP}:aws-iam:${HOMIIO_ROLE}`, {
+      applicationId: APP,
+      handle: HANDLE,
       scopes: ['inference:invoke', 'acting-as:offline'],
     }]]),
     bearers: new Map([[HUMAN_BEARER, {
@@ -83,6 +101,7 @@ function deps(state: World): RequesterAssertionDependencies {
       return { keyId: KEY_ID, privateKey: KEY.privateKey, publicKey: KEY.publicKey };
     },
     resolvePrincipal: async (applicationId, credentialId) => state.principals.get(`${applicationId}:${credentialId}`) ?? null,
+    resolveWorkloadPrincipal: async (applicationId, provider, subject) => state.workloads.get(`${applicationId}:${provider}:${subject}`) ?? null,
     validateSubjectToken: async (token) => state.bearers.get(token) ?? null,
     loadLiveSession: async (sessionId) => state.sessions.get(sessionId) ?? null,
     store: state.store,
@@ -91,6 +110,9 @@ function deps(state: World): RequesterAssertionDependencies {
 
 const caller = { applicationId: APP, credentialId: CREDENTIAL, scopes: ['inference:invoke', 'acting-as:offline'] };
 const presenter = { applicationId: APP, credentialId: CREDENTIAL };
+/** What Homiio's service token carries once the key pair comes off its task definition. */
+const attestedCaller = { ...caller, credentialId: HANDLE };
+const attestedPresenter = { applicationId: APP, credentialId: HANDLE };
 
 async function mint(state: World, overrides: Partial<Parameters<typeof mintRequesterAssertion>[1]> = {}) {
   return mintRequesterAssertion(deps(state), { caller, agentId: AGENT, subjectToken: HUMAN_BEARER, ...overrides });
@@ -182,6 +204,81 @@ describe('mintRequesterAssertion', () => {
     const state = world();
     state.bearers.set(HUMAN_BEARER, { ...state.bearers.get(HUMAN_BEARER)!, accountStatus: 'archived' });
     expect(await mint(state)).toEqual({ ok: false, reason: 'subject_account_inactive' });
+  });
+
+  /**
+   * ADR 0026: the same Homiio backend, with no key pair at all. It is the same
+   * identity — same application, same agent, same entry point — proving itself
+   * a second way, so the lane must open; if it does not, every Sindi chat turn
+   * tells a signed-in person to sign in.
+   */
+  it('mints for the ATTESTED Homiio backend, and the assertion names the handle that called', async () => {
+    const state = world();
+    const result = await mint(state, { caller: attestedCaller });
+    expect(result).toMatchObject({ ok: true, requesterAccountId: USER, agentId: AGENT });
+    if (!result.ok) return;
+    const payload = JSON.parse(Buffer.from(result.assertion.split('.')[1] as string, 'base64url').toString('utf8'));
+    // The credential that did NOT call is not named: `cid` is what called.
+    expect(payload.cid).toBe(HANDLE);
+    expect(payload.cid).not.toBe(CREDENTIAL);
+    expect(payload.azp).toBe(APP);
+  });
+
+  /**
+   * The handle is DERIVED from the one declared role, so the prefix authorises
+   * nothing. `wl_d61be5…` is Mention's real, live handle — a value an attacker
+   * holding a valid Mention token genuinely has.
+   */
+  it.each([
+    ["another service's real, valid handle", OTHER_HANDLE],
+    ['a wl_-shaped value that is nobody', 'wl_000000000000000000000000'],
+    ['the Homiio handle one character off', `${HANDLE.slice(0, -1)}0`],
+  ])('refuses an attested caller that is %s', async (_label, credentialId) => {
+    const state = world();
+    expect(await mint(state, { caller: { ...attestedCaller, credentialId } }))
+      .toEqual({ ok: false, reason: 'unknown_entry_point' });
+  });
+
+  /**
+   * The binding row is this path's live ceiling, exactly as the credential row
+   * is the other one's — the same refusals, on the same grounds, so an attested
+   * token is not the one bearer a staff revocation fails to reach.
+   */
+  it('refuses an attested caller whose binding was deleted, expired or re-pointed', async () => {
+    const state = world();
+    state.workloads.clear();
+    expect(await mint(state, { caller: attestedCaller }))
+      .toEqual({ ok: false, reason: 'service_principal_not_live' });
+  });
+
+  it('refuses an attested caller whose binding no longer names inference:invoke', async () => {
+    const state = world();
+    state.workloads.set(`${APP}:aws-iam:${HOMIIO_ROLE}`, {
+      applicationId: APP,
+      handle: HANDLE,
+      scopes: ['acting-as:offline'],
+    });
+    expect(await mint(state, { caller: attestedCaller }))
+      .toEqual({ ok: false, reason: 'missing_inference_scope' });
+  });
+
+  /**
+   * The two rows are not interchangeable. A live credential must not stand in
+   * for a dead binding: that would check a row the caller does not hold.
+   */
+  it('does not let a live credential row cover for an attested caller', async () => {
+    const state = world();
+    state.workloads.clear();
+    expect(state.principals.has(`${APP}:${CREDENTIAL}`)).toBe(true);
+    expect(await mint(state, { caller: attestedCaller }))
+      .toEqual({ ok: false, reason: 'service_principal_not_live' });
+  });
+
+  it('does not let a live binding cover for a credential-minted caller', async () => {
+    const state = world();
+    state.principals.clear();
+    expect(state.workloads.size).toBe(1);
+    expect(await mint(state)).toEqual({ ok: false, reason: 'service_principal_not_live' });
   });
 
   it('fails closed without a signing key or a replay store', async () => {
@@ -292,6 +389,49 @@ describe('introspectRequesterAssertion', () => {
     const assertion = await mintedAssertion(state);
     state.principals.clear();
     expect(await introspect(state, assertion)).toEqual({ active: false, reason: 'service_principal_not_live' });
+  });
+
+  /**
+   * mint → replay store → introspect, all the way round on the attested path.
+   * `cid` is the handle at every hop, which is what makes the presenter check
+   * in `@oxy.so/core`'s `requesterAssertion.ts` (`claims.cid !==
+   * serviceApp.credentialId`) pass for a presenter that has no credential.
+   */
+  it('round-trips an attested assertion: the handle is the cid, the record and the answer', async () => {
+    const state = world();
+    const minted = await mint(state, { caller: attestedCaller });
+    if (!minted.ok) throw new Error(`mint refused: ${minted.reason}`);
+    const result = await introspect(state, minted.assertion, { presenter: attestedPresenter });
+    expect(result).toMatchObject({
+      active: true,
+      requesterAccountId: USER,
+      agentId: AGENT,
+      applicationId: APP,
+      credentialId: HANDLE,
+    });
+    expect(await introspect(state, minted.assertion, { presenter: attestedPresenter }))
+      .toEqual({ active: false, reason: 'not_found_or_replayed' });
+  });
+
+  it('refuses an attested assertion presented under the credential id, and the reverse', async () => {
+    const state = world();
+    const attested = await mint(state, { caller: attestedCaller });
+    if (!attested.ok) throw new Error(`mint refused: ${attested.reason}`);
+    expect(await introspect(state, attested.assertion, { presenter }))
+      .toEqual({ active: false, reason: 'presenter_mismatch' });
+
+    const credentialMinted = await mintedAssertion(world());
+    expect(await introspect(state, credentialMinted, { presenter: attestedPresenter }))
+      .toEqual({ active: false, reason: 'presenter_mismatch' });
+  });
+
+  it('refuses an attested assertion when the binding lost its authority between mint and use', async () => {
+    const state = world();
+    const minted = await mint(state, { caller: attestedCaller });
+    if (!minted.ok) throw new Error(`mint refused: ${minted.reason}`);
+    state.workloads.clear();
+    expect(await introspect(state, minted.assertion, { presenter: attestedPresenter }))
+      .toEqual({ active: false, reason: 'service_principal_not_live' });
   });
 
   it('fails closed when the replay store cannot answer', async () => {
