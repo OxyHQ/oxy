@@ -1,9 +1,7 @@
 import { createHash } from "node:crypto";
 
-export interface KaanaCatalogueBootstrapPlanInput {
-	readonly reviewerUserId: string;
-	readonly inventorySnapshotId: string;
-	readonly reviewedFactsSha256: string;
+/** The exact identities one reviewed model contributes to the plan. */
+export interface KaanaCatalogueBootstrapModelPlan {
 	readonly publisher: string;
 	readonly model: string;
 	readonly revision: string;
@@ -14,6 +12,18 @@ export interface KaanaCatalogueBootstrapPlanInput {
 	readonly providers: readonly string[];
 	readonly deployments: readonly string[];
 	readonly routingProfileIds: readonly string[];
+}
+
+/**
+ * The text model's identities stay at the top level, as every earlier plan
+ * bound them; Alia's speech model is bound under `speech`.
+ */
+export interface KaanaCatalogueBootstrapPlanInput
+	extends KaanaCatalogueBootstrapModelPlan {
+	readonly reviewerUserId: string;
+	readonly inventorySnapshotId: string;
+	readonly reviewedFactsSha256: string;
+	readonly speech: KaanaCatalogueBootstrapModelPlan;
 	readonly wouldInsert: readonly string[];
 }
 

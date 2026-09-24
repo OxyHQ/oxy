@@ -40,8 +40,14 @@ export const KAANA_SCORE_RENEWAL_2026_09_24 = {
 } as const;
 export const KAANA_INITIAL_MODEL_ID = "openai/gpt-oss-120b";
 export const KAANA_INITIAL_MODEL_REFERENCE = `${KAANA_INITIAL_MODEL_ID}@observed-2026-09-01`;
-/** Routing-content hash of the exact live inventory reviewed on 2026-09-02. */
-export const KAANA_INITIAL_INVENTORY_SNAPSHOT_ID = "snap_dfd6904a99d6313b";
+/**
+ * Routing-content hash of the exact live inventory the bootstrap accepts.
+ *
+ * Re-pinned on 2026-09-24 to the schema-0013 cutover snapshot (334
+ * deployments). It still carries the three reviewed gpt-oss deployments with
+ * byte-identical identity facts, and adds the reviewed xAI speech deployment.
+ */
+export const KAANA_INITIAL_INVENTORY_SNAPSHOT_ID = "snap_37548e4f1f8ec610";
 
 export const KAANA_INITIAL_PUBLISHER = {
   slug: "openai",
@@ -95,6 +101,7 @@ export interface KaanaInitialUnitPrice {
     | "cached_input_tokens"
     | "output_tokens"
     | "reasoning_tokens"
+    | "characters"
     | "requests";
   readonly amount: string;
   readonly per: number;
@@ -115,7 +122,7 @@ export interface KaanaScoreRenewal {
 }
 
 export interface KaanaInitialProvider {
-  readonly slug: "groq" | "cerebras" | "openrouter";
+  readonly slug: "groq" | "cerebras" | "openrouter" | "xai";
   readonly displayName: string;
   readonly websiteUrl: string;
   readonly statusPageUrl?: string;
@@ -402,4 +409,254 @@ export function requireSingleKaanaBootstrapScoreEvent<T>(
     throw new Error(`Scorecard ${deploymentId} provenance event is absent`);
   }
   return event;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Speech: Alia's text-to-speech route                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Primary-source review of the one xAI speech deployment Kaana serves.
+ *
+ * xAI's speech endpoint has no model selector: Kaana discovers it through the
+ * authenticated voice catalogue and names it `tts`, attributed to
+ * `x-ai/text-to-speech` with first-observation revision semantics. The
+ * revision is therefore Kaana's observed identity, not a claim about weights.
+ */
+export const KAANA_SPEECH_REVIEWED_AT = "2026-09-24T00:00:00.000Z";
+export const KAANA_SPEECH_MODEL_ID = "x-ai/text-to-speech";
+export const KAANA_SPEECH_MODEL_REFERENCE = `${KAANA_SPEECH_MODEL_ID}@observed-2026-09-24`;
+
+/**
+ * Kaana's xAI speech translation refuses input above 15,000 UTF-16 units
+ * (`internal/provider/openaicompat/speech.go`), stricter than xAI's own unary
+ * limit. The edge's capacity gate compares the model's context ceiling with
+ * `estimateInputTokens`, which for a speech request is the input length plus
+ * one 8-unit message overhead. 15,008 therefore admits exactly the inputs
+ * Kaana can serve and refuses the rest before a hold is reserved.
+ */
+export const KAANA_SPEECH_MAX_INPUT_CHARACTERS = 15_000;
+
+export const KAANA_SPEECH_PUBLISHER = {
+  slug: "x-ai",
+  displayName: "xAI",
+  websiteUrl: "https://x.ai/",
+} as const;
+
+export const KAANA_SPEECH_MODEL = {
+  publisherSlug: KAANA_SPEECH_PUBLISHER.slug,
+  slug: "text-to-speech",
+  displayName: "Text to Speech",
+  description: "Hosted text-to-speech endpoint that returns spoken audio.",
+  inputModalities: ["text"],
+  outputModalities: ["audio"],
+  supportsTools: false,
+  supportsParallelToolCalls: false,
+  supportsStructuredOutput: false,
+  supportsJsonMode: false,
+  supportsReasoning: false,
+  // The edge answers speech with one complete audio body; Kaana refuses a
+  // streaming speech request.
+  supportsStreaming: false,
+  supportsPromptCaching: false,
+  maxContextTokens: KAANA_SPEECH_MAX_INPUT_CHARACTERS + 8,
+  // Speech generates no tokens and the edge's output budget for it is zero.
+  // The column requires a positive value; 1 is the smallest one and is never
+  // used to size a hold for speech.
+  maxOutputTokens: 1,
+  licenseId: "xAI-Enterprise-Terms",
+  licenseDisplayName: "xAI Enterprise Terms of Service",
+  licenseUrl: "https://x.ai/legal/terms-of-service-enterprise",
+  commercialUseAllowed: true,
+  requiresAttribution: false,
+  baseModelAttributionRequired: false,
+  acceptableUsePolicyUrl: null,
+  releaseKind: "third_party_hosted",
+  trainingOrganization: "xAI",
+  knowledgeCutoff: null,
+  releasedOn: null,
+  deprecationStatus: "active",
+} as const;
+
+export const KAANA_SPEECH_REVISION = {
+  revision: "observed-2026-09-24",
+  isCurrent: true,
+  // xAI publishes no release instant for the endpoint; this is the Kaana
+  // observation that names the revision.
+  releasedAt: KAANA_SPEECH_REVIEWED_AT,
+  modelCardUrl:
+    "https://docs.x.ai/developers/model-capabilities/audio/text-to-speech",
+  // A non-text model must declare its content provenance (migration 0050's
+  // trigger refuses the revision otherwise). xAI's speech documentation
+  // publishes no watermark or C2PA marking, and Kaana stamps none: `none` is
+  // that declaration. Moderation is xAI's own default under its usage policy.
+  contentFilteringDefault: "provider_default",
+  provenanceMarking: "none",
+} as const;
+
+const KAANA_SPEECH_SCORECARD_REASON =
+  "Primary-source xAI list-price review of the single exact speech route with neutral unmeasured latency and throughput; the speech profile ranks on price and makes no provider performance claim.";
+
+export const KAANA_SPEECH_PROVIDERS: readonly KaanaInitialProvider[] = [
+  {
+    slug: "xai",
+    displayName: "xAI",
+    websiteUrl: "https://x.ai/",
+    // xAI stores API requests and responses for 30 days for abuse auditing,
+    // never trains on them, and offers team-wide ZDR. The default is recorded:
+    // ZDR is not asserted for Oxy's xAI team.
+    retainsPayloads: true,
+    retentionDays: 30,
+    trainsOnCustomerData: false,
+    zeroDataRetentionAvailable: true,
+    policyUrl: "https://docs.x.ai/developers/faq/security",
+    deploymentId: "dep_xai_tts_observed_2026_09_24",
+    upstreamModelId: "tts",
+    legalEvidenceRef:
+      "owner-approval-2026-09-24:https://x.ai/legal/terms-of-service-enterprise;https://docs.x.ai/developers/faq/security;scope=internal-alia-standard-application-use-not-api-resale",
+    // Customer price is the provider list price with no markup, as for every
+    // reviewed route: $15.00 per 1M characters, and an explicit free request.
+    priceEvidenceRef: "https://docs.x.ai/developers/pricing",
+    performanceEvidenceRef: "not-measured:xai-tts-exact-deployment-2026-09-24",
+    reviewedAt: KAANA_SPEECH_REVIEWED_AT,
+    scoreValidUntil: KAANA_INITIAL_SCORE_VALID_UNTIL,
+    priceEffectiveFrom: KAANA_SPEECH_REVIEWED_AT,
+    scorecardReason: KAANA_SPEECH_SCORECARD_REASON,
+    permissionStateNote:
+      "Owner-approved internal Alia speech route; primary-source review 2026-09-24; not approved for API resale.",
+    unitPrices: [
+      { unit: "characters", amount: "15.00", per: 1_000_000 },
+      { unit: "requests", amount: "0", per: 1 },
+    ],
+    // One route: the price rank cannot reorder anything. Neutral 500s mirror
+    // the unmeasured OpenRouter route; balanced follows the shared formula.
+    scores: { price: 1_000, latency: 500, throughput: 500, balanced: 750 },
+  },
+] as const;
+
+/**
+ * The speech-only profile Alia reserved before this catalogue existed.
+ *
+ * Alia pins this exact ID (`OXY_KAANA_SPEECH_ROUTING_PROFILE_ID`), so it is
+ * adopted verbatim rather than generated: it is a v4 UUID, unlike the text
+ * profile keys. It is never a stored agent or chat profile.
+ */
+export const KAANA_SPEECH_ROUTING_PROFILE_ID =
+  "cc2471c8-807e-46ec-b5da-b6f3b39d2db5";
+
+export const KAANA_SPEECH_ROUTING_PROFILES = [
+  {
+    id: KAANA_SPEECH_ROUTING_PROFILE_ID,
+    slug: "kaana-v1-speech",
+    displayName: "Kaana Speech",
+    optimiseFor: "price",
+  },
+] as const;
+
+/* -------------------------------------------------------------------------- */
+/*  Every reviewed model the bootstrap owns                                   */
+/* -------------------------------------------------------------------------- */
+
+export interface KaanaReviewedModelCatalogue {
+  readonly publisher: {
+    readonly slug: string;
+    readonly displayName: string;
+    readonly websiteUrl: string;
+  };
+  readonly model: typeof KAANA_INITIAL_MODEL | typeof KAANA_SPEECH_MODEL;
+  readonly modelId: string;
+  readonly modelReference: string;
+  readonly revision: typeof KAANA_INITIAL_REVISION | typeof KAANA_SPEECH_REVISION;
+  readonly providers: readonly KaanaInitialProvider[];
+  readonly routingProfiles: readonly {
+    readonly id: string;
+    readonly slug: string;
+    readonly displayName: string;
+    readonly optimiseFor: "price" | "balanced";
+  }[];
+}
+
+export const KAANA_TEXT_CATALOGUE: KaanaReviewedModelCatalogue = {
+  publisher: KAANA_INITIAL_PUBLISHER,
+  model: KAANA_INITIAL_MODEL,
+  modelId: KAANA_INITIAL_MODEL_ID,
+  modelReference: KAANA_INITIAL_MODEL_REFERENCE,
+  revision: KAANA_INITIAL_REVISION,
+  providers: KAANA_INITIAL_PROVIDERS,
+  routingProfiles: KAANA_INITIAL_ROUTING_PROFILES,
+};
+
+export const KAANA_SPEECH_CATALOGUE: KaanaReviewedModelCatalogue = {
+  publisher: KAANA_SPEECH_PUBLISHER,
+  model: KAANA_SPEECH_MODEL,
+  modelId: KAANA_SPEECH_MODEL_ID,
+  modelReference: KAANA_SPEECH_MODEL_REFERENCE,
+  revision: KAANA_SPEECH_REVISION,
+  providers: KAANA_SPEECH_PROVIDERS,
+  routingProfiles: KAANA_SPEECH_ROUTING_PROFILES,
+};
+
+/** Bootstrap order: text first, exactly as before speech existed. */
+export const KAANA_REVIEWED_CATALOGUES = [
+  KAANA_TEXT_CATALOGUE,
+  KAANA_SPEECH_CATALOGUE,
+] as const;
+
+/** Every reviewed route, for the inventory gate and the score renewal. */
+export const KAANA_REVIEWED_PROVIDERS: readonly KaanaInitialProvider[] =
+  KAANA_REVIEWED_CATALOGUES.flatMap((catalogue) => catalogue.providers);
+
+/** The reviewed profile candidate policy: one pinned revision, priority 100. */
+export const KAANA_REVIEWED_CANDIDATE_PRIORITY = 100;
+
+/** The identities one model contributes to the bootstrap result and plan. */
+export interface KaanaReviewedCatalogueProjection {
+  readonly publisher: string;
+  readonly model: string;
+  readonly revision: string;
+  readonly candidate: { readonly modelReference: string; readonly priority: number };
+  readonly providers: string[];
+  readonly deployments: string[];
+  readonly routingProfileIds: string[];
+}
+
+export function kaanaReviewedCatalogueProjection(
+  catalogue: KaanaReviewedModelCatalogue,
+): KaanaReviewedCatalogueProjection {
+  return {
+    publisher: catalogue.publisher.slug,
+    model: catalogue.modelId,
+    revision: catalogue.modelReference,
+    candidate: {
+      modelReference: catalogue.modelReference,
+      priority: KAANA_REVIEWED_CANDIDATE_PRIORITY,
+    },
+    providers: catalogue.providers.map((provider) => provider.slug),
+    deployments: catalogue.providers.map((provider) => provider.deploymentId),
+    routingProfileIds: catalogue.routingProfiles.map((profile) => profile.id),
+  };
+}
+
+/**
+ * Every insert a first bootstrap of `catalogue` may perform, in write order.
+ * The workflow allow-lists exactly these operation names.
+ */
+export function kaanaReviewedCatalogueOperations(
+  catalogue: KaanaReviewedModelCatalogue,
+): string[] {
+  return [
+    `publisher:${catalogue.publisher.slug}`,
+    `model:${catalogue.modelId}`,
+    `revision:${catalogue.modelReference}`,
+    ...catalogue.providers.flatMap((provider) => [
+      `provider:${provider.slug}`,
+      `price:${catalogue.modelReference}:${provider.slug}`,
+      `deployment:${provider.deploymentId}`,
+      `scorecard:${provider.deploymentId}`,
+    ]),
+    ...catalogue.routingProfiles.flatMap((profile) => [
+      `profile:${profile.slug}`,
+      `profile-candidate:${profile.slug}:${catalogue.modelReference}`,
+    ]),
+  ];
 }

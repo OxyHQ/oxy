@@ -25,7 +25,7 @@
 
 import { sql } from "drizzle-orm";
 import { routingScoreValidityThreshold } from "../src/config/inferenceRoutingScoreValidity";
-import { KAANA_INITIAL_PROVIDERS } from "../src/config/kaanaInitialCatalogue";
+import { KAANA_REVIEWED_PROVIDERS } from "../src/config/kaanaInitialCatalogue";
 import { closePostgres, connectPostgres, getDb } from "../src/config/postgres";
 import { requireKaanaCatalogueBootstrapApplyAuthorization } from "../src/scripts/kaanaCatalogueBootstrapPlan";
 import {
@@ -65,7 +65,9 @@ async function renew(): Promise<RenewalSummary> {
       );
       await requireKaanaCatalogueReviewer(tx, reviewerUserId);
       const outcomes = await renewKaanaRoutingScorecards(tx, {
-        providers: KAANA_INITIAL_PROVIDERS,
+        // Every reviewed route, text and speech; only those carrying a
+        // `scoreRenewal` are touched.
+        providers: KAANA_REVIEWED_PROVIDERS,
         reviewerUserId,
         minimumValidUntil,
       });
