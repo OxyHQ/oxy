@@ -1,0 +1,131 @@
+name: Kaana routing score expiry monitor
+
+# Daily, read-only early warning for the production cliff where a stale routing
+# score makes Oxy refuse the COMPLETE Kaana route set (docs/inference/routing.md).
+#
+# It runs the existing SELECT-only readiness command in the dedicated
+# oxy-kaana-catalogue-bootstrap task with a seven-day horizon instead of the
+# 3600 s deploy gate, so every selectable route must stay valid for another
+# week. On failure the run goes red and one tracking issue is opened (or
+# commented on); renew through renew-kaana-routing-scores.yml.
+#
+# This complements, and does not replace, the five-minute infra monitor in
+# oxy-infra (runbook 35), which alarms only one hour before expiry.
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: kaana-routing-score-expiry-monitor
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+
+env:
+  AWS_REGION: us-west-2
+  CLUSTER: oxy-cluster
+  NETWORK_SERVICE: kaana-publisher
+  BOOTSTRAP_FAMILY: oxy-kaana-catalogue-bootstrap
+  BOOTSTRAP_CONTAINER: kaana-catalogue-bootstrap
+  EXPIRY_WARNING_SECONDS: "604800"
+  ISSUE_TITLE: "Kaana routing scores expire within 7 days"
+
+jobs:
+  monitor:
+    if: github.ref == 'refs/heads/main'
+    # No `environment:`: the role trusts only the `ref:refs/heads/main` subject.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - name: Check out the monitored revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-kaana-catalogue-bootstrap
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Require seven days of routing evidence on every selectable route
+        run: |
+          set -euo pipefail
+          umask 077
+
+          # The latest ACTIVE dedicated task. Its image may trail the live API;
+          # the command is SELECT-only, so an older reviewed image is safe here.
+          task_json=$(aws ecs describe-task-definition \
+            --task-definition "$BOOTSTRAP_FAMILY" \
+            --query taskDefinition --output json)
+          if ! jq -e '
+              .status == "ACTIVE" and
+              .family == "oxy-kaana-catalogue-bootstrap" and
+              .taskRoleArn == "arn:aws:iam::237343248947:role/oxy-kaana-catalogue-bootstrap" and
+              (.containerDefinitions | length) == 1 and
+              .containerDefinitions[0].name == "kaana-catalogue-bootstrap" and
+              (.containerDefinitions[0].image | test("^237343248947\\.dkr\\.ecr\\.us-west-2\\.amazonaws\\.com/oxy/oxy-api@sha256:[a-f0-9]{64}$")) and
+              .containerDefinitions[0].secrets == [{
+                name:"DATABASE_URL",
+                valueFrom:"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/DATABASE_URL"
+              }]
+            ' <<<"$task_json" >/dev/null; then
+            echo '::error::dedicated bootstrap task differs from the reviewed read-only shape'
+            exit 1
+          fi
+          TASK_DEFINITION_ARN=$(jq -er '.taskDefinitionArn' <<<"$task_json")
+          LOG_GROUP=$(jq -er '.containerDefinitions[0].logConfiguration.options["awslogs-group"]' <<<"$task_json")
+          LOG_PREFIX=$(jq -er '.containerDefinitions[0].logConfiguration.options["awslogs-stream-prefix"]' <<<"$task_json")
+          NETWORK_JSON=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$NETWORK_SERVICE" \
+            --query 'services[0].networkConfiguration' --output json | jq -ec '
+              .awsvpcConfiguration |
+              if (.subnets | type == "array" and length > 0) and
+                 (.securityGroups | type == "array" and length == 1)
+              then {awsvpcConfiguration:.}
+              else error("invalid publisher network authority") end
+            ')
+          export TASK_DEFINITION_ARN LOG_GROUP LOG_PREFIX NETWORK_JSON
+          export CONTAINER="$BOOTSTRAP_CONTAINER"
+          export STARTED_BY="gh-kaana-score-expiry-${GITHUB_RUN_ID}"
+
+          command='["bun","run","packages/api/scripts/verify-inference-routing-readiness.ts"]'
+          environment=$(jq -nc --arg seconds "$EXPIRY_WARNING_SECONDS" '[
+            {name:"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS",value:$seconds}
+          ]')
+          envelope=$(.github/scripts/run-kaana-catalogue-one-shot.sh 'expiry readiness' "$command" "$environment" 'Kaana routing readiness passed')
+          {
+            echo '### Kaana routing score expiry monitor'
+            echo
+            echo "- Task definition: \`$TASK_DEFINITION_ARN\`"
+            echo "- Horizon: ${EXPIRY_WARNING_SECONDS}s"
+            echo "- Exit code: \`$(jq -r '.exitCode' <<<"$envelope")\`"
+            echo '- Diagnostics (earliest expiry, failing routes): /oxy/ecs, stream prefix kaana-catalogue-bootstrap'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$(jq -r '.exitCode' <<<"$envelope")" != 0 ] || \
+             [ "$(jq -r '.resultCount' <<<"$envelope")" != 1 ]; then
+            echo '::error::a selectable Kaana route has routing evidence expiring within 7 days (or the census is incomplete); run renew-kaana-routing-scores.yml'
+            exit 1
+          fi
+          echo 'Every selectable Kaana route keeps routing evidence for at least 7 more days.'
+
+      - name: Open or update the expiry tracking issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          body="The daily routing-score expiry monitor failed: some selectable Kaana route has routing evidence expiring within 7 days, or the census could not be proven. Oxy refuses the complete route set once a score is stale. Renew with .github/workflows/renew-kaana-routing-scores.yml (dry-run first). Run: $RUN_URL"
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$ISSUE_TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$ISSUE_TITLE" --body "$body"
+          fi

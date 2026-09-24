@@ -56,8 +56,10 @@ import {
   KAANA_INITIAL_REVISION,
   KAANA_INITIAL_ROUTING_PROFILES,
   KAANA_INITIAL_SCORECARD_REASON,
+  KAANA_INITIAL_SCORE_POLICY,
   KAANA_INITIAL_SCORE_VALID_UNTIL,
   type KaanaInitialProvider,
+  kaanaCurrentScorecardReview,
   requireSingleKaanaBootstrapScoreEvent,
 } from "../src/config/kaanaInitialCatalogue";
 import {
@@ -85,10 +87,10 @@ import {
 } from "../src/db/schema";
 import {
   createKaanaCatalogueBootstrapPlan,
-  kaanaBootstrapExistingFundingEvidence,
   createKaanaCatalogueReviewedFactsSha256,
   requireKaanaCatalogueBootstrapApplyAuthorization,
 } from "../src/scripts/kaanaCatalogueBootstrapPlan";
+import { kaanaReviewedScorecardFields } from "../src/scripts/kaanaScorecardRenewal";
 import { logger } from "../src/utils/logger";
 
 const APPLY = process.env.APPLY === "1";
@@ -136,12 +138,7 @@ const REVIEWED_CATALOGUE_FACTS = {
     effectiveUntil: null,
     supersedesPriceVersionId: null,
   },
-  scorePolicy: {
-    latencyEvidenceRef: "not-measured:exact-deployment-bootstrap-2026-09-02",
-    fundingClass: "standard_payg" as const,
-    fundingState: "available" as const,
-    fundingEvidenceSource: "provider.priceEvidenceRef",
-  },
+  scorePolicy: KAANA_INITIAL_SCORE_POLICY,
   candidatePolicy: {
     modelId: null,
     priority: 100,
@@ -608,45 +605,18 @@ async function ensureScorecard(
   priceVersionId: string,
   inserted: string[],
 ): Promise<void> {
-  const reviewedAt = new Date(provider.reviewedAt ?? KAANA_INITIAL_REVIEWED_AT);
-  const validUntil = new Date(
-    provider.scoreValidUntil ?? KAANA_INITIAL_SCORE_VALID_UNTIL,
-  );
+  // The scorecard's CURRENT review: after a same-value validity renewal this is
+  // the renewal's changedAt/reason/validUntil, never the original review. The
+  // bootstrap still never renews an existing row itself; a row left at the
+  // superseded state is drift here and is renewed only by
+  // scripts/renew-kaana-routing-scores.ts.
+  const review = kaanaCurrentScorecardReview(provider);
+  const validUntil = new Date(review.validUntil);
   if (validUntil < routingScoreValidityThreshold(new Date())) {
     throw new Error(
       `${provider.deploymentId} reviewed scorecard no longer covers the configured minimum validity horizon`,
     );
   }
-  const expected = {
-    deploymentId: provider.deploymentId,
-    priceScore: provider.scores.price,
-    priceSource: "reviewed_scorecard" as const,
-    priceEvidenceRef: provider.priceEvidenceRef,
-    priceVersionId,
-    latencyScore: provider.scores.latency,
-    latencySource: "reviewed_scorecard" as const,
-    latencyEvidenceRef: REVIEWED_CATALOGUE_FACTS.scorePolicy.latencyEvidenceRef,
-    latencyMeasurementWindowStart: reviewedAt,
-    latencyMeasurementWindowEnd: reviewedAt,
-    latencyValidUntil: validUntil,
-    throughputScore: provider.scores.throughput,
-    throughputSource: "reviewed_scorecard" as const,
-    throughputEvidenceRef: provider.performanceEvidenceRef,
-    throughputMeasurementWindowStart: reviewedAt,
-    throughputMeasurementWindowEnd: reviewedAt,
-    throughputValidUntil: validUntil,
-    balancedScore: provider.scores.balanced,
-    balancedSource: "reviewed_scorecard" as const,
-    balancedEvidenceRef: `${provider.priceEvidenceRef};${provider.performanceEvidenceRef}`,
-    balancedFormulaRef: KAANA_INITIAL_BALANCED_FORMULA_REF,
-    balancedValidUntil: validUntil,
-    fundingClass: REVIEWED_CATALOGUE_FACTS.scorePolicy.fundingClass,
-    fundingState: REVIEWED_CATALOGUE_FACTS.scorePolicy.fundingState,
-    fundingEvidenceRef: provider.priceEvidenceRef,
-    reason: provider.scorecardReason ?? KAANA_INITIAL_SCORECARD_REASON,
-    changedByUserId: reviewerUserId,
-    changedAt: reviewedAt,
-  };
   const existingRows = await tx
     .select()
     .from(inferenceDeploymentRoutingScores)
@@ -658,26 +628,37 @@ async function ensureScorecard(
     `Scorecard deployment ID ${provider.deploymentId}`,
     existingRows,
   );
+  const expected = kaanaReviewedScorecardFields(provider, review, {
+    priceVersionId,
+    reviewerUserId,
+    existingFundingEvidenceRef: row?.fundingEvidenceRef,
+  });
   if (row === undefined) {
     const createdRows = await tx
       .insert(inferenceDeploymentRoutingScores)
-      .values(expected)
+      .values({
+        ...expected,
+        // Stated, not only spread: the reviewed economics travel with every
+        // routing-score insert (routingScoreEconomicsCallsites.test.ts).
+        fundingClass: expected.fundingClass,
+        fundingState: expected.fundingState,
+        fundingEvidenceRef: expected.fundingEvidenceRef,
+      })
       .returning();
     row = requireExactlyOne(
       `Scorecard deployment ID ${provider.deploymentId}`,
       createdRows,
     );
+    const { changedAt, ...eventValues } = expected;
     await tx.insert(inferenceDeploymentRoutingScoreEvents).values({
-      ...expected,
-      createdAt: reviewedAt,
+      ...eventValues,
+      fundingClass: expected.fundingClass,
+      fundingState: expected.fundingState,
+      fundingEvidenceRef: expected.fundingEvidenceRef,
+      createdAt: changedAt,
     });
     inserted.push(`scorecard:${provider.deploymentId}`);
   }
-  expected.fundingEvidenceRef = kaanaBootstrapExistingFundingEvidence(
-    provider.deploymentId,
-    provider.priceEvidenceRef,
-    row.fundingEvidenceRef,
-  );
   assertFields(`scorecard:${provider.deploymentId}`, row, expected);
 
   // A current row without its immutable provenance event is not "close
@@ -692,7 +673,7 @@ async function ensureScorecard(
           inferenceDeploymentRoutingScoreEvents.deploymentId,
           provider.deploymentId,
         ),
-        eq(inferenceDeploymentRoutingScoreEvents.createdAt, reviewedAt),
+        eq(inferenceDeploymentRoutingScoreEvents.createdAt, expected.changedAt),
       ),
     )
     .for("update");
@@ -703,7 +684,7 @@ async function ensureScorecard(
   const { changedAt: _currentRowOnly, ...eventExpected } = expected;
   assertFields(`scorecard-event:${provider.deploymentId}`, event, {
     ...eventExpected,
-    createdAt: reviewedAt,
+    createdAt: expected.changedAt,
   });
 }
 

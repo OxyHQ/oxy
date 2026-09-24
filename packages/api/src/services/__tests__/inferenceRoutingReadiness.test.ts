@@ -1,5 +1,6 @@
 import {
   assessInferenceRoutingReadiness,
+  earliestInferenceRoutingEvidenceExpiry,
   type InferenceRoutingReadinessRow,
 } from '../inferenceRoutingReadiness.service';
 
@@ -74,5 +75,44 @@ describe('inference routing readiness decision', () => {
     expect(
       assessInferenceRoutingReadiness([completeRow(overrides)], now, minimumValidUntil)
     ).toMatchObject({ status: 'incomplete' });
+  });
+});
+
+describe('earliest inference routing evidence expiry', () => {
+  it('reports no expiry for an empty census', () => {
+    expect(earliestInferenceRoutingEvidenceExpiry([])).toBeUndefined();
+  });
+
+  it('names the route and dimension instant that lapses first', () => {
+    const cliff = new Date('2026-09-02T12:00:00.000Z');
+    expect(
+      earliestInferenceRoutingEvidenceExpiry([
+        completeRow({ deploymentId: 'dep_later' }),
+        completeRow({ deploymentId: 'dep_cliff', balancedValidUntil: cliff }),
+        completeRow({ deploymentId: 'dep_unscored', latencyValidUntil: null }),
+      ])
+    ).toEqual({ deploymentId: 'dep_cliff', validUntil: cliff });
+  });
+
+  it('is what a seven-day early-warning horizon refuses before runtime does', () => {
+    const warningNow = new Date('2026-09-25T00:00:00.000Z');
+    const sevenDays = new Date(warningNow.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const cliff = completeRow({
+      latencyMeasurementWindowEnd: new Date('2026-09-02T00:00:00.000Z'),
+      throughputMeasurementWindowEnd: new Date('2026-09-02T00:00:00.000Z'),
+      latencyValidUntil: new Date('2026-10-02T00:00:00.000Z'),
+      throughputValidUntil: new Date('2026-10-02T00:00:00.000Z'),
+      balancedValidUntil: new Date('2026-10-01T23:59:59.999Z'),
+    });
+    expect(assessInferenceRoutingReadiness([cliff], warningNow, sevenDays).status).toBe(
+      'incomplete'
+    );
+    expect(
+      assessInferenceRoutingReadiness(
+        [cliff],
+        warningNow,
+        new Date(warningNow.getTime() + 3_600_000)
+      )
+    ).toEqual({ status: 'ready' });
   });
 });
