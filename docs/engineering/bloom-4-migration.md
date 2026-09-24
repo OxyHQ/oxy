@@ -36,10 +36,17 @@ Bloom 3 from accepting an incompatible SDK through a minor update.
 A runtime Node guard around a literal dynamic import does not prevent Metro
 from traversing it. An emitted `.js` suffix also prevents the hoped-for native
 sibling from being selected in this consumer. Core's auth mixin therefore imports
-`@oxy.so/core/internal/workload-identity`; package export conditions route native
-and browser bundles to an inert client implementation and only Node hosts to the
-signer that imports `node:crypto`. The client can never attest or request a token.
-No consumer alias or Node polyfill is needed.
+`#workload-identity`; package import conditions route native and browser bundles
+to an inert client implementation and only Node hosts to the signer that imports
+`node:crypto`. The client can never attest or request a token. No consumer alias
+or Node polyfill is needed.
+
+The map lives in `dist/esm/package.json` and `dist/cjs/package.json`
+(`scripts/mark-module-formats.mjs`), because those files are the package scope
+for a `#` specifier. Core 1.7.3 used a self-reference to an
+`@oxy.so/core/internal/workload-identity` export instead; that resolves for
+installed consumers but not for bundlers inside this workspace, where nothing
+links `@oxy.so/core` into a `node_modules` it can reach. 1.7.4 replaces it.
 
 ## Existing payment limitation
 

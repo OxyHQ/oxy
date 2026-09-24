@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/core",
-  "version": "1.7.3",
+  "version": "1.7.4",
   "description": "OxyHQ SDK Foundation \u2014 API client, authentication, cryptographic identity, and shared utilities",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -59,17 +59,7 @@
       },
       "default": "./dist/esm/logger/index.js"
     },
-    "./package.json": "./package.json",
-    "./internal/workload-identity": {
-      "types": "./dist/types/server/workloadIdentity.d.ts",
-      "react-native": "./dist/esm/server/workloadIdentity.client.js",
-      "browser": "./dist/esm/server/workloadIdentity.client.js",
-      "node": {
-        "import": "./dist/esm/server/workloadIdentity.js",
-        "require": "./dist/cjs/server/workloadIdentity.js"
-      },
-      "default": "./dist/esm/server/workloadIdentity.client.js"
-    }
+    "./package.json": "./package.json"
   },
   "files": [
     "NOTICE",

@@ -17,7 +17,7 @@
     "jsx": "react-jsx",
     "noEmit": true,
     "paths": {
-      "@oxy.so/core/internal/workload-identity": [
+      "#workload-identity": [
         "./src/server/workloadIdentity.ts"
       ]
     }
