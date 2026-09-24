@@ -56,6 +56,9 @@ import { rateLimit } from '../middleware/rateLimiter';
 import { requireStaff, requireStaffCapability } from '../middleware/requireStaff';
 import { validate } from '../middleware/validate';
 import {
+  catalogueBlockBody,
+  catalogueBlockParams,
+  catalogueSyncBody,
   deploymentParams,
   kaanaDeploymentParams,
   legalReviewBody,
@@ -85,6 +88,12 @@ import {
   recordRevisionGpaiDocumentation,
 } from '../services/inferenceModelDocumentation.service';
 import { readInferenceOperationalMetrics } from '../services/inferenceMetrics.service';
+import {
+  blockCatalogueModel,
+  listCatalogueBlocks,
+  runKaanaCatalogueSync,
+  unblockCatalogueModel,
+} from '../services/kaanaCatalogueSync.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { BadRequestError, ConflictError, NotFoundError, UnauthorizedError } from '../utils/error';
 
@@ -373,6 +382,83 @@ router.get(
       .orderBy(desc(inferenceDeployments.createdAt));
 
     res.json({ data: rows, count: rows.length });
+  })
+);
+
+/**
+ * `POST /inference/admin/catalogue/sync`
+ *
+ * Run the Kaana → Oxy catalogue sync now instead of waiting for the schedule.
+ * The same fleet-wide lock applies: a run already in progress answers
+ * `status: skipped, reason: locked`.
+ *
+ * @response 200 Object `{ data: KaanaCatalogueSyncSummary }`.
+ */
+router.post(
+  '/catalogue/sync',
+  requireCataloguePublish,
+  validate({ body: catalogueSyncBody }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const body = catalogueSyncBody.parse(req.body ?? {});
+    const summary = await runKaanaCatalogueSync({
+      ...(body.allowMassRetirement === undefined ? {} : { allowMassRetirement: body.allowMassRetirement }),
+    });
+    res.json({ data: summary });
+  })
+);
+
+/**
+ * `GET /inference/admin/catalogue/blocklist`
+ *
+ * @response 200 Object `{ data: CatalogueBlock[] }`, empty by default.
+ */
+router.get(
+  '/catalogue/blocklist',
+  asyncHandler(async (_req: AuthRequest, res: Response) => {
+    res.json({ data: await listCatalogueBlocks() });
+  })
+);
+
+/**
+ * `POST /inference/admin/catalogue/blocklist`
+ *
+ * The emergency brake: the model line stops being synced and its synced routes
+ * are retired in the same commit. Reviewed routes of the line are retired
+ * through the permission surface, not here.
+ *
+ * @response 200 Object `{ data: { created, retired } }`.
+ */
+router.post(
+  '/catalogue/blocklist',
+  requireCataloguePublish,
+  validate({ body: catalogueBlockBody }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const body = catalogueBlockBody.parse(req.body);
+    const result = await blockCatalogueModel({
+      modelId: body.modelId,
+      reason: body.reason,
+      userId: staffUserId(req),
+    });
+    res.json({ data: result });
+  })
+);
+
+/**
+ * `DELETE /inference/admin/catalogue/blocklist/:publisher/:model`
+ *
+ * Lifts a block. The line returns at the next sync.
+ *
+ * @response 404 Error The model line is not blocked.
+ */
+router.delete(
+  '/catalogue/blocklist/:publisher/:model',
+  requireCataloguePublish,
+  validate({ params: catalogueBlockParams }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const params = catalogueBlockParams.parse(req.params);
+    const removed = await unblockCatalogueModel(`${params.publisher}/${params.model}`);
+    if (!removed) throw new NotFoundError('That model line is not blocked.');
+    res.json({ data: { removed: true } });
   })
 );
 
