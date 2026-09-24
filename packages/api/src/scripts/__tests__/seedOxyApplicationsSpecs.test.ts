@@ -23,7 +23,11 @@ import {
   resolveCatalogueViewer,
   type CatalogueApplicationPrincipal,
 } from '../../services/inferenceCatalogue.service';
-import { catalogApplicationCapability } from '../../utils/applicationCapabilities';
+import {
+  AGENCY_COORDINATE_CAPABILITY,
+  APPLICATION_CAPABILITIES,
+  catalogApplicationCapability,
+} from '../../utils/applicationCapabilities';
 import {
   APPLICATION_SCOPES,
   isPrivilegedScope,
@@ -216,7 +220,7 @@ describe('the canonical official-application registry', () => {
     });
   });
 
-  describe('Alia holds exactly the inference and delegation scopes it needs', () => {
+  describe('Alia holds exactly the inference, delegation and coordination scopes it needs', () => {
     const WITHHELD: readonly string[] = [
       'inference:routing:write',
       'inference:providers:write',
@@ -224,15 +228,19 @@ describe('the canonical official-application registry', () => {
     ];
 
     /**
-     * The three staff-gated scopes Alia is authorised to hold, and the ONLY three.
+     * The four staff-gated scopes Alia is authorised to hold, and the ONLY four.
      *
-     * Named as a constant because three assertions below need the same list and
-     * they ask different questions of it — that all are granted, that no FOURTH
-     * privileged scope has joined them, and that neither name is a typo. A
+     * Named as constants because several assertions below need the same list and
+     * they ask different questions of it — that all are granted, that no FIFTH
+     * privileged scope has joined them, and that no name is a typo. A
      * misspelling would be absent from `PRIVILEGED_APPLICATION_SCOPES`, absent
      * from the grant, and would read exactly like a deliberate decision.
      */
-    const DELEGATION_SCOPES: readonly string[] = ['acting-as:offline', 'accounts:act-as-session'];
+    const DELEGATION_SCOPES: readonly string[] = [
+      'acting-as:offline',
+      'accounts:act-as-session',
+      'capability-tickets:issue',
+    ];
     const PRIVILEGED_SCOPES: readonly string[] = ['capabilities:read', ...DELEGATION_SCOPES];
 
     it('declares the argued set and nothing else', () => {
@@ -273,23 +281,23 @@ describe('the canonical official-application registry', () => {
       expect(ALIA_APPLICATION_SCOPES).toEqual(expect.arrayContaining([...DELEGATION_SCOPES]));
     });
 
-    it('holds exactly the three argued staff-gated scopes and no others', () => {
+    it('holds exactly the four argued staff-gated scopes and no others', () => {
       // This REPLACES "holds no staff-gated scope of any family", which was a
       // real gate rather than a formality: the seed is the one path where a
       // staff-only scope reaches an application without a person reviewing a
       // request for it. What changed is the DECISION — Alia is now argued to
-      // need two of them — not whether anything is enforced. So the replacement
-      // has to bite in the same place, and it does in both directions: a THIRD
-      // privileged scope added here lengthens the array and fails, and either
+      // need four of them — not whether anything is enforced. So the replacement
+      // has to bite in the same place, and it does in both directions: a FIFTH
+      // privileged scope added here lengthens the array and fails, and any
       // named one going missing shortens it and fails.
       const privileged = ALIA_APPLICATION_SCOPES.filter((scope) => isPrivilegedScope(scope));
       expect(privileged).toEqual([...PRIVILEGED_SCOPES]);
     });
 
-    it('both delegation names are REAL privileged scopes, so pinning them means something', () => {
+    it('every delegation and coordination name is a REAL privileged scope, so pinning it means something', () => {
       // Vacuity floor for the two assertions above, in their own currency: if
       // `accounts:act-as-session` were misspelled it would be a non-scope, the
-      // privileged filter would return only one entry, and the pin would fail —
+      // privileged filter would return one entry fewer, and the pin would fail —
       // but it would fail looking like a policy regression rather than a typo.
       for (const scope of DELEGATION_SCOPES) {
         expect(isValidApplicationScope(scope)).toBe(true);
@@ -323,9 +331,9 @@ describe('the canonical official-application registry', () => {
           !DELEGATION_SCOPES.includes(scope)
       );
 
-    it('grants nothing outside inference, `user:read`, capability read and delegation', () => {
+    it('grants nothing outside inference, `user:read`, capability read, delegation and coordination', () => {
       // This REPLACES "grants nothing outside the inference family except the
-      // `user:read` baseline". The exemption list grew by exactly the three scopes
+      // `user:read` baseline". The exemption list grew by exactly the four scopes
       // argued for above and by nothing else, which is the point: the sentence
       // this test enforces is still "and nothing else".
       expect(outsidersOf(ALIA_APPLICATION_SCOPES)).toEqual([]);
@@ -339,6 +347,39 @@ describe('the canonical official-application registry', () => {
       expect(outsidersOf([...ALIA_APPLICATION_SCOPES, 'federation:write'])).toEqual([
         'federation:write',
       ]);
+    });
+  });
+
+  describe('Alia is the ADR 0018 coordinator, and holds both halves of that authority', () => {
+    // `routes/capabilities.ts` asks every coordinator route for a scope AND the
+    // `agency:coordinate` capability, and `evaluateCapabilityAuthority` re-reads
+    // both before each ticket. One without the other is a 403 at runtime —
+    // `missing_application_capability` is what production logged while Alia's
+    // spec carried the scope family but no capability — so both are pinned.
+    it('carries `agency:coordinate` and no other platform capability', () => {
+      expect(specNamed('Alia').capabilities).toEqual([AGENCY_COORDINATE_CAPABILITY]);
+    });
+
+    it('carries the ticket-issuing scope the capability is paired with', () => {
+      expect(specNamed('Alia').scopes).toContain('capability-tickets:issue');
+    });
+
+    it('the pinned name is the REAL built-in capability, so its presence means something', () => {
+      // Vacuity floor: a typo would still be a string, still land in the spec,
+      // and still fail every coordinator route closed.
+      expect(AGENCY_COORDINATE_CAPABILITY).toBe('agency:coordinate');
+      expect(APPLICATION_CAPABILITIES).toContain(AGENCY_COORDINATE_CAPABILITY);
+    });
+
+    it('is the ONLY seeded application that may coordinate or issue tickets', () => {
+      // Coordination is Alia's role, not a first-party perk. A catalog-owning
+      // app (Mention, Mercaria, Inbox, …) executes tickets; it never mints them.
+      const coordinators = SEED_APPS.filter(
+        (spec) =>
+          (spec.capabilities ?? []).includes(AGENCY_COORDINATE_CAPABILITY) ||
+          (spec.scopes ?? []).includes('capability-tickets:issue')
+      ).map((spec) => spec.name);
+      expect(coordinators).toEqual(['Alia']);
     });
   });
 
