@@ -21,6 +21,14 @@ type PostLoginRedirectParams = {
      * they just signed in as.
      */
     mcpLinkIntent?: string
+    /**
+     * `?user_code=` — the PUBLIC approval code of a device sign-in a CLI (or
+     * any client without a browser of its own) started. Like the MCP link it has
+     * no relying party and no redirect: the hop lands back on `/device?user_code=`, where
+     * the person approves as whichever account they just signed in as, and the
+     * waiting client finishes on its own by polling.
+     */
+    userCode?: string
 }
 
 /**
@@ -48,11 +56,17 @@ export function buildPostLoginRedirect({
     responseType,
     responseMode,
     mcpLinkIntent,
+    userCode,
 }: PostLoginRedirectParams): string {
     if (mcpLinkIntent) {
         const linkUrl = new URL("/mcp/link", window.location.origin)
         linkUrl.searchParams.set("intent", mcpLinkIntent)
         return `${linkUrl.pathname}${linkUrl.search}`
+    }
+    if (userCode) {
+        const deviceUrl = new URL("/device", window.location.origin)
+        deviceUrl.searchParams.set("user_code", userCode)
+        return `${deviceUrl.pathname}${deviceUrl.search}`
     }
     const nextUrl = new URL("/authorize", window.location.origin)
     if (sessionToken) nextUrl.searchParams.set("token", sessionToken)

@@ -21,6 +21,7 @@
  * What it catches:
  *   - SPA renders blank / build totally broken   → `/`, `/login`, `/signup`, `/authorize` lose the SPA root marker.
  *   - `/authorize` not routed at all             → a PKCE-bound authorize URL stops answering 200 with the SPA shell.
+ *   - `/device` not served                        → the link `codea login` prints stops answering 200 with the SPA shell.
  *   - FedCM manifest NOT removed                  → `/.well-known/web-identity` still serves the FedCM config JSON.
  *
  * What it CANNOT catch, despite an earlier comment here claiming otherwise: a
@@ -150,6 +151,18 @@ async function checkAuthorizeWithPkce(hostBase: string): Promise<void> {
 }
 
 /**
+ * The device approval link a CLI prints must still be SERVED. Same limit as
+ * {@link checkAuthorizeWithPkce}: the static host answers every path with
+ * `index.html`, so this proves the deploy is up, not that the page renders —
+ * that is `components/__tests__/device-page.test.tsx`. The code is well-formed
+ * but minted by nobody; a curl runs no JavaScript, so no approval lookup reaches
+ * the API from here.
+ */
+async function checkDeviceApproval(hostBase: string): Promise<void> {
+  await checkSpaPage(hostBase, `/device?user_code=${'0'.repeat(32)}`);
+}
+
+/**
  * The FedCM manifest MUST be GONE. `GET /.well-known/web-identity` no longer has
  * a handler, so it falls through to the SPA (or 404) — anything EXCEPT a valid
  * `200 application/json` FedCM config with `provider_urls` is a pass. A regression
@@ -208,6 +221,7 @@ async function run(): Promise<void> {
   await checkSpaPage(PRIMARY_TARGET, '/signup');
   await checkSpaPage(PRIMARY_TARGET, '/authorize');
   await checkAuthorizeWithPkce(PRIMARY_TARGET);
+  await checkDeviceApproval(PRIMARY_TARGET);
   await checkWebIdentityGone(PRIMARY_TARGET);
   await checkSecurityHeaders(PRIMARY_TARGET);
 
