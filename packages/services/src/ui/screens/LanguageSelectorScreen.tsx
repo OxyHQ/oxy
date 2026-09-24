@@ -1,5 +1,6 @@
+import { Button } from '@oxy.so/bloom/button';
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
 import Ionicons from '../icons/Ionicons';
@@ -196,19 +197,10 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
                                             </Text>
                                         </View>
                                     ) : canRemove ? (
-                                        <TouchableOpacity
-                                            onPress={() => handleRemove(entry.code)}
-                                            disabled={isBusy}
-                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                            accessibilityRole="button"
+                                        <Button appearance="plain" tone="neutral" size="small" iconOnly stopPropagation
+                                            onPress={() => handleRemove(entry.code)} disabled={isBusy}
                                             accessibilityLabel={`${t('language.remove')} ${entry.name}`}
-                                        >
-                                            <Ionicons
-                                                name="close-circle"
-                                                size={REMOVE_ICON_SIZE}
-                                                color={bloomTheme.colors.textSecondary}
-                                            />
-                                        </TouchableOpacity>
+                                            icon={<Ionicons name="close-circle" size={REMOVE_ICON_SIZE} color={bloomTheme.colors.textSecondary} />} />
                                     ) : undefined
                                 }
                                 showChevron={false}

@@ -3,7 +3,10 @@
     "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2020", "DOM"],
+    "lib": [
+      "ES2020",
+      "DOM"
+    ],
     "declaration": true,
     "strict": true,
     "esModuleInterop": true,
@@ -12,8 +15,19 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "#workload-identity": [
+        "./src/server/workloadIdentity.ts"
+      ]
+    }
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "**/__tests__"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/__tests__"
+  ]
 }

@@ -233,7 +233,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
                     </Text>
                   </View>
                   <Button
-                    variant="primary"
+                    appearance="solid" tone="accent"
                     onPress={handleSave}
                     disabled={updateMutation.isPending || !displayName.trim() || Boolean(displayNameError)}
                     loading={updateMutation.isPending}

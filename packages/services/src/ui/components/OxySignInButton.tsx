@@ -65,7 +65,7 @@ export interface OxySignInButtonProps {
      */
     action?: OxySignInButtonAction;
 
-    /** `medium` (36 tall, 300 wide) or `small` (32 × 250). @default 'medium' */
+    /** `md` (36 tall, 300 wide) or `sm` (32 × 250). @default 'md' */
     size?: SocialButtonSize;
 
     /** Fill the container's width instead of the fixed 300 / 250. */
@@ -177,7 +177,7 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
     variant = 'default',
     appearance,
     action = 'signIn',
-    size = 'medium',
+    size = 'md',
     fullWidth = false,
     iconOnly = false,
     onPress,

@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Chip } from '@oxy.so/bloom/chip';
 import { useTheme } from '@oxy.so/bloom/theme';

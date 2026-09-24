@@ -1,8 +1,8 @@
+import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import {
   View,
-  TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
 import Ionicons from '../icons/Ionicons';
@@ -291,37 +291,14 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
               <Text className="text-caption font-caption text-text-secondary px-space-4">
                 {t('accounts.members.invite.roleLabel') || 'Role'}
               </Text>
-              <View className="flex-row flex-wrap gap-space-8">
-                {ASSIGNABLE_ROLES.map((role) => {
-                  const selected = role === inviteRole;
-                  return (
-                    <TouchableOpacity
-                      key={role}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected }}
-                      accessibilityLabel={roleLabel(role)}
-                      onPress={() => setInviteRole(role)}
-                      activeOpacity={0.7}
-                      className="px-space-12 py-space-8 rounded-radius-full"
-                      style={{
-                        backgroundColor: selected ? colors.primary : colors.card,
-                        borderWidth: 1,
-                        borderColor: selected ? colors.primary : colors.border,
-                      }}
-                    >
-                      <Text
-                        className="text-caption font-semibold"
-                        style={{ color: selected ? colors.background : colors.text }}
-                      >
-                        {roleLabel(role)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              <SegmentedControl type="radio" label={t('accounts.members.invite.roleLabel') || 'Role'} value={inviteRole} onValueChange={setInviteRole} size="small">
+                {ASSIGNABLE_ROLES.map(role => <SegmentedControlItem key={role} value={role}>
+                  <SegmentedControlItemText>{roleLabel(role)}</SegmentedControlItemText>
+                </SegmentedControlItem>)}
+              </SegmentedControl>
 
               <Button
-                variant="primary"
+                appearance="solid" tone="accent"
                 onPress={handleInvite}
                 disabled={inviteMutation.isPending || !inviteIdentifier.trim()}
                 loading={inviteMutation.isPending}
@@ -394,35 +371,12 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
 
                           {/* Role chips (editable) or static role label */}
                           {canEditThisRole ? (
-                            <View className="flex-row flex-wrap gap-space-8">
-                              {ASSIGNABLE_ROLES.map((role) => {
-                                const selected = role === member.role;
-                                return (
-                                  <TouchableOpacity
-                                    key={role}
-                                    accessibilityRole="radio"
-                                    accessibilityState={{ selected }}
-                                    accessibilityLabel={roleLabel(role)}
-                                    onPress={() => handleChangeRole(member, role)}
-                                    disabled={updateMutation.isPending}
-                                    activeOpacity={0.7}
-                                    className="px-space-12 py-space-4 rounded-radius-full"
-                                    style={{
-                                      backgroundColor: selected ? colors.primary : colors.card,
-                                      borderWidth: 1,
-                                      borderColor: selected ? colors.primary : colors.border,
-                                    }}
-                                  >
-                                    <Text
-                                      className="text-caption font-semibold"
-                                      style={{ color: selected ? colors.background : colors.text }}
-                                    >
-                                      {roleLabel(role)}
-                                    </Text>
-                                  </TouchableOpacity>
-                                );
-                              })}
-                            </View>
+                            <SegmentedControl type="radio" label={t('accounts.members.invite.roleLabel') || 'Role'}
+                              value={member.role} onValueChange={role => handleChangeRole(member, role)} disabled={updateMutation.isPending} size="small">
+                              {ASSIGNABLE_ROLES.map(role => <SegmentedControlItem key={role} value={role}>
+                                <SegmentedControlItemText>{roleLabel(role)}</SegmentedControlItemText>
+                              </SegmentedControlItem>)}
+                            </SegmentedControl>
                           ) : !isOwner ? (
                             <Text className="text-caption font-caption text-text-secondary">
                               {roleLabel(member.role)}
@@ -433,32 +387,30 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                           {(canTransferToThis || canRemoveThisMember) ? (
                             <View className="flex-row gap-space-16 pt-space-4">
                               {canTransferToThis ? (
-                                <TouchableOpacity
+                                <Button appearance="plain" tone="neutral" size="small"
                                   accessibilityRole="button"
                                   accessibilityLabel={t('accounts.members.actions.transfer') || 'Transfer ownership'}
                                   onPress={() => confirmTransfer(member)}
-                                  activeOpacity={0.7}
                                   className="flex-row items-center gap-space-4"
                                 >
                                   <Ionicons name="swap-horizontal-outline" size={16} color={colors.icon} />
                                   <Text className="text-caption font-semibold text-text-secondary">
                                     {t('accounts.members.actions.transfer') || 'Transfer ownership'}
                                   </Text>
-                                </TouchableOpacity>
+                                </Button>
                               ) : null}
                               {canRemoveThisMember ? (
-                                <TouchableOpacity
+                                <Button appearance="plain" tone="neutral" size="small"
                                   accessibilityRole="button"
                                   accessibilityLabel={t('accounts.members.actions.remove') || 'Remove member'}
                                   onPress={() => confirmRemove(member)}
-                                  activeOpacity={0.7}
                                   className="flex-row items-center gap-space-4"
                                 >
                                   <Ionicons name="trash-outline" size={16} color={colors.error} />
                                   <Text className="text-caption font-semibold" style={{ color: colors.error }}>
                                     {t('accounts.members.actions.remove') || 'Remove'}
                                   </Text>
-                                </TouchableOpacity>
+                                </Button>
                               ) : null}
                             </View>
                           ) : null}

@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { View, Text, Animated, ActivityIndicator } from 'react-native';
+import { View, Animated, ActivityIndicator } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Button } from '@oxy.so/bloom/button';
@@ -104,11 +105,11 @@ const PaymentReviewStep: React.FC<PaymentReviewStepProps> = ({
             </View>
 
             <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-                <Button variant="secondary" onPress={onBack} size="small" disabled={isPaying} icon={<Ionicons name="arrow-back" size={16} />}>
+                <Button appearance="subtle" tone="neutral" onPress={onBack} size="small" disabled={isPaying} icon={<Ionicons name="arrow-back" size={16} />}>
                     {t('payment.actions.back')}
                 </Button>
                 <Button
-                    variant="primary"
+                    appearance="solid" tone="accent"
                     onPress={onPay}
                     size="small"
                     disabled={isPaying}

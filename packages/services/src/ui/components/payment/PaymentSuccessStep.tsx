@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { View, Text, Animated } from 'react-native';
+import { View, Animated } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 import { Button } from '@oxy.so/bloom/button';
 import { createPaymentStyles } from './paymentStyles';
@@ -56,7 +57,7 @@ const PaymentSuccessStep: React.FC<PaymentSuccessStepProps> = ({
                 </View>
             </View>
 
-            <Button variant="primary" onPress={onDone} size="small" icon={<Ionicons name="checkmark" size={16} />} iconPosition="right">
+            <Button appearance="solid" tone="accent" onPress={onDone} size="small" icon={<Ionicons name="checkmark" size={16} />} iconPosition="right">
                 {t('payment.actions.done')}
             </Button>
         </Animated.View>

@@ -1,11 +1,6 @@
 import type React from 'react';
-import {
-    StyleSheet,
-    Text,
-    View,
-    type StyleProp,
-    type ViewStyle,
-} from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../stores/authStore';

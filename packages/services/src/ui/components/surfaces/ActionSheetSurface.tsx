@@ -1,5 +1,6 @@
 import type React from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { surfaces, type SurfaceControls } from '@oxy.so/bloom/surfaces';
@@ -77,7 +78,7 @@ export function ActionSheetSurface<T extends string>({
                         {option.label}
                     </Button>
                 ))}
-                <Button variant="secondary" onPress={() => surface.dismiss(undefined)}>
+                <Button appearance="subtle" tone="neutral" onPress={() => surface.dismiss(undefined)}>
                     {cancelLabel}
                 </Button>
             </View>

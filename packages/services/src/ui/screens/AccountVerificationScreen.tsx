@@ -155,7 +155,7 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({
                 </View>
 
                 <Button
-                    variant="primary"
+                    appearance="solid" tone="accent"
                     size="large"
                     fullWidth
                     className="mt-space-24"

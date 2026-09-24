@@ -214,7 +214,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, theme, 
                     <View style={styles.actionButtonWrapper}>
                         {isOwnProfile ? (
                             <Button
-                                variant="secondary"
+                                appearance="subtle" tone="neutral"
                                 size="small"
                                 onPress={() => navigate?.('ManageAccount')}
                             >

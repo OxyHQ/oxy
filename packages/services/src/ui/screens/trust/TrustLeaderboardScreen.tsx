@@ -146,7 +146,7 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
                     <Text className="text-text-secondary text-base text-center">
                         {error || t('trust.leaderboard.error') || 'Failed to load leaderboard'}
                     </Text>
-                    <Button variant="primary" onPress={loadLeaderboard}>
+                    <Button appearance="solid" tone="accent" onPress={loadLeaderboard}>
                         {t('common.retry') || 'Retry'}
                     </Button>
                 </View>
