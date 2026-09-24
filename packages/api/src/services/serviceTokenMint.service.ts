@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import type { OxyServiceEnvironment } from '@oxy.so/core/server';
 
 import { signServiceTokenEd25519 } from '../config/serviceTokenSigning';
+import type { ServiceTier } from '../middleware/serviceToken';
 import { logger } from '../utils/logger';
 
 /**
@@ -34,6 +35,8 @@ export interface ServiceTokenClaims {
   credentialId: string;
   ownerAccountId: string;
   environment: OxyServiceEnvironment;
+  /** Internal (one of Oxy's own applications) or external; see `ServiceTier`. */
+  tier: ServiceTier;
   scopes: string[];
 }
 

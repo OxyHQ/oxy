@@ -169,6 +169,7 @@ interface ServiceClaims {
   credentialId?: string;
   ownerAccountId?: string;
   scopes?: string[];
+  tier?: string;
   environment?: string;
   iss?: string;
   aud?: string | string[];
@@ -325,6 +326,8 @@ describe('POST /auth/service-token — the trust gate and the Peable carve-out',
     expect(res.status).toBe(200);
     const claims = decodeServiceJwt((res.body.data as { token: string }).token);
     expect([...(claims.scopes ?? [])].sort()).toEqual(['payments:read', 'payments:write']);
+    // A third-party merchant stays on the external side, scopes and all.
+    expect(claims.tier).toBe('external');
   });
 
   it('still rejects a non-trusted app whose credential holds ANY non-payments scope', async () => {
@@ -361,12 +364,13 @@ describe('POST /auth/service-token — the trust gate and the Peable carve-out',
     expect(res.status).toBe(403);
   });
 
-  it('leaves a TRUSTED application unaffected by the carve-out', async () => {
+  it('leaves a TRUSTED application unaffected by the carve-out, and marks it internal', async () => {
     const client = await serviceClient({ scopes: ['user:read'] });
 
     const res = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
 
     expect(res.status).toBe(200);
+    expect(decodeServiceJwt((res.body.data as { token: string }).token).tier).toBe('internal');
   });
 });
 
