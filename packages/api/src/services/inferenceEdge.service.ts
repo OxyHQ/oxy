@@ -271,6 +271,42 @@ export const PLATFORM_DEFAULT_ROUTING_POLICY: RoutingPolicyReference = {
  */
 export const PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER = false;
 
+/**
+ * The reference recorded when an OFFICIAL Oxy application (first-party,
+ * internal or system — the `platform_internal` audience) configured no routing
+ * policy and named a concrete model.
+ *
+ * Why it exists: a concrete `publisher/model` target is ranked by a versioned
+ * policy's `optimiseFor`, and before this default an official product with no
+ * policy row could only reach the catalogue through a routing profile. The
+ * owner direction of 2026-09-25 is that Alia lists and serves EVERY model Kaana
+ * discovers, by model id, with no hand-curated profile in between — so official
+ * applications get a named, versioned default instead of a refusal.
+ *
+ * What it admits is exactly what the audience may already see: approved,
+ * offerable `platform_internal` (and public) deployments of the named model.
+ * It adds no constraint and no failover (see
+ * {@link PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER}, whose reasoning
+ * applies unchanged). A third-party application without a policy still gets
+ * `missing-versioned-optimisation`: this is not a public default.
+ */
+export const PLATFORM_INTERNAL_DEFAULT_ROUTING_POLICY: RoutingPolicyReference = {
+  routingPolicyId: 'platform-internal-default',
+  policyVersion: 1,
+};
+
+/**
+ * The dimension the internal default ranks a model's deployments by. `price`
+ * because it is the one score the catalogue sync can derive for every route
+ * from the provider's list price, and it carries no validity window: the
+ * latency, throughput and balanced dimensions need measurements Kaana does not
+ * publish yet.
+ */
+export const PLATFORM_INTERNAL_DEFAULT_OPTIMISE_FOR = 'price' as const;
+
+/** Display order for a refusal naming the efforts a model does support. */
+const REASONING_EFFORT_ORDER = ['low', 'medium', 'high'] as const;
+
 /* -------------------------------------------------------------------------- */
 /*  Authentication                                                            */
 /* -------------------------------------------------------------------------- */
@@ -797,13 +833,20 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   //     The application's own policy wins, then the owner account's; `none`
   //     means the platform default, which is a real answer rather than a gap.
   const policy = await resolveEffectiveRoutingPolicy(principal.applicationId);
+  const viewer = viewerForPrincipal(principal);
+  // An official application with no policy of its own is served under the
+  // named internal default; everyone else keeps the platform default.
+  const internalDefault =
+    policy.status !== 'resolved' && viewer.scopes.includes('platform_internal');
   const routingPolicy: RoutingPolicyReference =
     policy.status === 'resolved'
       ? {
           routingPolicyId: policy.stored.policy.routingPolicyId,
           policyVersion: policy.stored.policy.policyVersion,
         }
-      : PLATFORM_DEFAULT_ROUTING_POLICY;
+      : internalDefault
+        ? PLATFORM_INTERNAL_DEFAULT_ROUTING_POLICY
+        : PLATFORM_DEFAULT_ROUTING_POLICY;
   const routingPolicyVersionId =
     policy.status === 'resolved' ? policy.stored.versionId : undefined;
 
@@ -832,7 +875,6 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     );
   }
 
-  const viewer = viewerForPrincipal(principal);
   const requiredModality = modalityForOperation(request.operation);
   const requestedOutput = request.maxOutputTokens;
   const estimatedInputTokens = estimateInputTokens(request);
@@ -912,6 +954,10 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   let sawOutputLimit = false;
   let sawContextLimit = false;
   let sawRequestPriceExclusion = false;
+  const requestedEffort = request.reasoning?.effort;
+  /** Efforts advertised by models whose routes were dropped for lacking the requested one. */
+  const effortsOfExcludedRoutes = new Set<string>();
+  let sawUnsupportedEffort = false;
   let concreteFailure: Exclude<
     Awaited<ReturnType<typeof resolveEdgeRoute>>,
     { readonly status: 'resolved' }
@@ -1021,10 +1067,15 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   };
 
   if (target.kind === 'model') {
-    if (policy.status !== 'resolved') {
+    const optimiseFor =
+      policy.status === 'resolved'
+        ? policy.stored.policy.optimiseFor
+        : internalDefault
+          ? PLATFORM_INTERNAL_DEFAULT_OPTIMISE_FOR
+          : undefined;
+    if (optimiseFor === undefined) {
       return routingEvidenceRefusal(target.modelReference, 'missing-versioned-optimisation');
     }
-    const optimiseFor = policy.stored.policy.optimiseFor;
     const primary = await resolveEdgeRoute(
       viewer,
       target.modelReference,
@@ -1139,6 +1190,14 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       ) {
         continue;
       }
+      // A named effort is a capability the MODEL must advertise, checked like
+      // capacity: a route that cannot honour it is never authorized, so Kaana
+      // is never asked to drop or reinterpret it.
+      if (requestedEffort !== undefined && !route.reasoningEfforts.includes(requestedEffort)) {
+        sawUnsupportedEffort = true;
+        for (const effort of route.reasoningEfforts) effortsOfExcludedRoutes.add(effort);
+        continue;
+      }
       if (requestedOutput !== undefined && requestedOutput > route.maxOutputTokens) {
         sawOutputLimit = true;
         continue;
@@ -1227,6 +1286,22 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
         'unsupported_modality',
         `${requestedModelReference} does not serve ${wanted}. It accepts ${concreteFailure.supportedInput.join(', ')} and produces ${concreteFailure.supportedOutput.join(', ')}.`,
         { param: 'model' }
+      );
+    }
+    if (sawUnsupportedEffort && requestedEffort !== undefined) {
+      const refusedReference =
+        requestedModelReference ||
+        routeGroups[0]?.resolution.route.modelReference ||
+        requestedTargetReference;
+      const supported = REASONING_EFFORT_ORDER.filter((effort) =>
+        effortsOfExcludedRoutes.has(effort)
+      );
+      return refuse(
+        'invalid_request',
+        supported.length === 0
+          ? `${refusedReference} does not accept a reasoning effort.`
+          : `${refusedReference} does not support reasoning effort "${requestedEffort}". Supported efforts: ${supported.join(', ')}.`,
+        { param: 'reasoning.effort', reason: 'unsupported_reasoning_effort' }
       );
     }
     if (sawOutputLimit) {
@@ -2762,6 +2837,9 @@ function buildEnvelope(
     stream,
     ...(maxOutputTokens > 0 ? { maxOutputTokens } : {}),
     sampling: request.sampling,
+    // Forwarded only after admission checked the admitted route's model
+    // advertises this effort.
+    ...(request.reasoning === undefined ? {} : { reasoning: request.reasoning }),
     ...(request.speech === undefined ? {} : { speech: request.speech }),
     tools: request.tools,
     ...(request.toolChoice === undefined ? {} : { toolChoice: request.toolChoice }),

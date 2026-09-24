@@ -208,6 +208,10 @@ interface FixtureOptions {
   readonly regions?: string[];
   /** `false` is reserved for tests that exercise absence or create their own version. */
   readonly routingPolicy?: false | Partial<RoutingPolicyControls>;
+  /** The efforts the fixture model advertises; none by default. */
+  readonly reasoningEfforts?: string[];
+  /** Mint an official (`internal`) application instead of a third-party one. */
+  readonly officialApplication?: boolean;
 }
 
 async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
@@ -223,7 +227,12 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
 
   const [application] = await db
     .insert(applications)
-    .values({ name: `Edge ${tag}`, ownerAccountId: account.id, scopes })
+    .values({
+      name: `Edge ${tag}`,
+      ownerAccountId: account.id,
+      scopes,
+      ...(options.officialApplication === true ? { type: 'internal' as const, isInternal: true } : {}),
+    })
     .returning({ id: applications.id });
 
   const minted = generateMachineCredentialToken();
@@ -272,6 +281,7 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       supportsPromptCaching: false,
       maxContextTokens: options.maxContextTokens ?? 200_000,
       maxOutputTokens: options.maxOutputTokens ?? 8192,
+      reasoningEfforts: options.reasoningEfforts ?? [],
       licenseId: 'apache-2.0',
       licenseDisplayName: 'Apache 2.0',
       commercialUseAllowed: true,
@@ -4134,5 +4144,150 @@ describe('the hold an authorized list is sized against', () => {
     expect(seen[0].authorizedRoutes).toHaveLength(2);
     const reservation = await reservationFor(fixture.accountId);
     expect(reservation.ceilingPriceVersionId).toBe(fixture.priceVersionId);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Reasoning effort and the internal default policy                          */
+/* -------------------------------------------------------------------------- */
+
+describe('reasoning effort', () => {
+  it('forwards an effort the model advertises, on both dialects', async () => {
+    const fixture = await makeFixture({ fund: '10.00', reasoningEfforts: ['low', 'high'] });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 10, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const responses = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 50, reasoning: { effort: 'high' } },
+          bearer(fixture.token)
+        );
+        expect(responses.status).toBe(200);
+        const chat = await request(
+          'POST',
+          '/v1/chat/completions',
+          chatBody(fixture, { reasoning_effort: 'low' }),
+          bearer(fixture.token)
+        );
+        expect(chat.status).toBe(200);
+      }
+    );
+    expect(seen.map((envelope) => envelope.reasoning)).toEqual([{ effort: 'high' }, { effort: 'low' }]);
+  });
+
+  it('omits the field entirely when the caller named no effort', async () => {
+    const fixture = await makeFixture({ fund: '10.00', reasoningEfforts: ['low'] });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 10, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request('POST', '/v1/chat/completions', chatBody(fixture), bearer(fixture.token));
+        expect(response.status).toBe(200);
+      }
+    );
+    expect(seen).toHaveLength(1);
+    expect('reasoning' in seen[0]).toBe(false);
+  });
+
+  it('refuses an effort the model does not advertise with a 400 before any hold or Kaana call', async () => {
+    const fixture = await makeFixture({ fund: '10.00', reasoningEfforts: ['low', 'medium'] });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 10, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', reasoning: { effort: 'high' } },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(400);
+        const body = JSON.stringify(json(response));
+        expect(body).toContain('invalid_request');
+        expect(body).toContain('reasoning effort');
+        expect(body).toContain('low, medium');
+      }
+    );
+    expect(seen).toHaveLength(0);
+    const holds = await getDb()
+      .select({ id: usageReservations.id })
+      .from(usageReservations)
+      .where(eq(usageReservations.accountId, fixture.accountId));
+    expect(holds).toHaveLength(0);
+  });
+
+  it('refuses any effort on a model that takes no effort control', async () => {
+    const fixture = await makeFixture({ fund: '10.00' });
+    await withServer(fakeKaana(() => { throw new Error('must not be called'); }), async (request) => {
+      const response = await request(
+        'POST',
+        '/v1/chat/completions',
+        chatBody(fixture, { reasoning_effort: 'medium' }),
+        bearer(fixture.token)
+      );
+      expect(response.status).toBe(400);
+      expect(JSON.stringify(json(response))).toContain('does not accept a reasoning effort');
+    });
+  });
+
+  it('rejects an effort outside the vocabulary at the schema', async () => {
+    const fixture = await makeFixture({ fund: '10.00', reasoningEfforts: ['low', 'medium', 'high'] });
+    await withServer(fakeKaana(() => { throw new Error('must not be called'); }), async (request) => {
+      const responses = await request(
+        'POST',
+        '/v1/responses',
+        { model: fixture.modelReference, input: 'hi', reasoning: { effort: 'max' } },
+        bearer(fixture.token)
+      );
+      expect(responses.status).toBe(400);
+      const knob = await request(
+        'POST',
+        '/v1/responses',
+        { model: fixture.modelReference, input: 'hi', reasoning: { effort: 'low', budget_tokens: 10 } },
+        bearer(fixture.token)
+      );
+      expect(knob.status).toBe(400);
+    });
+  });
+});
+
+describe('the internal default routing policy', () => {
+  it('serves a concrete model to an official application that configured no policy', async () => {
+    const fixture = await makeFixture({ fund: '10.00', routingPolicy: false, officialApplication: true });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 10, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request('POST', '/v1/chat/completions', chatBody(fixture), bearer(fixture.token));
+        expect(response.status).toBe(200);
+      }
+    );
+    expect(seen).toHaveLength(1);
+    expect(seen[0].routingPolicy).toEqual({ routingPolicyId: 'platform-internal-default', policyVersion: 1 });
+    // No failover is granted by the default: one route, the admitted one.
+    expect(seen[0].authorizedRoutes).toHaveLength(1);
+  });
+
+  it('still refuses a third-party application with no policy', async () => {
+    const fixture = await makeFixture({ fund: '10.00', routingPolicy: false });
+    await withServer(fakeKaana(() => { throw new Error('must not be called'); }), async (request) => {
+      const response = await request('POST', '/v1/chat/completions', chatBody(fixture), bearer(fixture.token));
+      expect(response.status).not.toBe(200);
+      expect(JSON.stringify(json(response))).toContain('no_route_available');
+    });
   });
 });
