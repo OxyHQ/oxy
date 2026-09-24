@@ -1026,6 +1026,8 @@ interface CatalogueModelRow {
   readonly supportsPromptCaching: boolean;
   readonly maxContextTokens: number;
   readonly maxOutputTokens: number;
+  readonly reasoningEfforts: string[];
+  readonly providerReleasedAt: Date | null;
   readonly licenseId: string;
   readonly licenseDisplayName: string;
   readonly licenseUrl: string | null;
@@ -1225,6 +1227,7 @@ function buildCatalogueEntry(
       structuredOutput: model.supportsStructuredOutput,
       jsonMode: model.supportsJsonMode,
       reasoning: model.supportsReasoning,
+      reasoningEfforts: model.reasoningEfforts,
       streaming: model.supportsStreaming,
       promptCaching: model.supportsPromptCaching,
       maxContextTokens: model.maxContextTokens,
@@ -1249,6 +1252,9 @@ function buildCatalogueEntry(
     },
     ...(model.knowledgeCutoff === null ? {} : { knowledgeCutoff: model.knowledgeCutoff }),
     ...(model.releasedOn === null ? {} : { releasedOn: model.releasedOn }),
+    ...(model.providerReleasedAt === null
+      ? {}
+      : { releasedAt: model.providerReleasedAt.toISOString() }),
     regions,
     servingProviders,
     dataPolicy: aggregateDataPolicy(deployments),
@@ -1369,6 +1375,8 @@ export async function listCatalogueForViewer(
       supportsPromptCaching: inferenceModels.supportsPromptCaching,
       maxContextTokens: inferenceModels.maxContextTokens,
       maxOutputTokens: inferenceModels.maxOutputTokens,
+      reasoningEfforts: inferenceModels.reasoningEfforts,
+      providerReleasedAt: inferenceModels.providerReleasedAt,
       licenseId: inferenceModels.licenseId,
       licenseDisplayName: inferenceModels.licenseDisplayName,
       licenseUrl: inferenceModels.licenseUrl,
@@ -1630,6 +1638,11 @@ export interface EdgeRoute {
   */
   readonly inputModalities: readonly string[];
   readonly outputModalities: readonly string[];
+  /**
+   * The reasoning efforts the route's MODEL advertises. The edge refuses a
+   * request naming an effort outside this list rather than forwarding it.
+   */
+  readonly reasoningEfforts: readonly string[];
 }
 
 /**
@@ -1885,6 +1898,7 @@ export async function resolveEdgeRoute(
       resolvedModelId: inferenceModels.modelId,
       maxContextTokens: inferenceModels.maxContextTokens,
       maxOutputTokens: inferenceModels.maxOutputTokens,
+      reasoningEfforts: inferenceModels.reasoningEfforts,
       inputModalities: inferenceModels.inputModalities,
       outputModalities: inferenceModels.outputModalities,
     })
@@ -2167,6 +2181,7 @@ export async function resolveEdgeRoute(
     maxOutputTokens: row.maxOutputTokens,
     inputModalities: row.inputModalities,
     outputModalities: row.outputModalities,
+    reasoningEfforts: row.reasoningEfforts,
   });
 
   const chosen = ranked[0];
