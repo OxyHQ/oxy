@@ -1,9 +1,8 @@
-/** Pure validation of the exact Kaana inventory reviewed for the first bootstrap. */
+/** Pure validation of the exact Kaana inventory reviewed for the catalogue bootstrap. */
 
 import {
   KAANA_INITIAL_INVENTORY_SNAPSHOT_ID,
-  KAANA_INITIAL_MODEL_REFERENCE,
-  KAANA_INITIAL_PROVIDERS,
+  KAANA_REVIEWED_CATALOGUES,
 } from './kaanaInitialCatalogue';
 
 const MAX_INVENTORY_AGE_MS = 60 * 60 * 1_000;
@@ -160,7 +159,13 @@ export function validateKaanaInitialInventory(
     throw new Error(`Kaana inventory ${snapshotId} contains a deployment ID collision`);
   }
 
-  for (const expected of KAANA_INITIAL_PROVIDERS) {
+  const reviewedRoutes = KAANA_REVIEWED_CATALOGUES.flatMap((catalogue) =>
+    catalogue.providers.map((provider) => ({
+      provider,
+      modelReference: catalogue.modelReference,
+    }))
+  );
+  for (const { provider: expected, modelReference } of reviewedRoutes) {
     const matches = deployments.filter(
       (deployment) => deployment.deploymentId === expected.deploymentId
     );
@@ -173,7 +178,7 @@ export function validateKaanaInitialInventory(
     if (
       deployment === undefined ||
       deployment.provider !== expected.slug ||
-      deployment.modelReference !== KAANA_INITIAL_MODEL_REFERENCE ||
+      deployment.modelReference !== modelReference ||
       deployment.upstreamModelId !== expected.upstreamModelId ||
       deployment.current !== true ||
       !unattestedRegions(deployment.regions)

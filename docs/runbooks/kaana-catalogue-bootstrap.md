@@ -1,7 +1,10 @@
 # Bootstrap the reviewed Kaana catalogue
 
 This is the production-safe path for creating the exact Oxy catalogue facts
-already reviewed in `kaanaInitialCatalogue.ts`. It does not enable an inference
+already reviewed in `kaanaInitialCatalogue.ts`: the gpt-oss text routes and
+their eight profiles, and Alia's text-to-speech route (`x-ai/text-to-speech`
+on `dep_xai_tts_observed_2026_09_24`) with its speech-only profile
+`cc2471c8-807e-46ec-b5da-b6f3b39d2db5` (`kaana-v1-speech`, ranked on price). It does not enable an inference
 audience, change an application's classification, create a reviewer or move a
 provider key.
 
@@ -30,7 +33,7 @@ the live `oxy-api` task.
    and private-subnet `DISABLED` are valid; never force a public IP after the
    publisher moves behind NAT.
 5. Verify the current Kaana inventory content snapshot remains
-   `snap_dfd6904a99d6313b`. The task role can read only the versioned
+   `snap_37548e4f1f8ec610`. The task role can read only the versioned
    `inventory/current.json` object and the writer refuses stale or mismatched
    content.
 
@@ -39,6 +42,14 @@ container, exact command and image, exact inventory object and task role, and
 one secret binding — PostgreSQL `DATABASE_URL`. Provider keys, signing keys,
 application credentials, static AWS credentials and MongoDB are outside this
 lane.
+
+6. Apply any pending same-value scorecard renewal first
+   ([routing score renewal](./kaana-routing-score-renewal.md)). The bootstrap
+   refuses an existing scorecard that is not at its current reviewed state.
+
+The job binds no GitHub `environment:`. The OIDC role trusts only the
+`ref:refs/heads/main` subject, and an environment-bound job presents
+`environment:<name>` instead and cannot assume it.
 
 ## Dry run, then apply
 
@@ -56,7 +67,10 @@ computes `planSha256`, and rolls the transaction back. Review the allow-listed
 operation list, source-facts SHA and retain the plan SHA.
 
 Choose `apply` with the same identities, the retained SHA and a single-line
-change reason. The workflow always performs a fresh dry run first. Both the
+change reason. The workflow always performs a fresh dry run first, then
+re-attests the live rollout and passes that attestation (timestamp, both task
+definitions, image, cluster, service) to the one-shot, which refuses APPLY
+unless it is under ten minutes old and repeats the ECS proof itself. Both the
 workflow and the writer inside the still-rollbackable transaction require the
 fresh SHA to equal the reviewed SHA. After commit, the workflow runs the exact
 Inbox profile query inside a PostgreSQL `READ ONLY` transaction, then performs

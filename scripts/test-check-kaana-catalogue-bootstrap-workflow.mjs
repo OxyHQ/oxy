@@ -161,6 +161,26 @@ try {
 		},
 		{
 			file: ".github/workflows/bootstrap-kaana-catalogue.yml",
+			from: "XAI_DEPLOYMENT_ID: dep_xai_tts_observed_2026_09_24",
+			to: "XAI_DEPLOYMENT_ID: dep_xai_selected_by_name",
+		},
+		{
+			file: ".github/workflows/bootstrap-kaana-catalogue.yml",
+			from: "routingProfileIds:[$speechProfile]",
+			to: "routingProfileIds:(.speech.routingProfileIds)",
+		},
+		{
+			file: ".github/workflows/bootstrap-kaana-catalogue.yml",
+			from: "    runs-on: ubuntu-24.04-arm",
+			to: "    environment: production\n    runs-on: ubuntu-24.04-arm",
+		},
+		{
+			file: "packages/api/scripts/bootstrap-kaana-catalogue.ts",
+			from: "const speech = await ensureCatalogue(",
+			to: "const speech = await Promise.resolve(",
+		},
+		{
+			file: ".github/workflows/bootstrap-kaana-catalogue.yml",
 			from: 'REVIEWER_USER_ID" != "$REVIEWER_USER_ID_EXPECTED"',
 			to: 'REVIEWER_USER_ID" != ""',
 		},
@@ -176,8 +196,8 @@ try {
 		},
 		{
 			file: "packages/api/scripts/bootstrap-kaana-catalogue.ts",
-			from: ".where(eq(inferenceModels.modelId, KAANA_INITIAL_MODEL_ID))",
-			to: ".where(eq(inferenceModels.displayName, KAANA_INITIAL_MODEL_ID))",
+			from: ".where(eq(inferenceModels.modelId, catalogue.modelId))",
+			to: ".where(eq(inferenceModels.displayName, catalogue.modelId))",
 		},
 		{
 			file: "packages/api/scripts/bootstrap-kaana-catalogue.ts",
