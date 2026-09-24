@@ -951,6 +951,8 @@ export const INTERNAL_DEPLOYMENT_COLUMNS: Readonly<Record<string, string>> = {
   platformFeePriceVersionId:
     'The ledger’s identifier for a BYOK platform fee. It is operational billing configuration, not a public catalogue field.',
   internalRouteId: 'PROTECTED. The data plane’s own route identifier.',
+  autoApprovalPolicyId:
+    'Which automatic approval policy (the Kaana sync) approved the route. Part of the approval workflow, like `permissionState`; never customer-facing.',
   upstreamWholesaleCostAmount: 'PROTECTED. What Oxy pays upstream.',
   upstreamWholesaleCostCurrency: 'PROTECTED. Half of the wholesale rate.',
   upstreamWholesaleCostUnit: 'PROTECTED. The unit the wholesale rate is quoted per.',
