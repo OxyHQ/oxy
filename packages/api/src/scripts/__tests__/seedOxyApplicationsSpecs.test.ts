@@ -328,10 +328,19 @@ describe('the canonical official-application registry', () => {
           scope !== 'user:read' &&
           !scope.startsWith('inference:') &&
           scope !== 'capabilities:read' &&
+          scope !== 'clarity:search' &&
           !DELEGATION_SCOPES.includes(scope)
       );
 
-    it('grants nothing outside inference, `user:read`, capability read, delegation and coordination', () => {
+    it('reads Clarity, which its web search is, and writes nothing to it', () => {
+      // Without `clarity:search` every web search fails closed with
+      // `The clarity:search scope is required`; the index-writing scopes stay out.
+      expect(ALIA_APPLICATION_SCOPES).toContain('clarity:search');
+      expect(ALIA_APPLICATION_SCOPES).not.toContain('clarity:index');
+      expect(ALIA_APPLICATION_SCOPES).not.toContain('clarity:sites:manage');
+    });
+
+    it('grants nothing outside inference, `user:read`, capability read, Clarity search, delegation and coordination', () => {
       // This REPLACES "grants nothing outside the inference family except the
       // `user:read` baseline". The exemption list grew by exactly the four scopes
       // argued for above and by nothing else, which is the point: the sentence
