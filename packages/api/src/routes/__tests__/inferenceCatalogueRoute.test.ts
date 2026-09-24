@@ -573,7 +573,7 @@ describe('service-token catalogue access follows live credential and application
  *
  * The bug this covers, found in production: a token minted by attestation sets
  * `credentialId` to the binding's `wl_…` attestation handle — there is no
- * credential — and `applicationForBearer` resolved that claim as an
+ * credential — and `callerForBearer` resolved that claim as an
  * `application_credentials` row id unconditionally. It found nothing, the caller
  * became the PUBLIC viewer, and under an unpublished catalogue the public viewer
  * is served an empty collection. Alia's pre-deploy readiness task therefore

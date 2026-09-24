@@ -39,7 +39,7 @@
  * through the application lane, where `usage:read` is enough.
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
@@ -109,6 +109,7 @@ import { listSpendingLimitAlerts } from '../services/spendingLimit.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
 import type { AccountPermission, ApplicationPermission } from '../utils/accountRoles';
+import { serviceRateLimitKey } from '../utils/serviceRateLimitKey';
 
 const router = Router();
 
@@ -116,23 +117,68 @@ const router = Router();
  * Three budgets, because two limiters sharing one Redis key make
  * `rate-limit-redis` throw `ERR_ERL_DOUBLE_COUNT` and halve both. Exports get
  * their own, much smaller, because one export can be fifty thousand rows.
+ *
+ * Each is an ADDRESS budget for user traffic, and a service token skips it for
+ * its own credential's budget below: every Oxy service egresses through one NAT
+ * address, and an address bucket would pool the whole estate into one.
  */
 const reportingReadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 600,
   prefix: 'rl:inference:reporting:read:',
+  skip: (req) => isServiceRequest(req),
 });
 
 const reportingExportLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
   prefix: 'rl:inference:reporting:export:',
+  skip: (req) => isServiceRequest(req),
 });
 
 const reportingBudgetLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 120,
   prefix: 'rl:inference:reporting:budget:',
+  skip: (req) => isServiceRequest(req),
+});
+
+export const REPORTING_SERVICE_READS_PER_15_MINUTES = 300_000;
+/** Per credential, the same ceiling one address had: an export is still fifty thousand rows. */
+export const REPORTING_SERVICE_EXPORTS_PER_15_MINUTES = 30;
+export const REPORTING_SERVICE_BUDGET_WRITES_PER_15_MINUTES = 1_200;
+
+function isServiceRequest(req: Request): boolean {
+  return (req as ReportingRequest).serviceApp !== undefined;
+}
+
+/** Exact live service credential bucket; never a shared NAT/IP bucket. */
+export function reportingServiceRateLimitKey(req: Request): string {
+  return serviceRateLimitKey((req as ReportingRequest).serviceApp);
+}
+
+const reportingServiceReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: REPORTING_SERVICE_READS_PER_15_MINUTES,
+  prefix: 'rl:inference:reporting:service-read:',
+  keyGenerator: reportingServiceRateLimitKey,
+  skip: (req) => !isServiceRequest(req),
+});
+
+const reportingServiceExportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: REPORTING_SERVICE_EXPORTS_PER_15_MINUTES,
+  prefix: 'rl:inference:reporting:service-export:',
+  keyGenerator: reportingServiceRateLimitKey,
+  skip: (req) => !isServiceRequest(req),
+});
+
+const reportingServiceBudgetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: REPORTING_SERVICE_BUDGET_WRITES_PER_15_MINUTES,
+  prefix: 'rl:inference:reporting:service-budget:',
+  keyGenerator: reportingServiceRateLimitKey,
+  skip: (req) => !isServiceRequest(req),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -284,6 +330,7 @@ router.use(reportingPrincipal);
 router.get(
   '/accounts/:accountId/balance',
   reportingReadLimiter,
+  reportingServiceReadLimiter,
   validate({ params: reportingAccountParams }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
@@ -334,6 +381,7 @@ router.get(
 router.get(
   '/accounts/:accountId/usage',
   reportingReadLimiter,
+  reportingServiceReadLimiter,
   validate({ params: reportingAccountParams, query: usageReportQuery }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
@@ -365,6 +413,7 @@ router.get(
 router.get(
   '/accounts/:accountId/spend',
   reportingReadLimiter,
+  reportingServiceReadLimiter,
   validate({ params: reportingAccountParams, query: spendReportQuery }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
@@ -395,6 +444,7 @@ router.get(
 router.get(
   '/accounts/:accountId/reservations',
   reportingReadLimiter,
+  reportingServiceReadLimiter,
   validate({ params: reportingAccountParams, query: reservationListQuery }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
@@ -442,6 +492,7 @@ router.get(
 router.get(
   '/accounts/:accountId/charges',
   reportingReadLimiter,
+  reportingServiceReadLimiter,
   validate({ params: reportingAccountParams, query: chargeListQuery }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
@@ -486,6 +537,7 @@ router.get(
 router.get(
   '/accounts/:accountId/charges/export',
   reportingExportLimiter,
+  reportingServiceExportLimiter,
   validate({ params: reportingAccountParams, query: chargeExportQuery }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
@@ -540,6 +592,7 @@ router.get(
 router.get(
   '/accounts/:accountId/spending-limits',
   reportingReadLimiter,
+  reportingServiceReadLimiter,
   validate({ params: reportingAccountParams }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
@@ -572,6 +625,7 @@ router.get(
 router.get(
   '/accounts/:accountId/spending-limits/alerts',
   reportingReadLimiter,
+  reportingServiceReadLimiter,
   validate({ params: reportingAccountParams, query: spendingLimitAlertsQuery }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
@@ -611,6 +665,7 @@ router.get(
 router.post(
   '/accounts/:accountId/spending-limits',
   reportingBudgetLimiter,
+  reportingServiceBudgetLimiter,
   validate({ params: reportingAccountParams, body: spendingLimitCreateBody }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
@@ -664,6 +719,7 @@ router.post(
 router.patch(
   '/spending-limits/:spendingLimitId',
   reportingBudgetLimiter,
+  reportingServiceBudgetLimiter,
   validate({ params: spendingLimitParams, body: spendingLimitUpdateBody }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { spendingLimitId } = spendingLimitParams.parse(req.params);
@@ -704,6 +760,7 @@ router.patch(
 router.get(
   '/applications/:applicationId/usage',
   reportingReadLimiter,
+  reportingServiceReadLimiter,
   validate({ params: reportingApplicationParams, query: applicationUsageReportQuery }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { applicationId } = reportingApplicationParams.parse(req.params);
@@ -734,6 +791,7 @@ router.get(
 router.get(
   '/applications/:applicationId/spend',
   reportingReadLimiter,
+  reportingServiceReadLimiter,
   validate({ params: reportingApplicationParams, query: applicationSpendReportQuery }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { applicationId } = reportingApplicationParams.parse(req.params);

@@ -53,7 +53,7 @@
  * change what a request may be served.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../config/postgres';
@@ -87,20 +87,90 @@ import {
 import { asyncHandler } from '../utils/asyncHandler';
 import { NotFoundError } from '../utils/error';
 import { logger } from '../utils/logger';
+import { serviceRateLimitKey } from '../utils/serviceRateLimitKey';
 
 const router = Router();
+
+/**
+ * The application credential behind a catalogue read, once it has been resolved
+ * against its live row — or `null` for an anonymous, user, unverifiable or
+ * refused bearer. Set by {@link resolveCatalogueCaller} before ANY limiter runs,
+ * because the service limiter's key and the address limiter's skip both read it.
+ */
+interface CatalogueCaller {
+  readonly applicationId: string;
+  readonly credentialId: string;
+}
+
+interface CatalogueRequest extends Request {
+  catalogueCaller?: CatalogueCaller | null;
+}
+
+function callerOf(req: Request): CatalogueCaller | null {
+  return (req as CatalogueRequest).catalogueCaller ?? null;
+}
 
 /**
  * Catalogue reads are cheap and cacheable but still a public surface, so they
  * get their own budget rather than sharing one — `rl:inference:catalogue:`.
  * The factory REQUIRES a unique prefix: two limiters sharing one Redis key make
  * `rate-limit-redis` throw `ERR_ERL_DOUBLE_COUNT` and halve the budget.
+ *
+ * The ADDRESS budget is for callers that are not an application: anonymous and
+ * public viewers. An application credential skips it and is charged to its own
+ * bucket below, because every Oxy service egresses through one NAT address and
+ * 600 reads per address was the whole estate's budget — a deploy readiness gate
+ * listing routing profiles 429'd on other services' reads, consistently, with
+ * nothing in Oxy's logs to say so.
  */
 const catalogueReadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 600,
   prefix: 'rl:inference:catalogue:',
+  skip: (req) => callerOf(req) !== null,
 });
+
+/** Sized like the provider-connection service reads: a bound on a runaway, not a quota. */
+export const CATALOGUE_SERVICE_READS_PER_15_MINUTES = 300_000;
+
+/** Exact live service credential bucket; never a shared NAT/IP bucket. */
+export function catalogueServiceRateLimitKey(req: Request): string {
+  const caller = callerOf(req);
+  return serviceRateLimitKey(
+    caller ? { appId: caller.applicationId, credentialId: caller.credentialId } : undefined
+  );
+}
+
+const catalogueServiceReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: CATALOGUE_SERVICE_READS_PER_15_MINUTES,
+  prefix: 'rl:inference:catalogue:service:',
+  keyGenerator: catalogueServiceRateLimitKey,
+  skip: (req) => callerOf(req) === null,
+});
+
+/**
+ * Resolve the caller ONCE, before the limiters, and leave it on the request.
+ *
+ * Mounted with `router.use`, so it precedes every route's limiters by
+ * construction rather than by each route remembering to list it first. The
+ * lookup it makes was already made by every read — it moved in front of the
+ * limiter, it was not added. An unresolvable bearer is `null` and falls back to
+ * the address budget, so a junk token cannot mint itself a fresh bucket; the
+ * global per-address limiter still applies to it before it gets here.
+ */
+async function resolveCatalogueCaller(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  try {
+    const token = extractTokenFromRequest(req);
+    (req as CatalogueRequest).catalogueCaller =
+      token === undefined ? null : ((await callerForBearer(token)) ?? null);
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+router.use(resolveCatalogueCaller);
 
 /**
  * Whether this request is served the catalogue, and as whom.
@@ -179,11 +249,9 @@ async function catalogueAccess(req: Request): Promise<CatalogueAccess> {
  * from the one it is refused access to.
  */
 async function viewerForRequest(req: Request): Promise<CatalogueViewer> {
-  const token = extractTokenFromRequest(req);
-  if (token === undefined) return PUBLIC_CATALOGUE_VIEWER;
-
-  const applicationId = await applicationForBearer(token);
-  if (applicationId === undefined) return PUBLIC_CATALOGUE_VIEWER;
+  const caller = callerOf(req);
+  if (caller === null) return PUBLIC_CATALOGUE_VIEWER;
+  const { applicationId } = caller;
 
   const [application] = await getDb()
     .select({ type: applications.type, isInternal: applications.isInternal })
@@ -194,7 +262,9 @@ async function viewerForRequest(req: Request): Promise<CatalogueViewer> {
 }
 
 /**
- * The application a bearer identifies, or `undefined` when it identifies none.
+ * The application credential a bearer identifies, or `undefined` when it
+ * identifies none. The credential is what the service rate limit is keyed on;
+ * the audience reads only the application.
  *
  * `undefined` covers every distinguishable failure — a plain user session token,
  * an unverifiable JWT, any revoked or expired credential, a binding that has
@@ -204,11 +274,13 @@ async function viewerForRequest(req: Request): Promise<CatalogueViewer> {
  * them would turn a public read into an oracle on a credential's — or a
  * binding's — lifecycle.
  */
-async function applicationForBearer(token: string): Promise<string | undefined> {
+async function callerForBearer(token: string): Promise<CatalogueCaller | undefined> {
   if (machineCredentialTokenPrefix(token) !== null) {
     if (!isMachineCredentialLaneEnabled()) return undefined;
     const machine = await resolveMachineCredential(token);
-    return machine.ok ? machine.principal.applicationId : undefined;
+    return machine.ok
+      ? { applicationId: machine.principal.applicationId, credentialId: machine.principal.credentialId }
+      : undefined;
   }
 
   const verification = verifyServiceToken(token);
@@ -226,7 +298,12 @@ async function applicationForBearer(token: string): Promise<string | undefined> 
   // told it, with no error, that every routing profile it asked for was
   // missing.
   const resolution = await resolveServiceTokenPrincipal(verification.payload);
-  return resolution.status === 'resolved' ? resolution.principal.applicationId : undefined;
+  return resolution.status === 'resolved'
+    ? {
+        applicationId: resolution.principal.applicationId,
+        credentialId: resolution.principal.credentialId,
+      }
+    : undefined;
 }
 
 /**
@@ -242,6 +319,7 @@ async function applicationForBearer(token: string): Promise<string | undefined> 
 router.get(
   '/routing-profiles',
   catalogueReadLimiter,
+  catalogueServiceReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
     const profiles = access.served ? await listRoutingProfiles() : [];
@@ -262,6 +340,7 @@ router.get(
 router.get(
   '/stats',
   catalogueReadLimiter,
+  catalogueServiceReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
     const models = access.served ? await listCatalogueForViewer(access.viewer) : [];
@@ -282,6 +361,7 @@ router.get(
 router.get(
   '/',
   catalogueReadLimiter,
+  catalogueServiceReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
     const models = access.served ? await listCatalogueForViewer(access.viewer) : [];
@@ -324,6 +404,7 @@ router.get(
 router.get(
   '/:publisher/:model/documentation',
   catalogueReadLimiter,
+  catalogueServiceReadLimiter,
   validate({ query: documentationQuery }),
   asyncHandler(async (req: Request, res: Response) => {
     const query = documentationQuery.parse(req.query);
@@ -363,6 +444,7 @@ router.get(
 router.get(
   '/:publisher/:model',
   catalogueReadLimiter,
+  catalogueServiceReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
     const modelId = `${req.params.publisher}/${req.params.model}`;

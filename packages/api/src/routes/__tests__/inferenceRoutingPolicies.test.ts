@@ -86,7 +86,7 @@ import { applications } from '../../db/schema/applications';
 import { inferenceRoutingPolicyVersions } from '../../db/schema/inferenceRoutingPolicyVersions';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import routingPolicyRouter from '../inferenceRoutingPolicies';
+import routingPolicyRouter, { ROUTING_SERVICE_READS_PER_15_MINUTES, routingServiceRateLimitKey } from '../inferenceRoutingPolicies';
 import {
   appPermissionsForAccountAccess,
   permissionsForAccountRole,
@@ -1119,5 +1119,23 @@ describe('a contradictory policy is a 400 carrying the contract’s own issues',
       message:
         'This scope already has an active routing policy; edit it or archive it first',
     });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('service rate-limit partitioning', () => {
+  it('uses exact app+credential buckets and service-sized budgets', () => {
+    const requestFor = (appId: string, credentialId: string) =>
+      ({ serviceApp: { appId, credentialId } }) as unknown as Parameters<typeof routingServiceRateLimitKey>[0];
+
+    expect(routingServiceRateLimitKey(requestFor('app-a', 'cred-a'))).toBe('app-a:cred-a');
+    expect(routingServiceRateLimitKey(requestFor('app-a', 'cred-b'))).not.toBe(
+      routingServiceRateLimitKey(requestFor('app-a', 'cred-a'))
+    );
+    expect(routingServiceRateLimitKey(requestFor('app-b', 'cred-a'))).not.toBe(
+      routingServiceRateLimitKey(requestFor('app-a', 'cred-a'))
+    );
+    expect(ROUTING_SERVICE_READS_PER_15_MINUTES).toBeGreaterThan(600);
   });
 });

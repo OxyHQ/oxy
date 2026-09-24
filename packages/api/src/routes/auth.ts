@@ -45,6 +45,7 @@ import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { authMiddleware, rejectQueryToken, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
+import { serviceTokenMintRateLimitKey } from '../utils/serviceRateLimitKey';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { ApiError, BadRequestError, NotFoundError, UnauthorizedError, ForbiddenError } from '../utils/error';
 import { mintServiceToken, SERVICE_TOKEN_EXPIRY } from '../services/serviceTokenMint.service';
@@ -3613,10 +3614,30 @@ router.get(
 // Service Token Authentication (Internal Services)
 // ============================================
 
+/**
+ * The key-pair mint is charged to the CREDENTIAL it names, not to the address
+ * it came from — see {@link serviceTokenMintRateLimitKey} for why, and why the
+ * address still gets its own flood ceiling below.
+ */
 const serviceTokenLimiter = rateLimit({
   prefix: 'rl:auth:service-token:',
-  windowMs: 5 * 60 * 1000, // 5-minute window
-  max: process.env.NODE_ENV === 'development' ? 100 : 10 // 10 per 5 minutes (2/min avg)
+  windowMs: 5 * 60 * 1000,
+  // Per credential: every task of one service, a deploy's replacements and a
+  // readiness gate each mint once an hour, so ten would still break a deploy.
+  max: process.env.NODE_ENV === 'development' ? 100 : 30,
+  keyGenerator: serviceTokenMintRateLimitKey,
+});
+
+/**
+ * The flood ceiling per address, sized like the workload mint's: the whole
+ * estate mints through one NAT address, and this bounds invented keys, not
+ * services. Its own prefix, so it and the per-credential budget never share a
+ * counter.
+ */
+const serviceTokenAddressLimiter = rateLimit({
+  prefix: 'rl:auth:service-token-address:',
+  windowMs: 5 * 60 * 1000,
+  max: process.env.NODE_ENV === 'development' ? 2_000 : 600,
 });
 
 /**
@@ -3695,7 +3716,7 @@ const serviceTokenLimiter = rateLimit({
  *       429:
  *         description: Rate limit exceeded
  */
-router.post('/service-token', serviceTokenLimiter, validate({ body: serviceTokenSchema }), asyncHandler(async (req, res) => {
+router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, validate({ body: serviceTokenSchema }), asyncHandler(async (req, res) => {
   const { apiKey, apiSecret } = req.body;
 
   if (!apiKey || !apiSecret) {

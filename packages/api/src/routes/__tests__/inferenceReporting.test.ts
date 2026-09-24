@@ -73,7 +73,7 @@ import { usageReservations } from '../../db/schema/usageReservations';
 import { userAncestors } from '../../db/schema/userAncestors';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import reportingRouter from '../inferenceReporting';
+import reportingRouter, { REPORTING_SERVICE_READS_PER_15_MINUTES, reportingServiceRateLimitKey } from '../inferenceReporting';
 import type { AccountRole } from '../../utils/accountRoles';
 
 let server: http.Server;
@@ -1285,5 +1285,23 @@ describe('the reconciliation export renders the ledger, and only the ledger', ()
       `/inference/reporting/accounts/${tenant.account}/charges/export?${WINDOW}`
     );
     expect(refused.status).toBe(404);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('service rate-limit partitioning', () => {
+  it('uses exact app+credential buckets and service-sized budgets', () => {
+    const requestFor = (appId: string, credentialId: string) =>
+      ({ serviceApp: { appId, credentialId } }) as unknown as Parameters<typeof reportingServiceRateLimitKey>[0];
+
+    expect(reportingServiceRateLimitKey(requestFor('app-a', 'cred-a'))).toBe('app-a:cred-a');
+    expect(reportingServiceRateLimitKey(requestFor('app-a', 'cred-b'))).not.toBe(
+      reportingServiceRateLimitKey(requestFor('app-a', 'cred-a'))
+    );
+    expect(reportingServiceRateLimitKey(requestFor('app-b', 'cred-a'))).not.toBe(
+      reportingServiceRateLimitKey(requestFor('app-a', 'cred-a'))
+    );
+    expect(REPORTING_SERVICE_READS_PER_15_MINUTES).toBeGreaterThan(600);
   });
 });
