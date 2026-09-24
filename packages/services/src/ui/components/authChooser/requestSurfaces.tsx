@@ -81,7 +81,7 @@ export const GetCommonsPrompt: React.FC<{
       {t('accountSwitcher.commonsNotInstalled')}
     </Text>
     <Button
-      variant="primary"
+      appearance="solid" tone="accent"
       onPress={onGetCommons}
       style={styles.primaryButton}
       testID="get-commons-button"

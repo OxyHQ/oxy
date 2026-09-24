@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useState, useCallback } from 'react';
-import { View, Text, TextInput } from 'react-native';
+import { View, TextInput } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -100,14 +101,14 @@ const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
 
             <View style={{ gap: 8 }}>
                 <Button
-                    variant="destructive"
+                    appearance="solid" tone="danger"
                     onPress={handleDelete}
                     disabled={!isValid || isDeleting}
                     loading={isDeleting}
                 >
                     {t('deleteAccount.confirm') || 'Delete Forever'}
                 </Button>
-                <Button variant="secondary" onPress={handleCancel} disabled={isDeleting}>
+                <Button appearance="subtle" tone="neutral" onPress={handleCancel} disabled={isDeleting}>
                     {t('common.cancel') || 'Cancel'}
                 </Button>
             </View>

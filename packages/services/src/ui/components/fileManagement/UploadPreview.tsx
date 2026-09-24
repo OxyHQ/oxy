@@ -1,5 +1,8 @@
 import type React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
+import { Card } from '@oxy.so/bloom/card';
+import { Text } from '@oxy.so/bloom/typography';
 import { Image as ExpoImage } from 'expo-image';
 import Ionicons from '../../icons/Ionicons';
 import { Dialog, type DialogControlProps } from '@oxy.so/bloom/dialog';
@@ -47,19 +50,15 @@ const UploadPreviewContent: React.FC<{
                 <Text className="text-text text-[20px] font-bold">
                     Review Files ({pendingFiles.length})
                 </Text>
-                <TouchableOpacity onPress={onCancel}>
-                    <Ionicons name="close" size={24} color={colors.text} />
-                </TouchableOpacity>
+                <Button appearance="plain" tone="neutral" iconOnly accessibilityLabel="Close upload preview" onPress={onCancel}
+                    icon={<Ionicons name="close" size={24} color={colors.text} />} />
             </View>
 
             <ScrollView className="flex-1 p-[16px]">
                 {pendingFiles.map((pendingFile) => {
                     const isImage = pendingFile.type.startsWith('image/');
                     return (
-                        <View
-                            key={pendingFile.id}
-                            className="bg-secondary border-border flex-row items-center p-[12px] rounded-[12px] border mb-[12px] gap-[12px]"
-                        >
+                        <Card key={pendingFile.id} appearance="subtle" className="flex-row items-center p-3 mb-3 gap-3">
                             {isImage && pendingFile.preview ? (
                                 <ExpoImage
                                     source={{ uri: pendingFile.preview }}
@@ -86,13 +85,10 @@ const UploadPreviewContent: React.FC<{
                                     {formatFileSize(pendingFile.size)} • {pendingFile.type}
                                 </Text>
                             </View>
-                            <TouchableOpacity
-                                className="p-[4px]"
+                            <Button appearance="plain" tone="danger" iconOnly accessibilityLabel={`Remove ${pendingFile.name}`}
                                 onPress={() => onRemoveFile(pendingFile.id)}
-                            >
-                                <Ionicons name="close-circle" size={24} color={colors.error} />
-                            </TouchableOpacity>
-                        </View>
+                                icon={<Ionicons name="close-circle" size={24} color={colors.error} />} />
+                        </Card>
                     );
                 })}
             </ScrollView>
@@ -108,21 +104,8 @@ const UploadPreviewContent: React.FC<{
                 </View>
                 {showActions && (
                     <View className="flex-row gap-[12px]">
-                        <TouchableOpacity
-                            className="bg-transparent border-border flex-1 py-[14px] rounded-[12px] border items-center justify-center"
-                            onPress={onCancel}
-                        >
-                            <Text className="text-text text-[16px] font-semibold">
-                                Cancel
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            className="bg-primary flex-[2] flex-row items-center justify-center py-[14px] rounded-[12px] gap-[8px]"
-                            onPress={onConfirm}
-                        >
-                            <Ionicons name="cloud-upload" size={20} color={colors.primaryForeground} />
-                            <Text className="text-[16px] font-semibold" style={{ color: colors.primaryForeground }}>Upload</Text>
-                        </TouchableOpacity>
+                        <Button appearance="subtle" tone="neutral" style={{ flex: 1 }} onPress={onCancel}>Cancel</Button>
+                        <Button style={{ flex: 2 }} onPress={onConfirm}>Upload</Button>
                     </View>
                 )}
             </View>

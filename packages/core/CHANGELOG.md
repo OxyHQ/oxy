@@ -1,5 +1,27 @@
 # Changelog — `@oxy.so/core`
 
+## 1.7.4 (unreleased)
+
+### Fixed
+
+- The auth mixin loads the ADR 0026 workload-identity module through the
+  package-private `#workload-identity` import (declared in the `dist/esm` and
+  `dist/cjs` scope `package.json` files) instead of a self-reference to the
+  `./internal/workload-identity` export, which is removed. A self-reference
+  resolves only where `@oxy.so/core` is reachable through `node_modules`, so
+  every Vite build inside this workspace failed on 1.7.3's `dist`. Published
+  consumers of 1.7.3 were unaffected. `test:package` asserts the resolution
+  per condition for both module formats.
+
+## 1.7.3
+
+### Fixed
+
+- Native and browser bundles no longer reach `node:crypto`: the workload
+  identity module is routed by package conditions to an inert client
+  implementation that can never attest or request a token; only Node hosts get
+  the signer.
+
 ## 1.5.1
 
 Maintenance release: 1.5.0's `onRefusal` made reachable.

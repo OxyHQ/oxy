@@ -107,7 +107,7 @@ const SignInEntryView: React.FC<SignInEntryViewProps> = ({
       ) : null}
 
       <Button
-        variant="primary"
+        appearance="solid" tone="accent"
         onPress={web ? alternatives.onSignInWithPasskey : onContinueWithOxy}
         style={styles.primaryButton}
         testID="continue-with-oxy"

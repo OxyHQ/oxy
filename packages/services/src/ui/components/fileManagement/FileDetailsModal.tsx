@@ -1,5 +1,7 @@
 import type React from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
+import { Card } from '@oxy.so/bloom/card';
+import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -35,7 +37,7 @@ export const FileDetailsModal: React.FC<FileDetailsModalProps> = ({
 
     return (
         <View>
-            <View className="bg-secondary border-border p-[18px] rounded-[14px] border items-center">
+            <Card appearance="subtle" className="p-[18px] items-center">
                 <View className="mb-space-16">
                     <Ionicons
                         name={getFileIcon(file.contentType)}
@@ -87,11 +89,11 @@ export const FileDetailsModal: React.FC<FileDetailsModalProps> = ({
                         </View>
                     )}
                 </View>
-            </View>
+            </Card>
 
             <View style={{ gap: 8 }}>
                 <Button
-                    variant="primary"
+                    appearance="solid" tone="accent"
                     onPress={() => {
                         surface.dismiss();
                         onDownload(file.id, file.filename);
@@ -101,7 +103,7 @@ export const FileDetailsModal: React.FC<FileDetailsModalProps> = ({
                 </Button>
                 {isOwner ? (
                     <Button
-                        variant="destructive"
+                        appearance="solid" tone="danger"
                         onPress={() => {
                             surface.dismiss();
                             onDelete(file.id, file.filename);
@@ -110,7 +112,7 @@ export const FileDetailsModal: React.FC<FileDetailsModalProps> = ({
                         {t('common.actions.delete')}
                     </Button>
                 ) : null}
-                <Button variant="secondary" onPress={() => surface.dismiss()}>
+                <Button appearance="subtle" tone="neutral" onPress={() => surface.dismiss()}>
                     {t('common.cancel')}
                 </Button>
             </View>

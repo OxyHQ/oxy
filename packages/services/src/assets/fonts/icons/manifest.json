@@ -5,8 +5,8 @@
     "ionicons": {
       "fontFamily": "OxyServicesIonicons",
       "file": "src/assets/fonts/icons/OxyServicesIonicons.ttf",
-      "bytes": 44700,
-      "sha256": "7969090b6130bbc4a976e021f83b1d089996cd351ba51f4f1f02ca1edeb75a65",
+      "bytes": 44452,
+      "sha256": "97cf3d3cdc13101469ee334ccd9a61d36cb5290094a3ea8c222a05da7ead7530",
       "names": [
         "add",
         "add-circle-outline",
@@ -119,7 +119,6 @@
         "qr-code-outline",
         "radio",
         "receipt-outline",
-        "refresh",
         "refresh-outline",
         "remove",
         "repeat-outline",
@@ -158,8 +157,8 @@
     "materialCommunityIcons": {
       "fontFamily": "OxyServicesMaterialCommunityIcons",
       "file": "src/assets/fonts/icons/OxyServicesMaterialCommunityIcons.ttf",
-      "bytes": 30472,
-      "sha256": "a55d926d948aaddfa848a9c5b509946bb4d35c2fcc4df9670e9a039899878958",
+      "bytes": 29976,
+      "sha256": "46cbd591663526f6b23df1c721d894a76f1b5a530bd03088795580716811c35b",
       "names": [
         "account",
         "account-circle",
@@ -271,7 +270,6 @@
         "history",
         "hub",
         "image",
-        "image-multiple",
         "image-multiple-outline",
         "image-outline",
         "information",
@@ -285,7 +283,6 @@
         "link-variant",
         "loading",
         "lock-outline",
-        "login",
         "logout",
         "magnify",
         "map-marker",
@@ -297,7 +294,6 @@
         "minus",
         "minus-circle",
         "motion",
-        "music-note",
         "music-note-outline",
         "network",
         "null",
@@ -321,7 +317,6 @@
         "react",
         "read",
         "receipt-outline",
-        "refresh",
         "resize",
         "rocket",
         "scale",
@@ -355,7 +350,6 @@
         "trophy",
         "trophy-outline",
         "update",
-        "video",
         "video-outline",
         "volume-off",
         "wallet",
@@ -371,5 +365,5 @@
     }
   },
   "glyphMapsFile": "src/ui/icons/subsetGlyphMaps.ts",
-  "glyphMapsSha256": "12084bd6049feab579495b00cd07a78cc1d0500a823768e98acd12e0930fd463"
+  "glyphMapsSha256": "830b8f898ed83c963906097d4a922941c2ca3b5da4e455ca1c83ea9a9cddb5f3"
 }

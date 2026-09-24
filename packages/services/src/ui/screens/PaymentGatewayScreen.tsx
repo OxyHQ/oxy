@@ -195,7 +195,7 @@ const PaymentGatewayScreen: React.FC<PaymentGatewayScreenProps> = (props) => {
                     {t('payment.errors.invalidAmount')}
                 </H4>
                 <Button
-                    variant="primary"
+                    appearance="solid" tone="accent"
                     onPress={handleClose}
                     size="small"
                     icon={<Ionicons name="close" size={16} />}

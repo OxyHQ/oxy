@@ -28,16 +28,8 @@
 
 import type React from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    ActivityIndicator,
-    Image,
-    Platform,
-    AccessibilityInfo,
-    Pressable,
-} from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Image, Platform, AccessibilityInfo, Pressable } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
     Easing,
