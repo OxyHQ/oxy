@@ -152,9 +152,14 @@ export function seedApplicationLookupIdentity(
  *    assistant's "search the web" and its research runs query Clarity's index
  *    with the service token. Without the scope Clarity refuses every query
  *    (`The clarity:search scope is required`) and the assistant answers from
- *    memory while reporting "Search failed". It reads the public index only;
- *    `clarity:index` and `clarity:sites:manage` — which write to it — are not
- *    granted, because Alia publishes nothing there. Non-privileged.
+ *    memory while reporting "Search failed". Non-privileged.
+ *  - `clarity:index` — Alia's page reader IS a Clarity resolve: `webScraper`
+ *    and the browser's `goto` call `POST /v1/resolve`, which returns the page
+ *    when Clarity has it and otherwise queues its crawl — and queuing a crawl
+ *    is `clarity:index`. Without it every page read fails ("Reading web page
+ *    failed"). It crawls public URLs on Alia's own account and quota, never
+ *    anyone else's. Non-privileged. `clarity:sites:manage` stays withheld:
+ *    Alia registers no site of its own.
  *
  * GRANTED — delegation and coordination. ALL THREE ARE STAFF-GATED
  * ({@link PRIVILEGED_APPLICATION_SCOPES}), so none is self-grantable by the
@@ -241,7 +246,8 @@ export function seedApplicationLookupIdentity(
  *    by the application's own owner, with no staff round trip.
  *
  * Nothing outside the `inference:*` family, `user:read`, `capabilities:read`,
- * `clarity:search` and those three delegation and coordination scopes is granted. Alia is not a federation peer, does not move reputation,
+ * `clarity:search`, `clarity:index` and those three delegation and coordination
+ * scopes is granted. Alia is not a federation peer, does not move reputation,
  * writes no signals, sends no notifications and touches no follow graph.
  *
  * These privileged entries — now four: `capabilities:read` and the three above —
@@ -260,6 +266,7 @@ export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
   'inference:routing:read',
   'capabilities:read',
   'clarity:search',
+  'clarity:index',
   'acting-as:offline',
   'accounts:act-as-session',
   'capability-tickets:issue',
