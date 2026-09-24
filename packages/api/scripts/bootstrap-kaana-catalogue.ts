@@ -636,7 +636,14 @@ async function ensureScorecard(
   if (row === undefined) {
     const createdRows = await tx
       .insert(inferenceDeploymentRoutingScores)
-      .values(expected)
+      .values({
+        ...expected,
+        // Stated, not only spread: the reviewed economics travel with every
+        // routing-score insert (routingScoreEconomicsCallsites.test.ts).
+        fundingClass: expected.fundingClass,
+        fundingState: expected.fundingState,
+        fundingEvidenceRef: expected.fundingEvidenceRef,
+      })
       .returning();
     row = requireExactlyOne(
       `Scorecard deployment ID ${provider.deploymentId}`,
@@ -645,6 +652,9 @@ async function ensureScorecard(
     const { changedAt, ...eventValues } = expected;
     await tx.insert(inferenceDeploymentRoutingScoreEvents).values({
       ...eventValues,
+      fundingClass: expected.fundingClass,
+      fundingState: expected.fundingState,
+      fundingEvidenceRef: expected.fundingEvidenceRef,
       createdAt: changedAt,
     });
     inserted.push(`scorecard:${provider.deploymentId}`);

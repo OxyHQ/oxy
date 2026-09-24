@@ -142,6 +142,9 @@ async function seedSupersededScorecard(
   });
   const row = {
     ...superseded,
+    fundingClass: superseded.fundingClass,
+    fundingState: superseded.fundingState,
+    fundingEvidenceRef: superseded.fundingEvidenceRef,
     balancedScore: overrides.balancedScore ?? superseded.balancedScore,
   };
   await getDb().insert(inferenceDeploymentRoutingScores).values(row);
@@ -149,7 +152,13 @@ async function seedSupersededScorecard(
     const { changedAt, ...eventValues } = row;
     await getDb()
       .insert(inferenceDeploymentRoutingScoreEvents)
-      .values({ ...eventValues, createdAt: changedAt });
+      .values({
+        ...eventValues,
+        fundingClass: row.fundingClass,
+        fundingState: row.fundingState,
+        fundingEvidenceRef: row.fundingEvidenceRef,
+        createdAt: changedAt,
+      });
   }
 }
 

@@ -306,7 +306,15 @@ export async function renewKaanaRoutingScorecards(
       const { changedAt, ...eventValues } = current;
       await tx
         .insert(inferenceDeploymentRoutingScoreEvents)
-        .values({ ...eventValues, createdAt: changedAt });
+        .values({
+          ...eventValues,
+          // Stated, not only spread: the reviewed economics travel with every
+          // routing-score event (routingScoreEconomicsCallsites.test.ts).
+          fundingClass: current.fundingClass,
+          fundingState: current.fundingState,
+          fundingEvidenceRef: current.fundingEvidenceRef,
+          createdAt: changedAt,
+        });
     }
     await requireOneProvenanceEvent(tx, provider.deploymentId, current.changedAt, current);
 
