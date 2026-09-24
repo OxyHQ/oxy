@@ -83,19 +83,31 @@ state and obtain a new dry-run plan before any later apply.
 
 ## Identity is not audience eligibility
 
-This bootstrap's three exact deployments are intentionally
-`availability_scope = internal_alia`. The Inbox application is `first_party`
-with `is_internal = false`; that audience sees only `public_payg` and
-`oxy_hosted`. Therefore a successful bootstrap and exact-PK readback prove the
-profile identity and candidate, but do **not** make the profile routable for
-Inbox.
+Every reviewed deployment is `availability_scope = platform_internal`: reviewed
+for official Oxy products under `standard_application_use`, never for public
+resale. Staff-classified `first_party`, `internal` and `system` applications see
+that scope ([catalogue.md](../inference/catalogue.md#reads-are-audience-scoped));
+third-party applications and plain user bearers do not. A successful bootstrap
+and exact-PK readback prove the profile identity and candidate, not that a
+given product may route through it. Before setting
+`INBOX_INFERENCE_ROUTING_PROFILE_ID` or enabling execution, prove the exact
+profile resolves to at least one route for the real Inbox principal.
 
-Do not relabel Inbox as internal and do not rewrite an approved deployment's
-scope as a shortcut. Before setting `INBOX_INFERENCE_ROUTING_PROFILE_ID` or
-enabling execution, publish a separately reviewed deployment whose commercial
-permission and availability scope legitimately include the Inbox audience, then
-prove the exact profile resolves to at least one route for the real Inbox
-principal.
+Do not relabel an application's tier and do not rewrite an approved
+deployment's scope as a shortcut.
+
+### Text routes still stored as `internal_alia`
+
+The three gpt-oss deployments, written before the rename, still store the
+legacy `internal_alia` bytes: the storage rename's backfill is a
+separate migration
+([rolling storage rename](../inference/catalogue.md#rolling-storage-rename-three-releases-in-order)).
+The bootstrap compares an existing row's legacy `internal_alia` as the
+`platform_internal` it means and never rewrites it; any other stored scope is
+still drift. Rows it inserts, such as the speech route, are written as
+`platform_internal`. The Cerebras and Groq routes also keep the approval note
+written on 2026-09-02 (`Owner-approved initial internal Alia route; …`): it is
+the record of that decision and the reviewed facts pin its exact bytes.
 
 ### Existing scorecards after migration 0082
 

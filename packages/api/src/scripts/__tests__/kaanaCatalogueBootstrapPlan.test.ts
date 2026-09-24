@@ -1,6 +1,7 @@
 import {
 	type KaanaCatalogueBootstrapPlanInput,
 	createKaanaCatalogueBootstrapPlan,
+	kaanaBootstrapComparableDeployment,
 	kaanaBootstrapExistingFundingEvidence,
 	createKaanaCatalogueReviewedFactsSha256,
 	requireKaanaCatalogueBootstrapApplyAuthorization,
@@ -176,4 +177,29 @@ describe("migration 0082 scorecard provenance", () => {
 			kaanaBootstrapExistingFundingEvidence(id, url, "migration/standard-payg"),
 		).toBe(url);
 	});
+});
+
+describe("existing deployment scope during the storage rename", () => {
+	const row = {
+		internalRouteId: "dep_cerebras_gpt_oss_120b_observed_2026_09_01",
+		permissionStateNote: "stored note",
+	};
+
+	it("compares the legacy internal_alia bytes as platform_internal", () => {
+		const stored = { ...row, availabilityScope: "internal_alia" };
+		expect(kaanaBootstrapComparableDeployment(stored)).toEqual({
+			...row,
+			availabilityScope: "platform_internal",
+		});
+		// The stored row itself is never rewritten.
+		expect(stored.availabilityScope).toBe("internal_alia");
+	});
+
+	it.each(["platform_internal", "enterprise", "public_payg", "unknown"])(
+		"compares %s exactly as stored",
+		(availabilityScope) => {
+			const stored = { ...row, availabilityScope };
+			expect(kaanaBootstrapComparableDeployment(stored)).toBe(stored);
+		},
+	);
 });
