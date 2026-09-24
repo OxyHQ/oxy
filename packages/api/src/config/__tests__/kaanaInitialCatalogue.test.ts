@@ -120,9 +120,21 @@ describe("the reviewed initial Kaana catalogue", () => {
       catalogue.routingProfiles.map((profile) => profile.slug),
     );
 
-    expect(profiles).toContain("kaana-lite");
-    expect(profiles).toContain("kaana-v1");
-    expect(profiles).toContain("kaana-v1-speech");
+    // Inbox's profile and Alia's speech profile are the only reviewed ones
+    // left: the Alia text presets were retired in favour of the synced
+    // catalogue of real models.
+    expect(profiles).toEqual(["kaana-v1", "kaana-v1-speech"]);
+    for (const retired of [
+      "kaana-lite",
+      "kaana-v1-codea",
+      "kaana-v1-cowork",
+      "kaana-v1-browser",
+      "kaana-v1-pro",
+      "kaana-v1-thinking",
+      "kaana-v1-pro-max",
+    ]) {
+      expect(profiles).not.toContain(retired);
+    }
     expect(new Set(profiles).size).toBe(profiles.length);
     expect(profiles).not.toContain("kaana-v1-vision");
     expect(profiles).not.toContain("kaana-v1-audio");
