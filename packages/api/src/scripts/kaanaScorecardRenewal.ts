@@ -17,7 +17,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, getTableColumns } from "drizzle-orm";
 import {
   KAANA_INITIAL_BALANCED_FORMULA_REF,
   KAANA_INITIAL_SCORE_POLICY,
@@ -185,8 +185,11 @@ async function requireOneProvenanceEvent(
   createdAt: Date,
   expected: Readonly<Record<string, unknown>>,
 ): Promise<void> {
+  // Named columns, not `.select()`: every column of the score tables is
+  // staff-only (protectedColumns.ts), and this staff script reads them all
+  // deliberately to compare the whole scorecard.
   const events = await tx
-    .select()
+    .select(getTableColumns(inferenceDeploymentRoutingScoreEvents))
     .from(inferenceDeploymentRoutingScoreEvents)
     .where(
       and(
@@ -252,7 +255,7 @@ export async function renewKaanaRoutingScorecards(
     }
 
     const rows = await tx
-      .select()
+      .select(getTableColumns(inferenceDeploymentRoutingScores))
       .from(inferenceDeploymentRoutingScores)
       .where(eq(inferenceDeploymentRoutingScores.deploymentId, provider.deploymentId))
       .for("update");
