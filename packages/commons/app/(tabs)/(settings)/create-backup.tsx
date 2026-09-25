@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { useOxy } from '@oxy.so/services';
 import { KeyManager, RecoveryPhraseService } from '@oxy.so/core';
 import { alert, toast } from '@oxy.so/bloom';

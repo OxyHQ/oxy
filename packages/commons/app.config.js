@@ -48,6 +48,13 @@ module.exports = {
         'android.permission.USE_BIOMETRIC',
         'android.permission.USE_FINGERPRINT',
       ],
+      // `expo-screen-capture` (the recovery-phrase capture guard) declares
+      // READ_MEDIA_IMAGES in its library manifest for its screenshot LISTENER,
+      // which Commons does not use. It is a Play "photo and video" permission
+      // that needs a policy declaration, so it is stripped from the merged
+      // manifest. DETECT_SCREEN_CAPTURE stays: it is a normal permission, and
+      // the module registers its Android 14+ capture callback on create.
+      blockedPermissions: ['android.permission.READ_MEDIA_IMAGES'],
       package: APP_ID,
     },
     ios: {
