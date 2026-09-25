@@ -35,7 +35,7 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@expo/vector-icons/createIconSet$': '<rootDir>/__tests__/__mocks__/expo-create-icon-set.tsx',
-    '\\.(ttf)$': '<rootDir>/__tests__/__mocks__/static-asset.ts',
+    '\\.(ttf|jpg)$': '<rootDir>/__tests__/__mocks__/static-asset.ts',
     // Resolve workspace deps from TypeScript SOURCE so services tests do not
     // depend on packages being built first (mirrors packages/node/jest.config.cjs).
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',

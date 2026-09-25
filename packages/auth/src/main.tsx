@@ -4,19 +4,17 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { BloomThemeProvider } from "@oxy.so/bloom/theme"
 import { ConnectionStatusToasts } from "@oxy.so/bloom/connection-status"
 import { OxyProvider } from "@oxy.so/services"
-import { getBloomThemeCSS, setBasePreset } from "@/lib/bloom-css"
+import { getBloomThemeCSS } from "@/lib/bloom-css"
 import { getApiBaseUrl } from "@/lib/oxy-api-client"
 import { OXY_CLIENT_ID } from "@/lib/oxy-client"
 import { isBrowserHubEnabled } from "@/lib/hub-client"
-import { LayoutProvider } from "@/lib/layout-context"
-import { LocaleProvider } from "@/lib/i18n/locale-context"
+import { DocumentLanguage } from "@/lib/i18n/document-language"
 import { AuthLayout } from "@/src/pages/layout"
 import { LoginPage } from "@/src/pages/login"
 import { SignUpPage } from "@/src/pages/signup"
 import { AuthorizePage } from "@/src/pages/authorize"
 import { HubAuthorizePage } from "@/src/pages/hub-authorize"
 import { McpLinkPage } from "@/src/pages/mcp-link"
-import { HubPasskeyPage } from "@/src/pages/hub-passkey"
 import { DevicePage } from "@/src/pages/device"
 import "@/app/globals.css"
 
@@ -27,15 +25,11 @@ function ExternalRedirect({ url }: { url: string }) {
     return null
 }
 
-// Inject bloom theme CSS vars before first paint (FOUC prevention). The
-// synchronous string injection keeps the very first render themed; the
-// `setBasePreset` call right after captures the same preset so hover overlays
-// in the chooser know how to restore it.
-const bloomCSS = getBloomThemeCSS()
+// Inject the Bloom theme's CSS vars before first paint (FOUC prevention);
+// `BloomThemeProvider` owns the theme once React mounts.
 const styleEl = document.createElement("style")
-styleEl.textContent = bloomCSS
+styleEl.textContent = getBloomThemeCSS()
 document.head.appendChild(styleEl)
-setBasePreset("oxy")
 
 /**
  * Whether this build serves `/authorize` from the browser hub (issue #937
@@ -58,9 +52,7 @@ function AuthorizeRoute() {
 
 function App() {
     return (
-        <LocaleProvider>
-            <LayoutProvider>
-                <BloomThemeProvider mode="system" colorPreset="oxy">
+        <BloomThemeProvider mode="system" colorPreset="oxy">
                 <ConnectionStatusToasts />
                 {/* The IdP is a device-first origin like every other Oxy app: it
                     runs the normal SDK cold boot (restore this origin's device
@@ -89,6 +81,7 @@ function App() {
                         BROWSER_HUB_ENABLED ? "ephemeral" : "persistent"
                     }
                 >
+                    <DocumentLanguage />
                     <BrowserRouter>
                         <Routes>
                             {/* Auth flow routes */}
@@ -96,7 +89,6 @@ function App() {
                                 <Route path="/login" element={<LoginPage />} />
                                 <Route path="/signup" element={<SignUpPage />} />
                                 <Route path="/authorize" element={<AuthorizeRoute />} />
-                                <Route path="/hub-passkey" element={<HubPasskeyPage />} />
                                 <Route path="/auth/login" element={<LoginPage />} />
                                 <Route path="/auth/signup" element={<SignUpPage />} />
                                 <Route path="/auth/authorize" element={<AuthorizeRoute />} />
@@ -117,8 +109,6 @@ function App() {
                             {/* Account management lives on accounts.oxy.so — the IdP no longer
                                 owns account settings. Permanent redirects to the sole owner. */}
                             <Route path="/settings" element={<ExternalRedirect url="https://accounts.oxy.so/security" />} />
-                            <Route path="/settings/password" element={<ExternalRedirect url="https://accounts.oxy.so/security" />} />
-                            <Route path="/settings/linked-accounts" element={<ExternalRedirect url="https://accounts.oxy.so/security" />} />
                             <Route path="/settings/sessions" element={<ExternalRedirect url="https://accounts.oxy.so/sessions" />} />
 
                             <Route path="/" element={<ExternalRedirect url="https://oxy.so" />} />
@@ -126,9 +116,7 @@ function App() {
                         </Routes>
                     </BrowserRouter>
                 </OxyProvider>
-                </BloomThemeProvider>
-            </LayoutProvider>
-        </LocaleProvider>
+        </BloomThemeProvider>
     )
 }
 

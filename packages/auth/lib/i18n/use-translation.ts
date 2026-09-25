@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { translate as coreTranslate } from '@oxy.so/core';
-import { useLocale } from './locale-context';
+import { useLocale } from './locale';
 import enAuth from './locales/en';
 import esAuth from './locales/es';
 import type {
@@ -12,10 +12,9 @@ import type {
 } from './types';
 
 /**
- * Auth-app namespaced dictionaries loaded at module init. Locales that
- * don't have a populated auth dict fall back to core's much larger
- * dictionary (which covers `signin.*`, `signup.*`, `recover.*`, etc. in
- * all 11 locales) and finally to the raw key for visibility.
+ * The IdP pages' own copy. A key resolves from the active locale's dict, then
+ * core's dictionaries (all 11 locales), then the English dict — and only then
+ * to the raw key, which marks copy that exists nowhere.
  */
 const AUTH_DICTS: Partial<Record<Locale, LocaleDict>> = {
   'en-US': enAuth as LocaleDict,
@@ -73,16 +72,7 @@ interface UseTranslationResult {
   setLocale: (locale: Locale) => void;
 }
 
-/**
- * Returns the translation function plus the current locale and a setter.
- *
- * Resolution order:
- *   1. Auth-app dict for the active locale.
- *   2. Core's `translate(locale, key, vars)` covering all 11 locales for
- *      the shared `signin.*` / `signup.*` / `recover.*` strings.
- *   3. The raw key string, so missing translations surface visibly without
- *      breaking the UI.
- */
+/** The translation function, the page's locale, and its setter (see `AUTH_DICTS` for resolution). */
 export function useTranslation(): UseTranslationResult {
   const { locale, setLocale } = useLocale();
 
@@ -97,6 +87,11 @@ export function useTranslation(): UseTranslationResult {
 
       const fromCore = coreTranslate(locale, resolvedKey, vars);
       if (fromCore !== resolvedKey) return fromCore;
+
+      // The IdP's own pages exist in English first; a locale without its own
+      // copy reads that, never the raw key.
+      const english = lookup(AUTH_DICTS['en-US'], resolvedKey);
+      if (english != null) return interpolate(english, vars);
 
       return key;
     },

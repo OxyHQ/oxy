@@ -23,8 +23,8 @@ import { afterEach, beforeEach, describe, expect, jest, mock, test } from "bun:t
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { LocaleProvider } from "@/lib/i18n/locale-context"
 import { COMMONS_OAUTH_POLL_INTERVAL_MS } from "@/lib/commons-oauth-request"
+import { stubAuthScreens } from "@/lib/__tests__/setup-services-mock"
 
 const CLIENT_ID = "oxy_dk_test_client"
 const REDIRECT_URI = "https://app.example.com/callback"
@@ -262,17 +262,13 @@ function installMocks(): void {
     deliverOAuthResult,
   }))
   mock.module("@oxy.so/services", () => ({
+    ...stubAuthScreens,
     useOxy: () => ({
       user: null,
       oxyServices,
       isAuthResolved: true,
       isAuthenticated: sessionState.isAuthenticated,
       openAccountDialog: () => undefined,
-      handleWebSession: async () => undefined,
-      signInWithPassword: async () => ({ status: "ok" as const }),
-      signInWithPasskey: async () => undefined,
-      completeTwoFactorSignIn: async () => ({}),
-      revokeSuspiciousSignIn: async () => undefined,
     }),
     useDeviceSwitcher: () => ({
       isLoading: false,
@@ -287,7 +283,6 @@ function installMocks(): void {
     }),
     OxyConsentScreen: () =>
       React.createElement("div", { "data-testid": "consent-screen" }),
-    OxyAuthChooser: () => null,
     OxySignInRequestSurface: SignInRequestSurfaceDouble,
   }))
 }
@@ -352,7 +347,6 @@ async function renderAuthorize(params: Record<string, string | undefined>) {
   const root: Root = createRoot(container)
   await act(async () => {
     root.render(
-      <LocaleProvider>
         <MemoryRouter initialEntries={[`/authorize${buildSearch(params)}`]}>
           <Routes>
             <Route path="/authorize" element={<AuthorizePage />} />
@@ -362,7 +356,6 @@ async function renderAuthorize(params: Record<string, string | undefined>) {
             />
           </Routes>
         </MemoryRouter>
-      </LocaleProvider>,
     )
   })
   await act(async () => {

@@ -359,13 +359,22 @@ export { default as ProfileButton } from './ui/components/ProfileButton';
 export type { ProfileButtonProps } from './ui/components/ProfileButton';
 export type { AccountDialogMenuItem } from './ui/navigation/accountDialogManager';
 
-// The account switcher/sign-in/sign-up chooser WITHOUT dialog chrome — the
-// surface stack presents `OxyAccountDialogScreen` (which renders this) into
-// Bloom's `<Dialog>` for the normal in-app surface; exported directly so a bare
-// host (e.g. a future auth.oxy.so hub page) can mount the exact same chooser
-// with its own completion strategy.
-export { default as OxyAuthChooser } from './ui/components/OxyAuthChooser';
-export type { OxyAuthChooserProps } from './ui/components/OxyAuthChooser';
+// THE sign-in screens. The account dialog renders them, and so does every page
+// of the auth.oxy.so IdP: one implementation of what a person sees when they
+// sign in, create an account, or choose which account continues.
+export { OxySignInPanel } from './ui/components/signIn/OxySignInPanel';
+export type { OxySignInPanelProps } from './ui/components/signIn/OxySignInPanel';
+export { OxySignUpPanel } from './ui/components/signIn/OxySignUpPanel';
+export type { OxySignUpPanelProps } from './ui/components/signIn/OxySignUpPanel';
+export { OxyAccountPicker } from './ui/components/signIn/OxyAccountPicker';
+export type { OxyAccountPickerProps } from './ui/components/signIn/OxyAccountPicker';
+export {
+  OxyAuthScreen,
+  OxyAuthScreenHeader,
+  OxyAuthLoading,
+  OxyAuthTerms,
+} from './ui/components/signIn/OxyAuthScreen';
+export type { OxyAuthScreenHeaderProps } from './ui/components/signIn/OxyAuthScreen';
 
 // The in-flight "Sign in with Oxy" REQUEST surface — the route's primary visual,
 // the progress line, and the "Having trouble?" alternatives — as a purely

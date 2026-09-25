@@ -28,7 +28,6 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { LocaleProvider } from "@/lib/i18n/locale-context"
 import { createServicesMock } from "@/lib/__tests__/setup-services-mock"
 import enDict from "@/lib/i18n/locales/en"
 import type { OxyConsentScreenProps } from "@oxy.so/services"
@@ -522,14 +521,12 @@ async function renderAuthorize(params: Record<string, string | undefined>) {
   const root: Root = createRoot(container)
   await act(async () => {
     root.render(
-      <LocaleProvider>
         <MemoryRouter initialEntries={[`/authorize${buildSearch(params)}`]}>
           <Routes>
             <Route path="/authorize" element={<AuthorizePage />} />
             <Route path="/login" element={<div data-testid="login-page" />} />
           </Routes>
         </MemoryRouter>
-      </LocaleProvider>,
     )
   })
   await act(async () => {

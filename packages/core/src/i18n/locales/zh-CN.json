@@ -1,53 +1,47 @@
 {
   "signin": {
     "title": "登录",
-    "subtitle": "登录以继续",
-    "addAccountTitle": "添加另一个账户",
+    "subtitle": "使用你的 Oxy 账号",
+    "addAccountTitle": "添加其他账号",
     "addAccountSubtitle": "使用另一个账户登录",
     "username": {
       "label": "用户名",
-      "placeholder": "输入您的用户名",
-      "helper": "3-30个字符，仅字母和数字",
-      "required": "请输入您的用户名。",
-      "minLength": "用户名必须至少包含3个字符。"
-    },
-    "password": {
-      "label": "密码",
-      "placeholder": "输入您的密码",
-      "required": "请输入您的密码。",
-      "hint": "输入您的密码以登录"
+      "placeholder": "yourname",
+      "required": "请输入您的用户名。"
     },
     "actions": {
       "continue": "继续",
-      "back": "返回",
-      "signIn": "登录",
-      "verify": "验证",
-      "openAccountSwitcher": "切换到另一个账户",
-      "openAccountSwitcherSubtitle": "{{count}}个其他账户可用",
-      "openAccountSwitcherSubtitle_singular": "1个其他账户可用",
-      "openAccountSwitcherSubtitle_zero": "查看您保存的账户",
-      "manageAccounts": "管理保存的账户",
-      "manageAccountsSubtitle": "查看会话、删除或登出",
-      "loadingOtherAccounts": "加载其他账户中…",
-      "switchAccountFailed": "无法切换账户。请重试。"
+      "back": "返回"
     },
-    "forgotPrompt": "忘记密码？",
-    "security": {
-      "dataSecure": "您的数据已加密且安全"
-    },
-    "currentlySignedInAs": "当前登录为",
-    "alreadySignedInWith": "已登录",
-    "alreadySignedIn": "已登录",
-    "alreadySignedInMessage": "此账户已登录。继续使用此账户？",
-    "continueWithAccount": "继续",
-    "currentAccount": "当前",
-    "or": "或",
-    "viewAllAccounts": "查看更多{{count}}个",
     "createAccountLink": "初次使用 Oxy？创建账户",
     "status": {
-      "accountSwitched": "正在使用{{name}}",
       "signingIn": "正在登录…"
-    }
+    },
+    "subtitleToApp": "以继续前往 {{app}}",
+    "orContinueWith": "或使用以下方式继续",
+    "qr": {
+      "caption": "使用 Commons 扫码登录",
+      "renew": "显示新的二维码"
+    },
+    "methods": {
+      "passkey": "使用通行密钥登录"
+    },
+    "errors": {
+      "rateLimited": "尝试次数过多。请在 {{seconds}} 秒后重试。",
+      "passkeyCancelled": "通行密钥提示已关闭。准备好后请重试。",
+      "passkeyFailed": "无法完成通行密钥验证。请重试。"
+    },
+    "chooser": {
+      "subtitleToApp": "以继续前往 {{app}}"
+    },
+    "terms": {
+      "before": "继续即表示你同意我们的",
+      "termsLink": "服务条款",
+      "and": "和",
+      "privacyLink": "隐私政策"
+    },
+    "noAccount": "还没有账号？",
+    "createAccount": "创建账号"
   },
   "signup": {
     "title": "创建您的账户",
@@ -55,56 +49,9 @@
     "createInCommons": "在 Commons 中创建您的身份",
     "createAccount": "创建账户",
     "backToSignInLink": "已有账户？登录",
-    "welcome": {
-      "title": "欢迎使用Oxy！",
-      "subtitle": "只需几步即可创建您的账户",
-      "haveAccount": "已有账户？",
-      "signInCta": "登录"
-    },
-    "identity": {
-      "title": "您是谁？",
-      "subtitle": "选择您的用户名并输入您的电子邮件"
-    },
-    "username": {
-      "helper": "3-30个字符，仅字母和数字",
-      "required": "请输入用户名",
-      "minLength": "用户名必须至少包含3个字符"
-    },
-    "email": {
-      "required": "请输入电子邮件地址",
-      "invalid": "请输入有效的电子邮件地址",
-      "helper": "我们绝不会分享您的电子邮件"
-    },
-    "security": {
-      "title": "保护您的账户",
-      "subtitle": "创建强密码以保护您的账户"
-    },
-    "password": {
-      "helper": "至少8个字符",
-      "required": "请输入密码",
-      "minLength": "密码必须至少包含8个字符",
-      "confirmRequired": "请确认您的密码",
-      "mismatch": "密码不匹配",
-      "confirmHint": "重新输入您的密码以确认"
-    },
-    "summary": {
-      "title": "快完成了！",
-      "subtitle": "查看您的信息并创建账户",
-      "sectionTitle": "账户信息",
-      "fields": {
-        "username": "用户名",
-        "email": "电子邮件",
-        "password": "密码"
-      },
-      "notSet": "未设置",
-      "securityTip": "为了更强的安全性，创建账户后，请在账户设置中启用生物识别身份验证。",
-      "legalReminder": "创建账户即表示您同意我们的服务条款和隐私政策。"
-    }
+    "webSubtitle": "无需密码。你的设备会创建通行密钥，你的账号会获得一个只有你保管的恢复短语。"
   },
   "accountSwitcher": {
-    "sections": {
-      "yourAccounts": "你的账户"
-    },
     "loading": "正在加载账户...",
     "qrHeadline": "使用您的 Oxy 身份登录",
     "signInWithOxy": "使用 Oxy 登录",
@@ -136,10 +83,7 @@
       "claimFailed": "登录已获批准，但未能完成。请重试。",
       "generic": "登录失败，请重试。"
     },
-    "linkOpenFailed": "无法打开链接，请重试。",
-    "continueWithPasskey": "继续",
-    "passkeyHint": "使用指纹、面容或设备 PIN 码。",
-    "otherDeviceCommons": "账号在其他设备上？用 Commons 扫码"
+    "linkOpenFailed": "无法打开链接，请重试。"
   },
   "common": {
     "actions": {

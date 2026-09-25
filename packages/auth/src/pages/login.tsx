@@ -1,29 +1,33 @@
-import { useSearchParams } from "react-router-dom";
-import { LoginForm } from "@/components/login-form";
+import { useCallback, useRef } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import { toast } from "@oxy.so/bloom/toast"
+import { OxySignInPanel } from "@oxy.so/services"
+import { postLoginRedirectFrom, withRequestQuery } from "@/lib/auth-utils"
 
+/**
+ * `/login` — the SDK's own sign-in screen, the one every Oxy app's account
+ * dialog renders. The IdP only decides where a sign-in continues: the request
+ * in the query (`/authorize`, `/device`, `/mcp/link`).
+ */
 export function LoginPage() {
-  const [searchParams] = useSearchParams();
+    const navigate = useNavigate()
+    const [searchParams] = useSearchParams()
 
-  const reset = searchParams.get("reset");
-  const notice = reset ? "Password reset. Please sign in." : undefined;
+    // A failure a previous hop reported (`?error=`), told once.
+    const error = searchParams.get("error")
+    const errorShown = useRef(false)
+    if (error && !errorShown.current) {
+        errorShown.current = true
+        queueMicrotask(() => toast.error(error))
+    }
 
-  return (
-    <LoginForm
-      error={searchParams.get("error") ?? undefined}
-      notice={notice}
-      sessionToken={searchParams.get("token") ?? undefined}
-      redirectUri={searchParams.get("redirect_uri") ?? undefined}
-      state={searchParams.get("state") ?? undefined}
-      clientId={searchParams.get("client_id") ?? undefined}
-      codeChallenge={searchParams.get("code_challenge") ?? undefined}
-      codeChallengeMethod={searchParams.get("code_challenge_method") ?? undefined}
-      scope={searchParams.get("scope") ?? undefined}
-      resource={searchParams.get("resource") ?? undefined}
-      responseType={searchParams.get("response_type") ?? undefined}
-      responseMode={searchParams.get("response_mode") ?? undefined}
-      loginHint={searchParams.get("login_hint") ?? undefined}
-      mcpLinkIntent={searchParams.get("mcp_link_intent") ?? undefined}
-      userCode={searchParams.get("user_code") ?? undefined}
-    />
-  );
+    const onSignedIn = useCallback(() => navigate(postLoginRedirectFrom(searchParams)), [navigate, searchParams])
+
+    return (
+        <OxySignInPanel
+            onSignedIn={onSignedIn}
+            onCreateAccount={() => navigate(withRequestQuery("/signup", searchParams))}
+            loginHint={searchParams.get("login_hint") ?? undefined}
+        />
+    )
 }

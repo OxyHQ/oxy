@@ -1,66 +1,55 @@
 {
   "signin": {
     "title": "Iniciar sesión",
-    "subtitle": "Inicia sesión para continuar",
+    "subtitle": "Usa tu cuenta de Oxy",
     "chooser": {
       "title": "Elige una cuenta",
       "subtitle": "Continúa con una de tus cuentas o usa otra.",
-      "signedIn": "Sesión activa",
       "useAnother": "Usar otra cuenta",
-      "continueAs": "Continuar como {{name}}"
+      "continueAs": "Continuar como {{name}}",
+      "subtitleToApp": "para continuar en {{app}}"
     },
-    "addAccountTitle": "Agregar otra cuenta",
+    "addAccountTitle": "Añadir otra cuenta",
     "addAccountSubtitle": "Inicia sesión con otra cuenta",
     "username": {
       "label": "Usuario",
-      "placeholder": "Introduce tu usuario",
-      "helper": "3-30 caracteres, solo letras y números",
-      "required": "Por favor, introduce tu usuario.",
-      "minLength": "El usuario debe tener al menos 3 caracteres."
-    },
-    "password": {
-      "label": "Contraseña",
-      "placeholder": "Introduce tu contraseña",
-      "required": "Por favor, introduce tu contraseña.",
-      "hint": "Introduce tu contraseña para iniciar sesión"
+      "placeholder": "tunombre",
+      "required": "Por favor, introduce tu usuario."
     },
     "actions": {
       "continue": "Continuar",
-      "back": "Atrás",
-      "signIn": "Entrar",
-      "verify": "Verificar",
-      "openAccountSwitcher": "Cambiar a otra cuenta",
-      "openAccountSwitcherSubtitle": "{{count}} otras cuentas disponibles",
-      "openAccountSwitcherSubtitle_singular": "1 otra cuenta disponible",
-      "openAccountSwitcherSubtitle_zero": "Revisa tus cuentas guardadas",
-      "manageAccounts": "Gestionar cuentas guardadas",
-      "manageAccountsSubtitle": "Revisar sesiones, eliminar o cerrar sesión",
-      "loadingOtherAccounts": "Cargando otras cuentas…",
-      "switchAccountFailed": "No pudimos cambiar de cuenta. Inténtalo de nuevo."
+      "back": "Atrás"
     },
-    "forgotPrompt": "¿Olvidaste tu contraseña?",
-    "security": {
-      "dataSecure": "Tus datos están cifrados y seguros"
-    },
-    "currentlySignedInAs": "Actualmente has iniciado sesión como",
-    "alreadySignedInWith": "Ya has iniciado sesión con",
-    "alreadySignedIn": "Ya has iniciado sesión",
-    "alreadySignedInMessage": "Esta cuenta ya ha iniciado sesión. ¿Continuar con esta cuenta?",
-    "continueWithAccount": "Continuar",
-    "currentAccount": "Actual",
-    "or": "o",
-    "viewAllAccounts": "Ver {{count}} más",
     "createAccountLink": "¿Nuevo en Oxy? Crea una cuenta",
     "status": {
-      "accountSwitched": "Ahora usando {{name}}",
       "signingIn": "Iniciando sesión…"
     },
     "errors": {
       "notConfigured": "El inicio de sesión no está disponible",
       "notConfiguredDescription": "{{app}} todavía no está configurada para iniciar sesión. Contacta con quien desarrolla la app.",
       "failed": "No se pudo iniciar sesión",
-      "failedDescription": "Algo ha ido mal. Inténtalo de nuevo."
-    }
+      "failedDescription": "Algo ha ido mal. Inténtalo de nuevo.",
+      "rateLimited": "Demasiados intentos. Vuelve a probar en {{seconds}} s.",
+      "passkeyCancelled": "Has cerrado la passkey. Vuelve a intentarlo cuando quieras.",
+      "passkeyFailed": "No se pudo completar la passkey. Inténtalo de nuevo."
+    },
+    "subtitleToApp": "para continuar en {{app}}",
+    "orContinueWith": "o continúa con",
+    "qr": {
+      "caption": "Escanea con Commons para entrar",
+      "renew": "Mostrar un código nuevo"
+    },
+    "methods": {
+      "passkey": "Entrar con una passkey"
+    },
+    "terms": {
+      "before": "Al continuar, aceptas nuestros",
+      "termsLink": "Términos del servicio",
+      "and": "y la",
+      "privacyLink": "Política de privacidad"
+    },
+    "noAccount": "¿No tienes cuenta?",
+    "createAccount": "Crear cuenta"
   },
   "signup": {
     "title": "Crea tu cuenta",
@@ -68,59 +57,7 @@
     "createInCommons": "Crea tu identidad en Commons",
     "createAccount": "Crear cuenta",
     "backToSignInLink": "¿Ya tienes cuenta? Inicia sesión",
-    "welcome": {
-      "title": "¡Te damos la bienvenida a Oxy!",
-      "subtitle": "Crea tu cuenta en pocos pasos",
-      "haveAccount": "¿Ya tienes cuenta?",
-      "signInCta": "Inicia sesión"
-    },
-    "identity": {
-      "title": "¿Quién eres?",
-      "subtitle": "Elige tu usuario e introduce tu correo"
-    },
-    "username": {
-      "helper": "3-30 caracteres, solo letras y números",
-      "required": "Por favor, introduce un usuario",
-      "minLength": "El usuario debe tener al menos 3 caracteres"
-    },
-    "email": {
-      "required": "Por favor, introduce una dirección de correo electrónico",
-      "invalid": "Por favor, introduce una dirección de correo electrónico válida",
-      "helper": "Nunca compartiremos tu correo"
-    },
-    "security": {
-      "title": "Protege tu cuenta",
-      "subtitle": "Crea una contraseña fuerte para proteger tu cuenta"
-    },
-    "password": {
-      "helper": "Al menos 8 caracteres",
-      "required": "Por favor, introduce una contraseña",
-      "minLength": "La contraseña debe tener al menos 8 caracteres",
-      "confirmRequired": "Por favor, confirma tu contraseña",
-      "mismatch": "Las contraseñas no coinciden",
-      "confirmHint": "Vuelve a introducir tu contraseña para confirmar"
-    },
-    "summary": {
-      "title": "¡Ya casi!",
-      "subtitle": "Revisa tu información y crea tu cuenta",
-      "sectionTitle": "Información de la cuenta",
-      "fields": {
-        "username": "Usuario",
-        "email": "Correo electrónico",
-        "password": "Contraseña"
-      },
-      "notSet": "Sin definir",
-      "securityTip": "Para mayor seguridad, habilita la autenticación biométrica en Configuración de la cuenta después de crear tu cuenta.",
-      "legalReminder": "Al crear una cuenta, aceptas nuestros Términos de servicio y Política de privacidad.",
-      "sections": {
-        "account": "Información de la cuenta",
-        "next": "Próximos pasos"
-      },
-      "next": {
-        "securityTitle": "Mantén tu cuenta segura",
-        "legalTitle": "Todo listo"
-      }
-    }
+    "webSubtitle": "Sin contraseña. Tu dispositivo crea una passkey y tu cuenta recibe una frase de recuperación que solo guardas tú."
   },
   "profile": {
     "title": "Perfil",
@@ -598,31 +535,8 @@
     "version": "Versión {{version}}"
   },
   "accountSwitcher": {
-    "title": "Conmutador de cuentas",
-    "sections": {
-      "current": "Cuenta actual",
-      "otherWithCount": "Otras cuentas ({{count}})",
-      "deviceSessions": "Sesiones de dispositivo",
-      "sharedWithYou": "Compartidas contigo",
-      "thisDevice": "En este dispositivo",
-      "yourAccounts": "Tus cuentas"
-    },
-    "currentBadge": "Actual",
     "loading": "Cargando cuentas...",
     "toasts": {
-      "switchSuccess": "¡Cuenta cambiada correctamente!",
-      "switchFailed": "Hubo un problema al cambiar de cuenta. Inténtalo de nuevo.",
-      "signInFailed": "No se pudo iniciar sesión. Inténtalo de nuevo.",
-      "removeSuccess": "¡Cuenta eliminada correctamente!",
-      "removeFailed": "Hubo un problema al eliminar la cuenta. Inténtalo de nuevo.",
-      "signOutAllSuccess": "¡Todas las cuentas cerradas correctamente!",
-      "signOutAllFailed": "Hubo un problema al cerrar sesión: {{error}}",
-      "deviceLoadFailed": "Error al cargar las sesiones de dispositivo. Inténtalo de nuevo.",
-      "remoteSignOutSuccess": "¡Sesión cerrada correctamente en {{deviceName}}!",
-      "remoteSignOutFailed": "Hubo un problema al cerrar sesión en el dispositivo. Inténtalo de nuevo.",
-      "noOtherDeviceSessions": "No se encontraron otras sesiones de dispositivo para cerrar.",
-      "signOutOthersSuccess": "¡Sesiones cerradas correctamente en los demás dispositivos!",
-      "signOutOthersFailed": "Hubo un problema al cerrar sesión en otros dispositivos. Inténtalo de nuevo.",
       "contextRemoved": "Se quitó {{account}}",
       "contextRemoveFailed": "Hubo un problema al quitar esa cuenta. Inténtalo de nuevo.",
       "principalRemoved": "Se cerró la sesión de {{name}} en este dispositivo",
@@ -630,29 +544,11 @@
       "activateFailed": "Hubo un problema al cambiar de cuenta. Inténtalo de nuevo."
     },
     "confirms": {
-      "remove": "¿Seguro que quieres eliminar a {{displayName}} de este dispositivo? Tendrás que iniciar sesión de nuevo para acceder a esta cuenta.",
-      "logoutAll": "¿Seguro que quieres cerrar sesión en todas las cuentas? Esto eliminará todas las cuentas guardadas de este dispositivo.",
-      "remoteLogout": "¿Seguro que quieres cerrar sesión en \"{{deviceName}}\"? Esto finalizará la sesión en ese dispositivo.",
-      "logoutOthers": "¿Seguro que quieres cerrar sesión en los otros {{count}} dispositivo(s)? Esto finalizará las sesiones en todos los demás dispositivos excepto en este.",
       "removeContextTitle": "¿Quitar esta cuenta?",
       "removeContext": "¿Dejar de usar {{account}} como {{person}} en este dispositivo? Quien más acceda a {{account}} aquí lo conserva.",
       "removePrincipalTitle": "¿Cerrar sesión en este dispositivo?",
       "removePrincipal": "¿Cerrar la sesión de {{name}} en este dispositivo? Se quitan todas las cuentas a las que llega desde aquí. No afecta a nadie más."
     },
-    "device": {
-      "loadingTitle": "Cargando sesiones de dispositivo...",
-      "loadingSubtitle": "Espera mientras obtenemos tus sesiones de dispositivo",
-      "noneTitle": "No se encontraron sesiones de dispositivo",
-      "noneSubtitle": "La gestión de sesiones de dispositivo no está disponible",
-      "thisDevice": "Este dispositivo",
-      "lastActive": "Última actividad: {{date}}"
-    },
-    "empty": {
-      "title": "No hay cuentas guardadas",
-      "subtitle": "Añade otra cuenta para cambiar rápidamente entre ellas"
-    },
-    "label": "Selector de cuentas",
-    "searchPlaceholder": "Buscar cuentas",
     "scanQr": "Escanear código QR",
     "qrHeadline": "Inicia sesión con tu identidad de Oxy",
     "signInWithOxy": "Inicia sesión con Oxy",
@@ -692,10 +588,7 @@
       "claimFailed": "Se aprobó el inicio de sesión, pero no pudimos completarlo. Inténtalo de nuevo.",
       "generic": "No se pudo iniciar sesión. Inténtalo de nuevo."
     },
-    "linkOpenFailed": "No se pudo abrir el enlace. Inténtalo de nuevo.",
-    "continueWithPasskey": "Continuar",
-    "passkeyHint": "Usa tu huella, tu cara o el PIN del dispositivo.",
-    "otherDeviceCommons": "¿Tu cuenta está en otro dispositivo? Escanea con Commons"
+    "linkOpenFailed": "No se pudo abrir el enlace. Inténtalo de nuevo."
   },
   "feedback": {
     "type": {

@@ -1,53 +1,47 @@
 {
   "signin": {
     "title": "Iniciar sessão",
-    "subtitle": "Inicie sessão para continuar",
+    "subtitle": "Usa a tua conta Oxy",
     "addAccountTitle": "Adicionar outra conta",
     "addAccountSubtitle": "Iniciar sessão com outra conta",
     "username": {
       "label": "Nome de utilizador",
-      "placeholder": "Introduza o seu nome de utilizador",
-      "helper": "3-30 caracteres, apenas letras e números",
-      "required": "Por favor, introduza o seu nome de utilizador.",
-      "minLength": "O nome de utilizador deve ter pelo menos 3 caracteres."
-    },
-    "password": {
-      "label": "Palavra-passe",
-      "placeholder": "Introduza a sua palavra-passe",
-      "required": "Por favor, introduza a sua palavra-passe.",
-      "hint": "Introduza a sua palavra-passe para iniciar sessão"
+      "placeholder": "oteunome",
+      "required": "Por favor, introduza o seu nome de utilizador."
     },
     "actions": {
       "continue": "Continuar",
-      "back": "Voltar",
-      "signIn": "Iniciar sessão",
-      "verify": "Verificar",
-      "openAccountSwitcher": "Mudar para outra conta",
-      "openAccountSwitcherSubtitle": "{{count}} outras contas disponíveis",
-      "openAccountSwitcherSubtitle_singular": "1 outra conta disponível",
-      "openAccountSwitcherSubtitle_zero": "Revise as suas contas guardadas",
-      "manageAccounts": "Gerir contas guardadas",
-      "manageAccountsSubtitle": "Rever sessões, remover ou terminar sessão",
-      "loadingOtherAccounts": "A carregar outras contas…",
-      "switchAccountFailed": "Não foi possível mudar de conta. Por favor, tente novamente."
+      "back": "Voltar"
     },
-    "forgotPrompt": "Esqueceu-se da palavra-passe?",
-    "security": {
-      "dataSecure": "Os seus dados estão encriptados e seguros"
-    },
-    "currentlySignedInAs": "Atualmente com sessão iniciada como",
-    "alreadySignedInWith": "Já tem sessão iniciada com",
-    "alreadySignedIn": "Já tem sessão iniciada",
-    "alreadySignedInMessage": "Esta conta já tem sessão iniciada. Continuar com esta conta?",
-    "continueWithAccount": "Continuar",
-    "currentAccount": "Atual",
-    "or": "ou",
-    "viewAllAccounts": "Ver mais {{count}}",
     "createAccountLink": "Novo no Oxy? Crie uma conta",
     "status": {
-      "accountSwitched": "Agora a usar {{name}}",
       "signingIn": "A iniciar sessão…"
-    }
+    },
+    "subtitleToApp": "para continuar para {{app}}",
+    "orContinueWith": "ou continua com",
+    "qr": {
+      "caption": "Lê com o Commons para entrar",
+      "renew": "Mostrar um código novo"
+    },
+    "methods": {
+      "passkey": "Entrar com uma chave de acesso"
+    },
+    "errors": {
+      "rateLimited": "Demasiadas tentativas. Tenta novamente dentro de {{seconds}} s.",
+      "passkeyCancelled": "Fechaste o pedido da chave de acesso. Tenta novamente quando quiseres.",
+      "passkeyFailed": "Não foi possível concluir a chave de acesso. Tenta novamente."
+    },
+    "chooser": {
+      "subtitleToApp": "para continuar para {{app}}"
+    },
+    "terms": {
+      "before": "Ao continuar, aceitas os nossos",
+      "termsLink": "Termos de serviço",
+      "and": "e a",
+      "privacyLink": "Política de privacidade"
+    },
+    "noAccount": "Não tens conta?",
+    "createAccount": "Criar conta"
   },
   "signup": {
     "title": "Crie a sua conta",
@@ -55,56 +49,9 @@
     "createInCommons": "Crie a sua identidade no Commons",
     "createAccount": "Criar conta",
     "backToSignInLink": "Já tem uma conta? Inicie sessão",
-    "welcome": {
-      "title": "Bem-vindo ao Oxy!",
-      "subtitle": "Crie a sua conta em poucos passos",
-      "haveAccount": "Já tem uma conta?",
-      "signInCta": "Iniciar sessão"
-    },
-    "identity": {
-      "title": "Quem é?",
-      "subtitle": "Escolha o seu nome de utilizador e introduza o seu email"
-    },
-    "username": {
-      "helper": "3-30 caracteres, apenas letras e números",
-      "required": "Por favor, introduza um nome de utilizador",
-      "minLength": "O nome de utilizador deve ter pelo menos 3 caracteres"
-    },
-    "email": {
-      "required": "Por favor, introduza um endereço de email",
-      "invalid": "Por favor, introduza um endereço de email válido",
-      "helper": "Nunca partilharemos o seu email"
-    },
-    "security": {
-      "title": "Proteja a sua conta",
-      "subtitle": "Crie uma palavra-passe forte para proteger a sua conta"
-    },
-    "password": {
-      "helper": "Pelo menos 8 caracteres",
-      "required": "Por favor, introduza uma palavra-passe",
-      "minLength": "A palavra-passe deve ter pelo menos 8 caracteres",
-      "confirmRequired": "Por favor, confirme a sua palavra-passe",
-      "mismatch": "As palavras-passe não coincidem",
-      "confirmHint": "Reintroduza a sua palavra-passe para confirmar"
-    },
-    "summary": {
-      "title": "Quase lá!",
-      "subtitle": "Revise as suas informações e crie a sua conta",
-      "sectionTitle": "Informações da conta",
-      "fields": {
-        "username": "Nome de utilizador",
-        "email": "Email",
-        "password": "Palavra-passe"
-      },
-      "notSet": "Não definido",
-      "securityTip": "Para maior segurança, ative a autenticação biométrica nas Definições da conta após criar a sua conta.",
-      "legalReminder": "Ao criar uma conta, concorda com os nossos Termos de Serviço e Política de Privacidade."
-    }
+    "webSubtitle": "Sem palavra-passe. O teu dispositivo cria uma chave de acesso e a tua conta recebe uma frase de recuperação que só tu guardas."
   },
   "accountSwitcher": {
-    "sections": {
-      "yourAccounts": "As suas contas"
-    },
     "loading": "A carregar contas...",
     "qrHeadline": "Inicie sessão com a sua identidade Oxy",
     "signInWithOxy": "Iniciar sessão com Oxy",
@@ -136,10 +83,7 @@
       "claimFailed": "O início de sessão foi aprovado, mas não conseguimos concluí-lo. Tente novamente.",
       "generic": "Não foi possível iniciar sessão. Tente novamente."
     },
-    "linkOpenFailed": "Não foi possível abrir a ligação. Tente novamente.",
-    "continueWithPasskey": "Continuar",
-    "passkeyHint": "Use a impressão digital, o rosto ou o PIN do dispositivo.",
-    "otherDeviceCommons": "Conta noutro dispositivo? Digitalize com o Commons"
+    "linkOpenFailed": "Não foi possível abrir a ligação. Tente novamente."
   },
   "common": {
     "actions": {

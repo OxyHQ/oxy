@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
     buildSwitcherRows,
     projectDevicePrincipals,
@@ -7,7 +7,7 @@ import {
 } from '@oxy.so/core';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from './useI18n';
-import { EMPTY_ACCOUNT_DIALOG_SNAPSHOT } from './accountDialogSnapshot';
+import { useAccountDialogSnapshot } from './accountDialogSnapshot';
 
 export interface UseDeviceSwitcherResult {
     /**
@@ -60,15 +60,7 @@ export function useDeviceSwitcher(): UseDeviceSwitcherResult {
     const { accountDialogController: controller, oxyServices } = useOxy();
     const { locale } = useI18n();
 
-    const subscribe = useCallback(
-        (listener: () => void) => (controller ? controller.subscribe(listener) : () => undefined),
-        [controller],
-    );
-    const getSnapshot = useCallback(
-        () => (controller ? controller.getSnapshot() : EMPTY_ACCOUNT_DIALOG_SNAPSHOT),
-        [controller],
-    );
-    const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+    const snapshot = useAccountDialogSnapshot(controller);
 
     // `directory` is a stable reference between reads (`SessionClient` holds the
     // one it applied), so this recomputes only when the device actually moved.

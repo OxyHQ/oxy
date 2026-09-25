@@ -3,14 +3,8 @@ import { useSearchParams } from "react-router-dom"
 import { buildSwitcherRows, projectDevicePrincipals } from "@oxy.so/core"
 import type { PublicApplication, SwitcherContextRow } from "@oxy.so/core"
 import type { DeviceDirectory } from "@oxy.so/contracts"
-import { OxyConsentScreen, OxySignInRequestSurface, useOxy } from "@oxy.so/services"
+import { OxyAccountPicker, OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader, OxyConsentScreen, OxySignInRequestSurface, useOxy } from "@oxy.so/services"
 
-import {
-    AuthFormLayout,
-    AuthFormHeader,
-    LoadingSpinner,
-} from "@/components/auth-form-layout"
-import { AccountChooser } from "@/components/account-chooser"
 import { useTranslation } from "@/lib/i18n/use-translation"
 import { buildApiUrl, getAvatarUrl } from "@/lib/oxy-api-client"
 import { safeRedirectUrl } from "@/lib/oauth-redirect"
@@ -146,12 +140,12 @@ export function HubAuthorizePage() {
 function SilentRefused() {
     const { t } = useTranslation()
     return (
-        <AuthFormLayout>
-            <AuthFormHeader
+        <OxyAuthScreen>
+            <OxyAuthScreenHeader
                 title={t("authorize.silentUnsupportedTitle")}
                 description={t("authorize.silentUnsupportedDesc")}
             />
-        </AuthFormLayout>
+        </OxyAuthScreen>
     )
 }
 
@@ -273,12 +267,12 @@ function HubAuthorizeRequest() {
 
     if (request === null || stage.kind === "unservable") {
         return (
-            <AuthFormLayout>
-                <AuthFormHeader
+            <OxyAuthScreen>
+                <OxyAuthScreenHeader
                     title={t("authorize.requestTitle")}
                     description={t("authorize.invalidRequest")}
                 />
-            </AuthFormLayout>
+            </OxyAuthScreen>
         )
     }
 
@@ -300,8 +294,8 @@ function HubAuthorizeRequest() {
             (avatar) => (avatar ? getAvatarUrl(avatar) : undefined)
         )
         return (
-            <AuthFormLayout>
-                <AccountChooser
+            <OxyAuthScreen>
+                <OxyAccountPicker
                     principals={rows}
                     appName={application?.name ?? null}
                     onSelectContext={(context) => {
@@ -310,7 +304,7 @@ function HubAuthorizeRequest() {
                     onUseAnother={() => setStage({ kind: "establish" })}
                     isLoading={busy}
                 />
-            </AuthFormLayout>
+            </OxyAuthScreen>
         )
     }
 
@@ -336,16 +330,16 @@ function HubAuthorizeRequest() {
 
     if (stage.kind === "error") {
         return (
-            <AuthFormLayout>
-                <AuthFormHeader
+            <OxyAuthScreen>
+                <OxyAuthScreenHeader
                     title={t("authorize.requestTitle")}
                     description={stage.message}
                 />
-            </AuthFormLayout>
+            </OxyAuthScreen>
         )
     }
 
-    return <LoadingSpinner />
+    return <OxyAuthLoading />
 }
 
 /**
@@ -392,8 +386,8 @@ function HubEstablishLane({
     }, [snapshot.phase, onEstablished])
 
     return (
-        <AuthFormLayout>
-            <AuthFormHeader
+        <OxyAuthScreen>
+            <OxyAuthScreenHeader
                 title={
                     appName
                         ? t("authorize.title", { app: appName })
@@ -412,6 +406,6 @@ function HubEstablishLane({
                 subordinate={[]}
                 alternatives={[]}
             />
-        </AuthFormLayout>
+        </OxyAuthScreen>
     )
 }

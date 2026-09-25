@@ -51,7 +51,6 @@ import {
   type SwitcherPrincipalRow,
 } from '@oxy.so/core';
 import AvatarCameraBadge from '../AvatarCameraBadge';
-import { HoverPressable } from './primitives';
 import { authChooserStyles as styles } from './styles';
 import {
   resolveAccentHex,
@@ -62,6 +61,34 @@ import {
   type Theme,
   type Translate,
 } from './types';
+
+type HoverPressableProps = Omit<React.ComponentProps<typeof Pressable>, 'className'> & {
+  baseClassName: string;
+  hoverClassName: string;
+};
+
+/**
+ * A `Pressable` that appends a hover-tint NativeWind token while pointer-hovered.
+ * The Metro web pipeline here does NOT emit NativeWind `hover:` variants, so hover
+ * is driven by RN's cross-platform `onHoverIn`/`onHoverOut` (they fire only on web
+ * via react-native-web; a no-op on native) toggling a plain background token —
+ * the tint stays a NativeWind class, only the trigger is JS.
+ */
+const HoverPressable: React.FC<HoverPressableProps> = ({
+  baseClassName,
+  hoverClassName,
+  ...rest
+}) => {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Pressable
+      {...rest}
+      className={hovered ? `${baseClassName} ${hoverClassName}` : baseClassName}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+    />
+  );
+};
 
 /**
  * Leading glyph for the rows that live in a Bloom grouped section (the MENU

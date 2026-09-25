@@ -236,7 +236,7 @@ export const Text = ({
 }: { children?: ReactNode; testID?: string } & Record<string, unknown>) =>
   createElement('span', { 'data-testid': testID }, children);
 
-export const Divider = () => createElement('hr', null);
+export const Divider = ({ children }: { children?: ReactNode }) => createElement('div', { role: 'separator' }, children);
 
 /**
  * `@oxy.so/bloom/theme` per-account color-scope stubs used by `OxyAccountDialog`.
@@ -521,7 +521,37 @@ export const Switch = ({
   });
 
 export const TextField = passthrough('div');
-export const TextFieldInput = passthrough('input');
+/** A real `<input>`: typing reaches `onValueChange`, Enter reaches `onSubmitEditing`. */
+export const TextFieldInput = ({
+  value,
+  onValueChange,
+  onSubmitEditing,
+  placeholder,
+  testID,
+  label,
+}: {
+  value?: string;
+  onValueChange?: (next: string) => void;
+  onSubmitEditing?: () => void;
+  placeholder?: string | null;
+  testID?: string;
+  label?: string;
+} & Record<string, unknown>) =>
+  createElement('input', {
+    value: value ?? '',
+    placeholder: placeholder ?? undefined,
+    'aria-label': label,
+    'data-testid': testID,
+    onChange: (event: { target: { value: string } }) => onValueChange?.(event.target.value),
+    onKeyDown: (event: { key: string }) => {
+      if (event.key === 'Enter') onSubmitEditing?.();
+    },
+  });
+export const TextFieldLabel = passthrough('label');
+export const TextFieldHint = ({ children }: { children?: ReactNode }) => createElement('p', { role: 'alert' }, children);
+
+/** `@oxy.so/bloom/auth-card`'s carousel: a marker, so a test can see the split card's artwork. */
+export const AuthMediaCarousel = () => createElement('div', { 'data-testid': 'auth-media-carousel' });
 
 export const H1 = Text;
 export const H4 = Text;
@@ -562,5 +592,13 @@ export default toast;
 
 export const Circle = () => createElement('span', { 'data-testid': 'skeleton-circle' });
 
+export function RiKey2Line() { return createElement("svg", { "data-icon": "key" }); }
+export function RiShieldLine() { return createElement("svg", { "data-icon": "shield" }); }
+export function RiQrCodeLine() { return createElement("svg", { "data-icon": "qr" }); }
+export function RiArrowLeftLine() { return createElement("svg", { "data-icon": "arrow-left" }); }
+export function RiUserAddLine() { return createElement("svg", { "data-icon": "user-add" }); }
+export function RiArrowRightSLine() { return createElement("svg", { "data-icon": "arrow-right" }); }
+export function RiCheckboxCircleLine() { return createElement("svg", { "data-icon": "checkbox-circle" }); }
+export function RiRefreshLine() { return createElement("svg", { "data-icon": "refresh" }); }
 export function RiLoginBoxLine() { return createElement("svg", { "data-testid": "login-icon" }); }
 export function RiMoreLine() { return createElement("svg", { "data-testid": "more-icon" }); }

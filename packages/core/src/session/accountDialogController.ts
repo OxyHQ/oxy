@@ -254,6 +254,14 @@ export interface SignInFlowState {
    * attempt failing with the same message is).
    */
   attempt: number;
+  /**
+   * `true` when this attempt is the sign-in entry's EMBEDDED QR
+   * ({@link AccountDialogController.startInlineQr}): a request the surface
+   * started on its own, not one the person asked for. Its failures (an expired
+   * code, above all) belong to that QR, which renews itself, and are not news
+   * to report.
+   */
+  inline: boolean;
 }
 
 /**
@@ -261,10 +269,10 @@ export interface SignInFlowState {
  * values the controller derives. Every mutation of the flow goes through this
  * shape, which is what makes `progress` (and `attempt`) impossible to set by hand.
  */
-type SignInFlowFacts = Omit<SignInFlowState, 'progress' | 'attempt'>;
+type SignInFlowFacts = Omit<SignInFlowState, 'progress' | 'attempt' | 'inline'>;
 
 /** How the current sign-in attempt was started — what "Try again" repeats. */
-type SignInMethod = 'oxy' | 'qr' | 'passkey-hub';
+type SignInMethod = 'oxy' | 'qr' | 'passkey-hub' | 'inline-qr';
 
 /**
  * Derive the surface-facing progress from the flow's real facts. Pure, total,
@@ -439,12 +447,6 @@ export interface AccountDialogControllerOptions {
    */
   identityOrigin?: string;
   /**
-   * @deprecated Alias of {@link identityOrigin}, kept for existing
-   * configuration. The popup used to open `auth.oxy.so/hub-passkey`; it now opens
-   * the identity origin's `/continue`, so a value here must be that origin.
-   */
-  hubBaseUrl?: string;
-  /**
    * Which surface the sign-in is initiated from — a FACT supplied by the
    * consumer, because only the consumer can classify its own environment
    * (native → `'mobile'`; web → `'mobile'` for a mobile browser, `'desktop'`
@@ -497,8 +499,8 @@ const IDLE_SIGN_IN_FACTS: SignInFlowFacts = {
 const COMPLETED_SIGN_IN_FACTS: SignInFlowFacts = { ...IDLE_SIGN_IN_FACTS, phase: 'completed' };
 
 /** The full flow state for `facts`, stamped with the attempt it belongs to. */
-function buildSignIn(facts: SignInFlowFacts, attempt: number): SignInFlowState {
-  return { ...facts, progress: deriveSignInProgress(facts), attempt };
+function buildSignIn(facts: SignInFlowFacts, attempt: number, inline: boolean): SignInFlowState {
+  return { ...facts, progress: deriveSignInProgress(facts), attempt, inline };
 }
 
 function errorMessage(error: unknown): string {
@@ -548,7 +550,7 @@ export class AccountDialogController {
    * alongside the three flags above.
    */
   private exclusiveMutationInFlight = false;
-  private signIn: SignInFlowState = buildSignIn(IDLE_SIGN_IN_FACTS, 0);
+  private signIn: SignInFlowState = buildSignIn(IDLE_SIGN_IN_FACTS, 0, false);
   private commonsAvailability: CommonsAvailability = 'unknown';
 
   // --- Sign-in device-flow bookkeeping ---
@@ -603,7 +605,7 @@ export class AccountDialogController {
     this.canOpenApp = options.canOpenApp;
     this.socketFactory = options.socketFactory;
     this.openPopup = options.openPopup;
-    this.identityOrigin = options.identityOrigin ?? options.hubBaseUrl ?? IDENTITY_WEB_ORIGIN;
+    this.identityOrigin = options.identityOrigin ?? IDENTITY_WEB_ORIGIN;
     this.platform = options.platform ?? 'unknown';
     this.snapshot = this.computeSnapshot();
   }
@@ -759,7 +761,7 @@ export class AccountDialogController {
     // another view is a NEW intention, so drop it; otherwise a later `add()`
     // would open on the previous sign-in's terminal state.
     if (this.signIn.phase === 'completed') {
-      this.signIn = buildSignIn(IDLE_SIGN_IN_FACTS, this.signInAttempt);
+      this.signIn = this.stampSignIn(IDLE_SIGN_IN_FACTS);
     }
     this.emit();
   }
@@ -1105,6 +1107,20 @@ export class AccountDialogController {
   }
 
   /**
+   * The sign-in entry's EMBEDDED QR: a request whose only route is the QR,
+   * started without leaving the current view.
+   *
+   * Unlike {@link showQr} it runs no delivery selection. The surface starts it
+   * by itself, on mount, so it must not push to the person's phone or open
+   * Commons — nobody asked for either. Any other sign-in the person then
+   * chooses supersedes it (and withdraws its request) like any new attempt.
+   */
+  async startInlineQr(): Promise<void> {
+    const attempt = this.beginSignInAttempt('inline-qr');
+    await this.startDeviceFlowSession(attempt, { deliver: false });
+  }
+
+  /**
    * Start a NEW attempt the same way the last one was started — "Try again"
    * repeats the user's choice rather than silently switching method. A failed
    * passkey-hub attempt reopens the hub popup; a failed "Sign in with Oxy"
@@ -1120,6 +1136,8 @@ export class AccountDialogController {
         return this.startPasskeyHubSignIn();
       case 'qr':
         return this.showQr();
+      case 'inline-qr':
+        return this.startInlineQr();
       default:
         return this.signInWithOxy();
     }
@@ -1681,7 +1699,7 @@ export class AccountDialogController {
       this.closeActivePopup();
       // Terminal SUCCESS, not idle: the surface gets one honest frame to show
       // "Identity confirmed" before it closes. Cleared on the next view change.
-      this.signIn = buildSignIn(COMPLETED_SIGN_IN_FACTS, this.signInAttempt);
+      this.signIn = this.stampSignIn(COMPLETED_SIGN_IN_FACTS);
       this.view = 'accounts';
       this.emit();
     }
@@ -1802,8 +1820,13 @@ export class AccountDialogController {
    * to advance without a fact behind it.
    */
   private setSignIn(facts: SignInFlowFacts): void {
-    this.signIn = buildSignIn(facts, this.signInAttempt);
+    this.signIn = this.stampSignIn(facts);
     this.emit();
+  }
+
+  /** `facts` as the current attempt's state. */
+  private stampSignIn(facts: SignInFlowFacts): SignInFlowState {
+    return buildSignIn(facts, this.signInAttempt, this.signInMethod === 'inline-qr');
   }
 
   /** Update a subset of the device-flow facts, re-deriving `progress`. */

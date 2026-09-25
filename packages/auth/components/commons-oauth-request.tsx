@@ -17,7 +17,7 @@
  * What stays here is genuinely IdP page chrome, i.e. the parts a full-page
  * OAuth authorize screen owes the visitor and an in-app dialog does not:
  *
- *  - the auth card (`AuthFormLayout` + `AuthFormHeader`), titled with the
+ *  - the auth card (`OxyAuthScreen` + `OxyAuthScreenHeader`), titled with the
  *    SERVER-RESOLVED application name the page looked up via
  *    `GET /auth/oauth/client/:clientId`;
  *  - the failure BANNER. The surface reports only THAT the request failed and
@@ -35,9 +35,8 @@
  */
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { OxySignInRequestSurface } from "@oxy.so/services"
+import { OxyAuthScreen, OxyAuthScreenHeader, OxySignInRequestSurface } from "@oxy.so/services"
 import type { OxySignInSurfaceAction } from "@oxy.so/services"
-import { AuthFormLayout, AuthFormHeader } from "@/components/auth-form-layout"
 import { useTranslation } from "@/lib/i18n/use-translation"
 import { CommonsOAuthRequest } from "@/lib/commons-oauth-request"
 import type {
@@ -150,8 +149,8 @@ export function CommonsOAuthLane({
     })
 
     return (
-        <AuthFormLayout>
-            <AuthFormHeader
+        <OxyAuthScreen>
+            <OxyAuthScreenHeader
                 title={
                     appName
                         ? t("authorize.title", { app: appName })
@@ -194,6 +193,6 @@ export function CommonsOAuthLane({
                 ]}
                 alternatives={alternatives}
             />
-        </AuthFormLayout>
+        </OxyAuthScreen>
     )
 }
