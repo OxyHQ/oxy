@@ -30,6 +30,7 @@ import { externalIdentityInstagramPins, externalIdentityMetaProofs } from './ext
  */
 
 import { identityMoves } from './identityMoves';
+import { inferenceCatalogueBlocklist } from './inferenceCatalogueSync';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { DeferredForeignKey } from '@oxy.so/db/assert';
 import { appAffinitySeenEvents } from './appAffinitySeenEvents';
@@ -105,6 +106,8 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  { table: inferenceCatalogueBlocklist, column: inferenceCatalogueBlocklist.modelId,
+    reason: 'A model LINE, `<publisher>/<model>`, not a row id — same kind of value as `inference_route_switch_events.requested_model_id`. A block must be able to name a line before the sync has ever written it, and survive the line being retired; `inference_models.model_id` is GENERATED and carries no unique constraint to target. Grammar is enforced by `MODEL_ID_CHECK_PATTERN`.' },
   { table: identityMoves, column: identityMoves.moveId,
     reason: 'Random 128-bit capability minted by the move relay itself and carried in the QR; the public handle of this row, not a reference to any other row.' },
   { table: externalIdentityMetaProofs, column: externalIdentityMetaProofs.instagramGraphId,

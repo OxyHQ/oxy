@@ -81,6 +81,18 @@ export type ModelDeprecationStatus = (typeof MODEL_DEPRECATION_STATUSES)[number]
  */
 export const RESERVED_FIRST_PARTY_PUBLISHER = 'alia';
 
+/** `reasoningEffortSchema` in `@oxy.so/contracts`, as stored. */
+export const MODEL_REASONING_EFFORTS = ['low', 'medium', 'high'] as const;
+
+/**
+ * Who writes a model row. `reviewed` rows were authored by the reviewed
+ * bootstrap or staff tooling and the Kaana sync never rewrites their reviewed
+ * facts; `kaana_sync` rows are created and kept current by the sync.
+ */
+export const MODEL_CATALOGUE_SOURCES = ['reviewed', 'kaana_sync'] as const;
+
+export type ModelCatalogueSource = (typeof MODEL_CATALOGUE_SOURCES)[number];
+
 /** The two release kinds the reserved namespace may carry. */
 const FIRST_PARTY_RELEASE_KINDS = ['first_party_original', 'first_party_derived'] as const;
 
@@ -144,6 +156,15 @@ export const inferenceModels = pgTable(
     supportsPromptCaching: boolean().notNull(),
     maxContextTokens: integer().notNull(),
     maxOutputTokens: integer().notNull(),
+    /**
+     * The efforts a request may name (`capabilities.reasoningEfforts`). Empty
+     * means the model takes no effort control. Kept current by the Kaana sync,
+     * including on reviewed rows: it is a serving capability, not a legal fact.
+     */
+    reasoningEfforts: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
 
     /* ---- licence (`modelLicenseSchema`) ---------------------------------- */
 
@@ -196,6 +217,12 @@ export const inferenceModels = pgTable(
      */
     knowledgeCutoff: date(),
     releasedOn: date(),
+    /**
+     * When the upstream provider reports it published the model. Never an
+     * observation time; null when no provider reported one.
+     */
+    providerReleasedAt: timestamptz(),
+    catalogueSource: text({ enum: MODEL_CATALOGUE_SOURCES }).notNull().default('reviewed'),
 
     /* ---- deprecation (`modelDeprecationSchema`) -------------------------- */
 
@@ -235,6 +262,14 @@ export const inferenceModels = pgTable(
     check(
       'inference_models_output_modalities_check',
       sql`cardinality(${t.outputModalities}) >= 1 and ${t.outputModalities} <@ ${sql.raw(textArrayLiteral(INFERENCE_MODALITIES))}`
+    ),
+    check(
+      'inference_models_reasoning_efforts_check',
+      sql`${t.reasoningEfforts} <@ ${sql.raw(textArrayLiteral(MODEL_REASONING_EFFORTS))}`
+    ),
+    check(
+      'inference_models_catalogue_source_check',
+      sql`${t.catalogueSource} in (${sql.raw(inList(MODEL_CATALOGUE_SOURCES))})`
     ),
     check(
       'inference_models_token_limits_check',

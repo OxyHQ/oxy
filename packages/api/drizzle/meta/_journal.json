@@ -722,6 +722,13 @@
       "when": 1790299282317,
       "tag": "0103_workload_attribution_identities",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1790327549049,
+      "tag": "0104_kaana_catalogue_sync",
+      "breakpoints": true
     }
   ]
 }

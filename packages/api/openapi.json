@@ -19702,6 +19702,350 @@
         "operationId": "postIdentityWebEnvelopeRecoveryVerified"
       }
     },
+    "/inference/admin/catalogue/blocklist": {
+      "get": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`GET /inference/admin/catalogue/blocklist`",
+        "description": "Answers `{ data: CatalogueBlock[] }`, empty by default.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inferenceAdmin.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getInferenceAdminCatalogueBlocklist"
+      },
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`POST /inference/admin/catalogue/blocklist`",
+        "description": "The emergency brake: the model line stops being synced and its synced routes\nare retired in the same commit. Reviewed routes of the line are retired\nthrough the permission surface, not here.\n\nAnswers `{ data: { created, retired } }`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inferenceAdmin.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "modelId": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
+                    "maxLength": 129
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "modelId",
+                  "reason"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postInferenceAdminCatalogueBlocklist"
+      }
+    },
+    "/inference/admin/catalogue/blocklist/{publisher}/{model}": {
+      "delete": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`DELETE /inference/admin/catalogue/blocklist/:publisher/:model`",
+        "description": "Lifts a block. The line returns at the next sync.",
+        "parameters": [
+          {
+            "name": "publisher",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "model",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inferenceAdmin.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The model line is not blocked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "deleteInferenceAdminCatalogueBlocklistPublisherModel"
+      }
+    },
+    "/inference/admin/catalogue/sync": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`POST /inference/admin/catalogue/sync`",
+        "description": "Run the Kaana → Oxy catalogue sync now instead of waiting for the schedule.\nThe same fleet-wide lock applies: a run already in progress answers\n`status: skipped, reason: locked`.\n\nAnswers `{ data: KaanaCatalogueSyncSummary }`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inferenceAdmin.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "allowMassRetirement": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postInferenceAdminCatalogueSync"
+      }
+    },
     "/inference/admin/deployments": {
       "get": {
         "tags": [
@@ -21437,6 +21781,18 @@
                           },
                           "reasoning": {
                             "type": "boolean"
+                          },
+                          "reasoningEfforts": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "low",
+                                "medium",
+                                "high"
+                              ]
+                            },
+                            "default": []
                           },
                           "streaming": {
                             "type": "boolean"
@@ -28050,6 +28406,18 @@
                               "reasoning": {
                                 "type": "boolean"
                               },
+                              "reasoningEfforts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "low",
+                                    "medium",
+                                    "high"
+                                  ]
+                                },
+                                "default": []
+                              },
                               "streaming": {
                                 "type": "boolean"
                               },
@@ -28152,6 +28520,10 @@
                           "releasedOn": {
                             "type": "string",
                             "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                          },
+                          "releasedAt": {
+                            "type": "string",
+                            "format": "date-time"
                           },
                           "regions": {
                             "type": "array",
@@ -28783,6 +29155,18 @@
                               "reasoning": {
                                 "type": "boolean"
                               },
+                              "reasoningEfforts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "low",
+                                    "medium",
+                                    "high"
+                                  ]
+                                },
+                                "default": []
+                              },
                               "streaming": {
                                 "type": "boolean"
                               },
@@ -28885,6 +29269,10 @@
                           "releasedOn": {
                             "type": "string",
                             "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                          },
+                          "releasedAt": {
+                            "type": "string",
+                            "format": "date-time"
                           },
                           "regions": {
                             "type": "array",
@@ -29402,6 +29790,18 @@
                             "reasoning": {
                               "type": "boolean"
                             },
+                            "reasoningEfforts": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "low",
+                                  "medium",
+                                  "high"
+                                ]
+                              },
+                              "default": []
+                            },
                             "streaming": {
                               "type": "boolean"
                             },
@@ -29504,6 +29904,10 @@
                         "releasedOn": {
                           "type": "string",
                           "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                        },
+                        "releasedAt": {
+                          "type": "string",
+                          "format": "date-time"
                         },
                         "regions": {
                           "type": "array",
@@ -37269,6 +37673,14 @@
                       }
                     ]
                   },
+                  "reasoning_effort": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
                   "user": {
                     "type": "string",
                     "minLength": 1,
@@ -37841,6 +38253,18 @@
                               "reasoning": {
                                 "type": "boolean"
                               },
+                              "reasoningEfforts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "low",
+                                    "medium",
+                                    "high"
+                                  ]
+                                },
+                                "default": []
+                              },
                               "streaming": {
                                 "type": "boolean"
                               },
@@ -37943,6 +38367,10 @@
                           "releasedOn": {
                             "type": "string",
                             "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                          },
+                          "releasedAt": {
+                            "type": "string",
+                            "format": "date-time"
                           },
                           "regions": {
                             "type": "array",
@@ -38574,6 +39002,18 @@
                               "reasoning": {
                                 "type": "boolean"
                               },
+                              "reasoningEfforts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "low",
+                                    "medium",
+                                    "high"
+                                  ]
+                                },
+                                "default": []
+                              },
                               "streaming": {
                                 "type": "boolean"
                               },
@@ -38676,6 +39116,10 @@
                           "releasedOn": {
                             "type": "string",
                             "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                          },
+                          "releasedAt": {
+                            "type": "string",
+                            "format": "date-time"
                           },
                           "regions": {
                             "type": "array",
@@ -39193,6 +39637,18 @@
                             "reasoning": {
                               "type": "boolean"
                             },
+                            "reasoningEfforts": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "low",
+                                  "medium",
+                                  "high"
+                                ]
+                              },
+                              "default": []
+                            },
                             "streaming": {
                               "type": "boolean"
                             },
@@ -39295,6 +39751,10 @@
                         "releasedOn": {
                           "type": "string",
                           "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                        },
+                        "releasedAt": {
+                          "type": "string",
+                          "format": "date-time"
                         },
                         "regions": {
                           "type": "array",
@@ -41047,6 +41507,22 @@
                     "discriminator": {
                       "propertyName": "type"
                     }
+                  },
+                  "reasoning": {
+                    "type": "object",
+                    "properties": {
+                      "effort": {
+                        "type": "string",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "effort"
+                    ]
                   },
                   "labels": {
                     "type": "object",

@@ -26,7 +26,7 @@
 
 import { z } from "zod";
 import { inferenceAttributionSchema } from "./attribution";
-import { inferenceModalitySchema } from "./catalogue";
+import { inferenceModalitySchema, reasoningEffortSchema } from "./catalogue";
 import { idempotencyKeySchema, inferenceTimestampSchema } from "./identifiers";
 import {
   authorizedRouteSchema,
@@ -281,6 +281,17 @@ export const responseFormatSchema = z.discriminatedUnion("type", [
     .strict(),
 ]);
 
+/**
+ * The caller's reasoning control. Strict, like every leaf: a provider-specific
+ * knob (`budget_tokens`, `summary`) is refused rather than silently dropped.
+ *
+ * Oxy forwards it only after checking the resolved model advertises the effort
+ * in its catalogue `reasoningEfforts`; Kaana translates it per provider.
+ */
+export const inferenceReasoningSchema = z
+  .object({ effort: reasoningEffortSchema })
+  .strict();
+
 /* -------------------------------------------------------------------------- */
 /*  Client metadata                                                           */
 /* -------------------------------------------------------------------------- */
@@ -364,6 +375,8 @@ export const inferenceRequestSchema = z
     stream: z.boolean(),
     maxOutputTokens: z.number().int().positive().safe().optional(),
     sampling: samplingParametersSchema,
+    /** Absent means the route's own default reasoning behaviour. */
+    reasoning: inferenceReasoningSchema.optional(),
     speech: inferenceSpeechParametersSchema.optional(),
     tools: z.array(toolDefinitionSchema).default([]),
     toolChoice: toolChoiceSchema.optional(),
@@ -541,6 +554,7 @@ export type InferenceMessageRole = z.infer<typeof inferenceMessageRoleSchema>;
 export type InferenceMessage = z.infer<typeof inferenceMessageSchema>;
 export type InferenceInput = z.infer<typeof inferenceInputSchema>;
 export type SamplingParameters = z.infer<typeof samplingParametersSchema>;
+export type InferenceReasoning = z.infer<typeof inferenceReasoningSchema>;
 export type ToolDefinition = z.infer<typeof toolDefinitionSchema>;
 export type ToolChoice = z.infer<typeof toolChoiceSchema>;
 export type ResponseFormat = z.infer<typeof responseFormatSchema>;

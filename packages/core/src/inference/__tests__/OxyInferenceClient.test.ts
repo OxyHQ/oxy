@@ -296,6 +296,23 @@ describe('OxyInferenceClient', () => {
             expect(answer.requestId).toBe('req-1');
         });
 
+        it('sends a reasoning effort as the edge expects it', async () => {
+            const { impl, calls } = stubFetch([{ status: 200, body: {} }]);
+            const client = new OxyInferenceClient({
+                credential: 'k',
+                baseURL: 'http://test.invalid',
+                fetch: impl,
+            });
+
+            await client.respond({ model: 'acme/thinker', input: 'hello', reasoning: { effort: 'high' } });
+
+            expect(JSON.parse(String(calls[0].init.body))).toEqual({
+                model: 'acme/thinker',
+                input: 'hello',
+                reasoning: { effort: 'high' },
+            });
+        });
+
         it('serializes an exact routing-profile ID byte-for-byte', async () => {
             const { impl, calls } = stubFetch([{ status: 200, body: {} }]);
             const client = new OxyInferenceClient({
