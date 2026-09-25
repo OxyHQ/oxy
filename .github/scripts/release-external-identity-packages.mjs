@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 
 export const RELEASES = Object.freeze([
   { directory: 'contracts', name: '@oxy.so/contracts', version: '1.3.0' },
-  { directory: 'federation', name: '@oxy.so/federation', version: '1.0.1' },
+  { directory: 'federation', name: '@oxy.so/federation', version: '2.0.0' },
 ]);
 const registry = 'https://registry.npmjs.org';
 function validateAbsolutePath(value, label) {
