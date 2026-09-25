@@ -54,6 +54,8 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - Never `new Model(req.body)` or spread `req.body` into an update; whitelist fields.
 - Loopback origins stay trusted in ALL environments via `isLoopbackOrigin`; never gate on `NODE_ENV`.
 - NEVER persist a user IP, raw, hashed or geo-derived; rate-limit keys go through `hashedIpKey` — platform-features.md#no-ip-invariant
+- Never `pm clear` (or Clear storage) an Oxy Android app on a device holding a real identity: it wipes the whole `so.oxy.shared` Keystore; uninstall instead — platform-features.md#on-device-testing-safety
+- No Oxy Android store deletes a UID-shared Keystore key; `OxyEncryptedPrefs` rebuilds only its own file — docs/identity/device-backup.md
 
 ## Terminology
 

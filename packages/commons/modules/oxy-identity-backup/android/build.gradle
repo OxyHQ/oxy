@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'so.oxy.commons.identitybackup'
+version = '0.1.0'
+
+android {
+  namespace "so.oxy.commons.identitybackup"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+}
+
+dependencies {
+  // Android Block Store (Google Play services): the identity's device backup,
+  // held outside the so.oxy.shared UID's Keystore. See
+  // docs/identity/device-backup.md in the oxy repo.
+  implementation "com.google.android.gms:play-services-auth-blockstore:16.4.0"
+}

@@ -31,15 +31,16 @@ internal object OxyIdentityStore {
   const val KEY_PUBLIC = "pub"
 
   /**
-   * [RecoveryPolicy.RegenerateSharedMasterKey] preserves this store's original
-   * behaviour: when its keyset cannot be rebuilt, the master key is regenerated.
-   * That is defensible HERE and nowhere else so far, because this slot going dead
-   * already breaks cross-app "Sign in with Oxy" for every Oxy app on the device —
-   * the collateral is not worse than the failure it recovers from — and because
-   * this slot is itself re-populated from the primary identity on the next boot.
+   * [RecoveryPolicy.RebuildFileOnly], like every other store (OxyHQ/oxy#1388).
+   * This store used to regenerate the UID-shared androidx master key when its
+   * keyset could not be rebuilt, which made every other Oxy app's encrypted prefs
+   * unreadable. It never needs to: this slot is a DERIVED copy that Commons
+   * re-populates from the primary identity on every launch
+   * (`KeyManager.syncSharedIdentity`), so an empty or unavailable slot costs
+   * nothing that a relaunch of Commons does not restore.
    */
   private fun prefs(context: Context): SharedPreferences =
-    OxyEncryptedPrefs.open(context, PREFS_NAME, RecoveryPolicy.RegenerateSharedMasterKey)
+    OxyEncryptedPrefs.open(context, PREFS_NAME, RecoveryPolicy.RebuildFileOnly)
 
   /** Read the stored keypair as (privateKey, publicKey), or null when absent/blank. */
   fun read(context: Context): Pair<String, String>? {

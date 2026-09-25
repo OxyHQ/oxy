@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Fixed
+
+- Android: `OxyIdentityStore` no longer deletes the androidx master key
+  (`_androidx_security_master_key_`) when its keyset cannot be rebuilt. That key
+  is one Keystore entry for the whole `so.oxy.shared` UID, so deleting it made
+  every other Oxy app's encrypted prefs unreadable. Every store now opens with
+  `RecoveryPolicy.RebuildFileOnly`; `RegenerateSharedMasterKey` is removed
+  (OxyHQ/oxy#1388).
+
 ### Removed
 
 - **Breaking:** `useOxy().registerWithPasskey`. An Oxy account is created WITH
