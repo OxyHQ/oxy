@@ -378,6 +378,7 @@
         "jest": "^30.5.1",
         "jest-environment-jsdom": "catalog:",
         "lightningcss": "1.33.0",
+        "postcss": "^8.5.28",
         "sharp": "catalog:",
         "tailwindcss": "4.3.3",
         "ts-jest": "^29.4.12",

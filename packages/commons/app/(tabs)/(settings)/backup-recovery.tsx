@@ -1,10 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { KeyManager } from '@oxy.so/core';
-import { Screen, StackHeader, Callout, Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  Screen,
+  StackHeader,
+} from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 
@@ -80,18 +85,18 @@ export default function BackupRecoveryScreen() {
 
       {status === 'present' && (
         <View style={styles.gutter}>
-          <Callout tone="info" icon="shield-check">
+          <Admonition type="info">
             {t('backupRecovery.statusPresent')}
-          </Callout>
+          </Admonition>
         </View>
       )}
 
       {noPhrase && (
         <View style={[styles.gutter, styles.stack]}>
-          <Callout tone="warning" icon="key-alert">
+          <Admonition type="warning">
             {t('backupRecovery.statusAbsent')}
-          </Callout>
-          <Button variant="primary" onPress={handleRotateKey}>
+          </Admonition>
+          <Button appearance="solid" tone="accent" onPress={handleRotateKey}>
             {t('backupRecovery.rotateCta')}
           </Button>
         </View>
@@ -99,7 +104,7 @@ export default function BackupRecoveryScreen() {
 
       <SettingsListGroup title={t('backupRecovery.methodsTitle')}>
         <SettingsListItem
-          icon={<MaterialCommunityIcons name="text-box-outline" size={22} color={colors.text} />}
+          icon={<Icons.document size='md' fill={colors.text} />}
           title={t('backupRecovery.phraseTitle')}
           description={
             noPhrase
@@ -111,7 +116,7 @@ export default function BackupRecoveryScreen() {
           disabled={noPhrase}
         />
         <SettingsListItem
-          icon={<MaterialCommunityIcons name="file-lock-outline" size={22} color={colors.text} />}
+          icon={<Icons.sealedDocument size='md' fill={colors.text} />}
           title={t('backupRecovery.encryptedTitle')}
           description={
             noPhrase

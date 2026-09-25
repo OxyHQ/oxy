@@ -1,9 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Icons } from '@/constants/icons';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { parseAttestPayload } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
 import { useColors } from '@/hooks/useColors';
-import { Screen, StackHeader, CenteredState, PrimaryButton, SessionGate } from '@/components/ui';
+import {
+  Screen,
+  StackHeader,
+  SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
+} from '@/components/ui';
 import { useAttestFlow } from '@/hooks/civic/useAttestFlow';
 import type { AttestSubmitParams } from '@/hooks/civic/attestStore';
 import { AttestReviewSheet, type AttestReviewStatus } from '@/components/civic/AttestReviewSheet';
@@ -104,12 +112,12 @@ export default function AttestDeepLinkScreen() {
       ? t('signInApproval.scan.expiredBody')
       : t(`civic.attest.error.${!parsed || !subjectUserId ? 'generic' : 'subject_not_found'}`);
     return (
-      <CenteredState
-        icon="alert-circle-outline"
-        iconColor={colors.error}
+      <EmptyState
+        illustration={<Icons.alert size="3xl" fill={colors.error} />}
         title={t('civic.attest.confirm.error.title')}
-        body={body}
-        action={<PrimaryButton label={t('common.close')} onPress={handleClose} fullWidth={false} />}
+        description={body}
+        action={{ label: t('common.close'), onPress: handleClose }}
+        minHeight={STATE_MIN_HEIGHT}
       />
     );
   };
@@ -125,18 +133,18 @@ export default function AttestDeepLinkScreen() {
 
     if (flow.subjectFailed) {
       return (
-        <CenteredState
-          icon="alert-circle-outline"
-          iconColor={colors.error}
+        <EmptyState
+          illustration={<Icons.alert size="3xl" fill={colors.error} />}
           title={t('civic.attest.confirm.error.title')}
-          body={t('civic.attest.error.subject_not_found')}
-          action={<PrimaryButton label={t('common.close')} onPress={handleClose} fullWidth={false} />}
+          description={t('civic.attest.error.subject_not_found')}
+          action={{ label: t('common.close'), onPress: handleClose }}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     if (status === 'idle' || (status === 'reviewing' && !flow.subject)) {
-      return <CenteredState loading body={t('civic.attest.confirm.loading')} />;
+      return <LoadingState description={t('civic.attest.confirm.loading')} />;
     }
 
     return (

@@ -4,20 +4,12 @@ import { ThemeProvider } from 'expo-router/react-navigation';
 import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import { Linking, Platform } from 'react-native';
-import { useEffect, useRef, useState } from 'react';
-import 'react-native-reanimated';
+import { useEffect, useMemo, useRef, useState } from 'react';
+// One import, not two: the bare side-effect form and this named one load the
+// same module, and Reanimated's side effect runs either way.
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
-
-// Reanimated 4 ships with a strict logger that surfaces `.value` reads during
-// render as runtime warnings. Several deeply nested third-party components in
-// this app trip it; lowering the level to `warn` (without strict mode) keeps
-// real errors visible while silencing the false-positive cascade.
-configureReanimatedLogger({
-  level: ReanimatedLogLevel.warn,
-  strict: false,
-});
 
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useQueryClient } from '@tanstack/react-query';
@@ -26,9 +18,10 @@ import { productAnalytics } from '@/lib/product-analytics';
 import { KeyManager, logger } from '@oxy.so/core';
 import { useNavigationTheme } from '@oxy.so/bloom/theme';
 import { BloomProvider } from '@oxy.so/bloom/provider';
+import { PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
+import { ImageResolverProvider, type ImageResolver } from '@oxy.so/bloom/image-resolver';
+import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
 
-import { ScrollProvider } from '@/contexts/scroll-context';
-import { ThemeModeProvider, useThemeMode } from '@/contexts/theme-mode-context';
 import {
   useOnboardingStatus,
   ONBOARDING_IDENTITY_QUERY_KEY,
@@ -47,6 +40,20 @@ import {
   preventNativeSplashAutoHide,
   useHideNativeSplashWhenReady,
 } from '@oxy.so/expo-splash';
+
+// Reanimated 4 ships with a strict logger that surfaces `.value` reads during
+// render as runtime warnings. Several deeply nested third-party components in
+// this app trip it; lowering the level to `warn` (without strict mode) keeps
+// real errors visible while silencing the false-positive cascade.
+//
+// It sits BELOW every import rather than in the middle of them. ES module
+// imports are hoisted, so the call already ran after all of them whatever its
+// textual position — the old placement only made `import/first` fire on every
+// import written under it, which is noise standing in front of a real warning.
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  strict: false,
+});
 
 // NATIVE ONLY: hold the OS splash so the Oxy mark (white silhouette centered on
 // the dark brand background, Oxy symbol pinned to the bottom — configured by
@@ -163,14 +170,6 @@ async function resolveColdLaunchTarget(): Promise<ScanReplayHref | null> {
   return code ? { pathname: '/approve', params: { code } } : null;
 }
 
-export default function RootLayout() {
-  return (
-    <ThemeModeProvider>
-      <RootLayoutInner />
-    </ThemeModeProvider>
-  );
-}
-
 /**
  * Top-level error boundary. expo-router renders this whenever a render
  * error escapes any nested route, so an unexpected crash falls back to a
@@ -182,9 +181,7 @@ export function ErrorBoundary(props: { error: Error; retry: () => void }) {
   return <MinimalErrorFallback {...props} />;
 }
 
-function RootLayoutInner() {
-  const { themeMode } = useThemeMode();
-
+export default function RootLayout() {
   // NOTE: the cross-app shared-identity boot backfill used to live here, keyed
   // off a raw `KeyManager.hasIdentity()` read on mount. It moved into
   // `AppStackContent` (below) and is now gated on the shared identity probe
@@ -202,9 +199,19 @@ function RootLayoutInner() {
         {/* OxyProvider does NOT wrap a BloomProvider — by design, to
             avoid duplicate contexts when an app already ships its own (see
             packages/services/src/ui/components/OxyProvider.tsx). The consumer
-            (this app) owns the BloomProvider and feeds it the resolved
-            theme mode from ThemeModeProvider. */}
-        <BloomProvider mode={themeMode}>
+            (this app) owns the BloomProvider.
+
+            No `persistKey`/`storage`: nothing in the app sets a theme, so a
+            persisted read could only ever return the default — and with both
+            set Bloom gates the whole tree on that async read. Add them together
+            with the first theme toggle (`useTheme().setMode`).
+
+            `scrollAdapter` is what ARMS Bloom's automatic route scroll
+            restoration; without it the whole `@oxy.so/bloom/scroll` primitive is
+            inert, which is half of why this app had a hand-rolled ScrollProvider.
+            The adapter reference must stay stable, so it is the module-level
+            export, never an inline lambda. */}
+        <BloomProvider scrollAdapter={expoRouterScrollAdapter}>
           {/* `sessionMode="identity"` — Commons IS the identity, so its session
               is PINNED to the owner of this device's PRIMARY identity key for as
               long as that key exists, not to whichever account the shared
@@ -226,15 +233,55 @@ function RootLayoutInner() {
             backgroundSession
             productAnalytics={productAnalytics}
           >
-            <LocaleProvider>
-              <AppHead />
-              <AppStackContent />
-            </LocaleProvider>
+            {/* Bloom's ONE media chokepoint. It is mounted HERE, under
+                OxyProvider, and not as `BloomProvider`'s `imageResolver` prop,
+                because this app builds its services client from `baseURL`
+                inside the provider — there is no module-level singleton above
+                it to call. Every Bloom surface that takes a `source` (Avatar,
+                galleries, cards) now resolves a bare Oxy file id through
+                `getFileDownloadUrl`; nothing in the app builds a media URL of
+                its own. */}
+            <BloomImageResolver>
+              <LocaleProvider>
+                {/* Mounted exactly once, and the only Bloom outlet this app
+                    mounts. `SurfaceHost` and `ToastOutlet` are deliberately
+                    absent: OxyProvider already renders `SurfaceProvider` and
+                    `ToastOutlet` itself, and a second mount of either silently
+                    draws every surface and every toast twice. */}
+                <PortalProvider>
+                  <AppHead />
+                  <AppStackContent />
+                  <PortalOutlet />
+                </PortalProvider>
+              </LocaleProvider>
+            </BloomImageResolver>
           </OxyProvider>
         </BloomProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>
   );
+}
+
+/**
+ * Registers `oxyServices.getFileDownloadUrl` as Bloom's image resolver.
+ *
+ * Lives inside `OxyProvider` because that is where `useOxy()` resolves. The
+ * resolver is memoized on the client identity so Bloom's context value is
+ * stable across renders; it is `null` until the client exists, which Bloom
+ * treats as "no resolver yet" and every consumer renders as its fallback.
+ */
+function BloomImageResolver({ children }: { children: React.ReactNode }) {
+  const { oxyServices } = useOxy();
+
+  const resolver = useMemo<ImageResolver | null>(
+    () =>
+      oxyServices
+        ? (id: string, variant?: string) => oxyServices.getFileDownloadUrl(id, variant ?? 'thumb')
+        : null,
+    [oxyServices],
+  );
+
+  return <ImageResolverProvider value={resolver}>{children}</ImageResolverProvider>;
 }
 
 /** Document head with translated title/description. Lives inside <LocaleProvider>. */
@@ -252,7 +299,7 @@ function AppHead() {
  * Renders the navigation stack and drives the native OS splash hand-off.
  *
  * Readiness is computed HERE, inside the providers, not on frame 1 of
- * `RootLayoutInner`. This component lives UNDER `<BloomProvider>`, whose
+ * `RootLayout`. This component lives UNDER `<BloomProvider>`, whose
  * Bloom `FontLoader` gates its subtree — so by the time `AppStackContent`
  * mounts at all, fonts are already loaded. The only remaining readiness signals
  * are:
@@ -425,61 +472,59 @@ function AppStackContent() {
   // above, which mounts one itself (on both the ready and the boot-shell
   // path). A second, deeper one only re-measures the same full-screen frame.
   return (
-    <ScrollProvider>
-      <ThemeProvider value={navTheme}>
-        <Stack>
-          {/*
-            Bidirectional onboarding guard.
+    <ThemeProvider value={navTheme}>
+      <Stack>
+        {/*
+          Bidirectional onboarding guard.
 
-            Commons legitimately OWNS the `hasIdentity` gate — it is the
-            key vault. `needsAuth` is true when this device has no local
-            identity yet OR has one but no username/session. We must:
-              - Redirect AWAY from `(tabs)` (the post-auth tab shell) when
-                onboarding is incomplete.
-              - Redirect AWAY from `(auth)` when onboarding is complete.
+          Commons legitimately OWNS the `hasIdentity` gate — it is the
+          key vault. `needsAuth` is true when this device has no local
+          identity yet OR has one but no username/session. We must:
+            - Redirect AWAY from `(tabs)` (the post-auth tab shell) when
+              onboarding is incomplete.
+            - Redirect AWAY from `(auth)` when onboarding is complete.
 
-            Expo Router resolves redirects to the first non-redirecting
-            sibling, so exactly one is true at any time. Commons is a
-            NATIVE-ONLY app (iOS/Android — see `platforms` in app.json):
-            `(auth)/index.tsx` is the create-identity welcome (Hello Human)
-            and there is no web build, because the key vault never leaves the
-            device.
-          */}
-          <Stack.Screen name="(tabs)" redirect={needsAuth} options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)" redirect={!needsAuth} options={{ headerShown: false }} />
-          {/*
-            The QR scanner is an ACTION, not a tab. It lives at the root as a
-            full-screen presented modal (pushed from the ID landing FAB via
-            `router.push('/(scan)')`) so the CameraView covers the tab bar. It
-            holds the camera (`index`) + the real-life attestation confirmation
-            (`attest`). Guarded by the same `needsAuth` redirect as `(tabs)`:
-            only an authenticated user can open it, and an unauthenticated
-            `oxycommons://attest` deep link is bounced to onboarding.
-          */}
-          <Stack.Screen
-            name="(scan)"
-            redirect={needsAuth}
-            options={{ headerShown: false, presentation: 'fullScreenModal' }}
-          />
-          {/*
-            "Sign in with Oxy" approval — a Bloom bottom sheet. Registered at
-            the ROOT (not inside `(scan)`) as a TRANSPARENT modal so the sheet
-            rises over the real underlying context (the `(tabs)` anchor from
-            `unstable_settings`) instead of an opaque `fullScreenModal` group
-            card — otherwise it looks like a dedicated screen. `animation:
-            'none'` lets the sheet own the motion. Same `needsAuth` guard as
-            `(scan)`: an unauthenticated `oxycommons://approve` deep link is
-            bounced to onboarding (and the cold-start replay above re-navigates
-            here once the gate settles to an authenticated device).
-          */}
-          <Stack.Screen
-            name="approve"
-            redirect={needsAuth}
-            options={{ headerShown: false, presentation: 'transparentModal', animation: 'none' }}
-          />
-        </Stack>
-        <StatusBar style="auto" />
-      </ThemeProvider>
-    </ScrollProvider>
+          Expo Router resolves redirects to the first non-redirecting
+          sibling, so exactly one is true at any time. Commons is a
+          NATIVE-ONLY app (iOS/Android — see `platforms` in app.json):
+          `(auth)/index.tsx` is the create-identity welcome (Hello Human)
+          and there is no web build, because the key vault never leaves the
+          device.
+        */}
+        <Stack.Screen name="(tabs)" redirect={needsAuth} options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)" redirect={!needsAuth} options={{ headerShown: false }} />
+        {/*
+          The QR scanner is an ACTION, not a tab. It lives at the root as a
+          full-screen presented modal (pushed from the ID landing FAB via
+          `router.push('/(scan)')`) so the CameraView covers the tab bar. It
+          holds the camera (`index`) + the real-life attestation confirmation
+          (`attest`). Guarded by the same `needsAuth` redirect as `(tabs)`:
+          only an authenticated user can open it, and an unauthenticated
+          `oxycommons://attest` deep link is bounced to onboarding.
+        */}
+        <Stack.Screen
+          name="(scan)"
+          redirect={needsAuth}
+          options={{ headerShown: false, presentation: 'fullScreenModal' }}
+        />
+        {/*
+          "Sign in with Oxy" approval — a Bloom bottom sheet. Registered at
+          the ROOT (not inside `(scan)`) as a TRANSPARENT modal so the sheet
+          rises over the real underlying context (the `(tabs)` anchor from
+          `unstable_settings`) instead of an opaque `fullScreenModal` group
+          card — otherwise it looks like a dedicated screen. `animation:
+          'none'` lets the sheet own the motion. Same `needsAuth` guard as
+          `(scan)`: an unauthenticated `oxycommons://approve` deep link is
+          bounced to onboarding (and the cold-start replay above re-navigates
+          here once the gate settles to an authenticated device).
+        */}
+        <Stack.Screen
+          name="approve"
+          redirect={needsAuth}
+          options={{ headerShown: false, presentation: 'transparentModal', animation: 'none' }}
+        />
+      </Stack>
+      <StatusBar style="auto" />
+    </ThemeProvider>
   );
 }

@@ -3,10 +3,10 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { parseMoveQrPayload } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
-import { Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -43,11 +43,11 @@ export default function ScanMoveScreen() {
         <Text style={[styles.title, { color: colors.text }]}>{t('identityMove.scanTitle')}</Text>
         <Text style={[styles.body, { color: colors.text }]}>{t('identityMove.permissionBody')}</Text>
         {permission ? (
-          <Button variant="primary" onPress={() => void requestPermission()} style={styles.button}>
+          <Button appearance="solid" tone="accent" onPress={() => void requestPermission()} style={styles.button}>
             {t('identityMove.grantPermission')}
           </Button>
         ) : null}
-        <Button variant="ghost" onPress={() => router.back()}>
+        <Button appearance="subtle" onPress={() => router.back()}>
           {t('common.back')}
         </Button>
       </View>
@@ -71,7 +71,7 @@ export default function ScanMoveScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('identityMove.scanAgain')}
           >
-            <MaterialCommunityIcons name="refresh" size={28} color="#fff" />
+            <Icons.refresh size='xl' fill="#fff" />
             <Text style={styles.controlText}>{t('identityMove.scanAgain')}</Text>
           </TouchableOpacity>
         ) : null}
@@ -82,7 +82,7 @@ export default function ScanMoveScreen() {
         accessibilityRole="button"
         accessibilityLabel={t('common.close')}
       >
-        <MaterialCommunityIcons name="close" size={28} color="#fff" />
+        <Icons.close size='xl' fill="#fff" />
       </TouchableOpacity>
     </View>
   );

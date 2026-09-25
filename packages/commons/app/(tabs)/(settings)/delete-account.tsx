@@ -1,14 +1,20 @@
 import React, { useCallback, useState } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet, TextInput, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
-import { Section } from '@/components/section';
-import { Button, ImportantBanner, KeyboardAwareScrollViewWrapper, ScreenHeader } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  ImportantBanner,
+  KeyboardAwareScrollViewWrapper,
+  Section,
+  StackHeader,
+} from '@/components/ui';
 import { useOxy } from '@oxy.so/services';
-import { alert, toast } from '@oxy.so/bloom';
+import { alert } from '@oxy.so/bloom/surfaces';
+import { toast } from '@oxy.so/bloom/toast';
 import { KeyManager } from '@oxy.so/core';
 import { useTranslation } from '@/lib/i18n';
 import { runAccountDeletion } from '@/lib/account/delete-account-flow';
@@ -116,19 +122,19 @@ export default function DeleteAccountScreen() {
   if (oxyLoading) {
     return (
       <View style={[styles.center, styles.flex, { backgroundColor: colors.background }]}>
-        <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('common.loadingShort')}</ThemedText>
+        <Text style={[styles.loadingText, { color: colors.text }]}>{t('common.loadingShort')}</Text>
       </View>
     );
   }
 
   const renderContent = () => (
     <>
-      <ScreenHeader
+      <StackHeader
         title={t('data.deleteAccount.title')}
         subtitle={t('data.deleteAccount.subtitle')}
       />
 
-      <ImportantBanner title={t('data.deleteAccount.permanentTitle')} icon="alert-octagon">
+      <ImportantBanner title={t('data.deleteAccount.permanentTitle')}>
         {t('data.deleteAccount.permanentBody', { name: username || t('data.deleteAccount.thisAccount') })}
       </ImportantBanner>
 
@@ -140,23 +146,18 @@ export default function DeleteAccountScreen() {
             t('data.deleteAccount.items.sessions'),
             t('data.deleteAccount.items.settings'),
           ].map((item) => (
-            <View key={item} style={styles.bulletRow}>
-              <MaterialCommunityIcons
-                name="close-circle-outline"
-                size={18}
-                color={colors.error}
-                style={styles.bulletIcon}
-              />
-              <ThemedText style={[styles.bulletText, { color: colors.text }]}>{item}</ThemedText>
+            <View key={item} className="flex-row items-start">
+              <Icons.closeCircle size='sm' fill={colors.error} style={styles.bulletIcon} />
+              <Text style={[styles.bulletText, { color: colors.text }]}>{item}</Text>
             </View>
           ))}
         </View>
       </Section>
 
       <Section title={t('data.deleteAccount.confirm')}>
-        <ThemedText style={[styles.label, { color: colors.text }]}>
-          {t('data.deleteAccount.typeUsername')} <ThemedText style={[styles.usernameHint, { color: colors.error }]}>{username}</ThemedText>
-        </ThemedText>
+        <Text style={[styles.label, { color: colors.text }]}>
+          {t('data.deleteAccount.typeUsername')} <Text style={[styles.usernameHint, { color: colors.error }]}>{username}</Text>
+        </Text>
         <View
           style={[
             styles.inputWrapper,
@@ -179,29 +180,14 @@ export default function DeleteAccountScreen() {
           />
         </View>
         {confirmText.length > 0 && !isConfirmValid && (
-          <ThemedText style={[styles.errorText, { color: colors.error }]}>
+          <Text style={[styles.errorText, { color: colors.error }]}>
             {t('data.deleteAccount.usernameMismatch')}
-          </ThemedText>
+          </Text>
         )}
 
-        <View style={styles.buttonRow}>
-          <Button
-            variant="secondary"
-            onPress={() => router.back()}
-            disabled={isDeleting}
-            style={styles.buttonFlex}
-          >
-            {t('data.deleteAccount.cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            onPress={handleDelete}
-            loading={isDeleting}
-            disabled={!isConfirmValid || isDeleting}
-            style={styles.buttonFlex}
-          >
-            {isDeleting ? t('data.deleteAccount.deleting') : t('data.deleteAccount.deleteCta')}
-          </Button>
+        <View className="flex-row gap-space-12 mt-space-24">
+          <Button appearance="outline" tone="neutral" onPress={() => router.back()} disabled={isDeleting} className="flex-1">{t('data.deleteAccount.cancel')}</Button>
+          <Button appearance="solid" tone="accent" onPress={handleDelete} loading={isDeleting} disabled={!isConfirmValid || isDeleting} className="flex-1">{isDeleting ? t('data.deleteAccount.deleting') : t('data.deleteAccount.deleteCta')}</Button>
         </View>
       </Section>
     </>
@@ -248,10 +234,6 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  bulletRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
   bulletIcon: {
     marginTop: 2,
     marginRight: 10,
@@ -282,13 +264,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 6,
     marginLeft: 4,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 24,
-  },
-  buttonFlex: {
-    flex: 1,
   },
 });

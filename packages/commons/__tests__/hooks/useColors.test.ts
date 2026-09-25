@@ -12,21 +12,21 @@ describe('useColors', () => {
     expect(typeof result.current.background).toBe('string');
     expect(typeof result.current.text).toBe('string');
     // Light-mode domain palette must be present.
-    expect(result.current.sidebarBackground).toBe(DomainColors.light.sidebarBackground);
-    expect(result.current.avatarBackground).toBe(DomainColors.light.avatarBackground);
+    expect(result.current.identityIconPublicKey).toBe(DomainColors.light.identityIconPublicKey);
+    expect(result.current.iconSuccess).toBe(DomainColors.light.iconSuccess);
   });
 
   it('returns dark DomainColors when mode is dark', () => {
     __setBloomThemeMode('dark');
     const { result } = renderHook(() => useColors());
-    expect(result.current.sidebarBackground).toBe(DomainColors.dark.sidebarBackground);
-    expect(result.current.bannerWarningBackground).toBe(DomainColors.dark.bannerWarningBackground);
+    expect(result.current.identityIconPublicKey).toBe(DomainColors.dark.identityIconPublicKey);
+    expect(result.current.iconWarning).toBe(DomainColors.dark.iconWarning);
   });
 
   it('exposes every key from DomainColors.light when mode is light', () => {
     __setBloomThemeMode('light');
     const { result } = renderHook(() => useColors());
-    for (const key of Object.keys(DomainColors.light) as Array<keyof typeof DomainColors.light>) {
+    for (const key of Object.keys(DomainColors.light) as (keyof typeof DomainColors.light)[]) {
       expect(result.current[key]).toBe(DomainColors.light[key]);
     }
   });
@@ -34,16 +34,16 @@ describe('useColors', () => {
   it('exposes every key from DomainColors.dark when mode is dark', () => {
     __setBloomThemeMode('dark');
     const { result } = renderHook(() => useColors());
-    for (const key of Object.keys(DomainColors.dark) as Array<keyof typeof DomainColors.dark>) {
+    for (const key of Object.keys(DomainColors.dark) as (keyof typeof DomainColors.dark)[]) {
       expect(result.current[key]).toBe(DomainColors.dark[key]);
     }
   });
 
-  it('returns a different sidebarBackground value in light vs dark', () => {
+  it('returns a different identityIconPublicKey value in light vs dark', () => {
     __setBloomThemeMode('light');
-    const lightValue = renderHook(() => useColors()).result.current.sidebarBackground;
+    const lightValue = renderHook(() => useColors()).result.current.identityIconPublicKey;
     __setBloomThemeMode('dark');
-    const darkValue = renderHook(() => useColors()).result.current.sidebarBackground;
+    const darkValue = renderHook(() => useColors()).result.current.identityIconPublicKey;
     expect(lightValue).not.toBe(darkValue);
   });
 });

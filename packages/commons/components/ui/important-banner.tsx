@@ -1,80 +1,43 @@
 import React from 'react';
-import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
-import { ThemedText } from '../themed-text';
-import { useColors } from '@/hooks/useColors';
+import type { StyleProp, ViewStyle } from 'react-native';
+import {
+  AdmonitionContent,
+  AdmonitionIcon,
+  AdmonitionRoot,
+  AdmonitionRow,
+  AdmonitionText,
+} from '@oxy.so/bloom/admonition';
 
 interface ImportantBannerProps {
-    children: React.ReactNode;
-    title?: string;
-    style?: StyleProp<ViewStyle>;
-    icon?: keyof typeof MaterialCommunityIcons.glyphMap;
-    iconSize?: number;
+  children: React.ReactNode;
+  title?: string;
+  style?: StyleProp<ViewStyle>;
+  /** `warning` (the default) or `error`, for something already irreversible. */
+  type?: 'warning' | 'error';
 }
 
 /**
- * Reusable Important Banner Component
- * Displays a warning/important message with an icon and title
+ * A titled warning banner, composed from Bloom's `Admonition` PARTS.
+ *
+ * A component rather than `<Admonition>` at each call site because of the
+ * TITLE: Bloom's one-shot `Admonition` takes only children, and the parts exist
+ * for exactly this. `AdmonitionIcon` draws the glyph the banner's `type` implies.
  */
 export function ImportantBanner({
-    children,
-    title = 'Important',
-    style,
-    icon = 'alert-circle',
-    iconSize = 24,
+  children,
+  title,
+  style,
+  type = 'warning',
 }: ImportantBannerProps) {
-    const colors = useColors();
-
-    return (
-        <View
-            style={[
-                styles.banner,
-                {
-                    backgroundColor: colors.bannerWarningBackground,
-                    borderColor: colors.bannerWarningBorder,
-                },
-                style,
-            ]}
-        >
-            <View style={styles.header}>
-                <MaterialCommunityIcons
-                    name={icon}
-                    size={iconSize}
-                    color={colors.bannerWarningIcon}
-                />
-                <ThemedText
-                    style={[styles.title, { color: colors.bannerWarningText }]}
-                >
-                    {title}
-                </ThemedText>
-            </View>
-            <ThemedText style={[styles.text, { color: colors.bannerWarningText }]}>
-                {children}
-            </ThemedText>
-        </View>
-    );
+  return (
+    <AdmonitionRoot type={type} style={style}>
+      <AdmonitionRow>
+        <AdmonitionIcon />
+        <AdmonitionContent>
+          {title ? <AdmonitionText style={{ fontWeight: '600' }}>{title}</AdmonitionText> : null}
+          <AdmonitionText>{children}</AdmonitionText>
+        </AdmonitionContent>
+      </AdmonitionRow>
+    </AdmonitionRoot>
+  );
 }
-
-const styles = StyleSheet.create({
-    banner: {
-        borderWidth: 1,
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 16,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    title: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginLeft: 8,
-    },
-    text: {
-        fontSize: 14,
-        lineHeight: 20,
-    },
-});
-

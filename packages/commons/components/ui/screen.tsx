@@ -1,14 +1,15 @@
-import React from 'react';
-import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
+import React, { useMemo } from 'react';
+import { RefreshControl, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
-import { useColors } from '@/hooks/useColors';
-import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
+import { Screen as BloomScreen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { useMinimizeOnScroll, useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 /** Horizontal gutter shared by every Commons screen. */
 export const SCREEN_PADDING = 22;
 /** Vertical air between top-level sections. */
-export const SECTION_GAP = 32;
+const SECTION_GAP = 32;
 
 /** Air between the end of a screen's content and the top of the floating bar. */
 const SCREEN_BOTTOM_CLEARANCE = 44;
@@ -23,12 +24,19 @@ export const FAB_MD_DIAMETER = 50;
 const FAB_CLEARANCE_GAP = 16;
 
 /**
+ * Top air above a screen's first element, ON TOP of the safe-area inset.
+ * Preserved geometry, not a design: 64 of it is clearance for a floating header
+ * this app does not render. Probably too much, but tightening it wants a device
+ * to judge.
+ */
+const SCREEN_TOP_AIR = 72;
+
+/**
  * Bottom inset every Commons screen leaves free for the floating tab bar.
  *
- * A hook rather than the constant it replaced, because the footprint depends on
- * the device's bottom safe-area inset. `useTabBarFootprint()` is the bar's own
- * measurement — its expanded height plus the gap it holds off the window edge —
- * so this can never drift from where the bar actually sits.
+ * A hook because the footprint depends on the device's bottom safe-area inset;
+ * `useTabBarFootprint()` is the bar's own measurement, so this cannot drift from
+ * where the bar actually sits.
  *
  * NEVER add `insets.bottom` to the result: Bloom folds the inset into the bar's
  * own gap, so adding it again counts the home indicator twice and strands a
@@ -62,54 +70,80 @@ interface ScreenProps {
   children: React.ReactNode;
   refreshing?: boolean;
   onRefresh?: () => void;
-  /**
-   * Wrap children in the standard padded, section-gapped content column.
-   * Set `false` for full-bleed surfaces (camera, edge-to-edge media) that own
-   * their own layout.
-   */
-  padded?: boolean;
   /** Air between direct children of the content column. */
   gap?: number;
   contentStyle?: StyleProp<ViewStyle>;
+  /**
+   * Bottom inset the scroller keeps free, instead of {@link useScreenBottomPad}.
+   * A screen with a floating FAB passes {@link useFabClearance}'s result.
+   */
+  bottomClearance?: number;
 }
 
 /**
  * The canonical Commons scroll surface: a single vertical scroller on the flat
- * `background` (no stacked cards), with a generous 22pt gutter, a 32pt rhythm
- * between sections, and a tab-bar-clearing bottom inset. Separation between
- * sections is WHITESPACE — the children compose freely (hero, sections, rows).
+ * `background` (no stacked cards), with a 22pt gutter, a 32pt rhythm between
+ * sections, and a tab-bar-clearing bottom inset.
+ *
+ * A composition of Bloom's `Screen` + `ScreenScrollView`: Bloom owns scrolling,
+ * chrome footprints, keyboard handling and restoration. What stays here is what
+ * Bloom cannot know — this app's gutter and rhythm, and `useMinimizeOnScroll()`
+ * as the bridge to a tab bar the NAVIGATOR renders rather than this screen.
  */
 export function Screen({
   children,
-  refreshing,
+  refreshing = false,
   onRefresh,
-  padded = true,
   gap = SECTION_GAP,
   contentStyle,
+  bottomClearance,
 }: ScreenProps) {
-  const colors = useColors();
-  const bottomPad = useScreenBottomPad();
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const screenBottomPad = useScreenBottomPad();
+  const bottomPad = bottomClearance ?? screenBottomPad;
+  const minimizeOnScroll = useMinimizeOnScroll();
+
+  const topPad = insets.top + SCREEN_TOP_AIR;
+
+  const contentContainerStyle = useMemo(
+    () => [
+      styles.content,
+      { paddingHorizontal: SCREEN_PADDING, gap, paddingTop: topPad },
+      contentStyle,
+    ],
+    [gap, topPad, contentStyle],
+  );
 
   return (
-    <ScreenContentWrapper refreshing={refreshing} onRefresh={onRefresh}>
-      <View style={[styles.flex, { backgroundColor: colors.background }]}>
-        {padded ? (
-          <View style={[styles.content, { gap, paddingBottom: bottomPad }, contentStyle]}>
-            {children}
-          </View>
-        ) : (
-          children
-        )}
-      </View>
-    </ScreenContentWrapper>
+    <BloomScreen contentClearance={bottomPad}>
+      <ScreenScrollView
+        handler={minimizeOnScroll}
+        contentContainerStyle={contentContainerStyle}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.tint}
+              colors={[colors.tint]}
+              progressViewOffset={topPad + 8}
+              progressBackgroundColor={colors.background}
+            />
+          ) : undefined
+        }
+      >
+        {children}
+      </ScreenScrollView>
+    </BloomScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
   content: {
     flexGrow: 1,
-    paddingHorizontal: SCREEN_PADDING,
-    paddingTop: 8,
+    paddingBottom: 20,
   },
 });

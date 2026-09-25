@@ -1,4 +1,6 @@
-import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
+import { Icons } from '@/constants/icons';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -10,11 +12,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { StaggeredText, type StaggeredTextRef } from '@/components/staggered-text';
 import { RotatingTextAnimation } from '@/components/staggered-text/rotating-text';
-import { Button } from '@/components/ui';
-import { CenteredState } from '@/components/ui/centered-state';
 import { useTranslation } from '@/lib/i18n';
 import { useOnboardingStatus, ONBOARDING_IDENTITY_QUERY_KEY, getOnboardingResumeHref } from '@/hooks/useOnboardingStatus';
 import { persistOnboardingFlow } from '@/hooks/identity/identityStore';
+import { STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
 
 const humanTranslations = [
   'Human',
@@ -153,16 +154,12 @@ export default function AuthIndexScreen() {
   if (status === 'unavailable') {
     return (
       <View style={[styles.container, { backgroundColor }]}>
-        <CenteredState
-          icon="shield-lock-outline"
-          iconColor={textColor}
+        <EmptyState
+          illustration={<Icons.shield size="3xl" fill={textColor} />}
           title={t('recovery.lockedTitle')}
-          body={t('recovery.lockedBody')}
-          action={
-            <Button variant="primary" onPress={handleRetryIdentityProbe}>
-              {t('common.retry')}
-            </Button>
-          }
+          description={t('recovery.lockedBody')}
+          action={{ label: t('common.retry'), onPress: handleRetryIdentityProbe }}
+          minHeight={STATE_MIN_HEIGHT}
         />
       </View>
     );
@@ -184,7 +181,7 @@ export default function AuthIndexScreen() {
       accessibilityRole="button"
       accessibilityLabel={t('auth.indexTapToContinue')}
     >
-      <View style={styles.content}>
+      <View className="flex-1 justify-center items-center px-space-24">
         <View style={styles.textContainer}>
           {/* "Hello" text with entrance animation */}
           <Animated.View style={entranceHelloStyle}>
@@ -219,7 +216,7 @@ export default function AuthIndexScreen() {
           textStyle={[styles.tapText, { color: textColor }]}
         />
         <TouchableOpacity
-          style={styles.restoreButton}
+          className="mt-space-24 py-space-8 px-space-16"
           onPress={handleRestore}
           activeOpacity={0.7}
           accessibilityRole="button"
@@ -237,12 +234,6 @@ export default function AuthIndexScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
   },
   textContainer: {
     alignItems: 'flex-start',
@@ -264,11 +255,6 @@ const styles = StyleSheet.create({
   tapText: {
     fontWeight: '400',
     opacity: 0.6,
-  },
-  restoreButton: {
-    marginTop: 24,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
   },
   restoreText: {
     fontSize: 14,

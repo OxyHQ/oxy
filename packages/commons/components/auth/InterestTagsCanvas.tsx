@@ -1,10 +1,11 @@
 import {
   Canvas,
   Group,
+  Path as SkiaPath,
   RoundedRect,
+  Skia,
   Text as SkiaText,
   matchFont,
-  useFont,
 } from '@shopify/react-native-skia';
 import * as Haptics from 'expo-haptics';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -26,9 +27,30 @@ import {
   stepWoodenPills,
   type WoodenPillBody,
 } from './woodenPillsPhysics';
-import { ICON_GLYPHS, INTEREST_TAGS } from '@/constants/interestTags';
+import { INTEREST_TAGS } from '@/constants/interestTags';
+import {
+  INTEREST_TAG_GLYPH_PATHS,
+  INTEREST_TAG_GLYPH_VIEWBOX,
+} from '@/constants/interestTagGlyphs.generated';
 
-const iconFontFile = require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf');
+/**
+ * Each tag's glyph as a Skia path, built once at module scope.
+ *
+ * The canvas used to draw these as TEXT, from `@expo/vector-icons`'
+ * MaterialCommunityIcons TTF — which made the app ship that font: 1,307,660
+ * bytes, 42% of its iOS assets, for fifteen glyphs on one onboarding screen.
+ * Skia draws an SVG path natively, and Bloom's glyphs ARE single SVG paths, so
+ * the canvas now uses the same artwork as every other screen and the font is
+ * gone. `constants/interestTagGlyphs.generated.ts` is written from the installed
+ * Bloom by `scripts/generate-interest-glyph-paths.mjs`.
+ *
+ * `MakeFromSVGString` returns `null` for a path Skia cannot parse, which is a
+ * generator bug rather than a runtime condition — the tag simply draws without
+ * its glyph rather than taking the screen down.
+ */
+const GLYPH_PATHS = Object.fromEntries(
+  Object.entries(INTEREST_TAG_GLYPH_PATHS).map(([id, d]) => [id, Skia.Path.MakeFromSVGString(d)]),
+);
 
 const TAG_HEIGHT = 44;
 const TAG_RADIUS = 22;
@@ -143,8 +165,6 @@ export function InterestTagsCanvas({
       }),
     []
   );
-
-  const iconFont = useFont(iconFontFile, ICON_FONT_SIZE);
 
   // One set of shared values per tag, created once. `INTEREST_TAGS` is a static
   // list, so the count never changes.
@@ -483,7 +503,7 @@ export function InterestTagsCanvas({
     worldSleeping,
   ]);
 
-  if (!font || !iconFont || !tagWidths) return null;
+  if (!font || !tagWidths) return null;
 
   return (
     <View style={styles.root} onLayout={onLayout}>
@@ -497,12 +517,11 @@ export function InterestTagsCanvas({
                 width={tagWidths[index]}
                 color={tag.color}
                 label={tag.label}
-                glyph={ICON_GLYPHS[tag.icon]}
+                glyph={GLYPH_PATHS[tag.id] ?? null}
                 selected={selectedIds.has(tag.id)}
                 labelColor={labelColor}
                 outlineColor={outlineColor}
                 font={font}
-                iconFont={iconFont}
               />
             ))}
           </Canvas>
@@ -517,12 +536,11 @@ interface TagBodyProps {
   width: number;
   color: string;
   label: string;
-  glyph: string | undefined;
+  glyph: ReturnType<typeof Skia.Path.MakeFromSVGString>;
   selected: boolean;
   labelColor: string;
   outlineColor: string;
   font: NonNullable<ReturnType<typeof matchFont>>;
-  iconFont: NonNullable<ReturnType<typeof useFont>>;
 }
 
 /**
@@ -540,7 +558,6 @@ const TagBody = React.memo(function TagBody({
   labelColor,
   outlineColor,
   font,
-  iconFont,
 }: TagBodyProps) {
   const transform = useDerivedValue(() => [
     { translateX: motion.x.value },
@@ -575,13 +592,18 @@ const TagBody = React.memo(function TagBody({
       )}
 
       {glyph && (
-        <SkiaText
-          x={left + 12}
-          y={iconFont.getSize() / 3}
-          text={glyph}
-          font={iconFont}
-          color={labelColor}
-        />
+        // Remix draws in a 24x24 box; scale it to the tag's icon size and put
+        // its top-left where the glyph's baseline box used to start, so the
+        // layout constants above still describe what is on screen.
+        <Group
+          transform={[
+            { translateX: left + 12 },
+            { translateY: -ICON_FONT_SIZE / 2 },
+            { scale: ICON_FONT_SIZE / INTEREST_TAG_GLYPH_VIEWBOX },
+          ]}
+        >
+          <SkiaPath path={glyph} color={labelColor} />
+        </Group>
       )}
 
       <SkiaText

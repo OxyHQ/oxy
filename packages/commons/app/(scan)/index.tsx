@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { AppIcon, Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { parseScan, type ScanResult } from '@/lib/commons-signin/parse-scan';
@@ -183,7 +183,7 @@ export default function ScanSignInScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 justify-center items-center">
       <CameraView
         style={styles.camera}
         facing="back"
@@ -212,12 +212,12 @@ export default function ScanSignInScreen() {
                     : t('signInApproval.scan.invalidBody')}
                 </Text>
                 <TouchableOpacity
-                  style={styles.controlButton}
+                  className="items-center gap-space-8"
                   onPress={handleScanAgain}
                   accessibilityRole="button"
                   accessibilityLabel={t('signInApproval.scan.a11y.scanAgain')}
                 >
-                  <MaterialCommunityIcons name="refresh" size={28} color="#fff" />
+                  <Icons.refresh size='xl' fill="#fff" />
                   <Text style={styles.controlText}>{t('signInApproval.scan.scanAgain')}</Text>
                 </TouchableOpacity>
               </>
@@ -225,7 +225,7 @@ export default function ScanSignInScreen() {
               <>
                 <Text style={styles.instructionText}>{t('signInApproval.scan.instructions')}</Text>
                 <TouchableOpacity
-                  style={styles.controlButton}
+                  className="items-center gap-space-8"
                   onPress={toggleFlash}
                   accessibilityRole="button"
                   accessibilityLabel={
@@ -233,7 +233,7 @@ export default function ScanSignInScreen() {
                   }
                   accessibilityState={{ selected: flashOn }}
                 >
-                  <MaterialCommunityIcons name={flashOn ? 'flash' : 'flash-off'} size={28} color="#fff" />
+                  <AppIcon name={'flash'} size='xl' fill="#fff" />
                   <Text style={styles.controlText}>
                     {flashOn ? t('signInApproval.scan.flashOn') : t('signInApproval.scan.flashOff')}
                   </Text>
@@ -249,7 +249,7 @@ export default function ScanSignInScreen() {
           accessibilityRole="button"
           accessibilityLabel={t('signInApproval.scan.a11y.close')}
         >
-          <MaterialCommunityIcons name="close" size={28} color="#fff" />
+          <Icons.close size='xl' fill="#fff" />
         </TouchableOpacity>
       </CameraView>
 
@@ -331,10 +331,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 32,
     marginBottom: 24,
-  },
-  controlButton: {
-    alignItems: 'center',
-    gap: 8,
   },
   controlText: {
     color: '#fff',

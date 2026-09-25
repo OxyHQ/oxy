@@ -1,31 +1,24 @@
 import React from 'react';
-import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { H3, Text } from '@oxy.so/bloom/typography';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 
 interface SectionHeaderProps {
   title: string;
   subtitle?: string;
-  /** Optional right-aligned element (e.g. a count pill or a quiet link). */
-  trailing?: React.ReactNode;
 }
 
 /**
- * The flat section title block: a confident 17/700 title with an optional muted
- * subtitle beneath it. No card, no rule — sections are separated by the screen's
- * whitespace rhythm, not boxes.
+ * The flat section title block: Bloom's `H3` with an optional muted subtitle.
+ * No card, no rule — sections are separated by the screen's whitespace rhythm,
+ * not boxes. For a quieter step, `H4` is the one-line change here.
  */
-export function SectionHeader({ title, subtitle, trailing }: SectionHeaderProps) {
+function SectionHeader({ title, subtitle }: SectionHeaderProps) {
   const colors = useColors();
   return (
-    <View style={styles.headerWrap}>
-      <View style={styles.titleRow}>
-        <ThemedText style={[styles.title, { color: colors.text }]}>{title}</ThemedText>
-        {trailing}
-      </View>
-      {subtitle && (
-        <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</ThemedText>
-      )}
+    <View className="gap-space-4">
+      <H3>{title}</H3>
+      {subtitle && <Text style={{ color: colors.textSecondary }}>{subtitle}</Text>}
     </View>
   );
 }
@@ -33,11 +26,7 @@ export function SectionHeader({ title, subtitle, trailing }: SectionHeaderProps)
 interface SectionProps {
   title?: string;
   subtitle?: string;
-  trailing?: React.ReactNode;
   children?: React.ReactNode;
-  /** Air between the header and the section body. */
-  gap?: number;
-  style?: StyleProp<ViewStyle>;
 }
 
 /**
@@ -45,32 +34,15 @@ interface SectionProps {
  * the outer screen gap (32pt) is what separates one `Section` from the next, so
  * the page breathes without nesting boxes.
  */
-export function Section({ title, subtitle, trailing, children, gap = 12, style }: SectionProps) {
+export function Section({ title, subtitle, children }: SectionProps) {
   return (
-    <View style={[{ gap }, style]}>
-      {title && <SectionHeader title={title} subtitle={subtitle} trailing={trailing} />}
+    <View style={styles.section}>
+      {title && <SectionHeader title={title} subtitle={subtitle} />}
       {children}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerWrap: {
-    gap: 4,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  subtitle: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
+  section: { gap: 12 },
 });

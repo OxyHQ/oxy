@@ -15,7 +15,8 @@ import { shortenKey } from '@/utils/shorten-key';
 export interface IdentityCardProps {
   displayName?: string;
   username?: string;
-  avatarUrl?: string;
+  /** A bare Oxy file id; resolved by Bloom's ImageResolver inside `FrontSide`. */
+  avatarId?: string;
   accountCreated?: string;
   publicKey?: string;
   /** Optional QR payload — revealed on the back by a long-press. */
@@ -29,7 +30,7 @@ export interface IdentityCardProps {
 export function IdentityCard({
   displayName,
   username,
-  avatarUrl,
+  avatarId,
   accountCreated,
   publicKey,
   qrPayload,
@@ -51,7 +52,7 @@ export function IdentityCard({
         <FrontSide
           displayName={displayName}
           username={username}
-          avatarUrl={avatarUrl}
+          avatarId={avatarId}
           accountCreated={accountCreated}
           publicKeyShort={publicKeyShort}
         />

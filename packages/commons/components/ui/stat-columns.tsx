@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
+import { Divider } from '@oxy.so/bloom/divider';
+import { Text } from '@oxy.so/bloom/typography';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 
 export interface StatColumn {
   label: string;
@@ -14,25 +15,28 @@ interface StatColumnsProps {
 }
 
 /**
- * Two-or-more roomy stat columns split by hairline dividers: a tiny uppercase
- * caption above a big 26/700 tabular value. The same shape used by the
- * reputation Influence / Reliability pair.
+ * Two-or-more roomy stat columns split by a vertical `Divider`: a tiny uppercase
+ * caption above a big tabular value. The reputation Influence / Reliability pair.
+ *
+ * Deliberately NOT Bloom's `StatCards`, which draws each KPI on its own card;
+ * these sit inside an existing card, and a card inside a card is what the flat
+ * reputation design avoids.
  */
 export function StatColumns({ items }: StatColumnsProps) {
   const colors = useColors();
 
   return (
-    <View style={styles.row}>
+    <View className="flex-row items-center">
       {items.map((item, index) => (
         <React.Fragment key={item.label}>
-          {index > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
+          {index > 0 && <Divider vertical />}
           <View style={styles.stat}>
-            <ThemedText style={[styles.label, { color: colors.textSecondary }]} numberOfLines={1}>
+            <Text style={[styles.label, { color: colors.textSecondary }]} numberOfLines={1}>
               {item.label}
-            </ThemedText>
-            <ThemedText style={[styles.value, { color: item.valueColor ?? colors.text }]} numberOfLines={1}>
+            </Text>
+            <Text style={[styles.value, { color: item.valueColor ?? colors.text }]} numberOfLines={1}>
               {item.value}
-            </ThemedText>
+            </Text>
           </View>
         </React.Fragment>
       ))}
@@ -41,10 +45,6 @@ export function StatColumns({ items }: StatColumnsProps) {
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   stat: {
     flex: 1,
     gap: 7,
@@ -60,10 +60,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.5,
     fontVariant: ['tabular-nums'],
-  },
-  divider: {
-    width: StyleSheet.hairlineWidth,
-    height: 40,
-    marginHorizontal: 22,
   },
 });

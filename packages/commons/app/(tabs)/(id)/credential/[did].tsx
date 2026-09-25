@@ -1,9 +1,20 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Text as BloomText } from '@oxy.so/bloom/typography';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { Icons } from '@/constants/icons';
+import { fullWidthControl } from '@/constants/styles';
+import { Button } from '@oxy.so/bloom/button';
 import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
-import { Screen, StackHeader, Section, Callout, CenteredState, PrimaryButton } from '@/components/ui';
+import {
+  Screen,
+  StackHeader,
+  Section,
+  LoadingState,
+  STATE_MIN_HEIGHT,
+} from '@/components/ui';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { useIssueCredential } from '@/hooks/useIssueCredential';
 import { userIdFromDid } from '@/lib/civic/did';
@@ -89,10 +100,11 @@ export default function IssueCredentialScreen() {
   const renderBody = () => {
     if (!userId || !did) {
       return (
-        <CenteredState
-          icon="account-alert-outline"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.credentials.issue.invalidTitle')}
-          body={t('civic.credentials.issue.invalidBody')}
+          description={t('civic.credentials.issue.invalidBody')}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -100,38 +112,38 @@ export default function IssueCredentialScreen() {
     if (state === 'done') {
       const issuedTypeLabel = typeTag ? humanizeTypeTag(typeTag) : '';
       return (
-        <CenteredState
-          icon="certificate"
-          iconColor={colors.success}
+        <EmptyState
+          illustration={<Icons.credential size="3xl" fill={colors.success} />}
           title={t('civic.credentials.issue.done.title')}
-          body={t('civic.credentials.issue.done.body', { type: issuedTypeLabel, name: displayName })}
-          action={
-            <View style={styles.action}>
-              <PrimaryButton label={t('common.done')} onPress={handleClose} fullWidth={false} />
+          description={t('civic.credentials.issue.done.body', { type: issuedTypeLabel, name: displayName })}
+          footer={
+            <View className="items-center mt-space-4">
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     if (state === 'error') {
       return (
-        <CenteredState
-          icon="alert-circle-outline"
-          iconColor={colors.error}
+        <EmptyState
+          illustration={<Icons.alert size="3xl" fill={colors.error} />}
           title={t('civic.credentials.issue.error.title')}
-          body={t(`civic.credentials.issue.error.${errorCode ?? 'generic'}`)}
-          action={
-            <View style={styles.action}>
-              <PrimaryButton label={t('common.close')} onPress={handleClose} fullWidth={false} />
+          description={t(`civic.credentials.issue.error.${errorCode ?? 'generic'}`)}
+          footer={
+            <View className="items-center mt-space-4">
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     if (cardQuery.isPending && !card) {
-      return <CenteredState loading body={t('civic.credentials.issue.loading')} />;
+      return <LoadingState description={t('civic.credentials.issue.loading')} />;
     }
 
     return (
@@ -147,25 +159,25 @@ export default function IssueCredentialScreen() {
               </Text>
             </View>
           )}
-          <View style={styles.identityText}>
-            <ThemedText style={styles.name} numberOfLines={2}>
+          <View className="flex-1">
+            <BloomText style={styles.name} numberOfLines={2}>
               {displayName}
-            </ThemedText>
+            </BloomText>
             {card?.username && (
-              <ThemedText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
+              <BloomText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
                 @{card.username}
-              </ThemedText>
+              </BloomText>
             )}
           </View>
         </View>
 
-        <ThemedText style={[styles.intro, { color: colors.text }]}>
+        <BloomText style={[styles.intro, { color: colors.text }]}>
           {t('civic.credentials.issue.intro', { name: displayName })}
-        </ThemedText>
+        </BloomText>
 
         {/* Credential type */}
         <Section title={t('civic.credentials.issue.typeTitle')} subtitle={t('civic.credentials.issue.typeHint')}>
-          <View style={styles.presetRow}>
+          <View className="flex-row flex-wrap gap-space-8">
             {CREDENTIAL_PRESETS.map((preset) => {
               const selected = preset.id === presetId;
               return (
@@ -188,10 +200,10 @@ export default function IssueCredentialScreen() {
             })}
           </View>
           {presetId === 'custom' && (
-            <View style={styles.field}>
-              <ThemedText style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+            <View className="gap-space-8 mt-space-4">
+              <BloomText style={[styles.fieldLabel, { color: colors.textSecondary }]}>
                 {t('civic.credentials.issue.customLabel')}
-              </ThemedText>
+              </BloomText>
               <TextInput
                 value={customLabel}
                 onChangeText={setCustomLabel}
@@ -235,35 +247,29 @@ export default function IssueCredentialScreen() {
             style={[styles.input, { color: colors.text, borderColor: colors.border }]}
           />
           {!expiry.valid && (
-            <ThemedText style={[styles.fieldError, { color: colors.warning }]}>
+            <BloomText style={[styles.fieldError, { color: colors.warning }]}>
               {t('civic.credentials.issue.expiryInvalid')}
-            </ThemedText>
+            </BloomText>
           )}
         </Section>
 
         {/* Attribution warning */}
-        <Callout tone="info" icon="draw-pen">
+        <Admonition type="info">
           {t('civic.credentials.issue.attribution', { name: displayName })}
-        </Callout>
+        </Admonition>
 
         {biometricFailed && (
-          <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+          <BloomText style={[styles.inlineWarn, { color: colors.warning }]}>
             {t('civic.credentials.issue.biometricFailed')}
-          </ThemedText>
+          </BloomText>
         )}
 
-        <PrimaryButton
-          icon="fingerprint"
-          label={t('civic.credentials.issue.cta')}
-          loading={busy}
-          disabled={!canSubmit}
-          onPress={handleIssue}
-        />
+        <Button appearance="solid" tone="accent" size="lg" icon={Icons.personhood} onPress={handleIssue} loading={busy} disabled={!canSubmit} style={fullWidthControl}>{t('civic.credentials.issue.cta')}</Button>
 
         {busy && (
-          <ThemedText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
+          <BloomText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
             {t('civic.credentials.issue.submitting')}
-          </ThemedText>
+          </BloomText>
         )}
       </>
     );
@@ -282,10 +288,6 @@ export default function IssueCredentialScreen() {
 }
 
 const styles = StyleSheet.create({
-  action: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
   identityRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -304,9 +306,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
   },
-  identityText: {
-    flex: 1,
-  },
   name: {
     fontSize: 20,
     fontWeight: '700',
@@ -319,11 +318,6 @@ const styles = StyleSheet.create({
   intro: {
     fontSize: 15,
     lineHeight: 21,
-  },
-  presetRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
   },
   presetChip: {
     paddingHorizontal: 14,

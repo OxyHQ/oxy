@@ -1,23 +1,26 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { bloomToneFor } from '@/lib/civic/card-presentation';
+import { Badge } from '@oxy.so/bloom/badge';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { fullWidthControl } from '@/constants/styles';
+import { Button } from '@oxy.so/bloom/button';
+import { View, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { AppIcon, Icons } from '@/constants/icons';
 import { useOxy } from '@oxy.so/services';
 import type { VerifiableCredentialResponse } from '@oxy.so/contracts';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   StackHeader,
   Section,
   GroupedList,
-  PrimaryButton,
-  SecondaryButton,
-  Callout,
-  CenteredState,
   SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useMyCredentials } from '@/hooks/useCredentials';
 import { useVerifyCredential } from '@/hooks/useVerifyCredential';
 import { useRevokeCredential } from '@/hooks/useRevokeCredential';
@@ -32,7 +35,7 @@ import {
 } from '@/lib/civic/credential-display';
 import { formatDate } from '@/utils/date-utils';
 import { useTranslation } from '@/lib/i18n';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 /** Format an epoch-ms timestamp to a short readable date (or empty). */
 function formatMs(ms: number | undefined): string {
@@ -91,20 +94,21 @@ export default function CredentialDetailScreen() {
   const renderBody = () => {
     // Resolving the credential from the list for the first time.
     if (!credential && listQuery.isPending) {
-      return <CenteredState loading body={t('civic.credentials.loading')} />;
+      return <LoadingState description={t('civic.credentials.loading')} />;
     }
 
     if (!credential) {
       return (
-        <CenteredState
-          icon="file-document-alert-outline"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.credentials.detail.notFoundTitle')}
-          body={t('civic.credentials.detail.notFoundBody')}
-          action={
-            <View style={styles.action}>
-              <PrimaryButton label={t('common.back')} onPress={handleBack} fullWidth={false} />
+          description={t('civic.credentials.detail.notFoundBody')}
+          footer={
+            <View className="items-center mt-space-4">
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleBack}>{t('common.back')}</Button>
             </View>
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -122,65 +126,80 @@ export default function CredentialDetailScreen() {
     return (
       <>
         {/* Type + status hero */}
-        <View style={styles.hero}>
-          <ThemedText style={[styles.heroType, { color: colors.text }]} numberOfLines={2}>
+        <View className="gap-space-12 items-start">
+          <Text style={[styles.heroType, { color: colors.text }]} numberOfLines={2}>
             {typeLabel}
-          </ThemedText>
-          <CivicBadge
-            tone={statusMeta.tone}
-            icon="certificate-outline"
-            label={t(`civic.credentials.status.${statusMeta.labelKey}`)}
+          </Text>
+          <Badge
+            appearance="subtle"
+            tone={bloomToneFor(statusMeta.tone)}
+            size="label-small"
+            icon={Icons.credential}
+            content={t(`civic.credentials.status.${statusMeta.labelKey}`)}
           />
         </View>
 
         {/* Verify verdict */}
         {verify.state === 'valid' && (
-          <View style={styles.verdict}>
-            <CivicBadge emphasis tone="positive" icon="check-decagram" label={t('civic.credentials.verify.validTitle')} />
-            <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
+          <View className="gap-space-8 items-start">
+            <Badge
+              appearance="subtle"
+              tone="success"
+              size="label-medium"
+              icon={Icons.verified}
+              content={t('civic.credentials.verify.validTitle')}
+            />
+            <Text style={[styles.verdictDesc, { color: colors.textSecondary }]}>
               {t('civic.credentials.verify.validBody')}
-            </ThemedText>
+            </Text>
           </View>
         )}
         {verify.state === 'invalid' && (
-          <View style={styles.verdict}>
-            <CivicBadge emphasis tone="danger" icon="alert-decagram" label={t('civic.credentials.verify.invalidTitle')} />
-            <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
+          <View className="gap-space-8 items-start">
+            <Badge
+              appearance="subtle"
+              tone="danger"
+              size="label-medium"
+              icon={Icons.alertStrong}
+              content={t('civic.credentials.verify.invalidTitle')}
+            />
+            <Text style={[styles.verdictDesc, { color: colors.textSecondary }]}>
               {t(`civic.credentials.verify.reason.${verify.reasonCode ?? 'generic'}`)}
-            </ThemedText>
+            </Text>
           </View>
         )}
         {verify.state === 'error' && (
-          <View style={styles.verdict}>
-            <CivicBadge emphasis tone="caution" icon="cloud-alert" label={t('civic.credentials.verify.errorTitle')} />
-            <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
+          <View className="gap-space-8 items-start">
+            <Badge
+              appearance="subtle"
+              tone="warning"
+              size="label-medium"
+              icon={Icons.alert}
+              content={t('civic.credentials.verify.errorTitle')}
+            />
+            <Text style={[styles.verdictDesc, { color: colors.textSecondary }]}>
               {t('civic.credentials.verify.errorBody')}
-            </ThemedText>
+            </Text>
           </View>
         )}
 
         {/* Verify action */}
-        <SecondaryButton
-          icon="shield-search"
-          label={verify.state === 'verifying' ? t('civic.credentials.verify.verifying') : t('civic.credentials.verify.cta')}
-          loading={verify.state === 'verifying'}
-          onPress={() => void verify.verify()}
-        />
+        <Button appearance="outline" tone="accent" size="lg" icon={Icons.search} onPress={() => void verify.verify()} loading={verify.state === 'verifying'} style={fullWidthControl}>{verify.state === 'verifying' ? t('civic.credentials.verify.verifying') : t('civic.credentials.verify.cta')}</Button>
 
         {/* Claims */}
         <Section title={t('civic.credentials.detail.claimsTitle')}>
           {claims.length === 0 ? (
-            <ThemedText style={[styles.muted, { color: colors.textSecondary }]}>
+            <Text style={[styles.muted, { color: colors.textSecondary }]}>
               {t('civic.credentials.detail.noClaims')}
-            </ThemedText>
+            </Text>
           ) : (
             <GroupedList>
               {claims.map((entry) => (
                 <View key={entry.key} style={styles.claimRow}>
-                  <ThemedText style={[styles.claimLabel, { color: colors.textSecondary }]}>
+                  <Text style={[styles.claimLabel, { color: colors.textSecondary }]}>
                     {entry.label}
-                  </ThemedText>
-                  <ThemedText style={[styles.claimValue, { color: colors.text }]}>{entry.value}</ThemedText>
+                  </Text>
+                  <Text style={[styles.claimValue, { color: colors.text }]}>{entry.value}</Text>
                 </View>
               ))}
             </GroupedList>
@@ -190,14 +209,14 @@ export default function CredentialDetailScreen() {
         {/* Issuer */}
         <Section title={t('civic.credentials.detail.issuerTitle')}>
           <View style={styles.issuerRow}>
-            <MaterialCommunityIcons name="account-badge-outline" size={22} color={colors.identityIconPublicKey} />
-            <View style={styles.issuerText}>
-              <ThemedText style={[styles.issuerName, { color: colors.text }]} numberOfLines={1}>
+            <Icons.verifiedOutline size='md' fill={colors.identityIconPublicKey} />
+            <View className="flex-1 gap-space-2">
+              <Text style={[styles.issuerName, { color: colors.text }]} numberOfLines={1}>
                 {issuerDisplay || t('civic.credentials.unknownIssuer')}
-              </ThemedText>
-              <ThemedText style={[styles.issuerDid, { color: colors.textSecondary }]} selectable numberOfLines={1}>
+              </Text>
+              <Text style={[styles.issuerDid, { color: colors.textSecondary }]} selectable numberOfLines={1}>
                 {credential.issuerDid}
-              </ThemedText>
+              </Text>
             </View>
           </View>
         </Section>
@@ -206,19 +225,19 @@ export default function CredentialDetailScreen() {
         <Section title={t('civic.credentials.detail.datesTitle')}>
           <GroupedList>
             {issuedOn.length > 0 && (
-              <DateRow colors={colors} icon="calendar-check" label={t('civic.credentials.issuedOn', { date: issuedOn })} />
+              <DateRow colors={colors} icon="scheduled" label={t('civic.credentials.issuedOn', { date: issuedOn })} />
             )}
             {credential.status === 'revoked' && revokedOn.length > 0 ? (
               <DateRow
                 colors={colors}
-                icon="close-octagon-outline"
+                icon="closeCircle"
                 tone={colors.error}
                 label={t('civic.credentials.revokedOn', { date: revokedOn })}
               />
             ) : expiresOn.length > 0 ? (
               <DateRow
                 colors={colors}
-                icon="calendar-remove"
+                icon="unscheduled"
                 tone={credential.status === 'expired' ? colors.warning : undefined}
                 label={t(
                   credential.status === 'expired' ? 'civic.credentials.expiredOn' : 'civic.credentials.expiresOn',
@@ -226,55 +245,49 @@ export default function CredentialDetailScreen() {
                 )}
               />
             ) : (
-              <DateRow colors={colors} icon="infinity" label={t('civic.credentials.noExpiry')} />
+              <DateRow colors={colors} icon="unlimited" label={t('civic.credentials.noExpiry')} />
             )}
           </GroupedList>
         </Section>
 
         {/* Record id */}
         <Section title={t('civic.credentials.detail.recordLabel')}>
-          <ThemedText style={[styles.recordValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
+          <Text style={[styles.recordValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
             {credential.recordId}
-          </ThemedText>
+          </Text>
         </Section>
 
         {/* Revoke — issuer-only, active-only */}
         {canRevoke && revoke.state !== 'done' && (
-          <View style={styles.revokeBlock}>
-            <Callout tone="danger" icon="alert-outline">
+          <View className="gap-space-12">
+            <Admonition type="error">
               {t('civic.credentials.revoke.confirmBody')}
-            </Callout>
+            </Admonition>
             {revoke.biometricFailed && (
-              <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+              <Text style={[styles.inlineWarn, { color: colors.warning }]}>
                 {t('civic.credentials.revoke.biometricFailed')}
-              </ThemedText>
+              </Text>
             )}
             {revoke.state === 'error' && (
-              <ThemedText style={[styles.inlineWarn, { color: colors.error }]}>
+              <Text style={[styles.inlineWarn, { color: colors.error }]}>
                 {t(`civic.credentials.revoke.error.${revoke.errorCode ?? 'generic'}`)}
-              </ThemedText>
+              </Text>
             )}
-            <PrimaryButton
-              tone="danger"
-              icon="fingerprint"
-              label={t('civic.credentials.revoke.cta')}
-              loading={revoke.state === 'revoking'}
-              onPress={handleRevoke}
-            />
+            <Button appearance="solid" tone="danger" size="lg" icon={Icons.personhood} onPress={handleRevoke} loading={revoke.state === 'revoking'} style={fullWidthControl}>{t('civic.credentials.revoke.cta')}</Button>
             {revoke.state === 'revoking' && (
-              <ThemedText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
+              <Text style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
                 {t('civic.credentials.revoke.submitting')}
-              </ThemedText>
+              </Text>
             )}
           </View>
         )}
 
         {revoke.state === 'done' && (
           <View style={styles.revokeDone}>
-            <MaterialCommunityIcons name="check-circle-outline" size={20} color={colors.success} />
-            <ThemedText style={[styles.revokeDoneText, { color: colors.textSecondary }]}>
+            <Icons.checkCircle size='md' fill={colors.success} />
+            <Text style={[styles.revokeDoneText, { color: colors.textSecondary }]}>
               {t('civic.credentials.revoke.doneBody')}
-            </ThemedText>
+            </Text>
           </View>
         )}
       </>
@@ -295,7 +308,7 @@ export default function CredentialDetailScreen() {
 
 interface DateRowProps {
   colors: ReturnType<typeof useColors>;
-  icon: MaterialCommunityIconName;
+  icon: IconName;
   label: string;
   tone?: string;
 }
@@ -303,17 +316,13 @@ interface DateRowProps {
 function DateRow({ colors, icon, label, tone }: DateRowProps) {
   return (
     <View style={styles.dateRow}>
-      <MaterialCommunityIcons name={icon} size={20} color={tone ?? colors.textTertiary} />
-      <ThemedText style={[styles.dateText, { color: tone ?? colors.text }]}>{label}</ThemedText>
+      <AppIcon name={icon} size='md' fill={tone ?? colors.textTertiary} />
+      <Text style={[styles.dateText, { color: tone ?? colors.text }]}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  action: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
   hero: {
     gap: 12,
     alignItems: 'flex-start',
@@ -356,10 +365,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
   },
-  issuerText: {
-    flex: 1,
-    gap: 2,
-  },
   issuerName: {
     fontSize: 16,
     fontWeight: '600',
@@ -379,9 +384,6 @@ const styles = StyleSheet.create({
   recordValue: {
     fontSize: 13,
     lineHeight: 19,
-  },
-  revokeBlock: {
-    gap: 12,
   },
   inlineWarn: {
     fontSize: 13,

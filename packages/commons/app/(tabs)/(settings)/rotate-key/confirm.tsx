@@ -1,12 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Checkbox } from 'expo-checkbox';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useOxy } from '@oxy.so/services';
-import { toast } from '@oxy.so/bloom';
+import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
-import { Screen, StackHeader, Button, Callout, ImportantBanner } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  Screen,
+  StackHeader,
+  ImportantBanner,
+} from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { authenticate } from '@/lib/biometricAuth';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
@@ -93,10 +99,10 @@ export default function RotateKeyConfirmScreen() {
     return (
       <Screen>
         <StackHeader title={t('rotateKey.confirm.successTitle')} />
-        <Callout icon="check-decagram" tone="info">
+        <Admonition type="info">
           {t('rotateKey.confirm.successBody')}
-        </Callout>
-        <Button variant="primary" onPress={finish}>
+        </Admonition>
+        <Button appearance="solid" tone="accent" onPress={finish}>
           {t('rotateKey.confirm.done')}
         </Button>
       </Screen>
@@ -107,10 +113,10 @@ export default function RotateKeyConfirmScreen() {
     return (
       <Screen>
         <StackHeader title={t('rotateKey.confirm.localPersistTitle')} />
-        <ImportantBanner title={t('rotateKey.confirm.localPersistTitle')} icon="alert-octagon">
+        <ImportantBanner title={t('rotateKey.confirm.localPersistTitle')}>
           {t('rotateKey.confirm.localPersistBody')}
         </ImportantBanner>
-        <Button variant="primary" onPress={finish}>
+        <Button appearance="solid" tone="accent" onPress={finish}>
           {t('rotateKey.confirm.done')}
         </Button>
       </Screen>
@@ -128,11 +134,11 @@ export default function RotateKeyConfirmScreen() {
         backAccessibilityLabel={t('common.back')}
       />
 
-      <Callout icon="information-outline" tone="neutral">
+      <Admonition type="info">
         {proof === 'phrase'
           ? t('rotateKey.confirm.summaryPhrase')
           : t('rotateKey.confirm.summaryDevice')}
-      </Callout>
+      </Admonition>
 
       <TouchableOpacity
         style={[styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -143,8 +149,8 @@ export default function RotateKeyConfirmScreen() {
         accessibilityLabel={t('rotateKey.confirm.signOutEverywhere')}
         disabled={rotating}
       >
-        <MaterialCommunityIcons name="logout-variant" size={22} color={colors.textSecondary} />
-        <View style={styles.toggleText}>
+        <Icons.signOut size='md' fill={colors.textSecondary} />
+        <View className="flex-1 gap-space-2">
           <Text style={[styles.toggleTitle, { color: colors.text }]}>
             {t('rotateKey.confirm.signOutEverywhere')}
           </Text>
@@ -160,14 +166,7 @@ export default function RotateKeyConfirmScreen() {
         />
       </TouchableOpacity>
 
-      <Button
-        variant="primary"
-        onPress={handleRotate}
-        loading={rotating}
-        disabled={rotating}
-      >
-        {rotating ? t('rotateKey.confirm.rotating') : t('rotateKey.confirm.cta')}
-      </Button>
+      <Button appearance="solid" tone="accent" onPress={handleRotate} loading={rotating} disabled={rotating}>{rotating ? t('rotateKey.confirm.rotating') : t('rotateKey.confirm.cta')}</Button>
     </Screen>
   );
 }
@@ -181,10 +180,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 16,
     borderCurve: 'continuous',
-  },
-  toggleText: {
-    flex: 1,
-    gap: 2,
   },
   toggleTitle: {
     fontSize: 15,

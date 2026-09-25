@@ -1,8 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
+import { Icons } from '@/constants/icons';
+import { Badge } from '@oxy.so/bloom/badge';
 import { View, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { StatColumns, type StatColumn } from '@/components/ui/stat-columns';
 import { CompositionBar, type CompositionCategory } from '@oxy.so/bloom/composition-bar';
 import { CategoryRow } from '@/components/reputation/CategoryRow';
@@ -13,7 +14,7 @@ import {
 } from '@/lib/civic/reputation-standing';
 import type { ReputationSource, ReputationSourceKey } from '@/lib/civic/reputation-sources';
 import type { AppColors } from '@/hooks/useColors';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 import { mixColors } from '@/utils/color';
 import type { ReputationBalance, TrustTier } from '@oxy.so/contracts';
 import { trustTierLabel } from '@oxy.so/core';
@@ -36,11 +37,11 @@ interface CategoryDatum {
 }
 
 /** The leading glyph for each civic reputation source. */
-const SOURCE_ICON: Readonly<Record<ReputationSourceKey, MaterialCommunityIconName>> = {
-  realLife: 'handshake-outline',
-  peerCivic: 'account-group-outline',
-  apps: 'apps',
-  penalties: 'alert-octagon-outline',
+const SOURCE_ICON: Readonly<Record<ReputationSourceKey, IconName>> = {
+  realLife: 'handshake',
+  peerCivic: 'community',
+  apps: 'grid',
+  penalties: 'alertStrong',
 };
 
 /** The soft chip tone for a trust tier — earned tiers escalate through the
@@ -142,45 +143,45 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
   })();
 
   return (
-    <View style={styles.section}>
-      <View style={styles.headerRow}>
-        <ThemedText style={[styles.heading, { color: colors.text }]}>
+    <View className="gap-space-16">
+      <View className="flex-row items-center justify-between gap-space-12">
+        <Text style={[styles.heading, { color: colors.text }]}>
           {t('civic.reputation.standingTitle')}
-        </ThemedText>
-        <ThemedText style={[styles.total, { color: colors.text }]} numberOfLines={1}>
+        </Text>
+        <Text style={[styles.total, { color: colors.text }]} numberOfLines={1}>
           {balance.total.toLocaleString()}
-        </ThemedText>
+        </Text>
       </View>
 
       <View style={styles.chipRow}>
         <View style={[styles.tierChip, { backgroundColor: colors.backgroundSecondary }]}>
           <View style={[styles.tierDot, { backgroundColor: tierAccent }]} />
-          <ThemedText style={[styles.tierChipText, { color: colors.text }]} numberOfLines={1}>
+          <Text style={[styles.tierChipText, { color: colors.text }]} numberOfLines={1}>
             {trustTierLabel(locale, balance.trustTier)}
-          </ThemedText>
+          </Text>
         </View>
         {isOffline && (
-          <CivicBadge tone="neutral" icon="cloud-off-outline" label={t('civic.reputation.offline')} />
+          <Badge appearance="subtle" tone="neutral" size="label-small" icon={Icons.offline} content={t('civic.reputation.offline')} />
         )}
       </View>
 
       {progressCopy && (
-        <ThemedText
+        <Text
           style={[
             styles.progressCopy,
             { color: progress.kind === 'restricted' ? colors.error : colors.textSecondary },
           ]}
         >
           {progressCopy}
-        </ThemedText>
+        </Text>
       )}
 
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
       {isEmpty ? (
-        <ThemedText style={[styles.empty, { color: colors.textSecondary }]}>
+        <Text style={[styles.empty, { color: colors.textSecondary }]}>
           {t('civic.reputation.composition.empty')}
-        </ThemedText>
+        </Text>
       ) : (
         <>
           <CompositionBar
@@ -192,7 +193,7 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
               t('civic.reputation.composition.readout', { points, percent })
             }
           />
-          <View style={styles.categories}>
+          <View className="mt-space-4">
             {categories.map((category) => (
               <CategoryRow
                 key={category.key}
@@ -227,15 +228,6 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
 }
 
 const styles = StyleSheet.create({
-  section: {
-    gap: 16,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
   heading: {
     fontSize: 18,
     fontWeight: '700',
@@ -281,9 +273,6 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-  },
-  categories: {
-    marginTop: 4,
   },
   empty: {
     fontSize: 13,

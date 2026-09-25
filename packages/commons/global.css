@@ -9,14 +9,36 @@
 @source "./constants/**/*.{js,jsx,ts,tsx}";
 @source "./utils/**/*.{js,jsx,ts,tsx}";
 
-@theme {
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-}
-
-@layer base {
-  :root {
-    --radius: 1rem;
-  }
-}
+/* NO `@theme` BLOCK, AND NO `--radius`.
+ *
+ * This file used to declare `--radius: 1rem` and remap Tailwind's own
+ * `--radius-lg/md/sm` onto it. Bloom's components draw `rounded-lg` (7 call
+ * sites), `rounded-md` (5) and `rounded-sm` (2), so that remap silently
+ * re-skinned Bloom FROM THE INSIDE: measured by building this stylesheet and
+ * reading the value back, `.rounded-lg` resolved to `var(--radius-lg)` ->
+ * `var(--radius)` -> 16px, against Tailwind's own 8px, with `rounded-md` at
+ * 14px against 6px and `rounded-sm` at 12px against 4px. Nothing errored and
+ * nothing looked broken; Bloom's corners were simply not Bloom's. This is the
+ * exact failure `~/Oxy/docs/frontend-conventions.md` censuses in Schedio,
+ * Homiio, Syra and website.
+ *
+ * Nothing in this app ever used `rounded-lg`/`md`/`sm` itself, so the block had
+ * no upside at all. App radii come from Bloom's own scale —
+ * `rounded-radius-8|12|16|20|24|28|max` — which `@oxy.so/bloom/design-tokens`
+ * already defines. Do not reintroduce a second radius vocabulary here.
+ *
+ * Diagnose any change to this file by BUILDING it and grepping the output, not
+ * by reading it:
+ *   postcss([require('@tailwindcss/postcss')()]).process(globalCss)
+ *
+ * Removing the block cost nothing: 64,100 B -> 64,008 B, ZERO classes lost, and
+ * the only custom property dropped was `--radius` itself. Afterwards
+ * `--radius-lg/md/sm` read 0.5rem / 0.375rem / 0.25rem, which is Tailwind's own
+ * scale and what Bloom was drawn against.
+ *
+ * MEASURE FROM THIS DIRECTORY. `@tailwindcss/postcss` auto-detects sources from
+ * the process's CWD on top of the `@source` globs, so the same input built from
+ * the monorepo root reports 185,855 B -> 185,763 B — it has scanned every other
+ * package too. Metro runs here, so the number from here is the real one; a
+ * figure measured from the root is answering a different question.
+ */

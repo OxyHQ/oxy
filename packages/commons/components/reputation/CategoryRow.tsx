@@ -1,14 +1,15 @@
 import React from 'react';
+import { Meter } from '@oxy.so/bloom/stat-bar';
+import { Text } from '@oxy.so/bloom/typography';
+import { AppIcon } from '@/constants/icons';
 import { View, StyleSheet, Pressable } from 'react-native';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { CircleIconBadge } from '@/components/ui/circle-icon-badge';
-import { withAlpha } from '@/utils/color';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import { withAlpha } from '@oxy.so/bloom/theme';
+import type { IconName } from '@/constants/icons';
 
 interface CategoryRowProps {
-  icon: MaterialCommunityIconName;
+  icon: IconName;
   /** The category accent (matches its bar segment / badge tint). */
   color: string;
   label: string;
@@ -47,21 +48,30 @@ export function CategoryRow({
   const content = (
     <>
       <CircleIconBadge backgroundColor={withAlpha(color, 0.12)}>
-        <MaterialCommunityIcons name={icon} size={18} color={color} />
+        <AppIcon name={icon} size='sm' fill={color} />
       </CircleIconBadge>
 
-      <View style={styles.body}>
-        <ThemedText style={[styles.label, { color: colors.text }]} numberOfLines={1}>
+      <View className="flex-1 gap-space-8">
+        <Text style={[styles.label, { color: colors.text }]} numberOfLines={1}>
           {label}
-        </ThemedText>
-        <View style={[styles.track, { backgroundColor: colors.backgroundSecondary }]}>
-          <View style={[styles.fill, { backgroundColor: color, width: `${clamped * 100}%` }]} />
-        </View>
+        </Text>
+        {/* Bloom's `Meter` is "the one determinate bar behind every progress
+            bar in Bloom", and it announces as a `progressbar` with a name —
+            which the two hand-drawn `View`s it replaces never did. The category
+            keeps its own `fill` colour, because the colour is what ties the row
+            to its segment in the distribution bar above. */}
+        <Meter
+          value={clamped}
+          fill={color}
+          track={colors.backgroundSecondary}
+          accessibilityLabel={label}
+          valueText={`${points}`}
+        />
       </View>
 
-      <ThemedText style={[styles.points, { color: isPenalty ? colors.error : colors.text }]}>
+      <Text style={[styles.points, { color: isPenalty ? colors.error : colors.text }]}>
         {isPenalty ? `-${points}` : String(points)}
-      </ThemedText>
+      </Text>
     </>
   );
 
@@ -95,23 +105,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderCurve: 'continuous',
   },
-  body: {
-    flex: 1,
-    gap: 8,
-  },
   label: {
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: -0.2,
-  },
-  track: {
-    height: 6,
-    borderRadius: 999,
-    overflow: 'hidden',
-  },
-  fill: {
-    height: 6,
-    borderRadius: 999,
   },
   points: {
     fontSize: 16,

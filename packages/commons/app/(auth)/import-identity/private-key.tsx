@@ -5,8 +5,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyManager, IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { Fonts } from '@/constants/theme';
-import { withAlpha } from '@/utils/color';
-import { Button, KeyboardAwareScrollViewWrapper } from '@/components/ui';
+import { withAlpha } from '@oxy.so/bloom/theme';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  KeyboardAwareScrollViewWrapper,
+} from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useIdentity } from '@/hooks/useIdentity';
 import { useIdentityStore } from '@/hooks/identity/identityStore';
@@ -125,17 +128,9 @@ export default function ImportPrivateKeyScreen() {
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button
-          variant="primary"
-          onPress={handleImport}
-          disabled={isLoading}
-          loading={isLoading}
-          style={styles.primaryButton}
-        >
-          {isLoading ? t('importPrivateKey.importing') : t('importPrivateKey.import')}
-        </Button>
+        <Button appearance="solid" tone="accent" onPress={handleImport} disabled={isLoading} loading={isLoading} className="mt-space-32">{isLoading ? t('importPrivateKey.importing') : t('importPrivateKey.import')}</Button>
 
-        <Button variant="ghost" onPress={() => router.back()} disabled={isLoading}>
+        <Button appearance="subtle" onPress={() => router.back()} disabled={isLoading}>
           {t('common.back')}
         </Button>
       </KeyboardAwareScrollViewWrapper>
@@ -174,9 +169,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: Fonts.mono,
     textAlignVertical: 'top',
-  },
-  primaryButton: {
-    marginTop: 32,
   },
   errorText: {
     fontSize: 14,

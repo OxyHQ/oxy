@@ -1,10 +1,18 @@
 import React, { useCallback, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { KeyManager, IdentityUnavailableError } from '@oxy.so/core';
-import { Screen, StackHeader, Section, Button, Callout, CenteredState } from '@/components/ui';
-import { ThemedText } from '@/components/themed-text';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  Screen,
+  StackHeader,
+  Section,
+  STATE_MIN_HEIGHT,
+} from '@/components/ui';
 import { RecoveryPhraseGrid } from '@/components/identity/RecoveryPhraseGrid';
 import { useColors } from '@/hooks/useColors';
 import { authenticate, canUseBiometrics, getErrorMessage } from '@/lib/biometricAuth';
@@ -84,9 +92,9 @@ export default function RecoveryPhraseScreen() {
 
       {state.kind === 'revealed' ? (
         <Section>
-          <Callout tone="danger" icon="alert-octagon">
+          <Admonition type="error">
             {t('settings.recoveryPhrase.warning')}
-          </Callout>
+          </Admonition>
 
           <View
             style={[styles.phraseGrid, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -94,67 +102,54 @@ export default function RecoveryPhraseScreen() {
             <RecoveryPhraseGrid words={state.words} textColor={colors.text} />
           </View>
 
-          <ThemedText style={[styles.copyWarning, { color: colors.warning }]}>
+          <Text style={[styles.copyWarning, { color: colors.warning }]}>
             {t('settings.recoveryPhrase.copyWarning')}
-          </ThemedText>
+          </Text>
 
-          <Button variant="secondary" onPress={hide}>
+          <Button appearance="outline" tone="neutral" onPress={hide}>
             {t('settings.recoveryPhrase.hide')}
           </Button>
         </Section>
       ) : state.kind === 'notStored' ? (
-        <CenteredState
-          icon="text-box-remove-outline"
+        <EmptyState
+          icon={Icons.error}
           title={t('settings.recoveryPhrase.notStoredTitle')}
-          body={t('settings.recoveryPhrase.notStoredBody')}
+          description={t('settings.recoveryPhrase.notStoredBody')}
+          minHeight={STATE_MIN_HEIGHT}
         />
       ) : state.kind === 'unavailable' ? (
-        <CenteredState
-          icon="shield-lock-outline"
+        <EmptyState
+          icon={Icons.shield}
           title={t('settings.recoveryPhrase.unavailableTitle')}
-          body={t('settings.recoveryPhrase.unavailableBody')}
-          action={
-            <Button variant="primary" onPress={reveal}>
-              {t('common.retry')}
-            </Button>
-          }
+          description={t('settings.recoveryPhrase.unavailableBody')}
+          action={{ label: t('common.retry'), onPress: reveal }}
+          minHeight={STATE_MIN_HEIGHT}
         />
       ) : state.kind === 'gateFailed' ? (
-        <CenteredState
-          icon="lock-alert-outline"
-          iconColor={colors.error}
+        <EmptyState
+          illustration={<Icons.lock size="3xl" fill={colors.error} />}
           title={t('settings.recoveryPhrase.gateFailedTitle')}
-          body={state.message}
-          action={
-            <Button variant="primary" onPress={reveal}>
-              {t('common.retry')}
-            </Button>
-          }
+          description={state.message}
+          action={{ label: t('common.retry'), onPress: reveal }}
+          minHeight={STATE_MIN_HEIGHT}
         />
       ) : (
         <Section>
-          <View style={styles.lockedHeader}>
-            <MaterialCommunityIcons name="shield-key" size={40} color={colors.tint} />
-            <ThemedText style={[styles.lockedTitle, { color: colors.text }]}>
+          <View className="items-center gap-space-8 py-space-16">
+            <Icons.shield size='2xl' fill={colors.tint} />
+            <Text style={[styles.lockedTitle, { color: colors.text }]}>
               {t('settings.recoveryPhrase.lockedTitle')}
-            </ThemedText>
-            <ThemedText style={[styles.lockedBody, { color: colors.textSecondary }]}>
+            </Text>
+            <Text style={[styles.lockedBody, { color: colors.textSecondary }]}>
               {t('settings.recoveryPhrase.lockedBody')}
-            </ThemedText>
+            </Text>
           </View>
 
-          <Callout tone="warning" icon="alert-octagon">
+          <Admonition type="warning">
             {t('settings.recoveryPhrase.warning')}
-          </Callout>
+          </Admonition>
 
-          <Button
-            variant="primary"
-            onPress={reveal}
-            loading={state.kind === 'authenticating'}
-            disabled={state.kind === 'authenticating'}
-          >
-            {t('settings.recoveryPhrase.revealButton')}
-          </Button>
+          <Button appearance="solid" tone="accent" onPress={reveal} loading={state.kind === 'authenticating'} disabled={state.kind === 'authenticating'}>{t('settings.recoveryPhrase.revealButton')}</Button>
         </Section>
       )}
     </Screen>
@@ -162,11 +157,6 @@ export default function RecoveryPhraseScreen() {
 }
 
 const styles = StyleSheet.create({
-  lockedHeader: {
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 16,
-  },
   lockedTitle: {
     fontSize: 20,
     fontWeight: '700',
