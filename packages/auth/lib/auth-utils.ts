@@ -58,32 +58,33 @@ export function buildPostLoginRedirect({
     mcpLinkIntent,
     userCode,
 }: PostLoginRedirectParams): string {
-    if (mcpLinkIntent) {
-        const linkUrl = new URL("/mcp/link", window.location.origin)
-        linkUrl.searchParams.set("intent", mcpLinkIntent)
-        return `${linkUrl.pathname}${linkUrl.search}`
+    if (mcpLinkIntent) return pathWithQuery("/mcp/link", { intent: mcpLinkIntent })
+    if (userCode) return pathWithQuery("/device", { user_code: userCode })
+    const hasRequest = Boolean(sessionToken || redirectUri || clientId)
+    return pathWithQuery("/authorize", {
+        token: sessionToken,
+        redirect_uri: redirectUri,
+        state,
+        client_id: clientId,
+        code_challenge: codeChallenge,
+        code_challenge_method: codeChallengeMethod,
+        scope,
+        resource,
+        response_type: responseType,
+        response_mode: responseMode,
+        error: hasRequest ? undefined : "No authorization request found. Return to the app and try again.",
+    })
+}
+
+/**
+ * A same-origin path with its query — what a router navigates to. Built from
+ * the parameters alone, so it needs no `window` (and runs in any test runner).
+ */
+function pathWithQuery(pathname: string, params: Record<string, string | undefined>): string {
+    const query = new URLSearchParams()
+    for (const [key, value] of Object.entries(params)) {
+        if (value) query.set(key, value)
     }
-    if (userCode) {
-        const deviceUrl = new URL("/device", window.location.origin)
-        deviceUrl.searchParams.set("user_code", userCode)
-        return `${deviceUrl.pathname}${deviceUrl.search}`
-    }
-    const nextUrl = new URL("/authorize", window.location.origin)
-    if (sessionToken) nextUrl.searchParams.set("token", sessionToken)
-    if (redirectUri) nextUrl.searchParams.set("redirect_uri", redirectUri)
-    if (state) nextUrl.searchParams.set("state", state)
-    if (clientId) nextUrl.searchParams.set("client_id", clientId)
-    if (codeChallenge) nextUrl.searchParams.set("code_challenge", codeChallenge)
-    if (codeChallengeMethod) nextUrl.searchParams.set("code_challenge_method", codeChallengeMethod)
-    if (scope) nextUrl.searchParams.set("scope", scope)
-    if (resource) nextUrl.searchParams.set("resource", resource)
-    if (responseType) nextUrl.searchParams.set("response_type", responseType)
-    if (responseMode) nextUrl.searchParams.set("response_mode", responseMode)
-    if (!sessionToken && !redirectUri && !clientId) {
-        nextUrl.searchParams.set(
-            "error",
-            "No authorization request found. Return to the app and try again."
-        )
-    }
-    return `${nextUrl.pathname}${nextUrl.search}`
+    const search = query.toString()
+    return search ? `${pathname}?${search}` : pathname
 }
