@@ -26,6 +26,7 @@
  * frozen at whatever the value was when the first module imported this.
  */
 
+import { isProduction } from '../config/env';
 import {
   APPLICATION_CREDENTIAL_ENVIRONMENTS,
   type ApplicationCredentialEnvironment,
@@ -53,4 +54,36 @@ export function deploymentCredentialEnvironment(): ApplicationCredentialEnvironm
     return configured as ApplicationCredentialEnvironment;
   }
   return process.env.NODE_ENV === 'production' ? 'production' : 'development';
+}
+
+/**
+ * The environment an ATTESTED service token is minted into, and re-read with.
+ *
+ * A credential carries an environment because a human chose one when they
+ * issued it. An attestation carries none — a workload proves what it IS, never
+ * which environment it means — so the only honest answer is where this API is
+ * running, and taking it from the request would let a caller mint itself a
+ * production token from staging.
+ *
+ * ## Why this is not {@link deploymentCredentialEnvironment}
+ *
+ * That function answers a different question: which environment a presented
+ * CREDENTIAL must declare to authenticate here, and it honours
+ * `OXY_CREDENTIAL_ENVIRONMENT` so a staging deployment can accept `staging`
+ * keys. There are no `staging` workload tokens to accept: `exchangeWorkloadAttestation`
+ * has always written one of two values, and widening that here would change
+ * what a minted token says. The two rules are kept apart deliberately rather
+ * than merged into one that is right for neither.
+ *
+ * It lives beside that rule, with the same read-per-call discipline, because it
+ * has TWO readers that must agree exactly: the mint
+ * (`services/workloadIdentity.service.ts`), which decides what an attested
+ * token carries, and `resolveServiceTokenPrincipal`
+ * (`services/attribution.service.ts`), which decides what environment an
+ * attested request is metered and charged in. Two copies would agree the day
+ * they were written; the drift would be a receipt filed under an environment
+ * the token never named.
+ */
+export function workloadTokenEnvironment(): ApplicationCredentialEnvironment {
+  return isProduction() ? 'production' : 'development';
 }

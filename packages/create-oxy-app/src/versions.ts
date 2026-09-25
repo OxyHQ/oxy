@@ -19,33 +19,14 @@ export const VERSIONS = {
   // Bloom — and Bloom 3's composition contracts are React contexts, which do not
   // cross copies.
   //
-  // Raised, because the condition it was waiting on is met: services 3.1.0 is on
-  // the public registry. Until now a SCAFFOLDED app got the broken pairing — the
-  // gap was invisible in CI by design, since `scaffold-smoke` installs the
-  // generated app from HEAD tarballs and so pairs Bloom 3 with this tree's
-  // services rather than with the `^2.0.0` a real `npm install` resolves.
-  //
-  // `^3.0.0` and not `^3.1.0`: the rule above is "name a range that resolves",
-  // 3.0.0 is the published floor, and a caret picks up 3.1.0 on its own.
-  oxyServices: '^3.0.0', // @oxy.so/services
-  //
-  // `^23.3.0` until now, which is a PRE-RENAME number: the package was
-  // `@oxyhq/core` up to 23.x, and versions RESET at the rename to `@oxy.so/core`,
-  // whose highest published version is 1.x. So the range matched nothing —
-  // `npm view '@oxy.so/core@^23.3.0' version` is an E404 — and because the
-  // generated root `package.json` repeats this pin in `overrides` AND
-  // `resolutions`, a scaffolded app could not `bun install` at all, not even
-  // partially. Every app generated since the rename inherited that.
-  //
-  // 1.7.1 is published and satisfies the `@oxy.so/core: ^1.0.1` peer that
-  // services 3.x declares. The floor is the measured version rather than the
-  // major's first release: services' peer floor is only the compatibility
-  // minimum, while 1.7.1 is what this workspace and `scaffold-smoke` build
-  // against. A caret keeps later 1.x.
-  oxyCore: '^1.7.1', // @oxy.so/core
-  oxyBloom: '^3.2.1', // @oxy.so/bloom — services imports its per-glyph icon subpaths
+  // Keep this set paired. Publish Core, Bloom, Services and App Preset before
+  // releasing the scaffolder: its ranges must resolve outside this workspace.
+  oxyServices: '^4.0.0', // @oxy.so/services — requires the Bloom4 context family
+  oxyCore: '^1.7.3', // @oxy.so/core — native/browser workload identity boundary
+  oxyBloom: '^4.2.0', // @oxy.so/bloom
+
   oxyContracts: '^1.0.0', // @oxy.so/contracts
-  oxyAppPreset: '^2.0.0', // @oxy.so/app-preset
+  oxyAppPreset: '^2.0.1', // @oxy.so/app-preset
 
   // --- Expo SDK 57 core ---
   expo: '^57.0.6',

@@ -48,7 +48,10 @@ snapshot, then perform the scoped serving/publisher rollout and review the
 fresh exact deployment identity in Oxy's catalogue. Provision the speech-only
 profile reserved by Alia (`cc2471c8-807e-46ec-b5da-b6f3b39d2db5`) through normal
 reviewer authority, immutable price/score records and exact credential binding.
-No speech catalogue provisioning is included in this candidate.
+No speech catalogue provisioning is included in this candidate; the reviewed
+speech catalogue entry (profile, xAI route, list price and scorecard) was added
+later to `kaanaInitialCatalogue.ts` and is provisioned by the reviewed catalogue
+bootstrap.
 
 A direct real xAI Spanish TTS probe returned a decodable MP3 without using
 OpenAI credit. That probe is not proof of the Alia -> Oxy -> Kaana product path.

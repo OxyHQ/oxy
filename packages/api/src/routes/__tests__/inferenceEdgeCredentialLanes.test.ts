@@ -129,6 +129,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountBalances } from '../../db/schema/accountBalances';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
+import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
 import {
   inferenceDeployments,
   inferenceModelRevisions,
@@ -144,6 +145,12 @@ import { provisionBillingProfile, recordTopUp } from '../../services/inferenceLe
 import type { KaanaClient, KaanaCompletion } from '../../services/kaanaClient';
 import { resetFailureAuditCooldown } from '../../services/applicationCredentialAudit.service';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
+import { resolveServiceTokenPrincipal } from '../../services/attribution.service';
+import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
+import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
+import { inferenceUsageDailyRollups } from '../../db/schema/inferenceUsageDailyRollups';
+import { usageReservations } from '../../db/schema/usageReservations';
+import type { ServiceTokenPayload } from '../../middleware/serviceToken';
 import applicationsRouter from '../applications';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
 import {
@@ -517,6 +524,11 @@ async function balanceOf(accountId: string): Promise<{ purchased: string; reserv
  * `credentialId` names a REAL credential row, because the edge's service lane
  * re-reads that row rather than trusting these claims — which is the whole point
  * of the lane and what the revocation case below exercises.
+ *
+ * On the ATTESTED path it names a `wl_…` attestation handle instead, which is
+ * what `exchangeWorkloadAttestation` puts in this claim when there is no
+ * credential at all (ADR 0026). The claims are otherwise identical, because it
+ * is the same mint and the same token — see `bindWorkload`.
  */
 function signServiceToken(input: {
   applicationId: string;
@@ -760,6 +772,377 @@ describe('the service-token lane, with a delegated user', () => {
       )
     );
     expect(served.status).toBe(200);
+    expect(seen).toHaveLength(1);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The ATTESTED service-token lane (ADR 0026)                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Bind this fixture's application to an IAM role, the way
+ * `scripts/bind-workload-identity.ts` does, and hand back what an attestation
+ * of that role would present.
+ *
+ * Two details are what make these cases evidence rather than decoration:
+ *
+ *  * **The handle is DERIVED**, by the one definition the mint itself uses.
+ *    A literal `wl_…` in this file would be a constant that keeps passing after
+ *    the derivation moves, and the lane would go quiet in production instead of
+ *    red here.
+ *  * **The application is made trusted first-party**, because that is the gate
+ *    `exchangeWorkloadAttestation` applies at mint. A binding on an ordinary
+ *    third-party application cannot mint, so a live ceiling that admitted one
+ *    would admit more than a fresh mint would — and `makeFixture` builds
+ *    third-party applications.
+ *
+ *  * **The binding is MATERIALISED**, through the same
+ *    `ensureWorkloadAttributionIdentity` that `bindWorkloadIdentity` and
+ *    `exchangeWorkloadAttestation` call. That row is what the usage ledger's
+ *    `application_credential_id` foreign key names, so a fixture without it would
+ *    be a fixture no production token can correspond to — both writers run before
+ *    a token carrying the handle can exist. `attribute: false` builds that
+ *    unreachable state deliberately, for the case that proves it refuses cleanly.
+ *
+ * Nothing here touches the fixture's credential row. It stays live and unused,
+ * which is what lets the pairing below say something.
+ */
+async function bindWorkload(
+  fixture: Fixture,
+  options: { scopes?: string[]; attribute?: boolean } = {}
+): Promise<{ readonly subject: string; readonly handle: string; readonly bindingId: string }> {
+  const subject = `arn:aws:iam::237343248947:role/oxy-lane-${suffix()}-task`;
+
+  await getDb()
+    .update(applications)
+    .set({ type: 'first_party' })
+    .where(eq(applications.id, fixture.applicationId));
+
+  const [binding] = await getDb()
+    .insert(applicationWorkloadIdentities)
+    .values({
+      applicationId: fixture.applicationId,
+      provider: 'aws-iam',
+      subject,
+      description: `lane suite ${suffix()}`,
+      scopes: options.scopes ?? [],
+    })
+    .returning({ id: applicationWorkloadIdentities.id });
+
+  if (options.attribute !== false) {
+    await ensureWorkloadAttributionIdentity({
+      bindingId: binding.id,
+      applicationId: fixture.applicationId,
+      subject,
+    });
+  }
+
+  return { subject, handle: workloadAttestationHandle(subject), bindingId: binding.id };
+}
+
+/**
+ * The attested caller at the edge, end to end: it resolves, it is served, and it
+ * is charged.
+ *
+ * ADR 0026 lets an Oxy service authenticate by attesting its ECS task role, and
+ * the token it receives differs from a credential-minted one in exactly one
+ * claim: `credentialId` is the binding's attestation handle. Two things blocked
+ * it, in order. `authenticateEdgeCaller` resolved that claim as an
+ * `application_credentials` row id unconditionally, so it found nothing and the
+ * log blamed an unknown credential; that was fixed by taking the same hop the
+ * catalogue takes (`resolveServiceTokenPrincipal`). What remained was the LEDGER:
+ * four tables carry the authenticating identity in a `NOT NULL` column with a
+ * foreign key to `application_credentials.id`, one of them in its primary key, so
+ * a handle named no row and the edge refused `proof === 'workload'` outright with
+ * `workload_attribution_unsupported` rather than failing that constraint half way
+ * through an authenticated request.
+ *
+ * The handle now names a real row — the binding, materialised as a `workload` row
+ * whose id IS the handle (`services/workloadAttributionIdentity.service.ts`) — so
+ * the refusal is gone and these cases assert the thing it stood in the way of: a
+ * reservation, a receipt and a rollup filed under `wl_…`, with the balance moved
+ * and the request actually forwarded.
+ *
+ * The pairing with `resolveServiceTokenPrincipal` is kept where a refusal is
+ * still expected, because a 401 alone is also what a broken hop produces — the
+ * pair is what tells "the binding is not live" apart from "nothing resolved it".
+ */
+describe('the attested service-token lane', () => {
+  /** The token an attestation of `subject` mints: the handle as `credentialId`. */
+  function attestedToken(fixture: Fixture, handle: string, scopes?: string[]): string {
+    return signServiceToken({
+      applicationId: fixture.applicationId,
+      ownerAccountId: fixture.accountId,
+      credentialId: handle,
+      ...(scopes === undefined ? {} : { scopes }),
+    });
+  }
+
+  function claims(fixture: Fixture, credentialId: string): ServiceTokenPayload {
+    return {
+      type: 'service',
+      appId: fixture.applicationId,
+      appName: 'Alia',
+      credentialId,
+      ownerAccountId: fixture.accountId,
+      environment: 'development',
+      scopes: ['inference:invoke'],
+    };
+  }
+
+  it('completes a reservation, a receipt and a rollup filed under the attestation handle', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const { handle } = await bindWorkload(fixture);
+    const before = await balanceOf(fixture.accountId);
+    const seen: InferenceRequest[] = [];
+    currentKaana = fakeKaana(
+      (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
+      seen
+    );
+
+    // Half one: the identity resolves, from the BINDING, with no credential
+    // involved.
+    await expect(
+      resolveServiceTokenPrincipal(claims(fixture, handle))
+    ).resolves.toMatchObject({
+      status: 'resolved',
+      principal: { proof: 'workload', credentialId: handle, applicationId: fixture.applicationId },
+    });
+
+    // Half two: it is SERVED. This is the assertion the whole change exists for,
+    // and it went red as a 401 before the materialised row existed.
+    const response = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(attestedToken(fixture, handle))
+    );
+    expect(response.status).toBe(200);
+    expect(seen).toHaveLength(1);
+    // The handle travels as the principal's credential id all the way into the
+    // data plane's attribution block, unchanged.
+    expect(seen[0].attribution.principal.credentialId).toBe(handle);
+
+    // The reservation was held against the attested identity — the exact INSERT
+    // that used to fail `usage_reservations_application_credential_id_…`.
+    const reservations = await getDb()
+      .select({
+        applicationCredentialId: usageReservations.applicationCredentialId,
+        status: usageReservations.status,
+      })
+      .from(usageReservations)
+      .where(eq(usageReservations.accountId, fixture.accountId));
+    expect(reservations).toHaveLength(1);
+    expect(reservations[0].applicationCredentialId).toBe(handle);
+    expect(reservations[0].status).toBe('settled');
+
+    // And the receipt, which is what a bill is built from. Not the fixture's
+    // credential: that row is live and untouched, so an edge that fell back to
+    // "some credential of this application" would pass everything above and fail
+    // here.
+    const receipts = await receiptsFor(fixture.accountId);
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0].applicationCredentialId).toBe(handle);
+    expect(receipts[0].applicationCredentialId).not.toBe(fixture.credentialId);
+
+    // The rollup, whose `application_credential_id` is part of its PRIMARY KEY —
+    // the constraint that ruled out making the column nullable.
+    const rollups = await getDb()
+      .select({ requestCount: inferenceUsageDailyRollups.requestCount })
+      .from(inferenceUsageDailyRollups)
+      .where(eq(inferenceUsageDailyRollups.applicationCredentialId, handle));
+    expect(rollups).toHaveLength(1);
+    expect(rollups[0].requestCount).toBe(1);
+
+    // Money actually moved, so "served" is not a 200 with an unbilled request.
+    const after = await balanceOf(fixture.accountId);
+    expect(Number(after.purchased)).toBeLessThan(Number(before.purchased));
+  });
+
+  it('refuses a live binding whose attribution row is missing, without ever reaching the data plane', async () => {
+    // The state no production token can be in — both writers materialise the row
+    // before a token naming the handle exists — built deliberately, because the
+    // failure mode if it ever happened is the one the holding position existed to
+    // avoid: a foreign-key violation half way through an authenticated request.
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const { handle } = await bindWorkload(fixture, { attribute: false });
+    const before = await balanceOf(fixture.accountId);
+    const seen: InferenceRequest[] = [];
+    currentKaana = fakeKaana(
+      (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
+      seen
+    );
+
+    // `resolveLiveAgencyWorkloadByHandle` requires the binding→row link, so this
+    // is an ordinary liveness refusal rather than a 500 from the ledger.
+    await expect(resolveServiceTokenPrincipal(claims(fixture, handle))).resolves.toEqual({
+      status: 'unknown-workload',
+    });
+
+    const response = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(attestedToken(fixture, handle))
+    );
+    expect(response.status).toBe(401);
+    expect(seen).toHaveLength(0);
+    expect(await balanceOf(fixture.accountId)).toEqual(before);
+    expect(await receiptsFor(fixture.accountId)).toHaveLength(0);
+  });
+
+  it('stops serving the moment the binding is deleted, and keeps the spend it already made', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const { handle, bindingId } = await bindWorkload(fixture);
+    const seen: InferenceRequest[] = [];
+    currentKaana = fakeKaana(
+      (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
+      seen
+    );
+
+    const served = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(attestedToken(fixture, handle))
+    );
+    expect(served.status).toBe(200);
+
+    // Deleting the binding is how a compromised workload is cut off, and it takes
+    // effect on the very next call — the token itself is still an hour from
+    // expiry.
+    await getDb()
+      .delete(applicationWorkloadIdentities)
+      .where(eq(applicationWorkloadIdentities.id, bindingId));
+
+    const after = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(attestedToken(fixture, handle))
+    );
+    expect(after.status).toBe(401);
+    expect(seen).toHaveLength(1);
+
+    // And the receipt it already earned is still there, still naming the identity
+    // that authorised it. `SET NULL` on the binding link rather than `CASCADE` is
+    // what makes that true: a cascade would have reached the usage tables.
+    const receipts = await receiptsFor(fixture.accountId);
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0].applicationCredentialId).toBe(handle);
+    const [row] = await getDb()
+      .select({ workloadIdentityId: applicationCredentials.workloadIdentityId })
+      .from(applicationCredentials)
+      .where(eq(applicationCredentials.id, handle));
+    expect(row.workloadIdentityId).toBeNull();
+  });
+
+  it('answers identically for a handle nobody bound and a binding that has expired', async () => {
+    // The wire must not be an oracle on a binding's lifecycle. Now that a LIVE
+    // binding is legitimately served, the property is about the refusals: "no such
+    // binding" and "that binding is expired" are one arm inside
+    // `resolveServiceTokenPrincipal` and must be one answer on the wire too.
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const expired = await bindWorkload(fixture);
+    await getDb()
+      .update(applicationWorkloadIdentities)
+      .set({ expiresAt: new Date(Date.now() - 60_000) })
+      .where(eq(applicationWorkloadIdentities.id, expired.bindingId));
+    const unboundHandle = workloadAttestationHandle(
+      `arn:aws:iam::237343248947:role/oxy-never-bound-${suffix()}-task`
+    );
+    const seen: InferenceRequest[] = [];
+    currentKaana = fakeKaana(
+      (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
+      seen
+    );
+
+    // Both collapse to the one arm, which is what the hop promises.
+    await expect(
+      resolveServiceTokenPrincipal(claims(fixture, expired.handle))
+    ).resolves.toEqual({ status: 'unknown-workload' });
+    await expect(resolveServiceTokenPrincipal(claims(fixture, unboundHandle))).resolves.toEqual({
+      status: 'unknown-workload',
+    });
+
+    const expiredResponse = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(attestedToken(fixture, expired.handle))
+    );
+    const unbound = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(attestedToken(fixture, unboundHandle))
+    );
+    expect(expiredResponse.status).toBe(401);
+    expect(unbound.status).toBe(401);
+    // `requestId` is per request by design; everything a caller could read a
+    // binding's existence out of is identical.
+    const withoutRequestId = (response: RawResponse): Record<string, unknown> => {
+      const { requestId: _requestId, ...rest } = json(response);
+      return rest;
+    };
+    expect(withoutRequestId(expiredResponse)).toEqual(withoutRequestId(unbound));
+    expect(seen).toHaveLength(0);
+  });
+
+  it('leaves a CREDENTIAL-minted token on the credential path, byte for byte', async () => {
+    // The regression guard for the branch itself: the same application now has
+    // BOTH a live credential and a live binding, and a token naming the
+    // credential must still be served, with that credential in the receipt.
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const { handle } = await bindWorkload(fixture);
+    const seen: InferenceRequest[] = [];
+    currentKaana = fakeKaana(
+      (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
+      seen
+    );
+
+    const response = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(
+        signServiceToken({
+          applicationId: fixture.applicationId,
+          ownerAccountId: fixture.accountId,
+          credentialId: fixture.credentialId,
+        })
+      )
+    );
+
+    expect(response.status).toBe(200);
+    expect(seen).toHaveLength(1);
+    expect(seen[0].attribution.principal.credentialId).toBe(fixture.credentialId);
+    expect(seen[0].attribution.principal.credentialId).not.toBe(handle);
+
+    const receipts = await receiptsFor(fixture.accountId);
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0].applicationCredentialId).toBe(fixture.credentialId);
+
+    // And revoking the CREDENTIAL still ends that token with the binding alive
+    // the whole time: one identity's liveness never covers for the other's.
+    await getDb()
+      .update(applicationCredentials)
+      .set({ status: 'revoked' })
+      .where(eq(applicationCredentials.id, fixture.credentialId));
+    const after = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(
+        signServiceToken({
+          applicationId: fixture.applicationId,
+          ownerAccountId: fixture.accountId,
+          credentialId: fixture.credentialId,
+        })
+      )
+    );
+    expect(after.status).toBe(401);
     expect(seen).toHaveLength(1);
   });
 });

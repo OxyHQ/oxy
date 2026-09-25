@@ -61,6 +61,16 @@ export const inferenceModalitySchema = z.enum([
 ]);
 
 /**
+ * How hard a reasoning model is asked to think before it answers.
+ *
+ * A closed, provider-neutral vocabulary: Kaana translates each value into the
+ * serving provider's own control. A model advertises the subset it accepts in
+ * `modelCapabilitiesSchema.reasoningEfforts`, and Oxy refuses a request for an
+ * effort the resolved model does not advertise rather than dropping it.
+ */
+export const reasoningEffortSchema = z.enum(['low', 'medium', 'high']);
+
+/**
  * What a model can do, in the terms a caller has to decide against before
  * sending a request: can it call tools, does it accept images, will it honour a
  * JSON schema, how much context does it take, how much can it emit.
@@ -74,6 +84,13 @@ export const modelCapabilitiesSchema = z
     structuredOutput: z.boolean(),
     jsonMode: z.boolean(),
     reasoning: z.boolean(),
+    /**
+     * The reasoning efforts a request may name for this model, in the order
+     * low → high. Empty means the model takes no effort control at all (it may
+     * still reason: `reasoning` answers that). Added in contract set 3.1.0;
+     * absent on the wire from an older producer, it parses as `[]`.
+     */
+    reasoningEfforts: z.array(reasoningEffortSchema).default([]),
     streaming: z.boolean(),
     promptCaching: z.boolean(),
     maxContextTokens: z.number().int().positive().safe(),
@@ -525,6 +542,12 @@ export const modelCatalogueEntrySchema = z.object({
   provenance: modelProvenanceSchema,
   knowledgeCutoff: inferenceDateSchema.optional(),
   releasedOn: inferenceDateSchema.optional(),
+  /**
+   * When the upstream provider first published this model, as that provider
+   * reports it. Present only when a provider reported it; never an Oxy or Kaana
+   * observation time. Lets a picker order models newest first.
+   */
+  releasedAt: inferenceTimestampSchema.optional(),
   regions: z.array(inferenceRegionSchema).default([]),
   servingProviders: z.array(catalogueServingProviderSummarySchema).default([]),
   dataPolicy: inferenceDataPolicySchema,
@@ -541,6 +564,7 @@ export const modelCatalogueEntrySchema = z.object({
 });
 
 export type InferenceModality = z.infer<typeof inferenceModalitySchema>;
+export type ReasoningEffort = z.infer<typeof reasoningEffortSchema>;
 export type ModelCapabilities = z.infer<typeof modelCapabilitiesSchema>;
 export type ModelLicense = z.infer<typeof modelLicenseSchema>;
 export type ModelProvenance = z.infer<typeof modelProvenanceSchema>;

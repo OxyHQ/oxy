@@ -65,17 +65,7 @@ export interface OxySignInButtonProps {
      */
     action?: OxySignInButtonAction;
 
-    /**
-     * `md` (36 tall, 300 wide) or `sm` (32 × 250).
-     *
-     * The union is Bloom's own `SocialButtonSize`, so this prop tracks it by
-     * construction: Bloom 4.0 renamed the rungs `medium`/`small` to `md`/`sm`
-     * as part of the coherent `xs|sm|md|lg` scale, and SocialButton — unlike
-     * `Button` — kept no legacy aliases. Re-spelling them here would be a
-     * second way to say one thing, so the rename is passed straight through.
-     *
-     * @default 'md'
-     */
+    /** `md` (36 tall, 300 wide) or `sm` (32 × 250). @default 'md' */
     size?: SocialButtonSize;
 
     /** Fill the container's width instead of the fixed 300 / 250. */

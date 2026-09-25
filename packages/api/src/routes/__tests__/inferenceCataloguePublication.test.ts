@@ -38,11 +38,14 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
+import { eq } from 'drizzle-orm';
 import type { ModelCatalogueEntry } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { CATALOGUE_AUDIENCE_VARIABLE } from '../../config/rolloutFlags';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
+import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
+import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
 import {
   inferenceDeployments,
   inferenceModelRevisions,
@@ -54,6 +57,7 @@ import {
 } from '../../db/schema';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
+import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
 import catalogueRouter from '../inferenceCatalogue';
 
 jest.setTimeout(60_000);
@@ -109,6 +113,17 @@ const modelId = `${publisherSlug}/${modelSlug}`;
 
 /** A service token for an INTERNAL application — the privileged audience. */
 let internalToken: string;
+/**
+ * The same audience, reached by an ATTESTED caller: one more internal
+ * application, bound to an IAM role, with NO credential row anywhere and a
+ * token whose `credentialId` is the binding's attestation handle.
+ *
+ * This is the shape Alia's pre-deploy readiness task presents (ADR 0026), and
+ * the shape that was demoted to the public viewer — which, under the
+ * `internal` default this file is about, is served an empty profile list.
+ */
+let attestedInternalToken: string;
+let attestedBindingId: string;
 
 async function seed(): Promise<void> {
   const db = getDb();
@@ -154,6 +169,58 @@ async function seed(): Promise<void> {
       appId: internalApplication.id,
       appName: `Internal ${tag}`,
       credentialId: credential.id,
+      ownerAccountId: account.id,
+      environment: 'production',
+      scopes: ['inference:invoke'],
+    },
+    process.env.ACCESS_TOKEN_SECRET as string,
+    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' }
+  );
+
+  const [attestedApplication] = await db
+    .insert(applications)
+    .values({
+      name: `Attested Internal ${tag}`,
+      ownerAccountId: account.id,
+      type: 'internal',
+      isInternal: true,
+      scopes: ['inference:invoke'],
+    })
+    .returning({ id: applications.id });
+
+  // No credential row for this one, deliberately. The binding IS its identity.
+  const attestedSubject = `arn:aws:iam::237343248947:role/oxy-catalogue-${tag}-task`;
+  const [attestedBinding] = await db
+    .insert(applicationWorkloadIdentities)
+    .values({
+      applicationId: attestedApplication.id,
+      provider: 'aws-iam',
+      subject: attestedSubject,
+      description: `publication suite ${tag}`,
+      scopes: [],
+    })
+    .returning({ id: applicationWorkloadIdentities.id });
+  attestedBindingId = attestedBinding.id;
+  /**
+   * Its materialised attribution row, as both production writers produce it.
+   * `resolveLiveAgencyWorkloadByHandle` requires the binding→row link, and the
+   * mint writes the row before issuing a token that names the handle — so a
+   * fixture without it is a state no real caller can be in.
+   */
+  await ensureWorkloadAttributionIdentity({
+    bindingId: attestedBinding.id,
+    applicationId: attestedApplication.id,
+    subject: attestedSubject,
+  });
+
+  attestedInternalToken = jwt.sign(
+    {
+      type: 'service',
+      appId: attestedApplication.id,
+      appName: `Attested Internal ${tag}`,
+      // Derived, never a literal: the mint's own definition, so this fixture
+      // cannot keep passing after the derivation moves.
+      credentialId: workloadAttestationHandle(attestedSubject),
       ownerAccountId: account.id,
       environment: 'production',
       scopes: ['inference:invoke'],
@@ -306,6 +373,52 @@ describe('an unpublished catalogue is the default', () => {
 
     const internal = await get('/routing-profiles', internalToken);
     expect(Number(json(internal).count)).toBeGreaterThan(0);
+  });
+
+  /**
+   * The production defect, stated as a test.
+   *
+   * Alia mints by attestation, reads `GET /models/routing-profiles` in its
+   * pre-deploy readiness task, and reported `missingCount: 8` — every chat
+   * routing profile in its `config/oxy-inference-routing-profile-ids.ts`,
+   * invisible, with a 200 and no error. `agents.ready` was true in the same run,
+   * so the readiness gate was working; this was the one thing it found.
+   *
+   * Three callers, one deployment, one flag position. The anonymous read is the
+   * empty answer the attested caller was wrongly given; the credential-minted
+   * internal token is the answer it should have had all along.
+   */
+  it('serves the routing profiles to an ATTESTED internal caller, exactly as to a credential-minted one', async () => {
+    const anonymous = await get('/routing-profiles');
+    expect(json(anonymous).count).toBe(0);
+
+    const credentialMinted = await get('/routing-profiles', internalToken);
+    expect(Number(json(credentialMinted).count)).toBeGreaterThan(0);
+
+    const attested = await get('/routing-profiles', attestedInternalToken);
+    expect(attested.status).toBe(200);
+    expect(Number(json(attested).count)).toBe(Number(json(credentialMinted).count));
+  });
+
+  it('withholds them again from the same attested token once its binding expires', async () => {
+    // The control: it is served first, so the withholding below is the binding's
+    // expiry and not a fixture that never worked.
+    expect(Number(json(await get('/routing-profiles', attestedInternalToken)).count)).toBeGreaterThan(0);
+
+    await getDb()
+      .update(applicationWorkloadIdentities)
+      .set({ expiresAt: new Date(Date.now() - 1_000) })
+      .where(eq(applicationWorkloadIdentities.id, attestedBindingId));
+    try {
+      const withheld = await get('/routing-profiles', attestedInternalToken);
+      expect(withheld.status).toBe(200);
+      expect(json(withheld).count).toBe(0);
+    } finally {
+      await getDb()
+        .update(applicationWorkloadIdentities)
+        .set({ expiresAt: null })
+        .where(eq(applicationWorkloadIdentities.id, attestedBindingId));
+    }
   });
 
   it('keeps Console’s /stats envelope while withholding its contents', async () => {

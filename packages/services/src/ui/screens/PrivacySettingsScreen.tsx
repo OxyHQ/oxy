@@ -367,7 +367,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
                                         title={displayName}
                                         rightElement={
                                             <Button
-                                                variant="destructive"
+                                                appearance="solid" tone="danger"
                                                 size="small"
                                                 onPress={() => handleUnblock(userId)}
                                             >
@@ -401,7 +401,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
                                         description={t('privacySettings.restrictedDescription') || 'Limited interactions'}
                                         rightElement={
                                             <Button
-                                                variant="secondary"
+                                                appearance="subtle" tone="neutral"
                                                 size="small"
                                                 onPress={() => handleUnrestrict(userId)}
                                             >

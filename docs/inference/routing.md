@@ -66,6 +66,16 @@ rather than a gap: the request is served under the platform default, and the
 receipt records `{ routingPolicyId: 'platform-default', policyVersion: 1 }` so
 the charge stays explainable.
 
+An **official** application (first-party, internal or system — the
+`platform_internal` audience) with no policy is served under
+`{ routingPolicyId: 'platform-internal-default', policyVersion: 1 }` instead.
+It lets such an application name a concrete `publisher/model` without owning a
+policy row: the model's routes are ranked by their `price` score — the one
+dimension the Kaana catalogue sync can derive for every route — and no failover
+is authorized. A third-party application with no policy still cannot name a
+concrete model (`routing_evidence:missing-versioned-optimisation`). See
+[ADR 0027](../adr/0027-automatic-internal-catalogue-from-kaana.md).
+
 There is no walk up the account tree. An account-scoped policy on a *parent*
 account is not inherited by a child project account's applications; that child
 needs its own.
@@ -341,6 +351,11 @@ Kaana to attest all exact IDs from one live inventory snapshot before any hold;
 cardinality, identity or region-set drift refuses with zero reservation and zero
 inference POST. The resolver never hides incomplete evidence by dropping only
 the bad survivor.
+
+Because one stale score refuses every route, score expiry is a scheduled
+production cliff. A daily read-only monitor requires seven days of validity and
+the same-value renewal is a dry-run-first workflow:
+[renew the reviewed Kaana routing scores](../runbooks/kaana-routing-score-renewal.md).
 
 Enforcement of eleven controls landed in
 [#1012](https://github.com/OxyHQ/oxy/pull/1012), closing

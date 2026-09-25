@@ -14,6 +14,7 @@
 
 import type { ApplicationCapability } from '../utils/applicationCapabilities';
 import {
+  AGENCY_COORDINATE_CAPABILITY,
   catalogApplicationCapability,
   IDENTITY_APPROVAL_CAPABILITY,
   KAANA_PROVIDER_CREDENTIAL_VALIDATOR_CAPABILITY,
@@ -147,9 +148,21 @@ export function seedApplicationLookupIdentity(
  *    from Oxy's capability registry before each agent run. Oxy authorises that
  *    read from the effective credential/application scope intersection, so the
  *    application itself must hold this scope as well as its credential.
+ *  - `clarity:search` — Alia's web search tool IS a Clarity search: the
+ *    assistant's "search the web" and its research runs query Clarity's index
+ *    with the service token. Without the scope Clarity refuses every query
+ *    (`The clarity:search scope is required`) and the assistant answers from
+ *    memory while reporting "Search failed". Non-privileged.
+ *  - `clarity:index` — Alia's page reader IS a Clarity resolve: `webScraper`
+ *    and the browser's `goto` call `POST /v1/resolve`, which returns the page
+ *    when Clarity has it and otherwise queues its crawl — and queuing a crawl
+ *    is `clarity:index`. Without it every page read fails ("Reading web page
+ *    failed"). It crawls public URLs on Alia's own account and quota, never
+ *    anyone else's. Non-privileged. `clarity:sites:manage` stays withheld:
+ *    Alia registers no site of its own.
  *
- * GRANTED — delegation. BOTH ARE STAFF-GATED
- * ({@link PRIVILEGED_APPLICATION_SCOPES}), so neither is self-grantable by the
+ * GRANTED — delegation and coordination. ALL THREE ARE STAFF-GATED
+ * ({@link PRIVILEGED_APPLICATION_SCOPES}), so none is self-grantable by the
  * application's owner and this canonical seed — run by staff — is the supported
  * way to hold them:
  *
@@ -179,6 +192,35 @@ export function seedApplicationLookupIdentity(
  *    the ceiling: the mint additionally requires a human who holds
  *    `account:act_as` over the target account. Alia can become a managed account
  *    somebody delegated to it, and no other account in the ecosystem.
+ *  - `capability-tickets:issue` — Alia is THE coordinator ADR 0018 describes:
+ *    "a general request lets Alia select among eligible actors", and each
+ *    internal subaction then runs on a short-lived `CapabilityTicket` Oxy
+ *    issues. The scope travels with the `agency:coordinate` capability on
+ *    Alia's spec below, and neither is any use without the other: every
+ *    coordinator route in `routes/capabilities.ts` — `GET /catalogs`,
+ *    `POST /capability-map`, `POST /tickets` — asks for a scope AND that
+ *    capability, and `evaluateCapabilityAuthority` re-reads both, live, from
+ *    the application and credential rows before every ticket. Without them
+ *    Alia's tool discovery answers `403 missing_application_capability`, which
+ *    is what production has logged since 2026-09-11, and no Oxy app tool
+ *    reaches an agent run at all.
+ *
+ *    What bounds it is that Alia cannot choose what a ticket is FOR. A ticket
+ *    is minted only against an execution authorization a signed-in person
+ *    created (`POST /execution-authorizations`, a USER route), who holds
+ *    `account:act_as` over both the grant owner and the effective account, and
+ *    which names this exact coordinator application AND credential. Issuance
+ *    then re-checks, live, that the requester still holds that authority, that
+ *    the tool is in the app's registered catalog and exposed `internal`, the
+ *    resource type, the account's denied capabilities, the delegation grant,
+ *    limits and autonomy — any of which revoked in the meantime denies the
+ *    step. What comes back lives sixty seconds and is bound to one audience,
+ *    resource, actor, effective account, tool, `jti` and `runId`; the
+ *    receiving app verifies all of it and introspects before the effect. The
+ *    capability map it reads names tools, not content — "coordinating an agent
+ *    does not grant Alia read access to content only that agent can access".
+ *    Alia can carry out, one bounded step at a time, what a person authorised
+ *    it to coordinate, and nothing else.
  *
  * WITHHELD, each for its own reason rather than by omission:
  *
@@ -203,16 +245,18 @@ export function seedApplicationLookupIdentity(
  *    and this one is self-grantable — it can be added the day a surface needs it,
  *    by the application's own owner, with no staff round trip.
  *
- * Nothing outside the `inference:*` family, `user:read` and those two delegation
+ * Nothing outside the `inference:*` family, `user:read`, `capabilities:read`,
+ * `clarity:search`, `clarity:index` and those three delegation and coordination
  * scopes is granted. Alia is not a federation peer, does not move reputation,
  * writes no signals, sends no notifications and touches no follow graph.
  *
- * These two privileged entries are why `__tests__/seedOxyApplicationsSpecs.test.ts`
- * now pins the privileged subset BY NAME instead of asserting it is empty. "Alia
- * holds no staff-gated scope of any family" was a real gate, not a formality, so
- * the replacement has to bite in the same place: a THIRD privileged scope
- * appearing here must fail the suite, and a named one going missing must fail it
- * too. What changed is the decision, not whether one is enforced.
+ * These privileged entries — now four: `capabilities:read` and the three above —
+ * are why `__tests__/seedOxyApplicationsSpecs.test.ts` pins the privileged subset
+ * BY NAME instead of asserting it is empty. "Alia holds no staff-gated scope of
+ * any family" was a real gate, not a formality, so the replacement has to bite in
+ * the same place: a FIFTH privileged scope appearing here must fail the suite, and
+ * a named one going missing must fail it too. What changed is the decision, not
+ * whether one is enforced.
  */
 export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
   'user:read',
@@ -221,8 +265,11 @@ export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
   'inference:usage:read',
   'inference:routing:read',
   'capabilities:read',
+  'clarity:search',
+  'clarity:index',
   'acting-as:offline',
   'accounts:act-as-session',
+  'capability-tickets:issue',
 ];
 
 /**
@@ -418,6 +465,10 @@ export const SEED_APPS: SeedAppSpec[] = [
     // See ALIA_APPLICATION_SCOPES for the grant and, more importantly, for the
     // argument against each scope NOT granted.
     scopes: [...ALIA_APPLICATION_SCOPES],
+    // ADR 0018's coordinator. Paired with `capability-tickets:issue` above —
+    // the coordinator routes require both, and the argument for holding them
+    // is recorded there, once. Capabilities are UNIONed, never stripped.
+    capabilities: [AGENCY_COORDINATE_CAPABILITY],
     // Alia's spend has to appear on its own line in the cost-centre report, so
     // it is owned by its own project account rather than by the platform owner
     // every other official app shares. See `ownerAccountUsername`.

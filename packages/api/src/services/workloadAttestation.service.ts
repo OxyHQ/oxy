@@ -123,7 +123,42 @@ export interface AttestedWorkload {
  * token does not carry our infrastructure's role names around.
  */
 export function workloadAttestationHandle(canonicalSubject: string): string {
-  return `wl_${crypto.createHash('sha256').update(canonicalSubject).digest('hex').slice(0, 24)}`;
+  return `${WORKLOAD_ATTESTATION_HANDLE_PREFIX}${crypto.createHash('sha256').update(canonicalSubject).digest('hex').slice(0, 24)}`;
+}
+
+/**
+ * The prefix that tells a verifier a token's `credentialId` names a WORKLOAD
+ * BINDING rather than an `ApplicationCredential`.
+ *
+ * Exported so the one consumer that has to choose which row to re-read — the
+ * service-token principal hop in `services/attribution.service.ts` — spells the
+ * prefix the same way the mint does instead of carrying a literal of its own.
+ */
+export const WORKLOAD_ATTESTATION_HANDLE_PREFIX = 'wl_';
+
+/**
+ * Whether this `credentialId` claim is an attestation handle.
+ *
+ * ## This is a ROUTING decision, never a trust one
+ *
+ * Nothing is granted by the shape of this string. It chooses WHICH row a
+ * resolver must find — an `application_credentials` row, or a live
+ * `application_workload_identities` binding whose subject derives to exactly
+ * this handle — and both lookups then have to succeed on their own terms. A
+ * caller who invents `wl_` + 24 hex characters selects the binding lookup and
+ * is refused by it, which is the same answer it would get for an
+ * `ApplicationCredential` id it invented.
+ *
+ * ## Why the two spaces cannot collide
+ *
+ * `application_credentials.id` is `generatedId()`, a UUIDv7: hex digits and
+ * dashes, never a `wl_` prefix. So no real credential can be mistaken for a
+ * handle, and no handle can be mistaken for a credential — the routing is
+ * total, and a credential-minted token reaches the credential hop byte for byte
+ * as it did before this function existed.
+ */
+export function isWorkloadAttestationHandle(credentialId: string): boolean {
+  return credentialId.startsWith(WORKLOAD_ATTESTATION_HANDLE_PREFIX);
 }
 
 export class AttestationError extends Error {

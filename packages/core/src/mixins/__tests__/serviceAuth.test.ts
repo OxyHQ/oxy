@@ -189,7 +189,40 @@ describe('C3: service-token acting-as enforcement', () => {
       ownerAccountId: 'owner-account-1',
       scopes: ['user:read'],
       environment: 'production',
+      // No `tier` claim: a token minted before it existed is external.
+      tier: 'external',
     });
+  });
+
+  it("lets one of Oxy's own applications act for a user without a grant", async () => {
+    const verifySpy = jest.spyOn(oxy, 'verifyServiceActingAs');
+    const token = signServiceToken(
+      { appId: 'alia', appName: 'Alia', scopes: [], tier: 'internal' },
+      SERVICE_SECRET,
+    );
+    const req = makeReq({ headers: { authorization: `Bearer ${token}`, 'x-oxy-user-id': 'user-1' } });
+    const res = makeRes();
+    const next = jest.fn();
+
+    await oxy.auth({ jwtSecret: SERVICE_SECRET })(req as unknown as never, res as unknown as never, next as unknown as never);
+
+    expect(verifySpy).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(req.userId).toBe('user-1');
+    expect(req.serviceApp?.tier).toBe('internal');
+  });
+
+  it('still refuses an EXTERNAL application acting for a user without a grant', async () => {
+    jest.spyOn(oxy, 'verifyServiceActingAs').mockResolvedValue(null);
+    const token = signServiceToken({ appId: 'app-1', appName: 'third-party', tier: 'external' }, SERVICE_SECRET);
+    const req = makeReq({ headers: { authorization: `Bearer ${token}`, 'x-oxy-user-id': 'user-1' } });
+    const res = makeRes();
+    const next = jest.fn();
+
+    await oxy.auth({ jwtSecret: SERVICE_SECRET })(req as unknown as never, res as unknown as never, next as unknown as never);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
   });
 
   it('does NOT call verifyServiceActingAs when X-Oxy-User-Id is absent (service acts as itself)', async () => {
@@ -680,6 +713,30 @@ describe('requireScope() middleware', () => {
 
   beforeEach(() => {
     oxy = new OxyServices({ baseURL: 'http://test.invalid' });
+  });
+
+  it("passes one of Oxy's own applications whatever scope is asked for", () => {
+    const req = makeReq();
+    req.serviceApp = { appId: 'a', appName: 'svc', credentialId: 'cred-1', scopes: [], tier: 'internal' };
+    req.serviceActingAs = { userId: 'u-1', scopes: [] };
+    const res = makeRes();
+    const next = jest.fn();
+
+    oxy.requireScope('files:write')(req as unknown as never, res as unknown as never, next as unknown as never);
+
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds an external application to its scopes', () => {
+    const req = makeReq();
+    req.serviceApp = { appId: 'a', appName: 'svc', credentialId: 'cred-1', scopes: ['user:read'], tier: 'external' };
+    const res = makeRes();
+    const next = jest.fn();
+
+    oxy.requireScope('files:write')(req as unknown as never, res as unknown as never, next as unknown as never);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
   });
 
   it('allows requests where the app holds the required scope', () => {

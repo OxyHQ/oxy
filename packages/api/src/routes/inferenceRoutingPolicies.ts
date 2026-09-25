@@ -58,7 +58,7 @@
  * unexplainable.
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
@@ -98,6 +98,7 @@ import {
   UnauthorizedError,
 } from '../utils/error';
 import type { AccountPermission, ApplicationPermission } from '../utils/accountRoles';
+import { serviceRateLimitKey } from '../utils/serviceRateLimitKey';
 
 const router = Router();
 
@@ -105,17 +106,51 @@ const router = Router();
  * Reads and writes get separate budgets, per the unique-prefix rule: two
  * limiters sharing one Redis key make `rate-limit-redis` throw
  * `ERR_ERL_DOUBLE_COUNT` and halve both.
+ *
+ * Both are ADDRESS budgets for user traffic, and a service token skips them for
+ * its own credential's budget below: every Oxy service egresses through one NAT
+ * address, and an address bucket would pool the whole estate into one.
  */
 const routingReadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 600,
   prefix: 'rl:inference:routing:read:',
+  skip: (req) => isServiceRequest(req),
 });
 
 const routingWriteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 120,
   prefix: 'rl:inference:routing:write:',
+  skip: (req) => isServiceRequest(req),
+});
+
+export const ROUTING_SERVICE_READS_PER_15_MINUTES = 300_000;
+export const ROUTING_SERVICE_WRITES_PER_15_MINUTES = 1_200;
+
+function isServiceRequest(req: Request): boolean {
+  return (req as RoutingRequest).serviceApp !== undefined;
+}
+
+/** Exact live service credential bucket; never a shared NAT/IP bucket. */
+export function routingServiceRateLimitKey(req: Request): string {
+  return serviceRateLimitKey((req as RoutingRequest).serviceApp);
+}
+
+const routingServiceReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: ROUTING_SERVICE_READS_PER_15_MINUTES,
+  prefix: 'rl:inference:routing:service-read:',
+  keyGenerator: routingServiceRateLimitKey,
+  skip: (req) => !isServiceRequest(req),
+});
+
+const routingServiceWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: ROUTING_SERVICE_WRITES_PER_15_MINUTES,
+  prefix: 'rl:inference:routing:service-write:',
+  keyGenerator: routingServiceRateLimitKey,
+  skip: (req) => !isServiceRequest(req),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -340,6 +375,7 @@ router.use(routingPolicyPrincipal);
 router.get(
   '/accounts/:accountId',
   routingReadLimiter,
+  routingServiceReadLimiter,
   validate({ params: routingPolicyAccountParams }),
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { accountId } = routingPolicyAccountParams.parse(req.params);
@@ -364,6 +400,7 @@ router.get(
 router.post(
   '/accounts/:accountId',
   routingWriteLimiter,
+  routingServiceWriteLimiter,
   validate({ params: routingPolicyAccountParams, body: routingPolicyControlsBody }),
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { accountId } = routingPolicyAccountParams.parse(req.params);
@@ -395,6 +432,7 @@ router.post(
 router.get(
   '/applications/:applicationId',
   routingReadLimiter,
+  routingServiceReadLimiter,
   validate({ params: routingPolicyApplicationParams }),
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { applicationId } = routingPolicyApplicationParams.parse(req.params);
@@ -426,6 +464,7 @@ router.get(
 router.post(
   '/applications/:applicationId',
   routingWriteLimiter,
+  routingServiceWriteLimiter,
   validate({ params: routingPolicyApplicationParams, body: routingPolicyControlsBody }),
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { applicationId } = routingPolicyApplicationParams.parse(req.params);
@@ -470,6 +509,7 @@ router.post(
 router.get(
   '/applications/:applicationId/route-switches',
   routingReadLimiter,
+  routingServiceReadLimiter,
   validate({ params: routingPolicyApplicationParams, query: routeSwitchQuery }),
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { applicationId } = routingPolicyApplicationParams.parse(req.params);
@@ -496,6 +536,7 @@ router.get(
 router.get(
   '/:policyId/versions',
   routingReadLimiter,
+  routingServiceReadLimiter,
   validate({ params: routingPolicyParams }),
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { policyId } = routingPolicyParams.parse(req.params);
@@ -521,6 +562,7 @@ router.get(
 router.post(
   '/:policyId/versions',
   routingWriteLimiter,
+  routingServiceWriteLimiter,
   validate({ params: routingPolicyParams, body: routingPolicyControlsBody }),
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { policyId } = routingPolicyParams.parse(req.params);
@@ -551,6 +593,7 @@ router.post(
 router.get(
   '/:policyId/versions/:policyVersion',
   routingReadLimiter,
+  routingServiceReadLimiter,
   validate({ params: routingPolicyVersionParams }),
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { policyId, policyVersion } = routingPolicyVersionParams.parse(req.params);
@@ -577,6 +620,7 @@ router.get(
 router.post(
   '/:policyId/archive',
   routingWriteLimiter,
+  routingServiceWriteLimiter,
   validate({ params: routingPolicyParams, body: emptyBodySchema }),
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { policyId } = routingPolicyParams.parse(req.params);
@@ -607,6 +651,7 @@ router.post(
 router.get(
   '/:policyId',
   routingReadLimiter,
+  routingServiceReadLimiter,
   validate({ params: routingPolicyParams }),
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { policyId } = routingPolicyParams.parse(req.params);

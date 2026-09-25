@@ -10,6 +10,7 @@
  */
 
 import { z } from 'zod';
+import { modelIdSchema } from '@oxy.so/contracts';
 import {
   BALANCED_ROUTING_SCORE_SOURCES,
   INFERENCE_FUNDING_CLASSES,
@@ -283,3 +284,32 @@ export const legalReviewBody = z
     evidenceRef: z.string().min(1).max(200).optional(),
   })
   .strict();
+
+/* -------------------------------------------------------------------------- */
+/*  Kaana catalogue sync                                                      */
+/* -------------------------------------------------------------------------- */
+
+/** `POST /catalogue/sync`: run the Kaana sync now. */
+export const catalogueSyncBody = z
+  .object({
+    /**
+     * Retire every synced route the report omits even when that is more than
+     * half of them. Only for a report an operator has read and confirmed.
+     */
+    allowMassRetirement: z.boolean().optional(),
+  })
+  .strict();
+
+/** `POST /catalogue/blocklist`: stop one model line now. */
+export const catalogueBlockBody = z
+  .object({
+    modelId: modelIdSchema,
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+
+/** `DELETE /catalogue/blocklist/:publisher/:model`. */
+export const catalogueBlockParams = z.object({
+  publisher: z.string().min(1).max(128),
+  model: z.string().min(1).max(128),
+});

@@ -136,6 +136,19 @@ was considered instead and rejected: delete-and-recreate is this path's only way
 to move a binding, so a row id would break every pin on an operator action that
 changed no identity, and it is not derivable without a production query.
 
+**An Oxy lane that pins one credential needs its own line, not just a binding.**
+A check comparing `credentialId` to a fixed UUID refuses an attested caller
+however good its binding is. `NATIVE_PRODUCT_AGENT_ENTRY_POINTS`
+(`config/nativeProductAgents.ts`, ADR 0025) is the one such lane today: an entry
+declares the canonical IAM role beside the credential id and derives the handle
+with `workloadAttestationHandle`, so the value is reviewable and computable from
+a task definition rather than a digest nobody can check. The role is written out
+in that file and NOT read from `application_workload_identities` — binding a role
+is a routine deploy step, and it must never be, by itself, a grant of a pinned
+lane. An attested caller then re-reads its BINDING as the live ceiling
+(`resolveLiveAgencyWorkload`), on the same grounds a credential-minted one
+re-reads its credential.
+
 **Before a service gives up its key pair, its binding must name every privileged
 scope the credential named.** Not a nicety: removing Mention's pair first cost
 313 × `Missing required scope: federation:write` in one morning. Bind with
@@ -244,6 +257,7 @@ the whole reason ADR 0026 prefers it to a shared secret.
 - `packages/api/src/services/workloadAttestation.service.ts` — the provider seam; AWS STS verifier; `workloadAttestationHandle` (the pinnable `wl_…` id)
 - `packages/api/src/services/workloadIdentity.service.ts` — challenge, binding lookup, scope and trust gates
 - `packages/api/src/services/workloadIdentityBinding.service.ts` — creating a binding: canonicalisation, idempotence, refusals
+- `packages/api/src/services/agencyServicePrincipal.service.ts` — the LIVE ceiling for both paths: `resolveLiveAgencyCoordinator` (credential) and `resolveLiveAgencyWorkload` (binding)
 - `packages/api/scripts/bind-workload-identity.ts` — the operator entrypoint (`--app-id`, `--role-arn`, `--scopes`, `--list`)
 - `packages/api/src/services/serviceTokenMint.service.ts` — the ONE signer both paths share
 - `packages/api/src/models/Application.ts` — `isInternal`, `type` field
@@ -400,6 +414,8 @@ Rather than a menu of transports, the RP asks Oxy to DELIVER the pending request
 `AuthSession` also carries an optional OAuth binding so the SAME request model (create → approve → finalize) can mint a standard OAuth authorization code instead of a device sign-in: `purpose: 'device_sign_in' | 'oauth_authorization'` + `oauth?: { redirectUri, codeChallenge, codeChallengeMethod: 'S256', scopes, subjectAccountId? }`. `oxy.startCommonsSignIn({ clientId, oauth })` / `POST /auth/session/create` attach the binding — the `redirectUri` is validated against the SAME exact-match, constant-time allowlist `POST /auth/oauth/authorize` uses, and a non-S256 challenge is refused. Commons' approval screen and `approveCommonsSignIn`/`denyCommonsSignIn` are purpose-agnostic and need NO change to approve one. `oxy.finalizeCommonsOAuth(sessionToken)` / `POST /auth/session/finalize/:sessionToken` (no bearer — the secret `sessionToken` is the credential) mints exactly ONE single-use `AuthCode` via a reservation-style atomic `findOneAndUpdate` — the code id is allocated in the SAME update that spends the session, so a lost race or a later mint failure leaves the request spent rather than risking a double-mint — and refuses to run twice. A delegated `subjectAccountId` ("app will act as: org") is re-checked against the identity's live `account:act_as` membership at BOTH approval and finalize; a personal account can never be a delegated subject. `POST /auth/session/claim` (the device-sign-in claim) explicitly refuses an `oauth_authorization`-purpose session — an OAuth approval mints no access token, ever.
 
 **IdP no-session lane (`packages/auth`):** when `auth.oxy.so/authorize` receives a full PKCE-bound OAuth request and cold boot finds no usable bearer on the IdP origin, `CommonsOAuthLane` (`packages/auth/components/commons-oauth-request.tsx`, orchestrated by `packages/auth/lib/commons-oauth-request.ts`) creates an OAuth-bound `AuthSession`, shows the QR, polls for approval, and finalizes into the authorization code — one continuous action with no sign-in on the IdP. The secret `sessionToken` never reaches the view/QR/URL; only the public `authorizeCode` travels. OAuth-bound `session/create` from the IdP skips the trusted-app browser-origin gate (redirect_uri is already exact-matched) and binds `boundOrigin` to the relying party's redirect origin, not `auth.oxy.so`. Visitors who already hold a bearer on the IdP still use the unchanged session-bearing consent path.
+
+**IdP device-approval page (`auth.oxy.so/device?user_code=<authorizeCode>`):** a client with no browser of its own (a CLI in a terminal, over SSH, in a container) starts a `device_sign_in` request and shows the person the PUBLIC `authorizeCode`; `packages/auth/src/pages/device.tsx` lets them approve it in an ordinary tab, where `hub-passkey.tsx` only renders as a popup. The parameter is `user_code`, never `code` — `OxyProvider`'s cold boot consumes and strips any `?code=`. It adopts the existing request (public `approve-info` first, so an expired/used code never sends anyone through sign-in), sends a person with no bearer to `/login?user_code=…` and back, offers the device chooser when several accounts are here, prints the code for comparison with the one the device shows, and fires `POST /auth/session/authorize-code/:code` ONLY from an explicit Allow press behind the same MANDATORY, un-defaulted acknowledgement as the hub (whatever `originVerified` says). The secret `sessionToken` never reaches this page; the device finishes by polling. No shipped client prints this link yet — the route answers only a well-formed code a device minted.
 
 ### SDK methods (core + services)
 

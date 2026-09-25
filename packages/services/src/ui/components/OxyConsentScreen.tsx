@@ -86,6 +86,15 @@ export interface OxyConsentScreenProps {
   onDeny: () => void;
   /** True while a decision is in flight; disables both actions and spins Allow. */
   busy?: boolean;
+  /**
+   * Disables Allow WITHOUT a spinner, leaving Deny live. For a host that owns an
+   * extra gate the person must clear first — e.g. the device approval page's
+   * mandatory "I started this sign-in myself" acknowledgement, which is the
+   * login-CSRF control for a request that arrived as a bare code and cannot be
+   * skipped. `busy` would be wrong there: nothing is in flight, and a spinning
+   * button reads as "working" rather than "not yet".
+   */
+  allowDisabled?: boolean;
   /** A blocking error message for the request, when present. */
   error?: string | null;
 }
@@ -213,6 +222,7 @@ export function OxyConsentScreen({
   onAllow,
   onDeny,
   busy = false,
+  allowDisabled = false,
   error = null,
 }: OxyConsentScreenProps) {
   const theme = useTheme();
@@ -429,9 +439,9 @@ export function OxyConsentScreen({
       <View style={styles.actions}>
         <Button
           testID="consent-allow"
-          variant="primary"
+          appearance="solid" tone="accent"
           onPress={handleAllow}
-          disabled={busy}
+          disabled={busy || allowDisabled}
           loading={busy}
           style={styles.actionButton}
         >
@@ -439,7 +449,7 @@ export function OxyConsentScreen({
         </Button>
         <Button
           testID="consent-deny"
-          variant="ghost"
+          appearance="plain" tone="neutral"
           onPress={onDeny}
           disabled={busy}
           style={styles.actionButton}

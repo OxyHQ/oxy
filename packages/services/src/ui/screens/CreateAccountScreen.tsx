@@ -474,7 +474,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
 
       {/* Create Button */}
       <Button
-        variant="primary"
+        appearance="solid" tone="accent"
         onPress={handleCreate}
         disabled={!canCreate}
         loading={isCreating}

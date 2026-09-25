@@ -11,6 +11,7 @@ import { closePostgres, connectPostgres } from '../src/config/postgres';
 import { routingScoreValidityThreshold } from '../src/config/inferenceRoutingScoreValidity';
 import {
   assessInferenceRoutingReadiness,
+  earliestInferenceRoutingEvidenceExpiry,
   readInferenceRoutingReadinessRows,
 } from '../src/services/inferenceRoutingReadiness.service';
 
@@ -22,6 +23,17 @@ async function main(): Promise<void> {
     const now = new Date();
     const minimumValidUntil = routingScoreValidityThreshold(now);
     const assessment = assessInferenceRoutingReadiness(selectable, now, minimumValidUntil);
+    const earliest = earliestInferenceRoutingEvidenceExpiry(selectable);
+    // The horizon is whatever INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS says:
+    // 3600 for the cutover gate and live monitor, days for the scheduled
+    // early-warning run. Print both so either log states the actual cliff.
+    process.stdout.write(
+      `Kaana routing readiness horizon: evidence must remain valid until ${minimumValidUntil.toISOString()}; earliest selectable evidence expiry: ${
+        earliest === undefined
+          ? 'none'
+          : `${earliest.validUntil.toISOString()} (${earliest.deploymentId ?? '<unmapped>'})`
+      }.\n`
+    );
 
     if (assessment.status === 'empty') {
       process.stderr.write(
@@ -40,7 +52,10 @@ async function main(): Promise<void> {
     } else if (assessment.status === 'incomplete') {
       const identities = assessment.routes
         .slice(0, 20)
-        .map((route) => route.deploymentId ?? '<unmapped>')
+        .map(
+          (route) =>
+            `${route.deploymentId ?? '<unmapped>'} (balanced validUntil ${route.balancedValidUntil?.toISOString() ?? 'none'})`
+        )
         .join(', ');
       process.stderr.write(
         `Kaana routing readiness FAILED: ${assessment.routes.length} selectable route(s) lack an exact deploymentId, an explicit requests unit price, a complete score, the current priceVersionId, or live non-future evidence. First identities: ${identities}\n`

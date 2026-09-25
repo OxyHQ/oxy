@@ -46,6 +46,60 @@
  * caller-supplied. `generateMachineCredentialToken` is the only writer and the
  * only place that can break it; the parse regex refuses any other shape.
  *
+ * ## The third kind is not a credential at all: `workload`
+ *
+ * ADR 0026 lets a first-party service authenticate by attesting the AWS ECS task
+ * role it runs as, holding no key pair. The token it gets is minted by the same
+ * `mintServiceToken` and differs in one claim: `credential_id` is the binding's
+ * attestation handle (`wl_` + 96 bits of SHA-256 over the canonical role ARN)
+ * rather than a row id here.
+ *
+ * Four tables record the identity that authorised a spend in
+ * `application_credential_id`, `NOT NULL`, with a foreign key to
+ * {@link applicationCredentials.id} — `usage_reservations`, `usage_receipts`,
+ * `inference_usage_events`, and `inference_usage_daily_rollups`, where it is part
+ * of the PRIMARY KEY. So an attested caller had nothing to spend against and the
+ * inference edge refused it outright rather than failing that constraint
+ * mid-request. Dropping those four constraints was prototyped and rejected:
+ * `db/MIGRATION-CONTRACT.md` is "no quiero perder los vínculos relacionales de
+ * nada", these are financial tables, and the constraints carry decided lifecycle
+ * behaviour (`RESTRICT` on the two money tables, `CASCADE` on the two usage
+ * ones).
+ *
+ * A `workload` row is the other answer: the binding is MATERIALISED here, with
+ * the handle as its `id`, so every existing foreign key, cascade, join and report
+ * keeps working untouched. The handle is already a stable identifier derived from
+ * exactly one workload and from nothing else
+ * (`services/workloadAttestation.service.ts`), so this makes it what it already
+ * was in practice — the thing that authorised the spend.
+ *
+ * It is NOT a credential, and four CHECKs below make that unrepresentable rather
+ * than a rule somebody has to remember:
+ *
+ *   * it has NO `public_key`, and that column is now nullable for exactly this
+ *     reason. Every lane that resolves an OAuth `client_id` does it with
+ *     `public_key = $1`, which can never match NULL — so the session mint, the
+ *     authorize and consent hops, the UNAUTHENTICATED
+ *     `GET /auth/oauth/client/:clientId`, the push-token client resolution and
+ *     the OTA manifest lookup all refuse a workload row by construction, with no
+ *     filter to forget;
+ *   * it has no `secret_hash` (and no `token_prefix`/`token_hash`, which the
+ *     machine biconditional already forces), so there is nothing for the OAuth
+ *     token endpoint, the service-token mint or the machine bearer lane to
+ *     compare against;
+ *   * it names NO scopes. An attested caller's authority is the binding's,
+ *     decided live by `workloadBindingScopes`; a scope array here would be a
+ *     second, stale place to read authority from;
+ *   * its `id` starts with `wl_` and no other row's does. That makes the routing
+ *     assumption in `isWorkloadAttestationHandle` — that the handle space and the
+ *     credential-id space are disjoint — a database invariant in BOTH directions,
+ *     rather than a property of how ids happen to be generated.
+ *
+ * The management and reporting paths that CAN still match one (they select by row
+ * id or by `application_id`) exclude it explicitly with
+ * {@link excludeWorkloadRows}. `services/workloadAttributionIdentity.service.ts`
+ * is the only writer.
+ *
  * ## `expires_at` is NOT a TTL, and now carries two meanings
  *
  * Rotation sets the superseded credential to `deprecated` with
@@ -62,17 +116,21 @@
  * resemblance to one is the trap.
  */
 
-import { sql } from 'drizzle-orm';
+import { ne, sql, type SQL } from 'drizzle-orm';
 import { check, foreignKey, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { APPLICATION_SCOPES } from '../../utils/applicationScopes';
 import { applications } from './applications';
+import { applicationWorkloadIdentities } from './applicationWorkloadIdentities';
 import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /**
  * Credential kind. `service` credentials mint service tokens; `public` clients
  * hold no secret at all; `machine` credentials ARE a single `oxy_sk_…` bearer
- * token (see the header).
+ * token; a `workload` row is not a credential at all but the materialised
+ * attestation handle of an `application_workload_identities` binding, so an
+ * attested identity is something the usage ledger's foreign keys can name (see
+ * the header).
  *
  * This tuple is the SINGLE declaration — the Mongoose model that carried the
  * other copy is gone. It renders the CHECK below, and
@@ -85,9 +143,54 @@ export const APPLICATION_CREDENTIAL_TYPES = [
   'confidential',
   'service',
   'machine',
+  'workload',
 ] as const;
 
 export type ApplicationCredentialType = (typeof APPLICATION_CREDENTIAL_TYPES)[number];
+
+/** Every kind a caller may ask for: the stored vocabulary minus `workload`. */
+export type CreatableApplicationCredentialType = Exclude<ApplicationCredentialType, 'workload'>;
+
+/**
+ * The types `POST /applications/:appId/credentials` accepts.
+ *
+ * A `workload` row is not something anybody requests. Its `id` must be one
+ * specific attestation handle and it must carry no public identifier, so a
+ * created one fails two of the CHECKs below — a Console form would get a 500
+ * where it should get a 400 naming the allowed values. It exists only as the
+ * materialisation of an `application_workload_identities` binding, written by
+ * `services/workloadAttributionIdentity.service.ts` and by nothing else.
+ *
+ * A separate tuple rather than a filter over the one above, because zod needs a
+ * non-empty TUPLE type and a `filter` erases that. The alias below is what keeps
+ * the two from drifting: a fifth presentable kind added above and not here makes
+ * it fail to compile.
+ */
+export const CREATABLE_APPLICATION_CREDENTIAL_TYPES = [
+  'public',
+  'confidential',
+  'service',
+  'machine',
+] as const satisfies readonly CreatableApplicationCredentialType[];
+
+/** `Assert<false>` does not satisfy the constraint, so a drift is a build error. */
+type Assert<T extends true> = T;
+
+/**
+ * Every creatable type is listed above. Deliberately one-directional: `satisfies`
+ * already refuses a value here that is not creatable, and this refuses a creatable
+ * value that is missing.
+ */
+type _EveryCreatableTypeIsOffered = Assert<
+  [
+    Exclude<
+      CreatableApplicationCredentialType,
+      (typeof CREATABLE_APPLICATION_CREDENTIAL_TYPES)[number]
+    >,
+  ] extends [never]
+    ? true
+    : false
+>;
 
 /** Which deployment the credential is issued for. */
 export const APPLICATION_CREDENTIAL_ENVIRONMENTS = [
@@ -141,8 +244,25 @@ export const applicationCredentials = pgTable(
      * Unique CASE-SENSITIVELY, unlike the identifier indexes on `users`: the
      * suffix is base64url, where case is significant, so `lower()` here would
      * reject two legitimately distinct client ids as duplicates.
+     *
+     * ## Nullable, and ONLY for a `workload` row
+     *
+     * Every credential kind that a caller can present has one; a `workload` row
+     * is not presented by anybody, and this is the column that makes that true
+     * rather than asserted. Six lanes resolve a caller's `client_id` with
+     * `public_key = $1` — the session mint, `POST /auth/oauth/authorize`,
+     * `GET /auth/oauth/consent`, the unauthenticated
+     * `GET /auth/oauth/client/:clientId`, `utils/resolveApplicationFromClientId.ts`
+     * and the OTA manifest's copy of it — and none of them can match NULL. That
+     * is a column a workload row is not in, in exactly the sense the header uses
+     * for `token_prefix`, and it is strictly better than six filters that each
+     * have to be remembered.
+     *
+     * The biconditional CHECK below is what keeps the nullability from spreading:
+     * a `public`, `confidential`, `service` or `machine` row with no public
+     * identifier is still impossible.
      */
-    publicKey: text().notNull(),
+    publicKey: text(),
     /**
      * SHA-256 of the raw secret. Absent for a `public` client, which has none,
      * and absent for a `machine` credential, whose secret lives in
@@ -212,6 +332,38 @@ export const applicationCredentials = pgTable(
      * and a deleted user left a dangling id with no error.
      */
     createdByUserId: text().references(() => users.id, { onDelete: 'set null' }),
+    /**
+     * The `application_workload_identities` binding this row materialises, while
+     * that binding exists. NULL on every other kind of row, and NULL again once
+     * the binding is gone.
+     *
+     * `SET NULL`, and the choice is the whole lifecycle answer. Deleting a
+     * binding is how a compromised workload is cut off, and it must take effect
+     * immediately — it does, in `resolveLiveAgencyWorkloadByHandle`, which
+     * re-reads the binding on every call. What it must NOT do is take the spend
+     * with it: `inference_usage_events` and `inference_usage_daily_rollups`
+     * cascade from this table, so a `CASCADE` here would delete a retired
+     * service's usage history, and `usage_reservations` and `usage_receipts`
+     * `RESTRICT`, so it would fail outright the moment there was any. `SET NULL`
+     * keeps the row — an attested identity's spend stays attributable exactly as
+     * a rotated-away credential's does (see `expires_at` in the header: a row
+     * here must OUTLIVE its usefulness because it is the audit trail) — and the
+     * NULL is itself the record that the binding is no longer live.
+     *
+     * Unique, so one binding has at most one materialised row. Postgres unique
+     * indexes are `NULLS DISTINCT`, so every non-workload row's NULL and every
+     * unlinked workload row's NULL coexist freely.
+     *
+     * Re-binding the SAME subject re-links the same row, because the handle is a
+     * function of the subject and of nothing else — so a role that is unbound and
+     * bound again keeps its own history instead of starting a second identity.
+     * Binding that subject to a DIFFERENT application is refused, in
+     * `services/workloadAttributionIdentity.service.ts`: this row's
+     * `application_id` already names who spent the money.
+     */
+    workloadIdentityId: text().references(() => applicationWorkloadIdentities.id, {
+      onDelete: 'set null',
+    }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -223,6 +375,8 @@ export const applicationCredentials = pgTable(
       name: 'application_credentials_rotated_from_fk',
     }).onDelete('set null'),
     unique('application_credentials_public_key_key').on(t.publicKey),
+    // One binding, at most one materialised row — see the column.
+    unique('application_credentials_workload_identity_id_key').on(t.workloadIdentityId),
     // The machine bearer lane's whole lookup: `where token_prefix = $1`. Unique
     // because the prefix identifies exactly one credential, and an INDEX because
     // this runs on every request an API key makes — a scan here would be the
@@ -285,5 +439,66 @@ export const applicationCredentials = pgTable(
       'application_credentials_machine_no_secret_check',
       sql`${t.type} <> 'machine' or ${t.secretHash} is null`
     ),
+    // ---- the workload lane ------------------------------------------------
+    // A biconditional, for the same reason the machine one is: both directions
+    // are real writes somebody can make. A `workload` row WITH a public key
+    // would be resolvable as an OAuth client of its application on six lanes
+    // that never gated it, including an unauthenticated one; and any other kind
+    // WITHOUT one would be a credential nothing could identify, which is what
+    // `not null` used to prevent and still must.
+    check(
+      'application_credentials_workload_public_key_check',
+      sql`(${t.type} = 'workload') = (${t.publicKey} is null)`
+    ),
+    // The handle space and the credential-id space are disjoint, as a database
+    // invariant rather than as a property of how ids happen to be generated.
+    // `isWorkloadAttestationHandle` ROUTES on this: a `wl_` claim is sent to the
+    // binding resolver and anything else to the credential resolver. Both
+    // directions matter — a credential row with a `wl_` id would be reachable by
+    // a claim meant for a binding, and a workload row without one could be
+    // presented as a credential id. Every existing row satisfies it: a
+    // `generatedId()` is a uuid v7 and a pre-cutover id is 24 hex characters.
+    check(
+      'application_credentials_workload_handle_id_check',
+      sql`(${t.type} = 'workload') = starts_with(${t.id}, 'wl_')`
+    ),
+    // A workload row is INERT: nothing to compare and no authority to read.
+    // `secret_hash` is what the OAuth token endpoint and the service-token mint
+    // compare, and `token_prefix`/`token_hash` are already forced null by the
+    // machine biconditional above, so those three together leave no lane
+    // anything to verify. The empty `scopes` is the second half and is about
+    // drift rather than about a lane: an attested caller's authority is the
+    // binding's, decided live by `workloadBindingScopes`, and a copy here would
+    // be a stale second answer to the same question.
+    check(
+      'application_credentials_workload_inert_check',
+      sql`${t.type} <> 'workload' or (${t.secretHash} is null and cardinality(${t.scopes}) = 0)`
+    ),
+    // The binding link belongs to the rows that materialise a binding, and to no
+    // others — otherwise a real credential could be made to look like one.
+    check(
+      'application_credentials_workload_identity_only_check',
+      sql`${t.type} = 'workload' or ${t.workloadIdentityId} is null`
+    ),
   ]
 );
+
+/**
+ * Excludes materialised workload rows from a credential query.
+ *
+ * One definition, so the exclusion reads the same everywhere and a reader can
+ * find every site by following this symbol. It is needed ONLY on the paths that
+ * select by row id or by `application_id`; every path that resolves a caller's
+ * `public_key` already cannot match a workload row, because that column is NULL
+ * on one (see {@link applicationCredentials.publicKey}), and relying on a
+ * column a row is not in beats relying on a predicate somebody has to add.
+ *
+ * Deliberately NOT applied at `services/inferenceReporting.service.ts`'s
+ * spending-limit scope resolution: scoping a budget to an attested identity is
+ * the same question as scoping one to a credential, the foreign key on
+ * `spending_limits.scope_application_credential_id` already supports it, and
+ * that lookup reads an owner account rather than granting anything.
+ */
+export function excludeWorkloadRows(): SQL {
+  return ne(applicationCredentials.type, 'workload');
+}

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { createElement } from 'react';
@@ -41,6 +41,34 @@ describe('FollowButton multi-user initial state', () => {
     jest.clearAllMocks();
     useFollowStore.getState().resetFollowState();
     ctx = { oxyServices: oxyServicesStub, canUsePrivateApi: true, user: { id: 'me' } };
+  });
+
+  it('does not render for an unauthenticated viewer or their own account', () => {
+    ctx.canUsePrivateApi = false;
+    const view = renderWithQueryClient(<FollowButton userId="u1" initiallyFollowing={false} />);
+    expect(screen.queryByRole('button')).toBeNull();
+    view.unmount();
+    ctx.canUsePrivateApi = true;
+    renderWithQueryClient(<FollowButton userId="me" />);
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('keeps unknown status neutral and non-interactive until resolved', () => {
+    renderWithQueryClient(<FollowButton userId="unresolved" />);
+    const button = screen.getByRole('button', { name: 'Follow' });
+    expect(button.getAttribute('aria-busy')).toBe('true');
+    expect(button.hasAttribute('disabled')).toBe(true);
+    expect(button.textContent).toBe('');
+  });
+
+  it('does not announce an unaccepted single-user mutation as a follow', async () => {
+    const toggle = jest.spyOn(useFollowStore.getState(), 'toggleFollowUser').mockResolvedValue(false);
+    const onFollowChange = jest.fn();
+    renderWithQueryClient(<FollowButton userId="u1" initiallyFollowing={false} onFollowChange={onFollowChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Follow' }));
+    await waitFor(() => expect(toggle).toHaveBeenCalled());
+    expect(onFollowChange).not.toHaveBeenCalled();
+    toggle.mockRestore();
   });
 
   it('honors initiallyAllFollowing before async status fetch populates the store', () => {

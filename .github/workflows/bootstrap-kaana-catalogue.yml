@@ -59,26 +59,28 @@ env:
   NETWORK_SERVICE: kaana-publisher
   LIVE_CONTAINER: oxy-api
   BOOTSTRAP_CONTAINER: kaana-catalogue-bootstrap
-  INVENTORY_SNAPSHOT_ID: snap_dfd6904a99d6313b
+  INVENTORY_SNAPSHOT_ID: snap_37548e4f1f8ec610
   MODEL_ID: openai/gpt-oss-120b
   MODEL_REFERENCE: openai/gpt-oss-120b@observed-2026-09-01
   CEREBRAS_DEPLOYMENT_ID: dep_cerebras_gpt_oss_120b_observed_2026_09_01
   GROQ_DEPLOYMENT_ID: dep_groq_openai_gpt_oss_120b_observed_2026_09_01
   OPENROUTER_DEPLOYMENT_ID: dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01
+  SPEECH_MODEL_ID: x-ai/text-to-speech
+  SPEECH_MODEL_REFERENCE: x-ai/text-to-speech@observed-2026-09-24
+  XAI_DEPLOYMENT_ID: dep_xai_tts_observed_2026_09_24
   REVIEWER_USER_ID_EXPECTED: 6981c9178fcdefaf81988ffb
-  PROFILE_LITE_ID: 01a06477-94f5-74f0-bc25-4a1ff59d6945
   PROFILE_DEFAULT_ID: 01a06477-94f5-74f0-bc25-4c5c13b93ccd
-  PROFILE_CODE_ID: 01a06477-94f5-74f0-bc25-52437e0c724d
-  PROFILE_COWORK_ID: 01a06477-94f5-74f0-bc25-55ea2ebdb2b6
-  PROFILE_BROWSER_ID: 01a06477-94f5-74f0-bc25-5a78baecbef6
-  PROFILE_PRO_ID: 01a06477-94f5-74f0-bc25-5d796b49b616
-  PROFILE_THINKING_ID: 01a06477-94f5-74f0-bc25-628b5f45d802
-  PROFILE_PRO_MAX_ID: 01a06477-94f5-74f0-bc25-658eeb277737
+  # Alia's speech-only profile, reserved by Alia before this catalogue existed.
+  PROFILE_SPEECH_ID: cc2471c8-807e-46ec-b5da-b6f3b39d2db5
 
 jobs:
   bootstrap:
     if: github.ref == 'refs/heads/main'
-    environment: production
+    # No `environment:` on purpose. The oxy-github-kaana-catalogue-bootstrap
+    # trust policy accepts only the `ref:refs/heads/main` subject; a job bound
+    # to an environment presents `environment:<name>` instead and cannot assume
+    # the role. The `production` environment has no protection rules, so it
+    # would add no review gate either; main-only + plan hash are the gate.
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     steps:
@@ -164,12 +166,16 @@ jobs:
 
           # Independent exact-value assertions keep a changed env entry from
           # silently widening the reviewed catalogue in a manual workflow.
-          [ "$INVENTORY_SNAPSHOT_ID" = 'snap_dfd6904a99d6313b' ]
+          [ "$INVENTORY_SNAPSHOT_ID" = 'snap_37548e4f1f8ec610' ]
           [ "$MODEL_ID" = 'openai/gpt-oss-120b' ]
           [ "$MODEL_REFERENCE" = 'openai/gpt-oss-120b@observed-2026-09-01' ]
           [ "$CEREBRAS_DEPLOYMENT_ID" = 'dep_cerebras_gpt_oss_120b_observed_2026_09_01' ]
           [ "$GROQ_DEPLOYMENT_ID" = 'dep_groq_openai_gpt_oss_120b_observed_2026_09_01' ]
           [ "$OPENROUTER_DEPLOYMENT_ID" = 'dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01' ]
+          [ "$SPEECH_MODEL_ID" = 'x-ai/text-to-speech' ]
+          [ "$SPEECH_MODEL_REFERENCE" = 'x-ai/text-to-speech@observed-2026-09-24' ]
+          [ "$XAI_DEPLOYMENT_ID" = 'dep_xai_tts_observed_2026_09_24' ]
+          [ "$PROFILE_SPEECH_ID" = 'cc2471c8-807e-46ec-b5da-b6f3b39d2db5' ]
           [ "$REVIEWER_USER_ID_EXPECTED" = '6981c9178fcdefaf81988ffb' ]
           [ "$PROFILE_DEFAULT_ID" = '01a06477-94f5-74f0-bc25-4c5c13b93ccd' ]
 
@@ -324,7 +330,7 @@ jobs:
               '
           }
 
-          allowed_operations=$(jq -nc --arg revision "$MODEL_REFERENCE" '[
+          allowed_operations=$(jq -nc --arg revision "$MODEL_REFERENCE" --arg speechRevision "$SPEECH_MODEL_REFERENCE" '[
             "publisher:openai",
             "model:openai/gpt-oss-120b",
             ("revision:" + $revision),
@@ -340,14 +346,15 @@ jobs:
             ("price:" + $revision + ":openrouter"),
             "deployment:dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
             "scorecard:dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
-            "profile:kaana-lite", ("profile-candidate:kaana-lite:" + $revision),
             "profile:kaana-v1", ("profile-candidate:kaana-v1:" + $revision),
-            "profile:kaana-v1-codea", ("profile-candidate:kaana-v1-codea:" + $revision),
-            "profile:kaana-v1-cowork", ("profile-candidate:kaana-v1-cowork:" + $revision),
-            "profile:kaana-v1-browser", ("profile-candidate:kaana-v1-browser:" + $revision),
-            "profile:kaana-v1-pro", ("profile-candidate:kaana-v1-pro:" + $revision),
-            "profile:kaana-v1-thinking", ("profile-candidate:kaana-v1-thinking:" + $revision),
-            "profile:kaana-v1-pro-max", ("profile-candidate:kaana-v1-pro-max:" + $revision)
+            "publisher:x-ai",
+            "model:x-ai/text-to-speech",
+            ("revision:" + $speechRevision),
+            "provider:xai",
+            ("price:" + $speechRevision + ":xai"),
+            "deployment:dep_xai_tts_observed_2026_09_24",
+            "scorecard:dep_xai_tts_observed_2026_09_24",
+            "profile:kaana-v1-speech", ("profile-candidate:kaana-v1-speech:" + $speechRevision)
           ]')
 
           validate_bootstrap_result() {
@@ -361,20 +368,17 @@ jobs:
               --arg cerebras "$CEREBRAS_DEPLOYMENT_ID" \
               --arg groq "$GROQ_DEPLOYMENT_ID" \
               --arg openrouter "$OPENROUTER_DEPLOYMENT_ID" \
-              --arg lite "$PROFILE_LITE_ID" \
               --arg default "$PROFILE_DEFAULT_ID" \
-              --arg code "$PROFILE_CODE_ID" \
-              --arg cowork "$PROFILE_COWORK_ID" \
-              --arg browser "$PROFILE_BROWSER_ID" \
-              --arg pro "$PROFILE_PRO_ID" \
-              --arg thinking "$PROFILE_THINKING_ID" \
-              --arg proMax "$PROFILE_PRO_MAX_ID" \
+              --arg speechModel "$SPEECH_MODEL_ID" \
+              --arg speechRevision "$SPEECH_MODEL_REFERENCE" \
+              --arg xai "$XAI_DEPLOYMENT_ID" \
+              --arg speechProfile "$PROFILE_SPEECH_ID" \
               --argjson allowed "$allowed_operations" '
                 (keys | sort) == [
                   "applied","candidate","database","deployments","inserted",
                   "inventoryIssuedAt","inventorySnapshotId","inventoryVersionId",
                   "model","planSha256","providers","publisher","reviewedFactsSha256","revision",
-                  "routingProfileIds","schemaVersion"
+                  "routingProfileIds","schemaVersion","speech"
                 ] and
                 .schemaVersion == 1 and
                 .database == {engine:"postgresql"} and
@@ -389,7 +393,16 @@ jobs:
                 .candidate == {modelReference:$revision,priority:100} and
                 .providers == ["cerebras","groq","openrouter"] and
                 .deployments == [$cerebras,$groq,$openrouter] and
-                .routingProfileIds == [$lite,$default,$code,$cowork,$browser,$pro,$thinking,$proMax] and
+                .routingProfileIds == [$default] and
+                .speech == {
+                  publisher:"x-ai",
+                  model:$speechModel,
+                  revision:$speechRevision,
+                  candidate:{modelReference:$speechRevision,priority:100},
+                  providers:["xai"],
+                  deployments:[$xai],
+                  routingProfileIds:[$speechProfile]
+                } and
                 (.planSha256 | test("^[a-f0-9]{64}$")) and
                 (.inserted | type == "array") and
                 (.inserted | all(type == "string")) and
@@ -441,7 +454,7 @@ jobs:
           observed_plan=$(jq -r '.planSha256' <<<"$dry_result")
 
           echo '──────── Kaana catalogue dry run (operator-safe) ────────'
-          jq '{database,inventorySnapshotId,reviewedFactsSha256,model,candidate,deployments,routingProfileIds,inserted,planSha256}' <<<"$dry_result"
+          jq '{database,inventorySnapshotId,reviewedFactsSha256,model,candidate,deployments,routingProfileIds,speech,inserted,planSha256}' <<<"$dry_result"
           echo '──────────────────────────────────────────────────────────'
           {
             echo '### Reviewed Kaana catalogue dry run'
@@ -464,15 +477,35 @@ jobs:
             exit 1
           fi
 
+          # APPLY refuses to open PostgreSQL without a fresh (<10 min) workflow
+          # attestation of the complete live rollout, which it then repeats
+          # itself from ECS (inferencePlatformScopeWriteGate.ts). Re-attest
+          # after the dry run so the stamp is taken immediately before apply.
+          .github/scripts/attest-kaana-catalogue-rollout.sh \
+            "$CLUSTER" "$SERVICE" "$EXPECTED_LIVE_TASK_DEFINITION_ARN" "$LIVE_CONTAINER" \
+            "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" "$BOOTSTRAP_CONTAINER" "$immutable_image"
+          attested_at=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)
           apply_environment=$(jq -nc \
             --arg reviewer "$REVIEWER_USER_ID" \
             --arg actor "$BOOTSTRAP_ACTOR" \
             --arg reason "$bootstrap_reason" \
-            --arg expected "$expected_plan" '[
+            --arg expected "$expected_plan" \
+            --arg liveTask "$EXPECTED_LIVE_TASK_DEFINITION_ARN" \
+            --arg bootstrapTask "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" \
+            --arg image "$immutable_image" \
+            --arg attestedAt "$attested_at" \
+            --arg cluster "$CLUSTER" \
+            --arg service "$SERVICE" '[
               {name:"APPLY",value:"1"},
               {name:"BOOTSTRAP_ACTOR",value:$actor},
               {name:"BOOTSTRAP_REASON",value:$reason},
               {name:"EXPECTED_PLAN_SHA256",value:$expected},
+              {name:"KAANA_CATALOGUE_PLATFORM_SCOPE_ATTESTED_AT",value:$attestedAt},
+              {name:"KAANA_CATALOGUE_PLATFORM_SCOPE_BOOTSTRAP_TASK_DEFINITION_ARN",value:$bootstrapTask},
+              {name:"KAANA_CATALOGUE_PLATFORM_SCOPE_CLUSTER",value:$cluster},
+              {name:"KAANA_CATALOGUE_PLATFORM_SCOPE_IMAGE",value:$image},
+              {name:"KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE",value:$service},
+              {name:"KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE_TASK_DEFINITION_ARN",value:$liveTask},
               {name:"KAANA_CATALOGUE_REVIEWER_USER_ID",value:$reviewer}
             ]')
           apply_envelope=$(run_task 'apply' "$bootstrap_command" "$apply_environment" 'KAANA_CATALOGUE_BOOTSTRAP_RESULT=')
@@ -537,6 +570,7 @@ jobs:
             echo "- Applied reviewed plan: \`$expected_plan\`"
             echo "- Exact Inbox profile PK present: \`$PROFILE_DEFAULT_ID\`"
             echo "- Exact candidate: \`$MODEL_REFERENCE\` at priority \`100\`"
+            echo "- Speech profile PK \`$PROFILE_SPEECH_ID\` and route \`$XAI_DEPLOYMENT_ID\` proven equal by the no-op dry run"
             echo '- SELECT-only readback writes: 0'
             echo '- Idempotency dry-run committed writes: 0; planned operations: 0'
             echo '- Routing eligibility was not asserted; application audience remains a separate launch gate.'

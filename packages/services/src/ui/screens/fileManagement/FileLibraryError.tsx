@@ -1,5 +1,7 @@
 import type React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
+import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 
 export interface FileLibraryErrorProps {
@@ -11,8 +13,6 @@ export interface FileLibraryErrorProps {
     iconColor: string;
     titleColor: string;
     descriptionColor: string;
-    /** Retry button background (button label/icon are always white). */
-    buttonColor: string;
 }
 
 /**
@@ -30,7 +30,6 @@ const FileLibraryError: React.FC<FileLibraryErrorProps> = ({
     iconColor,
     titleColor,
     descriptionColor,
-    buttonColor,
 }) => (
     <View className="items-center py-[40px] px-[24px]">
         <Ionicons name="cloud-offline-outline" size={64} color={iconColor} />
@@ -40,16 +39,9 @@ const FileLibraryError: React.FC<FileLibraryErrorProps> = ({
         <Text className="text-[16px] text-center leading-[24px] mb-[32px]" style={{ color: descriptionColor }}>
             {description}
         </Text>
-        <TouchableOpacity
-            className="flex-row items-center px-[24px] py-[12px] rounded-[24px] gap-[8px]"
-            style={{ backgroundColor: buttonColor }}
-            onPress={onRetry}
-            accessibilityRole="button"
-            accessibilityLabel={retryLabel}
-        >
-            <Ionicons name="refresh" size={20} color="#FFFFFF" />
-            <Text className="text-white text-[16px] font-semibold">{retryLabel}</Text>
-        </TouchableOpacity>
+        <Button onPress={onRetry} accessibilityLabel={retryLabel}>
+            {retryLabel}
+        </Button>
     </View>
 );
 

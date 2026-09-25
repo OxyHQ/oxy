@@ -175,6 +175,14 @@ A consumer that asserts a fixed `credentialId` migrates in three steps: accept
 BOTH its credential id and its `wl_…` handle, deploy that, move the service to
 attestation, then drop the credential id.
 
+An Oxy lane that PINS a specific credential migrates differently: it declares the
+IAM role beside the credential and derives the handle with
+`workloadAttestationHandle`, so what it admits stays reviewable and stays
+computable from a task definition. `NATIVE_PRODUCT_AGENT_ENTRY_POINTS` (ADR 0025)
+is the first; its `workload` field is deliberately written out rather than read
+from `application_workload_identities`, because binding a role is a routine
+deploy step and must never be, by itself, a grant of a pinned lane.
+
 ### A binding row, not a naming convention
 
 `application_workload_identities` maps `(provider, subject)` to an application.
@@ -233,3 +241,27 @@ at a terminal.
   until each has migrated. **That coexistence is temporary by design**: the clean
   cut is each official service losing its credential as it moves, and this ADR is
   not closed until the last one has.
+- **An attested identity is materialised in `application_credentials`.** Four
+  financial tables name the identity that authorised a spend with a `NOT NULL`
+  foreign key to that table — on `inference_usage_daily_rollups` as part of the
+  PRIMARY KEY — so a `wl_…` handle that named no row could not be written and the
+  inference edge refused an attested caller outright. Dropping those constraints
+  was prototyped and rejected (`db/MIGRATION-CONTRACT.md`: no relational link may
+  be lost); instead the binding gets a `workload`-typed row whose id IS its handle,
+  and every foreign key, cascade, join and usage report downstream is unchanged.
+  Four CHECK constraints make that row unusable as a credential rather than relying
+  on filters: no `public_key` (so no OAuth lane can resolve it), no `secret_hash`
+  (so nothing can verify it), no scopes (authority is the binding's, read live) and
+  a `wl_`-prefixed id that no other row may have. The row is written by the bind and
+  by the mint, and it OUTLIVES the binding — deleting a binding stops the workload
+  on its next call and leaves the spend attributable, which `ON DELETE SET NULL` on
+  the binding link is what buys.
+- **Every hop that re-reads live authority has to know about both proofs.** Three
+  did not, and each refused an attested caller in its own way:
+  `resolveServiceTokenPrincipal` (the catalogue quietly demoted Alia's probe to the
+  public audience; the edge answered 401), and `resolveLiveAgencyServicePrincipal`
+  (measured: Kaana's `GET /capabilities/service-identity` answered 200 with its key
+  pair and `401 service_principal_no_longer_active` attested, which also blocked the
+  BYOK validation callback it actually makes). Both now branch onto one shared
+  definition of "a live binding", `resolveLiveAgencyWorkloadByHandle`. A fourth hop
+  added this way is a bug; a fourth CALLER of that helper is not.

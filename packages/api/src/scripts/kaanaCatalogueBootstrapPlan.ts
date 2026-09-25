@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
+import {
+	LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
+	normalizeInferenceDeploymentAvailabilityScope,
+} from "../db/schema/inferenceDeployments";
 
-export interface KaanaCatalogueBootstrapPlanInput {
-	readonly reviewerUserId: string;
-	readonly inventorySnapshotId: string;
-	readonly reviewedFactsSha256: string;
+/** The exact identities one reviewed model contributes to the plan. */
+export interface KaanaCatalogueBootstrapModelPlan {
 	readonly publisher: string;
 	readonly model: string;
 	readonly revision: string;
@@ -14,6 +16,18 @@ export interface KaanaCatalogueBootstrapPlanInput {
 	readonly providers: readonly string[];
 	readonly deployments: readonly string[];
 	readonly routingProfileIds: readonly string[];
+}
+
+/**
+ * The text model's identities stay at the top level, as every earlier plan
+ * bound them; Alia's speech model is bound under `speech`.
+ */
+export interface KaanaCatalogueBootstrapPlanInput
+	extends KaanaCatalogueBootstrapModelPlan {
+	readonly reviewerUserId: string;
+	readonly inventorySnapshotId: string;
+	readonly reviewedFactsSha256: string;
+	readonly speech: KaanaCatalogueBootstrapModelPlan;
 	readonly wouldInsert: readonly string[];
 }
 
@@ -131,4 +145,26 @@ export function kaanaBootstrapExistingFundingEvidence(
 	return migratedDeployment && existingEvidenceRef === "migration/standard-payg"
 		? "migration/standard-payg"
 		: reviewedEvidenceRef;
+}
+
+/**
+ * The stored deployment row as the bootstrap compares it with reviewed facts.
+ *
+ * During the rolling `internal_alia` -> `platform_internal` storage rename the
+ * routes the first bootstrap wrote still hold the legacy bytes, which are the
+ * same logical scope. Only that one exact legacy value is translated, and only
+ * for the comparison: the stored row is never rewritten here (the backfill is
+ * its own migration), and any other value is compared raw so real drift still
+ * refuses the run.
+ */
+export function kaanaBootstrapComparableDeployment<
+	Row extends { readonly availabilityScope: string },
+>(row: Row): Row {
+	const stored: string = row.availabilityScope;
+	return stored === LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE
+		? {
+				...row,
+				availabilityScope: normalizeInferenceDeploymentAvailabilityScope(stored),
+			}
+		: row;
 }

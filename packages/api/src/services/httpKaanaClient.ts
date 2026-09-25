@@ -100,6 +100,8 @@ import {
 /** The one route the edge calls. */
 export const KAANA_INFERENCE_PATH = '/internal/v1/inference';
 export const KAANA_DEPLOYMENTS_QUERY_PATH = '/internal/v1/deployments/query';
+/** Kaana's signed catalogue: every model line its snapshot serves. */
+export const KAANA_MODELS_PATH = '/internal/v1/models';
 
 export const KAANA_KEY_ID_HEADER = 'X-Oxy-Kaana-Key-Id';
 export const KAANA_TIMESTAMP_HEADER = 'X-Oxy-Kaana-Timestamp';
@@ -144,6 +146,12 @@ const MAX_KAANA_EVENT_CHARACTERS = 8 * 1024 * 1024;
  */
 const MAX_KAANA_REJECTION_BYTES = 64 * 1024;
 const MAX_KAANA_ATTESTATION_IDS = 64;
+/**
+ * The largest catalogue this client reads. Hundreds of model lines with their
+ * deployments and list prices are well under a megabyte; the bound exists so a
+ * misbehaving intermediary cannot stream an unbounded body into the sync.
+ */
+const MAX_KAANA_CATALOGUE_BYTES = 16 * 1024 * 1024;
 
 const kaanaDeploymentAttestationSchema = z
   .object({
@@ -238,6 +246,67 @@ export function createHttpKaanaClient(): KaanaClient | undefined {
     publicKey: kaanaPublicKeyBase64(config),
   });
   return new HttpKaanaClient(config);
+}
+
+/**
+ * Reads Kaana's signed model catalogue (`GET /internal/v1/models`) for the
+ * catalogue sync. Separate from {@link KaanaClient} because it is not on the
+ * request path: nothing a customer sends reaches it, and the edge's stub
+ * clients need not implement it.
+ */
+export interface KaanaCatalogueReader {
+  /**
+   * The decoded JSON body, unvalidated. The sync owns the parse, because a
+   * catalogue entry it cannot read is skipped and counted rather than failing
+   * every other entry with it.
+   */
+  listModels(signal: AbortSignal): Promise<unknown>;
+  /** The same signed exact-id attestation the edge's preflight uses. */
+  attestDeployments(
+    deploymentIds: readonly string[],
+    options: KaanaExecuteOptions
+  ): Promise<KaanaDeploymentAttestation>;
+}
+
+/** `undefined` whenever the data plane is not fully configured. */
+export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefined {
+  const resolution = resolveKaanaDataPlane();
+  if (resolution.status !== 'configured') return undefined;
+  const { config } = resolution;
+  const client = new HttpKaanaClient(config);
+  return {
+    attestDeployments: (deploymentIds, options) => client.attestDeployments(deploymentIds, options),
+    async listModels(signal: AbortSignal): Promise<unknown> {
+      // A GET signs the empty body, exactly as Kaana's readSignedBody verifies
+      // it for the health and catalogue surfaces.
+      const body = Buffer.alloc(0);
+      const timestamp = Date.now();
+      const response = await fetch(`${config.baseUrl}${KAANA_MODELS_PATH}`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'Cache-Control': 'no-store',
+          [KAANA_KEY_ID_HEADER]: config.keyId,
+          [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+          [KAANA_SIGNATURE_HEADER]: signEnvelope(config.privateKey, config.keyId, timestamp, body),
+        },
+        cache: 'no-store',
+        signal,
+      });
+      if (!response.ok) {
+        await readBounded(response);
+        throw new KaanaProtocolError(
+          `The inference data plane refused the catalogue read with HTTP ${response.status}.`
+        );
+      }
+      const raw = await readBoundedStrict(response, MAX_KAANA_CATALOGUE_BYTES);
+      try {
+        return JSON.parse(raw) as unknown;
+      } catch {
+        throw new KaanaProtocolError('The inference data plane returned a catalogue that is not JSON.');
+      }
+    },
+  };
 }
 
 class HttpKaanaClient implements KaanaClient {
@@ -824,6 +893,28 @@ function upstreamErrorCode(body: string): string | undefined {
   if (typeof payload !== 'object' || payload === null) return undefined;
   const code = (payload as { code?: unknown }).code;
   return typeof code === 'string' ? code : undefined;
+}
+
+/**
+ * The whole body as text, refusing (rather than truncating) one larger than
+ * `limit` characters: a truncated catalogue would parse as nothing, or worse,
+ * as a shorter catalogue whose missing models the sync would retire.
+ */
+async function readBoundedStrict(response: Response, limit: number): Promise<string> {
+  if (response.body === null) return '';
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let text = '';
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    text += decoder.decode(chunk.value, { stream: true });
+    if (text.length > limit) {
+      await reader.cancel();
+      throw new KaanaProtocolError(`The inference data plane returned a catalogue over ${limit} characters.`);
+    }
+  }
+  return text + decoder.decode();
 }
 
 /** At most {@link MAX_KAANA_REJECTION_BYTES} of a response body, as text. */

@@ -39,9 +39,12 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
+import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
+import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
+import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
 import {
   inferenceDeployments,
   inferenceModelRevisions,
@@ -53,6 +56,7 @@ import { users } from '../../db/schema/users';
 import { MACHINE_CREDENTIAL_AUTH_VARIABLE } from '../../config/rolloutFlags';
 import { errorHandler } from '../../middleware/errorHandler';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
+import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
 import catalogueRouter from '../inferenceCatalogue';
 import type { ModelCatalogueEntry } from '@oxy.so/contracts';
 
@@ -341,6 +345,85 @@ async function withMachineLane(
   }
 }
 
+/**
+ * An application bound to an IAM role, plus the service token an ATTESTATION of
+ * that role mints — the ADR 0026 caller that holds no credential at all.
+ *
+ * `credentialId` is the binding's attestation handle, DERIVED by the one
+ * definition the mint uses rather than written out here, so a change to the
+ * derivation reddens this instead of quietly un-resolving the lane in
+ * production. No `application_credentials` row is created: the whole point is a
+ * caller for which the credential lookup can only ever come back empty.
+ */
+async function attestedTokenForApplication(input: {
+  type: 'internal' | 'system' | 'first_party' | 'third_party';
+  isInternal?: boolean;
+  applicationStatus?: 'active' | 'suspended';
+  /** Bind a DIFFERENT role than the one the token attests. */
+  boundSubject?: string;
+  expiresAt?: Date;
+  bind?: boolean;
+}): Promise<{ token: string; handle: string; applicationId: string; bindingId?: string }> {
+  const [account] = await getDb()
+    .insert(users)
+    .values({ username: `wcat-${suffix()}`, kind: 'organization' })
+    .returning({ id: users.id });
+  const [application] = await getDb()
+    .insert(applications)
+    .values({
+      name: `Catalogue Workload ${suffix()}`,
+      ownerAccountId: account.id,
+      createdByUserId: account.id,
+      type: input.type,
+      isInternal: input.isInternal ?? false,
+      status: input.applicationStatus ?? 'active',
+      scopes: ['inference:models:read'],
+    })
+    .returning({ id: applications.id });
+
+  const subject = `arn:aws:iam::237343248947:role/oxy-cat-${suffix()}-task`;
+  let bindingId: string | undefined;
+  if (input.bind !== false) {
+    const [binding] = await getDb()
+      .insert(applicationWorkloadIdentities)
+      .values({
+        applicationId: application.id,
+        provider: 'aws-iam',
+        subject: input.boundSubject ?? subject,
+        description: `catalogue suite ${suffix()}`,
+        scopes: [],
+        ...(input.expiresAt === undefined ? {} : { expiresAt: input.expiresAt }),
+      })
+      .returning({ id: applicationWorkloadIdentities.id });
+    bindingId = binding.id;
+    /**
+     * The binding's materialised attribution row, as both production writers
+     * produce it (`services/workloadAttributionIdentity.service.ts`).
+     *
+     * `resolveLiveAgencyWorkloadByHandle` requires the binding→row link, so a
+     * fixture without it is a state no minted token can be in — the mint
+     * materialises the row before it issues a token naming the handle.
+     */
+    await ensureWorkloadAttributionIdentity({
+      bindingId: binding.id,
+      applicationId: application.id,
+      subject: input.boundSubject ?? subject,
+    });
+  }
+
+  const handle = workloadAttestationHandle(subject);
+  return {
+    token: signServiceToken({
+      appId: application.id,
+      ownerAccountId: account.id,
+      credentialId: handle,
+    }),
+    handle,
+    applicationId: application.id,
+    ...(bindingId === undefined ? {} : { bindingId }),
+  };
+}
+
 function signServiceToken(input: {
   appId: string;
   ownerAccountId: string;
@@ -491,6 +574,97 @@ describe('service-token catalogue access follows live credential and application
     expect(disabled.status).toBe(200);
     expect(entryFor(disabled.body, 'data', publicRoute.modelId)).toBeDefined();
     expect(entryFor(disabled.body, 'data', internalRoute.modelId)).toBeUndefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  1c. An ATTESTED token resolves an audience too (ADR 0026)                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A first-party service that authenticates by attesting its ECS task role and
+ * holds no key pair.
+ *
+ * The bug this covers, found in production: a token minted by attestation sets
+ * `credentialId` to the binding's `wl_…` attestation handle — there is no
+ * credential — and `callerForBearer` resolved that claim as an
+ * `application_credentials` row id unconditionally. It found nothing, the caller
+ * became the PUBLIC viewer, and under an unpublished catalogue the public viewer
+ * is served an empty collection. Alia's pre-deploy readiness task therefore
+ * reported all EIGHT of its chat routing profiles missing, with a 200, no error
+ * and nothing in any log — so the key pair it was supposed to be giving up had
+ * to be put back.
+ *
+ * **A 200 with a body proves nothing here**, exactly as on the machine lane:
+ * serving the public audience is what the bug did. Every case below therefore
+ * turns on a `platform_internal` route, which is visible to the binding's
+ * application and to nobody unresolved, with the `public_payg` route as the
+ * control proving the caller could read the catalogue at all.
+ */
+describe('an attested token resolves the audience of the application its binding names', () => {
+  it('serves the platform audience to a live binding, and withholds it from the same token once the binding is deleted', async () => {
+    const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
+    const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
+    const attested = await attestedTokenForApplication({ type: 'first_party' });
+
+    const served = await request(MOUNT, { token: attested.token });
+    expect(served.status).toBe(200);
+    expect(entryFor(served.body, 'data', publicRoute.modelId)).toBeDefined();
+    expect(entryFor(served.body, 'data', internalRoute.modelId)).toBeDefined();
+
+    // Deleting the row is how a compromised workload is cut off. Visibility has
+    // to end at the same moment it ends for a revoked credential, and the SAME
+    // token is used, so this is the binding and not a different caller.
+    await getDb()
+      .delete(applicationWorkloadIdentities)
+      .where(eq(applicationWorkloadIdentities.id, attested.bindingId as string));
+
+    const withheld = await request(MOUNT, { token: attested.token });
+    expect(withheld.status).toBe(200);
+    expect(entryFor(withheld.body, 'data', publicRoute.modelId)).toBeDefined();
+    expect(entryFor(withheld.body, 'data', internalRoute.modelId)).toBeUndefined();
+  });
+
+  it.each([
+    [
+      'a binding that has expired',
+      () => attestedTokenForApplication({ type: 'first_party', expiresAt: new Date(Date.now() - 1_000) }),
+    ],
+    [
+      'a suspended application',
+      () => attestedTokenForApplication({ type: 'first_party', applicationStatus: 'suspended' }),
+    ],
+    [
+      'an ordinary third-party application, which could never have minted this token',
+      () => attestedTokenForApplication({ type: 'third_party' }),
+    ],
+    [
+      'a handle for a role nobody bound',
+      () => attestedTokenForApplication({ type: 'first_party', boundSubject: 'arn:aws:iam::237343248947:role/oxy-someone-else-task' }),
+    ],
+    [
+      'an application with no binding at all',
+      () => attestedTokenForApplication({ type: 'first_party', bind: false }),
+    ],
+  ])('resolves %s to the public audience', async (_label, make) => {
+    const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
+    const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
+
+    // The positive control over the same rows: a LIVE binding on a first-party
+    // application really does see the platform route, so each withholding below
+    // is a decision and not a lane that refuses every attested token.
+    const live = await attestedTokenForApplication({ type: 'first_party' });
+    const served = await request(MOUNT, { token: live.token });
+    expect(entryFor(served.body, 'data', publicRoute.modelId)).toBeDefined();
+    expect(entryFor(served.body, 'data', internalRoute.modelId)).toBeDefined();
+
+    const attested = await make();
+    const response = await request(MOUNT, { token: attested.token });
+    expect(response.status).toBe(200);
+    // Byte-identical to the anonymous answer: the refusals are not told apart on
+    // the wire, so a caller cannot probe whether a binding exists.
+    expect(entryFor(response.body, 'data', publicRoute.modelId)).toBeDefined();
+    expect(entryFor(response.body, 'data', internalRoute.modelId)).toBeUndefined();
   });
 });
 
