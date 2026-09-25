@@ -18,6 +18,11 @@
   signed-out edge all resolve to `'signin'`. Signed out, Back from "Create your
   account" used to open the menu, "Sign out" included, for nobody
   (OxyHQ/oxy#1375).
+- `DeviceLinkedSession.deviceName` is optional: `GET
+  /session/device/sessions/:sessionId` never sends it, and a required type let
+  Services render "undefined (This device)".
+- i18n: `accounts.manage.switch.countOne` ("1 account", not "1 accounts") and
+  `manageAccount.sessions.otherSession` (en-US, es-ES).
 
 ## 1.8.0
 

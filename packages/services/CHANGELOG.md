@@ -36,6 +36,10 @@ Requires `@oxy.so/core` `^1.9.0` and `@oxy.so/bloom` `^4.21.0`.
   to "Having / trouble?" on Android and squeezed its options.
 - The sign-in surfaces' primary actions are Bloom's `lg` button (44dp), not the
   36dp default.
+- "Manage your Oxy Account": a "Sessions & devices" row read "undefined (This
+  device)" — the endpoint sends no device name. The current session is "This
+  device" and another is named by its account. "Switch account" reads
+  "1 account", not "1 accounts".
 
 ## [4.0.1] - 2026-09-21
 
