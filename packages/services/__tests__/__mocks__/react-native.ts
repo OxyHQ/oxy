@@ -80,6 +80,8 @@ export const AppState: {
  */
 export const Linking = {
   openURL: async (_url: string): Promise<void> => undefined,
+  /** Whether an app handles the URL (the Commons install probe). Tests spy on it. */
+  canOpenURL: async (_url: string): Promise<boolean> => false,
   /** Deep-link into the OS app-settings page (a refused-permission escape hatch). */
   openSettings: async (): Promise<void> => undefined,
   addEventListener: (_event: string, _handler: (event: { url: string }) => void) => ({

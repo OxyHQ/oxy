@@ -549,8 +549,14 @@ export const AdmonitionIcon = () => createElement('span', { 'aria-hidden': 'true
 export const AdmonitionText = ({ children }: { children?: ReactNode }) =>
   createElement('span', null, children);
 export const AdmonitionButton = Button;
-export const Admonition = ({ children }: { children?: ReactNode }) =>
-  createElement('div', null, createElement('span', null, children));
+// `type` is surfaced as `data-admonition-type` so a test can assert which
+// notice tone a screen chose (an error rendered as Bloom's error admonition).
+export const Admonition = ({ children, type }: { children?: ReactNode; type?: string }) =>
+  createElement(
+    'div',
+    { role: 'note', 'data-admonition-type': type ?? 'info' },
+    createElement('span', null, children),
+  );
 
 export default toast;
 

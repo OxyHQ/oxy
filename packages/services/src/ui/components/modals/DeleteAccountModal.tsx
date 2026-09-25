@@ -4,6 +4,7 @@ import { View, TextInput } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 import { Button } from '@oxy.so/bloom/button';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { surfaces, type SurfaceControls } from '@oxy.so/bloom/surfaces';
 
@@ -69,16 +70,11 @@ const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
                 {t('deleteAccount.warning') || 'This action cannot be undone. Your account and all associated data will be permanently deleted.'}
             </Text>
 
-            {error && (
-                <View
-                    className="p-3 rounded-lg mb-4"
-                    style={{ backgroundColor: `${theme.colors.error}20` }}
-                >
-                    <Text className="text-text text-sm text-center" style={{ color: theme.colors.error }}>
-                        {error}
-                    </Text>
+            {error ? (
+                <View className="mb-4">
+                    <Admonition type="error">{error}</Admonition>
                 </View>
-            )}
+            ) : null}
 
             <View className="mb-4">
                 <Text className="text-text-secondary text-[13px] mb-2">

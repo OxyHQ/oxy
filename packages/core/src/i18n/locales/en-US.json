@@ -1934,7 +1934,17 @@
     "warning": "This action cannot be undone. Your account and all associated data will be permanently deleted.",
     "confirmLabel": "Type \"{{username}}\" to confirm",
     "confirm": "Delete Forever",
-    "error": "Failed to delete account"
+    "error": "Failed to delete account",
+    "handoff": {
+      "commonsTitle": "Delete your account in Oxy Commons",
+      "commonsMessage": "Your identity key is kept by Oxy Commons on this device, and deleting your account needs it. Commons will open on Settings > Delete account to finish.",
+      "openCommons": "Open Oxy Commons",
+      "commonsOpenFailed": "Couldn't open Oxy Commons. Open it yourself and go to Settings > Delete account.",
+      "elsewhereTitle": "Delete your account where your identity is",
+      "elsewhereMessage": "Deleting your account needs your identity key, and it isn't on this device. Open Oxy Commons on the device that holds your identity and go to Settings > Delete account, or open {{site}} in a browser that holds it.",
+      "gotIt": "Got it",
+      "identityUnreadable": "Couldn't read this device's identity storage. Unlock your device and try again."
+    }
   },
   "manageAccount": {
     "title": "Manage your Oxy Account",
