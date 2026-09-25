@@ -55,7 +55,7 @@ const remoteActors = new Map<string, Record<string, unknown>>();
 let server: http.Server;
 let relayAppId: string;
 
-async function post(body: unknown): Promise<{ status: number; body: Record<string, any> }> {
+async function post(body: unknown): Promise<{ status: number; body: Record<string, unknown> & { data?: Record<string, unknown>; error?: string } }> {
   const { port } = server.address() as AddressInfo;
   const response = await fetch(`http://127.0.0.1:${port}/federation/move`, {
     method: 'POST',
