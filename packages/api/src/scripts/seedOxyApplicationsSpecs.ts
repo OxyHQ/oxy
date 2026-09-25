@@ -604,11 +604,23 @@ export const SEED_APPS: SeedAppSpec[] = [
     // must be registered on its own for `returnTo` to be accepted.
     redirectUris: ['https://move.oxy.so', 'oxymove://', 'https://move.oxy.so/linked', 'oxymove://linked'],
     // `linked-accounts:read` reads which external accounts a user proved they
-    // own (the import source). `files:write` uploads imported media as the
-    // user's own files. `notifications:write` tells the user the migration
-    // finished (`system` notification). The two privileged ones are why this is
-    // a staff-run seed and not a self-service registration.
-    scopes: ['user:read', 'linked-accounts:read', 'files:write', 'notifications:write'],
+    // own (the import source). `files:user-media:write` uploads imported media
+    // as files OWNED BY that user (`POST /assets/service/user-media`) without
+    // `federation:write`; `files:write` covers Move's own files.
+    // `federation:identities:resolve` maps the accounts a user followed
+    // elsewhere to Oxy user ids (`/federation/identities/lookup|resolve`)
+    // without `federation:write`'s signing authority. `notifications:write`
+    // tells the user the migration finished (`system` notification). The
+    // privileged ones are why this is a staff-run seed and not a self-service
+    // registration.
+    scopes: [
+      'user:read',
+      'linked-accounts:read',
+      'files:write',
+      'files:user-media:write',
+      'federation:identities:resolve',
+      'notifications:write',
+    ],
   },
   {
     id: NILO_APPLICATION_ID,

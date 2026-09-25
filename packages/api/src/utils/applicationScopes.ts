@@ -208,6 +208,8 @@ export const APPLICATION_SCOPES = [
   'accounts:act-as-session',
   'podcasts:write',
   'linked-accounts:read',
+  'files:user-media:write',
+  'federation:identities:resolve',
 ] as const;
 
 export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
@@ -318,6 +320,25 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   a lane that never meets the OAuth consent screen, and the user's decision
  *   is the act of linking itself, revocable per account with
  *   `DELETE /linked-accounts/:id`.
+ * - `files:user-media:write` uploads a durable public file OWNED BY an arbitrary
+ *   local user (`POST /assets/service/user-media`, `x-owner-user-id`). That is
+ *   act-as authority over another person's file space, so it is staff-only. It
+ *   exists so the migration service (Oxy Move) can import a user's media
+ *   without holding `federation:write`, which would also let it sign
+ *   ActivityPub requests as anyone. It is NOT a widening of `files:write`
+ *   (own-tenant files): neither implies the other.
+ * - `federation:identities:resolve` maps remote accounts to Oxy user ids
+ *   (`POST /federation/identities/lookup`, `POST /federation/identities/resolve`)
+ *   WITHOUT the rest of `federation:write` — no HTTP-Signature signing as a user,
+ *   no follow/actor mutation, no domain purge. `lookup` only reads the registry.
+ *   `resolve` is not read-only: on a miss it fetches the remote actor through
+ *   Oxy's signed, DNS-pinned client, verifies it, and creates or refreshes the
+ *   FEDERATED shadow user and its registry rows — the same thing a public
+ *   profile lookup of an unknown handle already triggers. That write is Oxy's
+ *   own identity authority acting on source-verified data, never caller-supplied
+ *   profile fields, which is why it is acceptable here. Privileged because a
+ *   self-granting owner could otherwise drive unbounded remote fetches and
+ *   shadow-user creation.
  *
  * All non-privileged scopes in {@link APPLICATION_SCOPES} authorise an app only
  * over its OWN resources (files, models, webhooks, public user reads) or over
@@ -347,6 +368,8 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'capability-audit:write',
   'capability-events:publish',
   'linked-accounts:read',
+  'files:user-media:write',
+  'federation:identities:resolve',
 ] as const satisfies readonly ApplicationScope[];
 
 /**

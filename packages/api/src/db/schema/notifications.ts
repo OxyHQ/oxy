@@ -23,7 +23,12 @@
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, boolean, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
-import { OXY_NOTIFICATION_TYPES } from '@oxy.so/contracts';
+import {
+  OXY_NOTIFICATION_TYPES,
+  OXY_NOTIFICATION_URL_MAX,
+  OXY_SYSTEM_NOTIFICATION_MESSAGE_MAX,
+  OXY_SYSTEM_NOTIFICATION_TITLE_MAX,
+} from '@oxy.so/contracts';
 import { users } from './users';
 
 /**
@@ -58,6 +63,15 @@ export const notifications = pgTable(
     /** Discriminated by `entity_type`; see the header for why it carries no FK. */
     entityId: text().notNull(),
     entityType: text({ enum: NOTIFICATION_ENTITY_TYPES }).notNull(),
+    /**
+     * The text of a `system` notification — and ONLY of one. Every other type
+     * is rendered by the client from `type` + entity, so it stores none (the
+     * CHECKs below make that structural rather than a convention).
+     */
+    title: text(),
+    message: text(),
+    /** Optional deep link of a `system` notification: https, or a registered app scheme. */
+    url: text(),
     read: boolean().notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -81,6 +95,25 @@ export const notifications = pgTable(
     check(
       'notifications_entity_type_check',
       sql`${t.entityType} in (${sql.raw(inList(NOTIFICATION_ENTITY_TYPES))})`
+    ),
+    // Text iff `system`: a system notification without words is empty on every
+    // client, and text on any other type would be a second rendering path.
+    check(
+      'notifications_system_text_check',
+      sql`(${t.type} = 'system') = (${t.title} is not null and ${t.message} is not null)`
+    ),
+    check('notifications_url_system_only_check', sql`${t.url} is null or ${t.type} = 'system'`),
+    check(
+      'notifications_title_length_check',
+      sql`${t.title} is null or char_length(${t.title}) between 1 and ${sql.raw(String(OXY_SYSTEM_NOTIFICATION_TITLE_MAX))}`
+    ),
+    check(
+      'notifications_message_length_check',
+      sql`${t.message} is null or char_length(${t.message}) between 1 and ${sql.raw(String(OXY_SYSTEM_NOTIFICATION_MESSAGE_MAX))}`
+    ),
+    check(
+      'notifications_url_length_check',
+      sql`${t.url} is null or char_length(${t.url}) between 1 and ${sql.raw(String(OXY_NOTIFICATION_URL_MAX))}`
     ),
   ]
 );

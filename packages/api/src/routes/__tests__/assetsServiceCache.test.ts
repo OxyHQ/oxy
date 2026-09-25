@@ -526,6 +526,66 @@ describe('POST /assets/service/user-media', () => {
     expect(mockUploadUserMediaStream).not.toHaveBeenCalled();
   });
 
+  it('accepts the narrow files:user-media:write scope alone (Oxy Move), with no federation:write', async () => {
+    mockServiceAuthMiddleware.mockImplementationOnce(
+      (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
+        req.serviceApp = {
+          type: 'service',
+          appId: 'move-app',
+          appName: 'Oxy Move',
+          tier: 'internal',
+          scopes: ['files:user-media:write'],
+        };
+        next();
+      }
+    );
+    mockUploadUserMediaStream.mockResolvedValueOnce({
+      id: USER_FILE_ID,
+      sha256: 'c'.repeat(64),
+      size: 4,
+      mime: 'image/png',
+      visibility: 'public',
+    });
+
+    const res = await requestRaw(
+      server,
+      'POST',
+      '/assets/service/user-media',
+      { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': LOCAL_OWNER_ID },
+      Buffer.from('PNG!')
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockUploadUserMediaStream).toHaveBeenCalledTimes(1);
+    expect(mockUploadUserMediaStream.mock.calls[0][4]).toBe(LOCAL_OWNER_ID);
+  });
+
+  it('still refuses files:write alone, even from an internal-tier app', async () => {
+    mockServiceAuthMiddleware.mockImplementationOnce(
+      (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
+        req.serviceApp = {
+          type: 'service',
+          appId: 'move-app',
+          appName: 'Oxy Move',
+          tier: 'internal',
+          scopes: ['files:write'],
+        };
+        next();
+      }
+    );
+
+    const res = await requestRaw(
+      server,
+      'POST',
+      '/assets/service/user-media',
+      { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': LOCAL_OWNER_ID },
+      Buffer.from('PNG!')
+    );
+
+    expect(res.status).toBe(403);
+    expect(mockUploadUserMediaStream).not.toHaveBeenCalled();
+  });
+
   it('rejects an SVG upload with 415 (stored-XSS vector) and never touches S3', async () => {
     const res = await requestRaw(
       server,
@@ -680,6 +740,34 @@ describe('POST /assets/service/by-ids', () => {
    * video per play. `hlsReadyAt` is the answer to that question and nothing more:
    * one timestamp, never the variant list, which stays storage-private.
    */
+  it('names the owner only to Oxy\'s own (internal-tier) applications', async () => {
+    const rows = [
+      { id: CACHE_FILE_ID, sha256: 'a'.repeat(64), mime: 'image/png', size: 1, status: 'active', ownerUserId: 'owner-1' },
+      { id: USER_FILE_ID, sha256: 'b'.repeat(64), mime: 'image/png', size: 1, status: 'active', ownerUserId: null },
+    ];
+    mockServiceAuthMiddleware.mockImplementationOnce(
+      (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
+        req.serviceApp = { type: 'service', appId: 'mention-app', appName: 'mention', tier: 'internal', scopes: ['files:read'] };
+        next();
+      }
+    );
+    mockGetFilesByIds.mockResolvedValueOnce(rows);
+    const internal = await postByIds([CACHE_FILE_ID, USER_FILE_ID]);
+    expect(internal.status).toBe(200);
+    expect(internal.body.data.map((dto: { ownerUserId?: string | null }) => dto.ownerUserId)).toEqual(['owner-1', null]);
+
+    mockServiceAuthMiddleware.mockImplementationOnce(
+      (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
+        req.serviceApp = { type: 'service', appId: 'third-party', appName: 'x', tier: 'external', scopes: ['files:read'] };
+        next();
+      }
+    );
+    mockGetFilesByIds.mockResolvedValueOnce(rows);
+    const external = await postByIds([CACHE_FILE_ID, USER_FILE_ID]);
+    expect(external.status).toBe(200);
+    for (const dto of external.body.data) expect(dto).not.toHaveProperty('ownerUserId');
+  });
+
   it('reports hlsReadyAt when the ladder finished transcoding', async () => {
     grantFilesReadOnce();
     const readyAt = new Date('2026-09-08T10:00:00.000Z');
