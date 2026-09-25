@@ -177,6 +177,12 @@ export interface DeliveryActorProfile {
    * staleness window).
    */
   kind?: AccountKind | null;
+  /**
+   * The aliases Oxy publishes for the account. Must travel with the `Update`
+   * for the same reason `kind` does: the pushed actor and the fetched actor are
+   * one document, and a follower's instance learns a new alias from this push.
+   */
+  alsoKnownAs?: readonly string[] | null;
 }
 
 /** Resolve a local username to its Oxy profile (for the `Update(Person)` rebroadcast). */
@@ -695,6 +701,7 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
         profileHeaderImage,
         publicKey,
         createdAt: user.createdAt,
+        alsoKnownAs: user.alsoKnownAs,
       });
 
       const actor = urls.actor(username);

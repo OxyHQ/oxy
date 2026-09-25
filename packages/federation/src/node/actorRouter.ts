@@ -41,6 +41,12 @@ export interface ActorRouteUser {
   createdAt?: string | null;
   /** Account-graph classification — decides the actor `type`. */
   kind?: AccountKind | null;
+  /**
+   * The actor URIs Oxy publishes as this account's aliases
+   * (`GET /profiles/username/:username` → `alsoKnownAs`). Emitted on the actor
+   * only when non-empty.
+   */
+  alsoKnownAs?: readonly string[] | null;
   _count?: { followers?: number; following?: number } | null;
 }
 
@@ -388,6 +394,7 @@ export function createActorRouter(config: ActorRouterConfig): Router {
         profileHeaderImage,
         publicKey,
         createdAt: user.createdAt,
+        alsoKnownAs: user.alsoKnownAs,
       });
 
       res.set('Content-Type', apContentType);

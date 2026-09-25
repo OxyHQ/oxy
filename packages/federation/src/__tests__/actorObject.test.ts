@@ -102,6 +102,7 @@ describe('createLocalActorBuilder (golden actor vector)', () => {
       toot: 'http://joinmastodon.org/ns#',
       votersCount: 'toot:votersCount',
       quote: { '@id': 'https://w3id.org/fep/044f#quote', '@type': '@id' },
+      alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' },
     });
   });
 
@@ -245,6 +246,32 @@ describe('actor type by Oxy account kind', () => {
     // this change is inert for every ordinary account already federated.
     expect(buildActor(PARAMS).type).toBe('Person');
     expect(JSON.stringify(buildActor(PARAMS))).toBe(JSON.stringify(EXPECTED_ACTOR));
+  });
+});
+
+describe('createLocalActorBuilder — alsoKnownAs', () => {
+  const alias = 'https://mastodon.social/users/nate';
+
+  it('emits nothing when there are no aliases, so ordinary actors stay byte-identical', () => {
+    for (const alsoKnownAs of [undefined, null, []]) {
+      const actor = buildActor({ ...PARAMS, alsoKnownAs });
+      expect(actor).not.toHaveProperty('alsoKnownAs');
+      expect(JSON.stringify(actor)).toBe(JSON.stringify(EXPECTED_ACTOR));
+    }
+  });
+
+  it('emits the aliases after publicKey, de-duplicated and https-only', () => {
+    const actor = buildActor({
+      ...PARAMS,
+      alsoKnownAs: [alias, 'http://insecure.example/users/nate', 'not a url', alias, 'https://pleroma.example/users/n'],
+    });
+    expect(actor.alsoKnownAs).toEqual([alias, 'https://pleroma.example/users/n']);
+    const keys = Object.keys(actor);
+    expect(keys.indexOf('alsoKnownAs')).toBe(keys.indexOf('publicKey') + 1);
+  });
+
+  it('emits nothing when every alias is unpublishable', () => {
+    expect(buildActor({ ...PARAMS, alsoKnownAs: ['http://x.example/u'] })).not.toHaveProperty('alsoKnownAs');
   });
 });
 
