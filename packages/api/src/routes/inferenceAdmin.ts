@@ -392,7 +392,7 @@ router.get(
  * The same fleet-wide lock applies: a run already in progress answers
  * `status: skipped, reason: locked`.
  *
- * @response 200 Object `{ data: KaanaCatalogueSyncSummary }`.
+ * Answers `{ data: KaanaCatalogueSyncSummary }`.
  */
 router.post(
   '/catalogue/sync',
@@ -410,7 +410,7 @@ router.post(
 /**
  * `GET /inference/admin/catalogue/blocklist`
  *
- * @response 200 Object `{ data: CatalogueBlock[] }`, empty by default.
+ * Answers `{ data: CatalogueBlock[] }`, empty by default.
  */
 router.get(
   '/catalogue/blocklist',
@@ -426,7 +426,7 @@ router.get(
  * are retired in the same commit. Reviewed routes of the line are retired
  * through the permission surface, not here.
  *
- * @response 200 Object `{ data: { created, retired } }`.
+ * Answers `{ data: { created, retired } }`.
  */
 router.post(
   '/catalogue/blocklist',
