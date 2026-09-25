@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { useOxy } from '@oxy.so/services';
 import type { VerifiableCredentialResponse } from '@oxy.so/contracts';
 import { useColors } from '@/hooks/useColors';

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { Fonts } from '@/constants/theme';
+import { usePreventScreenCapture } from '@/hooks/usePreventScreenCapture';
 
 interface RecoveryPhraseGridProps {
   /** The recovery words, in order. */
@@ -16,10 +17,16 @@ interface RecoveryPhraseGridProps {
  * Purely presentational — the caller owns reveal gating and phrase provenance.
  * Shared by the onboarding acknowledgement step ({@link RecoveryPhraseStep}) and
  * the Settings re-reveal screen so the phrase renders identically in both.
+ *
+ * While it is mounted — which is exactly while the words are on screen — the
+ * window refuses screenshots and screen recording. Each word stays readable by a
+ * screen reader ("Word 3: apple"): the capture guard is the protection, and a
+ * blind user needs to hear the words to write them down.
  */
 export function RecoveryPhraseGrid({ words, textColor }: RecoveryPhraseGridProps) {
   const colors = useColors();
   const { t } = useTranslation();
+  usePreventScreenCapture();
 
   const wordItems = useMemo(
     () => words.map((word, index) => ({ index: index + 1, word })),
@@ -32,8 +39,9 @@ export function RecoveryPhraseGrid({ words, textColor }: RecoveryPhraseGridProps
         <View
           key={index}
           style={[styles.wordRow, { borderColor: colors.border }]}
+          accessible
           accessibilityRole="text"
-          accessibilityLabel={t('auth.recoveryPhrase.wordLabel', { index })}
+          accessibilityLabel={t('auth.recoveryPhrase.wordLabel', { index, word })}
         >
           <Text style={[styles.wordNumber, { color: textColor, opacity: 0.5 }]}>{index}</Text>
           <Text style={[styles.word, { color: textColor }]}>{word}</Text>

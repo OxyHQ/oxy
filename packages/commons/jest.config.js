@@ -56,6 +56,8 @@ module.exports = {
     '^@shopify/react-native-skia$': '<rootDir>/__mocks__/react-native-skia.tsx',
     '^expo-router$': '<rootDir>/__mocks__/expo-router.tsx',
     '^expo-secure-store$': '<rootDir>/__mocks__/expo-secure-store.ts',
+    '^expo$': '<rootDir>/__mocks__/expo.ts',
+    '^expo-screen-capture$': '<rootDir>/__mocks__/expo-screen-capture.ts',
   },
   testTimeout: 10000,
 };
