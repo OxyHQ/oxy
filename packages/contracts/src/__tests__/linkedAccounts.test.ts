@@ -43,10 +43,21 @@ describe('notification types', () => {
         recipientId: 'u1',
         actorId: 'u1',
         type: 'system',
-        entityId: 'u1',
+        entityId: 'job-1',
         entityType: 'profile',
+        title: 'Your move is complete',
+        message: 'Twelve posts came over.',
+        url: 'https://move.oxy.so/jobs/job-1',
       }).success,
     ).toBe(true);
+    // A system notification without words renders as nothing, so it is refused.
+    expect(
+      createOxyNotificationRequestSchema.safeParse({ recipientId: 'u1', actorId: 'u1', type: 'system', entityId: 'j', entityType: 'profile' }).success,
+    ).toBe(false);
+    // A deep link is a system-notification field only.
+    expect(
+      createOxyNotificationRequestSchema.safeParse({ recipientId: 'u1', actorId: 'a', type: 'follow', entityId: 'u1', entityType: 'profile', url: 'https://oxy.so' }).success,
+    ).toBe(false);
     expect(createOxyNotificationRequestSchema.safeParse({ recipientId: 'u1', actorId: 'u1', type: 'promo', entityId: 'u1', entityType: 'profile' }).success).toBe(false);
   });
 });
