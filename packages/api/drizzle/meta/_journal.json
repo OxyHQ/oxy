@@ -715,6 +715,13 @@
       "when": 1789831467163,
       "tag": "0102_workload_identity_scopes",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1790299282317,
+      "tag": "0103_workload_attribution_identities",
+      "breakpoints": true
     }
   ]
 }

@@ -386,39 +386,22 @@ export async function authenticateEdgeCaller(req: Request): Promise<EdgeAuthenti
   const resolved = resolution.principal;
 
   /**
-   * An attested caller resolves correctly and still cannot spend, YET — and the
-   * blocker is the ledger's schema, not this hop.
+   * An attested caller reaches the ledger from here, and `credentialId` is the
+   * `wl_…` handle the whole way down.
    *
-   * Every row this edge writes carries the authenticating service identity in
-   * `application_credential_id`, and on four tables that column is `NOT NULL`
-   * with a foreign key to `application_credentials.id`
-   * (`usage_reservations`, `usage_receipts`, `inference_usage_events` and
-   * `inference_usage_daily_rollups`, where it is part of the PRIMARY KEY). An
-   * attested identity is a `wl_…` handle naming a binding, so the first
-   * reservation fails the constraint:
+   * It used to stop here: `usage_reservations`, `usage_receipts`,
+   * `inference_usage_events` and `inference_usage_daily_rollups` all carry the
+   * authenticating identity in `application_credential_id`, `NOT NULL` with a
+   * foreign key to `application_credentials.id`, and a handle named no such row —
+   * so this function refused `proof === 'workload'` with
+   * `workload_attribution_unsupported` to keep a 401 from becoming a 500.
    *
-   *     insert or update on table "usage_reservations" violates foreign key
-   *     constraint "usage_reservations_application_credential_id_application_creden"
-   *
-   * Without this refusal that is a 500 in the middle of an authenticated
-   * request, which is strictly worse than the 401 an attested caller gets
-   * today. With it, the external behaviour of this edge is unchanged and the
-   * log finally names the real reason.
-   *
-   * It is NOT fixed here because fixing it means either dropping those
-   * constraints or splitting the column, and `db/MIGRATION-CONTRACT.md` is
-   * explicit that a relational link is not to be given up silently — "no
-   * quiero perder los vínculos relacionales de nada … when they conflict, STOP
-   * and escalate". So this is the escalation, in the one place a reader of this
-   * function needs it, and the follow-up deletes these five lines.
-   *
-   * The catalogue is unaffected and is fixed: it reads an audience and writes
-   * nothing, so it has no attribution column to carry.
+   * The handle now names a real row, materialised from the binding by
+   * `services/workloadAttributionIdentity.service.ts` before the token was ever
+   * minted. Every foreign key, cascade, join and usage report downstream is
+   * unchanged, and nothing on this path needs to know which proof it was — which
+   * is the property the single `service_token` lane below already assumed.
    */
-  if (resolved.proof === 'workload') {
-    return { ok: false, reason: 'workload_attribution_unsupported' };
-  }
-
   const application = await loadCatalogueApplication(resolved.applicationId);
 
   return {

@@ -88,6 +88,8 @@ import { applications } from '../../db/schema/applications';
 import { conductStrikes } from '../../db/schema/conductStrikes';
 import { identityBindings } from '../../db/schema/identityBindings';
 import { moderationEffects } from '../../db/schema/moderationEffects';
+import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
+import { ensureWorkloadAttributionIdentity } from '../workloadAttributionIdentity.service';
 import { moderationPolicies } from '../../db/schema/moderationPolicies';
 import { moderationPolicySeverityRules } from '../../db/schema/moderationPolicySeverityRules';
 import { moderationPolicyStandingThresholds } from '../../db/schema/moderationPolicyStandingThresholds';
@@ -230,6 +232,38 @@ async function makeWorld(options: { globalEffects?: boolean } = {}): Promise<Wor
     policyVersion,
     emitterApplicationId,
     context: { emitterApplicationId, emitterCredentialId: credential.id },
+  };
+}
+
+/**
+ * The same world, emitted by an ATTESTED service holding no credential.
+ *
+ * `moderation_effects.credential_id` is a real foreign key, and the route writes
+ * `req.serviceApp.credentialId` into it — so an attested emitter's `wl_…` handle
+ * violated the constraint and this path was a 500 for any service holding
+ * `reputation:moderation:apply`, which Mention does, credential-free in
+ * production. The materialised `workload` row makes the handle a value the column
+ * can hold, with no change to the route or the service.
+ */
+async function makeAttestedWorld(): Promise<World> {
+  const world = await makeWorld();
+  const subject = `arn:aws:iam::237343248947:role/oxy-mod-${uniqueId()}`;
+  const [binding] = await getDb()
+    .insert(applicationWorkloadIdentities)
+    .values({
+      applicationId: world.emitterApplicationId,
+      provider: 'aws-iam',
+      subject,
+    })
+    .returning({ id: applicationWorkloadIdentities.id });
+  const { credentialId } = await ensureWorkloadAttributionIdentity({
+    bindingId: binding.id,
+    applicationId: world.emitterApplicationId,
+    subject,
+  });
+  return {
+    ...world,
+    context: { emitterApplicationId: world.emitterApplicationId, emitterCredentialId: credentialId },
   };
 }
 
@@ -676,6 +710,24 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
 // ===========================================================================
 
 describe('validation — the emitting credential', () => {
+  it('records an ATTESTED emitter, whose identity is a wl_ handle and not a credential', async () => {
+    const world = await makeAttestedWorld();
+    const event = makeEvent(world);
+
+    await moderationReputationService.applyModerationDecision(event, world.context);
+
+    const effects = await effectRows(event.incidentId);
+    expect(effects).toHaveLength(1);
+    // The INSERT that used to violate `moderation_effects_credential_id_…`.
+    expect(effects[0].credentialId).toBe(world.context.emitterCredentialId);
+    expect(effects[0].credentialId?.startsWith('wl_')).toBe(true);
+    // `application_id` is the REPORTED application, unchanged by which proof the
+    // emitter used — stated so the assertion above is clearly about the emitter.
+    expect(effects[0].applicationId).toBe(world.applicationId);
+    // And the effect really landed, so this is not a row written with no work done.
+    expect(await ledgerRows(world.subjectId)).toHaveLength(1);
+  });
+
   it('refuses an event with no emitting credential identity', async () => {
     const world = await makeWorld();
     await expect(

@@ -160,10 +160,24 @@ type ApplicationRow = {
  * (`POST /auth/oauth/token`, `POST /auth/service-token`) compare against it in
  * constant time; it never leaves the process.
  */
+/**
+ * `publicKey` is re-declared non-nullable, and that is the type doing work
+ * rather than a convenience.
+ *
+ * The column became nullable so a materialised `workload` row — the
+ * `application_credentials` row an ADR 0026 attested identity's usage ledger
+ * references — can have no OAuth `client_id` at all. Every resolver in this file
+ * finds a credential with `public_key = $1`, which cannot match NULL, so a row
+ * reaching one of them provably has the identifier that was asked for. Stating
+ * that here means a future resolver that looked a credential up some OTHER way
+ * cannot quietly hand its rows to `/oauth/token` or the session mint: it has to
+ * narrow, which is the moment to ask whether it should have matched a workload
+ * row at all.
+ */
 type ApplicationCredentialRow = Pick<
   typeof applicationCredentials.$inferSelect,
-  'id' | 'applicationId' | 'publicKey' | 'secretHash' | 'type' | 'environment' | 'scopes' | 'status' | 'expiresAt'
->;
+  'id' | 'applicationId' | 'secretHash' | 'type' | 'environment' | 'scopes' | 'status' | 'expiresAt'
+> & { publicKey: string };
 
 /** Read one application by id, projected to {@link APPLICATION_COLUMNS}. */
 async function findApplicationById(applicationId: string): Promise<ApplicationRow | null> {
@@ -2256,7 +2270,10 @@ async function resolveUsableCredential(clientId: string): Promise<ApplicationCre
   if (!credential || !isCredentialUsable(credential)) {
     return null;
   }
-  return credential;
+  // `public_key = clientId` matched, so this IS `clientId`; restating it is what
+  // narrows the nullable column without asserting anything that is not already
+  // true of the row the predicate returned.
+  return { ...credential, publicKey: clientId };
 }
 
 /**

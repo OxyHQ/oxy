@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { APPLICATION_SCOPES } from '../utils/applicationScopes';
 import {
-  APPLICATION_CREDENTIAL_TYPES,
+  CREATABLE_APPLICATION_CREDENTIAL_TYPES,
   APPLICATION_CREDENTIAL_ENVIRONMENTS,
 } from '../db/schema/applicationCredentials';
 
@@ -120,10 +120,15 @@ const MAX_ROTATION_GRACE_SECONDS = 30 * 24 * 60 * 60;
  * the rotation grace deadline, and letting a caller set it at creation would
  * make a brand-new credential look like a rotated one. The route rejects it for
  * those types rather than ignoring it.
+ *
+ * `type` is the CREATABLE set, which excludes `workload` — a materialised
+ * attestation handle is not a credential anybody asks for, and a request naming
+ * one would fail the schema's own CHECKs at the INSERT. A 400 naming the allowed
+ * values beats a 500 from the database.
  */
 export const createCredentialSchema = z.object({
   name: z.string().trim().min(1).max(100),
-  type: z.enum(APPLICATION_CREDENTIAL_TYPES),
+  type: z.enum(CREATABLE_APPLICATION_CREDENTIAL_TYPES),
   environment: z.enum(APPLICATION_CREDENTIAL_ENVIRONMENTS),
   scopes: z.array(z.enum(APPLICATION_SCOPES)).optional(),
   expiresInSeconds: z

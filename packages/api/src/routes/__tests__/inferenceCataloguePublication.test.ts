@@ -45,6 +45,7 @@ import { CATALOGUE_AUDIENCE_VARIABLE } from '../../config/rolloutFlags';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
+import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
 import {
   inferenceDeployments,
   inferenceModelRevisions,
@@ -200,6 +201,17 @@ async function seed(): Promise<void> {
     })
     .returning({ id: applicationWorkloadIdentities.id });
   attestedBindingId = attestedBinding.id;
+  /**
+   * Its materialised attribution row, as both production writers produce it.
+   * `resolveLiveAgencyWorkloadByHandle` requires the binding→row link, and the
+   * mint writes the row before issuing a token that names the handle — so a
+   * fixture without it is a state no real caller can be in.
+   */
+  await ensureWorkloadAttributionIdentity({
+    bindingId: attestedBinding.id,
+    applicationId: attestedApplication.id,
+    subject: attestedSubject,
+  });
 
   attestedInternalToken = jwt.sign(
     {
