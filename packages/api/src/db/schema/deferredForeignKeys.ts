@@ -31,6 +31,7 @@ import { externalIdentityInstagramPins, externalIdentityMetaProofs } from './ext
 
 import { identityMoves } from './identityMoves';
 import { mastodonAppRegistrations } from './userLinkedAccounts';
+import { federatedAccountMoves } from './federatedAccountMoves';
 import { inferenceCatalogueBlocklist } from './inferenceCatalogueSync';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { DeferredForeignKey } from '@oxy.so/db/assert';
@@ -109,6 +110,8 @@ export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
   { table: inferenceCatalogueBlocklist, column: inferenceCatalogueBlocklist.modelId,
     reason: 'A model LINE, `<publisher>/<model>`, not a row id — same kind of value as `inference_route_switch_events.requested_model_id`. A block must be able to name a line before the sync has ever written it, and survive the line being retired; `inference_models.model_id` is GENERATED and carries no unique constraint to target. Grammar is enforced by `MODEL_ID_CHECK_PATTERN`.' },
+  { table: federatedAccountMoves, column: federatedAccountMoves.activityId,
+    reason: 'The ActivityPub `id` of a remote Move activity (an IRI on the moving server), kept as the idempotency key; not an Oxy row reference.' },
   { table: mastodonAppRegistrations, column: mastodonAppRegistrations.clientId,
     reason: "Oxy's OAuth `client_id` AT A REMOTE Mastodon-API instance, issued by that instance's `POST /api/v1/apps`; a foreign system's identifier, not an Oxy row reference." },
   { table: identityMoves, column: identityMoves.moveId,

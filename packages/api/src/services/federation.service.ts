@@ -949,6 +949,29 @@ class FederationService {
     return result.ok ? result.profile : null;
   }
 
+  /**
+   * Fetch an actor document FRESH — never from a cache — through the signed,
+   * DNS-pinned client, and return it raw. `null` unless the fetch succeeded and
+   * the document's `id` is the requested URI (or the final URL it was served
+   * from). Used where a decision rests on what the actor says NOW, such as a
+   * Move's `movedTo`.
+   */
+  async fetchActorDocument(actorUri: string): Promise<Record<string, unknown> | null> {
+    try {
+      const res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0]);
+      if (!res || res.status < 200 || res.status >= 300) {
+        res?.response.destroy();
+        return null;
+      }
+      const actor = await readJsonLimited<Record<string, unknown>>(res.response);
+      if (!actor || typeof actor.id !== 'string') return null;
+      if (actor.id !== actorUri && actor.id !== res.finalUrl) return null;
+      return actor;
+    } catch {
+      return null;
+    }
+  }
+
   /** Internal diagnostics preserve the public nullable profile contract. */
   async fetchActorProfileResult(actorUri: string, acctHint?: string, options: { readonlySigningKey?: boolean } = {}): Promise<ActorProfileResult<ExternalActorProfile>> {
     try {

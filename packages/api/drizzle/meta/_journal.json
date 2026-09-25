@@ -750,6 +750,13 @@
       "when": 1790341749177,
       "tag": "0107_notification_app_entity",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1790342178958,
+      "tag": "0108_federated_account_moves",
+      "breakpoints": true
     }
   ]
 }

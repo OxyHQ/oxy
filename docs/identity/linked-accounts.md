@@ -147,3 +147,41 @@ outbound delivery for oxy.so actors, so remote servers see the change the next
 time they fetch the actor. Pushing an `Update(Person)` for mention.earth actors
 is Mention's job: it should raise its `actor.update` event when it receives that
 invalidation.
+
+## Inbound `Move`
+
+A linked ActivityPub account can then move its followers to the Oxy account:
+
+1. The remote user sets `alsoKnownAs` on the remote side and triggers "Move
+   account" there. Their server sends `Move { actor: old, object: old, target:
+   new }` to the followers' inboxes.
+2. `@oxy.so/federation`'s inbound dispatcher checks the shape: `actor` and
+   `object` must both be the signing actor, and `target` must be https. It
+   then calls the app's `onMove({ activityId, oldActorUri, targetActorUri })`.
+3. The app (Mention) relays it to **`POST /federation/move`** with the same
+   three fields and a `federation:write` service token.
+4. Oxy decides (`services/federationMove.service.ts`):
+   - `target` must be `https://<host>/ap/users/<username>` of a LOCAL account,
+     on Oxy's domain or a host the caller is registered for. Otherwise 400, or
+     404 when no such account exists.
+   - That account must have a live, alias-enabled ActivityPub link whose
+     `actor_uri` is the old actor. Otherwise 422 `alias_missing`.
+   - A fresh fetch of the old actor (signed and SSRF-safe, never cached) must
+     name the target in `movedTo`. Otherwise 422 `moved_to_mismatch`, or 502
+     when the actor cannot be fetched.
+5. If all three hold, one transaction:
+   - writes the `federated_account_moves` audit row, unique on `activityId`, so
+     a replay returns `replayed: true` and the first result;
+   - copies blocks and restrictions that other users hold against the old
+     account onto the target (`mergeUsers`' Move-only path);
+   - creates the `canonical_user_redirects` row old → target;
+   - moves local followers with `followCommand.moveAccountFollowers`. A block
+     between the follower and the target, in either direction, skips that
+     follower. Old edges are removed. Follow events are recorded with cause
+     `migration`;
+   - marks the `external_identity_claims` row `linked`.
+6. After commit, Oxy invalidates the graph caches and publishes the `profile`
+   invalidation for both accounts on `oxy:user:invalidate`.
+
+The response carries `oldUserId`, `targetUserId` and the counts
+(`followersMoved`, `alreadyFollowing`, `skippedBlocked`).

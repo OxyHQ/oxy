@@ -16849,6 +16849,99 @@
         "operationId": "postFederationIdentitiesResolve"
       }
     },
+    "/federation/move": {
+      "post": {
+        "tags": [
+          "Federation"
+        ],
+        "summary": "Called by the app whose inbox received the Move (Mention), after the engine's",
+        "description": "shape check (`parseInboundMove`). Requires `federation:write`. The target must\nbe a local actor on Oxy's own domain or one the calling application is\nregistered for. Oxy then verifies, itself, that the target has linked the old\naccount as an alias and that a FRESH fetch of the old actor names the target\nas `movedTo` — see `services/federationMove.service.ts` for what is applied.\n\nIdempotent on `activityId`: a replay answers 200 with `replayed: true` and\nthe first application's counts. Refusals: 400 invalid target, 404 unknown\nlocal account, 422 no alias / `movedTo` mismatch, 502 old actor unreachable.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/federation.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "oldActorUri": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "targetActorUri": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "activityId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "oldActorUri",
+                  "targetActorUri",
+                  "activityId"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postFederationMove"
+      }
+    },
     "/federation/public-key/{username}": {
       "get": {
         "tags": [

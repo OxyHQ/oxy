@@ -152,9 +152,50 @@ export function linkedSourceAcct(link: string): string | null {
   } catch { return null; }
 }
 
-async function mergeUsers(tx: Transaction, from: string, to: string) {
+/**
+ * Converge `from` into `to`.
+ *
+ * Two paths, and the second is narrow on purpose:
+ *
+ *  - **Transport convergence** (the default): two FEDERATED shadow users turned
+ *    out to be one source account. Everything moves — moderation both ways,
+ *    both graphs, the identity rows — and a redirect records it.
+ *  - **`verifiedMove`**: a remote account MOVED to a LOCAL Oxy account, and
+ *    `services/federationMove.service.ts` has already proven it (the local
+ *    account's live alias names the old actor, and a fresh fetch of the old
+ *    actor names the local one as `movedTo`). Only then may a federated user
+ *    converge into a local one, and only these things happen: blocks and
+ *    restrictions OTHER users hold against the old account are carried to the
+ *    target (Mastodon does the same — you blocked that person, you keep them
+ *    blocked), and the redirect is recorded. Follows are moved separately by
+ *    `followCommand.moveAccountFollowers`, which respects blocks; the old
+ *    account's OWN blocks, follows and identity rows stay where they are. No
+ *    other caller can reach this path: it is not exported except through
+ *    {@link applyVerifiedMoveRedirect}.
+ */
+async function mergeUsers(tx: Transaction, from: string, to: string, options: { verifiedMove?: boolean } = {}) {
   if (from === to) return;
-  const candidates = await tx.select({ type: users.type }).from(users).where(or(eq(users.id, from), eq(users.id, to))).for('update');
+  const candidates = await tx.select({ id: users.id, type: users.type }).from(users).where(or(eq(users.id, from), eq(users.id, to))).for('update');
+  if (options.verifiedMove) {
+    const source = candidates.find(user => user.id === from);
+    const target = candidates.find(user => user.id === to);
+    if (candidates.length !== 2 || source?.type !== 'federated' || target?.type !== 'local') {
+      throw new Error('A verified Move converges a federated account into a local one');
+    }
+    for (const row of await tx.select().from(blocks).where(eq(blocks.blockedId, from))) {
+      if (row.userId === to) continue;
+      const { id: _id, ...copy } = row;
+      await tx.insert(blocks).values({ ...copy, blockedId: to }).onConflictDoNothing();
+    }
+    for (const row of await tx.select().from(restrictions).where(eq(restrictions.restrictedId, from))) {
+      if (row.userId === to) continue;
+      const { id: _id, ...copy } = row;
+      await tx.insert(restrictions).values({ ...copy, restrictedId: to }).onConflictDoNothing();
+    }
+    await tx.update(canonicalUserRedirects).set({ canonicalUserId: to }).where(eq(canonicalUserRedirects.canonicalUserId, from));
+    await tx.insert(canonicalUserRedirects).values({ userId: from, canonicalUserId: to }).onConflictDoNothing();
+    return;
+  }
   if (candidates.length !== 2 || candidates.some(user => user.type !== 'federated')) throw new Error('Only external users may converge');
   // Keep originals for historical references; copy moderation to the canonical account first.
   for (const row of await tx.select().from(blocks).where(or(eq(blocks.userId, from), eq(blocks.blockedId, from)))) {
@@ -199,6 +240,15 @@ async function mergeUsers(tx: Transaction, from: string, to: string) {
   await tx.update(externalIdentities).set({ userId: to }).where(eq(externalIdentities.userId, from));
   await tx.update(canonicalUserRedirects).set({ canonicalUserId: to }).where(eq(canonicalUserRedirects.canonicalUserId, from));
   await tx.insert(canonicalUserRedirects).values({ userId: from, canonicalUserId: to }).onConflictDoNothing();
+}
+
+/**
+ * The `verifiedMove` path of {@link mergeUsers}, for
+ * `services/federationMove.service.ts` ONLY, inside its transaction, after it
+ * has verified the alias and the old actor's `movedTo`.
+ */
+export async function applyVerifiedMoveRedirect(tx: Transaction, input: { fromUserId: string; toUserId: string }): Promise<void> {
+  await mergeUsers(tx, input.fromUserId, input.toUserId, { verifiedMove: true });
 }
 
 /** Refuse irreversible transport convergence when historical ownership conflicts. */

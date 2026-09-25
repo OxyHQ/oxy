@@ -33,13 +33,14 @@ import { getEquivalentUserIds } from './externalIdentityRegistry.service';
  * the insert, not a guess made before it.
  */
 
-import { and, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, lte, or, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { followApplicationOverrides } from '../db/schema/followApplicationOverrides';
 import { followEvents, type FollowEventCause, type FollowEventType } from '../db/schema/followEvents';
 import { followRelationships } from '../db/schema/followRelationships';
 import { followTargets } from '../db/schema/followTargets';
 import { userFollows } from '../db/schema/userFollows';
+import { blocks } from '../db/schema/blocks';
 import { BadRequestError } from '../utils/error';
 import graphCache from '../utils/graphCache';
 import { logger } from '../utils/logger';
@@ -572,4 +573,154 @@ export async function expireDueFollows(now = new Date(), limit = 500): Promise<n
   }
 
   return removed;
+}
+
+/** What {@link moveAccountFollowers} did, per follower. */
+export interface AccountFollowersMove {
+  /** Followers now following the target who were not before. */
+  moved: string[];
+  /** Followers who already followed the target (their old edge is still removed). */
+  alreadyFollowing: string[];
+  /** Followers not moved because the target and they block each other in either direction. */
+  skippedBlocked: string[];
+}
+
+/**
+ * Move every LOCAL follower of `fromUserId` to `toUserId` — the follow half of
+ * an ActivityPub `Move` Oxy has already verified (`services/federationMove.service.ts`).
+ *
+ * Runs inside the CALLER's transaction, because a Move is one decision: the
+ * redirect, the carried-over blocks and the follows commit together or not at
+ * all. For each follower F of the old account (either graph — `user_follows`
+ * or an active `follow_relationships` edge to the old account's target):
+ *
+ *   - a block between F and the target, in EITHER direction, skips F; blocks
+ *     against the old account have already been carried to the target by the
+ *     caller, so "you blocked the old account" counts;
+ *   - otherwise F follows the target: one relationship (idempotent on the
+ *     unique pair), the `user_follows` projection, and a `follow.created` event
+ *     with cause `migration`;
+ *   - F's edges to the OLD account are removed either way, with `follow.removed`
+ *     events. They are not left behind because the old account now redirects to
+ *     the target, and a stale edge would read as a follow of the target that the
+ *     block above just refused.
+ *
+ * Follows BY the old account are not touched: they are the remote account's own
+ * graph, which the new account rebuilds itself.
+ *
+ * Caches are the caller's to invalidate after commit — every id involved is in
+ * the result.
+ */
+export async function moveAccountFollowers(
+  tx: Tx,
+  input: { fromUserId: string; toUserId: string; at?: Date },
+): Promise<AccountFollowersMove> {
+  const { fromUserId, toUserId } = input;
+  const at = input.at ?? new Date();
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'follow-move:' + fromUserId}))`);
+
+  // The target's account follow target, created the way `ensureTarget` would.
+  const targetUri = `https://oxy.so/users/${toUserId}`;
+  await tx
+    .insert(followTargets)
+    .values({ canonicalUri: targetUri, kind: 'oxy.user', localUserId: toUserId })
+    .onConflictDoNothing();
+  const [toTarget] = await tx
+    .select({ id: followTargets.id, canonicalUri: followTargets.canonicalUri, kind: followTargets.kind })
+    .from(followTargets)
+    .where(eq(followTargets.localUserId, toUserId))
+    .limit(1);
+  if (!toTarget) throw new Error('Move target has no follow target');
+
+  const fromTargets = await tx
+    .select({ id: followTargets.id, canonicalUri: followTargets.canonicalUri, kind: followTargets.kind })
+    .from(followTargets)
+    .where(eq(followTargets.localUserId, fromUserId));
+  const fromTargetIds = fromTargets.map((target) => target.id);
+
+  const projected = await tx
+    .select({ followerId: userFollows.followerId })
+    .from(userFollows)
+    .where(eq(userFollows.followedId, fromUserId));
+  const related = fromTargetIds.length
+    ? await tx
+        .select({ id: followRelationships.id, followerUserId: followRelationships.followerUserId, followTargetId: followRelationships.followTargetId })
+        .from(followRelationships)
+        .where(inArray(followRelationships.followTargetId, fromTargetIds))
+    : [];
+  const followers = [...new Set([...projected.map((row) => row.followerId), ...related.map((row) => row.followerUserId)])]
+    .filter((id) => id !== toUserId && id !== fromUserId)
+    .sort();
+
+  const result: AccountFollowersMove = { moved: [], alreadyFollowing: [], skippedBlocked: [] };
+  const system = (userId: string) => ({ userId, applicationId: null, grantId: null });
+
+  for (const followerId of followers) {
+    const [blocked] = await tx
+      .select({ id: blocks.id })
+      .from(blocks)
+      .where(
+        or(
+          and(eq(blocks.userId, toUserId), eq(blocks.blockedId, followerId)),
+          and(eq(blocks.userId, followerId), eq(blocks.blockedId, toUserId)),
+        ),
+      )
+      .limit(1);
+
+    if (blocked) {
+      result.skippedBlocked.push(followerId);
+    } else {
+      // Following already, in EITHER graph, is "already following": the legacy
+      // follow path writes only the `user_follows` projection, and it must not
+      // be announced as a new follow just because its v2 row was missing.
+      const [projectedAlready] = await tx
+        .select({ id: userFollows.id })
+        .from(userFollows)
+        .where(and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, toUserId)))
+        .limit(1);
+      const [relationshipAlready] = await tx
+        .select({ id: followRelationships.id })
+        .from(followRelationships)
+        .where(and(eq(followRelationships.followerUserId, followerId), eq(followRelationships.followTargetId, toTarget.id)))
+        .limit(1);
+      const wasFollowing = Boolean(projectedAlready || relationshipAlready);
+      const inserted = await tx
+        .insert(followRelationships)
+        .values({ followerUserId: followerId, followTargetId: toTarget.id, state: 'active', source: 'migration' })
+        .onConflictDoNothing({ target: [followRelationships.followerUserId, followRelationships.followTargetId] })
+        .returning({ id: followRelationships.id });
+      await tx.insert(userFollows).values({ followerId, followedId: toUserId }).onConflictDoNothing();
+      if (wasFollowing) {
+        result.alreadyFollowing.push(followerId);
+      } else {
+        await emit(tx, {
+          type: 'follow.created', cause: 'migration', capability: system(followerId),
+          relationshipId: inserted[0].id, targetUri: toTarget.canonicalUri, targetKind: toTarget.kind, at,
+        });
+        result.moved.push(followerId);
+      }
+    }
+
+    for (const edge of related.filter((row) => row.followerUserId === followerId)) {
+      const target = fromTargets.find((row) => row.id === edge.followTargetId);
+      await emit(tx, {
+        type: 'follow.removed', cause: 'migration', capability: system(followerId),
+        relationshipId: edge.id, targetUri: target?.canonicalUri ?? '', targetKind: target?.kind ?? 'oxy.user', at,
+      });
+      await tx.delete(followRelationships).where(eq(followRelationships.id, edge.id));
+    }
+    await tx.delete(userFollows).where(and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, fromUserId)));
+  }
+
+  return result;
+}
+
+/** Invalidate the graph caches a {@link moveAccountFollowers} result touched. Call after commit. */
+export async function invalidateMovedFollowerCaches(
+  input: { fromUserId: string; toUserId: string },
+  moved: AccountFollowersMove,
+): Promise<void> {
+  const ids = new Set([input.fromUserId, input.toUserId, ...moved.moved, ...moved.alreadyFollowing, ...moved.skippedBlocked]);
+  await Promise.all([...ids].map((id) => graphCache.invalidate(id)));
+  for (const id of ids) userCache.invalidate(id, 'graph');
 }
