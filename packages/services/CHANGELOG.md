@@ -2,21 +2,34 @@
 
 ## Unreleased
 
-### Fixed
-
-- Android: `OxyIdentityStore` no longer deletes the androidx master key
-  (`_androidx_security_master_key_`) when its keyset cannot be rebuilt. That key
-  is one Keystore entry for the whole `so.oxy.shared` UID, so deleting it made
-  every other Oxy app's encrypted prefs unreadable. Every store now opens with
-  `RecoveryPolicy.RebuildFileOnly`; `RegenerateSharedMasterKey` is removed
-  (OxyHQ/oxy#1388).
-
 ### Removed
 
 - **Breaking:** `useOxy().registerWithPasskey`. An Oxy account is created WITH
   its self-custody root in the account dialog's creation flow
   (`openAccountDialog('signup')`), never by a local passkey ceremony (ADR 0024
   D4). No ecosystem app called it; `auth.oxy.so` opens the canonical flow.
+
+## [4.0.5] - 2026-09-25
+
+Requires `@oxy.so/core` `^1.12.0`.
+
+### Fixed
+
+- Signed out, tapping the device account listed on the sign-in sheet (the
+  Commons shared identity) closed the sheet and left the app signed out. It
+  now signs in exactly as "Continue with Oxy" does, through
+  `AccountDialogController.chooseContext` (OxyHQ/oxy#1375 item 20).
+- Signed out, the sheet no longer reads "Add Another Account — Sign in with
+  another account", and the listed account no longer carries a check as if it
+  were signed in. The title is "Sign in" whenever this app holds no session,
+  whatever the device directory lists, and each row reads "Continue as
+  @handle" with the account's name beneath (OxyHQ/oxy#1375 item 21).
+- Android: `OxyIdentityStore` no longer deletes the androidx master key
+  (`_androidx_security_master_key_`) when its keyset cannot be rebuilt. That key
+  is one Keystore entry for the whole `so.oxy.shared` UID, so deleting it made
+  every other Oxy app's encrypted prefs unreadable. Every store now opens with
+  `RecoveryPolicy.RebuildFileOnly`; `RegenerateSharedMasterKey` is removed
+  (OxyHQ/oxy#1388).
 
 ## [4.0.4] - 2026-09-25
 

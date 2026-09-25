@@ -13,6 +13,12 @@
  *
  * Existing accounts still render ABOVE the CTA: "continue as one of these" is a
  * choice of WHO, not of HOW.
+ *
+ * Signed in (the "Add another account" entry), a row is an account to switch
+ * to, and the current one carries its check. Signed out, nothing here is
+ * current: the device may still list an identity it holds (Commons' shared
+ * one), but THIS app has no session, so each row reads "Continue as @handle"
+ * and choosing it signs in (OxyHQ/oxy#1375 items 20 and 21).
  */
 
 import type React from 'react';
@@ -90,6 +96,13 @@ const SignInEntryView: React.FC<SignInEntryViewProps> = ({
               key={context.contextId}
               context={context}
               operatedBy={operatedBy}
+              continueAsLabel={
+                snapshot.hasSession
+                  ? null
+                  : t('signin.chooser.continueAs', {
+                      name: context.handle ? `@${context.handle}` : context.displayName,
+                    })
+              }
               theme={theme}
               activating={snapshot.activatingContextId === context.contextId}
               disabled={snapshot.activatingContextId !== null}

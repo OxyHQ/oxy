@@ -1,5 +1,26 @@
 # Changelog — `@oxy.so/core`
 
+## 1.12.0
+
+### Added
+
+- `AccountDialogController.chooseContext(contextId)`: the one entry point for
+  a chosen device-account row. Signed in it is a switch (`'current'` for the
+  active row, else `activateContext`). Signed out it is "Continue as
+  @handle": the same `signInWithOxy()` path as the "Continue with Oxy" button
+  (silent through the shared identity, else the request), and when the silent
+  mint lands on a different pair from the chosen row, that row is activated
+  under the new bearer. Resolves a `ContextChoiceOutcome`.
+- `AccountDialogSnapshot.hasSession`: whether this client holds a bearer. The
+  device directory can keep listing a shared identity (Commons') after the app
+  signed out, so hosts must not infer "signed in" from its size.
+
+### Fixed
+
+- Signed out on a device that still lists a shared identity, choosing that
+  account signed nobody in: hosts treated the directory's "active" row as
+  already signed in and closed the sheet (OxyHQ/oxy#1375 item 20).
+
 ## 1.11.0
 
 Requires `@oxy.so/contracts` 1.5.0.

@@ -819,6 +819,7 @@ export type {
     AccountDialogSnapshot,
     AccountDialogView,
     CommonsAvailability,
+    ContextChoiceOutcome,
     PopupWindowHandle,
     SignInFailureReason,
     SignInFlowPhase,
