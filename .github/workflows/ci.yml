@@ -5,6 +5,9 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  # The merge queue tests each PR against the main it will actually land on,
+  # so PRs no longer wait to be brought up to date by hand one at a time.
+  merge_group:
 
 jobs:
   # Gates the rollout logic that deploy-aws.yml runs against production. Mirrors
