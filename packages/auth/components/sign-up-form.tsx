@@ -122,7 +122,7 @@ export function SignUpForm({
                     description="No password. Your device creates a passkey, and your account gets a recovery phrase only you keep."
                 />
                 <Field>
-                    <Button type="button" size="lg" className="w-full" onClick={handleCreate}>
+                    <Button type="button" size="lg" className="w-full" onPress={handleCreate}>
                         <KeyRound className="size-4" />
                         Create account
                     </Button>

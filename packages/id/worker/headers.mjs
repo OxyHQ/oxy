@@ -60,11 +60,20 @@ export function resolveApiOrigin(value) {
 /**
  * Copy an asset response with the identity-origin headers applied.
  *
+ * `no-transform` on every response stops the zone's Web Analytics from
+ * injecting the Cloudflare Insights beacon into the page: the CSP would block
+ * it anyway, and this origin runs no third-party script (ADR 0024 D1). It is
+ * appended to the asset's own `Cache-Control`, so caching is unchanged.
+ *
  * @param {Response} response
  * @param {Record<string, string>} headers
  */
 export function withIdentityHeaders(response, headers) {
   const next = new Response(response.body, response);
   for (const [name, value] of Object.entries(headers)) next.headers.set(name, value);
+  const cacheControl = next.headers.get('cache-control');
+  if (!cacheControl?.includes('no-transform')) {
+    next.headers.set('cache-control', cacheControl ? `${cacheControl}, no-transform` : 'no-transform');
+  }
   return next;
 }

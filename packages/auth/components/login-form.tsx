@@ -378,7 +378,7 @@ export function LoginForm({
                             className="w-full"
                             loading={passkeyPending}
                             disabled={passkeyPending || rateLimitSeconds > 0}
-                            onClick={() => { void handlePasskeySignIn() }}
+                            onPress={() => { void handlePasskeySignIn() }}
                         >
                             <KeyRound className="size-4" />
                             Sign in with a passkey
@@ -395,7 +395,7 @@ export function LoginForm({
                             size="lg"
                             className="w-full"
                             disabled={passkeyPending || rateLimitSeconds > 0}
-                            onClick={() => goToStep("security-key", "forward")}
+                            onPress={() => goToStep("security-key", "forward")}
                         >
                             <Usb className="size-4" />
                             Sign in with a security key
@@ -408,7 +408,7 @@ export function LoginForm({
                         variant="outline"
                         size="lg"
                         className="w-full"
-                        onClick={() => openAccountDialog("signin")}
+                        onPress={() => openAccountDialog("signin")}
                     >
                         <QrCode className="size-4" />
                         Sign in with Oxy
@@ -485,7 +485,7 @@ export function LoginForm({
                             {displayError && <FieldError>{displayError}</FieldError>}
                         </Field>
                         <div className="flex gap-3">
-                            <Button type="button" variant="outline" size="lg" onClick={() => goToStep("identifier", "back")} className="shrink-0" aria-label="Go back" disabled={passkeyPending}>
+                            <Button type="button" variant="outline" size="lg" onPress={() => goToStep("identifier", "back")} className="shrink-0" aria-label="Go back" disabled={passkeyPending}>
                                 <ArrowLeft className="size-4" />
                             </Button>
                             <Button type="submit" size="lg" className="flex-1 min-w-0" loading={passkeyPending} disabled={passkeyPending || rateLimitSeconds > 0}>
