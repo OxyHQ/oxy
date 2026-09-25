@@ -9,6 +9,18 @@
   (`openAccountDialog('signup')`), never by a local passkey ceremony (ADR 0024
   D4). No ecosystem app called it; `auth.oxy.so` opens the canonical flow.
 
+## [4.0.4] - 2026-09-25
+
+### Fixed
+
+- A signed-out app no longer gets its account back. A device projection whose
+  profile fetch was in flight when the session was cleared locally (a token
+  refresh firing just before sign-out) finished afterwards and republished the
+  account — so a signed-out visitor was greeted by the previous user's name.
+  `OxyRuntime.clearSession()` now abandons every projection already in flight.
+  With `@oxy.so/core` 1.10.0, the refresh that triggered it cannot plant a bearer
+  after the sign-out either.
+
 ## [4.0.3] - 2026-09-25
 
 Requires `@oxy.so/core` `^1.9.1`.

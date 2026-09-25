@@ -91,6 +91,7 @@ function buildStub(overrides: Record<string, unknown> = {}) {
         // The device-secret mint runs through the client's single-flight; a plain
         // passthrough is enough for these (non-concurrent) integration paths.
         runSingleFlightDeviceSecretMint: (mint: () => Promise<unknown>) => mint(),
+        getSessionEpoch: () => 0,
       },
       getBaseURL: () => API_BASE_URL,
       getSessionBaseUrl: () => API_BASE_URL,

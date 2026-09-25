@@ -345,6 +345,43 @@ describe('createOxyRuntime — the device projection', () => {
     harness.dispose();
   });
 
+  it('discards a projection that was in flight when the session was cleared locally', async () => {
+    const harness = buildHarness({ deferProfiles: true });
+    harness.runtime.markAuthResolved();
+    harness.setState(buildState('a1', 7));
+    // A token refresh re-projects the device; its profile fetch is still out.
+    const pending = harness.runtime.reconcileFromClient();
+
+    // The sign-out's local teardown lands first. `SessionClient` still holds
+    // revision 7 — nothing server-side moved it — so only the teardown itself
+    // can tell the projection it is stale.
+    harness.runtime.clearSession();
+    expect(harness.runtime.getSnapshot().account).toBeNull();
+
+    harness.releaseProfiles();
+    await pending;
+
+    const snapshot = harness.runtime.getSnapshot();
+    expect(snapshot.account).toBeNull();
+    expect(snapshot.activeSessionId).toBeNull();
+    expect(snapshot.sessions).toEqual([]);
+    expect(snapshot.status).toBe('signed_out');
+    harness.dispose();
+  });
+
+  it('projects again once a projection starts after the teardown', async () => {
+    const harness = buildHarness();
+    harness.setState(buildState('a1', 7));
+    harness.runtime.clearSession();
+
+    // A fresh sign-in: the teardown abandons what was in flight, not what comes after.
+    harness.setState(buildState('a2', 8));
+    await harness.runtime.reconcileFromClient();
+
+    expect(harness.runtime.getSnapshot().account?.id).toBe('a2');
+    harness.dispose();
+  });
+
   it('resolves the actor and the subject separately once a directory is held', async () => {
     const harness = buildHarness();
     harness.setState(buildState('a2'));
