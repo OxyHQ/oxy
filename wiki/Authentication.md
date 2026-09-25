@@ -48,7 +48,7 @@ The mint echoes the proven secret as `nextDeviceSecret` (stable — multiple ori
 
 ## CSRF
 
-With no ambient session cookie, state-changing requests are authenticated by the bearer access token and are **not** vulnerable to CSRF; bearer-authenticated writes do not fetch a CSRF token. CSRF protection (double-submit) remains only for any residual cookie-credentialed, cookie-only write paths.
+The API sets no cookie and accepts no ambient credential. State-changing requests are authenticated by the bearer access token, which a browser never attaches to a cross-site request on its own, so they are **not** vulnerable to CSRF and there is no CSRF token to fetch. The double-submit layer was removed in #1044.
 
 ## Auth middleware (`@oxy.so/core/server`)
 

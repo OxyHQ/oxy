@@ -208,13 +208,6 @@ describe('OxyServices.createLinkedClient', () => {
       const url = String(input);
       calls.push({ url, init });
 
-      if (url.endsWith('/csrf-token')) {
-        return new Response(JSON.stringify({ csrfToken: 'csrf_1' }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-
       if (url.endsWith('/api/queue/current')) {
         queueWriteAttempts += 1;
         if (queueWriteAttempts === 1) {

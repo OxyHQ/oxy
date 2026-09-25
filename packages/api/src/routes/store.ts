@@ -10,8 +10,8 @@
  * rejected page and a hidden review are absent rather than marked, so no client
  * has to be trusted to filter them.
  *
- * The writes carry their own `authMiddleware` and `csrfProtection` per route
- * rather than a mount-wide one, because this router serves both and a blanket
+ * The writes carry their own `authMiddleware` per route rather than a
+ * mount-wide one, because this router serves both and a blanket
  * middleware would either lock the storefront or leave the writes open. Reading
  * a route here tells you what guards it.
  */
@@ -19,7 +19,6 @@
 import { Router, type Request, type Response } from 'express';
 import { asyncHandler, sendPaginated, sendSuccess } from '../utils/asyncHandler';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
-import { csrfProtection } from '../middleware/csrf';
 import { requireStaff } from '../middleware/requireStaff';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
@@ -219,7 +218,6 @@ router.put(
   '/apps/:slug/review',
   authMiddleware,
   writeLimiter,
-  csrfProtection,
   validate({ params: storeSlugParams, body: storeReviewBody }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const { rating, title, body } = req.body as { rating: number; title?: string | null; body?: string | null };
@@ -239,7 +237,6 @@ router.delete(
   '/apps/:slug/review',
   authMiddleware,
   writeLimiter,
-  csrfProtection,
   validate({ params: storeSlugParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     await deleteOwnReview({ slug: req.params.slug, userId: requireUserId(req) });
@@ -258,7 +255,6 @@ router.put(
   '/reviews/:reviewId/reply',
   authMiddleware,
   writeLimiter,
-  csrfProtection,
   validate({ params: storeReviewParams, body: storeReplyBody }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const reply = await upsertReply({
@@ -275,7 +271,6 @@ router.delete(
   '/reviews/:reviewId/reply',
   authMiddleware,
   writeLimiter,
-  csrfProtection,
   validate({ params: storeReviewParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     await deleteReply({ reviewId: req.params.reviewId, authorUserId: requireUserId(req) });
@@ -313,7 +308,6 @@ router.post(
   authMiddleware,
   writeLimiter,
   requireStaff,
-  csrfProtection,
   validate({ params: storeModerationParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     sendSuccess(res, await approveListing(req.params.applicationId));
@@ -326,7 +320,6 @@ router.post(
   authMiddleware,
   writeLimiter,
   requireStaff,
-  csrfProtection,
   validate({ params: storeModerationParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     sendSuccess(res, await rejectListing(req.params.applicationId));
@@ -348,7 +341,6 @@ router.post(
   authMiddleware,
   writeLimiter,
   requireStaff,
-  csrfProtection,
   validate({ body: storeCategoryBody }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const body = req.body as {
@@ -367,7 +359,6 @@ router.patch(
   authMiddleware,
   writeLimiter,
   requireStaff,
-  csrfProtection,
   validate({ params: storeCategoryParams, body: storeCategoryPatch }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const patch = req.body as { label?: string; description?: string | null; order?: number };
@@ -386,7 +377,6 @@ router.delete(
   authMiddleware,
   writeLimiter,
   requireStaff,
-  csrfProtection,
   validate({ params: storeCategoryParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     sendSuccess(res, await deleteCategory(req.params.slug));

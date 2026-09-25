@@ -129,8 +129,7 @@ const router = express.Router();
 // runs middleware in registration order, and a service bearer is not a session
 // bearer. Same ordering requirement as `/email/inbound` before `/email` in
 // `server.ts` — move them down and they start answering 401 to a valid
-// credential. CSRF is a non-issue: `verifyCsrfToken` returns early for any
-// `Authorization: Bearer` request, because CSRF protects ambient cookie auth.
+// credential.
 //
 // WHY THIS DOES NOT REOPEN WHAT THE ACT-AS PREDICATES CLOSED
 //

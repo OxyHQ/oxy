@@ -11,7 +11,7 @@
  *  - THIRD-PARTY active apps get a NON-credentialed lane: an
  *    `Access-Control-Allow-Origin: <origin>` echo WITHOUT credentials — exactly
  *    what a public PKCE/bearer client needs, and it never drags `oxy.so`
- *    cookies. This lane never widens the credentialed/CSRF boundary.
+ *    cookies. This lane never widens the credentialed boundary.
  *  - Unknown origins get no ACAO header at all, so the browser fails the
  *    preflight/response check.
  *
@@ -42,7 +42,6 @@ export const ALLOWED_METHODS = [
 export const ALLOWED_HEADERS = [
   'Content-Type',
   'Authorization',
-  'X-CSRF-Token',
   'X-Requested-With',
   'Accept',
   'Accept-Version',
@@ -56,7 +55,6 @@ export const ALLOWED_HEADERS = [
   'x-session-id',
   'X-Device-Fingerprint',
   'x-device-fingerprint',
-  'X-Native-App',
   // Anonymous coarse Cloudflare PoP propagated by browser SDKs. This carries
   // neither an IP nor an identity and is consumed only by thresholded activity
   // aggregation.
@@ -91,7 +89,6 @@ export const EXPOSED_HEADERS = [
   'Last-Modified',
   'ETag',
   'Cache-Control',
-  'X-CSRF-Token',
   // The inference edge (`utils/inferenceEdgeErrors.ts`, `routes/inferenceEdge.ts`).
   'X-Oxy-Request-Id',
   'X-Oxy-Inference-Contract-Version',

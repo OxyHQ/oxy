@@ -27,7 +27,7 @@ function jsonResponse(data: unknown): Response {
  * Build a non-verified JWT whose payload decodes to the given claims.
  * `jwtDecode` only base64url-decodes the middle segment (no signature check).
  * Used to put the SDK in an authenticated state so a state-changing POST
- * carries a bearer header and skips the CSRF-token pre-fetch.
+ * carries a bearer header.
  */
 function makeJwt(payload: Record<string, unknown>): string {
   const b64url = (obj: Record<string, unknown>): string =>
@@ -142,9 +142,8 @@ describe('discovery error handling', () => {
    * `POST /profiles/recommendations` with the validated request body.
    */
   describe('getProfileRecommendations routing (GET vs POST)', () => {
-    // Authenticate so the state-changing POST carries a bearer header and the
-    // SDK skips the CSRF-token pre-fetch (which would otherwise consume a mock).
-    // A bearer token does not affect GET routing or the request body, so the
+    // Authenticate so the state-changing POST carries a bearer header. A bearer
+    // token does not affect GET routing or the request body, so the
     // GET-path assertions below are unaffected.
     beforeEach(() => {
       oxy.httpService.setTokens(makeJwt({ userId: 'me' }));

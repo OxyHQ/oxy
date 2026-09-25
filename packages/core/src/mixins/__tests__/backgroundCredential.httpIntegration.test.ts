@@ -22,11 +22,9 @@ import { OxyServices } from '../../OxyServices';
  *     hand-built `Object.assign(new Error(), { status: 404 })` proves only that
  *     the branch reads the shape the test itself invented.
  *
- * The stub is URL-aware because a state-changing request through the real stack
- * fetches `GET /csrf-token` FIRST. A blanket stub answers that call too, which
- * both shifts the request under test out of `calls[0]` and (on a non-200 stub)
- * makes the CSRF fetch burn its own retries — so a naive call-count assertion
- * measures CSRF attempts rather than the route.
+ * Assertions select calls by URL rather than position, so a preflight added
+ * to the real stack later cannot make a call-count assertion measure it
+ * instead of the route.
  */
 const ROUTE = '/session/device/background-credential';
 
@@ -67,19 +65,16 @@ const ACCESS_TOKEN = (() => {
 describe('provisionBackgroundCredential over a real HttpService', () => {
   const originalFetch = global.fetch;
 
-  /** Answers the CSRF preflight properly; answers the route under test with `body`/`status`. */
+  /** Answers every call with `body`/`status`. */
   const stubFetch = (body: unknown, status: number) => {
     const fetchMock = jest.fn(async (input: unknown) => {
-      if (String(input).includes('/csrf-token')) {
-        return jsonResponse({ csrfToken: 'csrf-test-token' }, 200);
-      }
       return jsonResponse(body, status);
     });
     global.fetch = fetchMock as unknown as typeof fetch;
     return fetchMock;
   };
 
-  /** Every stubbed call whose URL is the route under test (i.e. not the CSRF preflight). */
+  /** Every stubbed call whose URL is the route under test. */
   const routeCalls = (fetchMock: jest.Mock) =>
     fetchMock.mock.calls.filter(([input]) => String(input).includes(ROUTE));
 

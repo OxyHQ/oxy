@@ -840,7 +840,7 @@ function findLeadingComment(source: string, position: number): string | undefine
  * hand-maintained list of them was already drifting.
  */
 const MIDDLEWARE_TOKEN_RE =
-  /\b(authMiddleware|emailCapabilityAuth|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|csrfProtection|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
+  /\b(authMiddleware|emailCapabilityAuth|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
 
 function middlewareTokens(args: string): string[] {
   const found: string[] = [];
@@ -1251,7 +1251,7 @@ export function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mou
     }
 
     // Token-extract any middleware identifiers appearing before the handler
-    // (used to infer required security: auth, csrf, ownership, etc.), then add
+    // (used to infer required security: auth, ownership, etc.), then add
     // the router-level gates already in force at this point in the file.
     const middlewares = middlewareTokens(args);
     for (const gate of gates) {
@@ -1608,10 +1608,6 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
   }
   const requiresCredential =
     isEdgeCredential || isDualPrincipal || isServiceOnly || isEmailCapability || isAuth;
-
-  // CSRF — if the route file is mounted with csrfProtection at the server
-  // level we don't add it again per-op. The base spec documents the header
-  // policy globally.
 
   // Responses.
   //

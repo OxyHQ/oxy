@@ -24,8 +24,7 @@ function rawResponse(body: unknown): Response {
 
 /**
  * A non-verified JWT whose payload decodes to the given claims. Puts the SDK in
- * an authenticated state so the `POST /topics/resolve` carries a bearer header
- * and skips the CSRF-token pre-fetch (which would otherwise consume a mock).
+ * an authenticated state so the `POST /topics/resolve` carries a bearer header.
  */
 function makeJwt(payload: Record<string, unknown>): string {
   const b64url = (obj: Record<string, unknown>): string =>
@@ -59,7 +58,7 @@ describe('topics mixin envelope unwrapping', () => {
     fetchMock = jest.fn();
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
     oxy = new OxyServices({ baseURL: 'http://test.invalid', enableRetry: false });
-    // Authenticate so the resolve POST skips the CSRF pre-fetch. Harmless for GETs.
+    // Authenticate so the resolve POST carries a bearer. Harmless for GETs.
     oxy.httpService.setTokens(makeJwt({ userId: 'me' }));
   });
 
