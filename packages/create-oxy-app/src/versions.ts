@@ -23,7 +23,7 @@ export const VERSIONS = {
   // releasing the scaffolder: its ranges must resolve outside this workspace.
   oxyServices: '^4.0.0', // @oxy.so/services — requires the Bloom4 context family
   oxyCore: '^1.7.3', // @oxy.so/core — native/browser workload identity boundary
-  oxyBloom: '^4.2.0', // @oxy.so/bloom
+  oxyBloom: '^4.5.0', // @oxy.so/bloom
 
   oxyContracts: '^1.0.0', // @oxy.so/contracts
   oxyAppPreset: '^2.0.1', // @oxy.so/app-preset
