@@ -7,38 +7,30 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import java.io.IOException
 import java.security.GeneralSecurityException
-import java.security.KeyStore
 
 /**
  * How far [OxyEncryptedPrefs.open] may go to recover a file whose keyset it
  * cannot read.
  *
- * This exists because the callers do NOT have the same stakes, and the last-resort
- * recovery is UID-wide rather than file-local. Every store must therefore state
- * what it is worth: the choice belongs to the data's owner, not to the helper.
+ * There is exactly one answer now: rebuild this file, and if that fails, give up.
+ * The enum stays a required argument so every store keeps stating it at its
+ * call site, where a reviewer sees it.
+ *
+ * It used to have a second value, `RegenerateSharedMasterKey`, which deleted the
+ * androidx master key (`_androidx_security_master_key_`) when a rebuild failed.
+ * That key is ONE Keystore entry for the whole `so.oxy.shared` UID and wraps the
+ * keyset of every Oxy prefs file in every Oxy app, so deleting it let one app
+ * make every sibling's encrypted prefs unreadable. It was removed for
+ * OxyHQ/oxy#1388 and must not come back: no store in any Oxy app deletes a
+ * UID-shared key.
  */
 internal enum class RecoveryPolicy {
   /**
    * Wipe and rebuild only this file. If that still fails, GIVE UP — propagate the
-   * failure and touch nothing shared.
-   *
-   * The right policy for any store holding DISPOSABLE data, i.e. data some other
-   * authority can re-create. "No data" is then a complete, cost-free recovery, and
-   * paying for it with a UID-wide key reset would be trading someone else's
-   * irreplaceable data for something we can simply ask for again.
+   * failure and touch nothing shared. Every caller degrades to "absent" and its
+   * owner re-creates the data (see each store for who that is).
    */
   RebuildFileOnly,
-
-  /**
-   * Wipe and rebuild this file, and if that still fails, regenerate the UID-shared
-   * master key and rebuild again.
-   *
-   * Only defensible for a store whose loss is ALREADY catastrophic, because the
-   * reset invalidates every other Oxy prefs file wrapped by that key (see
-   * [OxyEncryptedPrefs]). Do not choose this to make a store more robust — it makes
-   * every OTHER store less so.
-   */
-  RegenerateSharedMasterKey,
 }
 
 /**
@@ -53,9 +45,8 @@ internal enum class RecoveryPolicy {
  * to get wrong, and the failure mode of getting it wrong is silent (every read
  * degrades to "absent" with no exception at the call site).
  *
- * What is NOT shared is how much each caller may destroy to save itself. That is
- * [RecoveryPolicy], and it is a required argument precisely so the difference
- * cannot be inherited by accident.
+ * Each caller still names its [RecoveryPolicy] at the call site. There is only
+ * one policy, and it never touches a key another app depends on.
  *
  * ## One memoized instance per file (CRITICAL)
  *
@@ -84,21 +75,20 @@ internal enum class RecoveryPolicy {
  * `IOException`) on EVERY read/write, and `EncryptedSharedPreferences` never
  * self-heals — the slot stays permanently dead.
  *
- * Recovery is bounded and has no retry loop:
- *   1. ALWAYS: delete only the affected file (the stale wrapped keyset) and rebuild
- *      against the current master key. This heals the common rotation case without
- *      touching the master key, so other files keep their keysets.
- *   2. ONLY under [RecoveryPolicy.RegenerateSharedMasterKey]: if a fresh keyset
- *      still cannot be built the master key itself is unusable, so delete its
- *      keystore alias to force a new one, wipe the file again, and rebuild.
+ * Recovery is bounded and has no retry loop: delete only the affected file (the
+ * stale wrapped keyset) and rebuild against the current master key. This heals
+ * the rotation case without touching the master key, so other files keep their
+ * keysets. If a fresh keyset still cannot be built, the failure propagates and
+ * the `runCatching {}` at every call site degrades to "absent".
  *
- * Stage 2 is UID-WIDE COLLATERAL: regenerating the shared master key makes every
- * OTHER Oxy prefs file wrapped by it unreadable, so each of those heals itself via
- * stage 1 on its next open — meaning it DELETES their contents. For a store whose
- * data is re-creatable that is survivable; for the self-custody identity keypair it
- * is not, which is the whole reason a disposable store must never reach stage 2.
- * Under [RecoveryPolicy.RebuildFileOnly] the failure simply propagates, and the
- * `runCatching {}` at every call site degrades to "absent".
+ * The master key itself is NEVER deleted here. It is shared by the whole UID, so
+ * deleting it would make every other Oxy app's prefs file unreadable (and each
+ * would then wipe itself on its next open). When the master key is gone — the
+ * Keystore of the UID was wiped because some Oxy app's storage was cleared —
+ * androidx creates a new one on the next `MasterKey.Builder.build()` and each
+ * file heals itself through the file-only rebuild above. What was IN those
+ * files is lost with the Keystore either way; for the self-custody identity,
+ * the keystore-independent device backup brings it back (docs/identity/device-backup.md).
  *
  * None of this touches the app's device session, which lives in expo-secure-store
  * under a DISTINCT prefs file ("SecureStore") and DISTINCT keystore aliases
@@ -106,7 +96,6 @@ internal enum class RecoveryPolicy {
  */
 internal object OxyEncryptedPrefs {
   private const val TAG = "OxyEncryptedPrefs"
-  private const val ANDROID_KEYSTORE = "AndroidKeyStore"
 
   /** Memoized instances, keyed by prefs file name. Guarded by [lock]. */
   private val instances = mutableMapOf<String, SharedPreferences>()
@@ -114,10 +103,10 @@ internal object OxyEncryptedPrefs {
 
   /**
    * The process-wide instance for [prefsName], creating (and recovering) it on
-   * first use. [recovery] states how much this caller may destroy to get a working
-   * file — see [RecoveryPolicy]; there is no default, on purpose.
+   * first use. [recovery] is stated by every caller — see [RecoveryPolicy]; there
+   * is no default, on purpose.
    *
-   * Throws when the file cannot be built within the chosen policy; callers wrap in
+   * Throws when the file cannot be built after a file-only rebuild; callers wrap in
    * `runCatching {}` and degrade to "absent".
    */
   fun open(context: Context, prefsName: String, recovery: RecoveryPolicy): SharedPreferences {
@@ -143,9 +132,8 @@ internal object OxyEncryptedPrefs {
   }
 
   /**
-   * Stage 1: wipe ONLY this file (which holds the stale wrapped keyset) and
-   * rebuild against the current master key. Where it goes next is the caller's
-   * policy, not this function's decision.
+   * Wipe ONLY this file (which holds the stale wrapped keyset) and rebuild
+   * against the current master key.
    */
   private fun healKeyset(
     appContext: Context,
@@ -162,68 +150,24 @@ internal object OxyEncryptedPrefs {
     return try {
       build(appContext, prefsName)
     } catch (stillCorrupt: GeneralSecurityException) {
-      escalateOrGiveUp(appContext, prefsName, recovery, stillCorrupt)
+      giveUp(prefsName, recovery, stillCorrupt)
     } catch (stillCorrupt: IOException) {
-      escalateOrGiveUp(appContext, prefsName, recovery, stillCorrupt)
+      giveUp(prefsName, recovery, stillCorrupt)
     }
   }
 
   /**
-   * The stage-1-failed fork, and the one place the severity difference between
-   * callers is decided.
-   *
-   * [RecoveryPolicy.RebuildFileOnly] rethrows: this file stays unavailable, which
-   * its owner can recover from, and no shared key is touched. Anything else would
-   * let a disposable store destroy an irreplaceable one.
+   * The file is still unreadable after a file reset. Give up: this file stays
+   * unavailable, which its owner recovers from, and no shared key is touched.
    */
-  private fun escalateOrGiveUp(
-    appContext: Context,
-    prefsName: String,
-    recovery: RecoveryPolicy,
-    cause: Exception,
-  ): SharedPreferences {
-    if (recovery == RecoveryPolicy.RebuildFileOnly) {
-      Log.w(
-        TAG,
-        "'$prefsName' is still unreadable after a file reset. Giving up rather than " +
-          "regenerating the UID-shared master key, which would wipe every other Oxy " +
-          "store including the self-custody identity. Its owner re-creates it instead.",
-        cause
-      )
-      throw cause
-    }
-    return regenerateMasterKeyAndRebuild(appContext, prefsName, cause)
-  }
-
-  /**
-   * Stage 2, reachable ONLY via [RecoveryPolicy.RegenerateSharedMasterKey]: the
-   * androidx master key itself is unusable, so delete its keystore alias to force a
-   * fresh one, wipe the now-stale file again, and rebuild.
-   *
-   * See the UID-wide collateral note in [OxyEncryptedPrefs] — this is destructive
-   * to every other store sharing the alias. The alias is used ONLY by androidx
-   * EncryptedSharedPreferences, so it never touches expo-secure-store's aliases. A
-   * throw here propagates to the call-site `runCatching {}`.
-   */
-  private fun regenerateMasterKeyAndRebuild(
-    appContext: Context,
-    prefsName: String,
-    cause: Exception
-  ): SharedPreferences {
+  private fun giveUp(prefsName: String, recovery: RecoveryPolicy, cause: Exception): Nothing {
     Log.w(
       TAG,
-      "keyset for '$prefsName' still unreadable after reset; deleting master key " +
-        "'${MasterKey.DEFAULT_MASTER_KEY_ALIAS}' and regenerating: ${cause.message}",
+      "'$prefsName' is still unreadable after a file reset ($recovery). Giving up " +
+        "without touching the UID-shared master key; its owner re-creates it.",
       cause
     )
-    KeyStore.getInstance(ANDROID_KEYSTORE).apply {
-      load(null)
-      if (containsAlias(MasterKey.DEFAULT_MASTER_KEY_ALIAS)) {
-        deleteEntry(MasterKey.DEFAULT_MASTER_KEY_ALIAS)
-      }
-    }
-    appContext.deleteSharedPreferences(prefsName)
-    return build(appContext, prefsName)
+    throw cause
   }
 
   private fun build(appContext: Context, prefsName: String): SharedPreferences {

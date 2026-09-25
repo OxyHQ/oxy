@@ -1,5 +1,20 @@
 # Changelog — `@oxy.so/core`
 
+## Unreleased
+
+### Added
+
+- The identity device backup (OxyHQ/oxy#1388). `KeyManager.setDeviceBackupStore()`
+  registers a store that keeps the identity outside the app's keystore (Commons
+  registers Android Block Store). Every identity write refreshes it, the
+  verified recovery phrase rides along, every `deleteIdentity` clears it, and
+  `KeyManager.ensureDeviceBackup()` backfills or repairs it. Type:
+  `IdentityDeviceBackupStore`.
+- `attemptIdentityRecovery` gains a third rung, `device-backup`, the only copy
+  that survives a wipe of the shared-UID Android Keystore. With a store
+  registered it also restores an `absent` identity (the app's own data was
+  cleared) instead of reporting `not-lost`. Without a store nothing changes.
+
 ## 1.10.0
 
 ### Fixed

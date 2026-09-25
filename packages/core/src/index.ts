@@ -320,6 +320,7 @@ export {
     updateIdentityMarker,
 } from './crypto/identityMarker';
 export type { IdentityMarker } from './crypto/identityMarker';
+export type { IdentityDeviceBackupStore } from './crypto/deviceBackup';
 export { SignatureService } from './crypto/signatureService';
 export type { SignedMessage, AuthChallenge } from './crypto/signatureService';
 export { RecoveryPhraseService } from './crypto/recoveryPhrase';

@@ -40,6 +40,7 @@ import {
   preventNativeSplashAutoHide,
   useHideNativeSplashWhenReady,
 } from '@oxy.so/expo-splash';
+import { installIdentityDeviceBackup } from '@/lib/identity-backup';
 
 // Reanimated 4 ships with a strict logger that surfaces `.value` reads during
 // render as runtime warnings. Several deeply nested third-party components in
@@ -64,6 +65,12 @@ configureReanimatedLogger({
 // on why readiness is computed inside the providers, not on frame 1. No-op on
 // web (the shared helper guards `Platform.OS === 'web'`).
 preventNativeSplashAutoHide();
+
+// The identity's device backup (Android Block Store), registered before the
+// first identity read so the boot probe can restore from it after a wipe of the
+// shared-UID Keystore (OxyHQ/oxy#1388). A no-op on iOS and on binaries built
+// without the native module.
+installIdentityDeviceBackup();
 
 // Get API URL from environment variable with fallback
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.oxy.so';
@@ -368,6 +375,11 @@ function AppStackContent() {
           component: 'AppStackContent',
         });
       }
+
+      // Same gate, same once-per-launch: make sure the device backup holds this
+      // identity (backfills identities that predate it, repairs a failed write).
+      // Never throws.
+      await KeyManager.ensureDeviceBackup();
     })();
   }, [identityPresent]);
 

@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["so.oxy.commons.identitybackup.OxyIdentityBackupModule"]
+  }
+}
