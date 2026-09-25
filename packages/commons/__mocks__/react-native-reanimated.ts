@@ -19,6 +19,7 @@ const chainableEntering = {
 
 export const FadeIn = chainableEntering;
 export const FadeOut = chainableEntering;
+export const FadeInDown = chainableEntering;
 
 const Animated = {
   View: passthrough,

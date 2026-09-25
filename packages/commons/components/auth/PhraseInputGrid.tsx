@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
+import { usePreventScreenCapture } from '@/hooks/usePreventScreenCapture';
 
 interface PhraseInputGridProps {
   /** The current words. Length drives how many inputs are rendered (12 or 24). */
@@ -24,6 +25,9 @@ interface PhraseInputGridProps {
  * encrypted backup, and restore from backup — share ONE implementation of the
  * paste-into-first-field detection and the numbered layout, instead of each
  * re-deriving it. Purely presentational: it owns no phrase state.
+ *
+ * The words typed here are the recovery phrase, so the window refuses
+ * screenshots and screen recording while the grid is mounted.
  */
 export function PhraseInputGrid({
   words,
@@ -33,6 +37,7 @@ export function PhraseInputGrid({
 }: PhraseInputGridProps) {
   const colors = useColors();
   const { t } = useTranslation();
+  usePreventScreenCapture();
 
   return (
     <View style={[styles.phraseGrid, { backgroundColor: colors.card, borderColor: colors.border }]}>

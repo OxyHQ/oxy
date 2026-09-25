@@ -1,4 +1,4 @@
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 
 /**
  * Type for MaterialCommunityIcons icon names
