@@ -729,6 +729,13 @@
       "when": 1790327549049,
       "tag": "0104_kaana_catalogue_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1790348646160,
+      "tag": "0105_linked_accounts",
+      "breakpoints": true
     }
   ]
 }
