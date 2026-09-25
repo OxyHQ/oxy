@@ -102,6 +102,26 @@ const en: LocaleDict = {
       switchFailed: 'That account could not be selected. Sign in again to continue.',
     },
   },
+  device: {
+    noRequestTitle: 'No sign-in request',
+    noRequestDesc:
+      'This page opens from the link a device shows you when it asks you to sign in — for example "codea login" in a terminal.',
+    unavailableTitle: "This sign-in request can't be used",
+    loadFailed: 'This sign-in request could not be found. Start the sign-in again on your device.',
+    codeHint: 'Only continue if this code matches the one your device is showing:',
+    ackVerified: 'I started this sign-in myself in {{app}}.',
+    ackUnverified:
+      "We couldn't verify where this request came from. I understand the risk and started this sign-in myself in {{app}}.",
+    approvedTitle: "You're signed in",
+    approvedDesc: '{{app}} will continue on its own. You can close this tab.',
+    deniedTitle: 'Sign-in declined',
+    deniedDesc: 'Nothing was authorized. You can close this tab.',
+    errors: {
+      approveFailed: 'Could not complete sign-in. Start it again on your device.',
+      noToken: 'Your session expired. Sign in again to continue.',
+      switchFailed: 'That account could not be selected. Sign in again to continue.',
+    },
+  },
   authorize: {
     title: 'Continue to {{app}}',
     subtitle:
