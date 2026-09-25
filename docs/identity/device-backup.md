@@ -163,6 +163,29 @@ What it does not change: the phrase stays the root of recovery. A Keystore wipe
 without Play services, on a device where Block Store is unavailable, still ends at
 the phrase screen.
 
+### Devices without a device backup: the warning
+
+Where Block Store cannot exist (verified on a LineageOS Pixel with no GMS:
+`Blockstore.API is not available on this device … statusCode=SERVICE_INVALID`),
+or on a binary built before the native module, Commons tells the user. A
+non-blocking banner says the identity is not backed up on this device and offers
+two actions: reveal and write down the recovery phrase, and set up the
+phrase-keyed encrypted backup (the counterpart of "Restore from encrypted
+backup"). A key-imported identity has no phrase and is sent to key rotation
+instead. The banner shows once on the ID tab after onboarding, and stays in
+Settings until the user confirms they saved the phrase.
+
+- The probe is `probeDeviceBackupAvailability` in `packages/commons/lib/identity-backup`:
+  one local Block Store read. Only an "API missing" rejection (`SERVICE_INVALID`,
+  `SERVICE_MISSING`, `SERVICE_DISABLED`, `API_UNAVAILABLE`) counts as unavailable,
+  so a transient failure never shows the warning.
+- The state is `hooks/identity/useDeviceBackupWarning.ts`. Both flags hold the
+  public key they were set for, so a key rotation brings the warning back.
+- It needs no new native code: an OTA reaches every binary that has the module.
+
+This is a mitigation, not a fix. The fix for these devices is to stop sharing the
+UID (Phase 2 of #1388).
+
 ## The rule for people and agents
 
 **Never `pm clear` an Oxy Android app (or use Settings › Apps › Storage › Clear

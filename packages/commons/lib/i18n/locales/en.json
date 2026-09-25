@@ -1078,6 +1078,16 @@
     "encryptedSubtitle": "Save a recoverable copy of your keys off-device",
     "encryptedUnavailable": "Not available — needs a recovery phrase"
   },
+  "deviceBackupWarning": {
+    "title": "This identity isn't backed up on this device",
+    "body": "This device can't keep an automatic backup of your identity. On Android it needs Google Play services. If storage is cleared for Commons or any other Oxy app, your identity is erased from this device, and only your recovery phrase can bring it back. Write your phrase down now, and set up an encrypted backup.",
+    "bodyNoPhrase": "This device can't keep an automatic backup of your identity. On Android it needs Google Play services. If storage is cleared for Commons or any other Oxy app, your identity is erased from this device. It was imported from a private key and has no recovery phrase, so rotate to a key with one.",
+    "revealPhrase": "Write down your recovery phrase",
+    "encryptedBackup": "Set up an encrypted backup",
+    "rotate": "Rotate to a key with a recovery phrase",
+    "notNow": "Not now",
+    "confirm": "I've saved my recovery phrase"
+  },
   "rotateKey": {
     "settingsEntry": "Rotate your key",
     "settingsEntrySubtitle": "Replace your identity key with a new one",

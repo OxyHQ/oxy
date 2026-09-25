@@ -27,6 +27,7 @@ import { IdQrBack } from '@/components/civic/IdQrBack';
 import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
 import { CameraPermissionSheet } from '@/components/civic/CameraPermissionSheet';
 import { useIdentity } from '@/hooks/useIdentity';
+import { DeviceBackupWarning } from '@/components/identity/DeviceBackupWarning';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { useAttestedEvent, type AttestedEventPayload } from '@/hooks/civic/useAttestedEvent';
 import { getDisplayNameOrNull } from '@/utils/date-utils';
@@ -235,6 +236,10 @@ export default function IdScreen() {
             {t('civic.id.flipHint')}
           </Text>
         </View>
+
+        {/* Shown once after onboarding on devices where the identity has no
+            device backup (no Block Store, OxyHQ/oxy#1388); Settings keeps it. */}
+        <DeviceBackupWarning variant="prompt" />
 
         {/* Self-custody identity actions (native only). */}
         {isNative && (

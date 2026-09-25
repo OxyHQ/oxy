@@ -1078,6 +1078,16 @@
     "encryptedSubtitle": "Guarda una copia recuperable de tus claves fuera del dispositivo",
     "encryptedUnavailable": "No disponible — requiere una frase de recuperación"
   },
+  "deviceBackupWarning": {
+    "title": "Esta identidad no tiene copia en este dispositivo",
+    "body": "Este dispositivo no puede guardar una copia automática de tu identidad. En Android necesita los servicios de Google Play. Si se borra el almacenamiento de Commons o de cualquier otra app de Oxy, tu identidad se borra de este dispositivo y solo tu frase de recuperación puede recuperarla. Apunta tu frase ahora y configura una copia cifrada.",
+    "bodyNoPhrase": "Este dispositivo no puede guardar una copia automática de tu identidad. En Android necesita los servicios de Google Play. Si se borra el almacenamiento de Commons o de cualquier otra app de Oxy, tu identidad se borra de este dispositivo. Se importó desde una clave privada y no tiene frase de recuperación, así que rota a una clave que la tenga.",
+    "revealPhrase": "Apunta tu frase de recuperación",
+    "encryptedBackup": "Configura una copia cifrada",
+    "rotate": "Rotar a una clave con frase de recuperación",
+    "notNow": "Ahora no",
+    "confirm": "Ya guardé mi frase de recuperación"
+  },
   "rotateKey": {
     "settingsEntry": "Rota tu clave",
     "settingsEntrySubtitle": "Reemplaza tu clave de identidad por una nueva",

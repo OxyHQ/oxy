@@ -10,6 +10,7 @@ import {
 } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
+import { DeviceBackupWarning } from '@/components/identity/DeviceBackupWarning';
 
 /**
  * Settings tab — identity & vault management.
@@ -66,6 +67,10 @@ export default function SettingsScreen() {
       <View style={styles.header}>
         <StackHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
       </View>
+
+      {/* No device backup on this device (OxyHQ/oxy#1388): stays until the user
+          confirms they saved the recovery phrase. */}
+      <DeviceBackupWarning variant="settings" />
 
       {/* Key-management actions */}
       <SettingsListGroup title={t('vault.home.manageKeys')}>

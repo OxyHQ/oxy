@@ -41,6 +41,7 @@ import {
   useHideNativeSplashWhenReady,
 } from '@oxy.so/expo-splash';
 import { installIdentityDeviceBackup } from '@/lib/identity-backup';
+import { DEVICE_BACKUP_WARNING_QUERY_KEY } from '@/hooks/identity/useDeviceBackupWarning';
 
 // Reanimated 4 ships with a strict logger that surfaces `.value` reads during
 // render as runtime warnings. Several deeply nested third-party components in
@@ -392,6 +393,7 @@ function AppStackContent() {
     return KeyManager.subscribeIdentityChanged(() => {
       queryClient.invalidateQueries({ queryKey: ONBOARDING_IDENTITY_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ONBOARDING_COMPLETE_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: DEVICE_BACKUP_WARNING_QUERY_KEY });
     });
   }, [queryClient]);
 
