@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Checkbox } from 'expo-checkbox';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { useOxy } from '@oxy.so/services';
 import { toast } from '@oxy.so/bloom';
 import { useColors } from '@/hooks/useColors';

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { View, Image, StyleSheet, ActivityIndicator } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
 import type { PublicCard, CardTrustTier, RealLifeAttestationResult } from '@oxy.so/contracts';
 import { trustTierLabel } from '@oxy.so/core';

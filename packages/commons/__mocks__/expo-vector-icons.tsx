@@ -19,11 +19,16 @@ import React from 'react';
 interface IconProps {
   name?: string;
   accessibilityLabel?: string;
+  'aria-hidden'?: boolean;
 }
 
 function makeIconComponent() {
-  const Icon = ({ name, accessibilityLabel }: IconProps): React.ReactElement =>
-    React.createElement('span', { 'data-icon': name, 'aria-label': accessibilityLabel });
+  const Icon = ({ name, accessibilityLabel, 'aria-hidden': ariaHidden }: IconProps): React.ReactElement =>
+    React.createElement('span', {
+      'data-icon': name,
+      'aria-label': accessibilityLabel,
+      'aria-hidden': ariaHidden ? 'true' : undefined,
+    });
   Icon.glyphMap = {} as Record<string, number>;
   return Icon;
 }

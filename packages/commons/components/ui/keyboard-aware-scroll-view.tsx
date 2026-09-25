@@ -10,6 +10,13 @@ interface KeyboardAwareScrollViewWrapperProps {
   style?: ViewStyle | ViewStyle[];
   contentContainerStyle?: ViewStyle | ViewStyle[];
   extraKeyboardSpace?: number;
+  /**
+   * Space kept between the keyboard and the focused input's caret. Pass the
+   * height of whatever sits UNDER the input and must stay visible while typing
+   * (a status line, the submit button); the default keeps only the input itself
+   * above the keyboard.
+   */
+  bottomOffset?: number;
   keyboardShouldPersistTaps?: 'always' | 'never' | 'handled';
   /**
    * Reserve space for the floating tab bar (tab screens only). Auth/onboarding
@@ -23,6 +30,7 @@ export function KeyboardAwareScrollViewWrapper({
   style,
   contentContainerStyle,
   extraKeyboardSpace = 20,
+  bottomOffset,
   keyboardShouldPersistTaps = 'handled',
   reserveTabBarFootprint = false,
 }: KeyboardAwareScrollViewWrapperProps) {
@@ -39,6 +47,7 @@ export function KeyboardAwareScrollViewWrapper({
         contentContainerStyle,
       ]}
       extraKeyboardSpace={extraKeyboardSpace}
+      bottomOffset={bottomOffset}
       keyboardShouldPersistTaps={keyboardShouldPersistTaps}
       showsVerticalScrollIndicator={false}
     >

@@ -128,7 +128,7 @@
       "confirmCheckbox": "I have written down my recovery phrase and stored it in a safe place. I understand Oxy cannot recover it for me.",
       "continueButton": "Continue",
       "cancelButton": "Back",
-      "wordLabel": "Word {{index}}",
+      "wordLabel": "Word {{index}}: {{word}}",
       "missingTitle": "Recovery phrase unavailable",
       "missingMessage": "We could not show your recovery phrase. Please go back and create your identity again.",
       "backNavigationBlockedTitle": "Save your phrase first",

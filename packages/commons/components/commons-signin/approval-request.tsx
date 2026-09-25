@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { LogoIcon } from '@oxy.so/services';
 import {
   getNormalizedUserHandle,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { CircleIconBadge } from '@/components/ui/circle-icon-badge';
@@ -40,12 +40,15 @@ export function ActivityRow({ transaction }: ActivityRowProps) {
             {t(`civic.reputation.activity.actions.${meta.labelKey}`)}
           </ThemedText>
           {meta.signed && (
-            <MaterialCommunityIcons
-              name="shield-check"
-              size={13}
-              color={colors.success}
+            // The glyph itself is hidden from assistive technology (see
+            // components/icons), so the "signed" meaning is carried by the view.
+            <View
+              accessible
+              accessibilityRole="image"
               accessibilityLabel={t('civic.reputation.activity.signed')}
-            />
+            >
+              <MaterialCommunityIcons name="shield-check" size={13} color={colors.success} />
+            </View>
           )}
         </View>
         <ThemedText style={[styles.time, { color: colors.textSecondary }]} numberOfLines={1}>

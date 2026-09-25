@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
+import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import { useColors } from '@/hooks/useColors';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
 
@@ -9,14 +10,17 @@ export const SCREEN_PADDING = 22;
 /** Vertical air between top-level sections. */
 export const SECTION_GAP = 32;
 
-/**
- * Air between the end of a screen's content and the top of the floating bar.
- *
- * Sized so the last row also clears the ID screen's FAB, which sits in the same
- * corner one footprint up — the same job the single hardcoded 120 used to do
- * for the native bar and the FAB together.
- */
+/** Air between the end of a screen's content and the top of the floating bar. */
 const SCREEN_BOTTOM_CLEARANCE = 44;
+
+/**
+ * Diameter of a `size="md"` Bloom `Fab` (Bloom's `FAB_METRICS.md`, which the
+ * package does not export). A screen that uses {@link useFabClearance} passes
+ * `size="md"` to its FAB so the two cannot disagree.
+ */
+export const FAB_MD_DIAMETER = 50;
+/** Air between the last line of content and the top of the FAB. */
+const FAB_CLEARANCE_GAP = 16;
 
 /**
  * Bottom inset every Commons screen leaves free for the floating tab bar.
@@ -32,6 +36,26 @@ const SCREEN_BOTTOM_CLEARANCE = 44;
  */
 export function useScreenBottomPad(): number {
   return useTabBarFootprint() + SCREEN_BOTTOM_CLEARANCE;
+}
+
+/**
+ * Bottom inset for a screen whose content scrolls under a bottom-anchored Bloom
+ * `Fab` (`size="md"`), so the last line can be scrolled clear of it.
+ *
+ * `SCREEN_BOTTOM_CLEARANCE` alone does not do it: the FAB sits `fabOffset`
+ * above the bottom edge's claimed inset (the floating tab bar's footprint),
+ * which is where Bloom anchors it, and its top is a whole diameter above that.
+ * On the ID screen that left "You hold the private key. No one can lock you
+ * out." under the QR button. The inputs are the same two numbers `Fab` itself
+ * positions from, read at the same place in the tree.
+ */
+export function useFabClearance(fabOffset: number): number {
+  const bottomEdgeInset = useBottomEdgeInset();
+  const screenBottomPad = useScreenBottomPad();
+  return Math.max(
+    screenBottomPad,
+    fabOffset + bottomEdgeInset + FAB_MD_DIAMETER + FAB_CLEARANCE_GAP,
+  );
 }
 
 interface ScreenProps {

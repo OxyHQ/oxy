@@ -128,7 +128,7 @@
       "confirmCheckbox": "He escrito mi frase de recuperación y la he guardado en un lugar seguro. Entiendo que Oxy no podrá recuperarla por mí.",
       "continueButton": "Continuar",
       "cancelButton": "Atrás",
-      "wordLabel": "Palabra {{index}}",
+      "wordLabel": "Palabra {{index}}: {{word}}",
       "missingTitle": "Frase de recuperación no disponible",
       "missingMessage": "No se ha podido mostrar tu frase de recuperación. Vuelve atrás y crea tu identidad de nuevo.",
       "backNavigationBlockedTitle": "Guarda primero tu frase",

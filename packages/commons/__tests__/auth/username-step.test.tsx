@@ -3,6 +3,31 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { UsernameStep } from '../../components/auth/UsernameStep';
 
 const mockDialogOpen = jest.fn();
+const mockScrollViewProps: { bottomOffset?: number }[] = [];
+/** Height the stub reports for the block under the username input. */
+const BELOW_INPUT_HEIGHT = 180;
+
+// The shared View stub drops `onLayout`; this one reports a measured height for
+// the block under the input, the way the native layout pass would.
+jest.mock('react-native', () => {
+  const actual = jest.requireActual('react-native');
+  const ReactModule = jest.requireActual<typeof import('react')>('react');
+  return {
+    ...actual,
+    View: (props: {
+      testID?: string;
+      onLayout?: (event: { nativeEvent: { layout: { x: number; y: number; width: number; height: number } } }) => void;
+    }) => {
+      const { onLayout, testID } = props;
+      ReactModule.useEffect(() => {
+        if (testID === 'username-below-input') {
+          onLayout?.({ nativeEvent: { layout: { x: 0, y: 0, width: 320, height: BELOW_INPUT_HEIGHT } } });
+        }
+      }, [onLayout, testID]);
+      return actual.View(props);
+    },
+  };
+});
 let mockDialogActions: { label: string; color?: string }[] | undefined;
 
 jest.mock('lottie-react-native', () => {
@@ -60,8 +85,16 @@ jest.mock('@/components/ui', () => {
         { type: 'button', onClick: onPress, disabled },
         children
       ),
-    KeyboardAwareScrollViewWrapper: ({ children }: { children?: React.ReactNode }) =>
-      ReactModule.createElement('div', null, children),
+    KeyboardAwareScrollViewWrapper: ({
+      children,
+      bottomOffset,
+    }: {
+      children?: React.ReactNode;
+      bottomOffset?: number;
+    }) => {
+      mockScrollViewProps.push({ bottomOffset });
+      return ReactModule.createElement('div', null, children);
+    },
   };
 });
 
@@ -132,6 +165,21 @@ describe('UsernameStep', () => {
       .getByText('auth.usernameStep.confirm')
       .closest('button');
     expect(confirmButton?.disabled).toBe(false);
+  });
+
+  it('keeps the availability line and Confirm above the keyboard', () => {
+    // OxyHQ/oxy#1375 item 18: with the keyboard up, Confirm and "available"
+    // were hidden behind it. The scroll view keeps the whole block under the
+    // input between the caret and the keyboard.
+    mockScrollViewProps.length = 0;
+    renderStep(jest.fn());
+
+    const latest = mockScrollViewProps[mockScrollViewProps.length - 1];
+    expect(latest?.bottomOffset).toBeGreaterThanOrEqual(BELOW_INPUT_HEIGHT);
+
+    const block = screen.getByTestId('username-below-input');
+    expect(block.textContent).toContain('auth.usernameStep.available');
+    expect(block.textContent).toContain('auth.usernameStep.confirm');
   });
 
   it('opens the username explainer on every press', () => {

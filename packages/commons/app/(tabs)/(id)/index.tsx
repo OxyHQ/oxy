@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
@@ -18,7 +18,7 @@ import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import { Screen, Section, Callout } from '@/components/ui';
+import { Screen, Section, Callout, useFabClearance } from '@/components/ui';
 import { Ticket as OxyID } from '@/components/OxyID';
 import { FrontSide } from '@/components/OxyID/front-side';
 import { BackSide } from '@/components/OxyID/back-side';
@@ -64,6 +64,9 @@ export default function IdScreen() {
   const colors = useColors();
   const router = useRouter();
   const tabBarFootprint = useTabBarFootprint();
+  // The QR FAB floats over the scroller; the content's bottom inset clears it,
+  // so the last lines can always be scrolled out from under the button.
+  const fabClearance = useFabClearance(tabBarFootprint);
   const { t } = useTranslation();
   const { user, oxyServices } = useOxy();
   const [cameraPermission, requestCameraPermission, refreshCameraPermission] = useCameraPermissions();
@@ -191,7 +194,7 @@ export default function IdScreen() {
     <View style={styles.screen}>
       {/* Flush column — Bloom's SettingsListGroup owns its horizontal gutter; the
           centered hero and the DID/callout blocks are padded to align with it. */}
-      <Screen contentStyle={styles.flush} gap={16}>
+      <Screen contentStyle={[styles.flush, { paddingBottom: fabClearance }]} gap={16}>
         <View style={styles.hero}>
           <OxyID
             width={CARD_WIDTH}
@@ -297,6 +300,7 @@ export default function IdScreen() {
       */}
       <Fab
         variant="primary"
+        size="md"
         placement="bottom-right"
         offset={tabBarFootprint}
         onPress={handleScan}
