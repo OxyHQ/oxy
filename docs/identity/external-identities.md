@@ -1,5 +1,8 @@
 # External identities
 
+> A LOCAL user proving they own a Mastodon or Bluesky account is a different
+> record: see [Linked accounts](linked-accounts.md).
+
 Oxy owns external account identity and profiles for every Oxy app. Connectors
 discover actor references and content; they do not derive canonical handles,
 normalize profile biographies, or decide person equivalence.
