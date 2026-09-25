@@ -711,7 +711,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "4.0.2",
+      "version": "4.0.3",
       "dependencies": {
         "@expo/config-plugins": "catalog:",
         "@oxy.so/contracts": "workspace:*",
@@ -774,7 +774,7 @@
       "peerDependencies": {
         "@expo/vector-icons": "^15.0.3",
         "@oxy.so/bloom": "^4.21.1",
-        "@oxy.so/core": "^1.9.0 || ^2.0.0",
+        "@oxy.so/core": "^1.9.1 || ^2.0.0",
         "@react-native-async-storage/async-storage": "^2.0.0",
         "@react-native-community/netinfo": ">=11.4.1",
         "@tanstack/query-async-storage-persister": "catalog:",

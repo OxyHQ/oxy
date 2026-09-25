@@ -2,7 +2,7 @@
 
 ## 2.0.0
 
-Includes everything in 1.9.0.
+Includes everything in 1.9.1.
 
 ### Removed
 
@@ -15,6 +15,20 @@ Includes everything in 1.9.0.
   HS256, `none` or other header is `INVALID_SERVICE_TOKEN` (401) without any
   JWKS fetch. Production has signed only EdDSA since 2026-09-17 and no consumer
   passed the option (ADR 0012, #877).
+
+## 1.9.1
+
+### Fixed
+
+- A refresh that returns the SAME still-valid access token (the device mint
+  hands back the stored token until it expires) no longer counts as a reason
+  to ask again. The request-time preflight sends that token until `exp`, and
+  the proactive scheduler waits until just past `exp`
+  (`REMINT_AFTER_EXPIRY_MS`) instead of re-minting at its 1s floor. Before,
+  every token's last minute cost ~30 mints, tripped the 30/min limit, and the
+  429 cooldown outlived the token, so the next request 401'd and the app signed
+  out (OxyHQ/Mention#1140). New: `HttpService.isAwaitingCurrentTokenExpiry()`.
+- The scheduler no longer re-arms when the same token is planted again.
 
 ## 1.9.0
 
