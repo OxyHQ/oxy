@@ -366,6 +366,11 @@ export interface OxyPagesHeadersOptions {
    * the app — is REMOVED from `script-src` and `connect-src`, so third-party
    * measurement cannot run there even when the zone has Web Analytics enabled.
    * A structural block in the policy the page is served with, not a build flag.
+   *
+   * It also sends `Cache-Control: no-transform`, which stops the edge from
+   * injecting the beacon at all — otherwise every page load logs a CSP
+   * violation for a script we never asked for. The rest of the value is Pages'
+   * own default, so caching is unchanged.
    */
   sensitive?: boolean;
   /**
@@ -428,6 +433,9 @@ export function buildOxyPagesHeaders(options: OxyPagesHeadersOptions = {}): stri
   ];
   if (options.hsts !== false) {
     lines.push('  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
+  }
+  if (options.sensitive) {
+    lines.push('  Cache-Control: public, max-age=0, must-revalidate, no-transform');
   }
   lines.push('');
   return lines.join('\n');
