@@ -1,6 +1,19 @@
 # Changelog — `@oxy.so/core`
 
-## 1.7.4 (unreleased)
+## 1.8.0
+
+### Added
+
+- `req.serviceApp.tier` — `internal` for one of Oxy's own applications,
+  `external` for anything else, read from the signed `tier` claim Oxy now puts
+  in every service token (a token without it reads as `external`). An internal
+  caller passes `requireScope()` whatever scope a route names, and acts for a
+  user (`X-Oxy-User-Id`) without the acting-as grant round trip: trust inside
+  the ecosystem, not consent. It acts with that user's authority only — what
+  the user may do is still the receiving service's to check. External callers
+  keep every scope and grant rule.
+
+## 1.7.4
 
 ### Fixed
 
