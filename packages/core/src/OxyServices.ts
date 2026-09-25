@@ -134,7 +134,6 @@ export interface OxyServices extends InstanceType<ReturnType<typeof composeOxySe
     optional?: boolean;
     onRefusal?: (refusal: OxyAuthRefusal) => void;
     serviceTokenJwksUrl?: string;
-    jwtSecret?: string;
     expectedIssuer?: string;
     expectedAudience?: string;
   }): (req: unknown, res: unknown, next: (err?: unknown) => void) => Promise<void>;
@@ -149,7 +148,6 @@ export interface OxyServices extends InstanceType<ReturnType<typeof composeOxySe
     debug?: boolean;
     onRefusal?: (refusal: OxyAuthRefusal) => void;
     serviceTokenJwksUrl?: string;
-    jwtSecret?: string;
     expectedIssuer?: string;
     expectedAudience?: string;
   }): (req: unknown, res: unknown, next: (err?: unknown) => void) => Promise<void>;

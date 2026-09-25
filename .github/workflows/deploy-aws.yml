@@ -22,6 +22,8 @@ on:
       - ".github/scripts/deploy-ecs-image.sh"
       - ".github/scripts/put-secure-parameter.sh"
       - ".github/scripts/smoke-inbox-mcp.sh"
+      - ".github/scripts/smoke-oxy-api.sh"
+      - ".github/scripts/smoke-service-token-jwks.sh"
   workflow_dispatch:
 
 permissions:
@@ -375,7 +377,8 @@ jobs:
           # ordinary SMTP/device uses of the word relay remain untouched.
           TASK_REMOVE_NAMES_JSON: >-
             ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL"]
-          POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-inbox-mcp.sh
+          # The service-token JWKS (ADR 0012), then the Inbox MCP checks.
+          POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-oxy-api.sh
           # The deploy script renders from the task definition the service is
           # currently running, not from Terraform's latest registered revision.
           # Re-assert new bindings here so capability authority cannot disappear

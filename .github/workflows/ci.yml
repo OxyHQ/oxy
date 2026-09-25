@@ -25,6 +25,7 @@ jobs:
           bash .github/scripts/test-run-native-product-agent-bootstrap.sh
           bash .github/scripts/test-report-native-product-agent-task-failure.sh
           bash .github/scripts/test-smoke-inbox-mcp.sh
+          bash .github/scripts/test-smoke-service-token-jwks.sh
           bash .github/scripts/test-attest-kaana-catalogue-rollout.sh
           node --test .github/scripts/release-external-identity-packages.test.mjs
           node --test .github/scripts/release-external-identity-publication.test.mjs

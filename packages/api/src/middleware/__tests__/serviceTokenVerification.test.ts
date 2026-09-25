@@ -2,36 +2,34 @@
  * `verifyServiceToken` — the API's single source of truth for what a service
  * token proves.
  *
- * It had no direct suite. Every other service-token test in this package either
- * mocks the middleware or rides the globally-stubbed `jsonwebtoken` from
- * `jest.setup.cjs`, so the one function that every service-authenticated route
- * funnels through was only ever exercised incidentally. The claims it accepts
- * ARE the authorization contract (ADR 0007), so they are asserted here against
- * real HS256 tokens.
+ * The claims it accepts ARE the authorization contract (ADR 0007), so they are
+ * asserted here against real Ed25519 tokens signed by the API's own signer —
+ * with no key configured, outside production, that is the per-process
+ * ephemeral key, which is exactly what every other suite in this package mints
+ * with.
  *
- * Two properties are under test:
+ * Three properties are under test:
  *  - the SIGNATURE is verified, not merely decoded — a forged or edited token
- *    is refused, and the mutation that swaps `jwt.verify` for `jwt.decode`
- *    turns these red;
+ *    is refused;
+ *  - EdDSA is the ONLY algorithm (ADR 0012). An HS256 token claiming
+ *    `type: 'service'` is refused even when it is signed with the real
+ *    platform secret: that is the retired transition, and holding
+ *    `ACCESS_TOKEN_SECRET` must not be a way to mint a service principal;
  *  - the whole attribution tuple is REQUIRED — application, credential, owning
  *    account and environment. A signature-valid token missing one is not a
  *    usable service principal.
  */
 
-// `jest.setup.cjs` stubs `jsonwebtoken` globally (sign → a fixed string,
-// verify → a user payload). Signatures are the subject here, so restore the
-// real module for this suite.
-jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
-import jwt from 'jsonwebtoken';
+import { createHmac, generateKeyPairSync, sign as signBytes, type KeyObject } from 'node:crypto';
 
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
+import { serviceTokenSigningConfig, signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 import { verifyServiceToken } from '../serviceToken';
 
 const SECRET = 'test_access_token_secret_minimum_32_characters';
-const OTHER_SECRET = 'a_secret_the_oxy_issuer_has_never_used_at_all';
 
 const CLAIMS = {
   type: 'service',
@@ -43,12 +41,36 @@ const CLAIMS = {
   scopes: ['inference:invoke'],
 } as const;
 
-function signToken(
-  overrides: Record<string, unknown> = {},
-  secret = SECRET,
-  options: jwt.SignOptions = { expiresIn: '5m', issuer: 'oxy-auth', audience: 'oxy-api' },
-): string {
-  return jwt.sign({ ...CLAIMS, ...overrides }, secret, options);
+function timed(overrides: Record<string, unknown>, lifetimeSeconds = 300): Record<string, unknown> {
+  const now = Math.floor(Date.now() / 1_000);
+  return {
+    ...CLAIMS,
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: now,
+    exp: now + lifetimeSeconds,
+    ...overrides,
+  };
+}
+
+function signToken(overrides: Record<string, unknown> = {}, lifetimeSeconds = 300): string {
+  return signServiceTokenEd25519(timed(overrides, lifetimeSeconds));
+}
+
+function segment(value: unknown): string {
+  return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+/** Hand-signs with an arbitrary Ed25519 key under an arbitrary header. */
+function signWith(key: KeyObject, header: Record<string, unknown>, payload: Record<string, unknown>): string {
+  const input = `${segment(header)}.${segment(payload)}`;
+  return `${input}.${signBytes(null, Buffer.from(input), key).toString('base64url')}`;
+}
+
+/** The retired shape: HS256 over the service claims. */
+function signHs256(payload: Record<string, unknown>, secret: string): string {
+  const input = `${segment({ alg: 'HS256', typ: 'JWT' })}.${segment(payload)}`;
+  return `${input}.${createHmac('sha256', secret).update(input).digest('base64url')}`;
 }
 
 const originalSecret = process.env.ACCESS_TOKEN_SECRET;
@@ -104,24 +126,26 @@ describe('the ecosystem boundary (tier)', () => {
 });
 
 describe('signature verification is mandatory', () => {
-  it('refuses a token signed with a different secret', () => {
-    expect(verifyServiceToken(signToken({}, OTHER_SECRET))).toEqual({
-      ok: false,
-      reason: 'invalid',
-    });
+  it('refuses a token signed by a key Oxy never published, under the real kid', () => {
+    const { keyId } = serviceTokenSigningConfig();
+    const stranger = generateKeyPairSync('ed25519').privateKey;
+    const forged = signWith(stranger, { alg: 'EdDSA', typ: 'JWT', kid: keyId }, timed({}));
+
+    expect(verifyServiceToken(forged)).toEqual({ ok: false, reason: 'invalid' });
+  });
+
+  it('refuses a token naming a kid that is not published', () => {
+    const stranger = generateKeyPairSync('ed25519').privateKey;
+    const forged = signWith(stranger, { alg: 'EdDSA', typ: 'JWT', kid: 'not-a-published-kid' }, timed({}));
+
+    expect(verifyServiceToken(forged)).toEqual({ ok: false, reason: 'invalid' });
   });
 
   it('refuses a token whose payload was edited after signing', () => {
     // The attack the `ownerAccountId` claim invites: take a real token and
     // rewrite the account it charges.
     const [header, , signature] = signToken().split('.');
-    const tampered = Buffer.from(
-      JSON.stringify({ ...CLAIMS, ownerAccountId: 'somebody-elses-account' }),
-    )
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
+    const tampered = segment(timed({ ownerAccountId: 'somebody-elses-account' }));
 
     expect(verifyServiceToken(`${header}.${tampered}.${signature}`)).toEqual({
       ok: false,
@@ -130,9 +154,31 @@ describe('signature verification is mandatory', () => {
   });
 
   it('refuses an UNSIGNED token (alg: none)', () => {
-    const unsigned = jwt.sign({ ...CLAIMS }, '', { algorithm: 'none' });
+    const unsigned = `${segment({ alg: 'none', typ: 'JWT' })}.${segment(timed({}))}.`;
 
-    expect(verifyServiceToken(unsigned)).toEqual({ ok: false, reason: 'invalid' });
+    expect(verifyServiceToken(unsigned).ok).toBe(false);
+  });
+
+  it('refuses an HS256 service token even when it is signed with the real platform secret', () => {
+    // The retired transition (ADR 0012). Before it closed, this token was a
+    // valid service principal; a process holding ACCESS_TOKEN_SECRET could
+    // mint one naming any ownerAccountId.
+    const legacy = signHs256(timed({}), SECRET);
+
+    const result = verifyServiceToken(legacy);
+    expect(result.ok).toBe(false);
+    expect(result).toEqual({ ok: false, reason: 'not_service' });
+  });
+
+  it('refuses an EdDSA header that carries anything beyond alg, typ and kid', () => {
+    const { keyId, privateKey } = serviceTokenSigningConfig();
+    const smuggled = signWith(
+      privateKey,
+      { alg: 'EdDSA', typ: 'JWT', kid: keyId, jku: 'https://attacker.example/jwks.json' },
+      timed({}),
+    );
+
+    expect(verifyServiceToken(smuggled)).toEqual({ ok: false, reason: 'invalid' });
   });
 
   it('refuses garbage that is not a JWT at all', () => {
@@ -140,26 +186,26 @@ describe('signature verification is mandatory', () => {
   });
 
   it('reports an EXPIRED token distinctly, so the caller can say so', () => {
-    const expired = signToken({}, SECRET, { expiresIn: '-1s' });
+    const expired = signToken({}, -1);
 
     expect(verifyServiceToken(expired)).toEqual({ ok: false, reason: 'expired' });
   });
 
-  it('refuses everything when no verification secret is configured', () => {
+  it('does not depend on ACCESS_TOKEN_SECRET at all', () => {
     const token = signToken();
     delete process.env.ACCESS_TOKEN_SECRET;
 
-    expect(verifyServiceToken(token)).toEqual({ ok: false, reason: 'invalid' });
+    expect(verifyServiceToken(token).ok).toBe(true);
   });
 });
 
 describe('the attribution tuple is required', () => {
   it('refuses a user/session token replayed as a service token', () => {
-    const userToken = jwt.sign({ userId: 'u-1', sessionId: 's-1' }, SECRET, {
-      expiresIn: '5m',
-      issuer: 'oxy-auth',
-      audience: 'oxy-api',
-    });
+    const now = Math.floor(Date.now() / 1_000);
+    const userToken = signHs256(
+      { userId: 'u-1', sessionId: 's-1', iss: 'oxy-auth', aud: 'oxy-api', iat: now, exp: now + 300 },
+      SECRET,
+    );
 
     expect(verifyServiceToken(userToken)).toEqual({ ok: false, reason: 'not_service' });
   });

@@ -61,7 +61,6 @@ import { randomUUID } from 'node:crypto';
  * a broken lane and is a mocked dependency.
  */
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
-import jwt from 'jsonwebtoken';
 
 import type { AccountRole } from '../../utils/accountRoles';
 import { permissionsForAccountRole } from '../../utils/accountRoles';
@@ -158,6 +157,7 @@ import {
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
 } from '../__fixtures__/kaanaRuntimeFixtures';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 jest.setTimeout(60_000);
 
@@ -536,8 +536,7 @@ function signServiceToken(input: {
   credentialId: string;
   scopes?: string[];
 }): string {
-  return jwt.sign(
-    {
+  return signServiceTokenEd25519({
       type: 'service',
       appId: input.applicationId,
       appName: 'Alia',
@@ -545,10 +544,10 @@ function signServiceToken(input: {
       ownerAccountId: input.ownerAccountId,
       environment: 'development',
       scopes: input.scopes ?? ['inference:invoke'],
-    },
-    process.env.ACCESS_TOKEN_SECRET as string,
-    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' }
-  );
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      exp: Math.floor(Date.now() / 1_000) + 3_600,
+    });
 }
 
 /** A fake data plane. TESTS ONLY — `services/kaanaClient.ts` has no production one. */

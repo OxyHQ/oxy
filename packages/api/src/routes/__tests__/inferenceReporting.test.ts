@@ -34,7 +34,6 @@ import type { AddressInfo } from 'net';
 // `jest.setup.cjs` stubs `jsonwebtoken` globally (sign → a fixed string). The
 // service-token claims ARE the gate for the application lane, so restore it.
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
-import jwt from 'jsonwebtoken';
 
 process.env.ACCESS_TOKEN_SECRET = 'test-access-token-secret';
 
@@ -75,6 +74,7 @@ import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import reportingRouter, { REPORTING_SERVICE_READS_PER_15_MINUTES, reportingServiceRateLimitKey } from '../inferenceReporting';
 import type { AccountRole } from '../../utils/accountRoles';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 let server: http.Server;
 let currentUserId = '';
@@ -361,8 +361,7 @@ function serviceToken(input: {
   ownerAccountId: string;
   scopes: string[];
 }): string {
-  return jwt.sign(
-    {
+  return signServiceTokenEd25519({
       type: 'service',
       appId: input.appId,
       appName: 'Fixture App',
@@ -370,10 +369,10 @@ function serviceToken(input: {
       ownerAccountId: input.ownerAccountId,
       environment: 'production',
       scopes: input.scopes,
-    },
-    process.env.ACCESS_TOKEN_SECRET as string,
-    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' }
-  );
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      exp: Math.floor(Date.now() / 1_000) + 3_600,
+    });
 }
 
 /** An owner account with one application, one credential and a balance. */

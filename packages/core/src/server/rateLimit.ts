@@ -79,7 +79,8 @@ export interface OxyRateLimitOptions {
   message?: string;
   /**
    * Options forwarded to the internal `oxy.auth({ optional: true })` resolver
-   * (e.g. `{ jwtSecret }` to verify service tokens). `optional` is forced true.
+   * (e.g. `{ serviceTokenJwksUrl }` to verify service tokens against a
+   * non-default JWKS). `optional` is forced true.
    */
   auth?: Parameters<OxyServices['auth']>[0];
 }
