@@ -439,7 +439,7 @@ export function OxyConsentScreen({
       <View style={styles.actions}>
         <Button
           testID="consent-allow"
-          variant="primary"
+          appearance="solid" tone="accent"
           onPress={handleAllow}
           disabled={busy || allowDisabled}
           loading={busy}
@@ -449,7 +449,7 @@ export function OxyConsentScreen({
         </Button>
         <Button
           testID="consent-deny"
-          variant="ghost"
+          appearance="plain" tone="neutral"
           onPress={onDeny}
           disabled={busy}
           style={styles.actionButton}

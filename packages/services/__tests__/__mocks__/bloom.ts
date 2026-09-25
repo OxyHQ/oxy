@@ -21,20 +21,40 @@ type ToastFn = (message: string, options?: Record<string, unknown>) => void;
  */
 export const Button = ({
   children,
+  trailing,
+  accessibilityLabel,
+  style,
   onPress,
   disabled,
   testID,
 }: {
   children?: ReactNode;
+  trailing?: ReactNode;
+  accessibilityLabel?: string;
+  style?: unknown;
   onPress?: () => void;
   disabled?: boolean;
   testID?: string;
 } & Record<string, unknown>) =>
   createElement(
     'button',
-    { type: 'button', onClick: onPress, disabled, 'data-testid': testID },
-    children,
+    { type: 'button', onClick: onPress, disabled, 'data-testid': testID, 'aria-label': accessibilityLabel, style: Array.isArray(style) ? Object.assign({}, ...style.filter(Boolean)) : style },
+    children, trailing,
   );
+
+// Shared follow visual: business tests observe binding, Bloom tests own animation.
+export const FollowButton = ({ following, onFollowChange, label = 'Follow', followingLabel = 'Following', disabled, loading }: {
+  following: boolean;
+  onFollowChange: (next: boolean) => void;
+  label?: string;
+  followingLabel?: string;
+  disabled?: boolean;
+  loading?: boolean;
+} & Record<string, unknown>) => createElement('button', {
+  type: 'button', disabled: disabled || loading,
+  'aria-label': label, 'aria-pressed': following, 'aria-busy': loading || undefined,
+  onClick: () => onFollowChange(!following),
+}, loading ? null : following ? followingLabel : label);
 
 export const Loading = () => createElement('span', null, 'loading');
 
@@ -533,3 +553,8 @@ export const Admonition = ({ children }: { children?: ReactNode }) =>
   createElement('div', null, createElement('span', null, children));
 
 export default toast;
+
+export const Circle = () => createElement('span', { 'data-testid': 'skeleton-circle' });
+
+export function RiLoginBoxLine() { return createElement("svg", { "data-testid": "login-icon" }); }
+export function RiMoreLine() { return createElement("svg", { "data-testid": "more-icon" }); }

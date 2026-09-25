@@ -1,5 +1,6 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState, type ErrorInfo } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import { useStore } from 'zustand';
 import { useTheme } from '@oxy.so/bloom/theme';
 import {

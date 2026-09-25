@@ -1,5 +1,13 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 2.0.1
+
+### Changed
+
+- Peer ranges admit `@oxy.so/bloom` `^2.0.0 || ^3.0.0 || ^4.2.0` and
+  `@oxy.so/services` `^2.0.0 || ^3.0.0 || ^4.0.0`; the preset couples only to
+  their CSS and plugin entry points, whose paths are unchanged.
+
 ## 1.0.1
 
 ### Fixed

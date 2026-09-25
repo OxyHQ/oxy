@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, Image, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { View, Image, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import type { FileMetadata } from '@oxy.so/core';
 

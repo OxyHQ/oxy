@@ -1,12 +1,7 @@
 import type React from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    ScrollView,
-    RefreshControl,
-    ActivityIndicator,
-} from 'react-native';
+import { View, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
+import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 import type { FileMetadata } from '@oxy.so/core';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
@@ -88,14 +83,7 @@ const FileListSection: React.FC<FileListSectionProps> = ({
                     <Text className="text-[16px] text-center leading-[24px] mb-space-32" style={{ color: colors.textSecondary }}>
                         {t('fileManagement.noResults.description', { query: searchQuery })}
                     </Text>
-                    <TouchableOpacity
-                        className="flex-row items-center px-space-24 py-space-12 rounded-[24px] gap-space-8"
-                        style={{ backgroundColor: colors.primary }}
-                        onPress={onClearSearch}
-                    >
-                        <Ionicons name="refresh" size={20} color="#FFFFFF" />
-                        <Text className="text-white text-[16px] font-semibold">{t('fileManagement.clearSearch')}</Text>
-                    </TouchableOpacity>
+                    <Button onPress={onClearSearch}>{t('fileManagement.clearSearch')}</Button>
                 </View>
             ) : filteredFiles.length === 0 ? renderEmptyState() : (
                 <>

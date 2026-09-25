@@ -1,6 +1,8 @@
 import type React from 'react';
 import { useMemo, useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image, StyleSheet } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Image, StyleSheet } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
+import { Text } from '@oxy.so/bloom/typography';
 import { Image as ExpoImage } from 'expo-image';
 import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -194,22 +196,18 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             )}
 
             {/* Floating Back Button */}
-            <TouchableOpacity
-                className="bg-card absolute top-[12px] left-[12px] w-[40px] h-[40px] rounded-full items-center justify-center"
+            <Button appearance="subtle" tone="neutral" iconOnly accessibilityLabel="Back"
+                className="absolute top-[12px] left-[12px]"
                 style={{ zIndex: 10 }}
                 onPress={onClose}
-            >
-                <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
-            </TouchableOpacity>
+            icon={<MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />} />
 
             {/* Floating Download Button */}
-            <TouchableOpacity
-                className="bg-card absolute top-[12px] right-[12px] w-[40px] h-[40px] rounded-full items-center justify-center"
+            <Button appearance="subtle" tone="neutral" iconOnly accessibilityLabel="Download"
+                className="absolute top-[12px] right-[12px]"
                 style={{ zIndex: 10 }}
                 onPress={() => onDownload(file.id, file.filename)}
-            >
-                <MaterialCommunityIcons name="download" size={20} color={colors.primary} />
-            </TouchableOpacity>
+            icon={<MaterialCommunityIcons name="download" size={20} color={colors.primary} />} />
 
             {/* File Content */}
             <ScrollView
@@ -279,13 +277,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                             PDF files cannot be previewed in this viewer.{'\n'}
                             Download the file to view its contents.
                         </Text>
-                        <TouchableOpacity
-                            className="bg-primary flex-row items-center px-[18px] py-[12px] rounded-full gap-[8px]"
-                            onPress={() => onDownload(file.id, file.filename)}
-                        >
-                            <MaterialCommunityIcons name="download" size={18} color={colors.primaryForeground} />
-                            <Text className="text-[16px] font-semibold" style={{ color: colors.primaryForeground }}>Download PDF</Text>
-                        </TouchableOpacity>
+                        <Button onPress={() => onDownload(file.id, file.filename)}>Download PDF</Button>
                     </View>
                 ) : isVideo && fileContent ? (
                     <View className="flex-1 justify-center items-center py-[32px] px-[24px]">
@@ -301,13 +293,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                             Video playback is not supported in this viewer.{'\n'}
                             Download the file to view it.
                         </Text>
-                        <TouchableOpacity
-                            className="bg-primary flex-row items-center px-[18px] py-[12px] rounded-full gap-[8px]"
-                            onPress={() => onDownload(file.id, file.filename)}
-                        >
-                            <MaterialCommunityIcons name="download" size={18} color={colors.primaryForeground} />
-                            <Text className="text-[16px] font-semibold" style={{ color: colors.primaryForeground }}>Download Video</Text>
-                        </TouchableOpacity>
+                        <Button onPress={() => onDownload(file.id, file.filename)}>Download Video</Button>
                     </View>
                 ) : isAudio && fileContent ? (
                     <View className="flex-1 justify-center items-center py-[32px] px-[24px]">
@@ -323,13 +309,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                             Audio playback is not supported in this viewer.{'\n'}
                             Download the file to listen to it.
                         </Text>
-                        <TouchableOpacity
-                            className="bg-primary flex-row items-center px-[18px] py-[12px] rounded-full gap-[8px]"
-                            onPress={() => onDownload(file.id, file.filename)}
-                        >
-                            <MaterialCommunityIcons name="download" size={18} color={colors.primaryForeground} />
-                            <Text className="text-[16px] font-semibold" style={{ color: colors.primaryForeground }}>Download Audio</Text>
-                        </TouchableOpacity>
+                        <Button onPress={() => onDownload(file.id, file.filename)}>Download Audio</Button>
                     </View>
                 ) : (
                     <View className="flex-1 justify-center items-center py-[32px] px-[24px]">
@@ -345,13 +325,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                             This file type cannot be previewed.{'\n'}
                             Download the file to view its contents.
                         </Text>
-                        <TouchableOpacity
-                            className="bg-primary flex-row items-center px-[18px] py-[12px] rounded-full gap-[8px]"
-                            onPress={() => onDownload(file.id, file.filename)}
-                        >
-                            <MaterialCommunityIcons name="download" size={18} color={colors.primaryForeground} />
-                            <Text className="text-[16px] font-semibold" style={{ color: colors.primaryForeground }}>Download File</Text>
-                        </TouchableOpacity>
+                        <Button onPress={() => onDownload(file.id, file.filename)}>Download File</Button>
                     </View>
                 )}
             </ScrollView>
@@ -362,16 +336,14 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                     <Text className="text-text text-[18px] font-semibold flex-1">
                         File Details
                     </Text>
-                    <TouchableOpacity
-                        className="p-[4px]"
+                    <Button appearance="plain" tone="neutral" iconOnly accessibilityLabel="Toggle file details"
+                        aria-expanded={showFileDetailsInViewer}
                         onPress={onToggleDetails}
-                    >
-                        <MaterialCommunityIcons
+                    icon={<MaterialCommunityIcons
                             name={showFileDetailsInViewer ? "chevron-up" : "chevron-down"}
                             size={20}
                             color={colors.textSecondary}
-                        />
-                    </TouchableOpacity>
+                        />} />
                 </View>
 
                 {showFileDetailsInViewer && (
@@ -392,16 +364,15 @@ export const FileViewer: React.FC<FileViewerProps> = ({
 
                         {isOwner && (
                             <View className="flex-row gap-[12px] mt-[8px] px-[12px] pb-[10px]">
-                                <TouchableOpacity
-                                    className="bg-destructive flex-1 flex-row items-center justify-center py-[12px] rounded-full gap-[6px]"
+                                <Button tone="danger"
+                                    style={{ flex: 1 }}
                                     onPress={() => {
                                         onClose();
                                         onDelete(file.id, file.filename);
                                     }}
                                 >
-                                    <MaterialCommunityIcons name="delete" size={16} color={colors.negativeForeground} />
-                                    <Text className="text-[14px] font-semibold" style={{ color: colors.negativeForeground }}>Delete</Text>
-                                </TouchableOpacity>
+                                    Delete
+                                </Button>
                             </View>
                         )}
                     </>
