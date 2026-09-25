@@ -9,7 +9,7 @@
   (`openAccountDialog('signup')`), never by a local passkey ceremony (ADR 0024
   D4). No ecosystem app called it; `auth.oxy.so` opens the canonical flow.
 
-## [4.0.3] - 2026-09-25
+## [4.0.4] - 2026-09-25
 
 ### Fixed
 
@@ -20,6 +20,21 @@
   `OxyRuntime.clearSession()` now abandons every projection already in flight.
   With `@oxy.so/core` 1.10.0, the refresh that triggered it cannot plant a bearer
   after the sign-out either.
+
+## [4.0.3] - 2026-09-25
+
+Requires `@oxy.so/core` `^1.9.1`.
+
+### Fixed
+
+- A signed-in app is no longer signed out when its access token is cleared by
+  a transient failure (a 401 whose refresh was rate limited, cooling down or
+  offline). While the durable device credential survives, the provider keeps
+  the user, pauses private queries and re-mints with backoff, the way a
+  relaunch does. It signs out once the refresh handler drops the credential on
+  a definitive verdict (`invalid_device_secret`, `no_active_session`), or after
+  a bounded retry through the shared identity / identity key
+  (OxyHQ/Mention#1140). Recovery decisions log at `warn`.
 
 ## [4.0.2] - 2026-09-25
 

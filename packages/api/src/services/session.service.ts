@@ -64,6 +64,22 @@ const SESSION_EXPIRES_IN = 7 * 24 * 60 * 60 * 1000; // 7 days
 const TOKEN_ROTATION_GRACE_PERIOD_MS = 30_000; // 30 seconds grace period for concurrent tab refreshes
 
 /**
+ * A mint rotates a stored access token that expires within this many seconds,
+ * instead of handing it back.
+ *
+ * Clients re-mint 60 seconds before `exp` (`@oxy.so/core`'s refresh lead), so
+ * a mint that returned any unexpired stored token answered that re-mint with
+ * the very token it was replacing. Older clients took that as success and asked
+ * again on every request and scheduler tick until the device mint's 30/min
+ * budget ran out, and the resulting 429 cooldown outlived the token — the next
+ * request went out with no bearer and the app signed itself out
+ * (OxyHQ/Mention#1140). Two minutes clears the client's lead window plus
+ * ordinary clock skew, so a re-mint inside that window always gets a fresh
+ * token and one mint is enough.
+ */
+export const MINT_ROTATES_WITHIN_SECONDS = 120;
+
+/**
  * How often a managed-account session (one minted by switching INTO an account,
  * carrying `operatedByUserId`) re-verifies that the operator still holds
  * `account:act_as`, on the per-request VALIDATE path. The REFRESH path always
@@ -1251,8 +1267,8 @@ class SessionService {
         const decoded = jwt.verify(session.accessToken, process.env.ACCESS_TOKEN_SECRET!) as jwt.JwtPayload;
         const currentTime = Math.floor(Date.now() / 1000);
 
-        if (decoded.exp && decoded.exp < currentTime) {
-          // Token expired, refresh it
+        if (decoded.exp && decoded.exp - currentTime < MINT_ROTATES_WITHIN_SECONDS) {
+          // Token expired or about to (see MINT_ROTATES_WITHIN_SECONDS): rotate
           const refreshResult = await this.refreshTokens(session.refreshToken);
           if (!refreshResult) {
             return null;

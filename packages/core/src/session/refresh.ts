@@ -63,6 +63,21 @@ const MIN_SCHEDULE_DELAY_MS = 1_000;
 const MIN_FAILURE_BACKOFF_MS = 5_000;
 const MAX_FAILURE_BACKOFF_MS = 5 * 60_000;
 
+/**
+ * How long past `exp` to re-mint when a successful refresh handed back a token
+ * that is STILL inside the lead window.
+ *
+ * The device mint returns the session's stored access token until that token
+ * has actually expired, so asking again before `exp` only returns the same
+ * token. Re-arming from expiry in that state computed a negative delay, hit the
+ * {@link MIN_SCHEDULE_DELAY_MS} floor and re-minted once a second for the last
+ * minute of every token — 30+ mints, the server's whole per-minute budget, and
+ * the 429 that followed straddled the real expiry. Waiting until just past
+ * `exp` asks exactly once more, when the server will rotate. The margin covers
+ * the server's strict `exp < now` comparison and a little clock skew.
+ */
+export const REMINT_AFTER_EXPIRY_MS = 2_000;
+
 export interface RefreshDeps {
   oxy: OxyServices;
   store: AuthStateStore;
@@ -483,13 +498,27 @@ export function startTokenRefreshScheduler(oxy: OxyServices): TokenRefreshSchedu
     if (expSeconds === null) {
       return;
     }
-    armTimer(expSeconds * 1000 - Date.now() - TOKEN_REFRESH_LEAD_MS);
+    const untilExpiryMs = expSeconds * 1000 - Date.now();
+    // The server already answered this token's refresh with this very token:
+    // asking again before `exp` only gets it back again. Ask just after expiry,
+    // when the server rotates (see REMINT_AFTER_EXPIRY_MS).
+    if (untilExpiryMs > 0 && oxy.httpService.isAwaitingCurrentTokenExpiry?.()) {
+      armTimer(untilExpiryMs + REMINT_AFTER_EXPIRY_MS);
+      return;
+    }
+    armTimer(untilExpiryMs - TOKEN_REFRESH_LEAD_MS);
   };
 
   const runRefresh = (): void => {
     // Clear any pending timer up front so an out-of-band trigger (focus) plus
     // a fired timer can never double-run.
     clearTimer();
+    // Another lane (a request-time preflight) already asked, and the server
+    // answered with this same token: re-arm for just past expiry instead.
+    if (oxy.httpService.isAwaitingCurrentTokenExpiry?.()) {
+      scheduleFromExpiry();
+      return;
+    }
     void oxy.httpService.refreshAccessToken('preflight')
       .then((token) => Boolean(token))
       .catch(() => false)
@@ -534,10 +563,16 @@ export function startTokenRefreshScheduler(oxy: OxyServices): TokenRefreshSchedu
     }
   };
 
-  const unsubscribeTokens = oxy.onTokensChanged(() => {
-    if (!disposed) {
-      schedule();
+  // Re-arm only on a token that actually CHANGED. The mint plants the token it
+  // returns even when that is the token already held, and treating the repeat
+  // as new re-armed from an in-lead-window expiry, i.e. at the 1s floor.
+  let lastSeenToken = oxy.getAccessToken();
+  const unsubscribeTokens = oxy.onTokensChanged((token) => {
+    if (disposed || token === lastSeenToken) {
+      return;
     }
+    lastSeenToken = token;
+    schedule();
   });
 
   let removeFocusListener: (() => void) | null = null;

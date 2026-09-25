@@ -241,6 +241,24 @@ const RATE_LIMITED_REFRESH_COOLDOWN_MS = 60_000;
 const TOKEN_REFRESH_LEAD_SECONDS = 60;
 
 /**
+ * Whether `token` is a JWT that is still valid but already inside the refresh
+ * lead window. `false` for an expired, opaque or no-`exp` token.
+ */
+function isInsideRefreshLeadWindow(token: string): boolean {
+  try {
+    const decoded = jwtDecode<JwtPayload>(token);
+    if (typeof decoded.exp !== 'number') {
+      return false;
+    }
+    const now = Math.floor(Date.now() / 1000);
+    // `<=`: the proactive scheduler fires at exactly `exp - lead`.
+    return decoded.exp > now && decoded.exp - now <= TOKEN_REFRESH_LEAD_SECONDS;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Soft ceiling on the number of live entries in the identity-scoped GET
  * response cache. Crossing it does NOT evict anything (the {@link TTLCache}
  * still expires by TTL and is swept on its cleanup interval) — it emits a
@@ -390,6 +408,27 @@ export class HttpService {
    * it, and there is exactly one timestamp to reason about.
    */
   private lastRefreshWasRateLimited = false;
+  /**
+   * The access token the last SUCCESSFUL refresh handed back while it was still
+   * inside the refresh lead window, or `null`.
+   *
+   * The device mint (`POST /session/device/token`) answers with the session's
+   * STORED access token for as long as that token has not expired — it only
+   * mints a new one once the old one is past `exp`. A client that re-mints
+   * {@link TOKEN_REFRESH_LEAD_SECONDS} before `exp` therefore gets the SAME
+   * token back, and because that counts as a success (no cooldown), every
+   * following request re-ran the preflight and minted again: one mint per
+   * request for the last minute of every token, which exhausted the server's
+   * 30/min mint budget. The 429 that followed imposed a 60s cooldown that
+   * straddled the token's real expiry, so the next request went out with no
+   * bearer, drew a 401, found the refresh cooling down, and signed the user out.
+   *
+   * Remembering the answer ends that: while the current token IS this value and
+   * has not yet expired, the server has already said it has nothing fresher, so
+   * the preflight sends the still-valid token instead of asking again. Once the
+   * token crosses `exp` the preflight asks once more and the server rotates.
+   */
+  private noFresherTokenThan: string | null = null;
   private authRefreshHandler: AuthRefreshHandler | null = null;
   private accessTokenProvider: AccessTokenProvider | null = null;
   private deviceSecretMintInFlight: Promise<DeviceSecretMintOutcome> | null = null;
@@ -1339,6 +1378,12 @@ export class HttpService {
 
       // If the token expires within the refresh lead window, refresh it.
       if (decoded.exp && decoded.exp - currentTime < TOKEN_REFRESH_LEAD_SECONDS) {
+        // The server already answered this token's refresh with this very token:
+        // it has nothing fresher until `exp`. Use it rather than asking again
+        // (see `noFresherTokenThan`).
+        if (decoded.exp > currentTime && accessToken === this.noFresherTokenThan) {
+          return `Bearer ${accessToken}`;
+        }
         const refreshed = await this.refreshAccessToken('preflight');
         if (refreshed) return `Bearer ${refreshed}`;
         if (decoded.exp > currentTime) {
@@ -1402,6 +1447,7 @@ export class HttpService {
             this.tokenStore.setTokens(newToken);
             this.notifyTokenChange();
           }
+          this.noFresherTokenThan = isInsideRefreshLeadWindow(newToken) ? newToken : null;
           // A success clears the failure timestamp so the next refresh is never
           // throttled by a stale cooldown.
           this.lastRefreshFailureAt = 0;
@@ -1436,6 +1482,17 @@ export class HttpService {
    */
   noteRefreshRateLimited(): void {
     this.lastRefreshWasRateLimited = true;
+  }
+
+  /**
+   * Whether the server has already answered a refresh of the CURRENT access
+   * token with that same, still-valid token — i.e. it has nothing fresher to
+   * give until the token's `exp`. The proactive scheduler reads this so it waits
+   * for expiry instead of re-asking at its 1s floor.
+   */
+  isAwaitingCurrentTokenExpiry(): boolean {
+    const token = this.tokenStore.getAccessToken();
+    return token !== null && token === this.noFresherTokenThan && isInsideRefreshLeadWindow(token);
   }
 
   /**

@@ -45,7 +45,8 @@ import {
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { resolveDeliveryPlatform } from '../utils/deliveryPlatform';
 import { runProviderColdBoot } from '../boot/runProviderColdBoot';
-import { loadPersistedDeviceCredential } from '../utils/deviceCredential';
+import { hasPersistedDeviceCredential, loadPersistedDeviceCredential } from '../utils/deviceCredential';
+import { createTokenLossRecovery } from '../session/tokenLossRecovery';
 import { bindAuthStoreToRuntime } from '../stores/authStore';
 import { useLanguageManagement } from '../hooks/useLanguageManagement';
 import { useSessionManagement } from '../hooks/useSessionManagement';
@@ -543,14 +544,52 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   });
 
 
-  // Token-change side effects: an invalidated bearer (HttpService clears tokens
-  // on an unrecoverable 401 and emits `null`) must locally sign out an
-  // authenticated user so `isAuthenticated` never lingers true with no token.
-  // The persisted store is NOT cleared here — the refresh handler already
-  // cleared it if the family was revoked; a transient null leaves it intact so a
-  // later reload can still restore.
+  // Token-change side effects. HttpService clears the bearer and emits `null`
+  // when a request draws a 401 its refresh could not answer — which happens on a
+  // transient failure (network, a cooling-down or rate-limited mint) as well as
+  // on a real revocation. A signed-in user is therefore NOT signed out on the
+  // spot: `tokenLossRecovery` keeps the session while the durable device
+  // credential survives and re-mints it, the way a relaunch would, and signs out
+  // only once the refresh handler has dropped that credential on a definitive
+  // server verdict (OxyHQ/Mention#1140). Until a token is back, `tokenReady` is
+  // false, so private queries wait instead of 401-ing.
   const clearingInvalidTokenRef = useRef(false);
   useEffect(() => {
+    const signOutLocally = async (): Promise<void> => {
+      if (clearingInvalidTokenRef.current) {
+        return;
+      }
+      clearingInvalidTokenRef.current = true;
+      try {
+        await clearSessionStateRef.current();
+      } catch (clearError) {
+        logger('Failed to clear invalidated auth session', clearError);
+      } finally {
+        clearingInvalidTokenRef.current = false;
+        if (runtime.getSnapshot().authResolved) {
+          runtime.setTokenReady(true);
+        }
+      }
+    };
+    const recovery = createTokenLossRecovery({
+      remint: () => oxyServices.httpService.refreshAccessToken('preflight'),
+      hasDeviceCredential: () => hasPersistedDeviceCredential(authStore),
+      hasKeyedRecovery: async () => {
+        if (Platform.OS === 'web') {
+          return false;
+        }
+        try {
+          // The same keys the refresh handler's second arm signs with: the
+          // identity-bound client's own key, or the cross-app shared identity.
+          return identity ? await KeyManager.hasIdentity() : await KeyManager.hasSharedIdentity();
+        } catch {
+          return false;
+        }
+      },
+      isSignedIn: () => runtime.getSnapshot().account !== null,
+      hasToken: () => Boolean(oxyServices.getAccessToken()),
+      signOutLocally,
+    });
     const handleTokenChange = (accessToken: string | null) => {
       runtime.setHasAccessToken(Boolean(accessToken));
       if (accessToken) {
@@ -562,20 +601,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       }
       if (runtime.getSnapshot().account !== null) {
         runtime.setTokenReady(false);
-        if (clearingInvalidTokenRef.current) {
-          return;
-        }
-        clearingInvalidTokenRef.current = true;
-        clearSessionStateRef.current()
-          .catch((clearError) => {
-            logger('Failed to clear invalidated auth session', clearError);
-          })
-          .finally(() => {
-            clearingInvalidTokenRef.current = false;
-            if (runtime.getSnapshot().authResolved) {
-              runtime.setTokenReady(true);
-            }
-          });
+        recovery.start();
         return;
       }
       if (runtime.getSnapshot().authResolved) {
@@ -583,8 +609,12 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       }
     };
     handleTokenChange(oxyServices.getAccessToken());
-    return oxyServices.onTokensChanged(handleTokenChange);
-  }, [logger, oxyServices, runtime, sessionClient]);
+    const unsubscribe = oxyServices.onTokensChanged(handleTokenChange);
+    return () => {
+      unsubscribe();
+      recovery.dispose();
+    };
+  }, [logger, oxyServices, runtime, sessionClient, authStore, identity]);
 
   // Unified in-session refresh (SDK-owned; every RP inherits it). Installs the
   // ONE core refresh handler (re-mint from the persisted zero-cookie device
