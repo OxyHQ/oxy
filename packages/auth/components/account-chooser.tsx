@@ -77,7 +77,7 @@ export function AccountChooser({
                                     variant="outline"
                                     size="lg"
                                     className="w-full h-auto p-4 justify-start"
-                                    onClick={() => onSelectContext(context)}
+                                    onPress={() => onSelectContext(context)}
                                     // A row the server marked unavailable is
                                     // rendered rather than hidden, so a revoked
                                     // membership is visible instead of a row that
@@ -109,7 +109,7 @@ export function AccountChooser({
                     variant="outline"
                     size="lg"
                     className="w-full h-auto p-4 justify-start"
-                    onClick={onUseAnother}
+                    onPress={onUseAnother}
                     disabled={isLoading}
                 >
                     <div className="size-10 rounded-full bg-muted flex items-center justify-center shrink-0">

@@ -234,13 +234,13 @@ export function HubPasskeyPage() {
                     </span>
                 </label>
                 {authorizeError && <p className="text-destructive text-sm">{authorizeError}</p>}
-                <Button disabled={!canAuthorize} onClick={handleAuthorizePress}>
+                <Button disabled={!canAuthorize} onPress={handleAuthorizePress}>
                     Authorize
                 </Button>
-                <Button variant="ghost" onClick={handleChooseDifferentAccount}>
+                <Button variant="ghost" onPress={handleChooseDifferentAccount}>
                     Not you? Choose a different account
                 </Button>
-                <Button variant="ghost" onClick={handleCancel}>
+                <Button variant="ghost" onPress={handleCancel}>
                     Cancel
                 </Button>
             </AuthFormLayout>
@@ -251,7 +251,7 @@ export function HubPasskeyPage() {
         <AuthFormLayout>
             <AuthFormHeader title={`Continue to ${application.name}`} />
             <OxyAuthChooser autoStartSignIn={false} onComplete={handleChooserComplete} />
-            <Button variant="ghost" onClick={handleCancel}>
+            <Button variant="ghost" onPress={handleCancel}>
                 Cancel
             </Button>
         </AuthFormLayout>

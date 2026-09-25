@@ -260,13 +260,13 @@ export function McpLinkPage() {
             </div>
           )}
           <div className="flex flex-col gap-space-8">
-            <Button size="lg" onClick={() => void handleApprove()} disabled={submitting}>
+            <Button size="lg" onPress={() => void handleApprove()} disabled={submitting}>
               {t("mcpLink.approve")}
             </Button>
             <Button
               size="lg"
               variant="ghost"
-              onClick={() =>
+              onPress={() =>
                 window.location.assign(
                   buildRelativeUrl("/login", { mcp_link_intent: intent })
                 )

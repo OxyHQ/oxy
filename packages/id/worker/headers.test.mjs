@@ -45,3 +45,11 @@ test('every asset response carries the headers, body and status intact', async (
   assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
   assert.equal(await response.text(), '<!doctype html>');
 });
+
+test('every response is no-transform, so the edge never injects the Insights beacon', async () => {
+  const assets = (headers) => ({ OXY_API_ORIGIN: 'https://api.oxy.so', ASSETS: { fetch: async () => new Response('x', { headers }) } });
+  const cached = await worker.fetch(new Request('https://id.oxy.so/'), assets({ 'cache-control': 'public, max-age=0, must-revalidate' }));
+  assert.equal(cached.headers.get('cache-control'), 'public, max-age=0, must-revalidate, no-transform');
+  const bare = await worker.fetch(new Request('https://id.oxy.so/'), assets({}));
+  assert.equal(bare.headers.get('cache-control'), 'no-transform');
+});
