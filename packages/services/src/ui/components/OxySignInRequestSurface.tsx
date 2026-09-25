@@ -150,7 +150,7 @@ export const OxySignInRequestSurface: React.FC<OxySignInRequestSurfaceProps> = (
     return (
       <View style={styles.centeredBlock}>
         {onRetry ? (
-          <Button appearance="solid" tone="accent" onPress={onRetry} style={styles.primaryButton}>
+          <Button appearance="solid" tone="accent" size="lg" onPress={onRetry} style={styles.primaryButton}>
             {t('common.actions.tryAgain')}
           </Button>
         ) : null}

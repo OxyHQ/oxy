@@ -241,6 +241,111 @@ function makeHarness(
 const directoryReads = (urls: string[]): number =>
   urls.filter((url) => url === '/session/device/directory').length;
 
+describe('AccountDialogController — back, and the menu needs a session', () => {
+  /** A harness with no bearer — nobody is signed in on this device. */
+  function signedOut(): Harness {
+    const harness = makeHarness();
+    harness.oxy.emitTokenChange(null);
+    return harness;
+  }
+
+  it('signed out, Back from "Create your account" returns to the sign-in entry, not the account menu', () => {
+    // The Android QA repro (OxyHQ/oxy#1375 item 1): Sign In → "New to Oxy?
+    // Create one" → ‹. The host's back used to be a hard-coded
+    // `setView('accounts')`, which opened "Switch account … Sign out" for nobody.
+    const { controller } = signedOut();
+    controller.setView('signin');
+    controller.startSignup();
+    expect(controller.getSnapshot().backView).toBe('signin');
+
+    expect(controller.back()).toBe(true);
+
+    expect(controller.getSnapshot().view).toBe('signin');
+  });
+
+  it('signed out, the sign-in entry is the first view: back reports nothing to go back to', () => {
+    const { controller } = signedOut();
+    controller.setView('signin');
+    const before = controller.getSnapshot();
+    expect(before.backView).toBeNull();
+
+    expect(controller.back()).toBe(false);
+
+    expect(controller.getSnapshot()).toBe(before);
+  });
+
+  it('signed out, the account menu is never the view — it resolves to the sign-in entry', async () => {
+    const { controller } = signedOut();
+    // A controller is constructed on `accounts`; started with no bearer, it
+    // shows the entry.
+    controller.start();
+    await flush();
+    expect(controller.getSnapshot().view).toBe('signin');
+
+    controller.setView('qr');
+    controller.setView('accounts');
+    expect(controller.getSnapshot().view).toBe('signin');
+
+    controller.add();
+    expect(controller.getSnapshot().backView).toBeNull();
+    expect(controller.back()).toBe(false);
+    expect(controller.getSnapshot().view).toBe('add');
+    controller.destroy();
+  });
+
+  it('signed out, Back from the QR request withdraws it and returns to the entry', async () => {
+    const { controller, oxy } = signedOut();
+    oxy.startCommonsSignIn.mockResolvedValue({
+      sessionToken: 'secret-tok',
+      authorizeCode: 'AUTH-CODE',
+      qrPayload: 'oxycommons://approve?v=1&code=AUTH-CODE',
+      expiresAt: Date.now() + 300_000,
+      status: 'pending',
+    });
+    controller.setView('signin');
+    await controller.showQr();
+    expect(controller.getSnapshot().view).toBe('qr');
+    expect(controller.getSnapshot().signIn.phase).toBe('waiting');
+
+    expect(controller.back()).toBe(true);
+
+    const snap = controller.getSnapshot();
+    expect(snap.view).toBe('signin');
+    expect(snap.signIn.phase).toBe('idle');
+    expect(oxy.denyCommonsSignIn).toHaveBeenCalledWith('AUTH-CODE');
+  });
+
+  it('signed in, back walks signup → add → accounts, and the menu is the first view', () => {
+    const { controller } = makeHarness();
+    controller.add();
+    controller.startSignup();
+    expect(controller.getSnapshot().backView).toBe('add');
+
+    expect(controller.back()).toBe(true);
+    expect(controller.getSnapshot().view).toBe('add');
+    expect(controller.getSnapshot().backView).toBe('accounts');
+
+    expect(controller.back()).toBe(true);
+    expect(controller.getSnapshot().view).toBe('accounts');
+    expect(controller.getSnapshot().backView).toBeNull();
+
+    expect(controller.back()).toBe(false);
+    expect(controller.getSnapshot().view).toBe('accounts');
+  });
+
+  it('signing out while the account menu is open leaves the menu for the sign-in entry', async () => {
+    const { controller, oxy } = makeHarness();
+    controller.start();
+    await flush();
+    expect(controller.getSnapshot().view).toBe('accounts');
+
+    oxy.emitTokenChange(null);
+
+    expect(controller.getSnapshot().view).toBe('signin');
+    controller.destroy();
+  });
+});
+
 describe('AccountDialogController — initial + views', () => {
   it('starts on the accounts view with an empty list and idle sign-in', () => {
     const { controller } = makeHarness();
