@@ -27,6 +27,7 @@ module.exports = {
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
     '^@oxy.so/protocol/node$': '<rootDir>/../protocol/src/node/index.ts',
     '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxy.so/protocol/random$': '<rootDir>/../protocol/src/random.ts',
     '^@oxy.so/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
     '^@oxy.so/core/server$': '<rootDir>/../core/src/server/index.ts',
     '^@oxy.so/core$': '<rootDir>/../core/src/index.ts',

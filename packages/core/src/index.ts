@@ -17,7 +17,10 @@
  * If a symbol does not appear here, it is NOT part of the public API.
  */
 
-// Ensure crypto polyfills are loaded before anything else
+// Ensure crypto polyfills are loaded before anything else. This MUST stay the
+// first import: `@noble/hashes` captures `globalThis.crypto` when it is
+// evaluated, so the shim has to exist before any module below reaches it (see
+// the evaluation-order note in `./crypto/polyfill`).
 import './crypto/polyfill';
 
 // ---------------------------------------------------------------------------
