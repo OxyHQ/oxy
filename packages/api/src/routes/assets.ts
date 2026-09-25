@@ -1061,8 +1061,7 @@ router.delete(
  *                           this field is what made players fail on a 403 and
  *                           fall back, once per video per play.
  *                       ownerUserId:
- *                         type: string
- *                         nullable: true
+ *                         type: [string, "null"]
  *                         description: >
  *                           The owning Oxy user (null for a system-owned file).
  *                           Present ONLY for Oxy's own applications (internal-tier

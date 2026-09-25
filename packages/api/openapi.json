@@ -5248,8 +5248,10 @@
                             "description": "When the adaptive HLS ladder for this asset finished transcoding. ABSENT when there is none — transcoding is asynchronous and per-rendition failures are swallowed, so a video may never get one. Consumers must treat absence as \"no adaptive stream\" and play the progressive original: the `?variant=hls_master` URL is derivable from the id, and building it without this field is what made players fail on a 403 and fall back, once per video per play.\n"
                           },
                           "ownerUserId": {
-                            "type": "string",
-                            "nullable": true,
+                            "type": [
+                              "string",
+                              "null"
+                            ],
                             "description": "The owning Oxy user (null for a system-owned file). Present ONLY for Oxy's own applications (internal-tier service tokens), so a first-party service can check an attached asset belongs to the acting user.\n"
                           }
                         }
