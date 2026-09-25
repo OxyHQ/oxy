@@ -69,7 +69,7 @@ const globalCss = join(ROOT, 'global.css');
 const built = (await postcss([tailwind()]).process(readFileSync(globalCss, 'utf8'), { from: globalCss })).css;
 
 // A class is emitted as a selector; escape the characters Tailwind escapes in one.
-const emitted = (name) => built.includes(`.${name.replace(/([.:/[\]!])/g, '\\$1')}`);
+const emitted = (name) => built.includes(`.${name.replace(/([\\.:/[\]!])/g, '\\$1')}`);
 
 const missing = [...used.keys()].filter((name) => !emitted(name)).sort();
 
