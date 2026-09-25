@@ -8,6 +8,7 @@ import {
 import { getDb } from '../config/postgres';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import { mcpOauthClients, mcpOauthGrants } from '../db/schema/mcpOAuth';
+import { users } from '../db/schema/users';
 import {
   authMiddleware,
   serviceAuthMiddleware,
@@ -37,8 +38,11 @@ import {
   approveMcpAccountLink,
   createMcpAccountLinkIntent,
   describeMcpAccountLinkIntent,
+  resolveMcpConnectionState,
   setMcpConnectionActiveAccount,
 } from '../services/mcpConnection.service';
+import { userService } from '../services/user.service';
+import graphCache from '../utils/graphCache';
 import { listActiveCapabilityCatalogs } from '../services/capabilityCatalog.service';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { logger } from '../utils/logger';
@@ -87,6 +91,20 @@ const connectionLimiter = rateLimit({
 });
 const introspectionLimiter = rateLimit({
   prefix: 'rl:auth:mcp:introspect:',
+  windowMs: 60 * 1_000,
+  max: process.env.NODE_ENV === 'development' ? 12_000 : 6_000,
+  keyGenerator: (request) =>
+    (request as ServiceAuthRequest).serviceApp?.appId ?? 'unknown',
+});
+
+/**
+ * The viewer-graph read runs on the same cadence as introspection — once per
+ * served request the resource server cannot answer from its own short cache —
+ * so it gets introspection's per-application budget, not the connection
+ * endpoints' (which serve rare, human-paced link and switch actions).
+ */
+const viewerGraphLimiter = rateLimit({
+  prefix: 'rl:auth:mcp:viewer-graph:',
   windowMs: 60 * 1_000,
   max: process.env.NODE_ENV === 'development' ? 12_000 : 6_000,
   keyGenerator: (request) =>
@@ -159,6 +177,12 @@ const connectionTokenSchema = z.object({ token: z.string().min(1) }).strict();
 const connectionAccountSchema = z.object({
   token: z.string().min(1),
   account_id: z.string().trim().min(1),
+}).strict();
+const connectionFollowSchema = z.object({
+  token: z.string().min(1),
+  tool: z.string().trim().min(1).max(128),
+  target_user_id: z.string().trim().min(1).max(128),
+  action: z.enum(['follow', 'unfollow']),
 }).strict();
 const linkIntentSchema = z.object({ intent: z.string().trim().min(1) }).strict();
 const introspectSchema = z.object({ token: z.string().min(1) }).strict();
@@ -447,6 +471,114 @@ router.post('/connections/active', serviceAuthMiddleware, connectionLimiter, asy
     });
     response.set('cache-control', 'no-store');
     response.json({ connection });
+  } catch (error) {
+    sendMcpOAuthError(response, error);
+  }
+});
+
+/**
+ * The social graph of the account this connection is serving — the follows,
+ * mutuals, blocks and restrictions the resource server needs to render that
+ * account's own view of its content.
+ *
+ * `GET /users/me/graph` refuses to disclose blocks and restrictions to a
+ * service credential, because `X-Oxy-User-Id` there is a bare header: any
+ * service holding `user:read` could name any user. An MCP request has no Oxy
+ * session to present instead — the connector's token is bound to the resource,
+ * and the resource server must never forward it as a session. So the resource
+ * server that registered the token's resource presents it HERE as proof, the
+ * same proof introspection and the other connection endpoints take:
+ *
+ *   - the token is live, unrevoked, and for a resource THIS service credential's
+ *     application registered (a token for another app's resource is refused);
+ *   - the account is Oxy's choice, never the caller's: the connection's active
+ *     member exactly as introspection reports it, so a resource server can read
+ *     only the graph of the account the person connected and selected;
+ *   - revoking the grant (or the member's authority) ends it on the next call.
+ *
+ * `account_id` is returned alongside, so the caller can refuse a graph for an
+ * account other than the one it is serving instead of trusting it blindly.
+ */
+router.post('/connections/viewer-graph', serviceAuthMiddleware, viewerGraphLimiter, async (request: ServiceAuthRequest, response) => {
+  try {
+    const body = connectionTokenSchema.parse(request.body);
+    const caller = await connectionCallerGrant(request, body.token);
+    const connection = await resolveMcpConnectionState(caller.grant);
+    const accountId = connection.active_account_id;
+    let graph = await graphCache.get(accountId);
+    if (!graph) {
+      graph = await userService.getViewerGraph(accountId);
+      await graphCache.set(accountId, graph);
+    }
+    response.set('cache-control', 'no-store');
+    response.json({ account_id: accountId, graph });
+  } catch (error) {
+    sendMcpOAuthError(response, error);
+  }
+});
+
+/**
+ * Follow or unfollow a LOCAL Oxy account as the account this connection serves.
+ *
+ * A local account's follow graph is Oxy's, and only its owner may move it:
+ * `POST /users/:id/follow` takes a user session, and `POST /federation/follow`
+ * refuses a service credential that names a local follower. An MCP request has
+ * neither a session nor a way to become one — so until now a connector could
+ * follow a fediverse actor (the resource server owns that edge) and nobody on
+ * Oxy itself.
+ *
+ * The person's consent is the connector's live token, and it is bounded three
+ * ways, all checked here rather than trusted from the caller:
+ *
+ *   - the token is live and for a resource THIS service credential registered;
+ *   - `tool` names a non-read tool in that resource's registered catalog, and
+ *     the token holds every capability it requires — the same write action the
+ *     person saw and approved on the consent screen;
+ *   - the follower is the connection's active account, chosen by Oxy.
+ *
+ * The target must be a live LOCAL account. A federated actor is followed over
+ * its own protocol by the resource server, which also records the remote edge;
+ * moving only the Oxy half here would leave the two disagreeing.
+ *
+ * Idempotent in both directions, like the primitives it calls.
+ */
+router.post('/connections/follow', serviceAuthMiddleware, connectionLimiter, async (request: ServiceAuthRequest, response) => {
+  try {
+    const body = connectionFollowSchema.parse(request.body);
+    const caller = await connectionCallerGrant(request, body.token);
+    const tool = caller.descriptor.tools.find((entry) => entry.name === body.tool);
+    const granted = new Set(normalizeMcpScopes(caller.claims.scope));
+    if (!tool || tool.effect === 'read'
+      || tool.requiredCapabilities.length === 0
+      || !tool.requiredCapabilities.every((capability) => granted.has(capability))) {
+      throw new McpOAuthError('invalid_scope', 'The MCP access token does not authorize this action', 403);
+    }
+    const connection = await resolveMcpConnectionState(caller.grant);
+    const followerId = connection.active_account_id;
+    if (followerId === body.target_user_id) {
+      throw new McpOAuthError('invalid_request', 'An account cannot follow itself', 400);
+    }
+    const [target] = await getDb()
+      .select({ id: users.id, type: users.type, accountStatus: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, body.target_user_id))
+      .limit(1);
+    if (!target || target.accountStatus === 'archived') {
+      throw new McpOAuthError('invalid_request', 'That account does not exist', 404);
+    }
+    if (target.type === 'federated') {
+      throw new McpOAuthError('invalid_request', 'A federated account is followed over its own protocol', 409);
+    }
+    const result = body.action === 'follow'
+      ? await userService.followUser(followerId, target.id)
+      : await userService.unfollowUser(followerId, target.id);
+    response.set('cache-control', 'no-store');
+    response.json({
+      account_id: followerId,
+      target_user_id: target.id,
+      action: body.action,
+      changed: 'created' in result ? result.created : result.removed,
+    });
   } catch (error) {
     sendMcpOAuthError(response, error);
   }

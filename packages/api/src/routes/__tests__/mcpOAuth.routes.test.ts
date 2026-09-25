@@ -9,7 +9,7 @@ import {
   mcpOAuthConsentResponseSchema,
   type AppCapabilityCatalog,
 } from '@oxy.so/contracts';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import express from 'express';
 import request from 'supertest';
 
@@ -53,6 +53,9 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { appCapabilityCatalogRegistrations } from '../../db/schema/agency';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
+import { blocks } from '../../db/schema/blocks';
+import { mcpOauthGrants } from '../../db/schema/mcpOAuth';
+import { userFollows } from '../../db/schema/userFollows';
 import { users } from '../../db/schema/users';
 import mcpOAuthRouter, { mcpOAuthDiscoveryRouter } from '../mcpOAuth';
 
@@ -372,4 +375,183 @@ it('requires the selected account and never presents an unrequested write action
     });
   expect(mismatchedAccount.status).toBe(403);
   expect(mismatchedAccount.body).toMatchObject({ error: 'access_denied' });
+});
+
+/** Register a client and run the consent + code exchange for the fixture's owner. */
+async function issueAccessToken(
+  input: Awaited<ReturnType<typeof fixture>>,
+  scope = 'resource.read',
+): Promise<string> {
+  const registration = await request(app).post('/auth/mcp/oauth/register').send({
+    client_name: 'Viewer graph MCP client',
+    redirect_uris: [input.redirectUri],
+    token_endpoint_auth_method: 'none',
+  });
+  const clientId = registration.body.client_id as string;
+  const verifier = 'v'.repeat(64);
+  const authorization = await request(app)
+    .post('/auth/mcp/oauth/authorize')
+    .set('authorization', 'Bearer user-session')
+    .send({
+      responseType: 'code',
+      clientId,
+      redirectUri: input.redirectUri,
+      resource: input.resource,
+      scope,
+      accountId: principalUserId,
+      codeChallenge: createHash('sha256').update(verifier).digest('base64url'),
+      codeChallengeMethod: 'S256',
+    });
+  expect(authorization.status).toBe(200);
+  const token = await request(app)
+    .post('/auth/mcp/oauth/token')
+    .type('form')
+    .send({
+      grant_type: 'authorization_code',
+      code: authorization.body.code,
+      client_id: clientId,
+      redirect_uri: input.redirectUri,
+      code_verifier: verifier,
+      resource: input.resource,
+    });
+  expect(token.status).toBe(200);
+  return token.body.access_token as string;
+}
+
+describe('POST /auth/mcp/oauth/connections/viewer-graph', () => {
+  it('answers the connected account its own blocks, only for the resource this service registered', async () => {
+    const input = await fixture();
+    const viewerId = principalUserId;
+    const [blocked] = await getDb().insert(users).values({
+      username: `mcp-blocked-${randomUUID()}`,
+      nameDisplay: 'Blocked account',
+      color: 'teal',
+    }).returning({ id: users.id });
+    await getDb().insert(blocks).values({ userId: viewerId, blockedId: blocked.id });
+    const accessToken = await issueAccessToken(input);
+
+    const graph = await request(app)
+      .post('/auth/mcp/oauth/connections/viewer-graph')
+      .set('authorization', 'Bearer service-token')
+      .send({ token: accessToken });
+    expect(graph.status).toBe(200);
+    expect(graph.headers['cache-control']).toBe('no-store');
+    expect(graph.body.account_id).toBe(viewerId);
+    expect(graph.body.graph).toMatchObject({ blockedIds: [blocked.id], restrictedIds: [] });
+
+    // A different application's service credential cannot read this viewer's
+    // graph with the token: the resource belongs to the fixture's application.
+    const owningApplicationId = serviceApplicationId;
+    await fixture();
+    const foreign = await request(app)
+      .post('/auth/mcp/oauth/connections/viewer-graph')
+      .set('authorization', 'Bearer service-token')
+      .send({ token: accessToken });
+    expect(foreign.status).toBe(401);
+    expect(foreign.body).toMatchObject({ error: 'invalid_grant' });
+    expect(foreign.body).not.toHaveProperty('graph');
+    serviceApplicationId = owningApplicationId;
+    principalUserId = viewerId;
+
+    // Revoking the grant ends the read on the very next call.
+    await getDb().update(mcpOauthGrants).set({ revokedAt: new Date() })
+      .where(eq(mcpOauthGrants.effectiveAccountId, viewerId));
+    const revoked = await request(app)
+      .post('/auth/mcp/oauth/connections/viewer-graph')
+      .set('authorization', 'Bearer service-token')
+      .send({ token: accessToken });
+    expect(revoked.status).toBe(401);
+    expect(revoked.body).not.toHaveProperty('graph');
+  });
+
+  it('refuses a token that is not a live MCP access token', async () => {
+    await fixture();
+    const response = await request(app)
+      .post('/auth/mcp/oauth/connections/viewer-graph')
+      .set('authorization', 'Bearer service-token')
+      .send({ token: 'not-a-token' });
+    expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({ error: 'invalid_grant' });
+  });
+});
+
+describe('POST /auth/mcp/oauth/connections/follow', () => {
+  async function localUser(type: 'local' | 'federated' = 'local'): Promise<string> {
+    const [row] = await getDb().insert(users).values({
+      username: `mcp-follow-${randomUUID()}`,
+      nameDisplay: 'Follow target',
+      color: 'teal',
+      type,
+    }).returning({ id: users.id });
+    return row.id;
+  }
+
+  async function follows(followerId: string, followedId: string): Promise<boolean> {
+    const rows = await getDb().select({ id: userFollows.id }).from(userFollows)
+      .where(and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, followedId)));
+    return rows.length > 0;
+  }
+
+  function follow(body: Record<string, unknown>) {
+    return request(app)
+      .post('/auth/mcp/oauth/connections/follow')
+      .set('authorization', 'Bearer service-token')
+      .send(body);
+  }
+
+  it('moves the served account’s own follow edge for a consented write tool, idempotently', async () => {
+    const input = await fixture();
+    const viewerId = principalUserId;
+    const target = await localUser();
+    const token = await issueAccessToken(input, 'resource.read resource.write');
+
+    const first = await follow({ token, tool: 'updateResource', target_user_id: target, action: 'follow' });
+    expect(first.status).toBe(200);
+    expect(first.body).toEqual({ account_id: viewerId, target_user_id: target, action: 'follow', changed: true });
+    expect(await follows(viewerId, target)).toBe(true);
+
+    const again = await follow({ token, tool: 'updateResource', target_user_id: target, action: 'follow' });
+    expect(again.body).toMatchObject({ changed: false });
+
+    const undo = await follow({ token, tool: 'updateResource', target_user_id: target, action: 'unfollow' });
+    expect(undo.body).toMatchObject({ action: 'unfollow', changed: true });
+    expect(await follows(viewerId, target)).toBe(false);
+  });
+
+  it('refuses a token whose consent does not cover a write tool', async () => {
+    const input = await fixture();
+    const viewerId = principalUserId;
+    const target = await localUser();
+    const readOnly = await issueAccessToken(input, 'resource.read');
+
+    for (const tool of ['updateResource', 'readResource', 'not-a-tool']) {
+      const response = await follow({ token: readOnly, tool, target_user_id: target, action: 'follow' });
+      expect(response.status).toBe(403);
+      expect(response.body).toMatchObject({ error: 'invalid_scope' });
+    }
+    expect(await follows(viewerId, target)).toBe(false);
+  });
+
+  it('refuses a federated target, the account itself, and another application', async () => {
+    const input = await fixture();
+    const viewerId = principalUserId;
+    const token = await issueAccessToken(input, 'resource.read resource.write');
+    const federated = await localUser('federated');
+
+    const remote = await follow({ token, tool: 'updateResource', target_user_id: federated, action: 'follow' });
+    expect(remote.status).toBe(409);
+    expect(await follows(viewerId, federated)).toBe(false);
+
+    const self = await follow({ token, tool: 'updateResource', target_user_id: viewerId, action: 'follow' });
+    expect(self.status).toBe(400);
+
+    const target = await localUser();
+    const owningApplicationId = serviceApplicationId;
+    await fixture();
+    const foreign = await follow({ token, tool: 'updateResource', target_user_id: target, action: 'follow' });
+    expect(foreign.status).toBe(401);
+    expect(await follows(viewerId, target)).toBe(false);
+    serviceApplicationId = owningApplicationId;
+    principalUserId = viewerId;
+  });
 });
