@@ -51,13 +51,12 @@ these before proposing a change to the model:
 Stated here rather than left for a reader to infer from silence. Each is an
 accepted gap with a named reason, not an oversight:
 
-- **The personal root still lives on an internal holder host (`id.oxy.so`), not
-  in `auth.oxy.so`** ([ADR 0024](../adr/0024-one-oxy-account-root-holders.md) D1).
-  Accounts are created with their root, sign-in never unlocks it, recovery needs
-  only the root, and no copy names the host — but moving the holder into
-  `auth.oxy.so` waits on the holder gate (release manifest, dependency review,
-  no full SDK graph on that origin). Inventory, invariants and open items:
-  [holders-and-recovery.md](../identity/holders-and-recovery.md).
+- **The personal root's web holder is `auth.oxy.so`** ([ADR 0028](../adr/0028-the-identity-carrier-is-auth-oxy-so.md),
+  changing 0024 D1/D2). Accounts are created with their root, sign-in never
+  unlocks it, recovery needs only the root. The accepted differences from the
+  old minimal host — the full SDK graph, `style-src 'unsafe-inline'` for
+  react-native-web, no release manifest yet — are listed in the ADR. Inventory,
+  invariants and open items: [holders-and-recovery.md](../identity/holders-and-recovery.md).
 
 - **ADR 0003's browser hub is BUILT and WIRED, but UNVERIFIED, NOT DEPLOYED, and
   OFF BY DEFAULT.** The server layer

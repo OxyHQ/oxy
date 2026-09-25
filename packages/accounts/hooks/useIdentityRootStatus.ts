@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Linking } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import type { IdentityRootStatus } from '@oxy.so/contracts';
-import { IDENTITY_WEB_ORIGIN } from '@oxy.so/core';
+import { AUTH_WEB_ORIGIN } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
 
 /**
@@ -24,10 +24,10 @@ export function useIdentityRootStatus(): IdentityRootStatus | undefined {
 
 /**
  * Open the person's Oxy identity (save or show the recovery phrase, recover,
- * add Commons). It runs on Oxy's own identity page, never inside this app.
+ * add Commons). It runs on auth.oxy.so/identity, never inside this app.
  */
 export function useOpenIdentity(): () => void {
   return useCallback(() => {
-    Linking.openURL(`${IDENTITY_WEB_ORIGIN}/`).catch(() => undefined);
+    Linking.openURL(`${AUTH_WEB_ORIGIN}/identity`).catch(() => undefined);
   }, []);
 }

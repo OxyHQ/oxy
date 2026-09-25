@@ -63,7 +63,7 @@ import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
 import { errorHandler } from '../../middleware/errorHandler';
 import identityRecoveryRouter from '../identityRecovery';
 
-const HOLDER = 'https://id.oxy.so';
+const HOLDER = 'https://auth.oxy.so';
 
 interface JsonResponse {
   status: number;

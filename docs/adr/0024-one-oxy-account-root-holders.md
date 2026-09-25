@@ -1,6 +1,6 @@
 # 0024 — One Oxy account: `auth.oxy.so` is the web entry, the root lives in user-controlled holders
 
-- Status: accepted
+- Status: accepted; D1 and D2 changed by [ADR 0028](0028-the-identity-carrier-is-auth-oxy-so.md) (the holder is `auth.oxy.so`, `id.oxy.so` is gone)
 - Issue: #1302 (coordinates with #937, #691, #1288–#1296, #1301)
 - Scope: web sign-in and account creation, the personal identity root, the web
   holder (`packages/id`), the identity envelope and move APIs, root link/unlink/

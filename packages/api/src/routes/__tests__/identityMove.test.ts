@@ -60,7 +60,7 @@ import { errorHandler } from '../../middleware/errorHandler';
 import { mintIdentityProofChallenge } from '../../services/identityProof.service';
 import identityMoveRouter from '../identityMove';
 
-const HOLDER = 'https://id.oxy.so';
+const HOLDER = 'https://auth.oxy.so';
 const COMMONS = null;
 
 interface JsonResponse {

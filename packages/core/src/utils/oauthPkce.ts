@@ -16,11 +16,12 @@
  * React Native. No `require()`, so the ESM build stays bundler-clean.
  */
 
+import { AUTH_WEB_ORIGIN } from './authWebUrl';
 import { isNodeJS, isReactNative, loadExpoCrypto, loadNodeCrypto, sha256 } from '@oxy.so/protocol';
 import { logger } from '../logger';
 
 /** The central Oxy IdP authorization endpoint used by default. */
-export const OXY_AUTHORIZE_URL = 'https://auth.oxy.so/authorize';
+export const OXY_AUTHORIZE_URL = `${AUTH_WEB_ORIGIN}/authorize`;
 
 /** Default OAuth scope requested for a "Sign in with Oxy" third-party flow. */
 export const DEFAULT_OAUTH_SCOPE = 'openid profile';

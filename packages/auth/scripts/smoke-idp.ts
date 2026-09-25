@@ -22,6 +22,7 @@
  *   - SPA renders blank / build totally broken   → `/`, `/login`, `/signup`, `/authorize` lose the SPA root marker.
  *   - `/authorize` not routed at all             → a PKCE-bound authorize URL stops answering 200 with the SPA shell.
  *   - `/device` not served                        → the link `codea login` prints stops answering 200 with the SPA shell.
+ *   - the identity carrier not served             → `/continue` (every app's passkey window) and `/identity` lose the SPA shell.
  *   - FedCM manifest NOT removed                  → `/.well-known/web-identity` still serves the FedCM config JSON.
  *
  * What it CANNOT catch, despite an earlier comment here claiming otherwise: a
@@ -207,11 +208,19 @@ async function checkSecurityHeaders(hostBase: string): Promise<void> {
   if (out.headers.get('x-frame-options')?.toUpperCase() !== 'DENY') {
     missing.push('X-Frame-Options: DENY');
   }
+  // The rest of the holder policy (ADR 0028 D2): this origin opens roots.
+  if (!csp.includes("form-action 'none'")) missing.push("form-action 'none'");
+  if (out.headers.get('referrer-policy') !== 'no-referrer') missing.push('Referrer-Policy: no-referrer');
+  if (!out.headers.get('permissions-policy')?.includes('publickey-credentials-get=(self)')) {
+    missing.push('Permissions-Policy with passkeys for this origin only');
+  }
+  // The identity window reports back to its opener; COOP would sever it.
+  if (out.headers.get('cross-origin-opener-policy')) missing.push('NO Cross-Origin-Opener-Policy');
   if (missing.length > 0) {
     record('security headers', false, `missing: ${missing.join('; ')}`);
     return;
   }
-  record('security headers', true, 'strict CSP (no beacon or analytics hosts) + X-Frame-Options present');
+  record('security headers', true, 'strict CSP (no beacon or analytics hosts), X-Frame-Options and the holder policy present');
 }
 
 async function run(): Promise<void> {
@@ -220,6 +229,8 @@ async function run(): Promise<void> {
   await checkSpaPage(PRIMARY_TARGET, '/login');
   await checkSpaPage(PRIMARY_TARGET, '/signup');
   await checkSpaPage(PRIMARY_TARGET, '/authorize');
+  await checkSpaPage(PRIMARY_TARGET, '/continue');
+  await checkSpaPage(PRIMARY_TARGET, '/identity');
   await checkAuthorizeWithPkce(PRIMARY_TARGET);
   await checkDeviceApproval(PRIMARY_TARGET);
   await checkWebIdentityGone(PRIMARY_TARGET);

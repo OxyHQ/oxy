@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'bun:test';
 import { base64UrlToBuffer, bufferToBase64Url } from '../base64url';
 
 describe('base64url', () => {

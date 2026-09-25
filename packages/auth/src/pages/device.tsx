@@ -33,9 +33,9 @@ const CODE_PARAM = "user_code";
  * A client with no browser of its own — `codea login` in a terminal, over SSH,
  * inside a container — starts a Commons device sign-in and shows the person a
  * PUBLIC approval code. Until this page existed the only thing that could
- * approve that code was the native Commons app: the other web page that calls
- * `POST /auth/session/authorize-code/:code` (`id.oxy.so/continue`) is a popup
- * that refuses to render without `window.opener`. It relays nothing to that
+ * approve that code was the native Commons app: the other page that calls
+ * `POST /auth/session/authorize-code/:code` (`/continue`) is a popup that
+ * refuses to render without `window.opener`. It relays nothing to that
  * opener — the approval lands server-side and the initiator finishes by
  * polling — so a tab opened from a link works just as well, and this is that
  * tab.

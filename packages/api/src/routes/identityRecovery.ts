@@ -62,7 +62,7 @@ function recoveryFailed(message = 'This recovery could not be completed. Start a
 function requireHolderOrigin(req: Request, _res: Response, next: NextFunction): void {
   const origin = req.headers.origin;
   if (typeof origin !== 'string' || !isHolderOrigin(origin)) {
-    next(new ForbiddenError('This endpoint is only available to the Oxy identity origin'));
+    next(new ForbiddenError('This endpoint is only available to auth.oxy.so'));
     return;
   }
   next();

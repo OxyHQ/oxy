@@ -13,7 +13,7 @@ a bug.
 | Holder | A user-controlled place that can use the root: Commons' keychain, or a web envelope wrap that one passkey's PRF output opens. |
 | Recovery material | A phrase or a raw private key. Not a holder. |
 | Web envelope | `identity_web_envelopes`: sealed secret + one wrap per passkey. Ciphertext only. One scheme (`version 2`): phrase entropy of any length or a raw key; every wrap names its RP ID. |
-| Holder host | `id.oxy.so` — the internal origin that runs every root operation in a browser (ADR 0024 D1). Never named in product copy. |
+| Holder host | `auth.oxy.so` — the IdP, which runs every root operation in a browser (`/continue`, `/identity`; ADR 0028). |
 | Root proof | A signature by the root over `buildIdentityProofMessage` claims, spending a one-use challenge (ADR 0024 D7). |
 
 ## Invariants and where they are enforced
@@ -21,8 +21,8 @@ a bug.
 | Invariant | Enforced by |
 |---|---|
 | A personal account is created with its root, or not at all | `POST /webauthn/register/verify` refuses sign-up without `identity` (`IDENTITY_ENROLLMENT_REQUIRED`); the holder host confirms a stable PRF output before registering; `auth.oxy.so` sign-up opens the holder flow |
-| Signing in never unlocks the root | `packages/id/src/identity/passkey.ts` (`assertPasskey` has no PRF extension); status from `GET /identity/web-envelope` metadata or `GET /identity/root-status` |
-| Every root operation is one fresh ceremony, wiped after | `withRoot` / `openRootForDisplay` in `packages/id/src/identity/carrier.ts` |
+| Signing in never unlocks the root | `packages/auth/lib/identity/passkey.ts` (`assertPasskey` has no PRF extension); status from `GET /identity/web-envelope` metadata or `GET /identity/root-status` |
+| Every root operation is one fresh ceremony, wiped after | `withRoot` / `openRootForDisplay` in `packages/auth/lib/identity/carrier.ts` |
 | A root is linked first-time only, with a fresh factor | `POST /auth/link` and `POST /identity/web-envelope/establish` (proof + WebAuthn assertion over the same challenge) |
 | A root is never unlinked | No route removes a root: `DELETE /auth/link/:type` does not exist; only `DELETE /auth/link/webauthn/:id` |
 | A root is replaced only by rotation | `POST /auth/rotate/*` (old-root + new-root proofs); rotation deletes the old root's envelope and backup |
@@ -63,10 +63,9 @@ a bug.
 
 | Caller | Uses |
 |---|---|
-| `packages/id` (holder host) | sign-in (no PRF), sign-up with root, establish, phrase/recovery facts, signed-in reseal, signed-out recovery, transfer initiator, account deletion |
 | `packages/commons` | Commons sign-up (`/auth/register`, key included), backup, transfer receiver |
-| `packages/services` account dialog | opens the holder host `/continue` popup for web sign-in, creation and recovery; native creation goes to Commons |
-| `packages/auth` (`auth.oxy.so`) | passkey sign-in (no PRF); sign-up opens the canonical flow |
+| `packages/services` account dialog | opens `auth.oxy.so/continue` for web sign-up, and for sign-in off an `oxy.so` origin; `auth.oxy.so/identity` for the phrase, recovery and deletion; native creation goes to Commons |
+| `packages/auth` (`auth.oxy.so`, holder host) | passkey sign-in (no PRF); `lib/identity/` + `/continue`, `/identity`: sign-up with root, establish, phrase/recovery facts, signed-in reseal, signed-out recovery, transfer initiator, account deletion |
 | `packages/accounts` | `GET /identity/root-status` for the recovery-phrase row and recommendations; passkey list/remove |
 
 ## Migration classes
@@ -96,11 +95,8 @@ unscoped wraps, v1 proofs, transfer v1, `/device-transfer`, `DELETE
 
 ## Open work (tracked in #1302)
 
-- **Holder host retirement** (ADR 0024 D1): not started. Criteria are in the ADR.
-  `auth.oxy.so` no longer runs third-party analytics, but still loads the full
-  SDK/UI graph and has no release manifest, so it does not meet the holder gate.
-- **Canonical RP ID** (D2): wraps record `rpId`; no credential has been created
-  under a non-`oxy.so` RP yet, and there is no legacy→canonical wrap migration.
+- **Holder host**: done (ADR 0028) — `id.oxy.so` is gone and `auth.oxy.so` is
+  the holder. Every credential stays on RP ID `oxy.so`.
 - **Browser SSO hub** (#937, ADR 0003): still behind `VITE_OXY_BROWSER_HUB`;
   passkey sign-in on the holder host does not establish a hub session.
 - **Consent binding**: the `/continue` screen still relies on an explicit

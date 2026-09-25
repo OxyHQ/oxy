@@ -62,7 +62,7 @@ import type { SessionLoginResponse, MinimalUserData } from '../models/session';
 import type { User } from '../models/interfaces';
 import { logger } from '../logger';
 import { extractErrorStatus } from '../utils/errorUtils';
-import { IDENTITY_WEB_ORIGIN } from '../utils/authWebUrl';
+import { AUTH_WEB_ORIGIN } from '../utils/authWebUrl';
 import type { SessionClient } from './SessionClient';
 import { getSocketIO, type MinimalSocket, type SocketIOFactory } from './socketLoader';
 import { resolveActiveContext, type DeviceContext } from './deviceDirectory';
@@ -440,12 +440,13 @@ export interface AccountDialogControllerOptions {
    */
   openPopup?: () => PopupWindowHandle | null;
   /**
-   * Origin of the web identity carrier (default `IDENTITY_WEB_ORIGIN`,
-   * `https://id.oxy.so`) — where a passkey sign-in or sign-up runs
-   * and the account's identity is kept sealed under the passkey. The popup opens
-   * `<identityOrigin>/continue?code=…`. Overridable for local/staging testing.
+   * The IdP's origin (default `AUTH_WEB_ORIGIN`, `https://auth.oxy.so`) — the
+   * web identity carrier, where a passkey sign-in or sign-up from another
+   * origin runs and the account's identity is kept sealed under the passkey.
+   * The popup opens `<authOrigin>/continue?user_code=…`. Overridable for
+   * local/staging testing.
    */
-  identityOrigin?: string;
+  authOrigin?: string;
   /**
    * Which surface the sign-in is initiated from — a FACT supplied by the
    * consumer, because only the consumer can classify its own environment
@@ -532,7 +533,7 @@ export class AccountDialogController {
   private readonly canOpenApp?: (url: string) => Promise<boolean>;
   private readonly socketFactory?: SocketIOFactory;
   private readonly openPopup?: () => PopupWindowHandle | null;
-  private readonly identityOrigin: string;
+  private readonly authOrigin: string;
   private readonly platform: CommonsDeliveryPlatform;
 
   private readonly listeners = new Set<SnapshotListener>();
@@ -605,7 +606,7 @@ export class AccountDialogController {
     this.canOpenApp = options.canOpenApp;
     this.socketFactory = options.socketFactory;
     this.openPopup = options.openPopup;
-    this.identityOrigin = options.identityOrigin ?? IDENTITY_WEB_ORIGIN;
+    this.authOrigin = options.authOrigin ?? AUTH_WEB_ORIGIN;
     this.platform = options.platform ?? 'unknown';
     this.snapshot = this.computeSnapshot();
   }
@@ -1145,11 +1146,11 @@ export class AccountDialogController {
 
   /**
    * Web-only: sign in (or create an account) with a passkey at the web identity
-   * carrier. The ceremony runs on `id.oxy.so`, never on the calling origin, for
-   * two reasons: a credential minted with `WEBAUTHN_RP_ID=oxy.so` can only be
-   * asserted from `oxy.so`/a subdomain/loopback (a browser-enforced boundary),
-   * and only the identity origin may unseal or create the account's identity
-   * (one identity, two carriers). Opens a popup at `<identityOrigin>/continue`,
+   * carrier. The ceremony runs on `auth.oxy.so`, never on the calling origin,
+   * for two reasons: a credential minted with `WEBAUTHN_RP_ID=oxy.so` can only
+   * be asserted from `oxy.so`/a subdomain/loopback (a browser-enforced
+   * boundary), and only the IdP may unseal or create the account's identity
+   * (one identity, two carriers). Opens a popup at `<authOrigin>/continue`,
    * scoped to the SAME device-flow
    * session {@link showQr} would create (same `authorizeCode`/`sessionToken`
    * pair), and let the SAME poll/socket/claim engine complete it once the hub
@@ -1195,7 +1196,9 @@ export class AccountDialogController {
       if (pendingCode) void this.withdrawRequest(pendingCode);
       return;
     }
-    popup.location.href = `${this.identityOrigin}/continue?code=${encodeURIComponent(handle.authorizeCode)}`;
+    // `user_code`, never `code`: the IdP's own `OxyProvider` cold boot reads a
+    // `?code=` as the return leg of an OAuth redirect and strips it.
+    popup.location.href = `${this.authOrigin}/continue?user_code=${encodeURIComponent(handle.authorizeCode)}`;
     this.watchPopup(popup);
   }
 

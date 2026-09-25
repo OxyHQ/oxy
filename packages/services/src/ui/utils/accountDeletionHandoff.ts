@@ -1,6 +1,6 @@
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
-import { IDENTITY_WEB_ORIGIN, logger } from '@oxy.so/core';
+import { AUTH_WEB_ORIGIN, logger } from '@oxy.so/core';
 
 /**
  * Commons' own delete-account screen (`app/(tabs)/(settings)/delete-account.tsx`
@@ -100,7 +100,7 @@ export async function runAccountDeletionHandoff(
     return 'handled';
   }
 
-  const site = IDENTITY_WEB_ORIGIN.replace(/^https?:\/\//, '');
+  const site = `${AUTH_WEB_ORIGIN.replace(/^https?:\/\//, '')}/identity`;
   await surfaces.confirm({
     title: text('deleteAccount.handoff.elsewhereTitle', 'Delete your account where your identity is'),
     description: text(

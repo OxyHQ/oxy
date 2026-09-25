@@ -30,7 +30,6 @@ jobs:
     outputs:
       accounts: ${{ steps.filter.outputs.accounts }}
       auth: ${{ steps.filter.outputs.auth }}
-      id: ${{ steps.filter.outputs.id }}
       console: ${{ steps.filter.outputs.console }}
     steps:
       - uses: actions/checkout@v7
@@ -54,11 +53,6 @@ jobs:
               - 'packages/core/**'
               - 'packages/protocol/**'
               - 'packages/services/**'
-              - 'packages/contracts/**'
-            id:
-              - 'packages/id/**'
-              - 'packages/core/**'
-              - 'packages/protocol/**'
               - 'packages/contracts/**'
             console:
               - 'packages/console/**'
@@ -217,42 +211,6 @@ jobs:
           smoke:csp
           'CSP smoke'
           'accounts.oxy.so is serving a CSP that blocks its own inline script'
-
-  # `id.oxy.so` — the web identity carrier. A Worker like accounts (see
-  # packages/id/wrangler.toml); the header policy lives in the Worker itself and
-  # the smoke gate below checks the LIVE host still serves it.
-  deploy-id:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.id == 'true' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: main
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24.x'
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: bun x turbo run build --filter=id
-      # `bunx wrangler@4` directly — see the accounts job for why never the action.
-      - name: Deploy the Worker
-        working-directory: packages/id
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: bunx wrangler@4 deploy
-      - name: Post-deploy header smoke gate
-        working-directory: packages/id
-        env:
-          SMOKE_TARGET: https://id.oxy.so
-        run: >
-          "$GITHUB_WORKSPACE/.github/scripts/retry-smoke.sh"
-          smoke:headers
-          'Header smoke'
-          'id.oxy.so is not serving the identity-origin header policy'
 
   deploy-console:
     needs: detect-changes

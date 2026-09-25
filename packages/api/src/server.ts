@@ -844,7 +844,7 @@ app.use('/app-signals', appSignalsRouter);
 // BEFORE `/identity` so the more specific `/identity/backup` prefix wins.
 app.use('/identity/backup', identityBackupRoutes);
 // Sealed web copy of an identity (one identity, two carriers). Bearer +
-// identity-key proof on every write and restricted to the identity origin.
+// identity-key proof on every write and restricted to auth.oxy.so, the web identity carrier.
 // Mounted BEFORE `/identity` so its specific prefix wins.
 // One-use challenges for root proofs (ADR 0024 D7) and root readiness metadata.
 // Bearer only; a challenge authorizes nothing until a root signs it, and the

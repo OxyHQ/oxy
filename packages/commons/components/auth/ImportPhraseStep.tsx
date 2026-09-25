@@ -30,7 +30,7 @@ interface ImportPhraseStepProps {
    */
   onImportPrivateKey?: () => void;
   /**
-   * Optional handler for moving an identity kept on the web (`id.oxy.so`) onto
+   * Optional handler for moving an identity kept on the web (`auth.oxy.so/identity`) onto
    * this device by scanning the code the web shows.
    */
   onMoveFromWeb?: () => void;

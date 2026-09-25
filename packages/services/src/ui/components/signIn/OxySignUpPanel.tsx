@@ -3,7 +3,7 @@
  * auth.oxy.so/signup.
  *
  * An Oxy account is created WITH its self-custody root, or not at all (ADR
- * 0024 D4), and only the identity origin may create one: on the web the
+ * 0024 D4), and only auth.oxy.so may create one: on the web the
  * account is made in the identity window — the same one a passkey sign-in off
  * an `oxy.so` origin opens — and never on this page, whatever its origin. On
  * native, Commons creates the identity: straight in when it is installed,

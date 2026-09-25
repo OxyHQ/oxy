@@ -202,7 +202,7 @@ function makeHarness(
   over: Partial<{
     clientId: string | null;
     openPopup: () => import('../accountDialogController').PopupWindowHandle | null;
-    identityOrigin: string;
+    authOrigin: string;
     platform: import('../../utils/commonsDelivery').CommonsDeliveryPlatform;
     openUrl: (url: string) => void;
     canOpenApp: (url: string) => Promise<boolean>;
@@ -221,7 +221,7 @@ function makeHarness(
     onSignedIn,
     pollIntervalMs: 1000,
     openPopup: over.openPopup,
-    identityOrigin: over.identityOrigin,
+    authOrigin: over.authOrigin,
     platform: over.platform,
     openUrl: over.openUrl,
     canOpenApp: over.canOpenApp,
@@ -785,7 +785,7 @@ describe('AccountDialogController — startPasskeyHubSignIn (b2 passkey hub popu
   it('opens the popup synchronously, then navigates it to the hub URL with the authorizeCode once the session exists', async () => {
     const popup = fakePopup();
     const openPopup = jest.fn(() => popup);
-    const { controller, oxy } = makeHarness({ openPopup, identityOrigin: 'https://id.oxy.so' });
+    const { controller, oxy } = makeHarness({ openPopup, authOrigin: 'https://auth.oxy.so' });
     oxy.startCommonsSignIn.mockResolvedValue({
       sessionToken: 'secret-tok',
       authorizeCode: 'AUTH-CODE',
@@ -797,7 +797,7 @@ describe('AccountDialogController — startPasskeyHubSignIn (b2 passkey hub popu
     await controller.startPasskeyHubSignIn();
 
     expect(openPopup).toHaveBeenCalledTimes(1);
-    expect(popup.location.href).toBe('https://id.oxy.so/continue?code=AUTH-CODE');
+    expect(popup.location.href).toBe('https://auth.oxy.so/continue?user_code=AUTH-CODE');
     // Same underlying device-flow session showQr would create — the QR view
     // still renders as a fallback/alternative alongside the popup.
     const snap = controller.getSnapshot();
@@ -1451,7 +1451,7 @@ describe('AccountDialogController — automatic delivery selection (#691 phase 5
       pollIntervalMs: 1000,
       platform: 'desktop',
       openPopup: () => popup,
-      identityOrigin: 'https://id.oxy.so',
+      authOrigin: 'https://auth.oxy.so',
     });
 
     await controller.startPasskeyHubSignIn();
@@ -2381,7 +2381,7 @@ describe('AccountDialogController — "Try again" repeats the user\'s choice', (
     await retry;
 
     expect(oxy.deliverCommonsSignIn).not.toHaveBeenCalled();
-    expect(popup.location.href).toContain('/continue?code=AUTH-CODE');
+    expect(popup.location.href).toContain('/continue?user_code=AUTH-CODE');
     controller.cancelSignIn();
   });
 

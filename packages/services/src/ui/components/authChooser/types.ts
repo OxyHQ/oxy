@@ -96,7 +96,7 @@ export interface AccountsMenuActions {
   onTerms: () => void;
   onSignOut: () => void;
   /**
-   * Open the person's identity at the identity origin (recovery phrase,
+   * Open the person's identity at auth.oxy.so/identity (recovery phrase,
    * recovery, account deletion). Web only — `undefined` hides the row.
    */
   onOpenIdentity?: () => void;
@@ -111,7 +111,7 @@ export interface AccountsMenuActions {
 /**
  * Where a passkey sign-in or sign-up can run from the current surface.
  *
- * `'hub'`  = web: it runs at the identity origin (`id.oxy.so`) in a popup, on
+ * `'hub'`  = web: it runs at the identity window (`auth.oxy.so/continue`), on
  *            every web origin, first-party or not.
  * `'none'` = native, where Commons owns identity.
  */

@@ -847,7 +847,7 @@ describe('OxyAuthChooser', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Your identity' }));
 
-      await waitFor(() => expect(openURL).toHaveBeenCalledWith('https://id.oxy.so/'));
+      await waitFor(() => expect(openURL).toHaveBeenCalledWith('https://auth.oxy.so/identity'));
       openURL.mockRestore();
     });
 

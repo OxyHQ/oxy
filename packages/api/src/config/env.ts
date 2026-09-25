@@ -430,14 +430,15 @@ export function isDevelopment(): boolean {
 }
 
 /**
- * The web origin of the identity carrier (`id.oxy.so`) — the ONLY browser origin
- * that may read or write the sealed web copy of an identity. Overridable via
- * `IDENTITY_WEB_ORIGIN` for staging. Loopback origins are accepted separately, in
+ * The IdP's web origin (`auth.oxy.so`), which is also the web identity
+ * carrier — the ONLY browser origin that may read or write the sealed web copy
+ * of an identity, recover it, or move it to Commons. Overridable via
+ * `AUTH_WEB_ORIGIN` for staging. Loopback origins are accepted separately, in
  * every environment, by the route guard itself.
  */
-export function getIdentityWebOrigin(): string {
-  const configured = process.env.IDENTITY_WEB_ORIGIN?.trim();
-  return configured || 'https://id.oxy.so';
+export function getAuthWebOrigin(): string {
+  const configured = process.env.AUTH_WEB_ORIGIN?.trim();
+  return configured || 'https://auth.oxy.so';
 }
 
 /**
