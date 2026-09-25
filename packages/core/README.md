@@ -104,8 +104,8 @@ getNormalizedUserHandle({ username: 'alice', isFederated: true, instance: 'examp
 ## Linked App API Clients
 
 Apps that call their own backend should derive API clients from the active SDK
-instance instead of re-implementing auth headers, session restore, CSRF fetches,
-or user forwarding.
+instance instead of re-implementing auth headers, session restore or user
+forwarding.
 
 ```ts
 import { OxyServices } from '@oxy.so/core';
@@ -117,8 +117,8 @@ await mentionApi.post('/posts', { content: 'Hello from Oxy' });
 ```
 
 Linked clients send the current Oxy bearer token for authenticated requests.
-State-changing bearer requests do not fetch app-local CSRF tokens; cookie-only
-writes still use CSRF.
+The SDK never fetches or sends a CSRF token: writes authenticate with the bearer,
+which a browser does not attach to a cross-site request on its own.
 
 **GET response caching is OFF by default for linked clients.** The
 SDK's per-instance GET cache is only safe on the canonical `OxyServices` client,

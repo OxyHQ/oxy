@@ -40,7 +40,6 @@ const DEFAULT_ALLOWED_HEADERS = [
   'X-Requested-With',
   'X-Oxy-User-Id',
   'X-Oxy-Internal',
-  'X-CSRF-Token',
   'X-Oxy-Edge-Region',
   'X-Oxy-Activity-Id',
 ];

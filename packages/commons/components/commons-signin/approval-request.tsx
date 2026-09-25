@@ -1,6 +1,9 @@
 import React from 'react';
+import { Text } from '@oxy.so/bloom/typography';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { GlyphButton } from '@oxy.so/bloom/button';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { LogoIcon } from '@oxy.so/services';
 import {
   getNormalizedUserHandle,
@@ -9,11 +12,9 @@ import {
   type PublicApplication,
 } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 // Imported from their own modules rather than the `components/ui` barrel: the
 // barrel also exports `Screen`, which pulls Bloom's tab bar (and with it
 // react-native-gesture-handler's native module) into this sheet-only surface.
-import { Callout } from '@/components/ui/callout';
 import { ImportantBanner } from '@/components/ui/important-banner';
 import { useTranslation, type TranslateFn } from '@/lib/i18n';
 import { summarizeScopes, type ScopeLine } from '@/lib/commons-signin/scope-summary';
@@ -123,16 +124,14 @@ export function ApprovalRequest({
 
   return (
     <View className="pb-7">
-      <Pressable
+      <GlyphButton
+        icon={Icons.close}
         onPress={onClose}
-        accessibilityRole="button"
         accessibilityLabel={t('common.close')}
         testID="approval-close"
-        className="absolute right-3 top-3 h-9 w-9 items-center justify-center rounded-full"
-        style={{ backgroundColor: colors.backgroundSecondary }}
-      >
-        <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
-      </Pressable>
+        fill={colors.backgroundSecondary}
+        style={styles.close}
+      />
 
       {/* WHO IS ASKING — server-resolved identity, paired with the Oxy mark. */}
       <View className="items-center px-8 pt-12">
@@ -144,12 +143,12 @@ export function ApprovalRequest({
             {application.icon ? (
               <Image source={{ uri: application.icon }} className="h-14 w-14" />
             ) : (
-              <ThemedText style={[styles.tileInitial, { color: colors.text }]}>
+              <Text style={[styles.tileInitial, { color: colors.text }]}>
                 {appName.charAt(0).toUpperCase() || '?'}
-              </ThemedText>
+              </Text>
             )}
           </View>
-          <MaterialCommunityIcons name="link-variant" size={18} color={colors.textTertiary} />
+          <Icons.link size='sm' fill={colors.textTertiary} />
           <View
             className="h-14 w-14 items-center justify-center rounded-2xl"
             style={[styles.tile, { backgroundColor: colors.primarySubtle }]}
@@ -158,19 +157,19 @@ export function ApprovalRequest({
           </View>
         </View>
 
-        <ThemedText style={[styles.title, { color: colors.text }]}>
+        <Text style={[styles.title, { color: colors.text }]}>
           {t('signInApproval.approve.title', { app: appName })}
-        </ThemedText>
+        </Text>
 
         {originHost ? (
-          <ThemedText testID="approval-origin" style={[styles.origin, { color: colors.textSecondary }]}>
+          <Text testID="approval-origin" style={[styles.origin, { color: colors.textSecondary }]}>
             {originHost}
-          </ThemedText>
+          </Text>
         ) : null}
 
         {/* WHAT IS ASKING — the server's coarse client label, verbatim. */}
         {info.requesterLabel ? (
-          <ThemedText
+          <Text
             testID="approval-requester"
             accessibilityLabel={t('signInApproval.approve.requestedFrom', {
               client: info.requesterLabel,
@@ -178,27 +177,26 @@ export function ApprovalRequest({
             style={[styles.requester, { color: colors.textTertiary }]}
           >
             {info.requesterLabel}
-          </ThemedText>
+          </Text>
         ) : null}
 
         {originVerified && application.isOfficial ? (
           <View className="mt-1.5 flex-row items-center gap-1">
-            <MaterialCommunityIcons name="check-decagram" size={14} color={colors.tint} />
-            <ThemedText style={[styles.provenance, { color: colors.tint }]}>
+            <Icons.verified size='xs' fill={colors.tint} />
+            <Text style={[styles.provenance, { color: colors.tint }]}>
               {t('signInApproval.approve.officialBadge')}
-            </ThemedText>
+            </Text>
           </View>
         ) : application.developerName ? (
-          <ThemedText style={[styles.provenance, { color: colors.textTertiary }]}>
+          <Text style={[styles.provenance, { color: colors.textTertiary }]}>
             {t('signInApproval.approve.developerBy', { developer: application.developerName })}
-          </ThemedText>
+          </Text>
         ) : null}
       </View>
 
       {!originVerified ? (
         <View className="px-5 pt-5">
           <ImportantBanner
-            icon="alert"
             title={t('signInApproval.approve.unverifiedTitle')}
             style={styles.bannerFlush}
           >
@@ -216,65 +214,65 @@ export function ApprovalRequest({
             style={{ backgroundColor: colors.backgroundSecondary }}
           >
             <View className="gap-0.5">
-              <ThemedText style={[styles.fieldLabel, { color: colors.textTertiary }]}>
+              <Text style={[styles.fieldLabel, { color: colors.textTertiary }]}>
                 {t('signInApproval.approve.approvingWith')}
-              </ThemedText>
-              <ThemedText
+              </Text>
+              <Text
                 testID="approval-approving-with"
                 style={[styles.fieldValue, { color: colors.text }]}
               >
                 {identityName
                   ? t('signInApproval.approve.identityOf', { name: identityName })
                   : t('signInApproval.approve.identityYours')}
-              </ThemedText>
+              </Text>
             </View>
             <View className="gap-0.5">
-              <ThemedText style={[styles.fieldLabel, { color: colors.textTertiary }]}>
+              <Text style={[styles.fieldLabel, { color: colors.textTertiary }]}>
                 {t('signInApproval.approve.willActAs', { app: appName })}
-              </ThemedText>
-              <ThemedText
+              </Text>
+              <Text
                 testID="approval-acting-as"
                 style={[styles.fieldValue, { color: colors.text }]}
               >
                 {subjectLabel(subject)}
-              </ThemedText>
+              </Text>
             </View>
-            <ThemedText style={[styles.fieldNote, { color: colors.textSecondary }]}>
+            <Text style={[styles.fieldNote, { color: colors.textSecondary }]}>
               {t('signInApproval.approve.identityUnchanged', { app: appName })}
-            </ThemedText>
+            </Text>
           </View>
         </View>
       ) : null}
 
       {/* WHAT THE APP RECEIVES — server-resolved scopes, nothing implied. */}
       <View testID="approval-scopes" className="gap-2 px-5 pt-5">
-        <ThemedText style={[styles.fieldLabel, { color: colors.textTertiary }]}>
+        <Text style={[styles.fieldLabel, { color: colors.textTertiary }]}>
           {t('signInApproval.approve.receivesTitle', { app: appName })}
-        </ThemedText>
+        </Text>
         {scopeLines.length > 0 ? (
           scopeLines.map((line) => (
             <View key={line.scope} className="flex-row items-start gap-2">
-              <MaterialCommunityIcons name="check" size={16} color={colors.success} />
-              <ThemedText style={[styles.scopeText, { color: colors.text }]}>
+              <Icons.check size='sm' fill={colors.success} />
+              <Text style={[styles.scopeText, { color: colors.text }]}>
                 {scopeText(line, t)}
-              </ThemedText>
+              </Text>
             </View>
           ))
         ) : (
           <View className="flex-row items-start gap-2">
-            <MaterialCommunityIcons name="check" size={16} color={colors.success} />
-            <ThemedText style={[styles.scopeText, { color: colors.text }]}>
+            <Icons.check size='sm' fill={colors.success} />
+            <Text style={[styles.scopeText, { color: colors.text }]}>
               {t('signInApproval.approve.receivesBasic')}
-            </ThemedText>
+            </Text>
           </View>
         )}
       </View>
 
       {confirmationIssue ? (
         <View testID="approval-confirmation-issue" className="px-5 pt-3">
-          <Callout tone={confirmationIssue.kind === 'declined' ? 'info' : 'danger'} icon="fingerprint">
+          <Admonition type="info">
             {t(confirmationIssueKey(confirmationIssue))}
-          </Callout>
+          </Admonition>
         </View>
       ) : null}
 
@@ -282,16 +280,16 @@ export function ApprovalRequest({
         <View className="flex-row flex-wrap items-center justify-center gap-x-4 gap-y-1 px-5 pt-5">
           {privacyPolicyUrl ? (
             <Pressable onPress={() => onOpenLink(privacyPolicyUrl)} accessibilityRole="link">
-              <ThemedText style={[styles.legalLink, { color: colors.textTertiary }]}>
+              <Text style={[styles.legalLink, { color: colors.textTertiary }]}>
                 {t('signInApproval.approve.privacyLink')}
-              </ThemedText>
+              </Text>
             </Pressable>
           ) : null}
           {termsUrl ? (
             <Pressable onPress={() => onOpenLink(termsUrl)} accessibilityRole="link">
-              <ThemedText style={[styles.legalLink, { color: colors.textTertiary }]}>
+              <Text style={[styles.legalLink, { color: colors.textTertiary }]}>
                 {t('signInApproval.approve.termsLink')}
-              </ThemedText>
+              </Text>
             </Pressable>
           ) : null}
         </View>
@@ -321,6 +319,11 @@ function confirmationIssueKey(issue: ApprovalConfirmationIssue): string {
 }
 
 const styles = StyleSheet.create({
+  close: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+  },
   tile: {
     borderCurve: 'continuous',
   },

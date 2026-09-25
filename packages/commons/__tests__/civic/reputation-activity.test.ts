@@ -8,7 +8,7 @@ describe('describeReputationAction', () => {
     expect(
       describeReputationAction({ actionType: 'peer_validated', category: 'trust', points: 8 }),
     ).toEqual({
-      icon: 'account-group-outline',
+      icon: 'community',
       labelKey: 'peerValidated',
       signed: true,
       positive: true,
@@ -31,7 +31,7 @@ describe('describeReputationAction', () => {
     expect(
       describeReputationAction({ actionType: 'mystery_award', category: 'penalty', points: -3 }),
     ).toEqual({
-      icon: 'alert-octagon-outline',
+      icon: 'alertStrong',
       labelKey: 'penalty',
       signed: false,
       positive: false,

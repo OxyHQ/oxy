@@ -2,7 +2,7 @@
 
 ## 2.0.0
 
-Includes everything in 1.9.1.
+Includes everything in 1.10.0.
 
 ### Removed
 
@@ -15,6 +15,28 @@ Includes everything in 1.9.1.
   HS256, `none` or other header is `INVALID_SERVICE_TOKEN` (401) without any
   JWKS fetch. Production has signed only EdDSA since 2026-09-17 and no consumer
   passed the option (ADR 0012, #877).
+
+## 1.10.0
+
+### Fixed
+
+- A sign-out outranks a token refresh already in flight. `OxyServices.clearTokens()`
+  now ends the local session (`HttpService.endSession()`): a re-mint that started
+  before it — the device-secret arm, the native shared-keychain arm, or the
+  handler's own plant — plants nothing, and the native shared-keychain arm does
+  not run again until a token is planted. Before, a refresh that outlived the
+  sign-out put the bearer back, and on native a 401 after sign-out re-signed the
+  user in with the shared keychain. The device-secret arm still persists the
+  rotated secret when the store kept the credential it presented, never refills a
+  store the sign-out cleared, and still mints later from a credential the store
+  holds (a sign-in made in another tab).
+
+### Added
+
+- `HttpService.endSession()`, `HttpService.getSessionEpoch()` and
+  `HttpService.hasSessionEnded()`.
+- `DeviceSecretMintOutcome` `session-ended`: the mint succeeded after the session
+  was ended, and nothing was planted.
 
 ## 1.9.1
 

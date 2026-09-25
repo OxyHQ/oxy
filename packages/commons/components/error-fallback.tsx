@@ -1,9 +1,9 @@
 import React from 'react';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { useTranslation } from '@/lib/i18n';
 import { Fonts } from '@/constants/theme';
 
@@ -46,61 +46,45 @@ export function ErrorFallback({ error, retry }: ErrorFallbackProps) {
         },
       ]}
     >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View
-          style={[
-            styles.iconBubble,
-            { backgroundColor: colors.error + '22', borderColor: colors.error + '55' },
-          ]}
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* The whole screen IS an empty state — a glyph, a headline, a line of
+            explanation and one action — so it is Bloom's. The glyph keeps its
+            error tint by going through `illustration`; `media="circle"` would
+            draw the ACCENT disc, which is the wrong colour for a crash. The
+            dev-only stack trace goes in `children`, the slot Bloom reserves for
+            "anything between the explanation and the actions".
+
+            `MinimalErrorFallback` below does NOT do this, and must not: it is
+            the fallback for a crash in the theme provider itself, so it can use
+            no Bloom component and keeps its own literal palette and styles. */}
+        <EmptyState
+          illustration={<Icons.alert size="3xl" fill={colors.error} />}
+          title={t('errors.boundary.title')}
+          description={t('errors.boundary.subtitle')}
+          action={{
+            label: t('errors.boundary.retry'),
+            onPress: retry,
+            icon: Icons.refresh,
+          }}
         >
-          <MaterialCommunityIcons
-            name="alert-circle-outline"
-            size={48}
-            color={colors.error}
-          />
-        </View>
-
-        <ThemedText style={[styles.title, { color: colors.text }]}>
-          {t('errors.boundary.title')}
-        </ThemedText>
-        <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>
-          {t('errors.boundary.subtitle')}
-        </ThemedText>
-
-        {isDev && (
-          <View
-            style={[
-              styles.devDetails,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <Text style={[styles.devLabel, { color: colors.textSecondary }]}>
-              {t('errors.boundary.details')}
-            </Text>
-            <Text style={[styles.devMessage, { color: colors.text }]} selectable>
-              {error.message}
-            </Text>
-            {error.stack ? (
-              <Text style={[styles.devStack, { color: colors.textSecondary }]} selectable>
-                {error.stack}
+          {isDev ? (
+            <View
+              style={[styles.devDetails, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <Text style={[styles.devLabel, { color: colors.textSecondary }]}>
+                {t('errors.boundary.details')}
               </Text>
-            ) : null}
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[styles.retryButton, { backgroundColor: colors.tint }]}
-          onPress={retry}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={t('errors.boundary.retry')}
-        >
-          <MaterialCommunityIcons name="refresh" size={20} color="#FFFFFF" />
-          <Text style={styles.retryText}>{t('errors.boundary.retry')}</Text>
-        </TouchableOpacity>
+              <Text style={[styles.devMessage, { color: colors.text }]} selectable>
+                {error.message}
+              </Text>
+              {error.stack ? (
+                <Text style={[styles.devStack, { color: colors.textSecondary }]} selectable>
+                  {error.stack}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+        </EmptyState>
       </ScrollView>
     </View>
   );
@@ -127,7 +111,7 @@ export function MinimalErrorFallback({ error, retry, scheme = 'light' }: Minimal
     <View style={[minimalStyles.container, { backgroundColor: bg }]}>
       <ScrollView contentContainerStyle={minimalStyles.content} showsVerticalScrollIndicator={false}>
         <View style={[minimalStyles.iconBubble, { backgroundColor: errorColor + '22', borderColor: errorColor + '55' }]}>
-          <MaterialCommunityIcons name="alert-circle-outline" size={48} color={errorColor} />
+          <Icons.alert size='3xl' fill={errorColor} />
         </View>
 
         <Text style={[minimalStyles.title, { color: text }]}>Something went wrong</Text>
@@ -156,7 +140,7 @@ export function MinimalErrorFallback({ error, retry, scheme = 'light' }: Minimal
           accessibilityRole="button"
           accessibilityLabel="Try again"
         >
-          <MaterialCommunityIcons name="refresh" size={20} color="#FFFFFF" />
+          <Icons.refresh size='md' fill="#FFFFFF" />
           <Text style={minimalStyles.retryText}>Try again</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -247,26 +231,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 16,
   },
-  iconBubble: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: Platform.OS === 'web' ? '600' : undefined,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 15,
-    textAlign: 'center',
-    lineHeight: 22,
-    maxWidth: 360,
-  },
   devDetails: {
     width: '100%',
     maxWidth: 480,
@@ -289,20 +253,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: MONO_FONT_FAMILY,
     lineHeight: 14,
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 22,
-    borderRadius: 24,
-    gap: 8,
-    marginTop: 8,
-  },
-  retryText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
   },
 });

@@ -39,12 +39,6 @@
         "type": "http",
         "scheme": "Capability",
         "description": "Short-lived, signed and audience-bound authority for one exact actor, account, resource and tool. Send as `Authorization: Capability <ticket>`. It is accepted only by routes whose app catalog exposes that tool and is re-authorized immediately before execution so revocation takes effect."
-      },
-      "csrfToken": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "X-CSRF-Token",
-        "description": "Required for state-changing requests against CSRF-protected routes. Obtain a token from any GET response (set via the `XSRF-TOKEN` cookie) and echo it on subsequent POST/PUT/PATCH/DELETE calls. Only enforced when cookies are present."
       }
     },
     "schemas": {

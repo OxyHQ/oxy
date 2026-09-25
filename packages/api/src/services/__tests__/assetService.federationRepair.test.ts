@@ -1,22 +1,12 @@
 /**
- * A federated asset whose stored original went missing is repaired from its
- * `metadata.remoteUrl` — but a URL names a location, not content. The record's
- * `sha256`, its content-addressed storage key, dedup and `by-sha256` lookups all
- * name the ORIGINAL bytes, so a repair may store only bytes that hash to
- * `files.sha256`. A remote that now serves a different (still valid) image must
- * be refused before anything is written under the old identity (#1285).
- *
- * The rows are real Postgres rows and the downloader is the real
- * `fetchFederationRepairImage` (MIME check, byte cap, streamed body read); only
- * `safeFetch` is faked, because it deliberately refuses loopback, so a local
- * HTTP fixture server cannot be reached through it. S3 and the variant queue are
- * faked so the test can see exactly what was written and enqueued.
- *
- * Mutation-tested: moving the digest comparison after `uploadBuffer` fails
- * "refuses different bytes before any write" on the upload assertion.
+ * A federated repair stores only bytes that hash to `files.sha256` (#1285).
+ * Real rows and the real downloader; only `safeFetch` (which refuses loopback,
+ * so a local fixture server is unreachable), S3 and the variant queue are faked.
+ * Mutation-tested: moving the digest check after `uploadBuffer` fails the
+ * "refuses different bytes" case.
  */
 
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { Readable } from 'node:stream';
 import sharp from 'sharp';
@@ -51,7 +41,7 @@ import { AssetService, clearFederationRepairMismatches } from '../assetService';
 
 const REMOTE_URL = 'https://remote.example/media/avatar.png?token=secret';
 
-const sha256 = (buf: Buffer) => createHash('sha256').update(buf).digest('hex');
+const sha256 = AssetService.calculateSHA256;
 
 /** A real, decodable 1×1 PNG; distinct colours give distinct bytes and digests. */
 async function pngOf(r: number, g: number, b: number): Promise<Buffer> {
@@ -192,6 +182,22 @@ describe('repairMissingFederationFileContent verifies the original digest', () =
     clearFederationRepairMismatches();
     mockSafeFetch.mockResolvedValueOnce(fetchResult(original));
     await expect(service.repairMissingFederationFileContent(file)).resolves.toBe(true);
+    expect(s3.uploadBuffer).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares one download between concurrent reads of the same missing file', async () => {
+    const original = await randomPng();
+    const { s3, service, file } = await seedFederatedAvatar(original);
+    mockSafeFetch.mockImplementation(async () => fetchResult(original));
+
+    const results = await Promise.all([
+      service.repairMissingFederationFileContent(file),
+      service.repairMissingFederationFileContent(file),
+      service.repairMissingFederationFileContent(file),
+    ]);
+
+    expect(results).toEqual([true, true, true]);
+    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     expect(s3.uploadBuffer).toHaveBeenCalledTimes(1);
   });
 

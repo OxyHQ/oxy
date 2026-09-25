@@ -10,7 +10,7 @@ import { Checkbox } from 'expo-checkbox';
 import { useColors } from '@/hooks/useColors';
 import { StaggeredText, type StaggeredTextRef } from '@/components/staggered-text';
 import { RotatingTextAnimation } from '@/components/staggered-text/rotating-text';
-import { Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
 import { useTranslation } from '@/lib/i18n';
 import { persistOnboardingFlow } from '@/hooks/identity/identityStore';
 
@@ -128,7 +128,7 @@ export default function WelcomeScreen() {
 
   return (
     <View style={[styles.container, containerStyle]}>
-      <View style={styles.content}>
+      <View className="flex-1 justify-center items-center px-space-24">
         {/* ONE heading for assistive technology: the lead and the rotating
             phrase are per-letter / multi-copy animations, so the sentence they
             form is named here once and the animation itself is hidden. */}
@@ -164,7 +164,7 @@ export default function WelcomeScreen() {
 
       {/* Footer */}
       <Animated.View style={[styles.footer, footerStyle]}>
-        <View style={styles.checkboxContainer}>
+        <View className="flex-row items-start mb-space-32">
           <Checkbox
             value={termsAccepted}
             onValueChange={setTermsAccepted}
@@ -172,7 +172,7 @@ export default function WelcomeScreen() {
             color={textColor}
           />
           <TouchableOpacity
-            style={styles.checkboxTextContainer}
+            className="flex-1"
             onPress={toggleTermsAccepted}
             activeOpacity={0.7}
             accessibilityRole="checkbox"
@@ -185,27 +185,14 @@ export default function WelcomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.buttonContainer}>
-          <Button
-            variant="secondary"
-            onPress={handleDecline}
-            style={styles.button}
-          >
-            {t('auth.welcome.decline')}
-          </Button>
+        <View className="flex-row gap-space-12">
+          <Button appearance="outline" tone="neutral" onPress={handleDecline} className="flex-1">{t('auth.welcome.decline')}</Button>
 
-          <Button
-            variant="primary"
-            onPress={handleContinue}
-            disabled={!termsAccepted}
-            style={styles.button}
-          >
-            {t('auth.welcome.accept')}
-          </Button>
+          <Button appearance="solid" tone="accent" onPress={handleContinue} disabled={!termsAccepted} className="flex-1">{t('auth.welcome.accept')}</Button>
         </View>
 
         <TouchableOpacity
-          style={styles.restoreButton}
+          className="mt-space-20 items-center"
           onPress={handleRestore}
           activeOpacity={0.7}
           accessibilityRole="button"
@@ -224,12 +211,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
   textContainer: {
     alignItems: 'flex-start',
     gap: -16,
@@ -246,34 +227,15 @@ const styles = StyleSheet.create({
     padding: 42,
     paddingBottom: 60,
   },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 32,
-  },
   checkbox: {
     width: 24,
     height: 24,
     marginRight: 12,
     marginTop: 2,
   },
-  checkboxTextContainer: {
-    flex: 1,
-  },
   checkboxText: {
     fontSize: 14,
     lineHeight: 20,
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  button: {
-    flex: 1,
-  },
-  restoreButton: {
-    marginTop: 20,
-    alignItems: 'center',
   },
   restoreText: {
     fontSize: 14,

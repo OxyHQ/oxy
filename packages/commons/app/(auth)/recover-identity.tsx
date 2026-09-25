@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useRef } from 'react';
+import { Icons } from '@/constants/icons';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyManager, readIdentityMarker, type IdentityMarker, type IdentityRecoveryResult } from '@oxy.so/core';
-import { alert, toast } from '@oxy.so/bloom';
+import { alert } from '@oxy.so/bloom/surfaces';
+import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
-import { Button } from '@/components/ui';
-import { CenteredState } from '@/components/ui/centered-state';
+import { Button } from '@oxy.so/bloom/button';
 import { useTranslation } from '@/lib/i18n';
 import {
   useOnboardingStatus,
@@ -17,6 +19,7 @@ import {
 } from '@/hooks/useOnboardingStatus';
 import { persistOnboardingComplete, persistOnboardingFlow } from '@/hooks/identity/identityStore';
 import { shortenKey } from '@/utils/shorten-key';
+import { LoadingState, STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
 
 const RECOVERY_MARKER_QUERY_KEY = ['recover-identity', 'marker'] as const;
 
@@ -153,10 +156,9 @@ export default function RecoverIdentityScreen() {
   if (isAttempting || recovered) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <CenteredState
-          loading
+        <LoadingState
           title={recovered ? t('recovery.restoredTitle') : t('recovery.attemptingTitle')}
-          body={recovered ? t('recovery.restoredBody') : t('recovery.attemptingBody')}
+          description={recovered ? t('recovery.restoredBody') : t('recovery.attemptingBody')}
         />
       </View>
     );
@@ -165,23 +167,23 @@ export default function RecoverIdentityScreen() {
   // Ladder exhausted (or threw): offer the manual recovery paths.
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <CenteredState
-        icon="shield-key-outline"
-        iconColor={colors.textSecondary}
+      <EmptyState
+        illustration={<Icons.shield size="3xl" fill={colors.textSecondary} />}
         title={t('recovery.failedTitle')}
-        body={t('recovery.failedBody', {
+        description={t('recovery.failedBody', {
           key: markerKey ? shortenKey(markerKey) : '—',
         })}
-        action={
+        footer={
           <View style={styles.actions}>
-            <Button variant="primary" onPress={handleEnterPhrase} style={styles.action}>
+            <Button appearance="solid" tone="accent" onPress={handleEnterPhrase} style={styles.action}>
               {t('recovery.enterPhrase')}
             </Button>
-            <Button variant="secondary" onPress={handleStartOver} style={styles.action}>
+            <Button appearance="outline" tone="neutral" onPress={handleStartOver} style={styles.action}>
               {t('recovery.startOver')}
             </Button>
           </View>
         }
+        minHeight={STATE_MIN_HEIGHT}
       />
     </View>
   );

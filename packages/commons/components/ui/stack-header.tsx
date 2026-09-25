@@ -1,8 +1,7 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
-import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { GlyphButton } from '@oxy.so/bloom/button';
+import { Icons } from '@/constants/icons';
 
 interface StackHeaderProps {
   title: string;
@@ -16,11 +15,15 @@ interface StackHeaderProps {
 }
 
 /**
- * The large-title screen header for pushed / modal Commons screens. A small
- * affordance row (back chevron and/or close) sits above a confident large title
- * with optional muted subtitle — the spacious iOS large-title rhythm rather than
- * a cramped inline 20pt bar. Lives inside the `Screen` content column, so it
- * inherits the 22pt gutter and the 32pt section rhythm below it.
+ * The header for pushed / modal Commons screens — Bloom's `PageHeader`, with a
+ * `GlyphButton` close (Bloom's neutral transparent icon button; a `ghost`
+ * Button would tint it with the accent) in its actions slot.
+ *
+ * `presentation="bar"` + `placement="inline"` is Bloom's in-FLOW arrangement:
+ * the header is a sibling above the content, so nothing passes under it. Call
+ * sites mount it inside the content column (and inside
+ * `KeyboardAwareScrollViewWrapper`, which is not a `Screen`), so moving it to
+ * `Screen`'s chrome slot is a per-screen layout change to judge on a device.
  */
 export function StackHeader({
   title,
@@ -30,77 +33,26 @@ export function StackHeader({
   backAccessibilityLabel,
   closeAccessibilityLabel,
 }: StackHeaderProps) {
-  const colors = useColors();
-  const hasBar = !!onBack || !!onClose;
-
   return (
-    <View style={styles.header}>
-      {hasBar && (
-        <View style={styles.bar}>
-          {onBack ? (
-            <TouchableOpacity
-              onPress={onBack}
-              accessibilityRole="button"
-              accessibilityLabel={backAccessibilityLabel}
-              style={[styles.iconBtn, styles.backBtn]}
-            >
-              <MaterialCommunityIcons name="chevron-left" size={28} color={colors.text} />
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.spacer} />
-          )}
-          {onClose && (
-            <TouchableOpacity
-              onPress={onClose}
-              accessibilityRole="button"
-              accessibilityLabel={closeAccessibilityLabel}
-              style={styles.iconBtn}
-            >
-              <MaterialCommunityIcons name="close" size={24} color={colors.text} />
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-      <ThemedText style={[styles.title, { color: colors.text }]}>{title}</ThemedText>
-      {subtitle && (
-        <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</ThemedText>
-      )}
-    </View>
+    <PageHeader
+      presentation="bar"
+      placement="inline"
+      border="none"
+      title={title}
+      subtitle={subtitle}
+      onBack={onBack}
+      backLabel={backAccessibilityLabel}
+      actions={
+        onClose ? (
+          <GlyphButton
+            icon={Icons.close}
+            onPress={onClose}
+            // GlyphButton REQUIRES a name: it draws only a glyph, so without one
+            // it announces as nothing.
+            accessibilityLabel={closeAccessibilityLabel ?? 'Close'}
+          />
+        ) : undefined
+      }
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  header: {
-    gap: 6,
-  },
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 36,
-    marginBottom: 4,
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backBtn: {
-    marginLeft: -10,
-  },
-  spacer: {
-    width: 40,
-    height: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-    lineHeight: 34,
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 21,
-  },
-});

@@ -1,19 +1,22 @@
 import React, { useCallback, useMemo } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
+import { Badge } from '@oxy.so/bloom/badge';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { Icons } from '@/constants/icons';
+import { fullWidthControl } from '@/constants/styles';
+import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   StackHeader,
   Section,
   GroupedList,
-  CenteredState,
-  PrimaryButton,
-  SecondaryButton,
   SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useValidatorInbox } from '@/hooks/useValidatorInbox';
 import { useValidationVote } from '@/hooks/useValidationVote';
 import { prettyActionType, payloadEntries } from '@/lib/civic/validation-format';
@@ -51,64 +54,64 @@ export default function ValidationVoteScreen() {
   const renderBody = () => {
     if (state === 'done') {
       return (
-        <CenteredState
-          icon="check-decagram"
-          iconColor={colors.success}
+        <EmptyState
+          illustration={<Icons.verified size="3xl" fill={colors.success} />}
           title={t('civic.validate.vote.done.title')}
-          body={t('civic.validate.vote.done.body')}
-          action={
-            <View style={styles.action}>
-              <PrimaryButton label={t('common.done')} onPress={handleClose} fullWidth={false} />
+          description={t('civic.validate.vote.done.body')}
+          footer={
+            <View className="items-center mt-space-4">
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     if (state === 'error') {
       return (
-        <CenteredState
-          icon="alert-circle-outline"
-          iconColor={colors.error}
+        <EmptyState
+          illustration={<Icons.alert size="3xl" fill={colors.error} />}
           title={t('civic.validate.vote.error.title')}
-          body={t(`civic.validate.error.${errorCode ?? 'generic'}`)}
-          action={
-            <View style={styles.action}>
-              <PrimaryButton label={t('common.close')} onPress={handleClose} fullWidth={false} />
+          description={t(`civic.validate.error.${errorCode ?? 'generic'}`)}
+          footer={
+            <View className="items-center mt-space-4">
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     if (isPending && !request) {
-      return <CenteredState loading />;
+      return <LoadingState />;
     }
 
     if (isError && !request) {
       return (
-        <CenteredState
-          icon="cloud-alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.validate.inbox.error.title')}
-          body={t('civic.validate.inbox.error.body')}
-          action={
-            <PrimaryButton label={t('common.retry')} onPress={() => refetch()} fullWidth={false} />
-          }
+          description={t('civic.validate.inbox.error.body')}
+          action={{ label: t('common.retry'), onPress: () => refetch() }}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     if (!request) {
       return (
-        <CenteredState
-          icon="gavel"
+        <EmptyState
+          icon={Icons.validation}
           title={t('civic.validate.vote.gone.title')}
-          body={t('civic.validate.vote.gone.body')}
-          action={
-            <View style={styles.action}>
-              <PrimaryButton label={t('common.close')} onPress={handleClose} fullWidth={false} />
+          description={t('civic.validate.vote.gone.body')}
+          footer={
+            <View className="items-center mt-space-4">
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -118,31 +121,37 @@ export default function ValidationVoteScreen() {
     return (
       <>
         <View style={styles.headerBlock}>
-          <ThemedText style={[styles.actionType, { color: colors.text }]}>
+          <Text style={[styles.actionType, { color: colors.text }]}>
             {prettyActionType(request.actionType)}
-          </ThemedText>
+          </Text>
           {request.highValue && (
-            <CivicBadge tone="caution" icon="star-circle-outline" label={t('civic.validate.highValue')} />
+            <Badge
+              appearance="subtle"
+              tone="warning"
+              size="label-small"
+              icon={Icons.star}
+              content={t('civic.validate.highValue')}
+            />
           )}
         </View>
 
-        <ThemedText style={[styles.prompt, { color: colors.textSecondary }]}>
+        <Text style={[styles.prompt, { color: colors.textSecondary }]}>
           {t('civic.validate.vote.prompt')}
-        </ThemedText>
+        </Text>
 
         <Section title={t('civic.validate.vote.detailsTitle')}>
           {entries.length === 0 ? (
-            <ThemedText style={[styles.muted, { color: colors.textSecondary }]}>
+            <Text style={[styles.muted, { color: colors.textSecondary }]}>
               {t('civic.validate.vote.noDetails')}
-            </ThemedText>
+            </Text>
           ) : (
             <GroupedList>
               {entries.map((e) => (
                 <View key={e.key} style={styles.detailRow}>
-                  <ThemedText style={[styles.detailKey, { color: colors.textSecondary }]}>{e.key}</ThemedText>
-                  <ThemedText style={[styles.detailValue, { color: colors.text }]} numberOfLines={3}>
+                  <Text style={[styles.detailKey, { color: colors.textSecondary }]}>{e.key}</Text>
+                  <Text style={[styles.detailValue, { color: colors.text }]} numberOfLines={3}>
                     {e.value}
-                  </ThemedText>
+                  </Text>
                 </View>
               ))}
             </GroupedList>
@@ -150,42 +159,28 @@ export default function ValidationVoteScreen() {
         </Section>
 
         {biometricFailed && (
-          <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+          <Text style={[styles.inlineWarn, { color: colors.warning }]}>
             {t('civic.validate.vote.biometricFailed')}
-          </ThemedText>
+          </Text>
         )}
 
-        <View style={styles.verdictRow}>
-          <PrimaryButton
-            tone="success"
-            icon="check"
-            label={t('civic.validate.vote.valid')}
-            onPress={() => vote('valid')}
-            disabled={busy}
-            style={styles.verdictBtn}
-          />
-          <PrimaryButton
-            tone="danger"
-            icon="close"
-            label={t('civic.validate.vote.invalid')}
-            onPress={() => vote('invalid')}
-            disabled={busy}
-            style={styles.verdictBtn}
-          />
+        <View className="flex-row gap-space-12">
+          <Button appearance="solid" tone="success" size="lg" icon={Icons.check} onPress={() => vote('valid')} disabled={busy} style={[fullWidthControl, styles.verdictBtn]}>{t('civic.validate.vote.valid')}</Button>
+          <Button appearance="solid" tone="danger" size="lg" icon={Icons.close} onPress={() => vote('invalid')} disabled={busy} style={[fullWidthControl, styles.verdictBtn]}>{t('civic.validate.vote.invalid')}</Button>
         </View>
 
-        <SecondaryButton label={t('civic.validate.vote.abstain')} onPress={() => vote('abstain')} disabled={busy} />
+        <Button appearance="outline" tone="accent" size="lg" onPress={() => vote('abstain')} disabled={busy} style={fullWidthControl}>{t('civic.validate.vote.abstain')}</Button>
 
-        <TouchableOpacity style={styles.recuse} onPress={deny} disabled={busy} accessibilityRole="button">
-          <ThemedText style={[styles.recuseText, { color: colors.textSecondary }]}>
+        <TouchableOpacity className="py-space-12 items-center" onPress={deny} disabled={busy} accessibilityRole="button">
+          <Text style={[styles.recuseText, { color: colors.textSecondary }]}>
             {t('civic.validate.vote.recuse')}
-          </ThemedText>
+          </Text>
         </TouchableOpacity>
 
         {busy && (
-          <ThemedText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
+          <Text style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
             {t('civic.validate.vote.submitting')}
-          </ThemedText>
+          </Text>
         )}
       </>
     );
@@ -240,10 +235,6 @@ const styles = StyleSheet.create({
   inlineWarn: {
     fontSize: 13,
     lineHeight: 18,
-  },
-  verdictRow: {
-    flexDirection: 'row',
-    gap: 12,
   },
   verdictBtn: {
     flex: 1,

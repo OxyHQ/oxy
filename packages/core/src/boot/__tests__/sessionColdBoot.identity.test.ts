@@ -104,7 +104,7 @@ function makeOxy(overrides: OxyOverrides = {}): { oxy: OxyServices; setTokens: j
       overrides.requestChallenge
       ?? (async () => ({ challenge: 'chal-1', expiresAt: '2030-01-01T00:00:00.000Z' })),
     verifyChallenge: overrides.verifyChallenge ?? (async () => IDENTITY_SESSION),
-    httpService: { runSingleFlightDeviceSecretMint: makeMintSingleFlight() },
+    httpService: { runSingleFlightDeviceSecretMint: makeMintSingleFlight(), getSessionEpoch: () => 0 },
   } as unknown as OxyServices;
   return { oxy, setTokens };
 }

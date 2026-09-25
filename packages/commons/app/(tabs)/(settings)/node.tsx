@@ -1,22 +1,25 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { bloomToneFor } from '@/lib/civic/card-presentation';
+import { Card } from '@oxy.so/bloom/card';
+import { Badge } from '@oxy.so/bloom/badge';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { fullWidthControl } from '@/constants/styles';
+import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet, TextInput, TouchableOpacity, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   StackHeader,
   Section,
   GroupedList,
   ListRow,
-  SoftSurface,
-  Callout,
-  CenteredState,
-  PrimaryButton,
-  SecondaryButton,
   SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import {
   useMyNode,
   useRegisterNode,
@@ -28,7 +31,7 @@ import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { useTranslation } from '@/lib/i18n';
 import type { UserNodeMode, UserNodeStatus } from '@oxy.so/core';
 import type { CivicTone } from '@/lib/civic/card-presentation';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import { Icons, type IconName } from '@/constants/icons';
 
 /** A node endpoint is acceptable to send when it parses as a public HTTPS URL. */
 function isValidEndpoint(value: string): boolean {
@@ -51,17 +54,17 @@ function isValidPublicKey(value: string): boolean {
 /** Map the liveness badge to a tone + icon + label key. */
 function statusMeta(status: UserNodeStatus['status']): {
   tone: CivicTone;
-  icon: MaterialCommunityIconName;
+  icon: IconName;
   labelKey: string;
 } {
   switch (status) {
     case 'active':
-      return { tone: 'positive', icon: 'check-decagram', labelKey: 'civic.nodes.status.active' };
+      return { tone: 'positive', icon: 'verified', labelKey: 'civic.nodes.status.active' };
     case 'unreachable':
-      return { tone: 'caution', icon: 'cloud-alert', labelKey: 'civic.nodes.status.unreachable' };
+      return { tone: 'caution', icon: 'alert', labelKey: 'civic.nodes.status.unreachable' };
     case 'revoked':
     default:
-      return { tone: 'danger', icon: 'cloud-off-outline', labelKey: 'civic.nodes.status.revoked' };
+      return { tone: 'danger', icon: 'offline', labelKey: 'civic.nodes.status.revoked' };
   }
 }
 
@@ -148,16 +151,16 @@ export default function NodeScreen() {
     return (
       <Screen gap={24}>
         <StackHeader title={t('civic.nodes.title')} onBack={handleBack} backAccessibilityLabel={t('common.back')} />
-        <CenteredState
-          icon="shield-check"
-          iconColor={colors.success}
+        <EmptyState
+          illustration={<Icons.shieldCheck size="3xl" fill={colors.success} />}
           title={t('civic.nodes.provision.done.title')}
-          body={t('civic.nodes.provision.done.body')}
-          action={
-            <View style={styles.action}>
-              <PrimaryButton label={t('common.done')} onPress={handleProvisionDone} fullWidth={false} />
+          description={t('civic.nodes.provision.done.body')}
+          footer={
+            <View className="items-center mt-space-4">
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleProvisionDone}>{t('common.done')}</Button>
             </View>
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       </Screen>
     );
@@ -167,16 +170,16 @@ export default function NodeScreen() {
     return (
       <Screen gap={24}>
         <StackHeader title={t('civic.nodes.title')} onBack={handleBack} backAccessibilityLabel={t('common.back')} />
-        <CenteredState
-          icon="server-network"
-          iconColor={colors.success}
+        <EmptyState
+          illustration={<Icons.node size="3xl" fill={colors.success} />}
           title={t('civic.nodes.register.done.title')}
-          body={t('civic.nodes.register.done.body')}
-          action={
-            <View style={styles.action}>
-              <PrimaryButton label={t('common.done')} onPress={handleRegisterDone} fullWidth={false} />
+          description={t('civic.nodes.register.done.body')}
+          footer={
+            <View className="items-center mt-space-4">
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleRegisterDone}>{t('common.done')}</Button>
             </View>
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       </Screen>
     );
@@ -187,25 +190,25 @@ export default function NodeScreen() {
   const renderNoNode = () => (
     <>
       <Section title={t('civic.nodes.intro.title')}>
-        <ThemedText style={[styles.intro, { color: colors.text }]}>
+        <Text style={[styles.intro, { color: colors.text }]}>
           {t('civic.nodes.intro.body')}
-        </ThemedText>
+        </Text>
       </Section>
 
       <Section title={t('civic.nodes.how.title')}>
         <GroupedList>
           <ListRow
-            icon="file-certificate-outline"
+            icon="credential"
             title={t('civic.nodes.how.sourceOfTruth')}
             subtitle={t('civic.nodes.how.sourceOfTruthDesc')}
           />
           <ListRow
-            icon="lightning-bolt-outline"
+            icon="flash"
             title={t('civic.nodes.how.fastCopy')}
             subtitle={t('civic.nodes.how.fastCopyDesc')}
           />
           <ListRow
-            icon="export-variant"
+            icon="share"
             title={t('civic.nodes.how.portable')}
             subtitle={t('civic.nodes.how.portableDesc')}
           />
@@ -213,59 +216,61 @@ export default function NodeScreen() {
       </Section>
 
       <Section title={t('civic.nodes.choose.title')} subtitle={t('civic.nodes.choose.subtitle')}>
-        <View style={styles.choiceStack}>
-          <SoftSurface tone="primary" onPress={provisionBusy ? undefined : () => void provision.provision()} accessibilityLabel={t('civic.nodes.managed.cta')}>
-            <View style={styles.choiceRow}>
-              <View style={styles.choiceText}>
-                <ThemedText style={[styles.choiceTitle, { color: colors.tint }]}>
+        <View className="gap-space-12">
+          <Card
+            appearance="subtle"
+            tone="accent"
+            radius="radius-24"
+            style={styles.softSurface}
+            onPress={provisionBusy ? undefined : () => void provision.provision()}
+            accessibilityLabel={t('civic.nodes.managed.cta')}
+          >
+            <View className="flex-row items-center gap-space-12">
+              <View className="flex-1 gap-space-4">
+                <Text style={[styles.choiceTitle, { color: colors.tint }]}>
                   {t('civic.nodes.managed.cta')}
-                </ThemedText>
-                <ThemedText style={[styles.choiceSubtitle, { color: colors.textSecondary }]}>
+                </Text>
+                <Text style={[styles.choiceSubtitle, { color: colors.textSecondary }]}>
                   {t('civic.nodes.managed.ctaSubtitle')}
-                </ThemedText>
+                </Text>
               </View>
               {provisionBusy && (
-                <ThemedText style={[styles.choiceBusy, { color: colors.tint }]}>
+                <Text style={[styles.choiceBusy, { color: colors.tint }]}>
                   {t('civic.nodes.provision.submitting')}
-                </ThemedText>
+                </Text>
               )}
             </View>
-          </SoftSurface>
+          </Card>
 
           {isWeb ? (
-            <Callout tone="info" icon="cellphone-key">
+            <Admonition type="info">
               {t('civic.nodes.selfHost.webUnavailable')}
-            </Callout>
+            </Admonition>
           ) : (
             <>
-              <SecondaryButton
-                label={t('civic.nodes.selfHost.cta')}
-                icon="console-network-outline"
-                onPress={openForm}
-                disabled={provisionBusy}
-              />
-              <ThemedText style={[styles.choiceHint, { color: colors.textSecondary }]}>
+              <Button appearance="outline" tone="accent" size="lg" icon={Icons.terminal} onPress={openForm} disabled={provisionBusy} style={fullWidthControl}>{t('civic.nodes.selfHost.cta')}</Button>
+              <Text style={[styles.choiceHint, { color: colors.textSecondary }]}>
                 {t('civic.nodes.selfHost.ctaSubtitle')}
-              </ThemedText>
+              </Text>
             </>
           )}
         </View>
       </Section>
 
-      <Callout tone="info" icon="shield-lock-outline">
+      <Admonition type="info">
         {t('civic.nodes.managed.note')}
-      </Callout>
+      </Admonition>
 
       {provision.biometricFailed && (
-        <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+        <Text style={[styles.inlineWarn, { color: colors.warning }]}>
           {t('civic.nodes.provision.biometricFailed')}
-        </ThemedText>
+        </Text>
       )}
 
       {provision.state === 'error' && (
-        <Callout tone="danger" icon="alert-circle-outline">
+        <Admonition type="error">
           {t(`civic.nodes.errors.${provision.errorCode ?? 'generic'}`)}
-        </Callout>
+        </Admonition>
       )}
     </>
   );
@@ -275,10 +280,10 @@ export default function NodeScreen() {
   const renderForm = () => (
     <>
       <Section title={t('civic.nodes.form.title')} subtitle={t('civic.nodes.form.subtitle')}>
-        <View style={styles.field}>
-          <ThemedText style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+        <View className="gap-space-8">
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
             {t('civic.nodes.form.endpointLabel')}
-          </ThemedText>
+          </Text>
           <TextInput
             value={endpoint}
             onChangeText={setEndpoint}
@@ -291,17 +296,17 @@ export default function NodeScreen() {
             accessibilityLabel={t('civic.nodes.form.endpointLabel')}
             style={[styles.input, { color: colors.text, borderColor: colors.border }]}
           />
-          <ThemedText style={[styles.fieldHint, { color: colors.textSecondary }]}>
+          <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>
             {endpoint.trim().length > 0 && !endpointValid
               ? t('civic.nodes.form.endpointInvalid')
               : t('civic.nodes.form.endpointHint')}
-          </ThemedText>
+          </Text>
         </View>
 
-        <View style={styles.field}>
-          <ThemedText style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+        <View className="gap-space-8">
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
             {t('civic.nodes.form.publicKeyLabel')}
-          </ThemedText>
+          </Text>
           <TextInput
             value={publicKey}
             onChangeText={setPublicKey}
@@ -313,16 +318,16 @@ export default function NodeScreen() {
             accessibilityLabel={t('civic.nodes.form.publicKeyLabel')}
             style={[styles.input, { color: colors.text, borderColor: colors.border }]}
           />
-          <ThemedText style={[styles.fieldHint, { color: colors.textSecondary }]}>
+          <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>
             {publicKey.trim().length > 0 && !publicKeyValid
               ? t('civic.nodes.form.publicKeyInvalid')
               : t('civic.nodes.form.publicKeyHint')}
-          </ThemedText>
+          </Text>
         </View>
       </Section>
 
       <Section title={t('civic.nodes.form.modeLabel')}>
-        <View style={styles.modeRow}>
+        <View className="flex-row gap-space-8">
           {(['pull', 'push'] as const).map((option) => {
             const selected = option === mode;
             return (
@@ -338,44 +343,38 @@ export default function NodeScreen() {
                   selected && { backgroundColor: colors.primarySubtle },
                 ]}
               >
-                <ThemedText style={[styles.modeChipText, { color: selected ? colors.tint : colors.text }]}>
+                <Text style={[styles.modeChipText, { color: selected ? colors.tint : colors.text }]}>
                   {t(`civic.nodes.form.mode${option === 'pull' ? 'Pull' : 'Push'}`)}
-                </ThemedText>
+                </Text>
               </TouchableOpacity>
             );
           })}
         </View>
-        <ThemedText style={[styles.fieldHint, { color: colors.textSecondary }]}>
+        <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>
           {t(`civic.nodes.form.mode${mode === 'pull' ? 'Pull' : 'Push'}Desc`)}
-        </ThemedText>
+        </Text>
       </Section>
 
       {register.biometricFailed && (
-        <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+        <Text style={[styles.inlineWarn, { color: colors.warning }]}>
           {t('civic.nodes.form.biometricFailed')}
-        </ThemedText>
+        </Text>
       )}
 
       {register.state === 'error' && (
-        <Callout tone="danger" icon="alert-circle-outline">
+        <Admonition type="error">
           {t(`civic.nodes.errors.${register.errorCode ?? 'generic'}`)}
-        </Callout>
+        </Admonition>
       )}
 
-      <View style={styles.formActions}>
-        <PrimaryButton
-          icon="fingerprint"
-          label={t('civic.nodes.form.cta')}
-          loading={registerBusy}
-          disabled={!endpointValid || !publicKeyValid || registerBusy}
-          onPress={handleRegister}
-        />
+      <View className="gap-space-12">
+        <Button appearance="solid" tone="accent" size="lg" icon={Icons.personhood} onPress={handleRegister} loading={registerBusy} disabled={!endpointValid || !publicKeyValid || registerBusy} style={fullWidthControl}>{t('civic.nodes.form.cta')}</Button>
         {registerBusy && (
-          <ThemedText style={[styles.centerMuted, { color: colors.textSecondary }]}>
+          <Text style={[styles.centerMuted, { color: colors.textSecondary }]}>
             {t('civic.nodes.form.submitting')}
-          </ThemedText>
+          </Text>
         )}
-        <SecondaryButton label={t('civic.nodes.form.cancel')} onPress={closeForm} disabled={registerBusy} />
+        <Button appearance="outline" tone="accent" size="lg" onPress={closeForm} disabled={registerBusy} style={fullWidthControl}>{t('civic.nodes.form.cancel')}</Button>
       </View>
     </>
   );
@@ -390,48 +389,54 @@ export default function NodeScreen() {
       <>
         {/* Status hero */}
         <View style={styles.hero}>
-          <CivicBadge emphasis tone={meta.tone} icon={meta.icon} label={t(meta.labelKey)} />
-          <ThemedText style={[styles.heroType, { color: colors.text }]}>
+          <Badge
+            appearance="subtle"
+            tone={bloomToneFor(meta.tone)}
+            size="label-medium"
+            icon={Icons[meta.icon]}
+            content={t(meta.labelKey)}
+          />
+          <Text style={[styles.heroType, { color: colors.text }]}>
             {t(isManaged ? 'civic.nodes.type.managed' : 'civic.nodes.type.selfHosted')}
-          </ThemedText>
-          <ThemedText style={[styles.heroTypeDesc, { color: colors.textSecondary }]}>
+          </Text>
+          <Text style={[styles.heroTypeDesc, { color: colors.textSecondary }]}>
             {t(isManaged ? 'civic.nodes.type.managedDesc' : 'civic.nodes.type.selfHostedDesc')}
-          </ThemedText>
+          </Text>
         </View>
 
         {current.status === 'unreachable' && (
-          <Callout tone="warning" icon="cloud-alert">
+          <Admonition type="warning">
             {current.lastError
               ? t('civic.nodes.unreachableNote', { reason: current.lastError })
               : t('civic.nodes.unreachableNoteGeneric')}
-          </Callout>
+          </Admonition>
         )}
 
         {current.status === 'revoked' && (
-          <Callout tone="danger" icon="cloud-off-outline">
+          <Admonition type="error">
             {t('civic.nodes.revokedNote')}
-          </Callout>
+          </Admonition>
         )}
 
         {/* Endpoint — selectable, full address */}
         <Section title={t('civic.nodes.details.title')}>
-          <SoftSurface tone="card">
-            <ThemedText style={[styles.endpointCaption, { color: colors.textSecondary }]}>
+          <Card appearance="subtle" tone="neutral" radius="radius-24" style={styles.softSurface}>
+            <Text style={[styles.endpointCaption, { color: colors.textSecondary }]}>
               {t('civic.nodes.details.endpoint')}
-            </ThemedText>
-            <ThemedText selectable style={[styles.endpointValue, { color: colors.text }]}>
+            </Text>
+            <Text selectable style={[styles.endpointValue, { color: colors.text }]}>
               {current.endpoint}
-            </ThemedText>
-          </SoftSurface>
+            </Text>
+          </Card>
 
           <GroupedList>
             <ListRow
-              icon="swap-vertical"
+              icon="sort"
               title={t('civic.nodes.details.mode')}
               value={t(current.mode === 'pull' ? 'civic.nodes.mode.pull' : 'civic.nodes.mode.push')}
             />
             <ListRow
-              icon="access-point-network"
+              icon="node"
               title={t('civic.nodes.details.lastSeen')}
               value={relativeTime(current.lastSeenAt, t('civic.nodes.details.never'))}
             />
@@ -454,7 +459,7 @@ export default function NodeScreen() {
               disabled={syncing}
             />
             <ListRow
-              icon="link-off"
+              icon="blocked"
               title={t('civic.nodes.actions.disconnect')}
               subtitle={t('civic.nodes.actions.disconnectDesc')}
               onPress={removeBusy ? undefined : () => setConfirmingDisconnect(true)}
@@ -465,50 +470,38 @@ export default function NodeScreen() {
         </Section>
 
         {syncNode.state === 'done' && (
-          <ThemedText style={[styles.inlineNote, { color: colors.success }]}>
+          <Text style={[styles.inlineNote, { color: colors.success }]}>
             {t('civic.nodes.actions.synced')}
-          </ThemedText>
+          </Text>
         )}
         {syncNode.state === 'error' && (
-          <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+          <Text style={[styles.inlineWarn, { color: colors.warning }]}>
             {t('civic.nodes.actions.syncFailed')}
-          </ThemedText>
+          </Text>
         )}
 
         {/* Inline disconnect confirm */}
         {confirmingDisconnect && (
           <Section title={t('civic.nodes.disconnect.confirmTitle')}>
-            <Callout tone="danger" icon="alert-octagon-outline">
+            <Admonition type="error">
               {t('civic.nodes.disconnect.confirmBody')}
-            </Callout>
-            <View style={styles.confirmActions}>
-              <SecondaryButton
-                label={t('civic.nodes.disconnect.cancel')}
-                onPress={() => setConfirmingDisconnect(false)}
-                disabled={removeBusy}
-                style={styles.confirmButton}
-              />
-              <PrimaryButton
-                tone="danger"
-                icon="fingerprint"
-                label={t('civic.nodes.disconnect.confirmCta')}
-                loading={removeBusy}
-                onPress={handleDisconnect}
-                style={styles.confirmButton}
-              />
+            </Admonition>
+            <View className="flex-row gap-space-12 mt-space-4">
+              <Button appearance="outline" tone="accent" size="lg" onPress={() => setConfirmingDisconnect(false)} disabled={removeBusy} style={[fullWidthControl, styles.confirmButton]}>{t('civic.nodes.disconnect.cancel')}</Button>
+              <Button appearance="solid" tone="danger" size="lg" icon={Icons.personhood} onPress={handleDisconnect} loading={removeBusy} style={[fullWidthControl, styles.confirmButton]}>{t('civic.nodes.disconnect.confirmCta')}</Button>
             </View>
           </Section>
         )}
 
         {remove.biometricFailed && (
-          <ThemedText style={[styles.inlineWarn, { color: colors.warning }]}>
+          <Text style={[styles.inlineWarn, { color: colors.warning }]}>
             {t('civic.nodes.disconnect.biometricFailed')}
-          </ThemedText>
+          </Text>
         )}
         {remove.state === 'error' && (
-          <Callout tone="danger" icon="alert-circle-outline">
+          <Admonition type="error">
             {t(`civic.nodes.errors.${remove.errorCode ?? 'generic'}`)}
-          </Callout>
+          </Admonition>
         )}
       </>
     );
@@ -518,20 +511,21 @@ export default function NodeScreen() {
 
   const renderBody = () => {
     if (query.isPending && node === undefined) {
-      return <CenteredState loading body={t('civic.nodes.loading')} />;
+      return <LoadingState description={t('civic.nodes.loading')} />;
     }
 
     if (query.isError && node === undefined) {
       return (
-        <CenteredState
-          icon="cloud-alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.nodes.error.title')}
-          body={t('civic.nodes.error.body')}
-          action={
-            <View style={styles.action}>
-              <PrimaryButton label={t('common.retry')} onPress={() => query.refetch()} fullWidth={false} />
+          description={t('civic.nodes.error.body')}
+          footer={
+            <View className="items-center mt-space-4">
+              <Button appearance="solid" tone="accent" size="lg" onPress={() => query.refetch()}>{t('common.retry')}</Button>
             </View>
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -556,25 +550,16 @@ export default function NodeScreen() {
 }
 
 const styles = StyleSheet.create({
-  action: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
+  /**
+   * The padding the retired `SoftSurface` applied. Bloom's `Card` draws the
+   * surface — fill, corner, press feedback — and leaves its inside to the
+   * caller, which is why `CardBody` exists; this content is not a header/body/
+   * footer stack, so it takes the padding directly.
+   */
+  softSurface: { padding: 18 },
   intro: {
     fontSize: 15,
     lineHeight: 22,
-  },
-  choiceStack: {
-    gap: 12,
-  },
-  choiceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  choiceText: {
-    flex: 1,
-    gap: 4,
   },
   choiceTitle: {
     fontSize: 17,
@@ -623,10 +608,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     fontSize: 15,
   },
-  modeRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   modeChip: {
     flex: 1,
     alignItems: 'center',
@@ -638,9 +619,6 @@ const styles = StyleSheet.create({
   modeChipText: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  formActions: {
-    gap: 12,
   },
   centerMuted: {
     fontSize: 14,
@@ -669,11 +647,6 @@ const styles = StyleSheet.create({
   endpointValue: {
     fontSize: 14,
     lineHeight: 20,
-  },
-  confirmActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
   },
   confirmButton: {
     flex: 1,

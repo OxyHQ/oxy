@@ -170,3 +170,4 @@ export const I18nManager: {
   forceRTL: () => undefined,
   getConstants: () => ({ isRTL: false, doLeftAndRightSwapInRTL: true }),
 };
+

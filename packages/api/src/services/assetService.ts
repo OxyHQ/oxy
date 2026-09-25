@@ -91,6 +91,9 @@ const FEDERATION_REPAIR_USER_AGENT = 'OxyHQ/1.0 (Federation Asset Repair)';
 const FEDERATION_REPAIR_MISMATCH_TTL_MS = 15 * 60 * 1000;
 const FEDERATION_REPAIR_MISMATCH_MAX_ENTRIES = 1000;
 
+/** fileId → the repair attempt in progress, shared by concurrent reads. */
+const federationRepairsInFlight = new Map<string, Promise<boolean>>();
+
 /** fileId → epoch ms until which a repair of that file is not re-attempted. */
 const federationRepairMismatches = new Map<string, number>();
 
@@ -236,14 +239,16 @@ export class AssetService {
    * safeFetch does NOT bound the body, so we enforce the byte cap here.
    */
   private async fetchFederationRepairImage(remoteUrl: string): Promise<{ buffer: Buffer; mime: string } | null> {
-    let protocol: string;
+    let url: URL;
     try {
-      protocol = new URL(remoteUrl).protocol;
+      url = new URL(remoteUrl);
     } catch {
       return null;
     }
-    if (protocol !== 'https:') {
-      logger.warn('Federation repair URL rejected: non-https protocol', { remoteHost: repairUrlHost(remoteUrl) });
+    // Logs carry the host only: the full URL may hold credentials.
+    const remoteHost = url.host;
+    if (url.protocol !== 'https:') {
+      logger.warn('Federation repair URL rejected: non-https protocol', { remoteHost });
       return null;
     }
 
@@ -262,23 +267,24 @@ export class AssetService {
     } catch (error) {
       if (error instanceof SsrfRejection) {
         logger.warn('Blocked unsafe federation repair URL', {
-          remoteHost: repairUrlHost(remoteUrl),
+          remoteHost,
           reason: error.message,
         });
         return null;
       }
       logger.warn('Federation repair download failed', {
-        remoteHost: repairUrlHost(remoteUrl),
+        remoteHost,
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
     }
 
+    const finalHost = repairUrlHost(result.finalUrl);
     try {
       if (result.status < 200 || result.status >= 300) {
         result.response.destroy();
         logger.warn('Federation repair download failed', {
-          remoteHost: repairUrlHost(result.finalUrl),
+          remoteHost: finalHost,
           status: result.status,
         });
         return null;
@@ -292,7 +298,7 @@ export class AssetService {
       if (!mime.startsWith('image/') || !isAllowedCacheMime(mime)) {
         result.response.destroy();
         logger.warn('Federation repair rejected non-image content', {
-          remoteHost: repairUrlHost(result.finalUrl),
+          remoteHost: finalHost,
           contentType: rawContentType,
         });
         return null;
@@ -305,7 +311,7 @@ export class AssetService {
       if (Number.isFinite(declaredLength) && declaredLength > FEDERATION_REPAIR_MAX_BYTES) {
         result.response.destroy();
         logger.warn('Federation repair image is too large', {
-          remoteHost: repairUrlHost(result.finalUrl),
+          remoteHost: finalHost,
           declaredLength,
         });
         return null;
@@ -314,7 +320,7 @@ export class AssetService {
       const buffer = await this.readBodyLimited(result.response, FEDERATION_REPAIR_MAX_BYTES);
       if (!buffer || buffer.length === 0) {
         logger.warn('Federation repair image has invalid size', {
-          remoteHost: repairUrlHost(result.finalUrl),
+          remoteHost: finalHost,
           size: buffer?.length ?? 0,
         });
         return null;
@@ -324,7 +330,7 @@ export class AssetService {
     } catch (error) {
       result.response.destroy();
       logger.warn('Federation repair download failed while reading body', {
-        remoteHost: repairUrlHost(result.finalUrl),
+        remoteHost: finalHost,
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
@@ -1382,22 +1388,25 @@ export class AssetService {
   }
 
   /**
-   * Re-fetch the missing original of a federated asset from its persisted
-   * `metadata.remoteUrl` and store it back under the record's content-addressed
-   * key.
-   *
-   * A URL is a location, not a content identity: the remote may now serve
-   * different bytes. The record's `sha256`, its storage key, dedup and every
-   * `by-sha256` lookup all name the ORIGINAL bytes, so the downloaded buffer is
-   * stored only when `sha256(downloaded) === file.sha256`, checked before any
-   * upload, row patch, cache write or variant enqueue. A mismatch returns false
-   * (the caller's missing-file path) and leaves the record untouched; a changed
-   * remote image is a new content identity for the ingest flow, not a repair.
+   * Re-fetch a federated asset's missing original from `metadata.remoteUrl`.
+   * The remote may now serve different bytes, so they are stored only when
+   * `sha256(downloaded) === file.sha256`; otherwise nothing is written (#1285).
+   * Concurrent reads of one missing file share a single attempt.
    */
-  async repairMissingFederationFileContent(file: FileRecord): Promise<boolean> {
+  repairMissingFederationFileContent(file: FileRecord): Promise<boolean> {
     if (!file || file.status === 'deleted') {
-      return false;
+      return Promise.resolve(false);
     }
+    const inFlight = federationRepairsInFlight.get(file.id);
+    if (inFlight) return inFlight;
+    const attempt = this.repairFederationFileContentOnce(file).finally(() => {
+      federationRepairsInFlight.delete(file.id);
+    });
+    federationRepairsInFlight.set(file.id, attempt);
+    return attempt;
+  }
+
+  private async repairFederationFileContentOnce(file: FileRecord): Promise<boolean> {
     if (await this.s3Service.fileExists(file.storageKey)) {
       return true;
     }

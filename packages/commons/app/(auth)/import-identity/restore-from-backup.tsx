@@ -11,9 +11,12 @@ import {
   IdentityUnavailableError,
   handleHttpError,
 } from '@oxy.so/core';
-import { alert } from '@oxy.so/bloom';
+import { alert } from '@oxy.so/bloom/surfaces';
 import { useColors } from '@/hooks/useColors';
-import { Button, KeyboardAwareScrollViewWrapper } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  KeyboardAwareScrollViewWrapper,
+} from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { useTranslation } from '@/lib/i18n';
 import { useIdentity } from '@/hooks/useIdentity';
@@ -208,17 +211,9 @@ export default function RestoreFromBackupScreen() {
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button
-          variant="primary"
-          onPress={handleRestore}
-          disabled={isLoading}
-          loading={isLoading}
-          style={styles.primaryButton}
-        >
-          {isLoading ? t('restoreBackup.restoring') : t('restoreBackup.restore')}
-        </Button>
+        <Button appearance="solid" tone="accent" onPress={handleRestore} disabled={isLoading} loading={isLoading} className="mt-space-32">{isLoading ? t('restoreBackup.restoring') : t('restoreBackup.restore')}</Button>
 
-        <Button variant="ghost" onPress={() => router.back()} disabled={isLoading}>
+        <Button appearance="subtle" onPress={() => router.back()} disabled={isLoading}>
           {t('common.back')}
         </Button>
       </KeyboardAwareScrollViewWrapper>
@@ -248,9 +243,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 22,
     textAlign: 'center',
-  },
-  primaryButton: {
-    marginTop: 32,
   },
   errorText: {
     fontSize: 14,

@@ -1,16 +1,18 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { StyleSheet, View } from 'react-native';
+import { Carousel, CarouselItem } from '@oxy.so/bloom/carousel';
+import { Card } from '@oxy.so/bloom/card';
+import { GlyphButton } from '@oxy.so/bloom/button';
+import { H4, Text } from '@oxy.so/bloom/typography';
+import { AppIcon, Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
-import { SCREEN_PADDING } from '@/components/ui';
-import { withAlpha } from '@/utils/color';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import { withAlpha } from '@oxy.so/bloom/theme';
+import type { IconName } from '@/constants/icons';
 
 /** One civic-duty call to action rendered as a carousel card. */
 export interface CtaItem {
   key: string;
-  icon: MaterialCommunityIconName;
+  icon: IconName;
   /** Accent color for the card's rounded icon tile. */
   color: string;
   title: string;
@@ -29,96 +31,60 @@ interface GetStartedCarouselProps {
 const CARD_WIDTH = 256;
 
 /**
- * A dismissible "Get started" section: a section label with an X control above a
- * horizontally scrolling row of outlined CTA cards. Each card is a rounded,
- * hairline-bordered surface with a small colored rounded-square icon tile, a
- * bold title, and a muted description — the civic duties that grow a citizen's
- * standing (get attested, validate others, prove personhood).
+ * A dismissible "Get started" section: a heading with a dismiss control above a
+ * run of CTA cards — the civic duties that grow a citizen's standing (get
+ * attested, validate others, prove personhood).
+ *
+ * The run is Bloom's `Carousel` rather than a bare horizontal `ScrollView`, so
+ * it snaps, and — the part a `ScrollView` never had — announces itself as a
+ * carousel and labels each card "N of M". The cards are Bloom `Card`s, and the
+ * dismiss is a `GlyphButton`, the neutral icon button.
+ *
+ * `showArrows={false}`: the arrows are a pointer affordance and Commons ships to
+ * phones only. `showDots` stays on — it is the only thing that says more cards
+ * exist, now that the cards no longer bleed to the screen edge.
+ *
+ * The icon TILE stays hand-drawn. Bloom's `IconCircle` is a fixed 52/64 disc in
+ * the accent colour; this is a 40pt rounded SQUARE in the duty's own colour, and
+ * the colour is the point — each duty is a different one.
  */
 export function GetStartedCarousel({ title, dismissLabel, items, onDismiss }: GetStartedCarouselProps) {
   const colors = useColors();
 
   return (
-    <View style={styles.section}>
-      <View style={styles.headerRow}>
-        <ThemedText style={[styles.heading, { color: colors.text }]}>{title}</ThemedText>
-        <TouchableOpacity
-          onPress={onDismiss}
-          accessibilityRole="button"
-          accessibilityLabel={dismissLabel}
-          hitSlop={10}
-          style={styles.dismiss}
-        >
-          <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
+    <View className="gap-space-12">
+      <View className="flex-row items-center justify-between">
+        <H4>{title}</H4>
+        <GlyphButton icon={Icons.close} onPress={onDismiss} accessibilityLabel={dismissLabel} />
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.scroll}
-        contentContainerStyle={styles.track}
-      >
+      <Carousel accessibilityLabel={title} showArrows={false} align="start" gap={12}>
         {items.map((item) => (
-          <TouchableOpacity
-            key={item.key}
-            activeOpacity={0.85}
-            onPress={item.onPress}
-            accessibilityRole="button"
-            accessibilityLabel={item.title}
-            style={[styles.card, { borderColor: colors.border, backgroundColor: colors.background }]}
-          >
-            <View style={[styles.iconTile, { backgroundColor: withAlpha(item.color, 0.14) }]}>
-              <MaterialCommunityIcons name={item.icon} size={22} color={item.color} />
-            </View>
-            <ThemedText style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
-              {item.title}
-            </ThemedText>
-            <ThemedText
-              style={[styles.cardDesc, { color: colors.textSecondary }]}
-              numberOfLines={2}
+          <CarouselItem key={item.key} width={CARD_WIDTH} accessibilityLabel={item.title}>
+            <Card
+              appearance="outline"
+              radius="radius-20"
+              style={styles.card}
+              onPress={item.onPress}
+              accessibilityLabel={item.title}
             >
-              {item.description}
-            </ThemedText>
-          </TouchableOpacity>
+              <View style={[styles.iconTile, { backgroundColor: withAlpha(item.color, 0.14) }]}>
+                <AppIcon name={item.icon} size="md" fill={item.color} />
+              </View>
+              <H4 numberOfLines={1}>{item.title}</H4>
+              <Text style={{ color: colors.textSecondary }} numberOfLines={2}>
+                {item.description}
+              </Text>
+            </Card>
+          </CarouselItem>
         ))}
-      </ScrollView>
+      </Carousel>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  section: {
-    gap: 12,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  heading: {
-    fontSize: 20,
-    fontWeight: '700',
-    letterSpacing: -0.4,
-  },
-  dismiss: {
-    padding: 2,
-  },
-  // Break the horizontal scroller out of the screen's side gutter so cards can
-  // peek to the true screen edge; the leading inset is restored on the content
-  // container so the first card sits flush with the page margin (no offset).
-  scroll: {
-    marginHorizontal: -SCREEN_PADDING,
-  },
-  track: {
-    gap: 12,
-    paddingHorizontal: SCREEN_PADDING,
-  },
   card: {
-    width: CARD_WIDTH,
-    borderRadius: 20,
-    borderCurve: 'continuous',
-    borderWidth: StyleSheet.hairlineWidth,
     padding: 16,
     gap: 10,
   },
@@ -129,14 +95,5 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: -0.2,
-  },
-  cardDesc: {
-    fontSize: 13,
-    lineHeight: 18,
   },
 });

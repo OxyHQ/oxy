@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
-import { Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
 
 interface NotificationsStepProps {
   error: string | null;
@@ -42,8 +42,8 @@ export function NotificationsStep({
 
   return (
     <View style={containerStyle}>
-      <View style={styles.stepContainer}>
-        <View style={styles.notificationIllustration}>
+      <View className="flex-1 p-space-24 pt-space-60 justify-center">
+        <View className="items-center mb-space-32">
           <Text style={styles.notificationIcon}>🔔</Text>
         </View>
 
@@ -54,15 +54,7 @@ export function NotificationsStep({
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button
-          variant="primary"
-          onPress={onRequestNotifications}
-          disabled={isRequestingNotifications || isSigningIn}
-          loading={isRequestingNotifications || isSigningIn}
-          style={styles.primaryButton}
-        >
-          Enable notifications
-        </Button>
+        <Button appearance="solid" tone="accent" onPress={onRequestNotifications} disabled={isRequestingNotifications || isSigningIn} loading={isRequestingNotifications || isSigningIn} className="mt-space-32">Enable notifications</Button>
       </View>
     </View>
   );
@@ -71,12 +63,6 @@ export function NotificationsStep({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  stepContainer: {
-    flex: 1,
-    padding: 24,
-    paddingTop: 60,
-    justifyContent: 'center',
   },
   title: {
     fontSize: 38,
@@ -95,13 +81,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
-  },
-  primaryButton: {
-    marginTop: 32,
-  },
-  notificationIllustration: {
-    alignItems: 'center',
-    marginBottom: 32,
   },
   notificationIcon: {
     fontSize: 64,

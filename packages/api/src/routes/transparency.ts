@@ -10,9 +10,9 @@
  *    walking `prevCheckpointHash` links
  *  - `GET /transparency/proof?subject=&index=` — inclusion proof for a subject
  *
- * Public, cacheable, CORS-open, no auth, no CSRF — like the DID documents, this
+ * Public, cacheable, CORS-open, no auth — like the DID documents, this
  * is public infrastructure, and an audit trail nobody can read is not an audit
- * trail. Mounted OUTSIDE the CSRF group in `server.ts`.
+ * trail.
  *
  * Deliberately NOT offered: any endpoint that returns the committed snapshot or
  * otherwise enumerates subjects. A proof is served for a subject the caller

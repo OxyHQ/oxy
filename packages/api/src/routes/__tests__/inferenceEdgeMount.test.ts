@@ -136,8 +136,6 @@ describe('/v1 mount order', () => {
   it('requires a human session on Inbox point inference', async () => {
     const response = await call('POST', '/email/ai/compose', {
       Authorization: 'Bearer invalid-session-token',
-      'X-Native-App': 'true',
-      'X-CSRF-Token': 'valid-format-csrf-token-for-test',
     });
 
     expect(response.status).toBe(401);

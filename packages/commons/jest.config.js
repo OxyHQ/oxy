@@ -43,6 +43,20 @@ module.exports = {
     // sees the one `jest.fn()` instance no matter which specifier the code under
     // test imported it from.
     '^@oxy.so/services/notifications$': '<rootDir>/__mocks__/oxy-services.ts',
+    // Fonts and images are assets to Metro and raw bytes to Jest — see the file.
+    '\\.(woff2?|ttf|otf|eot|png|jpe?g|gif|webp|svg|lottie)$': '<rootDir>/__mocks__/file-asset.js',
+    '^react-native-svg$': '<rootDir>/__mocks__/react-native-svg.js',
+    '^@oxy.so/bloom/button$': '<rootDir>/__mocks__/bloom-button.tsx',
+    '^@oxy.so/bloom/badge$': '<rootDir>/__mocks__/bloom-badge.tsx',
+    '^@oxy.so/bloom/admonition$': '<rootDir>/__mocks__/bloom-admonition.tsx',
+    '^@oxy.so/bloom/typography$': '<rootDir>/__mocks__/bloom-typography.tsx',
+    '^@oxy.so/bloom/divider$': '<rootDir>/__mocks__/bloom-divider.tsx',
+    '^@oxy.so/bloom/stat-bar$': '<rootDir>/__mocks__/bloom-stat-bar.tsx',
+    '^@oxy.so/bloom/item$': '<rootDir>/__mocks__/bloom-item.tsx',
+    '^@oxy.so/bloom/empty-state$': '<rootDir>/__mocks__/bloom-empty-state.tsx',
+    '^@oxy.so/bloom/loading$': '<rootDir>/__mocks__/bloom-loading.tsx',
+    // Every per-glyph icon subpath resolves to one inert stub — see the file.
+    '^@oxy\\.so/bloom/icons/.*$': '<rootDir>/__mocks__/bloom-icon.js',
     '^@oxy.so/bloom/theme$': '<rootDir>/__mocks__/bloom-theme.ts',
     '^@oxy.so/bloom/composition-bar$': '<rootDir>/__mocks__/bloom-composition-bar.tsx',
     '^react-native-reanimated$': '<rootDir>/__mocks__/react-native-reanimated.ts',
@@ -50,9 +64,6 @@ module.exports = {
       '<rootDir>/__mocks__/react-native-keyboard-controller.ts',
     '^react-native-safe-area-context$':
       '<rootDir>/__mocks__/react-native-safe-area-context.ts',
-    // App code imports one family per subpath so Metro bundles one font instead
-    // of all 19; the barrel entry stays mapped for anything that still uses it.
-    '^@expo/vector-icons(/.*)?$': '<rootDir>/__mocks__/expo-vector-icons.tsx',
     '^@shopify/react-native-skia$': '<rootDir>/__mocks__/react-native-skia.tsx',
     '^expo-router$': '<rootDir>/__mocks__/expo-router.tsx',
     '^expo-secure-store$': '<rootDir>/__mocks__/expo-secure-store.ts',

@@ -212,10 +212,12 @@ export class OxyServicesBase {
   }
 
   /**
-   * Clear stored authentication tokens
+   * Clear stored authentication tokens and end the local session: a re-mint
+   * already in flight plants nothing, and no new one runs until a token is set
+   * again (see `HttpService.endSession`).
    */
   public clearTokens(): void {
-    this.httpService.clearTokens();
+    this.httpService.endSession();
     this._cachedUserId = undefined;
     this._cachedAccessToken = null;
   }

@@ -10,11 +10,12 @@ let mockBottomEdgeInset = 0;
 const TAB_BAR_FOOTPRINT = 82;
 
 jest.mock('@oxy.so/bloom/layout', () => ({ useBottomEdgeInset: () => mockBottomEdgeInset }));
-jest.mock('@oxy.so/bloom/tab-bar', () => ({ useTabBarFootprint: () => TAB_BAR_FOOTPRINT }));
-jest.mock('@/hooks/useColors', () => ({ useColors: () => ({ background: '#fff' }) }));
-jest.mock('@/components/screen-content-wrapper', () => ({
-  ScreenContentWrapper: ({ children }: { children?: React.ReactNode }) => children,
+jest.mock('@oxy.so/bloom/tab-bar', () => ({
+  useTabBarFootprint: () => TAB_BAR_FOOTPRINT,
+  useMinimizeOnScroll: () => undefined,
 }));
+jest.mock('@oxy.so/bloom/screen', () => ({ Screen: () => null, ScreenScrollView: () => null }));
+jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: {} }) }));
 
 import { FAB_MD_DIAMETER, useFabClearance, useScreenBottomPad } from '@/components/ui/screen';
 

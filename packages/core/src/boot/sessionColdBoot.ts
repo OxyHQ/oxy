@@ -326,6 +326,9 @@ export async function runSessionColdBoot(
             { component: 'sessionColdBoot', method: 'device-secret-mint' },
           );
           return { kind: 'skip' };
+        case 'session-ended':
+          // Signed out while the boot was minting; the arm planted nothing.
+          return { kind: 'skip' };
         case 'no-secret':
           return { kind: 'skip' };
       }

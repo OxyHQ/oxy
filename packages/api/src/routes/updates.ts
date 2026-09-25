@@ -3,7 +3,7 @@
  *
  *   GET /updates/v1/apps/:clientId/manifest
  *
- * No auth, no CSRF — mounted BEFORE the CSRF group in `server.ts`. A device
+ * No auth — mounted before the authenticated routers in `server.ts`. A device
  * identifies its app by the `:clientId` (an `ApplicationCredential.publicKey`,
  * `oxy_dk_…`) and its `(channel, runtimeVersion, platform)` via the expo-updates
  * request headers. The response is a signed `multipart/mixed` manifest or

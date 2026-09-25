@@ -18,7 +18,6 @@ import { RequestDeduplicator, RequestQueue, SimpleLogger } from './utils/request
 import { retryAsync } from './utils/asyncUtils';
 import { createCancelledError, ErrorCodes, handleHttpError, isCancelledError, parseHttpErrorBody } from './utils/errorUtils';
 import { jwtDecode } from 'jwt-decode';
-import { isNative, getPlatformOS } from './utils/platform';
 import { isReactNative } from '@oxy.so/protocol';
 import { computeIdentityTag, fnv1a32 } from './utils/cacheKey';
 import { redactUrlQuery } from './utils/redactUrl';
@@ -27,12 +26,6 @@ import type { DeviceSecretMintOutcome } from './session/refresh';
 import { OxyAuthenticationError } from './OxyServices.errors';
 import { getBrowserEdgeRegionHeader } from './utils/edgeRegion';
 import { getBrowserActivityIdHeader } from './utils/activityId';
-
-/**
- * Check if we're running in a native app environment (React Native, not web)
- * This is used to determine CSRF handling mode
- */
-const isNativeApp = isNative();
 
 interface JwtPayload {
   exp?: number;
@@ -144,8 +137,6 @@ interface RequestConfig extends RequestOptions {
   params?: Record<string, unknown>;
   /** @internal Used to prevent infinite auth retry loops */
   _isAuthRetry?: boolean;
-  /** @internal Used to prevent infinite CSRF retry loops */
-  _isCsrfRetry?: boolean;
 }
 
 /**
@@ -155,27 +146,6 @@ interface RequestConfig extends RequestOptions {
  * request queue.
  */
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000;
-
-/**
- * Timeout (ms) for the dedicated `GET /csrf-token` fetch. Independent of the
- * regular request timeout: this is a small, fast, unauthenticated call and
- * should never inherit a longer per-request budget.
- */
-const CSRF_FETCH_TIMEOUT_MS = 5000;
-
-/**
- * Number of attempts for fetching a CSRF token before giving up. The first
- * failure is usually a cold edge/cookie race; a single retry recovers it
- * without masking a genuinely broken `/csrf-token` route.
- */
-const CSRF_FETCH_MAX_ATTEMPTS = 2;
-
-/**
- * Backoff (ms) between CSRF-token fetch attempts. Short by design — a CSRF
- * fetch sits in the critical path of a state-changing request, so the retry
- * must add minimal latency.
- */
-const CSRF_FETCH_RETRY_DELAY_MS = 500;
 
 /**
  * Cooldown (ms) applied after a failed access-token refresh before another
@@ -284,8 +254,6 @@ const CACHE_SIZE_WARNING_THROTTLE_MS = 60000;
  */
 class TokenStore {
   private accessToken: string | null = null;
-  private csrfToken: string | null = null;
-  private csrfTokenFetchPromise: Promise<string | null> | null = null;
 
   setTokens(accessToken: string): void {
     this.accessToken = accessToken;
@@ -301,27 +269,6 @@ class TokenStore {
 
   hasAccessToken(): boolean {
     return !!this.accessToken;
-  }
-
-  setCsrfToken(token: string | null): void {
-    this.csrfToken = token;
-  }
-
-  getCsrfToken(): string | null {
-    return this.csrfToken;
-  }
-
-  setCsrfTokenFetchPromise(promise: Promise<string | null> | null): void {
-    this.csrfTokenFetchPromise = promise;
-  }
-
-  getCsrfTokenFetchPromise(): Promise<string | null> | null {
-    return this.csrfTokenFetchPromise;
-  }
-
-  clearCsrfToken(): void {
-    this.csrfToken = null;
-    this.csrfTokenFetchPromise = null;
   }
 }
 
@@ -432,6 +379,21 @@ export class HttpService {
   private authRefreshHandler: AuthRefreshHandler | null = null;
   private accessTokenProvider: AccessTokenProvider | null = null;
   private deviceSecretMintInFlight: Promise<DeviceSecretMintOutcome> | null = null;
+  /**
+   * Bumped by every {@link endSession}. A re-mint captures it before its first
+   * await and plants nothing if it moved: a refresh that was already in flight
+   * when the user signed out would otherwise complete a moment later and put a
+   * bearer — and through the token listeners, the account — back.
+   */
+  private sessionEpoch = 0;
+  /**
+   * Set by {@link endSession}, cleared by the next {@link setTokens}. Read by the
+   * native shared-keychain re-mint arm: after a sign-out a 401 is the expected
+   * answer, not a cue to sign back in with the identity key. The device-secret
+   * arm is NOT gated on it — minting from a credential the store still holds is
+   * how a signed-out tab joins a sign-in made in another tab.
+   */
+  private sessionEnded = false;
 
   /**
    * Epoch (ms) before which a cache-size telemetry warning must not be
@@ -629,14 +591,9 @@ export class HttpService {
     // it before enqueue means auth-blocked requests hold NO slot while the shared
     // mint runs. `skipAuth` requests (the body-authenticated mint) send NO bearer
     // and skip the near-expiry preflight — see RequestOptions.skipAuth. The
-    // 401/CSRF retry re-enters request() with a fresh config, so it re-resolves
-    // these here with the refreshed token / cleared CSRF.
-    const isStateChangingMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+    // 401 retry re-enters request() with a fresh config, so it re-resolves
+    // this here with the refreshed token.
     const authHeader = config.skipAuth ? null : await this.getAuthHeader();
-    // CSRF protects cookie-authenticated browser writes. Bearer-authenticated SDK
-    // clients are not vulnerable to ambient-cookie CSRF, and linked app APIs
-    // should not need to implement a duplicate `/csrf-token` route.
-    const csrfToken = isStateChangingMethod && !authHeader ? await this.fetchCsrfToken() : null;
     const edgeRegionHeader = await getBrowserEdgeRegionHeader();
     const activityIdHeader = getBrowserActivityIdHeader();
 
@@ -717,32 +674,6 @@ export class HttpService {
           headers['Authorization'] = authHeader;
         }
 
-        // Add CSRF token header for state-changing requests
-        if (csrfToken) {
-          headers['X-CSRF-Token'] = csrfToken;
-        }
-
-        // Add native app header for React Native (required for CSRF validation)
-        // Native apps can't persist cookies like browsers, so the server uses
-        // header-only CSRF validation when this header is present
-        if (isNativeApp && isStateChangingMethod) {
-          headers['X-Native-App'] = 'true';
-        }
-
-        // Debug logging for CSRF issues, routed through SimpleLogger so it only
-        // fires when consumers opt in via `enableLogging`.
-        if (isStateChangingMethod) {
-          this.logger.debug('CSRF Debug:', {
-            url,
-            method,
-            isNativeApp,
-            platformOS: getPlatformOS(),
-            hasCsrfToken: !!csrfToken,
-            csrfTokenLength: csrfToken?.length,
-            hasNativeAppHeader: headers['X-Native-App'] === 'true',
-          });
-        }
-
         // Merge custom headers if provided
         if (config.headers) {
           Object.entries(config.headers).forEach(([key, value]) => {
@@ -807,33 +738,18 @@ export class HttpService {
           if (response.status === 401 && !config._isAuthRetry && !config.skipAuth) {
             const refreshed = await this.refreshAccessToken('response-401');
             if (refreshed) {
-              // `deduplicate: false` is REQUIRED on the retry (mirrors the 403
-              // CSRF retry below). This re-issue runs while the ORIGINAL request
-              // is still in-flight under its dedupe key; the refreshed token is
+              // `deduplicate: false` is REQUIRED on the retry. This re-issue runs
+              // while the ORIGINAL request is still in-flight under its dedupe
+              // key; the refreshed token is
               // for the SAME user, so the identity-scoped key is UNCHANGED — a
               // deduplicated retry would resolve to the still-pending original
               // and await itself (deadlock). Opting the retry out of dedupe makes
               // it a fresh request.
               return this.request<T>({ ...config, _isAuthRetry: true, retry: false, deduplicate: false });
             }
-            // Refresh failed or no token — clear tokens and stale CSRF
+            // Refresh failed or no token — clear tokens
             this.tokenStore.clearTokens();
-            this.tokenStore.clearCsrfToken();
             this.notifyTokenChange();
-          }
-
-          // On 403 with CSRF error, clear cached token and retry once
-          if (response.status === 403 && !config._isCsrfRetry) {
-            try {
-              const clonedResponse = response.clone();
-              const errBody = await clonedResponse.json() as { code?: string } | null;
-              if (errBody?.code === 'CSRF_TOKEN_INVALID' || errBody?.code === 'CSRF_TOKEN_MISSING') {
-                this.tokenStore.clearCsrfToken();
-                return this.request<T>({ ...config, _isCsrfRetry: true, retry: false, deduplicate: false });
-              }
-            } catch {
-              // Failed to parse error body — not a CSRF error
-            }
           }
 
           // Read the error body (may be absent, non-JSON, empty or malformed).
@@ -1270,85 +1186,6 @@ export class HttpService {
   }
 
   /**
-   * Fetch CSRF token from server (with deduplication)
-   * Required for state-changing requests (POST, PUT, PATCH, DELETE)
-   */
-  private async fetchCsrfToken(): Promise<string | null> {
-    // Return cached token if available
-    const cachedToken = this.tokenStore.getCsrfToken();
-    if (cachedToken) {
-      this.logger.debug('Using cached CSRF token');
-      return cachedToken;
-    }
-
-    // Deduplicate concurrent CSRF token fetches
-    const existingPromise = this.tokenStore.getCsrfTokenFetchPromise();
-    if (existingPromise) {
-      this.logger.debug('Waiting for existing CSRF fetch');
-      return existingPromise;
-    }
-
-    const fetchPromise = (async () => {
-      for (let attempt = 1; attempt <= CSRF_FETCH_MAX_ATTEMPTS; attempt++) {
-        try {
-          this.logger.debug('Fetching CSRF token from:', `${this.baseURL}/csrf-token`, `(attempt ${attempt})`);
-
-          // Use AbortController for timeout (more compatible than AbortSignal.timeout)
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), CSRF_FETCH_TIMEOUT_MS);
-
-          const response = await fetch(`${this.baseURL}/csrf-token`, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
-            credentials: 'include', // Required to receive and send cookies
-            signal: controller.signal,
-          });
-
-          clearTimeout(timeoutId);
-
-          this.logger.debug('CSRF fetch response:', response.status, response.ok);
-
-          if (response.ok) {
-            const data = await response.json() as { csrfToken?: string };
-            const token = data.csrfToken || null;
-            this.logger.debug('CSRF response data:', {
-              hasCsrfToken: typeof token === 'string' && token.length > 0,
-              csrfTokenLength: token?.length,
-            });
-            this.tokenStore.setCsrfToken(token);
-            this.logger.debug('CSRF token fetched');
-            return token;
-          }
-
-          // Also check response header for CSRF token
-          const headerToken = response.headers.get('X-CSRF-Token');
-          if (headerToken) {
-            this.tokenStore.setCsrfToken(headerToken);
-            this.logger.debug('CSRF token from header');
-            return headerToken;
-          }
-
-          this.logger.debug('CSRF fetch failed with status:', response.status);
-          this.logger.warn('Failed to fetch CSRF token:', response.status);
-        } catch (error) {
-          this.logger.debug('CSRF fetch error:', error);
-          this.logger.warn('CSRF token fetch error:', error);
-        }
-        // Brief backoff before the next attempt.
-        if (attempt < CSRF_FETCH_MAX_ATTEMPTS) {
-          await new Promise(resolve => setTimeout(resolve, CSRF_FETCH_RETRY_DELAY_MS));
-        }
-      }
-      return null;
-    })().finally(() => {
-      this.tokenStore.setCsrfTokenFetchPromise(null);
-    });
-
-    this.tokenStore.setCsrfTokenFetchPromise(fetchPromise);
-    return fetchPromise;
-  }
-
-  /**
    * Get auth header with automatic token refresh
    */
   private async getAuthHeader(): Promise<string | null> {
@@ -1413,12 +1250,21 @@ export class HttpService {
       // by calling `noteRefreshRateLimited()` from INSIDE this call, so clearing
       // on the way out would discard the flag it just set.
       this.lastRefreshWasRateLimited = false;
+      const epoch = this.sessionEpoch;
       this.tokenRefreshPromise = this.authRefreshHandler(reason)
         .then((newToken) => {
+          if (epoch !== this.sessionEpoch) {
+            // The session ended while this re-mint was in flight. Not a failure
+            // (no cooldown), and nothing to plant.
+            this.logger.debug('Discarded a token refresh that outlived its session');
+            return null;
+          }
           if (!newToken) {
             this.lastRefreshFailureAt = Date.now();
             return null;
           }
+          // A token is planted again, so there is a session again.
+          this.sessionEnded = false;
           if (this.tokenStore.getAccessToken() !== newToken) {
             this.tokenStore.setTokens(newToken);
             this.notifyTokenChange();
@@ -1639,7 +1485,6 @@ export class HttpService {
         }
 
         this.tokenStore.clearTokens();
-        this.tokenStore.clearCsrfToken();
         this.notifyTokenChange();
       }
 
@@ -1680,8 +1525,36 @@ export class HttpService {
 
   // Token management
   setTokens(accessToken: string): void {
+    this.sessionEnded = false;
     this.tokenStore.setTokens(accessToken);
     this.notifyTokenChange();
+  }
+
+  /**
+   * End the local session: clear the bearer and abandon every re-mint already
+   * in flight, so none of them can plant a token after the sign-out.
+   *
+   * {@link clearTokens} alone only drops the bearer, which is right for a
+   * mirror (a linked client following its parent) but not for a sign-out: a
+   * refresh started a moment earlier would finish and plant a new one.
+   */
+  endSession(): void {
+    this.sessionEpoch += 1;
+    this.sessionEnded = true;
+    this.clearTokens();
+  }
+
+  /**
+   * The current session epoch — see {@link endSession}. A re-mint lane that
+   * plants tokens itself (the device-secret arm) compares it across its awaits.
+   */
+  getSessionEpoch(): number {
+    return this.sessionEpoch;
+  }
+
+  /** Whether {@link endSession} ran and no token has been planted since. */
+  hasSessionEnded(): boolean {
+    return this.sessionEnded;
   }
 
   setAuthRefreshHandler(handler: AuthRefreshHandler | null): void {
@@ -1694,7 +1567,6 @@ export class HttpService {
 
   clearTokens(): void {
     this.tokenStore.clearTokens();
-    this.tokenStore.clearCsrfToken();
     // Drop the response cache on logout. The cache is identity-scoped, so a
     // different user could never read these entries, but a logged-out client
     // must not keep the previous session's personalized data resident in
@@ -1819,7 +1691,7 @@ export class HttpService {
 
   // Test-only utility — clears tokens on this instance
   __resetTokensForTests(): void {
+    this.sessionEnded = false;
     this.tokenStore.clearTokens();
-    this.tokenStore.clearCsrfToken();
   }
 }

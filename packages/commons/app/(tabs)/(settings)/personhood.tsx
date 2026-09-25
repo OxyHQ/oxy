@@ -1,19 +1,22 @@
 import React, { useCallback, useMemo } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { bloomToneFor } from '@/lib/civic/card-presentation';
+import { Badge } from '@oxy.so/bloom/badge';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import {
   Screen,
   StackHeader,
-  Callout,
-  CenteredState,
-  PrimaryButton,
   SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useMyPersonhood } from '@/hooks/usePersonhood';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { useTranslation } from '@/lib/i18n';
@@ -59,20 +62,21 @@ export default function PersonhoodScreen() {
 
   const renderBody = () => {
     if (statusQuery.isPending && !status) {
-      return <CenteredState loading body={t('civic.personhood.loading')} />;
+      return <LoadingState description={t('civic.personhood.loading')} />;
     }
 
     if (statusQuery.isError && !status) {
       return (
-        <CenteredState
-          icon="cloud-alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.personhood.error.title')}
-          body={t('civic.personhood.error.body')}
-          action={
-            <View style={styles.action}>
-              <PrimaryButton label={t('common.retry')} onPress={() => statusQuery.refetch()} fullWidth={false} />
+          description={t('civic.personhood.error.body')}
+          footer={
+            <View className="items-center mt-space-4">
+              <Button appearance="solid" tone="accent" size="lg" onPress={() => statusQuery.refetch()}>{t('common.retry')}</Button>
             </View>
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -86,25 +90,32 @@ export default function PersonhoodScreen() {
       <>
         <View style={styles.topBlock}>
           {!isOnline && (
-            <CivicBadge tone="neutral" icon="cloud-off-outline" label={t('civic.personhood.offline')} />
+            <Badge
+              appearance="subtle"
+              tone="neutral"
+              size="label-small"
+              icon={Icons.offline}
+              content={t('civic.personhood.offline')}
+            />
           )}
 
           {/* Verified / building hero — flat, no card. */}
           <View style={styles.hero}>
-          <CivicBadge
-            emphasis
-            tone={verified ? 'positive' : 'caution'}
-            icon={verified ? 'account-check' : 'account-clock-outline'}
-            label={t(verified ? 'civic.personhood.verifiedBadge' : 'civic.personhood.buildingBadge')}
+          <Badge
+            appearance="subtle"
+            tone={bloomToneFor(verified ? 'positive' : 'caution')}
+            size="label-medium"
+            icon={Icons[verified ? 'vouched' : 'pending']}
+            content={t(verified ? 'civic.personhood.verifiedBadge' : 'civic.personhood.buildingBadge')}
           />
 
-          <View style={styles.scoreBlock}>
-            <ThemedText style={[styles.scoreValue, { color: colors.text }]}>
+          <View className="gap-space-4">
+            <Text style={[styles.scoreValue, { color: colors.text }]}>
               {t('civic.personhood.scoreValue', { pct: scorePct })}
-            </ThemedText>
-            <ThemedText style={[styles.scoreLabel, { color: colors.textSecondary }]}>
+            </Text>
+            <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>
               {t('civic.personhood.scoreLabel')}
-            </ThemedText>
+            </Text>
           </View>
 
           {/* Progress to the θ threshold */}
@@ -113,20 +124,20 @@ export default function PersonhoodScreen() {
               <View style={[styles.fill, { width: `${scorePct}%`, backgroundColor: fillColor }]} />
               <View style={[styles.thresholdMark, { left: `${thresholdPct}%`, backgroundColor: colors.text }]} />
             </View>
-            <ThemedText style={[styles.thresholdLabel, { color: colors.textSecondary }]}>
+            <Text style={[styles.thresholdLabel, { color: colors.textSecondary }]}>
               {t('civic.personhood.thresholdLabel', { pct: thresholdPct })}
-            </ThemedText>
+            </Text>
           </View>
 
-          <ThemedText style={[styles.heroDesc, { color: colors.textSecondary }]}>
+          <Text style={[styles.heroDesc, { color: colors.textSecondary }]}>
             {t(verified ? 'civic.personhood.verifiedDesc' : 'civic.personhood.buildingDesc')}
-          </ThemedText>
+          </Text>
         </View>
 
           {status.sybilPenalty > 0 && (
-            <Callout tone="warning" icon="alert-octagon-outline">
+            <Admonition type="warning">
               {t('civic.personhood.penaltyNote')}
-            </Callout>
+            </Admonition>
           )}
         </View>
 
@@ -136,27 +147,27 @@ export default function PersonhoodScreen() {
           footer={t('civic.personhood.signals.subtitle')}
         >
           <SettingsListItem
-            icon={<MaterialCommunityIcons name="account-group-outline" size={22} color={colors.text} />}
+            icon={<Icons.community size='md' fill={colors.text} />}
             title={t('civic.personhood.signals.vouches')}
             description={t('civic.personhood.signals.vouchesDesc')}
             value={t('civic.personhood.signals.vouchesCount', { count: status.vouchCount })}
           />
           <SettingsListItem
-            icon={<MaterialCommunityIcons name="handshake-outline" size={22} color={colors.text} />}
+            icon={<Icons.handshake size='md' fill={colors.text} />}
             title={t('civic.personhood.signals.realLife')}
             description={t('civic.personhood.signals.realLifeDesc')}
             value={t('civic.personhood.signals.realLifeCount', { count: status.realLifeCount })}
           />
           <SettingsListItem
-            icon={<MaterialCommunityIcons name="fingerprint" size={22} color={colors.text} />}
+            icon={<Icons.personhood size='md' fill={colors.text} />}
             title={t('civic.personhood.signals.biometric')}
             description={t('civic.personhood.signals.biometricDesc')}
             value={status.biometricBound ? undefined : t('civic.personhood.signals.biometricUnbound')}
             rightElement={
               status.biometricBound ? (
-                <ThemedText style={[styles.boundValue, { color: colors.success }]}>
+                <Text style={[styles.boundValue, { color: colors.success }]}>
                   {t('civic.personhood.signals.biometricBound')}
-                </ThemedText>
+                </Text>
               ) : undefined
             }
           />
@@ -168,19 +179,19 @@ export default function PersonhoodScreen() {
           footer={t('civic.personhood.improve.subtitle')}
         >
           <SettingsListItem
-            icon={<MaterialCommunityIcons name="account-multiple-check-outline" size={22} color={colors.text} />}
+            icon={<Icons.vouched size='md' fill={colors.text} />}
             title={t('civic.personhood.improve.getVouched')}
             description={t('civic.personhood.improve.getVouchedDesc')}
             showChevron={false}
           />
           <SettingsListItem
-            icon={<MaterialCommunityIcons name="handshake-outline" size={22} color={colors.text} />}
+            icon={<Icons.handshake size='md' fill={colors.text} />}
             title={t('civic.personhood.improve.doRealLife')}
             description={t('civic.personhood.improve.doRealLifeDesc')}
             showChevron={false}
           />
           <SettingsListItem
-            icon={<MaterialCommunityIcons name="fingerprint" size={22} color={colors.text} />}
+            icon={<Icons.personhood size='md' fill={colors.text} />}
             title={t('civic.personhood.improve.bindBiometric')}
             description={t('civic.personhood.improve.bindBiometricDesc')}
             showChevron={false}
@@ -188,9 +199,9 @@ export default function PersonhoodScreen() {
         </SettingsListGroup>
 
         <View style={styles.gutter}>
-          <ThemedText style={[styles.footnote, { color: colors.textSecondary }]}>
+          <Text style={[styles.footnote, { color: colors.textSecondary }]}>
             {t('civic.personhood.footnote')}
-          </ThemedText>
+          </Text>
         </View>
       </>
     );
@@ -224,16 +235,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 17,
   },
-  action: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
   hero: {
     gap: 18,
     alignItems: 'flex-start',
-  },
-  scoreBlock: {
-    gap: 4,
   },
   scoreValue: {
     fontSize: 48,
