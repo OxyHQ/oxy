@@ -214,7 +214,10 @@ export function RotatingTextAnimation({
     }, [normalizedTexts.length, containerHeight]);
 
     return (
-        <Animated.View style={[styles.container, containerAnimatedStyle, containerStyle]}>
+        // Decorative: the drum holds every phrase at once (plus the copies that
+        // make it loop), so exposed it reads as a list of fragments. The screen
+        // that mounts it names the sentence it completes, once.
+        <Animated.View style={[styles.container, containerAnimatedStyle, containerStyle]} aria-hidden>
             <Animated.View style={[rotatingStyle, { overflow: 'visible' }]}>
                 {textList.map((lines, index) => {
                     const absolutePosition = textListPositions[index];

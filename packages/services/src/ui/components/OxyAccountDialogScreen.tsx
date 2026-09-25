@@ -74,22 +74,16 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const { view } = snapshot;
-  // "Add another account" only makes sense as a back destination when there IS
-  // another — i.e. somebody is already signed in on this device.
+  // Names the entry view "Add another account" rather than "Sign in" when
+  // somebody is already signed in on this device.
   const hasSignedInAccounts = (snapshot.directory?.principals.length ?? 0) > 0;
-  const showBack = view === 'qr' || view === 'signup' || (view === 'add' && hasSignedInAccounts);
-  const goToAccounts = useCallback(() => {
-    if (!controller) return;
-    const { view: currentView, signIn } = controller.getSnapshot();
-    // Backing out of an active request must withdraw it — otherwise the
-    // authorizeCode stays approvable until expiry (issue #691 phase 5).
-    if (
-      (currentView === 'qr' || currentView === 'add') &&
-      (signIn.phase === 'starting' || signIn.phase === 'waiting')
-    ) {
-      controller.cancelSignIn();
-    }
-    controller.setView('accounts');
+  // Where back leads is the CONTROLLER's answer (`snapshot.backView`), never a
+  // table here: a host-side "back = accounts" assumed a signed-in origin and
+  // opened the account menu for nobody on a signed-out Back from sign-up.
+  const showBack = snapshot.backView !== null;
+  const goBack = useCallback(() => {
+    // Withdraws an active request itself before leaving it.
+    controller?.back();
   }, [controller]);
   // An ENTRY view (accounts / signin — no in-dialog back of its own) that is
   // MORPHED into a host surface (ManageAccount → switcher) has a frame beneath it,
@@ -109,7 +103,7 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
     titleContent: copy ? undefined : NAV_LOGO,
     title: copy?.title,
     subtitle: copy?.subtitle ?? undefined,
-    onBack: showBack ? goToAccounts : backsToHost ? closeAccountDialog : undefined,
+    onBack: showBack ? goBack : backsToHost ? closeAccountDialog : undefined,
   });
 
   if (!controller) {

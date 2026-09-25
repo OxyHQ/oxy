@@ -1850,6 +1850,7 @@
       "switch": {
         "title": "Cambiar de cuenta",
         "count": "{{count}} cuentas",
+        "countOne": "{{count}} cuenta",
         "empty": "Cuentas que posees o compartes"
       }
     },
@@ -1970,7 +1971,8 @@
       "loading": "Cargando sesiones…",
       "empty": "No hay sesiones activas",
       "signOutAllOnThisDevice": "Cerrar sesión en los demás dispositivos",
-      "signOutAllSubtitle": "Finalizar {{count}} sesión(es) de otros dispositivos"
+      "signOutAllSubtitle": "Finalizar {{count}} sesión(es) de otros dispositivos",
+      "otherSession": "Otra sesión"
     },
     "confirms": {
       "removeDeviceTitle": "Eliminar dispositivo",

@@ -297,8 +297,19 @@ function deriveSignInProgress(facts: SignInFlowFacts): SignInProgress {
 
 /** Immutable snapshot consumed by `useSyncExternalStore`. */
 export interface AccountDialogSnapshot {
-  /** The current view. */
+  /**
+   * The current view. Never `'accounts'` without a session: the account menu
+   * describes a signed-in account, so with no bearer the controller shows the
+   * sign-in entry (`'signin'`) in its place.
+   */
   view: AccountDialogView;
+  /**
+   * Where {@link AccountDialogController.back} leads from {@link view}, or
+   * `null` when `view` is the dialog's first view (a back there closes the
+   * dialog instead). Hosts show their back affordance from this, not from a
+   * table of their own.
+   */
+  backView: AccountDialogView | null;
   /**
    * The server-authoritative device directory — principals and the contexts
    * each may act as (ADR 0002) — or `null` before the first read.
@@ -695,9 +706,11 @@ export class AccountDialogController {
     }
     // Signed out. The directory is bearer-read and `SessionClient` drops the one
     // it holds when the device empties, so there is nothing to clear here — only
-    // the in-flight bookkeeping, which no longer describes anything.
+    // the in-flight bookkeeping, which no longer describes anything. The account
+    // menu described the account that just left, so it gives way to the entry.
     this.error = null;
     this.loading = false;
+    this.view = this.resolveView(this.view);
     this.emit();
   }
 
@@ -705,8 +718,15 @@ export class AccountDialogController {
   // View actions
   // =========================================================================
 
-  /** Set the dialog view directly. */
-  setView(view: AccountDialogView): void {
+  /**
+   * Set the dialog view directly.
+   *
+   * `'accounts'` is only honoured with a session. Signed out it lands on the
+   * sign-in entry instead — the menu it would open holds "Switch account",
+   * storage and "Sign out" for an account that does not exist.
+   */
+  setView(requested: AccountDialogView): void {
+    const view = this.resolveView(requested);
     if (this.view === view) return;
     this.view = view;
     // A `'completed'` flow owns no timers, socket, popup, or token — it is only
@@ -717,6 +737,39 @@ export class AccountDialogController {
       this.signIn = buildSignIn(IDLE_SIGN_IN_FACTS, this.signInAttempt);
     }
     this.emit();
+  }
+
+  /**
+   * Go back one step: `signup` and `qr` return to the sign-in entry, and the
+   * entry returns to the account menu when somebody is signed in.
+   *
+   * Returns `false` — changing nothing — when the current view is the dialog's
+   * first one, so the host closes the dialog instead. Leaving an active
+   * request withdraws it; otherwise its authorize code stays approvable until
+   * it expires.
+   */
+  back(): boolean {
+    const target = backViewOf(this.view, this.hasSession());
+    if (target === null) return false;
+    if (this.signIn.phase === 'starting' || this.signIn.phase === 'waiting') {
+      this.cancelSignIn();
+    }
+    this.setView(target);
+    return true;
+  }
+
+  /** `'accounts'` needs a session; without one the sign-in entry stands in for it. */
+  private resolveView(view: AccountDialogView): AccountDialogView {
+    return view === 'accounts' && !this.hasSession() ? 'signin' : view;
+  }
+
+  /**
+   * Whether an account is signed in here — the precondition of the account
+   * menu. The bearer, not the directory: the directory is bearer-read, and the
+   * menu's content (hero, storage, sign-out) is all about the bearer's account.
+   */
+  private hasSession(): boolean {
+    return this.isAuthenticated();
   }
 
   /** Switch to the "add account" view (the sign-in entry chooser). */
@@ -1720,8 +1773,13 @@ export class AccountDialogController {
 
   private computeSnapshot(): AccountDialogSnapshot {
     const directory = this.sessionClient.getDirectory();
+    const hasSession = this.hasSession();
+    // Resolved here as well as in `setView`: the controller is constructed on
+    // `'accounts'` before anyone knows whether a bearer exists.
+    const view = this.resolveView(this.view);
     return {
-      view: this.view,
+      view,
+      backView: backViewOf(view, hasSession),
       directory,
       activeContext: resolveActiveContext(directory),
       loading: this.loading,
@@ -1744,6 +1802,30 @@ export class AccountDialogController {
         logger.error('[AccountDialogController] subscriber threw', error);
       }
     }
+  }
+}
+
+/**
+ * The view one step back from `view`, or `null` when `view` is the dialog's
+ * first view.
+ *
+ * The sign-in entry is `'add'` ("add another account") when somebody is signed
+ * in and `'signin'` when nobody is; `signup` and `qr` are reached FROM that
+ * entry, so they return to it. The entry itself returns to the account menu —
+ * which exists only with a session. This used to be a host-side
+ * "back = accounts" that assumed a signed-in origin, so a signed-out Back from
+ * "Create your account" opened a menu holding "Sign out" for nobody.
+ */
+export function backViewOf(view: AccountDialogView, hasSession: boolean): AccountDialogView | null {
+  switch (view) {
+    case 'signup':
+    case 'qr':
+      return hasSession ? 'add' : 'signin';
+    case 'add':
+      return hasSession ? 'accounts' : null;
+    case 'signin':
+    case 'accounts':
+      return null;
   }
 }
 

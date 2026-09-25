@@ -64,6 +64,7 @@ const oxyServices = {
 const SNAPSHOT_KEYS = [
   'activatingContextId',
   'activeContext',
+  'backView',
   'commonsAvailability',
   'directory',
   'error',

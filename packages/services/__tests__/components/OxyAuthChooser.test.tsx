@@ -353,6 +353,20 @@ describe('OxyAuthChooser', () => {
     expect(screen.getByText('Manage accounts on this device')).toBeTruthy();
   });
 
+  it('never renders the account menu without a signed-in account — the sign-in entry stands in', () => {
+    // OxyHQ/oxy#1375: signed out, the sheet showed "Switch account … Sign out".
+    // Whatever the controller's view says, no account means no account menu.
+    mockUser = null;
+    snapshot = makeSnapshot({ view: 'accounts' });
+    isWebBrowserMock.mockReturnValue(false);
+
+    render(<OxyAuthChooser />);
+
+    expect(screen.queryByRole('button', { name: 'Switch account' })).toBeNull();
+    expect(screen.queryByText('Sign out')).toBeNull();
+    expect(screen.getByTestId('continue-with-oxy')).toBeTruthy();
+  });
+
   it('routes manage and add-account to registered consumer hooks', () => {
     const onNavigateManage = jest.fn();
     const onAddAccount = jest.fn();

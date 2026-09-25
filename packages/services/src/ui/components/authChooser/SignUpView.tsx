@@ -49,7 +49,7 @@ const SignUpView: React.FC<SignUpViewProps> = ({
     return (
       <View style={styles.centeredBlock}>
         <Button
-          appearance="solid" tone="accent"
+          appearance="solid" tone="accent" size="lg"
           onPress={commonsInstalled ? onCreateIdentityInCommons : onGetCommons}
           style={styles.primaryButton}
         >
@@ -65,7 +65,7 @@ const SignUpView: React.FC<SignUpViewProps> = ({
       <Text style={[styles.mutedText, { color: theme.colors.textSecondary }]}>
         {t('accountSwitcher.passkeyHint')}
       </Text>
-      <Button appearance="solid" tone="accent" onPress={onOpenHub} style={styles.primaryButton} testID="signup-open-identity">
+      <Button appearance="solid" tone="accent" size="lg" onPress={onOpenHub} style={styles.primaryButton} testID="signup-open-identity">
         {t('signup.createAccount')}
       </Button>
       <SubtleLink label={t('signup.backToSignInLink')} theme={theme} onPress={onBackToSignIn} />
