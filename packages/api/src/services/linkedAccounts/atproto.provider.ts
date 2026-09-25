@@ -162,6 +162,13 @@ async function buildClient(): Promise<AtprotoOAuthClientLike> {
     stateStore: stateStore as never,
     sessionStore: sessionStore as never,
     fetch: linkedAccountTransport().fetch,
+    // The library's default handle resolver refuses to construct outside Node
+    // (it checks `process.versions.undici` for its SSRF dispatcher), so under
+    // Bun — `bun --watch` in development — handles are resolved through the
+    // public Bluesky AppView instead. Production runs Node and keeps the
+    // default DNS + well-known resolver. Ownership never rests on the handle:
+    // it rests on the token's verified `sub` DID.
+    ...(process.versions.bun ? { handleResolver: 'https://public.api.bsky.app' } : {}),
     // One process holds each session for one request; the library's warning
     // about a missing lock is about concurrent refreshes, which never happen here.
     requestLock: async (_name: string, fn: () => unknown) => fn(),
