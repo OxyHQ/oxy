@@ -60,7 +60,13 @@ renaming unrelated SMTP, ATProto, device, OAuth or MCP/TNP relay roles.
 | Console: models, usage, billing, routing policy, BYOK | `packages/console` | Yes |
 | Rollout flags + the staff readout | `packages/api/src/config/rolloutFlags.ts`, `GET /inference/admin/rollout` | Yes — [rollout.md](./rollout.md) |
 
-**Merged source publishes no models merely by deploying the API.** The reviewed
+**Since ADR 0027 (2026-09-25), deploying the API with the Kaana binding DOES
+publish internal models:** the scheduled Kaana catalogue sync writes every
+priced, fully described Kaana model as an approved `platform_internal` route
+([catalogue.md](./catalogue.md#automatic-sync-from-kaana)). Nothing public is
+written by it. The paragraph below is the pre-sync history of the reviewed
+bootstrap, which remains the source for Inbox's profile and the speech route.
+The reviewed
 `bootstrap:kaana-catalogue` validates a fresh signed Kaana inventory and exact
 reviewed facts before it can apply model, revision, deployment, pricing, score
 and routing-profile rows. Production workflow run `33736747600` on 2026-09-03
@@ -101,7 +107,10 @@ an opaque ID from a name/order, or fabricates a completion.
 
 ### The catalogue's contents — workstream 5
 
-The exact reviewed model bootstrap is merged, but it is safe-by-default and
+The internal catalogue's contents come from the Kaana sync (ADR 0027); verify a
+run's summary (`POST /inference/admin/catalogue/sync` or the
+`inference.catalogue_sync.completed` log) rather than assuming it ran. The exact
+reviewed model bootstrap is merged, but it is safe-by-default and
 applies nothing unless an authorized operator sets `APPLY=1` with a live signed
 Kaana inventory and catalogue reviewer. Until a route has reviewed commercial
 permission it is not publicly exposed, and default-deny is the starting state.

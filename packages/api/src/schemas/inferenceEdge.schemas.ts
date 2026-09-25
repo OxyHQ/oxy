@@ -36,7 +36,9 @@ import {
   inferenceContentPartSchema,
   inferenceFinishReasonSchema,
   inferenceMessageSchema,
+  inferenceReasoningSchema,
   modelReferenceSchema,
+  reasoningEffortSchema,
   responseFormatSchema,
   inferenceSpeechParametersSchema,
   routingProfileIdSchema,
@@ -47,6 +49,7 @@ import {
   usageQuantitySchema,
   type InferenceInput,
   type InferenceMessage,
+  type InferenceReasoning,
   type InferenceSpeechParameters,
   type ResponseFormat,
   type RoutingTarget,
@@ -122,6 +125,12 @@ export const responsesRequestSchema = z
     tools: z.array(toolDefinitionSchema).max(128).optional(),
     toolChoice: toolChoiceSchema.optional(),
     responseFormat: responseFormatSchema.optional(),
+    /**
+     * `{ effort: 'low' | 'medium' | 'high' }`. Refused with a 400 when the
+     * resolved model does not advertise the effort in its catalogue
+     * `capabilities.reasoningEfforts`.
+     */
+    reasoning: inferenceReasoningSchema.optional(),
     labels: labelsSchema.optional(),
     /** The caller's own correlation id, echoed on the response. */
     clientRequestId: z.string().min(1).max(128).optional(),
@@ -240,6 +249,12 @@ export const chatCompletionsRequestSchema = z
     tools: z.array(openAiToolSchema).max(128).optional(),
     tool_choice: openAiToolChoiceSchema.optional(),
     response_format: openAiResponseFormatSchema.optional(),
+    /**
+     * OpenAI's own reasoning control, so it is not an Oxy-specific field. Only
+     * the three efforts every reasoning route shares are accepted; the resolved
+     * model must advertise the effort or the request is refused with a 400.
+     */
+    reasoning_effort: reasoningEffortSchema.optional(),
     /**
      * OpenAI's end-user attribution field. Carried into the envelope as the
      * DELEGATED user id — attribution only. It never changes which account is
@@ -618,6 +633,8 @@ export interface NormalizedEdgeRequest {
   readonly tools: ToolDefinition[];
   readonly toolChoice?: ToolChoice;
   readonly responseFormat?: ResponseFormat;
+  /** The caller's reasoning effort, validated against the resolved model. */
+  readonly reasoning?: InferenceReasoning;
   readonly labels?: Record<string, string>;
   readonly clientRequestId?: string;
   /** OpenAI's `user`, when the compatibility surface carried one. */
@@ -678,6 +695,7 @@ export function normalizeResponsesRequest(request: ResponsesRequest): Normalized
     tools: request.tools ?? [],
     toolChoice: request.toolChoice,
     responseFormat: request.responseFormat,
+    reasoning: request.reasoning,
     labels: request.labels,
     clientRequestId: request.clientRequestId,
   });
@@ -746,6 +764,8 @@ export function normalizeChatCompletionsRequest(
       ) ?? [],
     toolChoice: normalizeOpenAiToolChoice(request.tool_choice),
     responseFormat: normalizeOpenAiResponseFormat(request.response_format),
+    reasoning:
+      request.reasoning_effort === undefined ? undefined : { effort: request.reasoning_effort },
     delegatedUserId: request.user,
   });
 }

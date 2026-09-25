@@ -119,7 +119,7 @@ no source binding is refused rather than silently adopted.
 ## Protected operations
 
 `.github/workflows/release-external-identity-packages.yml` releases only
-`@oxy.so/contracts@1.1.0`, followed by `@oxy.so/federation@1.0.1`. Dispatch from
+`@oxy.so/contracts@1.3.0`, followed by `@oxy.so/federation@2.0.0`. Dispatch from
 protected `main` with its full `expected_source_sha` and `dry_run=true` first.
 The job builds and packs each package in one command, runs its tests, validates
 all packed export targets, checks the existing npm credential, and records

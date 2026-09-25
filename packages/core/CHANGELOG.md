@@ -1,6 +1,19 @@
 # Changelog — `@oxy.so/core`
 
-## 1.7.4 (unreleased)
+## 1.8.0
+
+Requires `@oxy.so/contracts` 1.4.0.
+
+### Added
+
+- `OxyResponsesRequest.reasoning` (`{ effort: 'low' | 'medium' | 'high' }`),
+  forwarded to `POST /v1/responses`. The edge refuses an effort the resolved
+  model does not list with `invalid_request`.
+- `listModels()` / `getModel()` entries now carry
+  `capabilities.reasoningEfforts` and, when a provider reported one,
+  `releasedAt` (both from `@oxy.so/contracts` 1.4.0).
+
+## 1.7.4
 
 ### Removed
 

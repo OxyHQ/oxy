@@ -905,6 +905,7 @@ export type { PriceVersionStatus, PriceVersion, PriceSnapshot } from './inferenc
 export {
     // The six distinct catalogue objects + the customer-safe projection.
     inferenceModalitySchema,
+    reasoningEffortSchema,
     modelCapabilitiesSchema,
     modelLicenseSchema,
     modelProvenanceSchema,
@@ -928,6 +929,7 @@ export {
 
 export type {
     InferenceModality,
+    ReasoningEffort,
     ModelCapabilities,
     ModelLicense,
     ModelProvenance,
@@ -1019,6 +1021,7 @@ export {
     inferenceMessageSchema,
     inferenceInputSchema,
     samplingParametersSchema,
+    inferenceReasoningSchema,
     toolDefinitionSchema,
     toolChoiceSchema,
     responseFormatSchema,
@@ -1035,6 +1038,7 @@ export type {
     InferenceMessage,
     InferenceInput,
     SamplingParameters,
+    InferenceReasoning,
     ToolDefinition,
     ToolChoice,
     ResponseFormat,

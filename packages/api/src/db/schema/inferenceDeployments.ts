@@ -66,6 +66,7 @@ import {
   USAGE_UNITS,
 } from '@oxy.so/contracts';
 import { createdAt, generatedId, inList, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
+import { inferenceCatalogueAutoApprovalPolicies } from './inferenceCatalogueSync';
 import { inferenceModelRevisions } from './inferenceModelRevisions';
 import { inferenceProviders } from './inferenceProviders';
 import { priceVersions } from './priceVersions';
@@ -291,6 +292,16 @@ export const inferenceDeployments = pgTable(
      */
     internalRouteId: text(),
 
+    /**
+     * The automatic approval policy this route was approved under, when the
+     * Kaana sync wrote it. Null on every reviewed route. A non-null value is
+     * what marks a row as the sync's to update and retire; the sync never
+     * touches a row where it is null.
+     */
+    autoApprovalPolicyId: text().references(() => inferenceCatalogueAutoApprovalPolicies.id, {
+      onDelete: 'restrict',
+    }),
+
     /* ---- upstream cost — PROTECTED, and NOT a customer price ------------- */
 
     /**
@@ -475,6 +486,7 @@ export const inferenceDeployments = pgTable(
     index('inference_deployments_model_revision_id_idx').on(t.modelRevisionId),
     /** "Everything on this provider", for an incident and for the admin queue. */
     index('inference_deployments_provider_slug_idx').on(t.providerSlug),
+    index('inference_deployments_auto_approval_policy_id_idx').on(t.autoApprovalPolicyId),
   ]
 );
 
