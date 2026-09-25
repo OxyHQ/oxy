@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/protocol",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Oxy Protocol — the app-agnostic base substrate: signed-record envelope, canonical JSON, signature/verification, and platform crypto. Reused by any Oxy app to decentralize its own content.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -12,6 +12,9 @@
       ],
       "node": [
         "dist/types/node/index.d.ts"
+      ],
+      "random": [
+        "dist/types/random.d.ts"
       ]
     }
   },
@@ -56,11 +59,25 @@
       },
       "default": "./dist/esm/secp256k1.js"
     },
+    "./random": {
+      "react-native": "./dist/esm/random.js",
+      "import": {
+        "types": "./dist/types/random.d.ts",
+        "default": "./dist/esm/random.js"
+      },
+      "require": {
+        "types": "./dist/types/random.d.ts",
+        "default": "./dist/cjs/random.js"
+      },
+      "default": "./dist/esm/random.js"
+    },
     "./package.json": "./package.json"
   },
   "react-native": {
     "./dist/esm/platform/crypto.js": "./dist/esm/platform/crypto.native.js",
-    "./dist/cjs/platform/crypto.js": "./dist/cjs/platform/crypto.native.js"
+    "./dist/cjs/platform/crypto.js": "./dist/cjs/platform/crypto.native.js",
+    "./dist/esm/platform/random.js": "./dist/esm/platform/random.native.js",
+    "./dist/cjs/platform/random.js": "./dist/cjs/platform/random.native.js"
   },
   "files": [
     "NOTICE",

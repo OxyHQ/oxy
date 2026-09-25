@@ -13,8 +13,23 @@
  *   2. Node — backed by the built-in `node:crypto` module (`webcrypto`, else
  *      `randomFillSync`). This is what a Node runtime WITHOUT a global WebCrypto
  *      (Node 18 script entrypoints, some embedded hosts) falls back to.
- *   3. React Native — `expo-crypto.getRandomBytes` (statically imported via the
- *      per-platform `platform/crypto` module in `@oxy.so/protocol`).
+ *   3. React Native — `expo-crypto.getRandomBytes`, through the dependency-free
+ *      `@oxy.so/protocol/random` entry.
+ *
+ * # Evaluation order — this module must import NOTHING that can capture the global
+ *
+ * `@noble/hashes` 1.x reads `globalThis.crypto` exactly once, when its
+ * `crypto.js` is evaluated, and `randomBytes` uses that captured binding for
+ * the lifetime of the app. ES imports are evaluated before the importing
+ * module's body, so every module this file imports runs BEFORE the shim below
+ * is installed. This file used to import `@oxy.so/protocol`'s root entry,
+ * which reaches `@noble/curves` → `@noble/hashes` through the envelope signer:
+ * on Hermes (no `globalThis.crypto` at startup) noble captured `undefined`
+ * before the shim existed, and every identity creation on Android failed with
+ * `crypto.getRandomValues must be defined`. Its imports are therefore limited
+ * to `buffer` and `@oxy.so/protocol/random`, both free of crypto libraries,
+ * and `index.ts` imports this file first. `__tests__/polyfillOrder.test.ts`
+ * guards both halves.
  *
  * Historically step (2) delegated to `@oxy.so/protocol`'s RN-only
  * `getRandomBytesRN`, which THROWS on Node — so any Node host lacking a global
@@ -23,7 +38,7 @@
  */
 
 import { Buffer } from 'buffer';
-import { getRandomBytesRN, isNodeJS } from '@oxy.so/protocol';
+import { getRandomBytesRN, isNodeJS } from '@oxy.so/protocol/random';
 
 const getGlobalObject = (): typeof globalThis => {
   if (typeof globalThis !== 'undefined') return globalThis;
@@ -125,7 +140,7 @@ const cryptoPolyfill: CryptoLike = {
       return array;
     }
     // React Native (and any non-Node host without WebCrypto): synchronous
-    // expo-crypto via @oxy.so/protocol's RN `platform/crypto` variant.
+    // expo-crypto via @oxy.so/protocol's RN `platform/random` variant.
     const bytes = getRandomBytesRN(array.byteLength);
     const uint8View = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
     uint8View.set(bytes);

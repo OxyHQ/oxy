@@ -40,6 +40,7 @@ module.exports = {
     // depend on packages being built first (mirrors packages/node/jest.config.cjs).
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
     '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxy.so/protocol/random$': '<rootDir>/../protocol/src/random.ts',
     '^@oxy.so/core/server$': '<rootDir>/../core/src/server/index.ts',
     '^@oxy.so/core$': '<rootDir>/../core/src/index.ts',
     '^@/(.*)$': '<rootDir>/src/$1',

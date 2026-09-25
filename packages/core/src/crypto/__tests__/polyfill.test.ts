@@ -13,7 +13,7 @@
 const mockGetRandomBytesRN = jest.fn<Uint8Array, [number]>();
 const mockState = { isNodeJS: true };
 
-jest.mock('@oxy.so/protocol', () => ({
+jest.mock('@oxy.so/protocol/random', () => ({
   isNodeJS: () => mockState.isNodeJS,
   getRandomBytesRN: (byteCount: number) => mockGetRandomBytesRN(byteCount),
 }));

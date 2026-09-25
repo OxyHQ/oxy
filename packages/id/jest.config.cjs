@@ -9,6 +9,7 @@ module.exports = {
     // Resolve workspace packages from SOURCE so the suite needs no prior build.
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
     '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxy.so/protocol/random$': '<rootDir>/../protocol/src/random.ts',
     '^@oxy.so/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
     '^@oxy.so/core$': '<rootDir>/../core/src/index.ts',
     '^@oxy.so/telemetry/collector$': '<rootDir>/../telemetry/src/collector.ts',
