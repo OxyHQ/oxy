@@ -1,6 +1,6 @@
 # Changelog — `@oxy.so/core`
 
-## 1.13.0
+## 1.14.0
 
 ### Added
 
@@ -29,6 +29,10 @@
   2FA and email sign-up copy, and the old account switcher's and sign-in
   entry's (`accountSwitcher.passkeyHint`, `continueWithPasskey`,
   `otherDeviceCommons`, `signin.or`, …).
+
+## 1.13.0
+
+### Added
 
 - `verifyAccountEvent(token, { audience?, jwksUrl? })`: verifies an account
   event from Oxy — the body of an account-event webhook, or an entry of the
