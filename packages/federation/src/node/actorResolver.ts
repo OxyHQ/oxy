@@ -45,6 +45,12 @@ const AP_CONTENT_TYPE = 'application/activity+json';
 /** Maximum decompressed response sizes accepted from untrusted federation hosts. */
 const ACTOR_BODY_MAX_BYTES = 1024 * 1024;
 const COLLECTION_BODY_MAX_BYTES = 64 * 1024;
+/**
+ * Collection responses that DEFINITIVELY withhold the count: the owner hid the
+ * collection (401/403) or it no longer exists (404/410). Anything else non-2xx
+ * is a failed attempt, not an answer.
+ */
+const COLLECTION_WITHHELD_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 410]);
 const ERROR_BODY_MAX_BYTES = 4 * 1024;
 
 async function readBoundedResponseBody(res: Response, maxBytes: number): Promise<string> {
@@ -157,11 +163,32 @@ export interface FederatedActorUpsert {
    */
   networkAcct?: string;
   remoteCreatedAt?: Date;
-  followersCount: number;
-  followingCount: number;
-  postsCount: number;
+  /**
+   * The remote's own totals for its `followers`, `following` and `outbox`
+   * collections, read from each collection's `totalItems`. Each is a
+   * {@link CollectionCount}, and the three states mean three different writes:
+   *
+   * - a number — the remote reported it; store it. `0` is a real zero.
+   * - `null` — the remote definitively does not disclose it (no collection
+   *   advertised, a hidden collection answering 401/403, a gone one answering
+   *   404/410, or a collection that carries no numeric `totalItems`). Store it
+   *   as UNKNOWN — never as `0`.
+   * - absent (`undefined`) — this refresh could not tell (a timeout, a network
+   *   error, a 429/5xx, an unreadable body). The store must LEAVE the stored
+   *   value in place, and a first insert must record it as unknown.
+   */
+  followersCount?: number | null;
+  followingCount?: number | null;
+  postsCount?: number | null;
   lastFetchedAt: Date;
 }
+
+/**
+ * A remote collection's size as one refresh observed it: the reported
+ * `totalItems`, `null` when the remote definitively withholds it, or `undefined`
+ * when this attempt could not find out. See {@link FederatedActorUpsert.followersCount}.
+ */
+export type CollectionCount = number | null | undefined;
 
 /** Bring-your-own-store: the AP actor cache stays in the app DB behind this adapter. */
 export interface FederatedActorStore<TActor extends FederatedActorRecordBase> {
@@ -591,9 +618,11 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         alsoKnownAs,
         networkAcct: networkIdentity?.federatedUsername,
         remoteCreatedAt: typeof actor.published === 'string' ? new Date(actor.published) : undefined,
-        followersCount,
-        followingCount,
-        postsCount,
+        // Omitted, not written as `undefined`, when this refresh could not tell:
+        // an absent key is what tells the store to keep the value it has.
+        ...(followersCount !== undefined && { followersCount }),
+        ...(followingCount !== undefined && { followingCount }),
+        ...(postsCount !== undefined && { postsCount }),
         lastFetchedAt: new Date(),
       };
 
@@ -627,9 +656,11 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
             // string away made both of those unrepresentable, so the stale text
             // survived every later refresh with nothing in the logs.
             bio: identityBio,
-            followersCount,
-            followingCount,
-            postsCount,
+            // The identity bridge takes a number or nothing; an unknown count is
+            // sent as nothing rather than as a zero it would store.
+            followersCount: followersCount ?? undefined,
+            followingCount: followingCount ?? undefined,
+            postsCount: postsCount ?? undefined,
             oxyUserId: fedActor.oxyUserId ?? undefined,
           };
           const oxyId = await this.config.identity.resolveExternalUser(normalized, { forceAvatarRefresh });
@@ -717,16 +748,34 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
     }
   }
 
-  /** Fetch the totalItems count from an ActivityPub collection URL. */
-  private async fetchCollectionCount(url?: string): Promise<number> {
-    if (!url) return 0;
+  /**
+   * Read an ActivityPub collection's `totalItems`.
+   *
+   * Every failure used to come back as `0`, so a follower count the remote HID,
+   * or one a timeout kept us from reading, was stored and shown as a real
+   * "0 followers" — indistinguishable from an account nobody follows. A failure
+   * now says which kind it is (see {@link CollectionCount}):
+   *
+   * - `null` when the answer is definitive: no collection advertised, 401/403
+   *   (the owner hid it), 404/410 (it is gone), or a readable collection with no
+   *   usable `totalItems` (the server does not publish the count).
+   * - `undefined` when this attempt simply failed — a thrown fetch (timeout,
+   *   network, SSRF refusal), any other non-2xx (429, 5xx), or a body that could
+   *   not be read as a JSON object. The next refresh may well succeed, so the
+   *   caller keeps whatever it last knew rather than forgetting it.
+   */
+  private async fetchCollectionCount(url?: string): Promise<CollectionCount> {
+    if (!url) return null;
     try {
       const res = await this.config.signedFetch(url, AP_CONTENT_TYPE);
-      if (!res.ok) return 0;
+      if (!res.ok) {
+        return COLLECTION_WITHHELD_STATUSES.has(res.status) ? null : undefined;
+      }
       const col = await readBoundedJson(res, COLLECTION_BODY_MAX_BYTES);
-      return typeof col.totalItems === 'number' ? col.totalItems : 0;
+      const total = col.totalItems;
+      return typeof total === 'number' && Number.isSafeInteger(total) && total >= 0 ? total : null;
     } catch {
-      return 0;
+      return undefined;
     }
   }
 

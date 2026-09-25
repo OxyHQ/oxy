@@ -1,5 +1,35 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.0.0
+
+### Breaking: an unreadable collection count is unknown, not `0`
+
+`fetchCollectionCount` turned every failure to read a remote `followers`,
+`following` or `outbox` collection into `0` — a hidden collection's 403, a
+timeout, a 5xx, a body with no `totalItems`. The store recorded that zero and
+apps rendered it, so an account with thousands of followers showed
+"0 followers", indistinguishable from one nobody follows (OxyHQ/Mention#1126).
+
+The resolver now reports three outcomes, exported as `CollectionCount`:
+
+| Remote answer | Upsert field | Meaning for the store |
+| --- | --- | --- |
+| `totalItems` is a non-negative integer | that number (`0` stays `0`) | store it |
+| no collection advertised; 401/403 (hidden); 404/410 (gone); no usable `totalItems` | `null` | store UNKNOWN |
+| thrown fetch (timeout, network), any other non-2xx (429, 5xx), unreadable body | key **absent** | keep the stored value; a first insert records unknown |
+
+A failed attempt keeps the last known value because the next refresh will
+likely succeed, and forgetting a known total over one timeout would flicker the
+profile between a number and nothing. A definitive answer replaces it, because
+an owner who hides their followers no longer publishes the old number.
+
+**Migration for `FederatedActorStore` implementers:** `FederatedActorUpsert`'s
+`followersCount`, `followingCount` and `postsCount` are now
+`number | null | undefined`. Store `null` as unknown (a nullable column), and
+on update do not write a count whose key is absent. The identity bridge's
+`NormalizedExternalActor` counts are unchanged: an unknown count is sent as
+`undefined`, never as `0`.
+
 ## 0.16.2
 
 ### Fixed

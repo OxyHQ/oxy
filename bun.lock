@@ -585,7 +585,7 @@
     },
     "packages/federation": {
       "name": "@oxy.so/federation",
-      "version": "1.0.1",
+      "version": "2.0.0",
       "dependencies": {
         "@oxy.so/contracts": "^1.0.0",
         "@oxy.so/core": "^1.0.0",
