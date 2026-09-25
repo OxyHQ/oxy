@@ -5,8 +5,7 @@
  */
 
 import type React from 'react';
-import { useState } from 'react';
-import { Pressable, View } from 'react-native-css/components';
+import { Pressable, View } from 'react-native';
 import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
@@ -17,34 +16,6 @@ import { resolveAccentHex, toPreset, type Theme } from './types';
 
 /** Diameter of a row avatar (the sign-in view's account rows). */
 const ROW_AVATAR_SIZE = 40;
-
-type HoverPressableProps = Omit<React.ComponentProps<typeof Pressable>, 'className'> & {
-  baseClassName: string;
-  hoverClassName: string;
-};
-
-/**
- * A `Pressable` that appends a hover-tint NativeWind token while pointer-hovered.
- * The Metro web pipeline here does NOT emit NativeWind `hover:` variants, so hover
- * is driven by RN's cross-platform `onHoverIn`/`onHoverOut` (they fire only on web
- * via react-native-web; a no-op on native) toggling a plain background token —
- * the tint stays a NativeWind class, only the trigger is JS.
- */
-export const HoverPressable: React.FC<HoverPressableProps> = ({
-  baseClassName,
-  hoverClassName,
-  ...rest
-}) => {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <Pressable
-      {...rest}
-      className={hovered ? `${baseClassName} ${hoverClassName}` : baseClassName}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
-    />
-  );
-};
 
 /**
  * A SUBORDINATE action: a small centred text link, never a button.
@@ -71,15 +42,6 @@ export const SubtleLink: React.FC<{
   >
     <Text style={[styles.linkText, { color: theme.colors.textSecondary }]}>{label}</Text>
   </Pressable>
-);
-
-/** A labelled hairline separating two blocks ("or"). */
-export const Dividerish: React.FC<{ theme: Theme; label: string }> = ({ theme, label }) => (
-  <View style={styles.dividerRow}>
-    <View style={[styles.dividerLine, { backgroundColor: theme.colors.border }]} />
-    <Text style={[styles.dividerText, { color: theme.colors.textSecondary }]}>{label}</Text>
-    <View style={[styles.dividerLine, { backgroundColor: theme.colors.border }]} />
-  </View>
 );
 
 /**

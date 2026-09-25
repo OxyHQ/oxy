@@ -1,6 +1,6 @@
 /**
  * Module mocks for `bun test`. Imported BEFORE any component that pulls a
- * native-only Bloom subpath (e.g. `@oxy.so/bloom/avatar` or `@oxy.so/bloom/button`,
+ * native-only Bloom subpath (`@oxy.so/bloom/button`, `@oxy.so/bloom/toast`,
  * which transitively require `react-native` — a module bun cannot parse in a
  * node test environment). Keep this file dep-free — its job is solely to stub
  * native-only modules with web-safe surrogates.
@@ -8,9 +8,9 @@
 import { mock } from "bun:test"
 import React from "react"
 
-// The barrel re-exports toast from the RN graph (`react-native` condition), which
-// bun cannot parse in a node test env. login-form / sign-up-form import toast
-// from the subpath after the maintenance pass (avoid rolldown-vite barrel co-import).
+// Toast's module sits in the RN graph (`react-native` condition), which bun
+// cannot parse in a node test env. The pages import it from the subpath
+// (avoiding a rolldown-vite barrel co-import).
 const bloomToastStub = () => {
     const noop = () => undefined
     const toast = Object.assign(noop, {
@@ -25,13 +25,7 @@ const bloomToastStub = () => {
     return { toast }
 }
 
-mock.module("@oxy.so/bloom", bloomToastStub)
 mock.module("@oxy.so/bloom/toast", bloomToastStub)
-
-mock.module("@oxy.so/bloom/avatar", () => ({
-    Avatar: ({ source }: { source?: string }) =>
-        React.createElement("span", { "data-avatar-source": source ?? "" }),
-}))
 
 // Web-safe surrogate for Bloom's Button. The published web build (0.10.0+) is a
 // real HTML <button>, but its module still transitively imports `react-native`

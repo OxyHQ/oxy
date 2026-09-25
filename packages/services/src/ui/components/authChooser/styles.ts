@@ -140,41 +140,10 @@ export const authChooserStyles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  signInBlock: {
-    width: '100%',
-  },
   primaryButton: {
     width: '100%',
     borderRadius: 14,
     marginTop: 8,
-  },
-  secondaryButton: {
-    width: '100%',
-    borderRadius: 14,
-    marginTop: 10,
-  },
-  usernameInput: {
-    width: '100%',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    marginTop: 8,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    marginVertical: 14,
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-  },
-  dividerText: {
-    marginHorizontal: 12,
-    fontSize: 13,
   },
   centeredBlock: {
     alignItems: 'center',

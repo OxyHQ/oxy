@@ -202,7 +202,7 @@ function makeHarness(
   over: Partial<{
     clientId: string | null;
     openPopup: () => import('../accountDialogController').PopupWindowHandle | null;
-    hubBaseUrl: string;
+    identityOrigin: string;
     platform: import('../../utils/commonsDelivery').CommonsDeliveryPlatform;
     openUrl: (url: string) => void;
     canOpenApp: (url: string) => Promise<boolean>;
@@ -221,7 +221,7 @@ function makeHarness(
     onSignedIn,
     pollIntervalMs: 1000,
     openPopup: over.openPopup,
-    hubBaseUrl: over.hubBaseUrl,
+    identityOrigin: over.identityOrigin,
     platform: over.platform,
     openUrl: over.openUrl,
     canOpenApp: over.canOpenApp,
@@ -727,11 +727,65 @@ function fakePopup(): import('../accountDialogController').PopupWindowHandle & {
   };
 }
 
+describe('AccountDialogController — startInlineQr (the sign-in entry\'s embedded QR)', () => {
+  const pending = (code: string) => ({
+    sessionToken: `secret-${code}`,
+    authorizeCode: code,
+    qrPayload: `oxycommons://approve?v=1&code=${code}`,
+    expiresAt: Date.now() + 300_000,
+    status: 'pending',
+  });
+
+  it('starts a QR-only request without leaving the entry — no push, no Commons, no view change', async () => {
+    const { controller, oxy } = makeHarness();
+    oxy.startCommonsSignIn.mockResolvedValue(pending('AUTH-CODE'));
+    controller.setView('signin');
+
+    await controller.startInlineQr();
+
+    const snap = controller.getSnapshot();
+    expect(snap.view).toBe('signin');
+    expect(snap.signIn.inline).toBe(true);
+    expect(snap.signIn.phase).toBe('waiting');
+    expect(snap.signIn.route).toBe('qr');
+    expect(snap.signIn.qrPayload).toBe('oxycommons://approve?v=1&code=AUTH-CODE');
+    // A bearer is planted in this harness, so an asked-for request WOULD push.
+    expect(oxy.deliverCommonsSignIn).not.toHaveBeenCalled();
+    controller.cancelSignIn();
+  });
+
+  it('"Try again" repeats the embedded QR', async () => {
+    const { controller, oxy } = makeHarness();
+    oxy.startCommonsSignIn.mockResolvedValue(pending('AUTH-CODE'));
+    await controller.startInlineQr();
+
+    await controller.retrySignIn();
+
+    expect(oxy.startCommonsSignIn).toHaveBeenCalledTimes(2);
+    expect(controller.getSnapshot().signIn.inline).toBe(true);
+    controller.cancelSignIn();
+  });
+
+  it('gives way to a sign-in the person chooses, withdrawing its own request', async () => {
+    const { controller, oxy } = makeHarness();
+    oxy.startCommonsSignIn.mockResolvedValueOnce(pending('INLINE')).mockResolvedValueOnce(pending('ASKED'));
+    await controller.startInlineQr();
+
+    await controller.showQr();
+
+    expect(oxy.denyCommonsSignIn).toHaveBeenCalledWith('INLINE');
+    const snap = controller.getSnapshot();
+    expect(snap.signIn.inline).toBe(false);
+    expect(snap.signIn.authorizeCode).toBe('ASKED');
+    controller.cancelSignIn();
+  });
+});
+
 describe('AccountDialogController — startPasskeyHubSignIn (b2 passkey hub popup)', () => {
   it('opens the popup synchronously, then navigates it to the hub URL with the authorizeCode once the session exists', async () => {
     const popup = fakePopup();
     const openPopup = jest.fn(() => popup);
-    const { controller, oxy } = makeHarness({ openPopup, hubBaseUrl: 'https://id.oxy.so' });
+    const { controller, oxy } = makeHarness({ openPopup, identityOrigin: 'https://id.oxy.so' });
     oxy.startCommonsSignIn.mockResolvedValue({
       sessionToken: 'secret-tok',
       authorizeCode: 'AUTH-CODE',
@@ -1397,7 +1451,7 @@ describe('AccountDialogController — automatic delivery selection (#691 phase 5
       pollIntervalMs: 1000,
       platform: 'desktop',
       openPopup: () => popup,
-      hubBaseUrl: 'https://auth.oxy.so',
+      identityOrigin: 'https://id.oxy.so',
     });
 
     await controller.startPasskeyHubSignIn();
@@ -1429,6 +1483,7 @@ describe('AccountDialogController — automatic delivery selection (#691 phase 5
       'openedAt',
       'progress',
       'attempt',
+      'inline',
     ]);
     // Only the PUBLIC handles are exposed.
     expect(snap.signIn.authorizeCode).toBe('AUTH-CODE');
@@ -1684,6 +1739,7 @@ describe('AccountDialogController — cancellation converges (#691 phase 5)', ()
         openedAt: null,
         progress: 'idle',
         attempt: expect.any(Number),
+        inline: false,
       });
       await jest.advanceTimersByTimeAsync(10_000);
       expect(oxy.pollCommonsSignIn).not.toHaveBeenCalled();

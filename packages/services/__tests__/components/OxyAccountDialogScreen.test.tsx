@@ -10,7 +10,6 @@
  */
 
 import { render } from '@testing-library/react';
-import type { DeviceDirectory } from '@oxy.so/contracts';
 import type { AccountDialogSnapshot } from '@oxy.so/core';
 import type { SurfaceHeaderContent } from '../../src/ui/hooks/useSurfaceHeader';
 
@@ -65,7 +64,11 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
 
 jest.mock('../../src/ui/hooks/useI18n', () => ({
   __esModule: true,
-  useI18n: () => ({ t: () => '', locale: 'en' }),
+  useI18n: () => ({
+    t: (key: string, vars?: Record<string, string | number>) =>
+      jest.requireActual('@oxy.so/core').translate('en-US', key, vars),
+    locale: 'en-US',
+  }),
 }));
 
 // Capture the header config the screen contributes to the Dialog nav header.
@@ -137,12 +140,16 @@ describe('OxyAccountDialogScreen — shared nav header', () => {
     expect(lastHeader()?.title).toBe('Sign in with Oxy');
   });
 
-  it('contributes the create-account title in the signup view', () => {
-    snapshot = makeSnapshot({ view: 'signup' });
-    render(<OxyAccountDialogScreen />);
+  it.each(['signin', 'add', 'signup'] as const)(
+    'leaves the %s bar untitled: the screen carries the Oxy mark and its own large title',
+    (view) => {
+      snapshot = makeSnapshot({ view });
+      render(<OxyAccountDialogScreen />);
 
-    expect(lastHeader()?.title).toBe('Create your account');
-  });
+      expect(lastHeader()?.title).toBeUndefined();
+      expect(lastHeader()?.titleContent).toBeUndefined();
+    },
+  );
 
   it('contributes a back handler in the qr view', () => {
     snapshot = makeSnapshot({ view: 'qr', backView: 'signin' });
@@ -182,52 +189,5 @@ describe('OxyAccountDialogScreen — shared nav header', () => {
     render(<OxyAccountDialogScreen />);
 
     expect(lastHeader()?.onBack).toBeUndefined();
-  });
-
-  describe('the sign-in entry is titled by THIS app\'s session, not by the device directory (OxyHQ/oxy#1375 item 21)', () => {
-    /** The directory Commons leaves behind: its shared identity, listed as active. */
-    const commonsDirectory = {
-      deviceId: 'device-1',
-      revision: 4,
-      activeContextId: 'ctx-qa',
-      updatedAt: 1_720_000_000_000,
-      principals: [
-        {
-          id: 'p-qa',
-          userId: 'qa',
-          authuser: 0,
-          user: { id: 'qa', username: 'qatest0925' },
-          contexts: [
-            {
-              id: 'ctx-qa',
-              accountId: 'qa',
-              kind: 'personal',
-              relationship: 'self',
-              account: { id: 'qa', username: 'qatest0925' },
-              onDevice: true,
-              available: true,
-              active: true,
-              lastUsedAt: null,
-            },
-          ],
-        },
-      ],
-    } as unknown as DeviceDirectory;
-
-    it('signed out, reads "Sign in" even though the device still lists an account', () => {
-      snapshot = makeSnapshot({ view: 'signin', hasSession: false, directory: commonsDirectory });
-      render(<OxyAccountDialogScreen />);
-
-      expect(lastHeader()?.title).toBe('Sign in');
-      expect(lastHeader()?.subtitle).toBe('One identity for the whole ecosystem.');
-    });
-
-    it('signed in, the same entry reads "Add another account"', () => {
-      snapshot = makeSnapshot({ view: 'add', backView: 'accounts', hasSession: true, directory: commonsDirectory });
-      render(<OxyAccountDialogScreen />);
-
-      expect(lastHeader()?.title).toBe('Add another account');
-      expect(lastHeader()?.subtitle).toBe('Sign in with another account.');
-    });
   });
 });

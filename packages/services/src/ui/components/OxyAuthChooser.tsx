@@ -15,17 +15,16 @@
  * responsibility each:
  *
  *  - `accounts` → `AccountsMenuView` — the signed-in Oxy account menu.
- *  - `add` / `signin` → `SignInEntryView` — ONE primary action, "Continue with
- *    Oxy" (issue #691, Phase 5). On WEB this view is transient: the flow
- *    auto-starts the instant the view is reached, because the request surface
- *    (a QR on an unknown desktop, "Check Commons on your phone" where Oxy could
- *    deliver) IS the primary route there, never something behind a second tap.
+ *  - `add` / `signin` → `OxySignInPanel` — THE sign-in screen, the one
+ *    auth.oxy.so renders too: the device's accounts, then Commons (the
+ *    embedded QR, or "Continue with Oxy"), then the passkey methods.
  *  - `qr` → `SignInRequestView` — the ACTIVE REQUEST: the controller-bound
  *    wiring over the shared, presentational `OxySignInRequestSurface` (the same
  *    component the auth.oxy.so IdP mounts from its OAuth-bound request). It maps
  *    `snapshot.signIn` onto that surface's props; alternatives stay behind
  *    "Having trouble?" until the chosen route reports `routeFailed`.
- *  - `signup` → `SignUpView` — account creation, Commons-first.
+ *  - `signup` → `OxySignUpPanel` — account creation, the one auth.oxy.so/signup
+ *    renders.
  *
  * Per-account color re-theming uses Bloom's `APP_COLOR_PRESETS` + `BloomColorScope`
  * (same visual language auth.oxy.so uses). Base theming is `useTheme()` + a
@@ -52,9 +51,7 @@ import { isWebBrowser } from '../utils/isWebBrowser';
 import { getCommonsAcquisitionUrl } from '../utils/commonsStoreLinks';
 import { useAccountStorageUsage } from '../hooks/queries/useServicesQueries';
 import AccountsMenuView from './authChooser/AccountsMenuView';
-import SignInEntryView from './authChooser/SignInEntryView';
 import SignInRequestView from './authChooser/SignInRequestView';
-import SignUpView from './authChooser/SignUpView';
 import { signInFailureMessage } from './authChooser/signInFailureMessage';
 import {
   resolveAccentHex,
@@ -66,9 +63,9 @@ import {
   type SignInAlternatives,
 } from './authChooser/types';
 import { EMPTY_ACCOUNT_DIALOG_SNAPSHOT } from '../hooks/accountDialogSnapshot';
+import { OxySignInPanel } from './signIn/OxySignInPanel';
+import { OxySignUpPanel } from './signIn/OxySignUpPanel';
 
-/** Commons' own identity-creation deep link (mirrors the `approve`/`attest`/`card` intents). */
-const COMMONS_CREATE_IDENTITY_URL = 'oxycommons://create-identity';
 /**
  * "Accounts by Oxy" management app — the canonical home for account settings,
  * data export, and storage management. The account-menu rows deep-link into it
@@ -140,7 +137,8 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
       if (!controller) return () => undefined;
       const maybeToastSignInError = () => {
         const { signIn } = controller.getSnapshot();
-        if (signIn.phase !== 'error') return;
+        // The embedded QR's failures are its own to handle (it renews itself).
+        if (signIn.phase !== 'error' || signIn.inline) return;
         if (toastedFailureAttempt.get(controller) === signIn.attempt) return;
         toastedFailureAttempt.set(controller, signIn.attempt);
         const message = signInFailureMessage(signIn.failure, t);
@@ -367,12 +365,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
       onSignInWithPasskey: () => void controller?.startPasskeyHubSignIn(),
       onShowQr: () => void controller?.showQr(),
       onGetCommons: () => openExternal(getCommonsAcquisitionUrl(Platform.OS)),
-      // Web: the identity origin creates the account and its identity in the
-      // same window a sign-in uses. Native: Commons creates the identity.
-      onCreateAccount: () => {
-        if (passkeyMode === 'hub') void controller?.startPasskeyHubSignIn();
-        else controller?.startSignup();
-      },
+      onCreateAccount: () => controller?.startSignup(),
     }),
     [passkeyMode, controller, openExternal],
   );
@@ -462,29 +455,14 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   }
 
   if (view === 'signup') {
-    return (
-      <SignUpView
-        snapshot={snapshot}
-        theme={theme}
-        t={t}
-        passkeyMode={passkeyMode}
-        onOpenHub={() => void controller.startPasskeyHubSignIn()}
-        onCreateIdentityInCommons={() => openExternal(COMMONS_CREATE_IDENTITY_URL)}
-        onGetCommons={alternatives.onGetCommons}
-        onBackToSignIn={() => controller.setView('signin')}
-      />
-    );
+    return <OxySignUpPanel host="dialog" onSignIn={() => controller.setView('signin')} />;
   }
 
   return (
-    <SignInEntryView
-      snapshot={snapshot}
-      principals={principals}
-      theme={theme}
-      t={t}
-      handlers={handlers}
-      onContinueWithOxy={() => void controller.signInWithOxy()}
-      alternatives={alternatives}
+    <OxySignInPanel
+      host="dialog"
+      onSignedIn={() => onComplete?.()}
+      onCreateAccount={() => controller.startSignup()}
     />
   );
 };

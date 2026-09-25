@@ -19,7 +19,6 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { createServicesMock, defaultDeviceSwitcher } from "@/lib/__tests__/setup-services-mock"
-import { LocaleProvider } from "@/lib/i18n/locale-context"
 
 const CODE = "0123456789abcdef0123456789abcdef"
 
@@ -98,14 +97,12 @@ function renderPage(query = `user_code=${CODE}`): { container: HTMLDivElement; u
     const root: Root = createRoot(container)
     act(() => {
         root.render(
-            <LocaleProvider>
                 <MemoryRouter initialEntries={[`/device?${query}`]}>
                     <Routes>
                         <Route path="/device" element={<DevicePage />} />
                         <Route path="/login" element={<LocationProbe />} />
                     </Routes>
                 </MemoryRouter>
-            </LocaleProvider>,
         )
     })
     return {

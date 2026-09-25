@@ -1,9 +1,6 @@
 import type React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
-import {
-    type StyleProp,
-    type ViewStyle,
-} from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native-css/components';
 import { RiLoginBoxLine } from '@oxy.so/bloom/icons/RiLoginBoxLine';
 import { RiMoreLine } from '@oxy.so/bloom/icons/RiMoreLine';

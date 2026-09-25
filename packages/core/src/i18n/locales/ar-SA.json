@@ -1,53 +1,47 @@
 {
   "signin": {
     "title": "تسجيل الدخول",
-    "subtitle": "سجل الدخول للمتابعة",
+    "subtitle": "استخدم حسابك في Oxy",
     "addAccountTitle": "إضافة حساب آخر",
     "addAccountSubtitle": "تسجيل الدخول بحساب آخر",
     "username": {
       "label": "اسم المستخدم",
-      "placeholder": "أدخل اسم المستخدم",
-      "helper": "3-30 حرفًا، أحرف وأرقام فقط",
-      "required": "يرجى إدخال اسم المستخدم.",
-      "minLength": "يجب أن يكون اسم المستخدم 3 أحرف على الأقل."
-    },
-    "password": {
-      "label": "كلمة المرور",
-      "placeholder": "أدخل كلمة المرور",
-      "required": "يرجى إدخال كلمة المرور.",
-      "hint": "أدخل كلمة المرور لتسجيل الدخول"
+      "placeholder": "yourname",
+      "required": "يرجى إدخال اسم المستخدم."
     },
     "actions": {
       "continue": "متابعة",
-      "back": "رجوع",
-      "signIn": "تسجيل الدخول",
-      "verify": "التحقق",
-      "openAccountSwitcher": "التبديل إلى حساب آخر",
-      "openAccountSwitcherSubtitle": "{{count}} حسابات أخرى متاحة",
-      "openAccountSwitcherSubtitle_singular": "حساب آخر واحد متاح",
-      "openAccountSwitcherSubtitle_zero": "راجع حساباتك المحفوظة",
-      "manageAccounts": "إدارة الحسابات المحفوظة",
-      "manageAccountsSubtitle": "مراجعة الجلسات أو إزالتها أو تسجيل الخروج",
-      "loadingOtherAccounts": "جاري تحميل الحسابات الأخرى…",
-      "switchAccountFailed": "لم نتمكن من التبديل بين الحسابات. يرجى المحاولة مرة أخرى."
+      "back": "رجوع"
     },
-    "forgotPrompt": "نسيت كلمة المرور؟",
-    "security": {
-      "dataSecure": "بياناتك مشفرة وآمنة"
-    },
-    "currentlySignedInAs": "مسجل الدخول حاليًا كـ",
-    "alreadySignedInWith": "مسجل الدخول بالفعل بـ",
-    "alreadySignedIn": "مسجل الدخول بالفعل",
-    "alreadySignedInMessage": "هذا الحساب مسجل الدخول بالفعل. المتابعة بهذا الحساب؟",
-    "continueWithAccount": "متابعة",
-    "currentAccount": "الحالي",
-    "or": "أو",
-    "viewAllAccounts": "عرض {{count}} المزيد",
     "createAccountLink": "جديد على Oxy؟ أنشئ حسابًا",
     "status": {
-      "accountSwitched": "استخدام {{name}} الآن",
       "signingIn": "جارٍ تسجيل الدخول…"
-    }
+    },
+    "subtitleToApp": "للمتابعة إلى {{app}}",
+    "orContinueWith": "أو تابع باستخدام",
+    "qr": {
+      "caption": "امسح باستخدام Commons لتسجيل الدخول",
+      "renew": "عرض رمز جديد"
+    },
+    "methods": {
+      "passkey": "تسجيل الدخول بمفتاح المرور"
+    },
+    "errors": {
+      "rateLimited": "محاولات كثيرة جدًا. حاول مرة أخرى بعد {{seconds}} ث.",
+      "passkeyCancelled": "تم إغلاق طلب مفتاح المرور. حاول مرة أخرى عندما تكون مستعدًا.",
+      "passkeyFailed": "تعذر إكمال مفتاح المرور. حاول مرة أخرى."
+    },
+    "chooser": {
+      "subtitleToApp": "للمتابعة إلى {{app}}"
+    },
+    "terms": {
+      "before": "بالمتابعة، أنت توافق على",
+      "termsLink": "شروط الخدمة",
+      "and": "و",
+      "privacyLink": "سياسة الخصوصية"
+    },
+    "noAccount": "ليس لديك حساب؟",
+    "createAccount": "إنشاء حساب"
   },
   "signup": {
     "title": "أنشئ حسابك",
@@ -55,56 +49,9 @@
     "createInCommons": "أنشئ هويتك في Commons",
     "createAccount": "إنشاء حساب",
     "backToSignInLink": "لديك حساب بالفعل؟ سجّل الدخول",
-    "welcome": {
-      "title": "مرحبًا بك في Oxy!",
-      "subtitle": "أنشئ حسابك في خطوات قليلة",
-      "haveAccount": "لديك حساب بالفعل؟",
-      "signInCta": "تسجيل الدخول"
-    },
-    "identity": {
-      "title": "من أنت؟",
-      "subtitle": "اختر اسم المستخدم وأدخل بريدك الإلكتروني"
-    },
-    "username": {
-      "helper": "3-30 حرفًا، أحرف وأرقام فقط",
-      "required": "يرجى إدخال اسم مستخدم",
-      "minLength": "يجب أن يكون اسم المستخدم 3 أحرف على الأقل"
-    },
-    "email": {
-      "required": "يرجى إدخال عنوان بريد إلكتروني",
-      "invalid": "يرجى إدخال عنوان بريد إلكتروني صالح",
-      "helper": "لن نشارك بريدك الإلكتروني أبدًا"
-    },
-    "security": {
-      "title": "أمّن حسابك",
-      "subtitle": "أنشئ كلمة مرور قوية لحماية حسابك"
-    },
-    "password": {
-      "helper": "8 أحرف على الأقل",
-      "required": "يرجى إدخال كلمة مرور",
-      "minLength": "يجب أن تكون كلمة المرور 8 أحرف على الأقل",
-      "confirmRequired": "يرجى تأكيد كلمة المرور",
-      "mismatch": "كلمات المرور غير متطابقة",
-      "confirmHint": "أعد إدخال كلمة المرور للتأكيد"
-    },
-    "summary": {
-      "title": "أوشكت على الانتهاء!",
-      "subtitle": "راجع معلوماتك وأنشئ حسابك",
-      "sectionTitle": "معلومات الحساب",
-      "fields": {
-        "username": "اسم المستخدم",
-        "email": "البريد الإلكتروني",
-        "password": "كلمة المرور"
-      },
-      "notSet": "غير محدد",
-      "securityTip": "لمزيد من الأمان، قم بتمكين المصادقة الحيوية من إعدادات الحساب بعد إنشاء حسابك.",
-      "legalReminder": "بإنشاء حساب، فإنك توافق على شروط الخدمة وسياسة الخصوصية الخاصة بنا."
-    }
+    "webSubtitle": "بلا كلمة مرور. ينشئ جهازك مفتاح مرور، ويحصل حسابك على عبارة استرداد تحتفظ بها أنت وحدك."
   },
   "accountSwitcher": {
-    "sections": {
-      "yourAccounts": "حساباتك"
-    },
     "loading": "جارٍ تحميل الحسابات...",
     "qrHeadline": "سجّل الدخول بهوية Oxy الخاصة بك",
     "signInWithOxy": "تسجيل الدخول باستخدام Oxy",
@@ -136,10 +83,7 @@
       "claimFailed": "تمت الموافقة على تسجيل الدخول، لكن تعذّر إكماله. يُرجى المحاولة مرة أخرى.",
       "generic": "تعذّر تسجيل الدخول. يُرجى المحاولة مرة أخرى."
     },
-    "linkOpenFailed": "تعذّر فتح الرابط. يُرجى المحاولة مرة أخرى.",
-    "continueWithPasskey": "متابعة",
-    "passkeyHint": "استخدم بصمتك أو وجهك أو رمز PIN للجهاز.",
-    "otherDeviceCommons": "حسابك على جهاز آخر؟ امسح الرمز باستخدام Commons"
+    "linkOpenFailed": "تعذّر فتح الرابط. يُرجى المحاولة مرة أخرى."
   },
   "common": {
     "actions": {

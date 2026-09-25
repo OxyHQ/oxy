@@ -1,9 +1,51 @@
 # Changelog
 
-## Unreleased
+## [5.0.0] - 2026-09-26
+
+Requires `@oxy.so/core` `^1.14.0`.
+
+**One sign-in screen.** The account dialog and auth.oxy.so now render the same
+screens, from this package: `OxySignInPanel` (sign-in), `OxySignUpPanel`
+(account creation) and `OxyAccountPicker` ("Choose an account"), on a shared
+shell (`OxyAuthScreen`, `OxyAuthScreenHeader`, `OxyAuthLoading`,
+`OxyAuthTerms`). auth.oxy.so mounts them as a page (`host="page"`); the dialog
+mounts them in place.
+
+### Added
+
+- The sign-in screen: the device's accounts first, then the Oxy mark and a
+  large title, the Commons way in, the username with its Continue, "or
+  continue with" a passkey, and "Create account". On the
+  web from `md` it is Bloom `AuthCard`'s split card — the form on the left, the
+  embedded Commons QR over a photo carousel on the right — and the account
+  dialog grows to 880 for it; below `md`, and on native, "Continue with Oxy"
+  takes the QR's place ("Get Commons" on a native device without Commons).
+  Continue is a username-first passkey sign-in, which also takes a hardware
+  security key with no resident credential; the passkey button is the
+  discoverable ceremony, with nothing to type. Both run on the page on an
+  `oxy.so` origin and in the identity window everywhere else on the web;
+  native has none. Layout is NativeWind `className`.
+- `useSurfaceFrameWidth(maxWidth)`: a surface screen's say in its dialog's
+  width, for a screen whose views differ in width.
+- `useOxy().signInWithPasskey` sends the device fingerprint every other
+  sign-in path sends when the caller passes none.
+
+### Changed
+
+- **Breaking:** `react-native-css` is a required peer. The root barrel already
+  imported it statically (`ProfileButton`); the optional flag only hid that.
+- The sign-in entry is no longer one "Continue with Oxy" button with its
+  alternatives behind "Having trouble?": every method is on the screen. The
+  active request (`qr` view) keeps its disclosure.
+- "Create account" in the dialog opens the account-creation screen, whose
+  one action opens the identity window, instead of opening the window at once.
 
 ### Removed
 
+- **Breaking:** the `OxyAuthChooser` export. The dialog renders it; a page of
+  its own mounts `OxySignInPanel` / `OxySignUpPanel` / `OxyAccountPicker`.
+- The old sign-in entry and sign-up views (`SignInEntryView`, `SignUpView`)
+  and their dead styles.
 - **Breaking:** `useOxy().registerWithPasskey`. An Oxy account is created WITH
   its self-custody root in the account dialog's creation flow
   (`openAccountDialog('signup')`), never by a local passkey ceremony (ADR 0024

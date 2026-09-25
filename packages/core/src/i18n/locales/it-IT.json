@@ -1,53 +1,47 @@
 {
   "signin": {
     "title": "Accedi",
-    "subtitle": "Accedi per continuare",
+    "subtitle": "Usa il tuo account Oxy",
     "addAccountTitle": "Aggiungi un altro account",
     "addAccountSubtitle": "Accedi con un altro account",
     "username": {
       "label": "Nome utente",
-      "placeholder": "Inserisci il tuo nome utente",
-      "helper": "3-30 caratteri, solo lettere e numeri",
-      "required": "Inserisci il tuo nome utente.",
-      "minLength": "Il nome utente deve contenere almeno 3 caratteri."
-    },
-    "password": {
-      "label": "Password",
-      "placeholder": "Inserisci la tua password",
-      "required": "Inserisci la tua password.",
-      "hint": "Inserisci la tua password per accedere"
+      "placeholder": "tuonome",
+      "required": "Inserisci il tuo nome utente."
     },
     "actions": {
       "continue": "Continua",
-      "back": "Indietro",
-      "signIn": "Accedi",
-      "verify": "Verifica",
-      "openAccountSwitcher": "Passa a un altro account",
-      "openAccountSwitcherSubtitle": "{{count}} altri account disponibili",
-      "openAccountSwitcherSubtitle_singular": "1 altro account disponibile",
-      "openAccountSwitcherSubtitle_zero": "Rivedi i tuoi account salvati",
-      "manageAccounts": "Gestisci account salvati",
-      "manageAccountsSubtitle": "Rivedi sessioni, rimuovi o disconnetti",
-      "loadingOtherAccounts": "Caricamento altri account…",
-      "switchAccountFailed": "Non siamo riusciti a cambiare account. Riprova."
+      "back": "Indietro"
     },
-    "forgotPrompt": "Password dimenticata?",
-    "security": {
-      "dataSecure": "I tuoi dati sono crittografati e sicuri"
-    },
-    "currentlySignedInAs": "Attualmente connesso come",
-    "alreadySignedInWith": "Già connesso con",
-    "alreadySignedIn": "Già connesso",
-    "alreadySignedInMessage": "Questo account è già connesso. Continuare con questo account?",
-    "continueWithAccount": "Continua",
-    "currentAccount": "Attuale",
-    "or": "o",
-    "viewAllAccounts": "Visualizza {{count}} altri",
     "createAccountLink": "Nuovo su Oxy? Creane uno",
     "status": {
-      "accountSwitched": "Ora usando {{name}}",
       "signingIn": "Accesso in corso…"
-    }
+    },
+    "subtitleToApp": "per continuare su {{app}}",
+    "orContinueWith": "o continua con",
+    "qr": {
+      "caption": "Scansiona con Commons per accedere",
+      "renew": "Mostra un nuovo codice"
+    },
+    "methods": {
+      "passkey": "Accedi con una passkey"
+    },
+    "errors": {
+      "rateLimited": "Troppi tentativi. Riprova tra {{seconds}} s.",
+      "passkeyCancelled": "Richiesta passkey chiusa. Riprova quando vuoi.",
+      "passkeyFailed": "Impossibile completare la passkey. Riprova."
+    },
+    "chooser": {
+      "subtitleToApp": "per continuare su {{app}}"
+    },
+    "terms": {
+      "before": "Continuando, accetti i nostri",
+      "termsLink": "Termini di servizio",
+      "and": "e l’",
+      "privacyLink": "Informativa sulla privacy"
+    },
+    "noAccount": "Non hai un account?",
+    "createAccount": "Crea account"
   },
   "signup": {
     "title": "Crea il tuo account",
@@ -55,56 +49,9 @@
     "createInCommons": "Crea la tua identità in Commons",
     "createAccount": "Crea account",
     "backToSignInLink": "Hai già un account? Accedi",
-    "welcome": {
-      "title": "Benvenuto su Oxy!",
-      "subtitle": "Crea il tuo account in pochi passaggi",
-      "haveAccount": "Hai già un account?",
-      "signInCta": "Accedi"
-    },
-    "identity": {
-      "title": "Chi sei?",
-      "subtitle": "Scegli il tuo nome utente e inserisci la tua email"
-    },
-    "username": {
-      "helper": "3-30 caratteri, solo lettere e numeri",
-      "required": "Inserisci un nome utente",
-      "minLength": "Il nome utente deve contenere almeno 3 caratteri"
-    },
-    "email": {
-      "required": "Inserisci un indirizzo email",
-      "invalid": "Inserisci un indirizzo email valido",
-      "helper": "Non condivideremo mai la tua email"
-    },
-    "security": {
-      "title": "Proteggi il tuo account",
-      "subtitle": "Crea una password forte per proteggere il tuo account"
-    },
-    "password": {
-      "helper": "Almeno 8 caratteri",
-      "required": "Inserisci una password",
-      "minLength": "La password deve contenere almeno 8 caratteri",
-      "confirmRequired": "Conferma la tua password",
-      "mismatch": "Le password non corrispondono",
-      "confirmHint": "Reinserisci la tua password per confermare"
-    },
-    "summary": {
-      "title": "Quasi fatto!",
-      "subtitle": "Rivedi le tue informazioni e crea il tuo account",
-      "sectionTitle": "Informazioni account",
-      "fields": {
-        "username": "Nome utente",
-        "email": "Email",
-        "password": "Password"
-      },
-      "notSet": "Non impostato",
-      "securityTip": "Per una maggiore sicurezza, abilita l'autenticazione biometrica dalle Impostazioni account dopo aver creato il tuo account.",
-      "legalReminder": "Creando un account, accetti i nostri Termini di servizio e l'Informativa sulla privacy."
-    }
+    "webSubtitle": "Nessuna password. Il tuo dispositivo crea una passkey e il tuo account riceve una frase di recupero che conservi solo tu."
   },
   "accountSwitcher": {
-    "sections": {
-      "yourAccounts": "I tuoi account"
-    },
     "loading": "Caricamento account...",
     "qrHeadline": "Accedi con la tua identità Oxy",
     "signInWithOxy": "Accedi con Oxy",
@@ -136,10 +83,7 @@
       "claimFailed": "L'accesso è stato approvato, ma non siamo riusciti a completarlo. Riprova.",
       "generic": "Accesso non riuscito. Riprova."
     },
-    "linkOpenFailed": "Impossibile aprire il link. Riprova.",
-    "continueWithPasskey": "Continua",
-    "passkeyHint": "Usa l'impronta, il volto o il PIN del dispositivo.",
-    "otherDeviceCommons": "Account su un altro dispositivo? Scansiona con Commons"
+    "linkOpenFailed": "Impossibile aprire il link. Riprova."
   },
   "common": {
     "actions": {

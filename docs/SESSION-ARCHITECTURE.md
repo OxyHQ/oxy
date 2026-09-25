@@ -368,12 +368,13 @@ function Home() {
   redirect to a login page.
 - **`OxyAccountDialog`** — the single account surface (switcher + sign-in), built on
   Bloom `<Dialog placement={{ base: 'bottom', md: 'center' }}>`. Opened via
-  `useOxy().openAccountDialog()`. Its sign-in entry (issue #691, Phase 5) shows existing
-  device accounts plus ONE primary "Continue with Oxy" action — Oxy picks the delivery
-  route automatically (same-device Commons deep link → known-install push → QR; see
-  [device-session.md](./auth/device-session.md) § Automatic delivery). There is no
-  password option; scan-QR / passkey-on-this-device / "Get Commons" sit behind a
-  collapsed "Having trouble?" disclosure.
+  `useOxy().openAccountDialog()`. Its sign-in entry is `OxySignInPanel`, the same
+  screen auth.oxy.so renders: the device's accounts, then the Commons way in (the
+  embedded QR in a split card on a wide web screen, "Continue with Oxy" elsewhere —
+  Oxy picks that route: same-device Commons deep link → known-install push → QR; see
+  [device-session.md](./auth/device-session.md) § Automatic delivery), then the
+  username (a username-first passkey, which also takes a hardware security key)
+  or a passkey with nothing to type. There is no password option.
 - **`OxySignInButton`** resolves the registered Application via
   `GET /auth/oauth/client/:clientId`: official apps open the dialog in-app;
   `third_party` apps sign in via OAuth + PKCE (`generatePkcePair`, `generateOAuthState`,

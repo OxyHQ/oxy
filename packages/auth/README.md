@@ -1,15 +1,16 @@
 # Oxy Auth Web
 
-Standalone Vite app — the Oxy authentication gateway (OAuth-like, similar to "Sign in with Google"): OAuth 2.0 authorize/consent IdP for third-party "Sign in with Oxy". Handles sign in, sign up, recovery, and authorization for third-party apps. Not a user dashboard.
+Standalone Vite app — the OAuth 2.0 authorize/consent IdP for third-party "Sign in with Oxy", plus the MCP and CLI approval pages. Not a user dashboard, and no sign-in UI of its own: `/login` and `/signup` render the SDK's screens (`OxySignInPanel`, `OxySignUpPanel` from `@oxy.so/services`) — the same ones every Oxy app's account dialog shows.
 
 ## Routes
 
-- `/login` - Password sign-in (email/username + password)
-- `/signup` - Password sign-up (email + username + password)
-- `/recover` - Password recovery (request → verify → reset)
-- `/authorize?token=...&redirect_uri=...&state=...` - Approve a third-party auth session
+- `/login` — the SDK's sign-in screen; continues to the request in the query
+- `/signup` — the SDK's account-creation screen (the account is made in the identity window)
+- `/authorize?client_id=...&redirect_uri=...&state=...` — approve a third-party sign-in (OAuth + PKCE)
+- `/mcp/link?intent=...` — add an account to an MCP connection
+- `/device?user_code=...` — approve a device (CLI) sign-in
 
-There is no landing page at `/`.
+`/` redirects to oxy.so, and `/settings*` to accounts.oxy.so.
 
 ## API Base URL
 
@@ -46,7 +47,7 @@ Default ports:
 
 ## Deploy Safety (IdP is production-only — there is NO staging)
 
-`auth.oxy.so` is the OAuth authorize/consent IdP for the entire Oxy ecosystem and has **no staging environment** — every push to `main` deploys straight to production for all users. The IdP is a **pure-static Vite SPA** deployed to Cloudflare Pages — no Pages Function, no `_worker.js`, no server directory. It authenticates device-first through the same `OxyProvider` (`@oxy.so/services`) every Oxy app uses; the device-account chooser enumerates the server's device directory via the shared device-first SDK (`useDeviceSwitcher`), not a bespoke feed. FedCM and the legacy `/sso` bounce machinery were removed from the IdP entirely. A broken IdP build (blank SPA, or a regression that re-adds the FedCM manifest) takes "Sign in with Oxy" down everywhere.
+`auth.oxy.so` is the OAuth authorize/consent IdP for the entire Oxy ecosystem and has **no staging environment** — every push to `main` deploys straight to production for all users. The IdP is a Vite SPA deployed to Cloudflare Pages, plus ONE Pages Functions directory (`functions/hub/*`, the browser hub) — never a `_worker.js`. It authenticates device-first through the same `OxyProvider` (`@oxy.so/services`) every Oxy app uses; the device-account chooser enumerates the server's device directory via the shared device-first SDK (`useDeviceSwitcher`), not a bespoke feed. FedCM and the legacy `/sso` bounce machinery were removed from the IdP entirely. A broken IdP build (blank SPA, or a regression that re-adds the FedCM manifest) takes "Sign in with Oxy" down everywhere.
 
 One gate protects the deploy (`.github/workflows/deploy-cloudflare.yml`, job `deploy-auth`): after the Cloudflare Pages deploy, `bun run smoke:idp` (`scripts/smoke-idp.ts`) hits the LIVE host on PUBLIC, unauthenticated endpoints only and turns the job RED on any failure. It asserts: `/login`, `/signup`, and `/authorize` carry the SPA root marker (build not broken); and `/.well-known/web-identity` does NOT serve a FedCM manifest (asserts the deletion stays deleted — a regression that re-adds `provider_urls` fails the gate).
 
@@ -66,17 +67,8 @@ SMOKE_TARGET=https://auth.mention.earth bun run smoke:idp
 
 ## Key Patterns
 
-- `AuthFormLayout` + `AuthFormHeader` — shared layout for all auth screens
-- `AuthLayout` (route layout) — persistent logo/footer, route-level fade transitions via `useNavigationType()`
-- Login form: multi-step (identifier → password → 2FA) with per-step animations
-- `applyColorPreset()` from `lib/bloom-css.ts` — applies user's Bloom color theme to CSS vars on `:root`
-- `OxyServices.lookupUsername()` — lightweight user lookup (validates existence, gets color/avatar)
-- Zod schemas in `lib/schemas.ts`; shared types in `lib/types.ts`
-
-## Anti-patterns to Avoid
-
-- No `useEffect` for syncing props to state — derive during render
-- No `useEffect` for firing toasts — call `toast()` in event handlers
-- No `useEffect` for focus — use `requestAnimationFrame` in event handlers
-- No `Suspense` wrappers unless using `React.lazy()` or `use()`
-- No render-body side effects — use `useEffect` for `window.location.href`, or `<Navigate>` from react-router
+- Every screen is the SDK's: `OxySignInPanel`, `OxySignUpPanel`, `OxyAccountPicker`, and `OxyAuthScreen` / `OxyAuthScreenHeader` / `OxyAuthLoading` for the IdP's own pages. Do not add components here — a screen both hosts need belongs in `@oxy.so/services`.
+- `src/pages/layout.tsx` — the page's centred column, route-level fade transitions via `useNavigationType()`, and the language picker.
+- `lib/auth-utils.ts` — where a sign-in continues (`postLoginRedirectFrom`) and carrying the request between `/login` and `/signup` (`withRequestQuery`).
+- `lib/i18n/` — the copy of the IdP's own pages; the locale is the SDK's `currentLanguage`.
+- `app/globals.css` scans the SDK's built `lib` for its NativeWind classes — at `../../services/lib`, the workspace sibling.

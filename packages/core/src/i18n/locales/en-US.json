@@ -1,66 +1,55 @@
 {
   "signin": {
-    "title": "Sign In",
-    "subtitle": "Sign in to continue your journey",
+    "title": "Sign in",
+    "subtitle": "Use your Oxy account",
     "chooser": {
       "title": "Choose an account",
       "subtitle": "Continue as an account below, or use another.",
-      "signedIn": "Signed in",
       "useAnother": "Use another account",
-      "continueAs": "Continue as {{name}}"
+      "continueAs": "Continue as {{name}}",
+      "subtitleToApp": "to continue to {{app}}"
     },
-    "addAccountTitle": "Add Another Account",
+    "addAccountTitle": "Add another account",
     "addAccountSubtitle": "Sign in with another account",
     "username": {
       "label": "Username",
-      "placeholder": "Enter your username",
-      "helper": "3-30 characters, letters and numbers only",
-      "required": "Please enter your username.",
-      "minLength": "Username must be at least 3 characters."
-    },
-    "password": {
-      "label": "Password",
-      "placeholder": "Enter your password",
-      "required": "Please enter your password.",
-      "hint": "Enter your password to sign in"
+      "placeholder": "yourname",
+      "required": "Please enter your username."
     },
     "actions": {
       "continue": "Continue",
-      "back": "Back",
-      "signIn": "Sign In",
-      "verify": "Verify",
-      "openAccountSwitcher": "Switch to another account",
-      "openAccountSwitcherSubtitle": "{{count}} other accounts available",
-      "openAccountSwitcherSubtitle_singular": "1 other account available",
-      "openAccountSwitcherSubtitle_zero": "Review your saved accounts",
-      "manageAccounts": "Manage saved accounts",
-      "manageAccountsSubtitle": "Review sessions, remove or sign out",
-      "loadingOtherAccounts": "Loading other accounts…",
-      "switchAccountFailed": "We couldn’t switch accounts. Please try again."
+      "back": "Back"
     },
-    "forgotPrompt": "Forgot your password?",
-    "security": {
-      "dataSecure": "Your data is encrypted and secure"
-    },
-    "currentlySignedInAs": "Currently signed in as",
-    "alreadySignedInWith": "Already signed in with",
-    "alreadySignedIn": "Already signed in",
-    "alreadySignedInMessage": "This account is already signed in. Continue with this account?",
-    "continueWithAccount": "Continue",
-    "currentAccount": "Current",
-    "or": "or",
-    "viewAllAccounts": "View {{count}} more",
     "createAccountLink": "New to Oxy? Create one",
     "status": {
-      "accountSwitched": "Now using {{name}}",
       "signingIn": "Signing in…"
     },
     "errors": {
       "notConfigured": "Sign-in isn't available",
       "notConfiguredDescription": "{{app}} isn't set up for sign-in yet. Contact the app's developer.",
       "failed": "Couldn't start sign-in",
-      "failedDescription": "Something went wrong. Please try again."
-    }
+      "failedDescription": "Something went wrong. Please try again.",
+      "rateLimited": "Too many attempts. Try again in {{seconds}}s.",
+      "passkeyCancelled": "Passkey prompt dismissed. Try again when you're ready.",
+      "passkeyFailed": "Couldn't complete the passkey. Please try again."
+    },
+    "subtitleToApp": "to continue to {{app}}",
+    "orContinueWith": "or continue with",
+    "qr": {
+      "caption": "Scan with Commons to sign in",
+      "renew": "Show a new code"
+    },
+    "methods": {
+      "passkey": "Sign in with a passkey"
+    },
+    "terms": {
+      "before": "By continuing, you agree to our",
+      "termsLink": "Terms of Service",
+      "and": "and",
+      "privacyLink": "Privacy Policy"
+    },
+    "noAccount": "Don't have an account?",
+    "createAccount": "Create account"
   },
   "signup": {
     "title": "Create your account",
@@ -68,59 +57,7 @@
     "createInCommons": "Create your identity in Commons",
     "createAccount": "Create account",
     "backToSignInLink": "Already have an account? Sign in",
-    "welcome": {
-      "title": "Welcome to Oxy!",
-      "subtitle": "Let's create your account in just a few steps",
-      "haveAccount": "Already have an account?",
-      "signInCta": "Sign in"
-    },
-    "identity": {
-      "title": "Who are you?",
-      "subtitle": "Choose your username and enter your email"
-    },
-    "username": {
-      "helper": "3-30 characters, letters and numbers only",
-      "required": "Please enter a username",
-      "minLength": "Username must be at least 3 characters"
-    },
-    "email": {
-      "required": "Please enter an email address",
-      "invalid": "Please enter a valid email address",
-      "helper": "We'll never share your email"
-    },
-    "security": {
-      "title": "Secure Your Account",
-      "subtitle": "Create a strong password to protect your account"
-    },
-    "password": {
-      "helper": "At least 8 characters",
-      "required": "Please enter a password",
-      "minLength": "Password must be at least 8 characters long",
-      "confirmRequired": "Please confirm your password",
-      "mismatch": "Passwords do not match",
-      "confirmHint": "Re-enter your password to confirm"
-    },
-    "summary": {
-      "title": "Almost There!",
-      "subtitle": "Review your information and create your account",
-      "sectionTitle": "Account Information",
-      "fields": {
-        "username": "Username",
-        "email": "Email",
-        "password": "Password"
-      },
-      "notSet": "Not set",
-      "securityTip": "For stronger security, enable biometric authentication from Account Settings after you create your account.",
-      "legalReminder": "By creating an account, you agree to our Terms of Service and Privacy Policy.",
-      "sections": {
-        "account": "Account Information",
-        "next": "Next Steps"
-      },
-      "next": {
-        "securityTitle": "Keep your account secure",
-        "legalTitle": "You're all set"
-      }
-    }
+    "webSubtitle": "No password. Your device creates a passkey, and your account gets a recovery phrase only you keep."
   },
   "welcomeNew": {
     "navTitle": "Welcome",
@@ -358,31 +295,8 @@
     "version": "Version {{version}}"
   },
   "accountSwitcher": {
-    "title": "Account Switcher",
-    "sections": {
-      "current": "Current Account",
-      "otherWithCount": "Other Accounts ({{count}})",
-      "deviceSessions": "Device Sessions",
-      "sharedWithYou": "Shared with you",
-      "thisDevice": "On this device",
-      "yourAccounts": "Your accounts"
-    },
-    "currentBadge": "Current",
     "loading": "Loading accounts...",
     "toasts": {
-      "switchSuccess": "Account switched successfully!",
-      "switchFailed": "There was a problem switching accounts. Please try again.",
-      "signInFailed": "Sign-in failed. Please try again.",
-      "removeSuccess": "Account removed successfully!",
-      "removeFailed": "There was a problem removing the account. Please try again.",
-      "signOutAllSuccess": "All accounts signed out successfully!",
-      "signOutAllFailed": "There was a problem signing out: {{error}}",
-      "deviceLoadFailed": "Failed to load device sessions. Please try again.",
-      "remoteSignOutSuccess": "Signed out from {{deviceName}} successfully!",
-      "remoteSignOutFailed": "There was a problem signing out from the device. Please try again.",
-      "noOtherDeviceSessions": "No other device sessions found to sign out from.",
-      "signOutOthersSuccess": "Signed out from all other devices successfully!",
-      "signOutOthersFailed": "There was a problem signing out from other devices. Please try again.",
       "contextRemoved": "Removed {{account}}",
       "contextRemoveFailed": "There was a problem removing that account. Please try again.",
       "principalRemoved": "Signed {{name}} out of this device",
@@ -390,29 +304,11 @@
       "activateFailed": "There was a problem switching accounts. Please try again."
     },
     "confirms": {
-      "remove": "Are you sure you want to remove {{displayName}} from this device? You'll need to sign in again to access this account.",
-      "logoutAll": "Are you sure you want to sign out of all accounts? This will remove all saved accounts from this device.",
-      "remoteLogout": "Are you sure you want to sign out from \"{{deviceName}}\"? This will end the session on that device.",
-      "logoutOthers": "Are you sure you want to sign out from all {{count}} other device(s)? This will end sessions on all other devices except this one.",
       "removeContextTitle": "Remove this account?",
       "removeContext": "Stop {{person}} acting as {{account}} on this device? Anyone else who reaches {{account}} here keeps their access.",
       "removePrincipalTitle": "Sign out of this device?",
       "removePrincipal": "Sign {{name}} out of this device? Every account they reach here is removed. Nobody else is affected."
     },
-    "device": {
-      "loadingTitle": "Loading device sessions...",
-      "loadingSubtitle": "Please wait while we fetch your device sessions",
-      "noneTitle": "No device sessions found",
-      "noneSubtitle": "Device session management not available",
-      "thisDevice": "This device",
-      "lastActive": "Last active: {{date}}"
-    },
-    "empty": {
-      "title": "No saved accounts",
-      "subtitle": "Add another account to switch between them quickly"
-    },
-    "label": "Account switcher",
-    "searchPlaceholder": "Search accounts",
     "scanQr": "Scan QR code",
     "qrHeadline": "Sign in with your Oxy identity",
     "signInWithOxy": "Sign in with Oxy",
@@ -452,10 +348,7 @@
       "claimFailed": "Sign-in was approved, but we couldn't finish it. Please try again.",
       "generic": "Sign-in failed. Please try again."
     },
-    "linkOpenFailed": "Couldn't open that link. Please try again.",
-    "continueWithPasskey": "Continue",
-    "passkeyHint": "Use your fingerprint, face or device PIN.",
-    "otherDeviceCommons": "Account on another device? Scan with Commons"
+    "linkOpenFailed": "Couldn't open that link. Please try again."
   },
   "reputation": {
     "faq": {

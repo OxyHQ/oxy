@@ -42,10 +42,18 @@ export const Dimensions = {
   addEventListener: () => ({ remove: () => undefined }),
 };
 
+/** The window a test renders in; a suite can widen it with `setMockWindowWidth`. */
+let mockWindowWidth = 375;
+export const setMockWindowWidth = (width: number): void => {
+  mockWindowWidth = width;
+};
+export const useWindowDimensions = () => ({ width: mockWindowWidth, height: 667, scale: 1, fontScale: 1 });
+
 export const StyleSheet = {
   create: <T extends Record<string, unknown>>(styles: T): T => styles,
   flatten: <T>(style: T): T => style,
   hairlineWidth: 1,
+  absoluteFill: {},
   absoluteFillObject: {},
 };
 
@@ -104,11 +112,17 @@ export const TouchableOpacity = ({
 
 export const Text = ({
   children,
+  onPress,
   ...props
 }: {
   children?: React.ReactNode;
+  onPress?: () => void;
   [key: string]: unknown;
-}) => React.createElement('span', props, children);
+}) => {
+  const { testID, ...rest } = props as { testID?: string } & Record<string, unknown>;
+  const dom = testID ? { ...rest, 'data-testid': testID } : rest;
+  return React.createElement('span', onPress ? { ...dom, onClick: onPress } : dom, children);
+};
 
 export const ActivityIndicator = (props: Record<string, unknown>) =>
   React.createElement('span', { ...props, role: 'status' });

@@ -1,5 +1,35 @@
 # Changelog — `@oxy.so/core`
 
+## 1.14.0
+
+### Added
+
+- `AccountDialogController.startInlineQr()`: the sign-in screen's embedded
+  Commons QR — a request whose only route is the QR, started without leaving
+  the current view. It runs no delivery selection (no push to a phone, no
+  Commons opened): the screen starts it by itself, so nobody asked for either.
+  Any sign-in the person then chooses supersedes it and withdraws its request;
+  `retrySignIn()` repeats it.
+- `SignInFlowState.inline`: `true` while the attempt is that embedded QR, so a
+  host does not report its failures (an expired code is renewed, not news).
+- Sign-in copy for the shared sign-in screen in all 11 locales:
+  `signin.orContinueWith`, `signin.subtitleToApp`, `signin.noAccount`,
+  `signin.createAccount`, `signin.qr.*`, `signin.methods.passkey`,
+  `signin.terms.*`, `signin.chooser.subtitleToApp`,
+  `signin.errors.{rateLimited,passkeyCancelled,passkeyFailed}`,
+  `signup.webSubtitle`. `signin.title`/`subtitle`/`addAccountTitle` and
+  `signin.username.placeholder` now read as auth.oxy.so always did.
+
+### Removed
+
+- The `hubBaseUrl` controller option, the deprecated alias of
+  `identityOrigin` from when the passkey popup opened `auth.oxy.so/hub-passkey`.
+  Nothing passed it; pass `identityOrigin`.
+- 102 dictionary keys no surface reads any more, in every locale — the password,
+  2FA and email sign-up copy, and the old account switcher's and sign-in
+  entry's (`accountSwitcher.passkeyHint`, `continueWithPasskey`,
+  `otherDeviceCommons`, `signin.or`, …).
+
 ## 1.13.0
 
 ### Added

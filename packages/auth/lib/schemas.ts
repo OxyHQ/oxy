@@ -45,26 +45,6 @@ export type {
     McpOAuthConsentResponse,
 }
 
-export const lookupResponseSchema = z.object({
-    exists: z.boolean(),
-    username: z.string(),
-    color: z.string().nullable(),
-    avatar: z.string().nullable(),
-    displayName: z.string().optional(),
-})
-
-export const tokenResponseSchema = z.object({
-    accessToken: z.string(),
-    expiresAt: z.string().optional(),
-})
-
-export const oauthStateSchema = z.object({
-    provider: z.string(),
-    sessionToken: z.string().optional(),
-    redirectUri: z.string().optional(),
-    state: z.string().optional(),
-})
-
 /**
  * Decide whether the OAuth consent screen must be shown, from the raw
  * `GET /auth/oauth/consent` response body. Accepts either the API's wrapped

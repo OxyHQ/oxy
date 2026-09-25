@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { Linking, Platform } from 'react-native';
-import { OxyServices, oxyClient } from '@oxy.so/core';
+import { DeviceManager, OxyServices, oxyClient } from '@oxy.so/core';
 import type {
   User,
   SessionLoginResponse,
@@ -983,7 +983,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
         username: opts?.username,
         deviceId: persisted?.deviceId,
         deviceName: opts?.deviceName,
-        deviceFingerprint: opts?.deviceFingerprint,
+        // The same shape every other sign-in path sends; the server only reads it
+        // to place a device that has no persisted id yet.
+        deviceFingerprint: opts?.deviceFingerprint ?? JSON.stringify(DeviceManager.getDeviceFingerprint()),
       });
     },
     [oxyServices, authStore, commitSession],

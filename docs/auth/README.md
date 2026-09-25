@@ -62,10 +62,10 @@ The provider runs the SAME device-first cold boot every Oxy app runs (restore th
 The chooser ("Choose an account to continue") uses the SAME device-first SDK chain every Oxy app uses — there is NO server-side feed, NO `oxy_device` cookie, and NO Pages Function anymore (all deleted in the 2c cutover):
 
 1. `useDeviceSwitcher()` (from `@oxy.so/services`) reads the server's device directory (ADR 0002) — every principal on this device and the contexts each may act as — through the same `buildSwitcherRows` projection the SDK's own switcher renders.
-2. `components/account-chooser.tsx` renders those rows on `/login` and `/authorize`, grouped by person: the same organization reachable through two people is two rows, and the operator is named once anybody holds more than one account.
+2. The SDK's `OxyAccountPicker` renders those rows on `/login` (inside `OxySignInPanel`), `/authorize`, `/device` and `/mcp/link`, grouped by person: the same organization reachable through two people is two rows, and the operator is named once anybody holds more than one account.
 3. Selecting the active context continues immediately; selecting any other calls `activateContext(contextId)` — the pair, never an account id — which re-plants the active bearer, then proceeds. A refusal (including a context id the server has since healed away) falls back to `/login?login_hint=…` for explicit re-auth.
 
-The app's own pages (login, signup, authorize, recover) are a static Vite SPA with history-fallback — no dynamic routes and no advanced-mode worker. The one Pages Functions *directory* on this origin is `functions/hub/*`, the browser hub, which serves no page and which none of the routes above calls.
+The app's own pages (login, signup, authorize, device, MCP link) are a static Vite SPA with history-fallback — no dynamic routes and no advanced-mode worker. The one Pages Functions *directory* on this origin is `functions/hub/*`, the browser hub, which serves no page and which none of the routes above calls.
 
 ## API endpoints the IdP calls
 

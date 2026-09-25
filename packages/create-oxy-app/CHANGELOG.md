@@ -1,5 +1,11 @@
 # Changelog: `create-oxy-app`
 
+## 0.3.3
+
+### Changed
+
+- Generated apps take `@oxy.so/bloom` `^4.25.1`, the workspace catalog's range.
+
 ## 0.3.2
 
 ### Fixed
