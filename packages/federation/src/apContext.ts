@@ -30,7 +30,12 @@ export const AP_CONTEXT = [
   // is typed `@id` (an IRI, not a literal); the `misskey`/`fedibird` namespaces
   // and the AS2 `Link` type back the FEP-e232 `Link` quote tag. Without these
   // declarations a strict JSON-LD consumer DROPS the quote fields.
+  //
+  // `alsoKnownAs` is the account-alias term a Mastodon `Move` verifies. It is
+  // `as:alsoKnownAs` typed `@id`, exactly as Mastodon declares it; without the
+  // declaration a strict consumer drops the aliases and the move is refused.
   {
+    alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' },
     sensitive: 'as:sensitive',
     toot: 'http://joinmastodon.org/ns#',
     votersCount: 'toot:votersCount',

@@ -101,6 +101,7 @@ export {
 export {
   createInboundDispatcher,
   ActorResolutionPendingError,
+  type InboundMove,
   type InboundDispatcher,
   type InboundDispatcherConfig,
   type InboundDispatcherLogger,

@@ -12,6 +12,12 @@
  * post/engagement handlers live. The consent gate + notification side effects are
  * injected so the engine holds no app knowledge.
  *
+ * `Move` (account migration) is handed to {@link InboundDispatcherConfig.onMove}
+ * after a SHAPE check only: the engine proves the activity is the signing actor
+ * moving itself, and the app forwards it to Oxy (`POST /federation/move`), which
+ * owns the identity decision — the alias check and the re-fetch of the old
+ * actor's `movedTo`.
+ *
  * Extracted behaviour-identically from Mention's former `InboxProcessingService`
  * dispatcher + `handleIncomingFollow` / `handleUndo(Follow)` / `handleAccept` /
  * `handleReject`.
@@ -159,8 +165,54 @@ export interface InboundDispatcherConfig {
    * Delete / Update, and a non-follow Undo. The app's post/engagement handlers.
    */
   onContentActivity(activity: Record<string, unknown>, verifiedActorUri: string): Promise<void>;
+  /**
+   * Handle an account `Move` whose shape the engine has verified: signed by
+   * `oldActorUri`, which is both its `actor` and its `object`, naming a
+   * `targetActorUri`. The app forwards it to Oxy (`POST /federation/move`),
+   * which decides. Absent ⇒ a Move is logged and dropped.
+   */
+  onMove?(move: InboundMove): Promise<void>;
   /** Diagnostics sink. */
   logger: InboundDispatcherLogger;
+}
+
+/** A shape-verified inbound `Move`. Nothing here is trusted beyond the signature. */
+export interface InboundMove {
+  /** The activity `id`, the idempotency key Oxy records. */
+  activityId: string;
+  /** The account that is moving — the verified signer, its `actor` and its `object`. */
+  oldActorUri: string;
+  /** Where it says it moved. Oxy checks this names a local account that aliases the old one. */
+  targetActorUri: string;
+}
+
+/**
+ * The shape check for an inbound `Move`.
+ *
+ * A Move is only meaningful as an actor moving ITSELF: `actor` and `object` must
+ * both be the actor whose HTTP signature was verified, so a relay or a third
+ * party cannot move somebody else's followers. `target` must be an absolute
+ * https URI, and differ from the old actor.
+ */
+function parseInboundMove(
+  activity: Record<string, unknown>,
+  verifiedActorUri: string,
+): { ok: true; move: InboundMove } | { ok: false; reason: string } {
+  const activityId = typeof activity.id === 'string' ? activity.id : undefined;
+  if (!activityId) return { ok: false, reason: 'missing id' };
+  const actor = objectTargetUri(activity.actor);
+  if (actor !== verifiedActorUri) return { ok: false, reason: 'actor is not the signer' };
+  const object = objectTargetUri(activity.object);
+  if (object !== verifiedActorUri) return { ok: false, reason: 'object is not the moving actor' };
+  const target = objectTargetUri(activity.target);
+  if (!target) return { ok: false, reason: 'missing target' };
+  try {
+    if (new URL(target).protocol !== 'https:') return { ok: false, reason: 'target is not https' };
+  } catch {
+    return { ok: false, reason: 'target is not a URL' };
+  }
+  if (target === verifiedActorUri) return { ok: false, reason: 'target is the moving actor' };
+  return { ok: true, move: { activityId, oldActorUri: verifiedActorUri, targetActorUri: target } };
 }
 
 /** The inbound-activity dispatcher. */
@@ -411,6 +463,19 @@ export function createInboundDispatcher(config: InboundDispatcherConfig): Inboun
       case 'Update':
         await config.onContentActivity(activity, verifiedActorUri);
         break;
+      case 'Move': {
+        const parsed = parseInboundMove(activity, verifiedActorUri);
+        if (!parsed.ok) {
+          logger.warn(`[Federation] dropping Move from ${verifiedActorUri}: ${parsed.reason}`);
+          break;
+        }
+        if (!config.onMove) {
+          logger.debug(`Unhandled Move from ${verifiedActorUri} (no onMove handler)`);
+          break;
+        }
+        await config.onMove(parsed.move);
+        break;
+      }
       default:
         logger.debug(`Unhandled activity type: ${validation.type}`);
     }
