@@ -60,7 +60,7 @@ import userCache from '../../utils/userCache';
 import { validateAccessToken } from '../../utils/sessionUtils';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import deviceSessionService from '../deviceSession.service';
-import sessionService from '../session.service';
+import sessionService, { MINT_ROTATES_WITHIN_SECONDS } from '../session.service';
 
 const SESSION_EXPIRES_IN = 7 * 24 * 60 * 60 * 1000;
 
@@ -543,6 +543,43 @@ describe('getAccessToken — the mint chokepoint', () => {
     const after = await storedSession(created.sessionId);
     // Renewed to a full window from now, so an actively-used session never dies.
     expect(after.expiresAt.getTime()).toBeGreaterThan(Date.now() + SESSION_EXPIRES_IN - 60_000);
+  });
+
+  /** Rewrite the session's stored access token to expire `expiresInSeconds` from now. */
+  async function storeTokenExpiringIn(sessionId: string, expiresInSeconds: number): Promise<string> {
+    const stored = await storedSession(sessionId);
+    const jwt = jest.requireActual<typeof import('jsonwebtoken')>('jsonwebtoken');
+    const claims = jwt.decode(stored.accessToken) as Record<string, unknown>;
+    delete claims.iat;
+    delete claims.exp;
+    const token = jwt.sign(claims, process.env.ACCESS_TOKEN_SECRET as string, { expiresIn: expiresInSeconds });
+    await getDb().update(sessions).set({ accessToken: token }).where(eq(sessions.sessionId, sessionId));
+    sessionCache.clear();
+    return token;
+  }
+
+  it('rotates a stored token inside the clients\' refresh lead window instead of handing it back', async () => {
+    // Clients re-mint 60s before `exp`. Answering that with the same token made
+    // them re-mint on every request until the 30/min budget ran out, and the 429
+    // outlived the token (OxyHQ/Mention#1140).
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const nearExpiry = await storeTokenExpiringIn(created.sessionId, 45);
+
+    const minted = await sessionService.getAccessToken(created.sessionId);
+
+    expect(minted?.accessToken).toBeDefined();
+    expect(minted?.accessToken).not.toBe(nearExpiry);
+    const exp = validateAccessToken(minted?.accessToken ?? '').payload?.exp ?? 0;
+    expect(exp - Math.floor(Date.now() / 1000)).toBeGreaterThan(MINT_ROTATES_WITHIN_SECONDS);
+  });
+
+  it('hands back a stored token with comfortable lifetime left, without rotating', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const healthy = await storeTokenExpiringIn(created.sessionId, MINT_ROTATES_WITHIN_SECONDS + 300);
+
+    expect((await sessionService.getAccessToken(created.sessionId))?.accessToken).toBe(healthy);
   });
 
   it('mints nothing for an idle-expired or absent session', async () => {
