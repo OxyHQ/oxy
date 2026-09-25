@@ -28,6 +28,8 @@ export interface OxyServiceAppContext {
    */
   ownerAccountId: string;
   environment: OxyServiceEnvironment;
+  /** `internal` for one of Oxy's own applications, else `external` (see `ServiceApp.tier`). */
+  tier: 'internal' | 'external';
 }
 
 export interface OxyServiceActingAsContext {
