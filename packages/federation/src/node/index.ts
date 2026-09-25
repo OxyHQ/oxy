@@ -55,6 +55,7 @@ export {
   type ActorResolverLogger,
   type ActorTextAdapter,
   type FederatedActorStore,
+  type CollectionCount,
   type FederatedActorRecordBase,
   type FederatedActorUpsert,
   type FederatedActorField,
