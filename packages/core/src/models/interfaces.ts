@@ -270,7 +270,16 @@ export interface LoginResponse {
 export interface Notification {
   id: string;
   message: string;
-  // Add other notification fields as needed
+  /** One of `OXY_NOTIFICATION_TYPES` (`@oxy.so/contracts`). */
+  type?: string;
+  /**
+   * `system` notifications only (with `message`): the text an Oxy service sent
+   * about the recipient's own account. Render these two instead of composing a
+   * sentence from actor + entity.
+   */
+  title?: string;
+  /** `system` notifications only: an optional deep link (https or the sending app's scheme). */
+  url?: string;
 }
 
 export interface Wallet {
@@ -673,6 +682,13 @@ export interface ServiceAssetMetadata {
    * play. Treat absence as "no adaptive stream, play the progressive original".
    */
   hlsReadyAt?: string;
+  /**
+   * The Oxy user who owns the file (`null` for a system-owned file such as the
+   * federated media cache). PRESENT ONLY for Oxy's own applications (service
+   * tokens with `tier: 'internal'`), so a first-party service can check that an
+   * asset a user attached is really that user's. Absent for every other caller.
+   */
+  ownerUserId?: string | null;
 }
 
 /**
