@@ -9,6 +9,24 @@
   (`openAccountDialog('signup')`), never by a local passkey ceremony (ADR 0024
   D4). No ecosystem app called it; `auth.oxy.so` opens the canonical flow.
 
+## [4.0.7] - 2026-09-26
+
+Requires `@oxy.so/bloom` `^4.26.0` (the `FollowButton` accessible-name override).
+
+### Fixed
+
+- `FollowButton` showed "Following" while a screen reader still heard
+  "Follow": Bloom named it by its idle label and left the state to the pressed
+  flag, which TalkBack reads as "selected" (OxyHQ/oxy#1375 item 22). The name
+  now follows the state in every case: "Checking whether you follow @nate"
+  while the status loads, "Follow @nate", and "Following @nate" with the hint
+  "Unfollows @nate". While a follow or unfollow is in flight it keeps the state
+  it shows and drops the hint. The new optional `username` prop supplies the
+  handle; without it the name is "Follow" / "Following". The "Follow all" mode
+  names its state the same way, with the account count in the hint.
+- `FollowTargetButton` is named by the state it shows ("Following",
+  "Requested", "Off here") instead of its idle verb.
+
 ## [4.0.6] - 2026-09-26
 
 Requires `@oxy.so/core` `^1.12.0`. The new copy is English until the next core
