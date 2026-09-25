@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
-import { View, StyleSheet, TextInput, Platform } from 'react-native';
+import { View, StyleSheet, TextInput, Platform, type LayoutChangeEvent } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icons } from '@/constants/icons';
@@ -22,6 +22,9 @@ import { retireVaultPushToken } from '@/lib/notifications/push-registration';
 import { ONBOARDING_IDENTITY_QUERY_KEY, ONBOARDING_COMPLETE_QUERY_KEY, ONBOARDING_FLOW_QUERY_KEY } from '@/hooks/useOnboardingStatus';
 import { persistOnboardingComplete, persistOnboardingFlow } from '@/hooks/identity/identityStore';
 
+/** Air between the bottom of the Delete button and the top of the keyboard. */
+const KEYBOARD_CLEARANCE = 16;
+
 /**
  * Account Deletion Screen.
  *
@@ -39,6 +42,16 @@ export default function DeleteAccountScreen() {
 
   const [confirmText, setConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Height of everything under the username input that must stay above the
+  // keyboard while typing: the mismatch line and the Cancel / Delete buttons.
+  // It becomes the scroll view's `bottomOffset`, so focusing the input scrolls
+  // far enough to show them instead of parking the keyboard right under the
+  // caret (OxyHQ/oxy#1375 item 24). The same pattern as `UsernameStep`.
+  const [belowInputHeight, setBelowInputHeight] = useState(0);
+  const handleBelowInputLayout = useCallback((event: LayoutChangeEvent) => {
+    setBelowInputHeight(event.nativeEvent.layout.height);
+  }, []);
 
   const username = user?.username ?? '';
   const isConfirmValid = confirmText === username && username.length > 0;
@@ -179,15 +192,17 @@ export default function DeleteAccountScreen() {
             accessibilityLabel={t('data.deleteAccount.confirmInputLabel')}
           />
         </View>
-        {confirmText.length > 0 && !isConfirmValid && (
-          <Text style={[styles.errorText, { color: colors.error }]}>
-            {t('data.deleteAccount.usernameMismatch')}
-          </Text>
-        )}
+        <View testID="delete-account-below-input" onLayout={handleBelowInputLayout}>
+          {confirmText.length > 0 && !isConfirmValid && (
+            <Text style={[styles.errorText, { color: colors.error }]}>
+              {t('data.deleteAccount.usernameMismatch')}
+            </Text>
+          )}
 
-        <View className="flex-row gap-space-12 mt-space-24">
-          <Button appearance="outline" tone="neutral" onPress={() => router.back()} disabled={isDeleting} className="flex-1">{t('data.deleteAccount.cancel')}</Button>
-          <Button appearance="solid" tone="accent" onPress={handleDelete} loading={isDeleting} disabled={!isConfirmValid || isDeleting} className="flex-1">{isDeleting ? t('data.deleteAccount.deleting') : t('data.deleteAccount.deleteCta')}</Button>
+          <View className="flex-row gap-space-12 mt-space-24">
+            <Button appearance="outline" tone="neutral" onPress={() => router.back()} disabled={isDeleting} className="flex-1">{t('data.deleteAccount.cancel')}</Button>
+            <Button appearance="solid" tone="accent" onPress={handleDelete} loading={isDeleting} disabled={!isConfirmValid || isDeleting} className="flex-1">{isDeleting ? t('data.deleteAccount.deleting') : t('data.deleteAccount.deleteCta')}</Button>
+          </View>
         </View>
       </Section>
     </>
@@ -204,6 +219,10 @@ export default function DeleteAccountScreen() {
   return (
     <KeyboardAwareScrollViewWrapper
       reserveTabBarFootprint
+      // No navigator header on this stack: without the inset the title sat
+      // under the status bar (OxyHQ/oxy#1375 item 24).
+      reserveTopInset
+      bottomOffset={belowInputHeight + KEYBOARD_CLEARANCE}
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={styles.scrollContent}
     >
