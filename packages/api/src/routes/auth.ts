@@ -3836,6 +3836,9 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
     appName: app.name,
     credentialId: credential.id,
     ownerAccountId: app.ownerAccountId,
+    // An untrusted application reaches this line only on the payments-only
+    // exception above; it stays external, with its scopes.
+    tier: isTrustedApplication(app) ? 'internal' : 'external',
     scopes,
     environment: credential.environment,
   } as const;

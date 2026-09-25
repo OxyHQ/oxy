@@ -89,6 +89,20 @@ describe('the accepted shape', () => {
   });
 });
 
+describe('the ecosystem boundary (tier)', () => {
+  it("reads an internal application's tier", () => {
+    const result = verifyServiceToken(signToken({ tier: 'internal' }));
+    expect(result.ok && result.payload.tier).toBe('internal');
+  });
+
+  it('reads a token with no tier, or an unknown one, as external — the conservative answer', () => {
+    for (const overrides of [{}, { tier: 'external' }, { tier: 'INTERNAL' }, { tier: true }]) {
+      const result = verifyServiceToken(signToken(overrides));
+      expect(result.ok && result.payload.tier).toBe('external');
+    }
+  });
+});
+
 describe('signature verification is mandatory', () => {
   it('refuses a token signed with a different secret', () => {
     expect(verifyServiceToken(signToken({}, OTHER_SECRET))).toEqual({
