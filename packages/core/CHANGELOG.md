@@ -1,9 +1,21 @@
 # Changelog — `@oxy.so/core`
 
-## Unreleased
+## 1.11.0
+
+Requires `@oxy.so/contracts` 1.5.0.
 
 ### Added
 
+- Linked accounts mixin: `startLinkedAccount(network, options)`,
+  `completeLinkedAccount(code)` (the `link_code` the callback hands
+  `returnTo`; only the user who started the flow can complete it),
+  `listLinkedAccounts()`, `revokeLinkedAccount(id)`, and the service read
+  `getLinkedAccountsForUser(userId)` (privileged `linked-accounts:read`).
+- `User.alsoKnownAs`, as `GET /profiles/username/:username` returns it.
+- `Notification` gains `type`, `title`, `url`, `entityType` and `entityId`;
+  `createNotification` accepts a `CreateOxyNotificationRequest`.
+- `ServiceAssetMetadata.ownerUserId`, present only for Oxy's own
+  (`tier: 'internal'`) applications.
 - The identity device backup (OxyHQ/oxy#1388). `KeyManager.setDeviceBackupStore()`
   registers a store that keeps the identity outside the app's keystore (Commons
   registers Android Block Store). Every identity write refreshes it, the

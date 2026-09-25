@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { RELEASES, integrity, releaseDecision, validateSource, validateArtifactManifest } from './release-external-identity-packages.mjs';
 
 test('release scope is the exact dependency-ordered pair', () => {
-  assert.deepEqual(RELEASES.map(({ name, version }) => `${name}@${version}`), ['@oxy.so/contracts@1.3.0', '@oxy.so/federation@2.0.0']);
+  assert.deepEqual(RELEASES.map(({ name, version }) => `${name}@${version}`), ['@oxy.so/contracts@1.5.0', '@oxy.so/federation@2.1.0']);
 });
 test('source guard rejects branch execution, stale SHA and unspecified write mode', () => {
   const sha = 'a'.repeat(40);

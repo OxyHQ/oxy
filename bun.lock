@@ -460,7 +460,7 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "dependencies": {
         "zod": "^3.25.64",
       },
@@ -474,7 +474,7 @@
     },
     "packages/core": {
       "name": "@oxy.so/core",
-      "version": "1.10.0",
+      "version": "1.11.0",
       "dependencies": {
         "@noble/ciphers": "^1.3.0",
         "@noble/hashes": "^1.8.0",
@@ -586,7 +586,7 @@
     },
     "packages/federation": {
       "name": "@oxy.so/federation",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "dependencies": {
         "@oxy.so/contracts": "^1.0.0",
         "@oxy.so/core": "^1.0.0",

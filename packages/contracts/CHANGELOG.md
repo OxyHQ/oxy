@@ -1,5 +1,24 @@
 # Changelog: `@oxy.so/contracts`
 
+## 1.5.0
+
+### Added
+
+- `linkedAccounts`: the wire contract of `/linked-accounts` —
+  `LINKED_ACCOUNT_NETWORKS` (`activitypub | atproto`),
+  `startLinkedAccountRequestSchema` (`clientId` and `returnTo` required) /
+  `startLinkedAccountResponseSchema`, `completeLinkedAccountRequestSchema`
+  (`{ code }`) / `completeLinkedAccountResponseSchema`,
+  `linkedAccountSchema`, `linkedAccountListResponseSchema`, the service read's
+  `serviceLinkedAccountSchema` / `serviceLinkedAccountListResponseSchema`
+  (adds `federatedUserId`), and `LINKED_ACCOUNT_CALLBACK_ERRORS`. Every
+  response schema is strict and has no field a third-party token could occupy.
+- `notifications`: `OXY_NOTIFICATION_TYPES` (gains `system`),
+  `OXY_NOTIFICATION_ENTITY_TYPES` (gains `app`, valid only for `system`), and
+  `createOxyNotificationRequestSchema`. A `system` notification requires
+  `title` and `message`, may carry a `url`, and names the recipient as its
+  actor; `url` and `entityType: 'app'` are refused on every other type.
+
 ## 1.4.0
 
 ### Added
