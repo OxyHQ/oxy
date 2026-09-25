@@ -14,6 +14,7 @@ import type { AccountDialogSnapshot } from '@oxy.so/core';
  */
 export const EMPTY_ACCOUNT_DIALOG_SNAPSHOT: AccountDialogSnapshot = {
   view: 'accounts',
+  backView: null,
   directory: null,
   activeContext: null,
   activatingContextId: null,

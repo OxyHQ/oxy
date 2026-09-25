@@ -108,6 +108,9 @@ const SignInEntryView: React.FC<SignInEntryViewProps> = ({
 
       <Button
         appearance="solid" tone="accent"
+        // `lg` (44dp): the surface's ONE primary action is a full-width CTA, and
+        // the default `md` (36dp) is under the touch-target minimum on Android.
+        size="lg"
         onPress={web ? alternatives.onSignInWithPasskey : onContinueWithOxy}
         style={styles.primaryButton}
         testID="continue-with-oxy"

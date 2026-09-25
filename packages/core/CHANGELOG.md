@@ -1,5 +1,24 @@
 # Changelog — `@oxy.so/core`
 
+## 1.9.0
+
+### Added
+
+- `AccountDialogController.back()` and `AccountDialogSnapshot.backView`: the
+  controller owns where the account dialog's Back leads. `signup` and `qr`
+  return to the sign-in entry (`'add'` when somebody is signed in, `'signin'`
+  when nobody is), `add` returns to the account menu, and the first view
+  reports `backView: null` so the host closes instead. Leaving an active
+  request withdraws it.
+
+### Fixed
+
+- The account dialog never shows the `'accounts'` view (the signed-in account
+  menu) without a session: `setView('accounts')`, a fresh controller and the
+  signed-out edge all resolve to `'signin'`. Signed out, Back from "Create your
+  account" used to open the menu, "Sign out" included, for nobody
+  (OxyHQ/oxy#1375).
+
 ## 1.8.0
 
 Requires `@oxy.so/contracts` 1.4.0.

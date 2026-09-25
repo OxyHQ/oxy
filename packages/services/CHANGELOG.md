@@ -9,6 +9,26 @@
   (`openAccountDialog('signup')`), never by a local passkey ceremony (ADR 0024
   D4). No ecosystem app called it; `auth.oxy.so` opens the canonical flow.
 
+## [4.0.2] - 2026-09-25
+
+Requires `@oxy.so/core` `^1.9.0`.
+
+### Fixed
+
+- Signed out, Back from "Create your account" returned to the SIGNED-IN account
+  menu. The account dialog's Back now follows the controller's `backView`
+  (`@oxy.so/core` 1.9.0), and `OxyAuthChooser` never renders the account menu
+  without a signed-in user — the sign-in entry renders in its place
+  (OxyHQ/oxy#1375).
+- The account menu's icon-font glyphs no longer reach the accessibility tree
+  (TalkBack announced `"\u{F0140}"` beside "Switch account"). Both SDK icon
+  families hide every glyph with `aria-hidden`, which callers cannot override.
+- The "Having trouble?" disclosure spans the content width with a compact,
+  centred trigger, instead of a shrink-wrapped column that wrapped the trigger
+  to "Having / trouble?" on Android and squeezed its options.
+- The sign-in surfaces' primary actions are Bloom's `lg` button (44dp), not the
+  36dp default.
+
 ## [4.0.1] - 2026-09-21
 
 ### Fixed

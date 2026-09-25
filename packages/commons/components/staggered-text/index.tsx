@@ -170,15 +170,19 @@ export const StaggeredText = forwardRef(
     // Calculate character index offset for each word group
     let charIndexOffset = 0;
 
+    // ONE text node for assistive technology: each letter is its own animated
+    // `Text`, so unhidden, TalkBack read "O", "x", "y", … one node per letter
+    // (OxyHQ/oxy#1375 item 10). The container carries the whole string; the
+    // letters are hidden beneath it.
     return (
-      <View style={[styles.container, containerStyle]}>
+      <View style={[styles.container, containerStyle]} accessible accessibilityLabel={text}>
         {wordGroups.map((word, wordIndex) => {
           const wordStartIndex = charIndexOffset;
           const wordChars = word.split('');
           charIndexOffset += wordChars.length;
           
           return (
-            <View key={wordIndex} style={styles.wordGroup}>
+            <View key={wordIndex} style={styles.wordGroup} aria-hidden>
               {wordChars.map((char, charIndex) => (
                 <StaggeredChar
                   key={charIndex}
