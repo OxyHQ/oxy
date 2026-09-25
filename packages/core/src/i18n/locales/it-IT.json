@@ -41,7 +41,8 @@
       "privacyLink": "Informativa sulla privacy"
     },
     "noAccount": "Non hai un account?",
-    "createAccount": "Crea account"
+    "createAccount": "Crea account",
+    "recoverLink": "Hai perso la passkey? Recupera il tuo account"
   },
   "signup": {
     "title": "Crea il tuo account",

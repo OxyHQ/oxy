@@ -102,6 +102,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
     logout,
     openAvatarPicker,
     user,
+    continueOnAuth,
   } = useOxy();
   const theme = useTheme();
   const { t } = useI18n();
@@ -111,8 +112,8 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   // so the two switchers cannot drift.
   const { principals } = useDeviceSwitcher();
 
-  // Web sign-up, and sign-in off an `oxy.so` origin, run in the identity window
-  // (`auth.oxy.so/continue`), never on this page: that is where the passkey
+  // Web sign-up, and sign-in off an `oxy.so` origin, run on auth.oxy.so in
+  // this tab (`continueOnAuth`), never on this page: that is where the passkey
   // ceremony can run for any app AND where the account's identity is created
   // and kept sealed under the passkey (one identity, two carriers). Native has
   // no passkey path: Commons owns identity there ('none').
@@ -355,13 +356,14 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   const alternatives = useMemo<SignInAlternatives>(
     () => ({
       passkeyAvailable: passkeyMode !== 'none',
-      // Called straight from the press: the popup opens before any await.
-      onSignInWithPasskey: () => void controller?.startPasskeyHubSignIn(),
+      // auth.oxy.so asserts the passkey, in this tab.
+      onSignInWithPasskey: () => void continueOnAuth('signin'),
       onShowQr: () => void controller?.showQr(),
       onGetCommons: () => openExternal(getCommonsAcquisitionUrl(Platform.OS)),
-      onCreateAccount: () => controller?.startSignup(),
+      // Web: the account is made on auth.oxy.so. Native: Commons makes it.
+      onCreateAccount: () => (passkeyMode === 'hub' ? void continueOnAuth('signup') : controller?.startSignup()),
     }),
-    [passkeyMode, controller, openExternal],
+    [passkeyMode, controller, openExternal, continueOnAuth],
   );
 
   // Real storage usage for the account menu's "Oxy storage" block. Disabled
@@ -449,14 +451,14 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   }
 
   if (view === 'signup') {
-    return <OxySignUpPanel host="dialog" onSignIn={() => controller.setView('signin')} />;
+    return <OxySignUpPanel onSignIn={() => controller.setView('signin')} />;
   }
 
   return (
     <OxySignInPanel
       host="dialog"
       onSignedIn={() => onComplete?.()}
-      onCreateAccount={() => controller.startSignup()}
+      onCreateAccount={alternatives.onCreateAccount}
     />
   );
 };

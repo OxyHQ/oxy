@@ -11,6 +11,7 @@ import {
   OxyServices,
   getCommonsApprovalBlockingReason,
   type CommonsApprovalInfo,
+  type SessionLoginResponse,
   type User,
 } from '@oxy.so/core';
 import type {
@@ -35,6 +36,13 @@ export interface CarrierAccount {
   /** The linked root public key, lowercase, or `null` when none is linked. */
   publicKey: string | null;
   sessionId: string;
+  /**
+   * The session itself, device credential included — what auth.oxy.so's own
+   * `OxyProvider` adopts (`handleWebSession`) when this sign-in, creation or
+   * recovery is the person signing in HERE, so they are not asked for their
+   * passkey a second time.
+   */
+  login: SessionLoginResponse;
 }
 
 /** A root proof plus the revision a holder write expects to replace. */
@@ -100,7 +108,11 @@ const DEVICE_NAME = 'Oxy';
 
 function accountFrom(result: LoginResult, user: User): CarrierAccount {
   const publicKey = typeof user.publicKey === 'string' && user.publicKey.trim() ? user.publicKey.trim().toLowerCase() : null;
-  return { userId: user.id, username: user.username ?? null, publicKey, sessionId: result.sessionId };
+  const login: SessionLoginResponse = {
+    ...result,
+    user: { id: user.id, username: user.username ?? '', name: user.name ?? {}, ...(user.avatar ? { avatar: user.avatar } : {}) },
+  };
+  return { userId: user.id, username: user.username ?? null, publicKey, sessionId: result.sessionId, login };
 }
 
 export function createIdentityApi(baseURL: string): IdentityApi {

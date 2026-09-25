@@ -507,7 +507,7 @@ export type AuthorizeBearerOutcome =
 
 /**
  * Bearer approval of a pending cross-app auth session, keyed on the PUBLIC
- * `authorizeCode` (the auth.oxy.so passkey hub, b2 — the approver
+ * `authorizeCode` (auth.oxy.so's `/device` page — the approver
  * authenticates via bearer token, never a local secp256k1 key, so it can't
  * use {@link authorizeSessionWithSignedChallenge}). The authenticated
  * principal is the bearer's `req.user` — never anything client-asserted.

@@ -87,7 +87,18 @@ export interface BuildOAuthAuthorizeUrlParams {
    * a token, device secret, or the PKCE verifier, which the opener keeps.
    */
   responseMode?: 'web_message';
+  /**
+   * Which of the IdP's screens a person with no session there lands on:
+   * `signin` (sign in with a passkey), `signup` (create an account with its
+   * root), `recover` (recover it from the recovery phrase). Omitted, the IdP
+   * offers its Commons request first. An Oxy app sends this when it sends the
+   * person to auth.oxy.so for what only that origin can do, in the same tab.
+   */
+  screen?: OxyAuthScreen;
 }
+
+/** The IdP screens {@link BuildOAuthAuthorizeUrlParams.screen} can open. */
+export type OxyAuthScreen = 'signin' | 'signup' | 'recover';
 
 /**
  * Cryptographically-secure random bytes, cross-platform.
@@ -215,6 +226,9 @@ export function buildOAuthAuthorizeUrl(params: BuildOAuthAuthorizeUrlParams): st
   }
   if (params.responseMode) {
     url.searchParams.set('response_mode', params.responseMode);
+  }
+  if (params.screen) {
+    url.searchParams.set('screen', params.screen);
   }
 
   return url.toString();

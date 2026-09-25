@@ -52,7 +52,7 @@ export interface OpenAuthorizeOptions {
  * (see `normalizeOAuthRedirectUri`), so the IdP always returns the tab to `/`,
  * and the return handlers restore this path. Doing it here rather than at each
  * call site is deliberate: every web authorize redirect — silent restore,
- * interactive sign-in, the passkey hub — funnels through this function, so a
+ * interactive sign-in, `continueOnAuth` — funnels through this function, so a
  * new flow cannot forget to preserve the page the visitor came from.
  */
 export function redirectToAuthorize(url: string): void {

@@ -41,7 +41,8 @@
       "privacyLink": "개인정보처리방침"
     },
     "noAccount": "계정이 없으신가요?",
-    "createAccount": "계정 만들기"
+    "createAccount": "계정 만들기",
+    "recoverLink": "패스키를 잃어버리셨나요? 계정 복구"
   },
   "signup": {
     "title": "계정 만들기",

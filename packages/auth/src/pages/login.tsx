@@ -27,6 +27,7 @@ export function LoginPage() {
         <OxySignInPanel
             onSignedIn={onSignedIn}
             onCreateAccount={() => navigate(withRequestQuery("/signup", searchParams))}
+            onRecover={() => navigate(withRequestQuery("/recover", searchParams))}
             loginHint={searchParams.get("login_hint") ?? undefined}
         />
     )

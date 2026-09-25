@@ -11,10 +11,9 @@
  *   is still being handled. Anything awaited first (resolving the application,
  *   generating PKCE) loses it and the popup is silently blocked. So the window
  *   is opened EMPTY up front and navigated once the authorize URL exists —
- *   the same shape as `passkeyHubPopup.ts`.
+ *   a plain function a test can substitute.
  * - **No close event.** A cross-origin popup fires nothing when the user
- *   dismisses it; polling `closed` is the only mechanism (as in core's
- *   `AccountDialogController.watchPopup`).
+ *   dismisses it; polling `closed` is the only mechanism.
  * - **No cross-origin reads.** The popup's URL, title, and document are all
  *   opaque. The authorization result arrives ONLY as a `postMessage`.
  */

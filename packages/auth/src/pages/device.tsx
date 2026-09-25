@@ -33,12 +33,10 @@ const CODE_PARAM = "user_code";
  * A client with no browser of its own — `codea login` in a terminal, over SSH,
  * inside a container — starts a Commons device sign-in and shows the person a
  * PUBLIC approval code. Until this page existed the only thing that could
- * approve that code was the native Commons app: the other page that calls
- * `POST /auth/session/authorize-code/:code` (`/continue`) is a popup that
- * refuses to render without `window.opener`. It relays nothing to that
- * opener — the approval lands server-side and the initiator finishes by
- * polling — so a tab opened from a link works just as well, and this is that
- * tab.
+ * approve that code was the native Commons app. The approval lands
+ * server-side (`POST /auth/session/authorize-code/:code`) and the initiator
+ * finishes by polling, so an ordinary tab opened from a link works, and this
+ * is that tab.
  *
  * It renders the same `OxyConsentScreen` an MCP connector or an app sign-in
  * shows on `/authorize`, so the person sees one consent surface everywhere.
@@ -48,7 +46,7 @@ const CODE_PARAM = "user_code";
  * — it stays with the device, which is the only party that can claim the
  * session once it is approved.
  *
- * SECURITY — the identity window's rule, not relaxed. A code is a
+ * SECURITY — not relaxed. A code is a
  * bearer-free handle anyone can mint for their own request, so a signed-in
  * victim who opens an attacker's link must not be able to approve it by
  * reflex (login-CSRF / session fixation). Approval is therefore always a

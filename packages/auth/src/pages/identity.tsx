@@ -39,7 +39,7 @@ type View =
  * deleting the account. Every one of these opens the root with a fresh passkey
  * ceremony, for that operation only; signing in opens nothing.
  *
- * Like `/continue` it runs on its own client (`lib/identity/`), not this
+ * It runs on its own client (`lib/identity/`), not this
  * origin's `OxyProvider` session.
  */
 export function IdentityPage({ intent = "overview" }: { intent?: "overview" | "move" }) {

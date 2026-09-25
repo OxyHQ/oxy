@@ -12,7 +12,7 @@
  *            takes a platform passkey AND a hardware security key with no
  *            resident credential (a U2F key such as a Titan). The passkey
  *            button is the discoverable ceremony, with nothing to type. Off an
- *            `oxy.so` origin both run in the identity window instead.
+ *            `oxy.so` origin both run on auth.oxy.so, in this tab.
  *            On the web, from `md`, the screen is Bloom `AuthCard`'s split
  *            card and the Commons way in is the embedded QR over its photo
  *            carousel, in the right column; below `md`, and on native, it is
@@ -44,6 +44,7 @@ import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceFrameWidth } from '../../hooks/useSurfaceFrameWidth';
 import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';
 import { isWebBrowser } from '../../utils/isWebBrowser';
+import { SubtleLink } from '../authChooser/primitives';
 import { SIGN_IN_SLIDES } from './artwork';
 import { InlineCommonsQr } from './InlineCommonsQr';
 import { OxyAccountPicker } from './OxyAccountPicker';
@@ -59,6 +60,12 @@ export interface OxySignInPanelProps {
   onSignedIn: () => void;
   /** "New to Oxy? Create one". */
   onCreateAccount: () => void;
+  /**
+   * "Lost your passkey? Recover your account". Default: on the web, recovery
+   * runs on auth.oxy.so, in this tab; on native there is none here (Commons
+   * recovers the identity).
+   */
+  onRecover?: () => void;
   /** A handle to pre-fill, skipping the picker (a re-authentication). */
   loginHint?: string;
   /** The app being continued to, when there is one. */
@@ -75,6 +82,7 @@ export interface OxySignInPanelProps {
 export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   onSignedIn,
   onCreateAccount,
+  onRecover,
   loginHint,
   appName = null,
   host = 'page',
@@ -82,7 +90,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   const theme = useTheme();
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const { accountDialogController: controller, openAccountDialog, signInWithPasskey } = useOxy();
+  const { accountDialogController: controller, openAccountDialog, signInWithPasskey, continueOnAuth } = useOxy();
   const snapshot = useAccountDialogSnapshot(controller);
   const { principals, activeContext } = useDeviceSwitcher();
 
@@ -130,10 +138,10 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     void controller?.showQr();
     showRequest();
   };
-  const openIdentityWindow = () => {
-    void controller?.startPasskeyHubSignIn();
-    showRequest();
-  };
+  // Off an `oxy.so` origin the passkey is auth.oxy.so's to assert: there, in
+  // this tab, and back signed in.
+  const signInOnAuth = () => void continueOnAuth('signin');
+  const recover = onRecover ?? (isWebBrowser() ? () => void continueOnAuth('recover') : undefined);
   const getCommons = () => {
     Promise.resolve()
       .then(() => Linking.openURL(getCommonsAcquisitionUrl(Platform.OS)))
@@ -344,7 +352,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
           onPress={
             methods.passkey === 'direct'
               ? () => void runPasskey(undefined, t('signin.errors.failed'))
-              : openIdentityWindow
+              : signInOnAuth
           }
           testID="passkey-sign-in"
         >
@@ -353,6 +361,9 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       )}
 
       {methods.passkey === 'direct' ? null : noAccount}
+      {recover ? (
+        <SubtleLink label={t('signin.recoverLink')} theme={theme} onPress={recover} testID="recover-link" />
+      ) : null}
       <OxyAuthTerms />
     </OxyAuthScreen>
   );

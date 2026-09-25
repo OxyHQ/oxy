@@ -8,7 +8,7 @@
  *    is the phone that would scan it), on native "Continue with Oxy", and
  *    "Get Commons" on a native device that has no Commons to continue with;
  *  - the PASSKEY block under "or continue with" — run right here on an origin
- *    the `oxy.so` credential can be asserted from, in the identity window
+ *    the `oxy.so` credential can be asserted from, on auth.oxy.so in this tab
  *    everywhere else on the web, and not at all on native, where Commons holds
  *    the identity.
  */
@@ -17,10 +17,10 @@ import type { CommonsAvailability } from '@oxy.so/core';
 
 /**
  * `direct`          — the WebAuthn ceremony runs on this page (`isOxyRpOrigin()`).
- * `identity-window` — it runs at auth.oxy.so, in the identity window (a popup).
+ * `on-auth`         — it runs on auth.oxy.so: there in this tab, then back.
  * `none`            — no passkey on this platform.
  */
-export type PasskeyRoute = 'direct' | 'identity-window' | 'none';
+export type PasskeyRoute = 'direct' | 'on-auth' | 'none';
 
 /**
  * `qr`          — the web: the embedded QR from `md`, "Continue with Oxy" below.
@@ -48,7 +48,7 @@ export function resolveSignInMethods(facts: SignInSurfaceFacts): SignInMethods {
   if (facts.web) {
     return {
       commons: 'qr',
-      passkey: facts.oxyRpOrigin ? 'direct' : 'identity-window',
+      passkey: facts.oxyRpOrigin ? 'direct' : 'on-auth',
     };
   }
   return {

@@ -41,7 +41,8 @@
       "privacyLink": "Datenschutzerklärung"
     },
     "noAccount": "Noch kein Konto?",
-    "createAccount": "Konto erstellen"
+    "createAccount": "Konto erstellen",
+    "recoverLink": "Passkey verloren? Konto wiederherstellen"
   },
   "signup": {
     "title": "Erstellen Sie Ihr Konto",

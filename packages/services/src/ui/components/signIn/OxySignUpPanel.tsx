@@ -1,17 +1,15 @@
 /**
- * Account creation — the same screen in the account dialog and on
- * auth.oxy.so/signup.
+ * Account creation in the account dialog.
  *
  * An Oxy account is created WITH its self-custody root, or not at all (ADR
- * 0024 D4), and only auth.oxy.so may create one: on the web the
- * account is made in the identity window — the same one a passkey sign-in off
- * an `oxy.so` origin opens — and never on this page, whatever its origin. On
- * native, Commons creates the identity: straight in when it is installed,
- * "Get Commons" otherwise.
+ * 0024 D4), and only auth.oxy.so may create one (ADR 0028): on the web the
+ * one action takes the person to auth.oxy.so/signup in this tab, and back to
+ * this app signed in as the new account. On native, Commons creates the
+ * identity: straight in when it is installed, "Get Commons" otherwise.
  */
 
 import type React from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { Linking, Platform } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { RiKey2Line } from '@oxy.so/bloom/icons/RiKey2Line';
@@ -31,24 +29,14 @@ const COMMONS_CREATE_IDENTITY_URL = 'oxycommons://create-identity';
 export interface OxySignUpPanelProps {
   /** "Already have an account? Sign in". */
   onSignIn: () => void;
-  /** On a page: the account the identity window created signed this origin in. */
-  onSignedIn?: () => void;
-  /** See `OxySignInPanelProps.host`. */
-  host?: 'dialog' | 'page';
 }
 
-export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignIn, onSignedIn, host = 'page' }) => {
+export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignIn }) => {
   const theme = useTheme();
   const { t } = useI18n();
-  const { accountDialogController: controller, openAccountDialog } = useOxy();
+  const { accountDialogController: controller, continueOnAuth } = useOxy();
   const snapshot = useAccountDialogSnapshot(controller);
   const web = isWebBrowser();
-
-  const [mountedAttempt] = useState(snapshot.signIn.attempt);
-  const completedHere = snapshot.signIn.phase === 'completed' && snapshot.signIn.attempt !== mountedAttempt;
-  useEffect(() => {
-    if (host === 'page' && completedHere) onSignedIn?.();
-  }, [host, completedHere, onSignedIn]);
 
   const openExternal = useCallback(
     (url: string) => {
@@ -59,11 +47,9 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignIn, onSign
     [t],
   );
 
-  // Straight from the press: the identity window is a popup.
-  const createOnWeb = () => {
-    void controller?.startPasskeyHubSignIn();
-    if (host === 'page') openAccountDialog('qr');
-  };
+  // The account is made on auth.oxy.so, in this tab, and this app is back
+  // signed in as it.
+  const createOnWeb = () => void continueOnAuth('signup');
   const commonsInstalled = snapshot.commonsAvailability === 'available';
 
   return (

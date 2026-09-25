@@ -41,7 +41,8 @@
       "privacyLink": "プライバシーポリシー"
     },
     "noAccount": "アカウントをお持ちでない場合",
-    "createAccount": "アカウントを作成"
+    "createAccount": "アカウントを作成",
+    "recoverLink": "パスキーをなくしましたか？アカウントを復元"
   },
   "signup": {
     "title": "アカウントを作成",

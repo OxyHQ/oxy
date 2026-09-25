@@ -1,5 +1,33 @@
 # Changelog
 
+## [5.1.0] - 2026-09-26
+
+Requires `@oxy.so/core` `^1.16.0`.
+
+**No identity popups** (ADR 0028 D1b). What only auth.oxy.so can do — create an
+account with its root, recover it, assert an `oxy.so` passkey from another
+domain — happens there, in the same tab, and the person comes back signed in.
+
+### Added
+
+- `useOxy().continueOnAuth(screen)`: go to auth.oxy.so for `signup`, `recover`
+  or `signin`, and come back signed in, through the ordinary authorization-code
+  redirect. `startWebOAuthSignIn` takes `transport: 'redirect'` and `screen`.
+- The sign-in screen's "Lost your passkey? Recover your account" link
+  (`OxySignInPanel`'s `onRecover`; on the web it defaults to
+  `continueOnAuth('recover')`).
+
+### Changed
+
+- "Create account" in the dialog goes straight to auth.oxy.so/signup on the
+  web; the passkey off an `oxy.so` origin is asserted on auth.oxy.so. Neither
+  opens a window.
+
+### Removed
+
+- The passkey popup (`passkeyHubPopup`), and `OxySignUpPanel`'s `host` and
+  `onSignedIn` props, which only its popup flow used.
+
 ## [5.0.1] - 2026-09-26
 
 Requires `@oxy.so/core` `^1.15.0`.

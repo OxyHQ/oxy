@@ -13,7 +13,7 @@ a bug.
 | Holder | A user-controlled place that can use the root: Commons' keychain, or a web envelope wrap that one passkey's PRF output opens. |
 | Recovery material | A phrase or a raw private key. Not a holder. |
 | Web envelope | `identity_web_envelopes`: sealed secret + one wrap per passkey. Ciphertext only. One scheme (`version 2`): phrase entropy of any length or a raw key; every wrap names its RP ID. |
-| Holder host | `auth.oxy.so` — the IdP, which runs every root operation in a browser (`/continue`, `/identity`; ADR 0028). |
+| Holder host | `auth.oxy.so` — the IdP, which runs every root operation in a browser (`/signup`, `/recover`, `/identity`; ADR 0028). |
 | Root proof | A signature by the root over `buildIdentityProofMessage` claims, spending a one-use challenge (ADR 0024 D7). |
 
 ## Invariants and where they are enforced
@@ -64,8 +64,8 @@ a bug.
 | Caller | Uses |
 |---|---|
 | `packages/commons` | Commons sign-up (`/auth/register`, key included), backup, transfer receiver |
-| `packages/services` account dialog | opens `auth.oxy.so/continue` for web sign-up, and for sign-in off an `oxy.so` origin; `auth.oxy.so/identity` for the phrase, recovery and deletion; native creation goes to Commons |
-| `packages/auth` (`auth.oxy.so`, holder host) | passkey sign-in (no PRF); `lib/identity/` + `/continue`, `/identity`: sign-up with root, establish, phrase/recovery facts, signed-in reseal, signed-out recovery, transfer initiator, account deletion |
+| `packages/services` account dialog | sends the person to auth.oxy.so in the same tab (`continueOnAuth`: `/authorize?screen=signup|recover|signin`) for web sign-up, recovery, and sign-in off an `oxy.so` origin; `auth.oxy.so/identity` for the phrase, recovery and deletion; native creation goes to Commons |
+| `packages/auth` (`auth.oxy.so`, holder host) | passkey sign-in (no PRF); `lib/identity/` + `/signup`, `/recover`, `/identity`: sign-up with root, establish, phrase/recovery facts, signed-in reseal, signed-out recovery, transfer initiator, account deletion |
 | `packages/accounts` | `GET /identity/root-status` for the recovery-phrase row and recommendations; passkey list/remove |
 
 ## Migration classes
@@ -99,8 +99,6 @@ unscoped wraps, v1 proofs, transfer v1, `/device-transfer`, `DELETE
   the holder. Every credential stays on RP ID `oxy.so`.
 - **Browser SSO hub** (#937, ADR 0003): still behind `VITE_OXY_BROWSER_HUB`;
   passkey sign-in on the holder host does not establish a hub session.
-- **Consent binding**: the `/continue` screen still relies on an explicit
-  acknowledgement; no change in #1302.
 - **Commons "sign this" approvals** for roots kept only in Commons: not built.
 
 ## Not verifiable from source
