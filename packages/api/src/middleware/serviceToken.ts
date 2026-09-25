@@ -38,6 +38,18 @@ import { serviceTokenPublicJwks } from '../config/serviceTokenSigning';
  * hold it, because a field on this payload is exactly what code reaches for when
  * it wants "who is responsible for this request".
  */
+/**
+ * Which side of the ecosystem boundary the calling application is on.
+ *
+ * `internal` — one of Oxy's own applications (`isTrustedApplication`): app to
+ * app, it is trusted outright and no scope is checked. `external` — anything
+ * else, which keeps every scope, consent and quota rule. What a USER may do
+ * (their accounts, their plan, their limits) is decided elsewhere and applies
+ * to both. A token minted before this claim existed reads as `external`, the
+ * conservative answer.
+ */
+export type ServiceTier = 'internal' | 'external';
+
 export interface ServiceTokenPayload {
   type: 'service';
   appId: string;
@@ -52,6 +64,8 @@ export interface ServiceTokenPayload {
   ownerAccountId: string;
   /** Test/live isolation: the minting `ApplicationCredential.environment`. */
   environment: OxyServiceEnvironment;
+  /** See {@link ServiceTier}. */
+  tier: ServiceTier;
   scopes: string[];
   iat?: number;
   exp?: number;
@@ -88,6 +102,7 @@ type UnverifiedServiceClaims = {
   credentialId?: string;
   ownerAccountId?: string;
   environment?: unknown;
+  tier?: unknown;
   scopes?: unknown;
   iss?: unknown;
   aud?: unknown;
@@ -216,6 +231,7 @@ export function verifyServiceToken(token: string): ServiceTokenVerification {
       credentialId: decoded.credentialId,
       ownerAccountId: decoded.ownerAccountId,
       environment: decoded.environment,
+      tier: decoded.tier === 'internal' ? 'internal' : 'external',
       scopes,
       iat: decoded.iat,
       exp: decoded.exp,
