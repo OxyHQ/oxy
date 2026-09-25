@@ -239,26 +239,64 @@ function resetAssetMocks(): void {
   mockAssetDeleteFile.mockResolvedValue(undefined);
 }
 
-/** Let any scheduled fire-and-forget background refresh settle. */
 async function flushMicrotasks(): Promise<void> {
   await new Promise((resolve) => setImmediate(resolve));
   await Promise.resolve();
 }
 
 /**
- * A background refresh is fire-and-forget and now does real database I/O, so a
- * fixed number of microtask flushes would be a race. Poll until the row shows
- * the write, or give up — an assertion after this then reports the ACTUAL row
- * rather than a timing artifact.
+ * The service's two fire-and-forget workers. Both are private; the spies below
+ * call straight through and exist only to CAPTURE the promise each scheduled
+ * job returns.
  */
-async function waitForRow(
-  userId: string,
-  predicate: (row: NonNullable<Awaited<ReturnType<typeof storedUser>>>) => boolean,
-): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const row = await storedUser(userId);
-    if (row && predicate(row)) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+interface BackgroundWorkers {
+  refreshFederatedUser(...args: unknown[]): Promise<void>;
+  downloadAvatarForUser(...args: unknown[]): Promise<void>;
+}
+let refreshWorkerSpy: jest.SpyInstance<Promise<void>, unknown[]>;
+let avatarWorkerSpy: jest.SpyInstance<Promise<void>, unknown[]>;
+
+beforeEach(() => {
+  const workers = federationService as unknown as BackgroundWorkers;
+  refreshWorkerSpy = jest.spyOn(workers, 'refreshFederatedUser');
+  avatarWorkerSpy = jest.spyOn(workers, 'downloadAvatarForUser');
+});
+
+afterEach(async () => {
+  // A job must never outlive its test: it would write rows and call spies
+  // after the next test's `clearAllMocks`.
+  await settleBackgroundWork();
+  refreshWorkerSpy.mockRestore();
+  avatarWorkerSpy.mockRestore();
+});
+
+/**
+ * Wait until every background job scheduled so far has FINISHED, by awaiting
+ * the jobs themselves.
+ *
+ * Both schedulers start their job synchronously, so once the call that
+ * schedules one returns, its promise is already in `mock.results`. This used to
+ * poll the row for one field instead, and that was a race: `refreshFederatedUser`
+ * writes `name_first` in `registerExternalIdentity` BEFORE it reads the stored
+ * validators and calls `downloadAndStoreAvatar`, so a poll keyed on the name
+ * could return while the avatar download had not happened yet (CI, 2026-09-25:
+ * "Number of calls: 0"). The same shape hid behind every cache-invalidation
+ * assertion, which runs after the write a poll saw. The poll also gave up
+ * silently after a second, so a slow runner failed on a later assertion.
+ *
+ * Loops because a job may schedule another; the trailing flush lets the
+ * scheduler's `.finally` clear its in-flight entry, which the storm-guard test
+ * depends on.
+ */
+async function settleBackgroundWork(): Promise<void> {
+  let awaited = 0;
+  for (;;) {
+    const jobs = [refreshWorkerSpy, avatarWorkerSpy].flatMap((spy) =>
+      spy.mock.results.map((result) => result.value as Promise<void>));
+    if (jobs.length === awaited) return;
+    awaited = jobs.length;
+    await Promise.allSettled(jobs);
+    await flushMicrotasks();
   }
 }
 
@@ -300,7 +338,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     const userId = await seedFederatedUser(fx, FRESH_AGE_MS);
 
     const result = await federationService.resolveAndUpsert(fx.handle);
-    await flushMicrotasks();
+    await settleBackgroundWork();
 
     // The cached row is handed back as the account document — `_id` is the
     // account id, which is what every caller re-reads by.
@@ -318,7 +356,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     const userId = await seedFederatedUser(fx, STALE_AGE_MS, { accountStatus: 'archived' });
 
     const result = await federationService.resolveAndUpsert(fx.handle);
-    await flushMicrotasks();
+    await settleBackgroundWork();
 
     expect(result?._id).toBe(userId);
     expect(webfingerSpy).not.toHaveBeenCalled();
@@ -345,7 +383,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     const result = await federationService.resolveAndUpsert(fx.handle);
     expect(result?._id).toBe(userId); // returned synchronously, before the refresh resolves
 
-    await waitForRow(userId, (row) => row.avatar === 'new-file-id');
+    await settleBackgroundWork();
 
     expect(actorSpy).toHaveBeenCalledWith(fx.actorUri, fx.handle);
     expect(avatarSpy).toHaveBeenCalledWith(
@@ -385,7 +423,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     const userId = await seedFederatedUser(fx, STALE_AGE_MS, { bio: 'stale bridge boilerplate' });
 
     await federationService.resolveAndUpsert(fx.handle);
-    await waitForRow(userId, (row) => row.bio === '');
+    await settleBackgroundWork();
 
     const row = await storedUser(userId);
     expect(row?.bio).toBe('');
@@ -411,7 +449,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     });
 
     await federationService.resolveAndUpsert(fx.handle);
-    await waitForRow(userId, (row) => row.nameFirst === 'Alice Back');
+    await settleBackgroundWork();
 
     // Mongo's `$unset` is a write of NULL here — "available" is what NULL means
     // on these two columns.
@@ -439,7 +477,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     const result = await federationService.resolveAndUpsert(fx.handle);
     expect(result?._id).toBe(userId);
 
-    await waitForRow(userId, (row) => row.avatar === 'new-file-id');
+    await settleBackgroundWork();
 
     expect(mockAssetFileContentExists).toHaveBeenCalledWith('stored-file-id');
     expect(actorSpy).toHaveBeenCalledWith(fx.actorUri, fx.handle);
@@ -471,7 +509,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     });
 
     await federationService.resolveAndUpsert(fx.handle);
-    await waitForRow(userId, (row) => row.nameFirst === 'Alice Conditional');
+    await settleBackgroundWork();
 
     // The validators live in `federation_avatar_etag` /
     // `federation_avatar_last_modified` COLUMNS, not on the account document's
@@ -502,7 +540,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
 
     const userId = await seedFederatedUser(fx, STALE_AGE_MS);
     await federationService.resolveAndUpsert(fx.handle);
-    await waitForRow(userId, (row) => row.nameFirst === 'Alice');
+    await settleBackgroundWork();
     expect(actorSpy).toHaveBeenCalledTimes(1);
 
     // Second resolve within REFRESH_MIN_INTERVAL_MS must NOT launch another
@@ -514,8 +552,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       .where(eq(users.id, userId));
 
     await federationService.resolveAndUpsert(fx.handle);
-    await flushMicrotasks();
-    await flushMicrotasks();
+    await settleBackgroundWork();
     expect(actorSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -537,7 +574,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
 
     expect(webfingerSpy).toHaveBeenCalledWith(fx.handle);
     expect(actorSpy).toHaveBeenCalledWith(fx.actorUri, fx.handle);
-    await waitForRow(userId, row => row.avatar === 'new-file-id');
+    await settleBackgroundWork();
     expect(avatarSpy).toHaveBeenCalledWith(NEW_AVATAR_URL, undefined, { etag: undefined, lastModified: undefined }, userId);
 
     const row = await storedUser(userId);
@@ -715,8 +752,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
 
     const result = await federationService.resolveAndUpsert(fx.handle);
     expect(result?._id).toBe(userId);
-    await flushMicrotasks();
-    await flushMicrotasks();
+    await settleBackgroundWork();
 
     expect(mockCacheInvalidate).not.toHaveBeenCalled();
     // The cached row survives a failed refresh untouched.
@@ -748,7 +784,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     );
 
     const result = await federationService.resolveAndUpsert(bridgeHandle);
-    await flushMicrotasks();
+    await settleBackgroundWork();
 
     expect(result?._id).toBe(userId);
     expect(result?.username).toBe(relabelledHandle);
@@ -829,8 +865,7 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
       'stored-file-id',
       { force: true },
     );
-    await flushMicrotasks();
-    await flushMicrotasks();
+    await settleBackgroundWork();
 
     // Forced refresh inside the window is a no-op: no download, no write.
     expect(avatarSpy).not.toHaveBeenCalled();
@@ -862,10 +897,7 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
     });
 
     federationService.scheduleAvatarRefresh(userId, avatarUrl, 'stored-file-id', { force: true });
-    await waitForRow(
-      userId,
-      (row) => row.lastAvatarFetchedAt !== null && row.lastAvatarFetchedAt > fetchedAt,
-    );
+    await settleBackgroundWork();
 
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
 
@@ -911,7 +943,7 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
     });
 
     federationService.scheduleAvatarRefresh(userId, avatarUrl, 'stored-file-id', { force: true });
-    await waitForRow(userId, (row) => row.avatar === 'repaired-file-id');
+    await settleBackgroundWork();
 
     expect(mockSafeFetch).toHaveBeenCalledTimes(2);
     expect(mockAssetFileContentExists).toHaveBeenCalledWith('stored-file-id');
@@ -952,10 +984,7 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
       'stored-file-id',
       { force: true },
     );
-    await waitForRow(
-      userId,
-      (row) => row.lastAvatarFetchedAt !== null && row.lastAvatarFetchedAt > fetchedAt,
-    );
+    await settleBackgroundWork();
 
     // The clock advances so a forced refresh cannot hammer a broken remote on
     // every request, and the existing avatar is never clobbered with null.
