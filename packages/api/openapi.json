@@ -36063,7 +36063,7 @@
           "Users"
         ],
         "summary": "Permanently delete the current account",
-        "description": "Hard-delete the authenticated user's account. To prove identity at the time of deletion the client signs `delete:{publicKey}:{timestamp}` with the local secp256k1 private key (see `KeyManager.sign` in `@oxy.so/core`). The signature is rejected if it is older than 5 minutes, if the confirmation text does not match the account's username, or if the account has no associated public key.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user.\n",
+        "description": "Hard-delete the authenticated user's account. To prove identity at the time of deletion the client signs `delete:{publicKey}:{timestamp}` with the local secp256k1 private key (see `KeyManager.sign` in `@oxy.so/core`). The signature is rejected if it is older than 5 minutes, if the confirmation text does not match the account's username, or if the account has no associated public key.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user, and records an `account.deleted` event that tells every relying application to erase what it holds for this account (pushed as a signed webhook and served from `/internal/account-events`; see docs/identity/account-events.md).\n",
         "requestBody": {
           "required": true,
           "content": {

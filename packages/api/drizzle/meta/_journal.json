@@ -736,6 +736,13 @@
       "when": 1790348646160,
       "tag": "0105_linked_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1790371407681,
+      "tag": "0106_account_events",
+      "breakpoints": true
     }
   ]
 }

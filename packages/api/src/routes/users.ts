@@ -42,6 +42,7 @@ import {
   beginAccountClosure,
   describeAccountFinancialHolds,
 } from '../services/accountFinancialHolds.service';
+import { recordAccountDeletedEvent, type RecordedAccountEvent } from '../services/accountEvents.service';
 import { validate } from '../middleware/validate';
 import {
   optionalUserOrServiceAuth,
@@ -1403,7 +1404,10 @@ router.get(
  *       username, or if the account has no associated public key.
  *
  *       Successful deletion removes all mailboxes, messages, and S3
- *       attachments owned by the user.
+ *       attachments owned by the user, and records an `account.deleted`
+ *       event that tells every relying application to erase what it holds
+ *       for this account (pushed as a signed webhook and served from
+ *       `/internal/account-events`; see docs/identity/account-events.md).
  *     requestBody:
  *       required: true
  *       content:
@@ -1613,7 +1617,20 @@ router.delete(
        * to section 12's deletion/export work rather than to the financial-holds
        * question. The boundary is stated rather than inferred.
        */
-      await archiveAccountForRetention(userId);
+      // The `account.deleted` event commits with the archive, never without
+      // it: every relying party holding this person's data is told to erase
+      // (OxyHQ/Mention#1169). The archive keeps financial records, not the
+      // person's data anywhere else.
+      let archivedEvent: RecordedAccountEvent | undefined;
+      await archiveAccountForRetention(userId, {
+        withinTransaction: async (tx) => {
+          archivedEvent = await recordAccountDeletedEvent(tx, {
+            userId,
+            username: user.username ?? null,
+            retained: true,
+          });
+        },
+      });
       userCache.invalidate(userId);
       await graphCache.invalidate(userId);
 
@@ -1621,6 +1638,8 @@ router.delete(
         userId,
         username: user.username,
         retainedRecords: holds.retainedRecords,
+        accountEventId: archivedEvent?.eventId,
+        accountEventRecipients: archivedEvent?.recipients,
       });
 
       sendSuccess(res, {
@@ -1638,12 +1657,30 @@ router.delete(
     // removed by its own foreign key; the graph purge above ran first because it
     // is what invalidates each counterparty's cached graph by name — a cascade
     // tells nobody whose graph just changed.
-    await getDb().delete(users).where(eq(users.id, userId));
+    //
+    // The `account.deleted` event for relying parties is recorded in the SAME
+    // transaction, and before the row goes: its recipients are read from the
+    // account's grants and sessions, which cascade with it. So the event exists
+    // exactly when the deletion committed (OxyHQ/Mention#1169).
+    const deletedEvent = await getDb().transaction(async (tx) => {
+      const recorded = await recordAccountDeletedEvent(tx, {
+        userId,
+        username: user.username ?? null,
+        retained: false,
+      });
+      await tx.delete(users).where(eq(users.id, userId));
+      return recorded;
+    });
 
     userCache.invalidate(userId);
     await graphCache.invalidate(userId);
 
-    logger.info('Account deleted', { userId, username: user.username });
+    logger.info('Account deleted', {
+      userId,
+      username: user.username,
+      accountEventId: deletedEvent.eventId,
+      accountEventRecipients: deletedEvent.recipients,
+    });
 
     sendSuccess(res, {
       message: 'Account deleted successfully',
