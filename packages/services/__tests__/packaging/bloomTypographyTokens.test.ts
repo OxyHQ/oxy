@@ -28,12 +28,14 @@ const USED_TYPE_SCALE = ['body', 'bodySmall', 'caption', 'headerBold', 'sectionT
 
 describe("Bloom's typography tokens survive a native pipeline", () => {
   it('requires a Bloom whose type-scale line-heights are ratios', () => {
-    const [major, minor] = (servicesPackage.peerDependencies['@oxy.so/bloom'] ?? '')
+    const [major, minor, patch] = (servicesPackage.peerDependencies['@oxy.so/bloom'] ?? '')
       .replace(/^\^/, '')
       .split('.')
       .map(Number);
     expect(major).toBe(4);
-    expect(minor).toBeGreaterThanOrEqual(21);
+    // 4.21.0: ratio line-heights. 4.21.1: the collapsed sheet header paints
+    // its background on Android.
+    expect((minor ?? 0) * 1000 + (patch ?? 0)).toBeGreaterThanOrEqual(21_001);
   });
 
   it.each(USED_TYPE_SCALE)('`text-%s` declares a unitless line-height', (step) => {

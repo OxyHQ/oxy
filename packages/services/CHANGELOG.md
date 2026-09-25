@@ -11,7 +11,7 @@
 
 ## [4.0.2] - 2026-09-25
 
-Requires `@oxy.so/core` `^1.9.0` and `@oxy.so/bloom` `^4.21.0`.
+Requires `@oxy.so/core` `^1.9.0` and `@oxy.so/bloom` `^4.21.1`.
 
 ### Fixed
 
@@ -20,8 +20,10 @@ Requires `@oxy.so/core` `^1.9.0` and `@oxy.so/bloom` `^4.21.0`.
   its type-scale line-heights in px, and react-native-css multiplies a
   line-height it reads through `var()` by the font size (`text-body`: 22 × 15 =
   330dp). Bloom 4.21 writes them as ratios; the Bloom peer floor moves to
-  `^4.21.0`, which also brings the bottom-sheet safe-area inset, the inline ✕
-  header and the Accordion trigger that no longer wraps.
+  `^4.21.1`, which also brings the bottom-sheet safe-area inset, the inline ✕
+  header, the Accordion trigger that no longer wraps, and a collapsed sheet
+  header that paints its background on Android (it overlapped the rows of
+  "Manage your Oxy Account").
 
 - Signed out, Back from "Create your account" returned to the SIGNED-IN account
   menu. The account dialog's Back now follows the controller's `backView`
