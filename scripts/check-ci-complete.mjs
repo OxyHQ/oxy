@@ -228,14 +228,19 @@ function dependenciesOf(jobId) {
  * Whether `skipped` is explicable for this job. Either it declares a job-level
  * `if:` — the supported way to make a job conditional, and the one that keeps
  * this gate satisfiable on a pull request the job does not apply to — or one of
- * its own dependencies skipped, which skips it in turn through no choice of its
- * own. The dependency case needs no recursion: if THAT job skipped without
- * cause, it is already failing this gate on its own line, which names the root
- * of the chain instead of every job downstream of it.
+ * its own dependencies did not succeed (skipped, failed, cancelled), which skips
+ * it in turn through no choice of its own: `api-coverage` never runs when an
+ * `api-test` shard fails. The dependency case needs no recursion: THAT job is
+ * already failing this gate on its own line (or skipped for a reason of its
+ * own), which names the root of the chain instead of every job downstream of it.
+ * The skip is only excused, never passed: a failed dependency still fails here.
  */
 function maySkip(jobId) {
   if (jobs?.[jobId] !== null && typeof jobs?.[jobId] === 'object' && 'if' in jobs[jobId]) return true;
-  return dependenciesOf(jobId).some((id) => needs?.[id]?.result === 'skipped');
+  return dependenciesOf(jobId).some((id) => {
+    const result = needs?.[id]?.result;
+    return result !== undefined && result !== 'success';
+  });
 }
 
 const counts = { success: 0, skipped: 0 };
@@ -254,7 +259,7 @@ for (const id of needIds.sort()) {
       continue;
     }
     fail(
-      `\`${id}\` was skipped, but it declares no \`if:\` and nothing it needs skipped — so nothing ` +
+      `\`${id}\` was skipped, but it declares no \`if:\` and everything it needs succeeded — so nothing ` +
       'explains why it did not run. Treating that as a pass is how a required check stops ' +
       'checking: one `if: false` and this gate is green over a suite that never executed.'
     );
