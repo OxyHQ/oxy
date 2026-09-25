@@ -45,6 +45,12 @@ export interface SeedAppSpec {
   legacyNames?: string[];
   description: string;
   websiteUrl?: string;
+  /**
+   * Where Oxy pushes account events (`account.deleted`) for this application
+   * (docs/identity/account-events.md). Set when declared; a webhook the spec
+   * does not declare is left as the Console set it.
+   */
+  webhookUrl?: string;
   type: SeedAppType;
   redirectUris: string[];
   /**
@@ -390,6 +396,9 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Mention',
     description: 'Official Oxy social media app with fediverse support.',
     websiteUrl: 'https://mention.earth',
+    // Mention erases a deleted Oxy account's data on this push (OxyHQ/Mention#1169),
+    // and reconciles from GET /account-events when it misses one.
+    webhookUrl: 'https://api.mention.earth/webhooks/oxy/account-events',
     type: 'first_party',
     redirectUris: ['https://mention.earth'],
     // Mention federates: its service credential signs HTTP-Signatures and
