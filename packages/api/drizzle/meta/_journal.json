@@ -743,6 +743,13 @@
       "when": 1790341303800,
       "tag": "0106_move_scopes_system_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1790341749177,
+      "tag": "0107_notification_app_entity",
+      "breakpoints": true
     }
   ]
 }

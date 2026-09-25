@@ -280,6 +280,12 @@ export interface Notification {
   title?: string;
   /** `system` notifications only: an optional deep link (https or the sending app's scheme). */
   url?: string;
+  /**
+   * What `entityId` names: `post` | `reply` | `profile`, or `app` — an opaque id
+   * in the notifying application's namespace (`system` notifications only).
+   */
+  entityType?: string;
+  entityId?: string;
 }
 
 export interface Wallet {

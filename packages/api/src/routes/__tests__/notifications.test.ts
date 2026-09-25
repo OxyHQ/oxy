@@ -516,6 +516,21 @@ describe('POST /notifications — privileged service scope only', () => {
     }
   });
 
+  it('names an app-namespaced entity (a job id) on a system notification, and only there', async () => {
+    const ok = await request('POST', '/notifications', {
+      recipientId: RECIPIENT_ID, actorId: RECIPIENT_ID, type: 'system', entityId: 'job-42', entityType: 'app', title: 't', message: 'm',
+    });
+    expect(ok.status).toBe(201);
+    expect((ok.body.data as { notification: Record<string, unknown> }).notification).toMatchObject({ entityType: 'app', entityId: 'job-42' });
+    const refused = await request('POST', '/notifications', {
+      recipientId: RECIPIENT_ID, actorId: ACTOR_ID, type: 'like', entityId: 'job-42', entityType: 'app',
+    });
+    expect(refused.status).toBe(400);
+    await expect(
+      getDb().insert(notifications).values({ recipientId: RECIPIENT_ID, actorId: ACTOR_ID, type: 'like', entityId: 'raw-app', entityType: 'app' }),
+    ).rejects.toThrow();
+  });
+
   it('keeps a raw write honest: system without text, or text on another type, is refused', async () => {
     await expect(
       getDb().insert(notifications).values({ recipientId: RECIPIENT_ID, actorId: RECIPIENT_ID, type: 'system', entityId: 'raw-1', entityType: 'profile' }),

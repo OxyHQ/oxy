@@ -54,6 +54,13 @@ describe('notification types', () => {
     expect(
       createOxyNotificationRequestSchema.safeParse({ recipientId: 'u1', actorId: 'u1', type: 'system', entityId: 'j', entityType: 'profile' }).success,
     ).toBe(false);
+    // An app-namespaced entity (a job id) is valid for system, and only for system.
+    expect(
+      createOxyNotificationRequestSchema.safeParse({ recipientId: 'u1', actorId: 'u1', type: 'system', entityId: 'job-9', entityType: 'app', title: 't', message: 'm' }).success,
+    ).toBe(true);
+    expect(
+      createOxyNotificationRequestSchema.safeParse({ recipientId: 'u1', actorId: 'a', type: 'like', entityId: 'job-9', entityType: 'app' }).success,
+    ).toBe(false);
     // A deep link is a system-notification field only.
     expect(
       createOxyNotificationRequestSchema.safeParse({ recipientId: 'u1', actorId: 'a', type: 'follow', entityId: 'u1', entityType: 'profile', url: 'https://oxy.so' }).success,

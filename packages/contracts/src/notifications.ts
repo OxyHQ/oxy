@@ -25,8 +25,15 @@ export const OXY_NOTIFICATION_TYPES = [
 
 export type OxyNotificationType = (typeof OXY_NOTIFICATION_TYPES)[number];
 
-/** What a notification's `entityId` names. */
-export const OXY_NOTIFICATION_ENTITY_TYPES = ['post', 'reply', 'profile'] as const;
+/**
+ * What a notification's `entityId` names.
+ *
+ * `app` means `entityId` is an OPAQUE id in the notifying application's own
+ * namespace (Oxy Move's migration job id). Oxy never resolves it; it exists so
+ * a `system` notification about something that is not a post or a profile does
+ * not have to pretend to be one. Valid only with `type: 'system'`.
+ */
+export const OXY_NOTIFICATION_ENTITY_TYPES = ['post', 'reply', 'profile', 'app'] as const;
 
 export type OxyNotificationEntityType = (typeof OXY_NOTIFICATION_ENTITY_TYPES)[number];
 
@@ -63,8 +70,13 @@ export const createOxyNotificationRequestSchema = z
     if (value.type === 'system') {
       if (!value.title) context.addIssue({ code: z.ZodIssueCode.custom, path: ['title'], message: 'title is required for a system notification' });
       if (!value.message) context.addIssue({ code: z.ZodIssueCode.custom, path: ['message'], message: 'message is required for a system notification' });
-    } else if (value.url !== undefined) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['url'], message: 'url is only stored for a system notification' });
+    } else {
+      if (value.url !== undefined) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['url'], message: 'url is only stored for a system notification' });
+      }
+      if (value.entityType === 'app') {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['entityType'], message: "entityType 'app' is only valid for a system notification" });
+      }
     }
   });
 
