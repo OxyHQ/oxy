@@ -92,6 +92,12 @@ answer.routingPolicy;      // the exact policy version this request was admitted
 answer.latencyMs;          // Oxy's handling time — NOT your round trip; see below
 ```
 
+A reasoning model takes `reasoning: { effort: 'low' | 'medium' | 'high' }`
+(`reasoning_effort` on the OpenAI-compatible surface). Name only an effort the
+model's catalogue entry lists in `capabilities.reasoningEfforts`: any other is
+refused with `invalid_request` (400) before a hold is taken, never silently
+dropped. Requires `@oxy.so/core` 1.8.0 / `@oxy.so/contracts` 1.4.0.
+
 `latencyMs` is optional and every served response sets it; it is optional because
 it is additive, so an older Oxy deployment omits it and a streamed request never
 carries one at all.
@@ -107,9 +113,9 @@ contains DNS, TLS, both network legs and your own parse. Report them side by
 side: this one has no network in it, and yours cannot be attributed to the model.
 Their difference is not a fourth measurement — neither clock took it.
 
-Nothing on this page names a model Oxy serves because the reviewed bootstrap's
-presence in source does not prove it ran or that a model is visible to this
-caller. These docs do not invent one. `listModels()` may answer `[]`; that is a
+Nothing on this page names a model Oxy serves: the internal catalogue is
+synced from Kaana (see [catalogue.md](./catalogue.md#automatic-sync-from-kaana)),
+and what a caller sees depends on its audience. These docs do not invent one. `listModels()` may answer `[]`; that is a
 normal audience-scoped result to render rather than an error to retry or proof
 of current production contents. See [catalogue.md](./catalogue.md).
 

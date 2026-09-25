@@ -239,6 +239,7 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
   "inboxSmartRepliesResponseSchema",
   "inboxThreadSummaryResponseSchema",
   "inferenceMessageSchema",
+  "inferenceReasoningSchema",
   "inferenceSpeechParametersSchema",
   "inferenceToolCallSchema",
   "kaanaCredentialIdentitySchema",
@@ -1310,10 +1311,11 @@ const FIXTURES: Record<string, unknown> = {
 
 describe("inference contract versioning", () => {
   it("exposes the contract-set version the two planes handshake on", () => {
-    // MAJOR: the closed availability scope renamed from an Alia-specific value
-    // to a platform audience. Both wire shapes carrying it advance so an older
-    // consumer cannot silently reinterpret the new commercial boundary.
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe("3.0.0");
+    // MAJOR 3: the closed availability scope renamed from an Alia-specific value
+    // to a platform audience. MINOR 1: the envelope gained optional `reasoning`,
+    // and the strict capabilities leaf gained `reasoningEfforts` — an older
+    // consumer refuses those bytes, which is exactly what MINOR signals.
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe("3.1.0");
   });
 
   it("matches the frozen schema version map exactly", () => {

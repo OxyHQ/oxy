@@ -57,6 +57,7 @@ import type {
     InferenceErrorCode,
     InferenceFinishReason,
     InferenceMessage,
+    InferenceReasoning,
     InferenceRequestOutcome,
     InferenceAudioMediaType,
     InferenceStreamEvent,
@@ -140,6 +141,12 @@ export interface OxyResponsesRequest {
     readonly tools?: readonly ToolDefinition[];
     readonly toolChoice?: ToolChoice;
     readonly responseFormat?: ResponseFormat;
+    /**
+     * `{ effort: 'low' | 'medium' | 'high' }`. Name only an effort the model
+     * lists in its catalogue entry's `capabilities.reasoningEfforts`; any other
+     * is refused with `invalid_request` (HTTP 400) before anything is charged.
+     */
+    readonly reasoning?: InferenceReasoning;
     /** Cost-attribution tags, echoed back on the receipt. At most 16. */
     readonly labels?: Readonly<Record<string, string>>;
     /** Your own correlation id, echoed on the response. */
@@ -370,9 +377,14 @@ export class OxyInferenceClient {
      * both see the PUBLIC catalogue; only an internal/system application's
      * service token sees internal-only routes.
      *
-     * **`[]` is a normal answer**, and is the only answer today: the catalogue
-     * is populated by operators, and a route is not publicly exposed until
-     * somebody has reviewed the right to resell it.
+     * **`[]` is a normal answer**: a route is not publicly exposed until
+     * somebody has reviewed the right to resell it. An official application's
+     * credential also sees the internal catalogue Oxy keeps in step with
+     * Kaana automatically.
+     *
+     * Each entry's `capabilities.reasoningEfforts` lists the efforts a request
+     * may name in `reasoning.effort` (empty: none), and `releasedAt`, when
+     * present, is the date the upstream provider published the model.
      */
     async listModels(options: { signal?: AbortSignal } = {}): Promise<ModelCatalogueEntry[]> {
         const body = await this.#request<CatalogueCollection<ModelCatalogueEntry>>(

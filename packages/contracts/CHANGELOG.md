@@ -1,6 +1,24 @@
 # Changelog: `@oxy.so/contracts`
 
-## Unreleased
+## 1.4.0
+
+### Added
+
+- `inferenceReasoningSchema` (`{ effort }`, strict) and `reasoningEffortSchema`
+  (`low | medium | high`). `inferenceRequestSchema` gains an optional
+  `reasoning`; the envelope stays at wire `schemaVersion: 2` because the field
+  is optional. Types `InferenceReasoning`, `ReasoningEffort`.
+- `modelCapabilitiesSchema.reasoningEfforts` (defaults to `[]`) beside the
+  existing `reasoning` boolean, which is kept for compatibility.
+- `modelCatalogueEntrySchema.releasedAt` (optional ISO timestamp): the date the
+  upstream provider reports it published the model.
+- `INFERENCE_CONTRACT_VERSION` is `3.1.0`. MINOR, because the strict
+  capabilities leaf now carries a key an older consumer refuses.
+
+## 1.3.0
+
+(These notes sat under "Unreleased"; no `src/` change landed between the 1.3.0
+release commit and 1.4.0, so they shipped in 1.3.0.)
 
 ### Added
 
