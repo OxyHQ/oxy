@@ -7,7 +7,7 @@
  * - `POST /:network/start` (user session) → `{ authorizeUrl, expiresAt }`.
  * - `GET /:network/callback` (no session — the spent challenge row is the
  *   authentication) → redirect to the registered `returnTo` with
- *   `?linked=<id>` / `?error=<code>`, or a minimal page when none was given.
+ *   `?linked=<id>` / `?link_error=<code>`, or a minimal page when none was given.
  * - `GET /` and `DELETE /:id` (user session) — list and revoke.
  * - `GET /by-user/:userId` (service token with the privileged
  *   `linked-accounts:read`) — for the first-party migration service.
@@ -185,7 +185,7 @@ function finish(
   res.set('Cache-Control', 'no-store').set('Referrer-Policy', 'no-referrer');
   if (returnTo) {
     const target =
-      'linked' in outcome ? withQueryParam(returnTo, 'linked', outcome.linked) : withQueryParam(returnTo, 'error', outcome.error);
+      'linked' in outcome ? withQueryParam(returnTo, 'linked', outcome.linked) : withQueryParam(returnTo, 'link_error', outcome.error);
     res.redirect(303, target);
     return;
   }

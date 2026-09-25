@@ -55,7 +55,7 @@ user's `alsoKnownAs`, and a Mastodon `Move` trusts it: if two local accounts
 announced the same alias, either one could receive the other's followers.
 
 - If a second user claims an account that is already linked, the callback
-  returns `already_linked`. That is a 409 page, or `?error=already_linked` on the
+  returns `already_linked`. That is a 409 page, or `?link_error=already_linked` on the
   return URL.
 - If the same user links the same account again, the existing link is refreshed.
 - Revoking a link (`DELETE /linked-accounts/:id`) sets `revoked_at` and frees the
@@ -103,10 +103,13 @@ All routes are under `/linked-accounts`.
    (unspent, unexpired, secrets wiped), so a replayed or late callback gets a
    400 page and is never redirected. The code is exchanged, the account is
    verified, the link is recorded, and the token is revoked. The browser is then
-   sent to `returnTo?linked=<id>`, or to `returnTo?error=<code>` where `<code>`
+   sent to `returnTo?linked=<id>`, or to `returnTo?link_error=<code>` where `<code>`
    is `access_denied`, `already_linked`, `verification_failed` or
    `provider_unavailable`. Without a `returnTo`, a minimal "Account linked, you
-   can close this" page is shown.
+   can close this" page is shown. The parameter is `link_error`, not `error`:
+   `@oxy.so/services` strips `?error=` from the address bar when a web app
+   starts, because that is where Oxy's own sign-in reports failures, so an
+   `error` parameter would be gone before the app could read it.
 4. **`GET /`** lists the user's live links. **`DELETE /:id`** revokes one.
 5. **`GET /by-user/:userId`** is for first-party services. It needs a service
    token whose application holds the privileged `linked-accounts:read` scope

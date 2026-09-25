@@ -10,7 +10,7 @@
  * the other network's `authorizeUrl`; open it (a new tab, or
  * `expo-web-browser`'s auth session on native); the network sends the browser
  * to Oxy's callback, and Oxy sends it to `returnTo` with `?linked=<id>` or
- * `?error=<code>`. `returnTo` must be a redirect URI registered on the
+ * `?link_error=<code>`. `returnTo` must be a redirect URI registered on the
  * application `clientId` names.
  *
  * Wire types live in `@oxy.so/contracts` (`linkedAccounts.ts`).

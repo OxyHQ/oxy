@@ -96,7 +96,7 @@ export const serviceLinkedAccountListResponseSchema = z
 
 export type ServiceLinkedAccountListResponse = z.infer<typeof serviceLinkedAccountListResponseSchema>;
 
-/** Error codes the callback appends as `?error=<code>` to `returnTo`. */
+/** Error codes the callback appends as `?link_error=<code>` to `returnTo`. */
 export const LINKED_ACCOUNT_CALLBACK_ERRORS = [
   'access_denied',
   'already_linked',

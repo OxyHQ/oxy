@@ -374,7 +374,7 @@ describe('Mastodon-API: start → callback', () => {
     const third = await authorizeAt(intruder, host, 'dana', { clientId: client, returnTo: 'oxymove://linked' });
     const redirect = await call('GET', `/activitypub/callback?state=${encodeURIComponent(third.state)}&code=${third.code}`);
     expect(redirect.status).toBe(303);
-    expect(redirect.location).toBe('oxymove://linked?error=already_linked');
+    expect(redirect.location).toBe('oxymove://linked?link_error=already_linked');
     expect(await aliasesForUser(intruder)).toEqual([]);
   });
 
@@ -394,7 +394,7 @@ describe('Mastodon-API: start → callback', () => {
     const host = `deny-${randomUUID().slice(0, 8)}.example`;
     const { state } = await authorizeAt(user, host, 'finn', { clientId: client, returnTo: 'https://move.oxy.test/linked' });
     const done = await call('GET', `/activitypub/callback?state=${encodeURIComponent(state)}&error=access_denied`);
-    expect(done.location).toBe('https://move.oxy.test/linked?error=access_denied');
+    expect(done.location).toBe('https://move.oxy.test/linked?link_error=access_denied');
   });
 });
 
@@ -537,6 +537,6 @@ describe('atproto', () => {
     const started = await call('POST', '/atproto/start', { user, body: { handle: 'bob.bsky.social', clientId: client, returnTo: 'https://move.oxy.test/linked' } });
     const state = new URL(started.body.data.authorizeUrl).searchParams.get('state') ?? '';
     const done = await call('GET', `/atproto/callback?state=${encodeURIComponent(state)}&error=access_denied`);
-    expect(done.location).toBe('https://move.oxy.test/linked?error=access_denied');
+    expect(done.location).toBe('https://move.oxy.test/linked?link_error=access_denied');
   });
 });
