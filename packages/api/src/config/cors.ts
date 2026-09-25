@@ -42,10 +42,6 @@ export const ALLOWED_METHODS = [
 export const ALLOWED_HEADERS = [
   'Content-Type',
   'Authorization',
-  // `X-CSRF-Token` and `X-Native-App` are read by nothing any more (issue
-  // #1044). They stay allowed because `@oxy.so/core` up to 1.7.4 still sends
-  // them, and a header missing from this list fails that client's preflight.
-  'X-CSRF-Token',
   'X-Requested-With',
   'Accept',
   'Accept-Version',
@@ -59,7 +55,6 @@ export const ALLOWED_HEADERS = [
   'x-session-id',
   'X-Device-Fingerprint',
   'x-device-fingerprint',
-  'X-Native-App',
   // Anonymous coarse Cloudflare PoP propagated by browser SDKs. This carries
   // neither an IP nor an identity and is consumed only by thresholded activity
   // aggregation.

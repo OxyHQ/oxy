@@ -81,7 +81,6 @@ All against `api.oxy.so` (`VITE_OXY_API_URL` in dev):
 | `GET /auth/oauth/client/:clientId` | Resolve the requesting Application (public identity) |
 | `GET /auth/oauth/consent` | Consent decision for the signed-in user |
 | `POST /auth/oauth/authorize` | Mint the single-use authorization code |
-| `GET /csrf-token` | Stateless compatibility stub for SDKs ≤ 1.7.4; the API has no CSRF layer (#1044) |
 
 The code→token exchange (`POST /auth/oauth/token`, RFC 6749 §4.1.3) happens on the RP side, never on the IdP — see [integration-guide.md](./integration-guide.md).
 

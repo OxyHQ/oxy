@@ -147,7 +147,6 @@ import { logger } from './utils/logger';
 import type { Response } from 'express';
 import { authMiddleware, type AuthRequest } from './middleware/auth';
 import { requireStaff } from './middleware/requireStaff';
-import { getCsrfTokenCompat } from './routes/csrfTokenCompat';
 import { createCorsMiddleware, SOCKET_IO_CORS_CONFIG } from './config/cors';
 import { refreshOriginRegistry } from './config/dynamicOriginRegistry';
 import { reconcileOfficialRedirectUris } from './config/reconcileOfficialRedirectUris';
@@ -663,10 +662,6 @@ app.use(bruteForceProtection);
 // request, and a browser attaches none of these to a cross-site request on its
 // own (issue #1044). Adding a cookie credential would bring the threat back, and
 // the defence with it.
-//
-// `/csrf-token` survives only as a stateless stub for older SDKs; see
-// `routes/csrfTokenCompat.ts`.
-app.get('/csrf-token', getCsrfTokenCompat);
 
 // API Routes
 // Apply stricter rate limiting to auth routes

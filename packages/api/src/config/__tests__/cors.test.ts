@@ -84,9 +84,9 @@ describe('ALLOWED_HEADERS', () => {
   });
 
   it('has exactly the entries reviewed here', () => {
-    // VACUITY FLOOR, as above: seventeen pre-existing entries plus the three
+    // VACUITY FLOOR, as above: fifteen pre-existing entries plus the three
     // explicitly reviewed headers above.
-    expect(ALLOWED_HEADERS).toHaveLength(20);
+    expect(ALLOWED_HEADERS).toHaveLength(18);
   });
 });
 
