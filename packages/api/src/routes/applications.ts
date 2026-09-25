@@ -6,6 +6,7 @@ import {
   apiKeyUsageEvents,
   applicationCredentials,
   applications,
+  excludeWorkloadRows,
   inferenceProviderConnections,
 } from '../db/schema';
 import {
@@ -86,8 +87,23 @@ type ApplicationRow = typeof applications.$inferSelect;
  */
 type CredentialRow = Omit<
   typeof applicationCredentials.$inferSelect,
-  'secretHash' | 'tokenHash'
->;
+  'secretHash' | 'tokenHash' | 'workloadIdentityId' | 'publicKey'
+> & {
+  /**
+   * Non-nullable, unlike the column.
+   *
+   * The column is NULL on exactly one kind of row — a materialised `workload`
+   * row, which has no OAuth `client_id` because nothing presents it — and every
+   * query in this module excludes those (`excludeWorkloadRows`). Declaring it
+   * `string` here is how a query that forgot the exclusion becomes a type error
+   * instead of a credential serialised with a missing public identifier.
+   *
+   * `workloadIdentityId` is omitted for the plainer reason that
+   * {@link CREDENTIAL_COLUMNS} does not select it: which binding an attested
+   * identity currently has is not something this surface manages.
+   */
+  publicKey: string;
+};
 
 /**
  * Resolved application access for the caller.
@@ -453,8 +469,26 @@ function serializeApplication(
   };
 }
 
+/**
+ * The raw {@link CREDENTIAL_COLUMNS} projection, before {@link serializeCredential}
+ * narrows it. Only a materialised `workload` row has a NULL `public_key`, and
+ * every query here excludes those — this type exists so that claim is checked
+ * once, at the boundary, instead of being assumed at three call sites.
+ */
+type SelectedCredentialRow = Omit<CredentialRow, 'publicKey'> & { publicKey: string | null };
+
 /** Serialise a credential for client responses — NEVER includes the secret hash. */
-function serializeCredential(credential: CredentialRow): SerializedCredential {
+function serializeCredential(credential: SelectedCredentialRow): SerializedCredential {
+  if (credential.publicKey === null) {
+    // Unreachable: a NULL `public_key` is a `workload` row, and every query
+    // behind this serializer carries `excludeWorkloadRows()`. Failing loudly is
+    // the right answer if one stops — a credential serialised without the public
+    // identifier its consumers key on is a worse outcome than a 500, and a silent
+    // placeholder would put a row the Console cannot act on into its list.
+    throw new Error(
+      `application_credentials.${credential.id} has no public identifier; it is not a credential`
+    );
+  }
   return {
     _id: credential.id,
     applicationId: credential.applicationId,
@@ -1017,7 +1051,13 @@ router.get(
     const credentials = await getDb()
       .select(CREDENTIAL_COLUMNS)
       .from(applicationCredentials)
-      .where(eq(applicationCredentials.applicationId, application.id))
+      // Workload rows are not credentials and are not offered as any: they hold
+      // no secret, nothing can present them, and the tab's actions — rotate,
+      // revoke, read the audit trail — do not apply to one. An attested identity
+      // is managed through its binding (`scripts/bind-workload-identity.ts`).
+      .where(
+        and(eq(applicationCredentials.applicationId, application.id), excludeWorkloadRows())
+      )
       .orderBy(desc(applicationCredentials.createdAt));
 
     res.json({ credentials: credentials.map(serializeCredential) });
@@ -1248,7 +1288,13 @@ router.post(
             and(
               eq(applicationCredentials.id, req.params.credId),
               eq(applicationCredentials.applicationId, application.id),
-              ne(applicationCredentials.status, 'revoked')
+              ne(applicationCredentials.status, 'revoked'),
+              // There is no secret to rotate on a workload row, and the copy this
+              // endpoint would mint could not exist: a `workload` row's id must be
+              // its attestation handle, and a rotation issues a fresh uuid. The
+              // exclusion makes that a 404 rather than a CHECK violation at the end
+              // of the transaction.
+              excludeWorkloadRows()
             )
           )
           .limit(1);
@@ -1383,7 +1429,12 @@ router.delete(
         .where(
           and(
             eq(applicationCredentials.id, req.params.credId),
-            eq(applicationCredentials.applicationId, application.id)
+            eq(applicationCredentials.applicationId, application.id),
+            // Revoking a workload row would revoke nothing — an attested caller's
+            // liveness is its binding's, re-read on every call — while leaving a
+            // row that reads as revoked and an operator who believes a service was
+            // cut off. Deleting the binding is how that is actually done.
+            excludeWorkloadRows()
           )
         )
         .returning({
@@ -1465,7 +1516,11 @@ router.get(
       .where(
         and(
           eq(applicationCredentials.id, req.params.credId),
-          eq(applicationCredentials.applicationId, application.id)
+          eq(applicationCredentials.applicationId, application.id),
+          // Nothing writes credential lifecycle events for a workload row, so the
+          // honest answer to a request for its trail is the same 404 the list
+          // gives: it is not a credential this surface manages.
+          excludeWorkloadRows()
         )
       )
       .limit(1);

@@ -15,6 +15,10 @@ import {
   type AttestationProvider,
   AttestationError,
 } from './workloadAttestation.service';
+import {
+  ensureWorkloadAttributionIdentity,
+  WorkloadAttributionError,
+} from './workloadAttributionIdentity.service';
 
 /**
  * Minting a service token from a workload attestation — the credential-free
@@ -124,6 +128,8 @@ export async function exchangeWorkloadAttestation(input: {
   const now = new Date();
   const [binding] = await getDb()
     .select({
+      /** The row the attested identity's ledger attribution is materialised from. */
+      bindingId: applicationWorkloadIdentities.id,
       applicationId: applicationWorkloadIdentities.applicationId,
       appName: applications.name,
       ownerAccountId: applications.ownerAccountId,
@@ -232,10 +238,64 @@ export async function exchangeWorkloadAttestation(input: {
    */
   const scopes = workloadBindingScopes(binding.bindingScopes, binding.applicationScopes);
 
+  /**
+   * The row the spend will be attributed to, before the token exists.
+   *
+   * This is the single point at which a `wl_…` `credentialId` enters
+   * circulation, so it is the right place to make "every token naming a handle
+   * has a row the usage ledger can reference" a precondition rather than a hope.
+   * `usage_reservations`, `usage_receipts`, `inference_usage_events` and
+   * `inference_usage_daily_rollups` all carry that identity `NOT NULL` with a
+   * foreign key to `application_credentials.id`, so without the row the first
+   * reservation of an otherwise perfectly authenticated caller fails a
+   * constraint mid-request — which is why the inference edge refused an attested
+   * caller outright until this existed.
+   *
+   * Doing it here also means the bindings already live in production need no
+   * backfill: their next mint writes the row. It is one indexed probe per mint,
+   * and a mint is once an hour per task.
+   */
+  let attribution;
+  try {
+    attribution = await ensureWorkloadAttributionIdentity({
+      bindingId: binding.bindingId,
+      applicationId: binding.applicationId,
+      subject: attested.subject,
+    });
+  } catch (error: unknown) {
+    if (error instanceof WorkloadAttributionError) {
+      // The role has spent money as another application. Refusing the mint is
+      // the only answer that neither relabels that history nor issues a token
+      // whose first reservation would fail.
+      logger.error('[WorkloadIdentity] attested identity is attributed to another application', {
+        provider: attested.provider,
+        attestationId: attested.attestationId,
+        applicationId: binding.applicationId,
+      });
+      throw new WorkloadIdentityError(
+        403,
+        'workload_attribution_conflict',
+        'That workload identity is recorded against a different application.',
+      );
+    }
+    throw error;
+  }
+
   const token = mintServiceToken({
     appId: binding.applicationId,
     appName: binding.appName,
-    credentialId: attested.attestationId,
+    /**
+     * The id of the row that was just materialised, not a second computation of
+     * it.
+     *
+     * The two are the same value by definition — `attested.attestationId` IS
+     * `workloadAttestationHandle(canonicalSubject)` and so is this — and taking
+     * it from the write is what makes them impossible to disagree. What this
+     * claim has to be is the id of a row the usage ledger can reference; using
+     * the one that was written says so, where using the verifier's copy would be
+     * a promise that two functions still agree.
+     */
+    credentialId: attribution.credentialId,
     ownerAccountId: binding.ownerAccountId,
     /**
      * The environment is the DEPLOYMENT's, not the caller's — one definition,
@@ -258,7 +318,9 @@ export async function exchangeWorkloadAttestation(input: {
     applicationId: binding.applicationId,
     appName: binding.appName,
     provider: attested.provider,
-    attestationId: attested.attestationId,
+    attestationId: attribution.credentialId,
+    /** `created` the first time this workload ever mints; otherwise `unchanged`. */
+    attribution: attribution.state,
     // The scopes, because the question an operator asks after a 403 is "what
     // did that token actually carry?" and the binding is where the answer is
     // now decided. Scope names are a bounded vocabulary, not caller data.

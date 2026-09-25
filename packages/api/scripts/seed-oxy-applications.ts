@@ -53,7 +53,10 @@
 import crypto from 'crypto';
 import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
-import { applicationCredentials } from '../src/db/schema/applicationCredentials';
+import {
+  applicationCredentials,
+  excludeWorkloadRows,
+} from '../src/db/schema/applicationCredentials';
 import { applications } from '../src/db/schema/applications';
 import { users } from '../src/db/schema/users';
 import {
@@ -193,6 +196,12 @@ async function retireLegacyApplication(
       and(
         eq(applicationCredentials.applicationId, application.id),
         ne(applicationCredentials.status, 'revoked'),
+        // Retiring an application does not revoke its attested identities: a
+        // workload row is not a credential, and flipping its status would leave a
+        // row reading as revoked while the binding that actually authorises the
+        // workload carried on. The `applications` suspension above is what stops
+        // the mint, for both proofs at once.
+        excludeWorkloadRows(),
       ),
     )
     .returning({ id: applicationCredentials.id });

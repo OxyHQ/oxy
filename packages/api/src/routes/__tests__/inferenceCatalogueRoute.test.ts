@@ -44,6 +44,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
+import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
 import {
   inferenceDeployments,
   inferenceModelRevisions,
@@ -395,6 +396,19 @@ async function attestedTokenForApplication(input: {
       })
       .returning({ id: applicationWorkloadIdentities.id });
     bindingId = binding.id;
+    /**
+     * The binding's materialised attribution row, as both production writers
+     * produce it (`services/workloadAttributionIdentity.service.ts`).
+     *
+     * `resolveLiveAgencyWorkloadByHandle` requires the binding→row link, so a
+     * fixture without it is a state no minted token can be in — the mint
+     * materialises the row before it issues a token naming the handle.
+     */
+    await ensureWorkloadAttributionIdentity({
+      bindingId: binding.id,
+      applicationId: application.id,
+      subject: input.boundSubject ?? subject,
+    });
   }
 
   const handle = workloadAttestationHandle(subject);

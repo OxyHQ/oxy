@@ -31,6 +31,34 @@ forwarded. There is deliberately **no** fallback to "the signed-in user's
 personal account" — that fallback is precisely how a delegated call becomes a
 charge against the wrong party.
 
+### An attested caller has no credential, and still has a `credentialId`
+
+A first-party service that authenticates by attesting its workload identity
+([ADR 0026](../adr/0026-first-party-services-authenticate-as-workloads.md)) holds
+no key pair, so there is no `application_credentials` row it presented. Its
+`credentialId` is the binding's attestation handle instead — `wl_` plus 96 bits of
+SHA-256 over the canonical role ARN, the same value on every task and every deploy
+— and the chain above runs from the binding:
+
+```text
+attested workload → application_workload_identities row → wl_… handle
+                  → .application_id                      → applicationId
+                  → applications.owner_account_id        → accountId
+```
+
+`credentialId` is still a real row, because the binding is **materialised** as a
+`workload`-typed `application_credentials` row whose id IS the handle. That is what
+lets `usage_reservations`, `usage_receipts`, `inference_usage_events` and
+`inference_usage_daily_rollups` keep naming the authorising identity with a real
+foreign key — nothing downstream of admission has to know which proof was used.
+
+A `workload` row is not a credential and cannot be presented as one: it has no
+`public_key`, so no OAuth lane can resolve it, and no `secret_hash`, so nothing has
+anything to verify. It is absent from the Console's credential list and cannot be
+rotated or revoked — an attested identity is managed by its binding. The row
+outlives the binding, so deleting a binding cuts the workload off on its next call
+without detaching the spend it already made.
+
 Two consequences worth knowing before you design around it:
 
 - **A caller-supplied `accountId` is a cross-account spend primitive**, so no
