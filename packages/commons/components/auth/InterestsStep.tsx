@@ -1,10 +1,13 @@
 import React, { useCallback, useState } from 'react';
-import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
+import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@oxy.so/bloom/button';
 import { useColors } from '@/hooks/useColors';
 import { InterestTagsCanvas } from '@/components/auth/InterestTagsCanvas';
+import { Chip } from '@oxy.so/bloom/chip';
+import { INTEREST_TAGS } from '@/constants/interestTags';
+import { useScreenReaderEnabled } from '@/hooks/useScreenReaderEnabled';
 
 interface InterestsStepProps {
   onContinue: (selectedIds: string[]) => void;
@@ -21,12 +24,18 @@ interface InterestsStepProps {
  * a header. The header and the footer are drawn over it, and the footer's
  * measured height becomes the canvas floor so the pile never ends up behind
  * the button.
+ *
+ * The canvas is Skia pixels driven by gestures, so it has no accessibility tree
+ * at all: a TalkBack user found nothing to pick. While a screen reader is on,
+ * the same tags are rendered as Bloom chips instead — one toggle per tag,
+ * announced with its label and its selected state — over the same selection.
  */
 export function InterestsStep({ onContinue, isSubmitting = false }: InterestsStepProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [footerHeight, setFooterHeight] = useState(0);
+  const screenReaderEnabled = useScreenReaderEnabled();
 
   const handleToggle = useCallback((tagId: string) => {
     setSelectedIds((previous) => {
@@ -50,8 +59,8 @@ export function InterestsStep({ onContinue, isSubmitting = false }: InterestsSte
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={StyleSheet.absoluteFill}>
-        {footerHeight > 0 && (
+      <View style={StyleSheet.absoluteFill} aria-hidden>
+        {footerHeight > 0 && !screenReaderEnabled && (
           <InterestTagsCanvas
             selectedIds={selectedIds}
             onToggle={handleToggle}
@@ -65,7 +74,7 @@ export function InterestsStep({ onContinue, isSubmitting = false }: InterestsSte
       <View style={styles.overlay} pointerEvents="box-none">
         <View style={[styles.header, { paddingTop: insets.top + 26 }]} pointerEvents="none">
           <Animated.View entering={FadeInDown.delay(300).duration(800).springify()}>
-            <Text style={[styles.title, { color: colors.text }]}>
+            <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
               Build around{'\n'}what you love
             </Text>
           </Animated.View>
@@ -75,6 +84,22 @@ export function InterestsStep({ onContinue, isSubmitting = false }: InterestsSte
             </Text>
           </Animated.View>
         </View>
+
+        {screenReaderEnabled && (
+          <ScrollView style={styles.tagList} contentContainerStyle={styles.tagListContent}>
+            {INTEREST_TAGS.map((tag) => (
+              <Chip
+                key={tag.id}
+                size="2xl"
+                selected={selectedIds.has(tag.id)}
+                onPress={() => handleToggle(tag.id)}
+                testID={`interest-tag-${tag.id}`}
+              >
+                {tag.label}
+              </Chip>
+            ))}
+          </ScrollView>
+        )}
 
         <Animated.View
           style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}
@@ -99,6 +124,8 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 24, gap: 12 },
   title: { fontSize: 32, fontWeight: '800', lineHeight: 38, letterSpacing: -0.7 },
   subtitle: { fontSize: 15, lineHeight: 22, opacity: 0.6 },
+  tagList: { flex: 1 },
+  tagListContent: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 24, paddingVertical: 16 },
   footer: { paddingHorizontal: 24, paddingTop: 16, gap: 12 },
   count: { fontSize: 13, textAlign: 'center', opacity: 0.6 },
 });

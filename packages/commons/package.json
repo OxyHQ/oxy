@@ -46,6 +46,7 @@
     "expo-network": "catalog:",
     "expo-notifications": "catalog:",
     "expo-router": "catalog:",
+    "expo-screen-capture": "~57.0.3",
     "expo-secure-store": "~57.0.1",
     "expo-sensors": "catalog:",
     "expo-sharing": "catalog:",

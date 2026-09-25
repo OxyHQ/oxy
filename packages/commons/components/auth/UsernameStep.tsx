@@ -1,5 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  type LayoutChangeEvent,
+} from 'react-native';
 import LottieView from 'lottie-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
@@ -22,6 +29,9 @@ import telescopeAnimation from '@/assets/lottie/telescope.json';
  * the surface showed before, in every locale.
  */
 const LEARN_MORE_SECTION_IDS = ['what', 'rules', 'unique', 'change', 'tips'] as const;
+
+/** Air between the Confirm button and the top of the keyboard. */
+const KEYBOARD_CLEARANCE = 16;
 
 interface UsernameStepProps {
   username: string;
@@ -63,6 +73,15 @@ export function UsernameStep({
   const learnMoreDialog = useDialogControl();
   const [shouldLoop, setShouldLoop] = useState(false);
   const [isAnimationPlaying, setIsAnimationPlaying] = useState(true); // Start as true since autoPlay will start it
+
+  // Height of everything under the input that must stay above the keyboard
+  // while typing: the hint, the availability / error line and Confirm. It
+  // becomes the scroll view's `bottomOffset`, so focusing the input scrolls far
+  // enough to show them rather than parking the keyboard right under the caret.
+  const [belowInputHeight, setBelowInputHeight] = useState(0);
+  const handleBelowInputLayout = useCallback((event: LayoutChangeEvent) => {
+    setBelowInputHeight(event.nativeEvent.layout.height);
+  }, []);
 
   const isUsernameValid = validation.isValid;
 
@@ -173,7 +192,10 @@ export function UsernameStep({
 
   return (
     <View style={[styles.container, { backgroundColor, paddingTop: insets.top }]}>
-      <KeyboardAwareScrollViewWrapper contentContainerStyle={styles.stepContainer}>
+      <KeyboardAwareScrollViewWrapper
+        contentContainerStyle={styles.stepContainer}
+        bottomOffset={belowInputHeight + KEYBOARD_CLEARANCE}
+      >
         <View className="items-center mb-space-24">
           <TouchableOpacity
             onPress={handleAnimationPress}
@@ -217,27 +239,34 @@ export function UsernameStep({
           />
         </View>
 
-        <Text style={[styles.inputHint, { color: textColor, opacity: 0.6 }]}>
-          {t('auth.usernameStep.hint')}
-        </Text>
-
-        {validation.isChecking && (
-          <Text style={[styles.checkingText, { color: textColor, opacity: 0.6 }]}>
-            {t('auth.usernameStep.checking')}
+        <View onLayout={handleBelowInputLayout} testID="username-below-input">
+          <Text style={[styles.inputHint, { color: textColor, opacity: 0.6 }]}>
+            {t('auth.usernameStep.hint')}
           </Text>
-        )}
 
-        {validation.isAvailable === true && !validation.isChecking && (
-          <Text style={[styles.availableText, { color: colors.success }]}>
-            {t('auth.usernameStep.available')}
-          </Text>
-        )}
+          {validation.isChecking && (
+            <Text
+              style={[styles.checkingText, { color: textColor, opacity: 0.6 }]}
+              accessibilityLiveRegion="polite"
+            >
+              {t('auth.usernameStep.checking')}
+            </Text>
+          )}
 
-        {(validation.error || updateError) && (
-          <Text style={[styles.errorText, { color: colors.error }]}>{validation.error || updateError}</Text>
-        )}
+          {validation.isAvailable === true && !validation.isChecking && (
+            <Text style={[styles.availableText, { color: colors.success }]} accessibilityLiveRegion="polite">
+              {t('auth.usernameStep.available')}
+            </Text>
+          )}
 
-        <Button appearance="solid" tone="accent" onPress={handleContinue} disabled={(!canContinue && !isOffline) || isUpdating || isConfirming} loading={isUpdating || isConfirming} className="mt-space-32">{isUpdating ? t('auth.usernameStep.saving') : isConfirming ? t('auth.usernameStep.confirming') : t('auth.usernameStep.confirm')}</Button>
+          {(validation.error || updateError) && (
+            <Text style={[styles.errorText, { color: colors.error }]} accessibilityLiveRegion="polite">
+              {validation.error || updateError}
+            </Text>
+          )}
+
+          <Button appearance="solid" tone="accent" onPress={handleContinue} disabled={(!canContinue && !isOffline) || isUpdating || isConfirming} loading={isUpdating || isConfirming} className="mt-space-32">{isUpdating ? t('auth.usernameStep.saving') : isConfirming ? t('auth.usernameStep.confirming') : t('auth.usernameStep.confirm')}</Button>
+        </View>
 
         {/* Only show skip button if offline and onSkip is provided (for offline fallback) */}
         {isOffline && onSkip && (
@@ -281,7 +310,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   stepContainer: {
-    flex: 1,
+    // flexGrow, not flex: `flex: 1` pinned the content to the viewport's
+    // height, so with the keyboard up there was nothing to scroll to.
+    flexGrow: 1,
     padding: 24,
     paddingTop: 60,
     justifyContent: 'center',

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { RefreshControl, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import { Screen as BloomScreen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useMinimizeOnScroll, useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -10,12 +11,17 @@ export const SCREEN_PADDING = 22;
 /** Vertical air between top-level sections. */
 const SECTION_GAP = 32;
 
-/**
- * Air between the end of a screen's content and the top of the floating bar.
- * Sized so the last row also clears the ID screen's FAB, which sits one
- * footprint up in the same corner.
- */
+/** Air between the end of a screen's content and the top of the floating bar. */
 const SCREEN_BOTTOM_CLEARANCE = 44;
+
+/**
+ * Diameter of a `size="md"` Bloom `Fab` (Bloom's `FAB_METRICS.md`, which the
+ * package does not export). A screen that uses {@link useFabClearance} passes
+ * `size="md"` to its FAB so the two cannot disagree.
+ */
+export const FAB_MD_DIAMETER = 50;
+/** Air between the last line of content and the top of the FAB. */
+const FAB_CLEARANCE_GAP = 16;
 
 /**
  * Top air above a screen's first element, ON TOP of the safe-area inset.
@@ -40,6 +46,26 @@ export function useScreenBottomPad(): number {
   return useTabBarFootprint() + SCREEN_BOTTOM_CLEARANCE;
 }
 
+/**
+ * Bottom inset for a screen whose content scrolls under a bottom-anchored Bloom
+ * `Fab` (`size="md"`), so the last line can be scrolled clear of it.
+ *
+ * `SCREEN_BOTTOM_CLEARANCE` alone does not do it: the FAB sits `fabOffset`
+ * above the bottom edge's claimed inset (the floating tab bar's footprint),
+ * which is where Bloom anchors it, and its top is a whole diameter above that.
+ * On the ID screen that left "You hold the private key. No one can lock you
+ * out." under the QR button. The inputs are the same two numbers `Fab` itself
+ * positions from, read at the same place in the tree.
+ */
+export function useFabClearance(fabOffset: number): number {
+  const bottomEdgeInset = useBottomEdgeInset();
+  const screenBottomPad = useScreenBottomPad();
+  return Math.max(
+    screenBottomPad,
+    fabOffset + bottomEdgeInset + FAB_MD_DIAMETER + FAB_CLEARANCE_GAP,
+  );
+}
+
 interface ScreenProps {
   children: React.ReactNode;
   refreshing?: boolean;
@@ -47,6 +73,11 @@ interface ScreenProps {
   /** Air between direct children of the content column. */
   gap?: number;
   contentStyle?: StyleProp<ViewStyle>;
+  /**
+   * Bottom inset the scroller keeps free, instead of {@link useScreenBottomPad}.
+   * A screen with a floating FAB passes {@link useFabClearance}'s result.
+   */
+  bottomClearance?: number;
 }
 
 /**
@@ -65,10 +96,12 @@ export function Screen({
   onRefresh,
   gap = SECTION_GAP,
   contentStyle,
+  bottomClearance,
 }: ScreenProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const bottomPad = useScreenBottomPad();
+  const screenBottomPad = useScreenBottomPad();
+  const bottomPad = bottomClearance ?? screenBottomPad;
   const minimizeOnScroll = useMinimizeOnScroll();
 
   const topPad = insets.top + SCREEN_TOP_AIR;

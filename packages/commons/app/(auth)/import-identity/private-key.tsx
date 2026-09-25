@@ -16,6 +16,7 @@ import { useIdentityStore } from '@/hooks/identity/identityStore';
 import { IdentityMayExistError } from '@/hooks/identity/identityErrors';
 import { extractAuthErrorMessage } from '@/utils/auth/errorUtils';
 import { checkIfOffline } from '@/utils/auth/networkUtils';
+import { usePreventScreenCapture } from '@/hooks/usePreventScreenCapture';
 
 /**
  * Import an identity from a raw private key (hex).
@@ -26,12 +27,16 @@ import { checkIfOffline } from '@/utils/auth/networkUtils';
  * of the seed), but the key alone is full control of the account. Delegates the
  * store + register-if-needed + sign-in to `importIdentityFromPrivateKey`, which
  * mirrors the phrase importer minus the mnemonic steps.
+ *
+ * The key typed or pasted here is full control of the account, so the window
+ * refuses screenshots and screen recording while this screen is mounted.
  */
 export default function ImportPrivateKeyScreen() {
   const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  usePreventScreenCapture();
   const { importIdentityFromPrivateKey } = useIdentity();
   const setRecoveryPhraseAcknowledgedPersisted = useIdentityStore(
     (state) => state.setRecoveryPhraseAcknowledged,

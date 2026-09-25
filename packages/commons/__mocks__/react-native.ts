@@ -23,6 +23,7 @@ interface StubProps {
   accessibilityRole?: string;
   onPress?: () => void;
   disabled?: boolean;
+  'aria-hidden'?: boolean;
 }
 
 interface TextInputStubProps extends StubProps {
@@ -36,6 +37,7 @@ function domProps(props: StubProps): Record<string, unknown> {
   if (props.testID) out['data-testid'] = props.testID;
   if (props.accessibilityLabel) out['aria-label'] = props.accessibilityLabel;
   if (props.accessibilityRole) out.role = props.accessibilityRole;
+  if (props['aria-hidden']) out['aria-hidden'] = 'true';
   return out;
 }
 
@@ -143,6 +145,19 @@ export const AppState = {
 };
 
 export const useColorScheme = (): 'light' | 'dark' => 'light';
+
+/**
+ * Screen-reader state. `screenReaderEnabled` is mutable so a test can model
+ * TalkBack/VoiceOver being on before it renders.
+ */
+export const AccessibilityInfo = {
+  screenReaderEnabled: false,
+  isScreenReaderEnabled: async (): Promise<boolean> => AccessibilityInfo.screenReaderEnabled,
+  addEventListener: (_type: 'screenReaderChanged', _listener: (enabled: boolean) => void) => ({
+    remove: () => undefined,
+  }),
+  announceForAccessibility: (_message: string): void => undefined,
+};
 
 export const I18nManager: {
   isRTL: boolean;

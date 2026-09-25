@@ -58,7 +58,17 @@ export function ActivityRow({ transaction }: ActivityRowProps) {
           <Text numberOfLines={1} className="shrink">
             {label}
           </Text>
-          {meta.signed && <Icons.shieldCheck size="xs" fill={colors.success} />}
+          {meta.signed && (
+            // A glyph says nothing to a screen reader, so the "signed" meaning is
+            // carried by the view around it.
+            <View
+              accessible
+              accessibilityRole="image"
+              accessibilityLabel={t('civic.reputation.activity.signed')}
+            >
+              <Icons.shieldCheck size="xs" fill={colors.success} />
+            </View>
+          )}
         </View>
       }
       subtitle={relativeTime(transaction.createdAt)}

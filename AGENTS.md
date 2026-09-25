@@ -40,6 +40,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 
 **Runtime traps**
 - Never ship a `\p{…}` regex atom in anything that runs on Hermes; transpile with `regexpu-core` — #hermes-property-escapes
+- `@oxy.so/core`'s crypto polyfill imports nothing that reaches `@noble/*`; it runs before anything else — #crypto-polyfill-order
 - Keep `packages/services/src/` React-Compiler-safe — #react-compiler
 - Align native-module versions UP and add them to `expo.install.exclude` — build-and-deploy.md#architecture
 

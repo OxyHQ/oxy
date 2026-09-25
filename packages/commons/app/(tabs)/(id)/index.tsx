@@ -19,10 +19,7 @@ import { Fab } from '@oxy.so/bloom/fab';
 import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useColors } from '@/hooks/useColors';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import {
-  Screen,
-  Section,
-} from '@/components/ui';
+import { Screen, Section, useFabClearance } from '@/components/ui';
 import { Ticket as OxyID } from '@/components/OxyID';
 import { FrontSide } from '@/components/OxyID/front-side';
 import { BackSide } from '@/components/OxyID/back-side';
@@ -67,6 +64,9 @@ export default function IdScreen() {
   const colors = useColors();
   const router = useRouter();
   const tabBarFootprint = useTabBarFootprint();
+  // The QR FAB floats over the scroller; the content's bottom inset clears it,
+  // so the last lines can always be scrolled out from under the button.
+  const fabClearance = useFabClearance(tabBarFootprint);
   const { t } = useTranslation();
   const { user, oxyServices } = useOxy();
   const [cameraPermission, requestCameraPermission, refreshCameraPermission] = useCameraPermissions();
@@ -193,7 +193,7 @@ export default function IdScreen() {
     <View className="flex-1">
       {/* Flush column — Bloom's SettingsListGroup owns its horizontal gutter; the
           centered hero and the DID/callout blocks are padded to align with it. */}
-      <Screen contentStyle={styles.flush} gap={16}>
+      <Screen contentStyle={styles.flush} gap={16} bottomClearance={fabClearance}>
         <View className="items-center gap-space-16 pt-space-8">
           <OxyID
             width={CARD_WIDTH}
@@ -299,6 +299,7 @@ export default function IdScreen() {
       */}
       <Fab
         variant="primary"
+        size="md"
         placement="bottom-right"
         offset={tabBarFootprint}
         onPress={handleScan}
