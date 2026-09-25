@@ -211,6 +211,13 @@ describe('@oxy.so/core/server buildOxyPagesHeaders on a sensitive origin (ADR 00
     expect(sensitive).toContain('https://api.oxy.so');
     expect(sensitive).toContain("frame-ancestors 'none'");
   });
+
+  it('sends no-transform so the edge never injects the beacon, and only there', () => {
+    expect(buildOxyPagesHeaders({ sensitive: true })).toContain(
+      'Cache-Control: public, max-age=0, must-revalidate, no-transform',
+    );
+    expect(buildOxyPagesHeaders()).not.toContain('Cache-Control');
+  });
 });
 
 describe('@oxy.so/core/server extractInlineScripts', () => {
