@@ -403,6 +403,9 @@ jobs:
   api-build:
     name: API Build
     runs-on: ubuntu-latest
+    # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -877,6 +880,9 @@ jobs:
   packages-platform:
     name: Package Tests (platform)
     runs-on: ubuntu-latest
+    # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
+    permissions:
+      contents: read
     # A backstop: containers (35s), install (30s), the DB suite at its own 15m
     # cap, and every other suite at its observed maximum (~5m together).
     timeout-minutes: 30
@@ -1006,6 +1012,9 @@ jobs:
   packages-apps:
     name: Package Tests (apps)
     runs-on: ubuntu-latest
+    # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
+    permissions:
+      contents: read
     # A backstop: install (30s), builds (~2m) and every suite at its observed
     # maximum (~4m together).
     timeout-minutes: 30
@@ -1146,6 +1155,9 @@ jobs:
       - packages-apps
     if: always()
     runs-on: ubuntu-latest
+    # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
+    permissions:
+      contents: read
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
