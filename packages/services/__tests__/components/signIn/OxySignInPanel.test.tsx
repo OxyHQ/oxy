@@ -100,13 +100,13 @@ const controller = {
   signOutPrincipal: jest.fn(async () => true),
   signInWithOxy: jest.fn(async () => undefined),
   showQr: jest.fn(async () => undefined),
-  startPasskeyHubSignIn: jest.fn(async () => undefined),
   startInlineQr: jest.fn(async () => undefined),
   cancelSignIn: jest.fn(),
 };
 
 const signInWithPasskey = jest.fn(async (_opts?: { username?: string }) => undefined);
 const openAccountDialog = jest.fn();
+const continueOnAuth = jest.fn(async (_screen: string) => ({ status: 'redirecting' as const }));
 const invalidateQueries = jest.fn();
 
 jest.mock('../../../src/ui/context/OxyContext', () => ({
@@ -115,6 +115,7 @@ jest.mock('../../../src/ui/context/OxyContext', () => ({
     accountDialogController: controller,
     openAccountDialog,
     signInWithPasskey,
+    continueOnAuth,
     oxyServices: { getFileDownloadUrl: (id: string) => `https://cdn/${id}` },
   }),
   useOptionalOxy: () => null,
@@ -257,24 +258,39 @@ describe('on an oxy.so origin — the passkey runs right here', () => {
   });
 });
 
-describe('on any other web origin — the identity window', () => {
+describe('on any other web origin — auth.oxy.so, in this tab', () => {
   beforeEach(() => isOxyRpOriginMock.mockReturnValue(false));
 
-  it('offers no username here: the passkey runs at the identity origin, from the press', () => {
+  it('offers no username here: the passkey is asserted on auth.oxy.so, never in a popup', () => {
     renderPanel({ host: 'dialog' });
 
     expect(screen.queryByTestId('username')).toBeNull();
     fireEvent.click(screen.getByTestId('passkey-sign-in'));
-    expect(controller.startPasskeyHubSignIn).toHaveBeenCalledTimes(1);
+    expect(continueOnAuth).toHaveBeenCalledWith('signin');
     expect(signInWithPasskey).not.toHaveBeenCalled();
-    // The dialog shows the request itself.
     expect(openAccountDialog).not.toHaveBeenCalled();
   });
+});
 
-  it('on a page, opens the dialog to show the request it started', () => {
-    renderPanel({ host: 'page' });
-    fireEvent.click(screen.getByTestId('passkey-sign-in'));
-    expect(openAccountDialog).toHaveBeenCalledWith('qr');
+describe('recovering an account', () => {
+  it('on the web, recovers on auth.oxy.so by default, in this tab', () => {
+    renderPanel({ host: 'dialog' });
+    fireEvent.click(screen.getByTestId('recover-link'));
+    expect(continueOnAuth).toHaveBeenCalledWith('recover');
+  });
+
+  it('on a page, hands recovery to the host', () => {
+    const onRecover = jest.fn();
+    renderPanel({ host: 'page', onRecover });
+    fireEvent.click(screen.getByTestId('recover-link'));
+    expect(onRecover).toHaveBeenCalledTimes(1);
+    expect(continueOnAuth).not.toHaveBeenCalled();
+  });
+
+  it('on native, leaves recovery to Commons', () => {
+    isWebBrowserMock.mockReturnValue(false);
+    renderPanel({ host: 'dialog' });
+    expect(screen.queryByTestId('recover-link')).toBeNull();
   });
 });
 
@@ -444,17 +460,17 @@ describe('InlineCommonsQr — the embedded QR', () => {
 });
 
 describe('OxySignUpPanel', () => {
-  it('on the web, creates the account in the identity window, from the press', () => {
-    render(<OxySignUpPanel host="dialog" onSignIn={jest.fn()} />);
+  it('on the web, creates the account on auth.oxy.so, in this tab', () => {
+    render(<OxySignUpPanel onSignIn={jest.fn()} />);
     fireEvent.click(screen.getByTestId('signup-open-identity'));
-    expect(controller.startPasskeyHubSignIn).toHaveBeenCalledTimes(1);
+    expect(continueOnAuth).toHaveBeenCalledWith('signup');
   });
 
   it('on native, creates the identity in Commons when it is installed', async () => {
     isWebBrowserMock.mockReturnValue(false);
     const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
     snapshot = makeSnapshot({ commonsAvailability: 'available' });
-    render(<OxySignUpPanel host="dialog" onSignIn={jest.fn()} />);
+    render(<OxySignUpPanel onSignIn={jest.fn()} />);
 
     fireEvent.click(screen.getByTestId('signup-commons'));
     await waitFor(() => expect(openURL).toHaveBeenCalledWith('oxycommons://create-identity'));
@@ -463,7 +479,7 @@ describe('OxySignUpPanel', () => {
 
   it('goes back to signing in', () => {
     const onSignIn = jest.fn();
-    render(<OxySignUpPanel host="page" onSignIn={onSignIn} />);
+    render(<OxySignUpPanel onSignIn={onSignIn} />);
     fireEvent.click(screen.getByTestId('back-to-sign-in'));
     expect(onSignIn).toHaveBeenCalledTimes(1);
   });

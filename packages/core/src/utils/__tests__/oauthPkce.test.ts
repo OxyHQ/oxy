@@ -122,6 +122,13 @@ describe('buildOAuthAuthorizeUrl', () => {
     expect(OXY_AUTHORIZE_URL).toBe('https://auth.oxy.so/authorize');
   });
 
+  it('names the IdP screen to land on only when asked', () => {
+    expect(new URL(buildOAuthAuthorizeUrl(base)).searchParams.has('screen')).toBe(false);
+    for (const screen of ['signin', 'signup', 'recover'] as const) {
+      expect(new URL(buildOAuthAuthorizeUrl({ ...base, screen })).searchParams.get('screen')).toBe(screen);
+    }
+  });
+
   it('includes every required OAuth authorization-code + PKCE parameter', () => {
     const params = new URL(buildOAuthAuthorizeUrl(base)).searchParams;
     expect(params.get('client_id')).toBe(base.clientId);

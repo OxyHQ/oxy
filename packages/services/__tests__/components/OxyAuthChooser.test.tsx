@@ -193,12 +193,12 @@ const controller = {
     value: await operation(),
   })),
   signInWithOxy: jest.fn(),
-  startPasskeyHubSignIn: jest.fn(),
   setView: jest.fn(),
   cancelSignIn: jest.fn(),
 };
 
 const openAvatarPicker = jest.fn();
+const continueOnAuth = jest.fn(async (_screen: string) => ({ status: 'redirecting' as const }));
 const closeAccountDialog = jest.fn();
 const showBottomSheet = jest.fn();
 const logout = jest.fn(async (): Promise<{ status: 'signed-out' } | { status: 'failed'; error: unknown }> => ({
@@ -228,6 +228,7 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
     logout,
     logoutAll: jest.fn(async () => undefined),
     openAvatarPicker,
+    continueOnAuth,
     user: mockUser,
     oxyServices: { getFileDownloadUrl: (id: string) => `https://cdn/${id}` },
   }),
@@ -986,14 +987,14 @@ describe('OxyAuthChooser', () => {
       expect(screen.getByTestId('get-commons-link')).toBeTruthy();
     });
 
-    it('routes the disclosed passkey link through the identity origin', () => {
+    it('sends the disclosed passkey link to auth.oxy.so, in this tab', () => {
       snapshot = requestSnapshot({ route: 'qr' });
       render(<OxyAuthChooser />);
 
       fireEvent.click(screen.getByRole('button', { name: 'Having trouble?' }));
       fireEvent.click(screen.getByTestId('passkey-signin-link'));
 
-      expect(controller.startPasskeyHubSignIn).toHaveBeenCalledTimes(1);
+      expect(continueOnAuth).toHaveBeenCalledWith('signin');
     });
 
     it('leads with "Get Commons" — the genuine primary route — when Commons is not installed', () => {
@@ -1102,25 +1103,6 @@ describe('OxyAuthChooser', () => {
       );
     });
 
-    it('does not scold the user for closing the sign-in window themselves', () => {
-      snapshot = requestSnapshot({
-        phase: 'error',
-        authorizeCode: null,
-        qrPayload: null,
-        expiresAt: null,
-        error: 'Sign-in was cancelled.',
-        failure: 'cancelled',
-        attempt: freshAttempt(),
-        progress: 'idle',
-      });
-
-      render(<OxyAuthChooser />);
-
-      expect(toast.error).not.toHaveBeenCalled();
-      // The way forward is still offered.
-      expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
-    });
-
     it('"Try again" repeats the attempt the user chose, rather than always showing a QR', () => {
       snapshot = requestSnapshot({
         phase: 'error',
@@ -1141,13 +1123,13 @@ describe('OxyAuthChooser', () => {
   });
 
   describe('signup view', () => {
-    it('on web, offers one action: create the account in the identity-origin window', () => {
+    it('on web, offers one action: create the account on auth.oxy.so, in this tab', () => {
       snapshot = makeSnapshot({ view: 'signup' });
       render(<OxyAuthChooser />);
 
       expect(screen.queryByTestId('signup-username-input')).toBeNull();
       fireEvent.click(screen.getByTestId('signup-open-identity'));
-      expect(controller.startPasskeyHubSignIn).toHaveBeenCalledTimes(1);
+      expect(continueOnAuth).toHaveBeenCalledWith('signup');
     });
 
     it('offers Commons identity creation on native', () => {

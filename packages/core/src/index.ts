@@ -722,7 +722,7 @@ export {
     persistOAuthReturnPath,
     consumeOAuthReturnPath,
 } from './utils/oauthPkce';
-export type { PkcePair, BuildOAuthAuthorizeUrlParams } from './utils/oauthPkce';
+export type { PkcePair, BuildOAuthAuthorizeUrlParams, OxyAuthScreen } from './utils/oauthPkce';
 
 export {
     isLoopbackOrigin,
@@ -827,7 +827,6 @@ export type {
     AccountDialogView,
     CommonsAvailability,
     ContextChoiceOutcome,
-    PopupWindowHandle,
     SignInFailureReason,
     SignInFlowPhase,
     SignInFlowState,

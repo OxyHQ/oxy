@@ -41,7 +41,8 @@
       "privacyLink": "隐私政策"
     },
     "noAccount": "还没有账号？",
-    "createAccount": "创建账号"
+    "createAccount": "创建账号",
+    "recoverLink": "丢失了通行密钥？恢复你的账号"
   },
   "signup": {
     "title": "创建您的账户",

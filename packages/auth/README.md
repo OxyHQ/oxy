@@ -5,7 +5,9 @@ Standalone Vite app — the OAuth 2.0 authorize/consent IdP for third-party "Sig
 ## Routes
 
 - `/login` — the SDK's sign-in screen; continues to the request in the query
-- `/signup` — the SDK's account-creation screen (the account is made in the identity window)
+- `/signup` — create an account with its root (username, passkey, recovery phrase)
+- `/recover` — recover an account from its recovery phrase
+- `/identity` — the recovery phrase, the move to Commons, account deletion
 - `/authorize?client_id=...&redirect_uri=...&state=...` — approve a third-party sign-in (OAuth + PKCE)
 - `/mcp/link?intent=...` — add an account to an MCP connection
 - `/device?user_code=...` — approve a device (CLI) sign-in

@@ -111,7 +111,7 @@ export interface AccountsMenuActions {
 /**
  * Where a passkey sign-in or sign-up can run from the current surface.
  *
- * `'hub'`  = web: it runs at the identity window (`auth.oxy.so/continue`), on
+ * `'hub'`  = web: it runs on auth.oxy.so, in this tab (`continueOnAuth`), on
  *            every web origin, first-party or not.
  * `'none'` = native, where Commons owns identity.
  */

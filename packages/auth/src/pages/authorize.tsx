@@ -192,6 +192,10 @@ function AuthorizeRequest() {
   // request, not a guarantee — with no opener we still redirect (see
   // `lib/oauth-web-message.ts`).
   const responseMode = searchParams.get("response_mode");
+  // The IdP screen an Oxy app sent the person to (`screen=signin|signup|recover`):
+  // what only this origin can do, in the same tab, then back to the app.
+  const screen = searchParams.get("screen");
+  const screenPath = screen === "signin" ? "/login" : screen === "signup" ? "/signup" : screen === "recover" ? "/recover" : null;
 
   // Device-first SDK: the signed-in user + active bearer + the device directory.
   // The bearer for the OAuth authorize call is ALWAYS the SDK's active-context
@@ -953,6 +957,28 @@ function AuthorizeRequest() {
 
   // No session on this device (cold boot has resolved and found none).
   if (isAuthResolved && !hasUsableBearer) {
+    // An app asked for a screen: straight to it, carrying the request, so the
+    // person lands back here — and on the app — once they are in.
+    if (screenPath) {
+      return (
+        <Navigate
+          to={buildRelativeUrl(screenPath, {
+            token: token || undefined,
+            redirect_uri: redirectUri || undefined,
+            state: state || undefined,
+            client_id: clientId || undefined,
+            code_challenge: codeChallenge || undefined,
+            code_challenge_method: codeChallengeMethod || undefined,
+            scope: scope || undefined,
+            resource: resource || undefined,
+            response_type: responseType || undefined,
+            response_mode: responseMode || undefined,
+          })}
+          replace
+        />
+      );
+    }
+
     // FIRST the additional lane (issue #691): when the request carries a full
     // PKCE binding, its application resolved cleanly, and the request is still
     // actionable, the authorization can be approved directly in Commons and

@@ -378,8 +378,8 @@ export interface OxyPagesHeadersOptions {
    * `form-action 'none'`), no Referer to anyone, passkeys for this origin only
    * with every other powerful feature off (`Permissions-Policy`), and its
    * responses readable by no other origin (`Cross-Origin-Resource-Policy`).
-   * Never `Cross-Origin-Opener-Policy`: the identity window reports back to the
-   * app that opened it, and COOP severs `window.opener`.
+   * Never `Cross-Origin-Opener-Policy`: the third-party OAuth popup reports
+   * its code to the app that opened it, and COOP severs `window.opener`.
    */
   sensitive?: boolean;
   /**

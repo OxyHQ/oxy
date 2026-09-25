@@ -41,7 +41,8 @@
       "privacyLink": "سياسة الخصوصية"
     },
     "noAccount": "ليس لديك حساب؟",
-    "createAccount": "إنشاء حساب"
+    "createAccount": "إنشاء حساب",
+    "recoverLink": "فقدت مفتاح المرور؟ استرد حسابك"
   },
   "signup": {
     "title": "أنشئ حسابك",

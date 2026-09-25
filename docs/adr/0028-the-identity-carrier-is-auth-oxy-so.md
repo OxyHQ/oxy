@@ -16,7 +16,7 @@ dependency graph, a content-addressed release manifest, restricted deploy
 authority, a legacy-credential path, a telemetry grace window).
 
 That left two web origins to build, deploy, harden and explain for one account,
-with their own UI kit, and an app's sign-in popup opening an origin the person
+with their own UI kit, and an app's sign-in opening a popup on an origin the person
 was never supposed to see. Oxy has had no real users yet, so there is no one to
 migrate: the holder can move now, as a clean cut.
 
@@ -26,25 +26,39 @@ migrate: the holder can move now, as a clean cut.
 
 Everything `id.oxy.so` did runs on `auth.oxy.so`:
 
-- `/continue?user_code=…` — the popup an app opens to sign in or create an
-  account with a passkey, then authorize the app's device-flow request. The
-  parameter is `user_code`, never `code`: `OxyProvider`'s cold boot on this
-  origin reads a `?code=` as an OAuth return and strips it.
+- `/signup` — create an account WITH its root: a username, a passkey that
+  seals the new identity, the recovery phrase.
+- `/recover` — get an account back from its recovery phrase, protected with a
+  new passkey.
 - `/identity` (and `/identity/move`) — saving or showing the recovery phrase,
   recovery, securing a legacy account, the move to Commons, account deletion.
 - `/prf-check` — the local PRF diagnostic.
 
 The holder logic lives in `packages/auth/lib/identity/` and runs on its own
-`OxyServices` client with an in-memory bearer, never on the origin's
-`OxyProvider` session. It does NOT move into `@oxy.so/services`: every app
+`OxyServices` client with an in-memory bearer. When a creation or recovery IS
+the person signing in here (`/signup`, `/recover`), the origin's `OxyProvider`
+adopts that session (`handleWebSession`), so no second passkey is asked, and
+the page continues to the request in its query. It does NOT move into `@oxy.so/services`: every app
 bundles that package, and root-handling code has no business in them. The
 screens are built from the SDK's sign-in shell (`OxyAuthScreen`,
 `OxyAuthScreenHeader`) and Bloom, like the IdP's other pages.
 
+### D1b — No popups: an Oxy app goes to `auth.oxy.so` and comes back
+
+What only `auth.oxy.so` can do — create an account with its root, recover it,
+assert an `oxy.so` passkey from another domain — an Oxy app sends the person
+there IN THE SAME TAB and gets them back signed in, through the ordinary
+authorization-code redirect (`useOxy().continueOnAuth(screen)`, the
+`/authorize?screen=signin|signup|recover` parameter, the SDK's return-path
+restore). There is no identity popup and no `/continue` page. WebAuthn
+Related Origin Requests are not used: Chrome admits five distinct eTLD+1
+labels, and the ecosystem's apps span more than a dozen. On `*.oxy.so` the
+passkey still runs inside the dialog; on native, Commons carries the identity.
+Third-party "Sign in with Oxy" keeps its OAuth popup transport (ADR 0003).
+
 The API serves the holder routes (the web envelope, recovery, the move) to
 `auth.oxy.so` and loopback only (`getAuthWebOrigin()`, `AUTH_WEB_ORIGIN`). Core
-exports `AUTH_WEB_ORIGIN`; `IDENTITY_WEB_ORIGIN` is deleted, and the account
-dialog's controller option is `authOrigin`.
+exports `AUTH_WEB_ORIGIN`; `IDENTITY_WEB_ORIGIN` is deleted.
 
 ### D2 — The holder policy is `auth.oxy.so`'s policy
 
@@ -54,7 +68,7 @@ and refused by `no-transform`), `base-uri` and `form-action 'none'`,
 `Referrer-Policy: no-referrer`, a `Permissions-Policy` allowing passkeys for
 this origin only with every other powerful feature off, and
 `Cross-Origin-Resource-Policy: same-origin`. Never `Cross-Origin-Opener-Policy`:
-the identity window reports back to its opener. The origin loads no product
+the third-party OAuth popup reports its code back to its opener. The origin loads no product
 analytics (guarded by `sensitive-origin.test.ts` and the post-deploy smoke).
 
 `style-src 'unsafe-inline'` stays: react-native-web writes its stylesheet at

@@ -1,5 +1,23 @@
 # Changelog — `@oxy.so/core`
 
+## 1.16.0
+
+No identity popups (ADR 0028 D1b).
+
+### Added
+
+- `buildOAuthAuthorizeUrl({ screen })` and `OxyAuthScreen` (`signin`, `signup`,
+  `recover`): the IdP screen a person with no session there lands on, for an
+  Oxy app that sends them to auth.oxy.so in the same tab.
+- `signin.recoverLink` in all 11 locales.
+
+### Removed
+
+- `AccountDialogController.startPasskeyHubSignIn`, the `openPopup` and
+  `authOrigin` options, and `PopupWindowHandle`: the account dialog never opens
+  a window. What only auth.oxy.so can do happens there, in the same tab.
+- The `'cancelled'` `SignInFailureReason`, which only a closed popup produced.
+
 ## 1.15.0
 
 The web identity carrier is `auth.oxy.so`; `id.oxy.so` is gone (ADR 0028).

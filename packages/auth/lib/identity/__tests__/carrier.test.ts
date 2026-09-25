@@ -37,6 +37,7 @@ import {
   type WebIdentityEnvelopeResponse,
 } from '@oxy.so/contracts';
 import { signMessage, verifySignature } from '@oxy.so/protocol';
+import type { SessionLoginResponse } from '@oxy.so/core';
 import type { CarrierAccount, IdentityApi } from '../api';
 import {
   HolderError,
@@ -295,8 +296,11 @@ function fakePorts(
   return { ports, local, ceremonies };
 }
 
+/** The session the fake server signs in; the carrier only passes it through. */
+const SESSION = { sessionId: 'session-1', deviceId: 'device-1', accessToken: 'token-1' } as unknown as SessionLoginResponse;
+
 const newServer = (publicKey: string | null = null): FakeServer => ({
-  account: { userId: 'user-1', username: 'nate', publicKey, sessionId: 'session-1' },
+  account: { userId: 'user-1', username: 'nate', publicKey, sessionId: 'session-1', login: SESSION },
   envelope: null,
   revision: 0,
   phraseConfirmedAt: null,

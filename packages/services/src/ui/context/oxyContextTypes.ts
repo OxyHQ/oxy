@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, AccountDialogController, AccountDialogView, ApiError, SessionClient, SessionMode } from '@oxy.so/core';
+import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, AccountDialogController, AccountDialogView, ApiError, SessionClient, SessionMode, OxyAuthScreen } from '@oxy.so/core';
 import type { UseFollowHook } from '../hooks/useFollow.types';
 import type { useLanguageManagement } from '../hooks/useLanguageManagement';
 import type { RouteName } from '../navigation/routes';
@@ -123,6 +123,14 @@ export interface OxyContextState {
    * resolve to `{ status: 'unsupported' }`.
    */
   startWebOAuthSignIn: (options: StartWebOAuthSignInOptions) => Promise<WebOAuthSignInResult>;
+
+  /**
+   * Go to auth.oxy.so for what only it can do — `signup` (an account with its
+   * root), `recover` (from the recovery phrase), `signin` (an `oxy.so` passkey
+   * from another origin) — and come back signed in, in this tab. Web only;
+   * call it from the press.
+   */
+  continueOnAuth: (screen: OxyAuthScreen) => Promise<WebOAuthSignInResult>;
 
   /**
    * Ask the already-authenticated user for explicit OAuth consent to exact

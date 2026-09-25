@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { Linking, Platform } from 'react-native';
-import { DeviceManager, OxyServices, oxyClient } from '@oxy.so/core';
+import { DeviceManager, OxyServices, oxyClient, type OxyAuthScreen } from '@oxy.so/core';
 import type {
   User,
   SessionLoginResponse,
@@ -31,7 +31,6 @@ import {
   notifyAccountDialogVisibility,
 } from '../navigation/accountDialogManager';
 import { redirectToAuthorize } from '../components/oauthNavigation';
-import { openPasskeyHubPopup } from '../components/passkeyHubPopup';
 import {
   startWebOAuthSignIn,
   type StartWebOAuthSignInOptions,
@@ -794,6 +793,20 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     [webAuthMode, oxyServices, clientId, authorizeBaseUrl, isIdentityBound, user?.id],
   );
 
+  // What only auth.oxy.so can do — create an account with its root, recover it,
+  // or assert an `oxy.so` passkey from another origin — happens THERE, in this
+  // tab: the IdP's own screen, then back here signed in, through the same
+  // authorization-code return every redirect uses. Never a popup.
+  const continueOnAuth = useCallback(
+    (screen: OxyAuthScreen): Promise<WebOAuthSignInResult> =>
+      startWebOAuthSignInForContext({
+        redirectUri: authRedirectUri ?? globalThis.location?.origin ?? '',
+        transport: 'redirect',
+        screen,
+      }),
+    [startWebOAuthSignInForContext, authRedirectUri],
+  );
+
   // ── Unified account dialog ─────────────────────────────────────────────────
   // The single account-chooser + sign-in surface. Built ONCE per provider mount
   // and bound to the live `oxyServices` + `sessionClient` + this provider's
@@ -863,11 +876,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       // controller short-circuits, so `redirectToAuthorize` never runs for the
       // `oxycommons://` payload.
       canOpenApp: isWebBrowser() ? undefined : (url) => Linking.canOpenURL(url),
-      // Web-only: lets `startPasskeyHubSignIn` open the auth.oxy.so passkey hub
-      // popup (b2) for a non-Oxy origin. `undefined` on native — there is no
-      // popup concept there, and off-origin passkey sign-in isn't reachable
-      // (Commons owns the native flow).
-      openPopup: isWebBrowser() ? openPasskeyHubPopup : undefined,
       // Which surface a sign-in starts from — a FACT only this consumer can
       // supply (headless core never touches a platform global). It decides
       // whether automatic delivery may take the same-device Commons deep link;
@@ -1286,6 +1294,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       revokeSuspiciousSignIn,
       handleWebSession,
       startWebOAuthSignIn: startWebOAuthSignInForContext,
+      continueOnAuth,
       requestOAuthConsent: requestOAuthConsentForContext,
       logout,
       logoutAll,
@@ -1343,6 +1352,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       revokeSuspiciousSignIn,
       handleWebSession,
       startWebOAuthSignInForContext,
+      continueOnAuth,
       requestOAuthConsentForContext,
       logout,
       logoutAll,

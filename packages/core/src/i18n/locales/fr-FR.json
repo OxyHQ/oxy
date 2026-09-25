@@ -41,7 +41,8 @@
       "privacyLink": "Politique de confidentialité"
     },
     "noAccount": "Pas encore de compte ?",
-    "createAccount": "Créer un compte"
+    "createAccount": "Créer un compte",
+    "recoverLink": "Clé d’accès perdue ? Récupérez votre compte"
   },
   "signup": {
     "title": "Créez votre compte",

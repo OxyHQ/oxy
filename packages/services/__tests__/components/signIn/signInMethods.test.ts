@@ -8,10 +8,10 @@ describe('resolveSignInMethods — one screen, the transport behind each block',
     });
   });
 
-  it('on any other web origin opens the identity window for the passkey', () => {
+  it('on any other web origin sends the passkey to auth.oxy.so', () => {
     expect(resolveSignInMethods({ web: true, oxyRpOrigin: false, commonsAvailability: 'unknown' })).toEqual({
       commons: 'qr',
-      passkey: 'identity-window',
+      passkey: 'on-auth',
     });
   });
 

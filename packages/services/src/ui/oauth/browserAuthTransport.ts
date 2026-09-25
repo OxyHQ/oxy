@@ -14,7 +14,7 @@
  * remains the native lane and is untouched by this module.
  */
 
-import { logger, persistOAuthHandshake } from '@oxy.so/core';
+import { logger, persistOAuthHandshake, type OxyAuthScreen } from '@oxy.so/core';
 import type { OxyServices } from '@oxy.so/core';
 import { redirectToAuthorize } from '../components/oauthNavigation';
 import { isWebBrowser } from '../utils/isWebBrowser';
@@ -64,6 +64,14 @@ export interface StartWebOAuthSignInOptions {
   popup?: OAuthPopupHandle | null;
   /** Requested scope; defaults to the SDK's standard sign-in scope. */
   scope?: string;
+  /**
+   * `redirect` — go to the IdP in this tab and come back, whatever the
+   * provider's `webAuthMode`. What an Oxy app's own account dialog uses: it
+   * sends the person to auth.oxy.so only for what only that origin can do.
+   */
+  transport?: 'redirect';
+  /** The IdP screen a person with no session there lands on. */
+  screen?: OxyAuthScreen;
   /** Popup timeout override (ms). */
   timeoutMs?: number;
 }
@@ -88,6 +96,9 @@ export async function startWebOAuthSignIn(
   // Claim the window BEFORE the first `await` below, so a caller that invoked us
   // straight from the click still has gesture attribution. An explicit `null`
   // means the caller already tried and was blocked.
+  if (options.transport === 'redirect') {
+    return startRedirectSignIn(context, options, 'redirect-mode');
+  }
   const popup =
     context.mode === 'popup' && options.popup === undefined ? openOAuthPopup() : options.popup ?? null;
 
@@ -178,6 +189,7 @@ async function startRedirectSignIn(
     redirectUri: options.redirectUri,
     authorizeBaseUrl: context.authorizeBaseUrl,
     scope: options.scope,
+    ...(options.screen ? { screen: options.screen } : {}),
   });
 
   if (!persistOAuthHandshake(
