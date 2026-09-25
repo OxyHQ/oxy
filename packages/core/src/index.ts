@@ -86,6 +86,13 @@ export type {
 } from './mixins/OxyServices.notifications';
 export type { ServiceApp, ServiceActingAsVerification, OxyAuthRefusal } from './mixins/OxyServices.utility';
 export type {
+  OxyAccountEvent,
+  OxyAccountEventFeedItem,
+  OxyAccountEventFeedPage,
+  VerifyAccountEventOptions,
+} from './mixins/OxyServices.utility';
+export { OxyAccountEventError, OXY_ACCOUNT_DELETED_EVENT_URI } from './mixins/OxyServices.utility';
+export type {
     ContactDiscoveryMatch,
     ContactDiscoveryResponse,
 } from './mixins/OxyServices.contacts';

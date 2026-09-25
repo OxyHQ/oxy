@@ -1,5 +1,23 @@
 # Changelog — `@oxy.so/core`
 
+## 1.13.0
+
+### Added
+
+- `verifyAccountEvent(token, { audience?, jwksUrl? })`: verifies an account
+  event from Oxy — the body of an account-event webhook, or an entry of the
+  pull feed — and returns `{ eventId, type: 'account.deleted', userId,
+  username, occurredAt, retained, applicationId, issuedAt }`. The token is a
+  Security Event Token (`typ: secevent+jwt`) signed with Oxy's Ed25519 service
+  key and checked against the same public JWKS as service tokens; the audience
+  defaults to the `appId` of the configured service credential. A service
+  token is refused as an event and vice versa. `username` is the handle at
+  deletion time, `null` when absent (including tokens that predate the field).
+  Refusals throw `OxyAccountEventError` (OxyHQ/Mention#1169).
+- `listAccountEvents({ after?, limit? })`: one page of the calling
+  application's account events from `GET /account-events`, the reconciliation
+  path behind the webhook.
+
 ## 1.12.1
 
 ### Fixed

@@ -30,6 +30,7 @@ import cdnRoutes from './routes/cdn';
 import storageRoutes from './routes/storage';
 import applicationRoutes from './routes/applications';
 import internalRoutes from './routes/internal';
+import accountEventRoutes from './routes/accountEvents';
 import accountRoutes from './routes/accounts';
 import familyRoutes from './routes/families';
 import capabilityRoutes from './routes/capabilities';
@@ -125,6 +126,10 @@ import {
   startFollowOutboxWorker,
   stopFollowOutboxWorker,
 } from './services/followOutbox.worker';
+import {
+  startAccountEventWebhookWorker,
+  stopAccountEventWebhookWorker,
+} from './services/accountEventWebhook.worker';
 import {
   startNormalizedEventOutboxWorker,
   stopNormalizedEventOutboxWorker,
@@ -489,6 +494,7 @@ async function gracefulShutdown(signal: string) {
   await stopPlatformInfrastructure();
   stopFollowOutboxWorker();
   stopNormalizedEventOutboxWorker();
+  stopAccountEventWebhookWorker();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
   await stopTransparencyCheckpointJobs();
@@ -741,6 +747,10 @@ app.use('/applications', applicationRoutes);
 // user session this router has none of; its limiter keys on the calling
 // application instead.
 app.use('/internal', internalRoutes);
+// Account events (OxyHQ/Mention#1169): the pull feed each relying application
+// reconciles erasures from. Service tokens only, scoped to the caller's own
+// events, limited per calling application inside the router.
+app.use('/account-events', accountEventRoutes);
 // Unified Account graph (tree + membership + service credentials). Per-route
 // rate limiters (rl:accounts:*) live inside the router.
 app.use('/accounts', accountRoutes);
@@ -1372,6 +1382,9 @@ export async function bootstrap(
   // events accumulate regardless, so switching the loop on later loses nothing.
   startFollowOutboxWorker();
   startNormalizedEventOutboxWorker();
+  // Tell relying parties about account deletions (OxyHQ/Mention#1169). ON by
+  // default: see `startAccountEventWebhookWorker`.
+  startAccountEventWebhookWorker();
 
   // Start background jobs: durable BullMQ scheduling when REDIS_URL is set,
   // otherwise the in-process cron fallback. Never throws.

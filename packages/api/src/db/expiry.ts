@@ -61,6 +61,7 @@
 
 import type { ExpirySweepTarget } from '@oxy.so/db/expiry';
 import { AFFINITY_EVENT_SEEN_TTL_SECONDS } from '../utils/recommendationWeights';
+import { ACCOUNT_EVENT_RETENTION_SECONDS, accountEvents } from './schema/accountEvents';
 import { appAffinitySeenEvents } from './schema/appAffinitySeenEvents';
 import {
   CREDENTIAL_AUDIT_RETENTION_SECONDS,
@@ -337,5 +338,15 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'in this registry: a receipt swept on a telemetry schedule is a destroyed ' +
       'financial record, and it would be silent. ' +
       '`db/__tests__/inferenceLedgerRetention.test.ts` fails if one is added.',
+  },
+  {
+    table: accountEvents,
+    column: accountEvents.createdAt,
+    retentionSeconds: ACCOUNT_EVENT_RETENTION_SECONDS,
+    reason:
+      'Thirty days of account-deletion announcements to relying parties, far ' +
+      'past the push retry window, so a party reconciling from the pull feed ' +
+      'cannot miss one. After that the deleted account id itself is dropped; ' +
+      'deliveries cascade with their event.',
   },
 ];
