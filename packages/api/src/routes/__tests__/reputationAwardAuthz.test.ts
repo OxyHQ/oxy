@@ -86,6 +86,8 @@ import { applications } from '../../db/schema/applications';
 import { reputationRules } from '../../db/schema/reputationRules';
 import { reputationTransactions } from '../../db/schema/reputationTransactions';
 import { users } from '../../db/schema/users';
+import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
+import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
 import { LEASE_SIGNED_ACTION } from '../../utils/reputation.constants';
 import { errorHandler } from '../../middleware/errorHandler';
 import reputationRouter from '../reputation.routes';
@@ -162,6 +164,43 @@ async function serviceApplication(): Promise<{ appId: string; credentialId: stri
     })
     .returning({ id: applicationCredentials.id });
   return { appId: app.id, credentialId: credential.id };
+}
+
+/**
+ * The same application, authenticating by ATTESTATION instead — no credential row
+ * for the token to name.
+ *
+ * `POST /reputation/award` takes `credentialId` straight from the token's claims
+ * and writes it to `reputation_transactions.application_credential_id`, which is a
+ * real foreign key. An attested caller's claim is a `wl_…` handle, so this INSERT
+ * failed the constraint — a 500 on the canonical path for a service holding
+ * `reputation:write`, which Mention does, credential-free in production. The
+ * materialised `workload` row is what makes the handle a value that column can
+ * hold.
+ */
+async function attestedServiceApplication(): Promise<{ appId: string; credentialId: string }> {
+  const ownerAccountId = await account();
+  const [app] = await getDb()
+    .insert(applications)
+    .values({
+      name: `Attested App ${randomUUID()}`,
+      type: 'internal',
+      isInternal: true,
+      scopes: ['user:read'],
+      ownerAccountId,
+    })
+    .returning({ id: applications.id });
+  const subject = `arn:aws:iam::237343248947:role/oxy-rep-${randomUUID()}`;
+  const [binding] = await getDb()
+    .insert(applicationWorkloadIdentities)
+    .values({ applicationId: app.id, provider: 'aws-iam', subject })
+    .returning({ id: applicationWorkloadIdentities.id });
+  const { credentialId } = await ensureWorkloadAttributionIdentity({
+    bindingId: binding.id,
+    applicationId: app.id,
+    subject,
+  });
+  return { appId: app.id, credentialId };
 }
 
 /** A rule the award can resolve. Randomized so parallel suites cannot collide. */
@@ -250,6 +289,28 @@ describe('POST /reputation/award — service-token scope gate', () => {
     expect(transaction.category).toBe('content');
     expect(transaction.status).toBe('active');
     expect(safeParseContract(reputationTransactionSchema, transaction)).not.toBeNull();
+  });
+
+  it('allows an ATTESTED service token, and stores the handle as the awarding identity', async () => {
+    const service = await attestedServiceApplication();
+    const subject = await account();
+    const actionType = await awardableAction(7);
+    currentServiceApp = { ...service, scopes: ['reputation:write'] };
+
+    const res = await award(
+      { userId: subject, actionType, sourceActionId: 'attested-action' },
+      'service',
+    );
+
+    expect(res.status).toBe(201);
+    expect(res.body.data?.transaction?.points).toBe(7);
+
+    // The stored row names the attested identity, on a column that is a real
+    // foreign key — the INSERT this used to fail.
+    const [stored] = await storedTransactions(subject);
+    expect(stored.credentialId).toBe(service.credentialId);
+    expect(stored.credentialId?.startsWith('wl_')).toBe(true);
+    expect(stored.applicationId).toBe(service.appId);
   });
 
   it('limits reputation:lease:write to lease actions', async () => {

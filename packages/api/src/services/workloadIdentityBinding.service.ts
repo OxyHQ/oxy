@@ -16,6 +16,10 @@ import {
   workloadAttestationHandle,
   type AttestationProvider,
 } from './workloadAttestation.service';
+import {
+  ensureWorkloadAttributionIdentity,
+  WorkloadAttributionError,
+} from './workloadAttributionIdentity.service';
 
 /**
  * Creating the row that makes a workload an application — the one write on the
@@ -76,6 +80,7 @@ export type WorkloadBindingRefusal =
   | 'untrusted_application'
   | 'invalid_expiry'
   | 'subject_bound_elsewhere'
+  | 'subject_attributed_elsewhere'
   | 'unknown_scope'
   | 'ungrantable_scope'
   | 'privileged_scope_requires_staff';
@@ -512,6 +517,28 @@ async function reconcileExisting(
     );
   }
 
+  /**
+   * Repair, on the one command an operator actually re-runs.
+   *
+   * Every binding written before this row existed — the thirteen services already
+   * credential-free in production — reaches here on its next deploy-step bind and
+   * gets the row the usage ledger needs. It is also how a binding inserted by raw
+   * SQL is healed, and it is idempotent, so a re-run that changes nothing else
+   * changes nothing here either.
+   */
+  try {
+    await ensureWorkloadAttributionIdentity({
+      bindingId: existing.id,
+      applicationId: request.applicationId,
+      subject: existing.subject,
+    });
+  } catch (error: unknown) {
+    if (error instanceof WorkloadAttributionError) {
+      throw new WorkloadBindingError('subject_attributed_elsewhere', error.message);
+    }
+    throw error;
+  }
+
   const ignoredChanges = describeDrift(existing, request.description, request.expiresAt);
   const base = {
     binding: existing,
@@ -623,19 +650,48 @@ export async function bindWorkloadIdentity(
   );
 
   try {
-    const [created] = await getDb()
-      .insert(applicationWorkloadIdentities)
-      .values({
-        applicationId: application.id,
-        provider,
-        subject,
-        scopes,
-        ...(request.description !== undefined ? { description: request.description } : {}),
-        ...(expiresAt !== null ? { expiresAt } : {}),
-      })
-      .returning(BINDING_COLUMNS);
+    /**
+     * The binding and the row the usage ledger names it by are written together.
+     *
+     * `application_credential_id` on `usage_reservations`, `usage_receipts`,
+     * `inference_usage_events` and `inference_usage_daily_rollups` is `NOT NULL`
+     * with a foreign key, so an attested caller can only spend once
+     * `workloadAttributionIdentity.service.ts` has materialised this binding as
+     * a `workload` row. In one transaction because a binding that exists without
+     * that row is a service that authenticates and then fails its first
+     * reservation — the exact state ADR 0026 was stuck in.
+     */
+    const created = await getDb().transaction(async (tx) => {
+      const [row] = await tx
+        .insert(applicationWorkloadIdentities)
+        .values({
+          applicationId: application.id,
+          provider,
+          subject,
+          scopes,
+          ...(request.description !== undefined ? { description: request.description } : {}),
+          ...(expiresAt !== null ? { expiresAt } : {}),
+        })
+        .returning(BINDING_COLUMNS);
+      await ensureWorkloadAttributionIdentity(
+        { bindingId: row.id, applicationId: application.id, subject },
+        tx,
+      );
+      return row;
+    });
     return { state: 'created', binding: withAttestationId(created) };
   } catch (error: unknown) {
+    /**
+     * A subject whose ledger history belongs to another application. Translated
+     * into this module's vocabulary rather than propagated, so the script's
+     * refusal exit code covers it like every other deliberate no — and it IS the
+     * same refusal as `subject_bound_elsewhere` one step later in time: the
+     * binding was deleted, so nothing refused the re-point, but the spend it
+     * authorised is still on the books under the old application.
+     */
+    if (error instanceof WorkloadAttributionError) {
+      throw new WorkloadBindingError('subject_attributed_elsewhere', error.message);
+    }
     /**
      * Two operators binding the same subject at once both read "no row" and
      * both insert. The unique index on `(provider, subject)` — which exists to

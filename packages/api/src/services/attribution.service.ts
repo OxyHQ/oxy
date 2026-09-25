@@ -71,9 +71,12 @@
  * second membership model and no per-application membership.
  */
 
-import { eq, type SQL } from 'drizzle-orm';
+import { and, eq, type SQL } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { applicationCredentials } from '../db/schema/applicationCredentials';
+import {
+  applicationCredentials,
+  excludeWorkloadRows,
+} from '../db/schema/applicationCredentials';
 import type {
   ApplicationCredentialEnvironment,
   ApplicationCredentialStatus,
@@ -256,7 +259,18 @@ export async function resolveCredentialAttributionById(
   if (!credentialId) {
     return { status: 'unknown-credential', clientId: credentialId };
   }
-  return loadCredentialAttribution(eq(applicationCredentials.id, credentialId), credentialId);
+  /**
+   * A materialised workload row is excluded rather than left to the `wl_` routing
+   * above it. `resolveServiceTokenPrincipal` sends a handle to the binding
+   * resolver and never reaches here, but this function has other callers and the
+   * row is not a credential: it has no secret to verify, no scopes to intersect
+   * and no `public_key` to report on a refusal arm, so a caller that resolved one
+   * would be handed an attribution built from three absent values.
+   */
+  return loadCredentialAttribution(
+    and(eq(applicationCredentials.id, credentialId), excludeWorkloadRows()),
+    credentialId
+  );
 }
 
 /**
@@ -297,6 +311,18 @@ async function loadCredentialAttribution(
     return { status: 'unknown-credential', clientId: reportedId };
   }
 
+  /**
+   * A materialised `workload` row has no public identifier, and neither entry
+   * point can return one: the `clientId` lookup is `public_key = $1`, which
+   * cannot match NULL, and the id lookup excludes them explicitly. This guard is
+   * what makes that a type rather than a comment — a third entry point that
+   * forgot both gets `unknown-credential`, which is already this module's answer
+   * for anything it cannot attribute, rather than an attribution whose
+   * `credentialPublicKey` is absent.
+   */
+  if (row.credentialPublicKey === null) {
+    return { status: 'unknown-credential', clientId: reportedId };
+  }
   const clientId = row.credentialPublicKey;
 
   if (!isCredentialUsable({ status: row.credentialStatus, expiresAt: row.credentialExpiresAt })) {
@@ -313,7 +339,7 @@ async function loadCredentialAttribution(
     status: 'resolved',
     attribution: {
       credentialId: row.credentialId,
-      credentialPublicKey: row.credentialPublicKey,
+      credentialPublicKey: clientId,
       credentialType: row.credentialType,
       credentialEnvironment: row.credentialEnvironment,
       credentialScopes: row.credentialScopes,
