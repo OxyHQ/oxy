@@ -9,7 +9,7 @@ import {
   mcpOAuthConsentResponseSchema,
   type AppCapabilityCatalog,
 } from '@oxy.so/contracts';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import express from 'express';
 import request from 'supertest';
 
@@ -55,6 +55,7 @@ import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { blocks } from '../../db/schema/blocks';
 import { mcpOauthGrants } from '../../db/schema/mcpOAuth';
+import { userFollows } from '../../db/schema/userFollows';
 import { users } from '../../db/schema/users';
 import mcpOAuthRouter, { mcpOAuthDiscoveryRouter } from '../mcpOAuth';
 
@@ -377,7 +378,10 @@ it('requires the selected account and never presents an unrequested write action
 });
 
 /** Register a client and run the consent + code exchange for the fixture's owner. */
-async function issueAccessToken(input: Awaited<ReturnType<typeof fixture>>): Promise<string> {
+async function issueAccessToken(
+  input: Awaited<ReturnType<typeof fixture>>,
+  scope = 'resource.read',
+): Promise<string> {
   const registration = await request(app).post('/auth/mcp/oauth/register').send({
     client_name: 'Viewer graph MCP client',
     redirect_uris: [input.redirectUri],
@@ -393,7 +397,7 @@ async function issueAccessToken(input: Awaited<ReturnType<typeof fixture>>): Pro
       clientId,
       redirectUri: input.redirectUri,
       resource: input.resource,
-      scope: 'resource.read',
+      scope,
       accountId: principalUserId,
       codeChallenge: createHash('sha256').update(verifier).digest('base64url'),
       codeChallengeMethod: 'S256',
@@ -468,5 +472,86 @@ describe('POST /auth/mcp/oauth/connections/viewer-graph', () => {
       .send({ token: 'not-a-token' });
     expect(response.status).toBe(401);
     expect(response.body).toMatchObject({ error: 'invalid_grant' });
+  });
+});
+
+describe('POST /auth/mcp/oauth/connections/follow', () => {
+  async function localUser(type: 'local' | 'federated' = 'local'): Promise<string> {
+    const [row] = await getDb().insert(users).values({
+      username: `mcp-follow-${randomUUID()}`,
+      nameDisplay: 'Follow target',
+      color: 'teal',
+      type,
+    }).returning({ id: users.id });
+    return row.id;
+  }
+
+  async function follows(followerId: string, followedId: string): Promise<boolean> {
+    const rows = await getDb().select({ id: userFollows.id }).from(userFollows)
+      .where(and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, followedId)));
+    return rows.length > 0;
+  }
+
+  function follow(body: Record<string, unknown>) {
+    return request(app)
+      .post('/auth/mcp/oauth/connections/follow')
+      .set('authorization', 'Bearer service-token')
+      .send(body);
+  }
+
+  it('moves the served account’s own follow edge for a consented write tool, idempotently', async () => {
+    const input = await fixture();
+    const viewerId = principalUserId;
+    const target = await localUser();
+    const token = await issueAccessToken(input, 'resource.read resource.write');
+
+    const first = await follow({ token, tool: 'updateResource', target_user_id: target, action: 'follow' });
+    expect(first.status).toBe(200);
+    expect(first.body).toEqual({ account_id: viewerId, target_user_id: target, action: 'follow', changed: true });
+    expect(await follows(viewerId, target)).toBe(true);
+
+    const again = await follow({ token, tool: 'updateResource', target_user_id: target, action: 'follow' });
+    expect(again.body).toMatchObject({ changed: false });
+
+    const undo = await follow({ token, tool: 'updateResource', target_user_id: target, action: 'unfollow' });
+    expect(undo.body).toMatchObject({ action: 'unfollow', changed: true });
+    expect(await follows(viewerId, target)).toBe(false);
+  });
+
+  it('refuses a token whose consent does not cover a write tool', async () => {
+    const input = await fixture();
+    const viewerId = principalUserId;
+    const target = await localUser();
+    const readOnly = await issueAccessToken(input, 'resource.read');
+
+    for (const tool of ['updateResource', 'readResource', 'not-a-tool']) {
+      const response = await follow({ token: readOnly, tool, target_user_id: target, action: 'follow' });
+      expect(response.status).toBe(403);
+      expect(response.body).toMatchObject({ error: 'invalid_scope' });
+    }
+    expect(await follows(viewerId, target)).toBe(false);
+  });
+
+  it('refuses a federated target, the account itself, and another application', async () => {
+    const input = await fixture();
+    const viewerId = principalUserId;
+    const token = await issueAccessToken(input, 'resource.read resource.write');
+    const federated = await localUser('federated');
+
+    const remote = await follow({ token, tool: 'updateResource', target_user_id: federated, action: 'follow' });
+    expect(remote.status).toBe(409);
+    expect(await follows(viewerId, federated)).toBe(false);
+
+    const self = await follow({ token, tool: 'updateResource', target_user_id: viewerId, action: 'follow' });
+    expect(self.status).toBe(400);
+
+    const target = await localUser();
+    const owningApplicationId = serviceApplicationId;
+    await fixture();
+    const foreign = await follow({ token, tool: 'updateResource', target_user_id: target, action: 'follow' });
+    expect(foreign.status).toBe(401);
+    expect(await follows(viewerId, target)).toBe(false);
+    serviceApplicationId = owningApplicationId;
+    principalUserId = viewerId;
   });
 });
