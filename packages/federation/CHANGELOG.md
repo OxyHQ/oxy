@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/federation`
 
+## Unreleased
+
+- The `@oxy.so/core` dependency range admits core 2 (`^1.0.0 || ^2.0.0`). Core
+  2.0.0 only removes the server-side `jwtSecret` option, which this package
+  never used.
+
 ## 2.0.0
 
 ### Breaking: an unreadable collection count is unknown, not `0`

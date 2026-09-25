@@ -370,7 +370,13 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   // Real storage usage for the account menu's "Oxy storage" block. Disabled
   // (no fetch) until a private-API session exists, so it is inert on the
   // sign-in/request/sign-up views; when present the block shows live used/total.
-  const storageQuery = useAccountStorageUsage({ enabled: view === 'accounts' });
+  // The account MENU describes the signed-in account — its hero, its storage,
+  // its sign-out. The controller already refuses `accounts` without a session;
+  // this is the render-side half of the same rule, so no controller state (or
+  // an older core) can ever put "Sign out" in front of someone who is not
+  // signed in. Without an account the sign-in entry renders in its place.
+  const showsAccountMenu = view === 'accounts' && user !== null && user !== undefined;
+  const storageQuery = useAccountStorageUsage({ enabled: showsAccountMenu });
   const storage = useMemo<AccountStorageModel | null>(
     () =>
       storageQuery.data
@@ -419,7 +425,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
     return null;
   }
 
-  if (view === 'accounts') {
+  if (showsAccountMenu) {
     return (
       <AccountsMenuView
         snapshot={snapshot}

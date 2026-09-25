@@ -20,6 +20,7 @@ import {
     getNormalizedUserHandle,
     logger as loggerUtil,
     packageInfo,
+    type DeviceLinkedSession,
 } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import ProfileSummaryCard from '../components/ProfileSummaryCard';
@@ -33,16 +34,9 @@ import { isWebBrowser } from '../utils/isWebBrowser';
 import { useCurrentUser } from '../hooks/queries/useAccountQueries';
 import { useUserSubscription } from '../hooks/queries/usePaymentQueries';
 import { useDeviceSessions } from '../hooks/queries/useServicesQueries';
+import { deviceSessionTitle } from '../utils/deviceSessionTitle';
 
-interface DeviceSessionRow {
-    sessionId: string;
-    deviceId: string;
-    deviceName: string;
-    isActive: boolean;
-    lastActive: string;
-    expiresAt: string;
-    isCurrent: boolean;
-}
+type DeviceSessionRow = DeviceLinkedSession;
 
 const AVATAR_SIZE = 88;
 
@@ -172,8 +166,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
         const confirmed = await surfaces.confirm({
             title: t('manageAccount.confirms.removeDeviceTitle') || 'Remove device',
             description:
-                t('manageAccount.confirms.removeDevice', { name: device.deviceName })
-                || `Sign out from "${device.deviceName}"?`,
+                t('manageAccount.confirms.removeDevice', { name: deviceSessionTitle(device, t) }),
             confirmLabel: t('common.remove') || 'Remove',
             cancelLabel: t('common.cancel') || 'Cancel',
             destructive: true,
@@ -186,8 +179,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
             await oxyServices.logoutSession(activeSessionId, device.sessionId);
             await refetchDeviceSessions();
             toast.success(
-                t('manageAccount.toasts.deviceRemoved', { name: device.deviceName })
-                || `Signed out from ${device.deviceName}`,
+                t('manageAccount.toasts.deviceRemoved', { name: deviceSessionTitle(device, t) }),
             );
         } catch (error) {
             loggerUtil.warn('Remove device failed', { component: 'ManageAccountScreen' }, error as unknown);
@@ -503,7 +495,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
                                         }
                                     />
                                 }
-                                title={`${device.deviceName}${device.isCurrent ? ` (${t('manageAccount.sessions.thisDevice') || 'This device'})` : ''}`}
+                                title={deviceSessionTitle(device, t)}
                                 description={
                                     t('manageAccount.sessions.lastActive', {
                                         relative: formatRelative(device.lastActive),
@@ -711,10 +703,13 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
                             description={
                                 accounts.length > 0
                                     ? (
-                                        t('accounts.manage.switch.count', {
-                                            count: accounts.length,
-                                        })
-                                        || `${accounts.length} ${accounts.length === 1 ? 'account' : 'accounts'}`
+                                        // One account is "1 account", not "1 accounts".
+                                        t(
+                                            accounts.length === 1
+                                                ? 'accounts.manage.switch.countOne'
+                                                : 'accounts.manage.switch.count',
+                                            { count: accounts.length },
+                                        )
                                     )
                                     : (
                                         t('accounts.manage.switch.empty')

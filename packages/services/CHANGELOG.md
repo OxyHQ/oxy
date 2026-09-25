@@ -9,6 +9,46 @@
   (`openAccountDialog('signup')`), never by a local passkey ceremony (ADR 0024
   D4). No ecosystem app called it; `auth.oxy.so` opens the canonical flow.
 
+### Changed
+
+- The `@oxy.so/core` peer range admits core 2 (`^1.9.0 || ^2.0.0`). Core 2.0.0
+  only removes the server-side `jwtSecret` option, which this package never
+  used.
+
+## [4.0.2] - 2026-09-25
+
+Requires `@oxy.so/core` `^1.9.0` and `@oxy.so/bloom` `^4.21.1`.
+
+### Fixed
+
+- The account menu rendered a giant circular "Switch account" row, a huge
+  storage card and ~250dp-tall storage chips on Android. Bloom < 4.21 declared
+  its type-scale line-heights in px, and react-native-css multiplies a
+  line-height it reads through `var()` by the font size (`text-body`: 22 × 15 =
+  330dp). Bloom 4.21 writes them as ratios; the Bloom peer floor moves to
+  `^4.21.1`, which also brings the bottom-sheet safe-area inset, the inline ✕
+  header, the Accordion trigger that no longer wraps, and a collapsed sheet
+  header that paints its background on Android (it overlapped the rows of
+  "Manage your Oxy Account").
+
+- Signed out, Back from "Create your account" returned to the SIGNED-IN account
+  menu. The account dialog's Back now follows the controller's `backView`
+  (`@oxy.so/core` 1.9.0), and `OxyAuthChooser` never renders the account menu
+  without a signed-in user — the sign-in entry renders in its place
+  (OxyHQ/oxy#1375).
+- The account menu's icon-font glyphs no longer reach the accessibility tree
+  (TalkBack announced `"\u{F0140}"` beside "Switch account"). Both SDK icon
+  families hide every glyph with `aria-hidden`, which callers cannot override.
+- The "Having trouble?" disclosure spans the content width with a compact,
+  centred trigger, instead of a shrink-wrapped column that wrapped the trigger
+  to "Having / trouble?" on Android and squeezed its options.
+- The sign-in surfaces' primary actions are Bloom's `lg` button (44dp), not the
+  36dp default.
+- "Manage your Oxy Account": a "Sessions & devices" row read "undefined (This
+  device)" — the endpoint sends no device name. The current session is "This
+  device" and another is named by its account. "Switch account" reads
+  "1 account", not "1 accounts".
+
 ## [4.0.1] - 2026-09-21
 
 ### Fixed
