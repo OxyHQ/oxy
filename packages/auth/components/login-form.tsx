@@ -46,6 +46,11 @@ type LoginFormProps = React.ComponentProps<"div"> & {
      * `/mcp/link` instead of an OAuth request that does not exist.
      */
     mcpLinkIntent?: string
+    /**
+     * `?user_code=` — the person is here to approve a device sign-in (a CLI's
+     * public approval code), so the post-login hop returns to `/device`.
+     */
+    userCode?: string
 }
 
 type LoginStep = "identifier" | "security-key"
@@ -74,6 +79,7 @@ export function LoginForm({
     responseMode,
     loginHint,
     mcpLinkIntent,
+    userCode,
     ...props
 }: LoginFormProps) {
     const navigate = useNavigate()
@@ -90,6 +96,7 @@ export function LoginForm({
         if (responseType) params.set("response_type", responseType)
         if (responseMode) params.set("response_mode", responseMode)
         if (mcpLinkIntent) params.set("mcp_link_intent", mcpLinkIntent)
+        if (userCode) params.set("user_code", userCode)
         const qs = params.toString()
         return qs ? `/signup?${qs}` : "/signup"
     })()
@@ -212,6 +219,7 @@ export function LoginForm({
             responseType,
             responseMode,
             mcpLinkIntent,
+            userCode,
         }))
     }
 

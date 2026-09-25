@@ -28,6 +28,7 @@ function renderScreen(props: Partial<OxyConsentScreenProps> = {}) {
       onAllow={props.onAllow ?? onAllow}
       onDeny={props.onDeny ?? onDeny}
       busy={props.busy}
+      allowDisabled={props.allowDisabled}
       error={props.error}
     />,
   );
@@ -130,6 +131,21 @@ describe('OxyConsentScreen', () => {
     fireEvent.click(deny);
     expect(onAllow).not.toHaveBeenCalled();
     expect(onDeny).not.toHaveBeenCalled();
+  });
+
+  it('allowDisabled blocks only Allow and leaves Deny usable', () => {
+    const { getByTestId, onAllow, onDeny } = renderScreen({ allowDisabled: true });
+
+    const allow = getByTestId('consent-allow') as HTMLButtonElement;
+    const deny = getByTestId('consent-deny') as HTMLButtonElement;
+    expect(allow.disabled).toBe(true);
+    expect(deny.disabled).toBe(false);
+
+    fireEvent.click(allow);
+    expect(onAllow).not.toHaveBeenCalled();
+    // Declining must stay possible while the host's own gate is uncleared.
+    fireEvent.click(deny);
+    expect(onDeny).toHaveBeenCalledTimes(1);
   });
 
   it('renders the authorizing account using the display name when present', () => {
