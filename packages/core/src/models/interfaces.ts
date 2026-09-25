@@ -115,6 +115,13 @@ export interface User {
    * lists, profile search) — the two are separate fields on the User document.
    */
   description?: string;
+  /**
+   * ActivityPub actor URIs this account is also known as — its live,
+   * OAuth-proven linked Mastodon-API accounts. Emitted by
+   * `GET /profiles/username/:username`; a relying app passes it to the shared
+   * actor builder (`@oxy.so/federation`) so its actor publishes it.
+   */
+  alsoKnownAs?: string[];
   phone?: string;
   address?: string;
   /** Legacy free-text birthday, kept for backward compatibility. Prefer `dateOfBirth`. */
@@ -263,7 +270,22 @@ export interface LoginResponse {
 export interface Notification {
   id: string;
   message: string;
-  // Add other notification fields as needed
+  /** One of `OXY_NOTIFICATION_TYPES` (`@oxy.so/contracts`). */
+  type?: string;
+  /**
+   * `system` notifications only (with `message`): the text an Oxy service sent
+   * about the recipient's own account. Render these two instead of composing a
+   * sentence from actor + entity.
+   */
+  title?: string;
+  /** `system` notifications only: an optional deep link (https or the sending app's scheme). */
+  url?: string;
+  /**
+   * What `entityId` names: `post` | `reply` | `profile`, or `app` — an opaque id
+   * in the notifying application's namespace (`system` notifications only).
+   */
+  entityType?: string;
+  entityId?: string;
 }
 
 export interface Wallet {
@@ -666,6 +688,13 @@ export interface ServiceAssetMetadata {
    * play. Treat absence as "no adaptive stream, play the progressive original".
    */
   hlsReadyAt?: string;
+  /**
+   * The Oxy user who owns the file (`null` for a system-owned file such as the
+   * federated media cache). PRESENT ONLY for Oxy's own applications (service
+   * tokens with `tier: 'internal'`), so a first-party service can check that an
+   * asset a user attached is really that user's. Absent for every other caller.
+   */
+  ownerUserId?: string | null;
 }
 
 /**
