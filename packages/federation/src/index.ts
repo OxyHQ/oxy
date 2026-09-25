@@ -112,6 +112,7 @@ export {
  */
 export {
   createLocalActorBuilder,
+  normalizeAlsoKnownAs,
   localActorTypeForAccountKind,
   isApActorType,
   AP_ACTOR_TYPES,

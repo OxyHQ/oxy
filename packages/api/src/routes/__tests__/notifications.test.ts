@@ -32,6 +32,8 @@ import { asc, eq } from 'drizzle-orm';
 const mockBearerUser = { current: '' };
 /** Scopes the mocked service-token middleware grants `POST /notifications`. */
 const mockServiceScopes: { current: string[] } = { current: ['notifications:write'] };
+/** The calling application the mocked service token names. */
+const mockServiceAppId: { current: string | undefined } = { current: undefined };
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (req: { user?: unknown }, _res: unknown, next: () => void) => {
@@ -43,7 +45,7 @@ jest.mock('../../middleware/auth', () => ({
     _res: unknown,
     next: () => void,
   ) => {
-    req.serviceApp = { scopes: mockServiceScopes.current };
+    req.serviceApp = { scopes: mockServiceScopes.current, appId: mockServiceAppId.current };
     next();
   },
   rejectQueryToken: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -55,6 +57,7 @@ jest.mock('../../utils/logger', () => ({
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { notifications } from '../../db/schema/notifications';
+import { applications } from '../../db/schema/applications';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import notificationsRouter from '../notifications.routes';
@@ -168,6 +171,7 @@ beforeEach(async () => {
   jest.clearAllMocks();
   emitted.length = 0;
   mockServiceScopes.current = ['notifications:write'];
+  mockServiceAppId.current = undefined;
   RECIPIENT_ID = await insertUser();
   ACTOR_ID = await insertUser({
     username: `ada${randomUUID().slice(0, 8)}`,
@@ -458,6 +462,93 @@ describe('POST /notifications — privileged service scope only', () => {
       updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     });
     expect(await storedFor(RECIPIENT_ID)).toHaveLength(1);
+  });
+
+  it('stores and returns the text and deep link of a `system` notification', async () => {
+    const res = await request('POST', '/notifications', {
+      recipientId: RECIPIENT_ID,
+      actorId: RECIPIENT_ID,
+      type: 'system',
+      entityId: 'job-1',
+      entityType: 'profile',
+      title: 'Your move is complete',
+      message: 'Oxy Move brought 12 posts over from Mastodon.',
+      url: 'https://move.oxy.so/jobs/job-1',
+    });
+    expect(res.status).toBe(201);
+    expect((res.body.data as { notification: Record<string, unknown> }).notification).toMatchObject({
+      type: 'system',
+      title: 'Your move is complete',
+      message: 'Oxy Move brought 12 posts over from Mastodon.',
+      url: 'https://move.oxy.so/jobs/job-1',
+    });
+    expect(emitted.at(-1)).toMatchObject({ payload: { title: 'Your move is complete', url: 'https://move.oxy.so/jobs/job-1' } });
+
+    mockBearerUser.current = RECIPIENT_ID;
+    const list = await request('GET', '/notifications');
+    const [stored] = (list.body.data as { notifications: Array<Record<string, unknown>> }).notifications;
+    expect(stored).toMatchObject({ type: 'system', title: 'Your move is complete', message: expect.any(String) });
+  });
+
+  it('requires a title and message for `system`, and refuses a url on any other type', async () => {
+    const base = { recipientId: RECIPIENT_ID, actorId: RECIPIENT_ID, entityId: 'job-2', entityType: 'profile' };
+    expect((await request('POST', '/notifications', { ...base, type: 'system' })).status).toBe(400);
+    expect((await request('POST', '/notifications', { ...base, type: 'system', title: 't' })).status).toBe(400);
+    expect((await request('POST', '/notifications', { ...base, type: 'system', title: 't', message: 'x'.repeat(501) })).status).toBe(400);
+    expect((await request('POST', '/notifications', { ...base, type: 'follow', url: 'https://oxy.so' })).status).toBe(400);
+  });
+
+  it('accepts a deep link only as https or a scheme the calling app registered', async () => {
+    const [app] = await getDb()
+      .insert(applications)
+      .values({ name: `Move ${randomUUID()}`, ownerAccountId: OTHER_USER_ID, redirectUris: ['https://move.oxy.so', 'oxymove://'] })
+      .returning({ id: applications.id });
+    mockServiceAppId.current = app.id;
+    const base = { recipientId: RECIPIENT_ID, actorId: RECIPIENT_ID, type: 'system', entityType: 'profile', title: 't', message: 'm' };
+    expect((await request('POST', '/notifications', { ...base, entityId: 'a', url: 'oxymove://jobs/1' })).status).toBe(201);
+    for (const [entityId, url] of [
+      ['b', 'javascript:alert(1)'],
+      ['c', 'http://move.oxy.so/jobs/1'],
+      ['d', 'mention://post/1'],
+      ['e', 'https://user:pass@move.oxy.so/'],
+    ]) {
+      expect((await request('POST', '/notifications', { ...base, entityId, url })).status).toBe(400);
+    }
+  });
+
+  it('names an app-namespaced entity (a job id) on a system notification, and only there', async () => {
+    const ok = await request('POST', '/notifications', {
+      recipientId: RECIPIENT_ID, actorId: RECIPIENT_ID, type: 'system', entityId: 'job-42', entityType: 'app', title: 't', message: 'm',
+    });
+    expect(ok.status).toBe(201);
+    expect((ok.body.data as { notification: Record<string, unknown> }).notification).toMatchObject({ entityType: 'app', entityId: 'job-42' });
+    const refused = await request('POST', '/notifications', {
+      recipientId: RECIPIENT_ID, actorId: ACTOR_ID, type: 'like', entityId: 'job-42', entityType: 'app',
+    });
+    expect(refused.status).toBe(400);
+    await expect(
+      getDb().insert(notifications).values({ recipientId: RECIPIENT_ID, actorId: ACTOR_ID, type: 'like', entityId: 'raw-app', entityType: 'app' }),
+    ).rejects.toThrow();
+  });
+
+  it('keeps a raw write honest: system without text, or text on another type, is refused', async () => {
+    await expect(
+      getDb().insert(notifications).values({ recipientId: RECIPIENT_ID, actorId: RECIPIENT_ID, type: 'system', entityId: 'raw-1', entityType: 'profile' }),
+    ).rejects.toThrow();
+    await expect(
+      getDb().insert(notifications).values({ recipientId: RECIPIENT_ID, actorId: ACTOR_ID, type: 'follow', entityId: 'raw-2', entityType: 'profile', title: 'x', message: 'y' }),
+    ).rejects.toThrow();
+  });
+
+  it('refuses a type outside the closed set', async () => {
+    const res = await request('POST', '/notifications', {
+      recipientId: RECIPIENT_ID,
+      actorId: ACTOR_ID,
+      type: 'promo',
+      entityId: RECIPIENT_ID,
+      entityType: 'profile',
+    });
+    expect(res.status).toBe(400);
   });
 
   it('emits the realtime notification to the RECIPIENT\'s room only', async () => {

@@ -3,9 +3,10 @@ import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { canonicalFederationHost } from '@oxy.so/federation';
 import { resolveExternalIdentityRequestSchema, resolveExternalIdentityResponseSchema, lookupExternalIdentitiesRequestSchema, lookupExternalIdentitiesResponseSchema } from '@oxy.so/contracts';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
+import type { ApplicationScope } from '../utils/applicationScopes';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { validate } from '../middleware/validate';
-import { ForbiddenError, NotFoundError, ConflictError, BadRequestError } from '../utils/error';
+import { ApiError, ForbiddenError, NotFoundError, ConflictError, BadRequestError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
@@ -20,6 +21,7 @@ import {
 import { getEquivalentUserIds, getExternalIdentitiesForUser, resolveExternalIdentityUsers } from '../services/externalIdentityRegistry.service';
 import { externalIdentities, externalIdentityActors } from '../db/schema/externalIdentities';
 import { userService } from '../services/user.service';
+import { applyFederationMove, FederationMoveRefused } from '../services/federationMove.service';
 import {
   DEFAULT_PURGE_LIMIT,
   purgeBlockedDomain,
@@ -33,6 +35,8 @@ import {
   federationActorGoneSchema,
   federationActorDeleteSchema,
   federationDomainPurgeSchema,
+  federationMoveSchema,
+  type FederationMoveBody,
   type PublicKeyParams,
   type PublicKeyQuery,
   type SignRequestBody,
@@ -46,8 +50,22 @@ const router = Router();
 
 const REQUIRED_SCOPE = 'federation:write';
 
+/**
+ * The identity routes also accept the narrow `federation:identities:resolve`
+ * (see `utils/applicationScopes.ts`): a service that only needs "which Oxy user
+ * is this remote account" (Oxy Move) must not hold signing authority.
+ */
+const IDENTITY_RESOLVE_SCOPE: ApplicationScope = 'federation:identities:resolve';
+
+function assertIdentityResolveScope(req: ServiceAuthRequest): void {
+  const scopes = req.serviceApp?.scopes ?? [];
+  if (!scopes.includes(REQUIRED_SCOPE) && !scopes.includes(IDENTITY_RESOLVE_SCOPE)) {
+    throw new ForbiddenError(`Missing required scope: ${REQUIRED_SCOPE} or ${IDENTITY_RESOLVE_SCOPE}`);
+  }
+}
+
 router.post('/identities/resolve', serviceAuthMiddleware, validate({ body: resolveExternalIdentityRequestSchema }), asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-  if (!req.serviceApp?.scopes.includes(REQUIRED_SCOPE)) throw new ForbiddenError('Missing required scope: federation:write');
+  assertIdentityResolveScope(req);
   const { actorUri, handle, transportAcct } = req.body ?? {};
   if ((typeof actorUri === 'string') === (typeof handle === 'string')
     || (actorUri !== undefined && (typeof actorUri !== 'string' || !actorUri || actorUri.length > 2048))
@@ -61,7 +79,7 @@ router.post('/identities/resolve', serviceAuthMiddleware, validate({ body: resol
 }));
 
 router.post('/identities/lookup', serviceAuthMiddleware, validate({ body: lookupExternalIdentitiesRequestSchema }), asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-  if (!req.serviceApp?.scopes.includes(REQUIRED_SCOPE)) throw new ForbiddenError('Missing required scope: federation:write');
+  assertIdentityResolveScope(req);
   const identifiers: unknown = req.body?.identifiers;
   if (!Array.isArray(identifiers) || identifiers.length > 100 || identifiers.length < 1
     || identifiers.some(value => typeof value !== 'string' || !value || value.length > 2048)) {
@@ -564,6 +582,46 @@ router.post(
     });
 
     return sendSuccess(res, result);
+  }),
+);
+
+/**
+ * POST /federation/move — apply an inbound ActivityPub `Move` to a local account.
+ *
+ * Called by the app whose inbox received the Move (Mention), after the engine's
+ * shape check (`parseInboundMove`). Requires `federation:write`. The target must
+ * be a local actor on Oxy's own domain or one the calling application is
+ * registered for. Oxy then verifies, itself, that the target has linked the old
+ * account as an alias and that a FRESH fetch of the old actor names the target
+ * as `movedTo` — see `services/federationMove.service.ts` for what is applied.
+ *
+ * Idempotent on `activityId`: a replay answers 200 with `replayed: true` and
+ * the first application's counts. Refusals: 400 invalid target, 404 unknown
+ * local account, 422 no alias / `movedTo` mismatch, 502 old actor unreachable.
+ */
+router.post(
+  '/move',
+  serviceAuthMiddleware,
+  validate({ body: federationMoveSchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
+    assertFederationScope(req);
+    const body = req.body as FederationMoveBody;
+    try {
+      const outcome = await applyFederationMove({
+        activityId: body.activityId,
+        oldActorUri: body.oldActorUri,
+        targetActorUri: body.targetActorUri,
+        requestedByApplicationId: req.serviceApp?.appId ?? null,
+        relayHosts: await getAllowedDomainsForRequest(req),
+      });
+      sendSuccess(res, outcome);
+    } catch (error) {
+      if (error instanceof FederationMoveRefused) {
+        logger.info('federation/move refused', { reason: error.reason, oldActorUri: body.oldActorUri, appId: req.serviceApp?.appId });
+        throw new ApiError(error.status, error.message, error.reason);
+      }
+      throw error;
+    }
   }),
 );
 

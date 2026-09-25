@@ -1,6 +1,7 @@
 /**
  * User Management Methods Mixin
  */
+import type { CreateOxyNotificationRequest } from '@oxy.so/contracts';
 import type {
   User,
   Notification,
@@ -1099,9 +1100,13 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
     }
 
     /**
-     * Create notification
+     * Create a notification (`POST /notifications`; the API requires a service
+     * token whose application holds `notifications:write`). `type` is one of
+     * `OXY_NOTIFICATION_TYPES` from `@oxy.so/contracts` — `system` for a message
+     * from an Oxy service about the recipient's own account, with the recipient
+     * as actor and their profile as the entity.
      */
-    async createNotification(data: Partial<Notification>): Promise<Notification> {
+    async createNotification(data: CreateOxyNotificationRequest | Partial<Notification>): Promise<Notification> {
       try {
         return await this.makeRequest<Notification>('POST', '/notifications', data, { cache: false });
       } catch (error) {

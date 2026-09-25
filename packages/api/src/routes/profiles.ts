@@ -27,6 +27,7 @@ import {
   UnauthorizedError,
 } from '../utils/error';
 import { userService } from '../services/user.service';
+import { aliasesForUser } from '../services/linkedAccounts/linkedAccounts.service';
 import { canonicalExternalUserIdsQuery, canonicalExternalUserMapQuery, expandEquivalentUserIds, getEquivalentUserGroups, lookupExternalIdentity, resolveCanonicalUserId, resolveExternalIdentityUsers } from '../services/externalIdentityRegistry.service';
 import { federationService, isFediverseHandle } from '../services/federation.service';
 import { validate } from '../middleware/validate';
@@ -412,7 +413,13 @@ router.get(
     }
 
     logger.debug('GET /profiles/username/:username', { username });
-    sendSuccess(res, await userService.withExternalIdentities(response));
+    // `alsoKnownAs`: the actor URIs of the user's live, OAuth-proven ActivityPub
+    // links (`docs/identity/linked-accounts.md`). This is the
+    // field relying apps (Mention) feed into the shared actor builder, so their
+    // actors publish the same aliases Oxy's own does. Always present, possibly
+    // empty; it is already public on the actor document.
+    const withIdentities = await userService.withExternalIdentities(response);
+    sendSuccess(res, { ...withIdentities, alsoKnownAs: await aliasesForUser(targetId) });
   })
 );
 

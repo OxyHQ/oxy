@@ -10,7 +10,7 @@ import { resolutionFailure, safeActorSelector, type ActorProfileResult } from '.
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
 import { eq } from 'drizzle-orm';
-import { signRequest, canonicalFederationHost, federatedUsernameFromUpstreamUrl } from '@oxy.so/federation';
+import { signRequest, canonicalFederationHost, federatedUsernameFromUpstreamUrl, normalizeAlsoKnownAs } from '@oxy.so/federation';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
 import { federationKeyPairs } from '../db/schema/federationKeyPairs';
@@ -549,6 +549,8 @@ interface BuildActorOptions {
   avatar?: string;
   /** Account graph kind → ActivityPub actor type (per-user actors only). */
   kind?: AccountKind;
+  /** The account's verified aliases (per-user actors only); emitted when non-empty. */
+  alsoKnownAs?: readonly string[];
 }
 
 /**
@@ -585,6 +587,7 @@ function actorTypeForKind(kind: AccountKind | undefined): string {
  */
 function buildActor(opts: BuildActorOptions): Record<string, unknown> {
   const { domain, username, publicKeyPem, keyId, name, summary, avatar, kind } = opts;
+  const aliases = normalizeAlsoKnownAs(opts.alsoKnownAs);
   const base = `https://${domain}/ap`;
 
   if (username === null) {
@@ -613,10 +616,18 @@ function buildActor(opts: BuildActorOptions): Record<string, unknown> {
 
   const actorUrl = `${base}/users/${username}`;
   return {
-    '@context': [
-      'https://www.w3.org/ns/activitystreams',
-      'https://w3id.org/security/v1',
-    ],
+    // The alias term is declared only when an alias is emitted, so an actor
+    // without aliases keeps exactly the context it always had.
+    '@context': aliases.length > 0
+      ? [
+        'https://www.w3.org/ns/activitystreams',
+        'https://w3id.org/security/v1',
+        { alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' } },
+      ]
+      : [
+        'https://www.w3.org/ns/activitystreams',
+        'https://w3id.org/security/v1',
+      ],
     id: actorUrl,
     type: actorTypeForKind(kind),
     preferredUsername: username,
@@ -638,6 +649,7 @@ function buildActor(opts: BuildActorOptions): Record<string, unknown> {
       owner: actorUrl,
       publicKeyPem,
     },
+    ...(aliases.length > 0 ? { alsoKnownAs: aliases } : {}),
   };
 }
 
@@ -728,6 +740,8 @@ export interface ActorSourceUser {
   bio?: string | null;
   description?: string | null;
   kind?: AccountKind | null;
+  /** Verified aliases (`aliasesForUser`), published as the actor's `alsoKnownAs`. */
+  alsoKnownAs?: readonly string[] | null;
 }
 
 /**
@@ -764,6 +778,7 @@ export async function getUserActor(user: ActorSourceUser, domain: string = AP_DO
     // caller reading through a nullable projection needs no laundering of its
     // own. `undefined` is what `actorTypeForKind` reads as "default to Person".
     kind: user.kind ?? undefined,
+    alsoKnownAs: user.alsoKnownAs ?? undefined,
   });
 }
 
@@ -932,6 +947,27 @@ class FederationService {
   async fetchActorProfile(actorUri: string, acctHint?: string): Promise<ExternalActorProfile | null> {
     const result = await this.fetchActorProfileResult(actorUri, acctHint);
     return result.ok ? result.profile : null;
+  }
+
+  /**
+   * Fetch an actor document FRESH — never from a cache — through the signed,
+   * DNS-pinned client, and return it raw. `null` unless the fetch succeeded and
+   * the document's `id` is exactly the requested URI — a redirect to another
+   * actor does not speak for this one. Used where a decision rests on what the
+   * actor says NOW, such as a Move's `movedTo`.
+   */
+  async fetchActorDocument(actorUri: string): Promise<Record<string, unknown> | null> {
+    try {
+      const res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0]);
+      if (!res || res.status < 200 || res.status >= 300) {
+        res?.response.destroy();
+        return null;
+      }
+      const actor = await readJsonLimited<Record<string, unknown>>(res.response);
+      return actor?.id === actorUri ? actor : null;
+    } catch {
+      return null;
+    }
   }
 
   /** Internal diagnostics preserve the public nullable profile contract. */

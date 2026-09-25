@@ -222,6 +222,16 @@ export interface BuildLocalActorParams {
   profileHeaderImage?: string | null;
   publicKey: { keyId: string; publicKeyPem: string };
   createdAt?: string | null;
+  /**
+   * The actor URIs this account is ALSO known as — the ActivityPub
+   * `alsoKnownAs` a Mastodon `Move` checks before it lets followers follow the
+   * account here. Oxy derives it from the user's live, ownership-proven linked
+   * accounts; the builder only publishes it. Omitted from the document when
+   * absent or empty (an empty array is not a claim worth making), de-duplicated,
+   * and restricted to absolute `https:` URIs, because a receiver dereferences
+   * each one.
+   */
+  alsoKnownAs?: readonly string[] | null;
 }
 
 /**
@@ -272,6 +282,28 @@ function buildActorImage(
 }
 
 /**
+ * The publishable subset of an `alsoKnownAs` input: absolute `https:` URIs,
+ * first occurrence wins, input order kept. Exported so every actor builder
+ * (Oxy's own included) applies the same rule.
+ */
+export function normalizeAlsoKnownAs(values: readonly string[] | null | undefined): string[] {
+  if (!values) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    if (typeof value !== 'string' || seen.has(value)) continue;
+    try {
+      if (new URL(value).protocol !== 'https:') continue;
+    } catch {
+      continue;
+    }
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+/**
  * Build the per-instance local-actor builder. Bind it once with an app's domain +
  * media resolver; call the returned function per user.
  */
@@ -302,6 +334,11 @@ export function createLocalActorBuilder(config: LocalActorBuilderConfig): LocalA
         publicKeyPem: publicKey.publicKeyPem,
       },
     };
+
+    const aliases = normalizeAlsoKnownAs(params.alsoKnownAs);
+    if (aliases.length > 0) {
+      actorObject.alsoKnownAs = aliases;
+    }
 
     // `published` (account creation date) is advertised when the API provides it.
     if (createdAt) {

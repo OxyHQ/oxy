@@ -1,5 +1,5 @@
 import { ConflictError } from '../utils/error';
-import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { canonicalUserRedirects, externalIdentities, externalIdentityActors, externalIdentityClaims } from '../db/schema/externalIdentities';
 import { users } from '../db/schema/users';
@@ -197,6 +197,37 @@ async function mergeUsers(tx: Transaction, from: string, to: string) {
     }
   }
   await tx.update(externalIdentities).set({ userId: to }).where(eq(externalIdentities.userId, from));
+  await tx.update(canonicalUserRedirects).set({ canonicalUserId: to }).where(eq(canonicalUserRedirects.canonicalUserId, from));
+  await tx.insert(canonicalUserRedirects).values({ userId: from, canonicalUserId: to }).onConflictDoNothing();
+}
+
+/**
+ * A remote account MOVED to a LOCAL Oxy account, which
+ * `services/federationMove.service.ts` has already proven (the local account's
+ * live alias names the old actor, and a fresh fetch of the old actor names the
+ * local one as `movedTo`). Runs inside that caller's transaction.
+ *
+ * Narrower than {@link mergeUsers} on purpose: only blocks and restrictions
+ * OTHER users hold against the old account are carried to the target (as
+ * Mastodon does — you blocked that person, you keep them blocked), and the
+ * redirect is recorded. Follows move separately
+ * (`followCommand.moveAccountFollowers`); the old account's OWN blocks, follows
+ * and identity rows stay where they are.
+ */
+export async function applyVerifiedMoveRedirect(tx: Transaction, input: { fromUserId: string; toUserId: string }): Promise<void> {
+  const { fromUserId: from, toUserId: to } = input;
+  const candidates = await tx.select({ id: users.id, type: users.type }).from(users).where(or(eq(users.id, from), eq(users.id, to))).for('update');
+  if (candidates.find(user => user.id === from)?.type !== 'federated' || candidates.find(user => user.id === to)?.type !== 'local') {
+    throw new Error('A verified Move converges a federated account into a local one');
+  }
+  const carriedBlocks = await tx.select().from(blocks).where(and(eq(blocks.blockedId, from), ne(blocks.userId, to)));
+  if (carriedBlocks.length) {
+    await tx.insert(blocks).values(carriedBlocks.map(({ id: _id, ...row }) => ({ ...row, blockedId: to }))).onConflictDoNothing();
+  }
+  const carriedRestrictions = await tx.select().from(restrictions).where(and(eq(restrictions.restrictedId, from), ne(restrictions.userId, to)));
+  if (carriedRestrictions.length) {
+    await tx.insert(restrictions).values(carriedRestrictions.map(({ id: _id, ...row }) => ({ ...row, restrictedId: to }))).onConflictDoNothing();
+  }
   await tx.update(canonicalUserRedirects).set({ canonicalUserId: to }).where(eq(canonicalUserRedirects.canonicalUserId, from));
   await tx.insert(canonicalUserRedirects).values({ userId: from, canonicalUserId: to }).onConflictDoNothing();
 }

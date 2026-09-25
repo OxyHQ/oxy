@@ -85,6 +85,8 @@ import chainsRoutes from './routes/chains';
 import identityBackupRoutes from './routes/identityBackup';
 import identityWebEnvelopeRoutes from './routes/identityWebEnvelope';
 import identityMoveRoutes from './routes/identityMove';
+import linkedAccountsRoutes from './routes/linkedAccounts';
+import { aliasesForUser } from './services/linkedAccounts/linkedAccounts.service';
 import identityProofRoutes from './routes/identityProof';
 import identityRecoveryRoutes from './routes/identityRecovery';
 import civicRoutes from './routes/civic';
@@ -748,6 +750,12 @@ app.use('/families', familyRoutes);
 app.use('/capabilities', userRateLimiter, capabilityRoutes);
 app.use('/devices', userRateLimiter, devicesRouter);
 app.use('/security', userRateLimiter, securityRoutes);
+// Linked external accounts (Mastodon-API, Bluesky) proven by OAuth. The router
+// owns its auth per route: user session for start/list/revoke, a service token
+// with `linked-accounts:read` for `/by-user/:userId`, and NONE for the OAuth
+// callback, which the spent challenge row authenticates (a top-level redirect
+// from the other network carries no Oxy bearer). Its own limiters live inside.
+app.use('/linked-accounts', userRateLimiter, linkedAccountsRoutes);
 app.use('/subscription', userRateLimiter, subscriptionRoutes);
 app.use('/email/proxy', emailProxyRoutes); // public, no auth — must be before /email
 app.use('/email/inbound', emailInboundRoutes); // Cloudflare Email Routing webhook — must be before /email
@@ -880,6 +888,7 @@ const AP_DOMAIN = process.env.FEDERATION_DOMAIN || 'oxy.so';
 async function findFederatableUserByUsername(username: string) {
   const [row] = await getDb()
     .select({
+      id: users.id,
       username: users.username,
       nameFirst: users.nameFirst,
       nameLast: users.nameLast,
@@ -945,6 +954,7 @@ app.get('/ap/users/:username', async (req: any, res: Response) => {
       bio: user.bio,
       description: user.description,
       kind: user.kind,
+      alsoKnownAs: await aliasesForUser(user.id),
     });
     if (!actor) return res.status(500).json({ error: 'Failed to build actor' });
 

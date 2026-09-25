@@ -160,6 +160,14 @@ const BANNED_NAME_PATTERNS = [
 const DECLARED_FREE_SHAPED_COLUMNS = [
   // ---- external account identity evidence ------------------------------------
   { table: 'external_identities', column: 'evidenceLinks', holds: 'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings, each at most 2048 characters; no actor document, biography, inference request or response' },
+  {
+    table: 'linked_account_oauth_challenges',
+    column: 'providerState',
+    holds:
+      "the atproto OAuth client library's per-flow state for one linking attempt: authorization "
+      + 'server issuer, client auth method, PKCE verifier and ephemeral DPoP JWK. No token, no '
+      + 'request body; wiped when the challenge is spent and the row lives at most ten minutes',
+  },
   { table: 'external_identity_actors', column: 'evidenceLinks', holds: 'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings for this transport, each at most 2048 characters; no source payload or inference content' },
   // ---- OTA updates ------------------------------------------------------------
   { table: 'app_updates', column: 'extra', holds: 'the Expo manifest `extra` block, embedded verbatim in the signed manifest' },

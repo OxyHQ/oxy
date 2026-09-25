@@ -15,7 +15,7 @@ requireText('.github/workflows/release-external-identity-packages.yml', [
   'node .github/scripts/release-external-identity-packages.mjs publish',
 ]);
 requireText('.github/scripts/release-external-identity-packages.mjs', [
-  "version: '1.3.0'", "version: '2.0.0'", "reference !== 'refs/heads/main'",
+  "version: '1.5.0'", "version: '2.1.0'", "reference !== 'refs/heads/main'",
   'bun run build && bun pm pack', 'releaseDecision(await published(release), artifact.integrity)',
   "'--ignore-scripts'", "process.env.DRY_RUN === 'true'", "run('npm', ['whoami'",
   "run('git', ['ls-remote', 'origin', 'refs/heads/main'])",

@@ -35,6 +35,7 @@ import { OxyServicesNodesMixin } from './OxyServices.nodes';
 import { OxyServicesFollowGraphMixin } from './OxyServices.followGraph';
 import { OxyServicesInferenceMixin } from './OxyServices.inference';
 import { OxyServicesDeviceBootMixin } from './OxyServices.deviceBoot';
+import { OxyServicesLinkedAccountsMixin } from './OxyServices.linkedAccounts';
 
 /**
  * Instance shape of every mixin in the pipeline, intersected. The runtime
@@ -74,6 +75,7 @@ type AllMixinInstances =
   & InstanceType<ReturnType<typeof OxyServicesFollowGraphMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesInferenceMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesDeviceBootMixin<typeof OxyServicesBase>>>
+  & InstanceType<ReturnType<typeof OxyServicesLinkedAccountsMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesUtilityMixin<typeof OxyServicesBase>>>;
 
 /**
@@ -164,6 +166,10 @@ const MIXIN_PIPELINE: MixinFunction[] = [
     // Device-first token mint: the client half of the zero-cookie transport
     // (`mintFromDeviceSecret` → `POST /session/device/token`).
     OxyServicesDeviceBootMixin,
+
+    // Linked external accounts (Mastodon-API, Bluesky) proven by OAuth; the
+    // service read uses the auth mixin's `makeServiceRequest`.
+    OxyServicesLinkedAccountsMixin,
 
     // Device-to-device identity transfer ("add a device"): E2E-encrypted key
     // clone over a short-lived relay (b3 Feature 2).

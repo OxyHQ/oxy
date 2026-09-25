@@ -43,6 +43,7 @@ import type { AddressInfo } from 'net';
 
 const mockGetUserPublicKey = jest.fn();
 const mockSignWithKeyId = jest.fn();
+const mockResolveExternalIdentity = jest.fn();
 
 /** The credential `serviceAuthMiddleware` presents — set per test. */
 let currentServiceApp: Record<string, unknown> | undefined;
@@ -62,6 +63,9 @@ jest.mock('../../services/federation.service', () => ({
   __esModule: true,
   getUserPublicKey: (...args: unknown[]) => mockGetUserPublicKey(...args),
   signWithKeyId: (...args: unknown[]) => mockSignWithKeyId(...args),
+  federationService: {
+    resolveExternalIdentity: (...args: unknown[]) => mockResolveExternalIdentity(...args),
+  },
 }));
 
 jest.mock('../../services/securityActivityService', () => ({ __esModule: true, default: {} }));
@@ -535,5 +539,47 @@ describe('GET /federation/public-key/:username', () => {
 
     expect(res.status).toBe(200);
     expect(mockGetUserPublicKey).toHaveBeenCalledWith('bob', `www.${MENTION_DOMAIN}`);
+  });
+});
+
+describe('identity lookup/resolve — federation:identities:resolve without federation:write', () => {
+  const lookupBody = { identifiers: ['https://mastodon.example/users/nobody'] };
+  const resolveBody = { actorUri: 'https://mastodon.example/users/nobody' };
+
+  it('accepts the narrow scope on both routes', async () => {
+    presentCredential('move-app', ['federation:identities:resolve']);
+    const lookup = await requestJson('POST', '/federation/identities/lookup', lookupBody);
+    expect(lookup.status).toBe(200);
+    expect(lookup.body.data?.identities).toEqual([
+      { identifier: lookupBody.identifiers[0], userId: null, externalIdentities: [], redirectedUserIds: [] },
+    ]);
+
+    // Past the scope gate the route asks the identity authority; "not
+    // verifiable" is its 404, which proves the request got through.
+    mockResolveExternalIdentity.mockResolvedValueOnce(null);
+    const resolve = await requestJson('POST', '/federation/identities/resolve', resolveBody);
+    expect(resolve.status).toBe(404);
+    expect(mockResolveExternalIdentity).toHaveBeenCalledWith({ actorUri: resolveBody.actorUri, handle: undefined, transportAcct: undefined });
+  });
+
+  it('refuses a files:write-only token on both routes', async () => {
+    presentCredential('move-app', ['files:write']);
+    expect((await requestJson('POST', '/federation/identities/lookup', lookupBody)).status).toBe(403);
+    expect((await requestJson('POST', '/federation/identities/resolve', resolveBody)).status).toBe(403);
+    expect(mockResolveExternalIdentity).not.toHaveBeenCalled();
+  });
+
+  it('keeps accepting federation:write', async () => {
+    presentCredential('mention-app', ['federation:write']);
+    expect((await requestJson('POST', '/federation/identities/lookup', lookupBody)).status).toBe(200);
+    mockResolveExternalIdentity.mockResolvedValueOnce(null);
+    expect((await requestJson('POST', '/federation/identities/resolve', resolveBody)).status).toBe(404);
+  });
+
+  it('does not let the narrow scope sign', async () => {
+    presentCredential('move-app', ['federation:identities:resolve']);
+    const res = await requestJson('POST', '/federation/sign', { keyId: MENTION_KEY_ID, signingString: SIGNING_STRING });
+    expect(res.status).toBe(403);
+    expect(mockSignWithKeyId).not.toHaveBeenCalled();
   });
 });

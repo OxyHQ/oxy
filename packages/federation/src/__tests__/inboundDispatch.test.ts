@@ -29,7 +29,9 @@ function makeRig(overrides: {
   actorOxyUserIdForUndo?: string | null;
   validate?: (activity: Record<string, unknown>) => InboundActivityValidation;
   blockedHosts?: string[];
+  withMoveHandler?: boolean;
 } = {}) {
+  const moves: Array<{ activityId: string; oldActorUri: string; targetActorUri: string }> = [];
   const bridgeFollowCalls: Array<[string, string]> = [];
   const bridgeUnfollowCalls: Array<[string, string]> = [];
   const acceptsSent: Array<{ localOxyUserId: string; localUsername: string; followActivityId: string; remoteActorUri: string }> = [];
@@ -106,11 +108,19 @@ function makeRig(overrides: {
     onContentActivity: async (activity, verifiedActorUri) => {
       contentActivities.push({ type: activity.type, verifiedActorUri });
     },
+    ...(overrides.withMoveHandler === false
+      ? {}
+      : {
+          onMove: async (move: { activityId: string; oldActorUri: string; targetActorUri: string }) => {
+            moves.push(move);
+          },
+        }),
     logger: { debug: () => {}, info: () => {}, warn: () => {} },
   };
 
   return {
     dispatcher: createInboundDispatcher(config),
+    moves,
     validatedActivities,
     bridgeFollowCalls,
     bridgeUnfollowCalls,
@@ -246,6 +256,56 @@ describe('inbound Accept / Reject', () => {
       REMOTE_ACTOR,
     );
     expect(rig.outboundRejected).toEqual([[REMOTE_ACTOR, 'follow-1']]);
+  });
+});
+
+describe('Move → onMove', () => {
+  const TARGET = 'https://mention.earth/ap/users/bob';
+  const move = (extra: Record<string, unknown> = {}) => ({
+    id: `${REMOTE_ACTOR}#moves/1`,
+    type: 'Move',
+    actor: REMOTE_ACTOR,
+    object: REMOTE_ACTOR,
+    target: TARGET,
+    ...extra,
+  });
+
+  it('hands a well-formed self-Move to the app', async () => {
+    const rig = makeRig();
+    await rig.dispatcher.processInboxActivity(move(), REMOTE_ACTOR);
+    expect(rig.moves).toEqual([{ activityId: `${REMOTE_ACTOR}#moves/1`, oldActorUri: REMOTE_ACTOR, targetActorUri: TARGET }]);
+    expect(rig.contentActivities).toHaveLength(0);
+  });
+
+  it('accepts embedded object/target references', async () => {
+    const rig = makeRig();
+    await rig.dispatcher.processInboxActivity(move({ object: { id: REMOTE_ACTOR }, target: { id: TARGET } }), REMOTE_ACTOR);
+    expect(rig.moves).toHaveLength(1);
+  });
+
+  it.each([
+    ['a Move of someone else', { object: 'https://remote.example/users/carol' }],
+    ['an actor that is not the signer', { actor: 'https://remote.example/users/carol' }],
+    ['no target', { target: undefined }],
+    ['a non-https target', { target: 'http://mention.earth/ap/users/bob' }],
+    ['a target equal to the mover', { target: REMOTE_ACTOR }],
+    ['no activity id', { id: undefined }],
+  ])('drops %s', async (_label, extra) => {
+    const rig = makeRig();
+    await rig.dispatcher.processInboxActivity(move(extra), REMOTE_ACTOR);
+    expect(rig.moves).toHaveLength(0);
+  });
+
+  it('drops a Move signed by a different actor than it names', async () => {
+    const rig = makeRig();
+    await rig.dispatcher.processInboxActivity(move(), 'https://relay.example/actor');
+    expect(rig.moves).toHaveLength(0);
+  });
+
+  it('drops a Move when the app registered no handler', async () => {
+    const rig = makeRig({ withMoveHandler: false });
+    await expect(rig.dispatcher.processInboxActivity(move(), REMOTE_ACTOR)).resolves.toBeUndefined();
+    expect(rig.contentActivities).toHaveLength(0);
   });
 });
 

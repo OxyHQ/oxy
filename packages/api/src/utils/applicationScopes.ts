@@ -156,6 +156,10 @@
  *   consuming app's resource server needs has to exist here or it can never
  *   reach a token. A per-application scope namespace would be the better
  *   long-run answer; until one exists, a resource scope lands here.
+ * - `linked-accounts:read` permits a service credential to read the external
+ *   accounts ANY Oxy user has proven they own
+ *   (`GET /linked-accounts/by-user/:userId`). PRIVILEGED — see
+ *   {@link PRIVILEGED_APPLICATION_SCOPES}.
  */
 export const APPLICATION_SCOPES = [
   'files:read',
@@ -203,6 +207,9 @@ export const APPLICATION_SCOPES = [
   'acting-as:offline',
   'accounts:act-as-session',
   'podcasts:write',
+  'linked-accounts:read',
+  'files:user-media:write',
+  'federation:identities:resolve',
 ] as const;
 
 export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
@@ -304,6 +311,35 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   is a decision and not an omission — the reasoning is recorded on that
  *   constant, because the question it asks is answered on a different lane.
  *
+ * - `linked-accounts:read` reads, for an arbitrary user, which Mastodon and
+ *   Bluesky accounts that person has proven they own. That is cross-tenant
+ *   identity data a self-granting owner could otherwise harvest to correlate
+ *   pseudonymous accounts with Oxy accounts, so only staff grant it — to the
+ *   first-party migration service (Oxy Move) that imports from those accounts.
+ *   It is deliberately NOT consent-required: it is read off a SERVICE TOKEN on
+ *   a lane that never meets the OAuth consent screen, and the user's decision
+ *   is the act of linking itself, revocable per account with
+ *   `DELETE /linked-accounts/:id`.
+ * - `files:user-media:write` uploads a durable public file OWNED BY an arbitrary
+ *   local user (`POST /assets/service/user-media`, `x-owner-user-id`). That is
+ *   act-as authority over another person's file space, so it is staff-only. It
+ *   exists so the migration service (Oxy Move) can import a user's media
+ *   without holding `federation:write`, which would also let it sign
+ *   ActivityPub requests as anyone. It is NOT a widening of `files:write`
+ *   (own-tenant files): neither implies the other.
+ * - `federation:identities:resolve` maps remote accounts to Oxy user ids
+ *   (`POST /federation/identities/lookup`, `POST /federation/identities/resolve`)
+ *   WITHOUT the rest of `federation:write` — no HTTP-Signature signing as a user,
+ *   no follow/actor mutation, no domain purge. `lookup` only reads the registry.
+ *   `resolve` is not read-only: on a miss it fetches the remote actor through
+ *   Oxy's signed, DNS-pinned client, verifies it, and creates or refreshes the
+ *   FEDERATED shadow user and its registry rows — the same thing a public
+ *   profile lookup of an unknown handle already triggers. That write is Oxy's
+ *   own identity authority acting on source-verified data, never caller-supplied
+ *   profile fields, which is why it is acceptable here. Privileged because a
+ *   self-granting owner could otherwise drive unbounded remote fetches and
+ *   shadow-user creation.
+ *
  * All non-privileged scopes in {@link APPLICATION_SCOPES} authorise an app only
  * over its OWN resources (files, models, webhooks, public user reads) or over
  * the subject user's own content under that user's explicit grant
@@ -331,6 +367,9 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'capability-tickets:issue',
   'capability-audit:write',
   'capability-events:publish',
+  'linked-accounts:read',
+  'files:user-media:write',
+  'federation:identities:resolve',
 ] as const satisfies readonly ApplicationScope[];
 
 /**
