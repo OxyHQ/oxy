@@ -472,6 +472,16 @@ The flow, from inside an assistant:
    `McpPrincipal.activeAccountId`, and `createCatalogMcpHttpService` binds the
    app's authorization decision to that, not to `accountId`.
 
+5. `POST /auth/mcp/oauth/connections/viewer-graph` (service credential, body
+   `{ token }`) answers `{ account_id, graph }`: the follows, mutuals, blocks and
+   restrictions of the connection's ACTIVE account, the one introspection
+   reports. This is how a resource server enforces the served account's privacy
+   on an MCP request. `GET /users/me/graph` cannot: it never discloses blocks or
+   restrictions to a service credential, because its `X-Oxy-User-Id` is a bare
+   header any `user:read` service could set. Here the live token is the proof,
+   it must be for a resource the calling application registered, and Oxy picks
+   the account. Refuse a graph whose `account_id` is not the account you serve.
+
 Revocation needs no special path: a member revokes its own grant, `revokeGrant`
 retires its memberships, and a selection that is no longer usable falls back to
 the origin account on the next introspection.
