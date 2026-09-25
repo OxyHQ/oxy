@@ -78,6 +78,7 @@ import {
   type AttestationVerifier,
 } from '../workloadAttestation.service';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
+import { logger } from '../../utils/logger';
 
 const SUBJECT = `arn:aws:sts::237343248947:assumed-role/oxy-test-${randomUUID()}/task`;
 
@@ -262,6 +263,23 @@ describe('workload-identity mint', () => {
     await expect(
       exchangeWorkloadAttestation({ provider: 'aws-iam', nonce, attestation }),
     ).rejects.toMatchObject({ reason: 'unknown_challenge' });
+  });
+
+  it('logs an unknown-challenge refusal with its reason, never the nonce', async () => {
+    const warn = jest.spyOn(logger, 'warn');
+    const nonce = 'never-issued-nonce-for-the-log-test';
+    try {
+      await expect(
+        exchangeWorkloadAttestation({ provider: 'aws-iam', nonce, attestation: { subject: SUBJECT, answersNonce: nonce } }),
+      ).rejects.toMatchObject({ reason: 'unknown_challenge' });
+      expect(warn).toHaveBeenCalledWith('[WorkloadIdentity] attestation refused', expect.objectContaining({
+        provider: 'aws-iam',
+        reason: 'unknown_challenge',
+      }));
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(nonce);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('refuses a nonce nobody issued', async () => {
