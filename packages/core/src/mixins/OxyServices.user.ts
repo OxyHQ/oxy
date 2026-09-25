@@ -156,6 +156,14 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
     declare _serviceApiSecret: string | null;
 
     /**
+     * Whether this process can mint a service token by attesting what it is
+     * (ADR 0026), defined on the auth mixin. A host with no key pair that CAN
+     * attest is a first-party backend exactly like one with a key pair, and
+     * `getUsersByIds` must treat it as one.
+     */
+    declare _canUseWorkloadIdentity: () => Promise<boolean>;
+
+    /**
      * Get profile by username.
      *
      * @param username - The profile's username.
@@ -464,8 +472,10 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
      * caller, and returns the SAME public `{ data: PublicUserProfile[] }`
      * payload (canonical `name.displayName` + `_count`) in every case — no
      * viewer-specific fields. This method picks the path automatically:
-     * - **Service-configured host (backend):** when `configureServiceAuth(apiKey,
-     *   apiSecret)` has been called, the chunk is fetched via `makeServiceRequest`
+     * - **Service host (backend):** when `configureServiceAuth(apiKey,
+     *   apiSecret)` has been called, OR the process can attest its workload
+     *   identity (ADR 0026 — an ECS task with no key pair), the chunk is fetched
+     *   via `makeServiceRequest`
      *   (attaches `Authorization: Bearer <serviceToken>`). This is the
      *   server-to-server feed/notification hydration path (e.g. Mention's
      *   `PostHydrationService`) and is unchanged.
@@ -500,10 +510,17 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
         chunks.push(uniqueIds.slice(i, i + USERS_BY_IDS_CHUNK_SIZE));
       }
 
-      // A backend that called configureServiceAuth() uses the bearer-service
-      // path; any other caller (browser / RN with a user session) uses the
-      // user-bearer path.
-      const useServiceAuth = Boolean(this._serviceApiKey && this._serviceApiSecret);
+      // A backend uses the bearer-service path; any other caller (browser / RN
+      // with a user session) uses the user-bearer path. "A backend" means one
+      // that can get a service token at all — a key pair, OR a task role it can
+      // attest. Asking only about the key pair sent every attested backend down
+      // the user path with no bearer: an anonymous request, charged to the
+      // shared NAT address's per-IP budget and slowed by its 500ms penalty.
+      // Measured from Mention's task (2026-09-25): 520ms per anonymous chunk
+      // against 20ms with the service token, enough to put its 1.5s hydration
+      // deadline out of reach on every cache miss.
+      const useServiceAuth = Boolean(this._serviceApiKey && this._serviceApiSecret)
+        || await this._canUseWorkloadIdentity();
 
       // Run chunks concurrently; a single chunk failure must not sink the rest.
       const settled = await Promise.all(
