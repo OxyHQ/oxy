@@ -204,6 +204,58 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment) {
   );
 }
 
+// ── The sharded API suite: matrix, merge, and one-off checks ───────────────
+{
+  // The API suite is a matrix job whose merge job needs it. One failing shard
+  // makes the whole matrix `failure`, and GitHub then skips the merge. The gate
+  // must name the shard failure — and must not ALSO blame the merge for a skip
+  // it had no say in.
+  const root = createFixture();
+  const needs = needsFor(root, { 'api-test': 'failure', 'api-coverage': 'skipped' });
+  expectVerdict('a-failed-shard-fails-the-gate', root, needs, 1, '`api-test` failed.');
+  let output = '';
+  try {
+    execFileSync('bun', [checkScript], {
+      cwd: root,
+      env: { ...process.env, NEEDS_JSON: JSON.stringify(needs) },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
+  }
+  if (output.includes('`api-coverage` was skipped')) {
+    failures.push(`a-failed-shard-fails-the-gate: the merge's inherited skip was reported as its own fault.\n${output}`);
+  }
+}
+
+{
+  // A merge that skipped while every shard passed has no excuse: the floors
+  // were never enforced.
+  const root = createFixture();
+  expectVerdict(
+    'a-coverage-merge-skipped-without-cause-fails-the-gate',
+    root,
+    needsFor(root, { 'api-coverage': 'skipped' }),
+    1,
+    '`api-coverage` was skipped, but it declares no `if:`'
+  );
+}
+
+for (const job of ['api-checks', 'api-test', 'api-coverage']) {
+  // Each of the three is required on its own: dropping any one from `needs:`
+  // leaves the lint/guards, a shard, or the floors unable to block a merge.
+  const root = createFixture();
+  edit(root, `${job}-must-be-a-dependency`, (yaml) => yaml.replace(`      - ${job}\n`, ''));
+  expectVerdict(
+    `${job}-must-be-a-dependency`,
+    root,
+    needsFor(root, { [job]: undefined }),
+    1,
+    `are not dependencies of \`ci-complete\`: ${job}`
+  );
+}
+
 {
   const root = createFixture();
   expectVerdict(

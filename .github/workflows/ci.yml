@@ -56,18 +56,133 @@ jobs:
           node scripts/test-check-kaana-catalogue-bootstrap-workflow.mjs
           node scripts/check-kaana-catalogue-bootstrap-workflow.mjs
 
-  # API Package Tests
-  api-test:
-    name: API Tests
+  # The API package's one-off checks. They used to run inside `api-test` before
+  # the suite; now that the suite is a matrix they would otherwise run once per
+  # shard, so they live here and run exactly once, beside the shards rather
+  # than in front of them.
+  api-checks:
+    name: API Checks
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # A backstop over the step that can run long (the 10m dependency-closure
+    # cap) plus the fixed steps at their observed maxima (checkout/bun/node 19s,
+    # install 30s, guards 10s, build 70s, lint 20s).
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --minimum-release-age=0
+      - name: Verify API image production dependency closure
+        timeout-minutes: 10
+        run: node scripts/test-api-runtime-dependencies.mjs
+      # Before the builds and the suite, and needing neither: it reads the tracked
+      # file listing. The backfill, 82 Mongoose models and the mongoose dependency
+      # were removed on 2026-08-08 and `oxy-prod` is gone, so a Mongo reference is
+      # now always a mistake — and it would arrive as a hoisted transitive or a
+      # stray env name, neither of which breaks a build.
+      - name: Guard against MongoDB returning
+        run: bun run validate:no-mongo
+
+      # Same shape, same reason, one layer up. The switcher's flat account list
+      # was replaced by the server's device directory (ADR 0002, issue #937), and
+      # it would come back the way the Mongo references would: one surface
+      # reaching for `listAccounts()` because it is right there, one hook
+      # flattening the grouped rows. None of that fails a build on its own.
+      - name: Guard against the flat account list returning
+        run: bun run validate:no-flat-account-list
+
+      # AGENTS.md is prepended to EVERY agent session, so its bytes are paid on
+      # every task forever. It reached 152 KB here by accretion — a mechanism
+      # write-up appended by the branch that shipped it, none wrong on its own
+      # and none visible except in the sum. Same family as the two guards above:
+      # nothing breaks, which is why it survives. Reads the tracked file listing
+      # and nothing else, and covers the create-oxy-app template too, so every
+      # scaffolded app is born bounded.
+      - name: Guard the AGENTS.md budget
+        run: bun run validate:agents-md
+
+      - name: Guard exact metadata-only Inbox Daily Brief counts
+        run: |
+          node scripts/test-check-inbox-daily-brief.mjs
+          node scripts/check-inbox-daily-brief.mjs
+
+      # Type-aware lint (`parserOptions.project`) resolves the same workspace
+      # packages the suite does, so it runs after the same builds it always has.
+      - name: Build core SDK, federation, MCP + db (for lint resolution)
+        run: |
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
+          bun run --filter @oxy.so/federation build
+          bun run --filter @oxy.so/mcp build
+          bun run --filter @oxy.so/db build
+
+      - name: Run linter
+        run: bun run lint
+        working-directory: ./packages/api
+
+      # The tests of the merge that `api-coverage` runs over the shard reports.
+      - name: Test native coverage gate
+        run: bun run test:coverage-merge
+        working-directory: ./packages/api
+
+  # API Package Tests
+  #
+  # One shard of the suite per runner. Until 2026-09-25 this was ONE job that ran
+  # three shards back to back on one runner (~45m of tests, ~48m of job), which
+  # made it the whole critical path of `CI complete` — every other job finishes
+  # in about two minutes — and, with main landing through the merge queue, the
+  # time for anything to reach main.
+  #
+  # The shards could not share a runner and still cannot: the one stable Jest
+  # process can reach Node's default 4-GiB old-space limit (run 33581098336:
+  # 4065.5 MiB before the fatal GC after 202 suites), maxWorkers is pinned to one
+  # because two Node 24.20.0 measurements crashed a worker inside V8 (see
+  # jest.workerCount.cjs), and `workerIdleMemoryLimit` cannot recycle the
+  # in-band process. Separate runners keep every one of those constraints —
+  # one process, one worker, default heap, per runner — and drop only the
+  # serialisation. A smaller shard also retains less transform/coverage state,
+  # so it sits further from the heap limit, not closer.
+  #
+  # Every shard writes its own JSON + lcov report and uploads it; `api-coverage`
+  # below merges them and enforces the same global floors as before. Jest's
+  # native sharder partitions the file list with no overlap or omission, and the
+  # merge refuses a missing, empty or extra shard, so no test can fall between
+  # two runners unnoticed.
+  api-test:
+    name: API Tests (${{ matrix.shard }}/${{ strategy.job-total }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      # Every shard runs to the end even when one fails, so a red run names
+      # every failing test instead of the first shard's.
+      fail-fast: false
+      matrix:
+        # The shard count is this list's length: the test step passes
+        # `strategy.job-total` to Jest. `api-coverage` passes the same number to
+        # the merge as `--shards`, and the merge fails on a missing or an extra
+        # shard, so changing one without the other goes red, not silently thin.
+        shard: [1, 2, 3, 4, 5, 6]
     # A BACKSTOP, not a budget: the two steps that can actually run long carry
-    # their own caps (16m for the ffmpeg install, 60m for the serial shards),
-    # and this is their sum plus the ~5m the fixed steps cost at their observed maxima
-    # (containers 35s, checkout/bun/node/node-gyp 19s, install 30s, guards 10s,
-    # build 50s, lint 20s, coverage merge/artifact 8s). So a step cap always fires
-    # first, and this can only catch a runner wedged OUTSIDE a step.
+    # their own caps (16m for the ffmpeg install, 20m for this runner's shard),
+    # and this is their sum plus the ~5m the fixed steps cost at their observed
+    # maxima (containers 35s, checkout/bun/node 19s, install 30s, build 70s,
+    # report check + artifact 15s). So a step cap always fires first, and this
+    # can only catch a runner wedged OUTSIDE a step.
     #
     # That ordering is the point. A job-level timeout reports `cancelled`,
     # indistinguishable from a genuine supersession without comparing
@@ -75,11 +190,7 @@ jobs:
     # 2026-08-17 — two cut mid-suite, one that never reached a test at all — and
     # all three read as "superseded, ignore". A step-level timeout instead
     # reports `failure` against a named step.
-    #
-    # Measured over 118 recent runs (109 passing): p50 20m57s, p95 23m44s, max
-    # on a passing run 26m29s, sd 2m23s. The old 30m cap sat 1.13x that max, so
-    # the ffmpeg step's heavy tail alone was enough to blow it.
-    timeout-minutes: 81
+    timeout-minutes: 41
 
     services:
       # Postgres target of the Mongo->Postgres port. Mirrors
@@ -180,6 +291,12 @@ jobs:
       #   * `timeout-minutes` as the backstop. 2 x (420s + 15s) + 30s backoff =
       #     15m00s, so the 16m cap below can only fire if the loop itself wedges.
       #
+      # It runs on EVERY shard, not just the one Jest happens to hand that file:
+      # six more test files reach ffmpeg or `which ffmpeg` indirectly (variant
+      # binary resolution, the variant queue), and a shard must run in the same
+      # environment the serial job did rather than one that depends on how the
+      # sharder hashed today's file list.
+      #
       # The point of all four is that a bad mirror costs one bounded retry that
       # can actually succeed, and the suite still runs — and if it does fail, it
       # fails as `failure` on a named step rather than as an ambiguous job-level
@@ -227,39 +344,6 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile --minimum-release-age=0
-      - name: Verify API image production dependency closure
-        timeout-minutes: 10
-        run: node scripts/test-api-runtime-dependencies.mjs
-      # Before the builds and the suite, and needing neither: it reads the tracked
-      # file listing. The backfill, 82 Mongoose models and the mongoose dependency
-      # were removed on 2026-08-08 and `oxy-prod` is gone, so a Mongo reference is
-      # now always a mistake — and it would arrive as a hoisted transitive or a
-      # stray env name, neither of which breaks a build.
-      - name: Guard against MongoDB returning
-        run: bun run validate:no-mongo
-
-      # Same shape, same reason, one layer up. The switcher's flat account list
-      # was replaced by the server's device directory (ADR 0002, issue #937), and
-      # it would come back the way the Mongo references would: one surface
-      # reaching for `listAccounts()` because it is right there, one hook
-      # flattening the grouped rows. None of that fails a build on its own.
-      - name: Guard against the flat account list returning
-        run: bun run validate:no-flat-account-list
-
-      # AGENTS.md is prepended to EVERY agent session, so its bytes are paid on
-      # every task forever. It reached 152 KB here by accretion — a mechanism
-      # write-up appended by the branch that shipped it, none wrong on its own
-      # and none visible except in the sum. Same family as the two guards above:
-      # nothing breaks, which is why it survives. Reads the tracked file listing
-      # and nothing else, and covers the create-oxy-app template too, so every
-      # scaffolded app is born bounded.
-      - name: Guard the AGENTS.md budget
-        run: bun run validate:agents-md
-
-      - name: Guard exact metadata-only Inbox Daily Brief counts
-        run: |
-          node scripts/test-check-inbox-daily-brief.mjs
-          node scripts/check-inbox-daily-brief.mjs
 
       # api tests resolve `@oxy.so/core` (e.g. `registrableApex` in federation
       # helpers) from its published `dist`, like any normal dependency.
@@ -291,14 +375,6 @@ jobs:
           bun run --filter @oxy.so/mcp build
           bun run --filter @oxy.so/db build
 
-      - name: Run linter
-        run: bun run lint
-        working-directory: ./packages/api
-
-      - name: Test native coverage gate
-        run: bun run test:coverage-merge
-        working-directory: ./packages/api
-
       # `jest.config.js` sizes its worker pool from this machine's cores and RAM,
       # because a fixed count that fits a 32-core workstation exhausts a
       # 4-vCPU/16-GiB runner: the kernel takes the runner down mid-run and the
@@ -311,40 +387,28 @@ jobs:
           node -e "const os=require('node:os');console.log('cpus=%d totalmem=%s GiB maxWorkers=%d',os.cpus().length,(os.totalmem()/1073741824).toFixed(1),require('./jest.config.js').maxWorkers)"
         working-directory: ./packages/api
 
-      # Keep three shards SERIAL. Run 33581098336 proved that the one stable
-      # Jest process can reach Node's default 4-GiB old-space limit after 202
-      # suites (4065.5 MiB before the fatal GC) while the runner still has 15.6
-      # GiB. Raising maxWorkers is not available: two Node 24.20.0 measurements
-      # crashed a worker inside V8, which is why jest.workerCount.cjs pins one.
-      # `workerIdleMemoryLimit` cannot recycle that in-band process either.
-      #
-      # Jest's native sharder partitions the current 415 files 139/138/138 with
-      # no overlap or omission. Running those partitions in separate processes
-      # bounds retained transform/coverage state without hiding a test, changing
-      # instrumentation, or allowing three 4-GiB heaps to coexist. Each shard
-      # writes its own JSON and lcov report; the following native gate validates
-      # and merges all three. The historical unsharded suite max was 20m57s; two extra
-      # global setups do not fit the historical unsharded 30-minute cap: run
-      # 33584690054 reached the third shard with every completed test passing,
-      # then GitHub stopped the step at exactly 30 minutes. On 2026-09-13 the
-      # completed serial coverage workload reached 43m54s (previous run ~41m),
-      # leaving the 45-minute cap no practical runner-variance margin. Sixty
-      # minutes remains a finite step backstop; all three shards, per-test
-      # limits, coverage floors and heap limits remain unchanged.
+      # ONE shard per runner. The whole suite measured 44m-46m of test time run
+      # serially in three shards (2026-09-13: 43m54s; 2026-09-25: 881s + 891s +
+      # 895s), so a sixth of it is ~7.5m. Jest's sharder balances file COUNT,
+      # not duration, so one shard can draw more slow suites than another; 20m
+      # is ~2.6x the mean share, enough for that skew and runner variance while
+      # still failing a genuinely hung shard as `failure` on this named step long
+      # before the job backstop. Per-test limits, coverage floors and heap
+      # limits are unchanged.
       - name: Run tests with coverage
-        timeout-minutes: 60
+        timeout-minutes: 20
         run: |
-          for shard_index in 1 2 3; do
-            echo "Running API coverage shard ${shard_index}/3"
-            bun run test:coverage -- \
-              --shard="${shard_index}/3" \
-              --coverageDirectory="coverage/shard-${shard_index}" \
-              --coverageReporters=json \
-              --coverageReporters=lcovonly \
-              --coverageReporters=text-summary
-          done
+          echo "Running API coverage shard ${SHARD_INDEX}/${SHARD_TOTAL}"
+          bun run test:coverage -- \
+            --shard="${SHARD_INDEX}/${SHARD_TOTAL}" \
+            --coverageDirectory="coverage/shard-${SHARD_INDEX}" \
+            --coverageReporters=json \
+            --coverageReporters=lcovonly \
+            --coverageReporters=text-summary
         working-directory: ./packages/api
         env:
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_TOTAL: ${{ strategy.job-total }}
           DATABASE_URL: postgres://oxy:oxy@127.0.0.1:5432/oxy_test
           ACCESS_TOKEN_SECRET: test_access_token_secret_minimum_32_characters
           REFRESH_TOKEN_SECRET: test_refresh_token_secret_minimum_32_characters
@@ -354,18 +418,81 @@ jobs:
           AWS_S3_BUCKET: test-bucket
           NODE_ENV: test
 
+      # Checked here as well as in `api-coverage`, so an empty report fails on the
+      # shard that produced it rather than one job later.
+      - name: Check this shard's coverage reports
+        run: |
+          for report in coverage-final.json lcov.info; do
+            report_path="coverage/shard-${{ matrix.shard }}/${report}"
+            if [ ! -s "$report_path" ]; then
+              echo "::error file=${report_path}::Expected non-empty coverage report"
+              exit 1
+            fi
+          done
+        working-directory: ./packages/api
+
+      # `overwrite` so re-running a failed shard replaces its own report from the
+      # earlier attempt instead of failing on the name it already holds.
+      - name: Upload shard coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-coverage-shard-${{ matrix.shard }}
+          path: ./packages/api/coverage/shard-${{ matrix.shard }}
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+
+  # Merges every shard's report and enforces the global floors — the same merge
+  # and the same floors the serial job ran, now over the matrix's artifacts.
+  api-coverage:
+    name: API Coverage
+    needs: api-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Fixed steps only (checkout/bun/node 19s, install 30s, download 15s, merge
+    # 5s, upload 10s); a backstop for a wedged runner.
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --minimum-release-age=0
+
+      - name: Download shard coverage
+        uses: actions/download-artifact@v8
+        with:
+          pattern: api-coverage-shard-*
+          path: ./packages/api/coverage/downloaded
+
+      # Each artifact lands in a directory named after it; the merge reads
+      # `coverage/shard-<i>`, the layout every shard wrote before its upload.
       - name: Merge coverage and enforce global floors
         run: |
-          for shard_index in 1 2 3; do
+          for artifact in coverage/downloaded/api-coverage-shard-*; do
+            mv "$artifact" "coverage/shard-${artifact##*/api-coverage-shard-}"
+          done
+          for shard_dir in coverage/shard-*; do
             for report in coverage-final.json lcov.info; do
-              report_path="coverage/shard-${shard_index}/${report}"
+              report_path="${shard_dir}/${report}"
               if [ ! -s "$report_path" ]; then
                 echo "::error file=${report_path}::Expected non-empty coverage report"
                 exit 1
               fi
             done
           done
-          bun run coverage:merge
+          bun run coverage:merge -- --shards=6
         working-directory: ./packages/api
 
       - name: Upload merged coverage artifact
@@ -1078,7 +1205,9 @@ jobs:
     name: CI complete
     needs:
       - deploy-script-test
+      - api-checks
       - api-test
+      - api-coverage
       - api-build
       - lockfile-sync
       - deploy-secrets-sync
