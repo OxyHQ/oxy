@@ -6,10 +6,10 @@
  *  - `GET /.well-known/did.json` — the Oxy organisation DID (`did:web:<domain>`)
  *  - `GET /u/:userId/did.json`   — a user DID (`did:web:<domain>:u:<userId>`)
  *
- * Public, cacheable, CORS-open (`Access-Control-Allow-Origin: *`), no auth, no
- * CSRF — a DID document is public infrastructure. Mounted at the API root in
+ * Public, cacheable, CORS-open (`Access-Control-Allow-Origin: *`), no auth — a
+ * DID document is public infrastructure. Mounted at the API root in
  * `server.ts` beside the WebFinger/ActivityPub handlers, OUTSIDE the `/users`
- * rate-limit/CSRF group.
+ * rate-limit group.
  *
  * Resolution note: `did:web:oxy.so` resolves to `https://oxy.so/u/<id>/did.json`,
  * so the apex proxy must forward the user-DID and well-known-DID paths to this

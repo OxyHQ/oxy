@@ -11,7 +11,7 @@
  *  - THIRD-PARTY active apps get a NON-credentialed lane: an
  *    `Access-Control-Allow-Origin: <origin>` echo WITHOUT credentials — exactly
  *    what a public PKCE/bearer client needs, and it never drags `oxy.so`
- *    cookies. This lane never widens the credentialed/CSRF boundary.
+ *    cookies. This lane never widens the credentialed boundary.
  *  - Unknown origins get no ACAO header at all, so the browser fails the
  *    preflight/response check.
  *
@@ -42,6 +42,9 @@ export const ALLOWED_METHODS = [
 export const ALLOWED_HEADERS = [
   'Content-Type',
   'Authorization',
+  // `X-CSRF-Token` and `X-Native-App` are read by nothing any more (issue
+  // #1044). They stay allowed because `@oxy.so/core` up to 1.7.4 still sends
+  // them, and a header missing from this list fails that client's preflight.
   'X-CSRF-Token',
   'X-Requested-With',
   'Accept',
@@ -91,7 +94,6 @@ export const EXPOSED_HEADERS = [
   'Last-Modified',
   'ETag',
   'Cache-Control',
-  'X-CSRF-Token',
   // The inference edge (`utils/inferenceEdgeErrors.ts`, `routes/inferenceEdge.ts`).
   'X-Oxy-Request-Id',
   'X-Oxy-Inference-Contract-Version',

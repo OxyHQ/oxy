@@ -470,10 +470,7 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
      *   `PostHydrationService`) and is unchanged.
      * - **Plain client (browser / React Native with a user session):** when no
      *   service credentials are configured, the chunk is fetched via
-     *   `makeRequest`, which attaches the configured user bearer. oxy-api's CSRF
-     *   middleware skips bearer-authenticated writes, and `makeRequest` only
-     *   fetches a CSRF token for cookie-only (no-bearer) state-changing requests,
-     *   so the user-bearer POST is sent without CSRF and succeeds. Previously
+     *   `makeRequest`, which attaches the configured user bearer. Previously
      *   this method always used the service path, so every client-side caller
      *   silently received `[]` because `getServiceToken()` had no credentials.
      *
@@ -504,7 +501,7 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
 
       // A backend that called configureServiceAuth() uses the bearer-service
       // path; any other caller (browser / RN with a user session) uses the
-      // user-bearer path. See the method doc for why the user path is CSRF-safe.
+      // user-bearer path.
       const useServiceAuth = Boolean(this._serviceApiKey && this._serviceApiSecret);
 
       // Run chunks concurrently; a single chunk failure must not sink the rest.

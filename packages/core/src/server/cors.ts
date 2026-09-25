@@ -40,6 +40,9 @@ const DEFAULT_ALLOWED_HEADERS = [
   'X-Requested-With',
   'X-Oxy-User-Id',
   'X-Oxy-Internal',
+  // Read by nothing any more (issue #1044); still allowed because
+  // `@oxy.so/core` up to 1.7.4 sends it, and a missing entry fails that
+  // client's preflight.
   'X-CSRF-Token',
   'X-Oxy-Edge-Region',
   'X-Oxy-Activity-Id',

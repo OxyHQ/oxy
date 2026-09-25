@@ -121,7 +121,7 @@ const nonEmptyString = (value: unknown): string | undefined =>
  * - `{ error: '<CODE>', error_description }` — RFC 6749 §5.2 / RFC 6750 §3, the
  *   OAuth token and userinfo endpoints. `error_description` is the human text
  *   and `error` is the machine code, so both survive.
- * - `{ message, code }` — e.g. the API's CSRF rejections.
+ * - `{ message, code }` — e.g. the API's middleware rejections.
  * - `{ error: '<human message>' }` — legacy hand-rolled routes. With no sibling
  *   `message`/`error_description` the string is the message, not a code: a bare
  *   `error` string is not machine-readable enough to promote to `code`.

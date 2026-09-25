@@ -46,8 +46,8 @@ describe('HttpService form-urlencoded bodies', () => {
   });
 
   /**
-   * POST a form body and return the token-endpoint call. Selected by URL
-   * because an unauthenticated write is preceded by a `GET /csrf-token`.
+   * POST a form body and return the token-endpoint call. Selected by URL so
+   * any preflight a future change adds cannot shift the call under test.
    */
   async function postForm(body: URLSearchParams): Promise<FetchCall> {
     const calls: FetchCall[] = [];
@@ -111,9 +111,6 @@ describe('HttpService form-urlencoded bodies', () => {
   it('prefers OAuth error_description over the bare error code', async () => {
     globalThis.fetch = async (input) => {
       const url = String(input);
-      if (url.endsWith('/csrf-token')) {
-        return jsonResponse({ csrfToken: 'csrf-test' });
-      }
       return new Response(
         JSON.stringify({
           error: 'invalid_grant',

@@ -35,7 +35,7 @@ Single source of truth. Key methods:
 - `recalculateBalance(userId)` — aggregates `active`-only txns → total/positive/negative/breakdown + reliability + trustTier + influence.
 - `getBalance(userId)`, `getInfluence(userId, context)`, `createDispute`, `resolveDispute`.
 
-### Routes (`/reputation`, CSRF parity with old `/karma`)
+### Routes (`/reputation`)
 - `GET /leaderboard`, `GET /rules`, `POST /rules` (staff)
 - `GET /:userId/balance`, `POST /award` (service-token OR staff; regular users 403; service-token resolves `applicationId`/`credentialId` from `req.serviceApp`)
 - `GET /:userId/transactions`, `GET /:userId/influence?context=default|report|moderation|ranking`
@@ -125,7 +125,7 @@ All limiters use `rate-limit-redis` with a shared ioredis client. The factory `r
 
 Self-hosted `expo-updates`-protocol OTA server, namespaced entirely under `/updates/v1` (`packages/api/src/server.ts`) so it never clashes with the rest of the API.
 
-- **Public manifest endpoint** (`packages/api/src/routes/updates.ts`): `GET /updates/v1/apps/:clientId/manifest` — no auth, no CSRF (mounted before the CSRF group); `:clientId` is an `ApplicationCredential.publicKey` (`oxy_dk_…`). Resolves `(channel, runtimeVersion, platform)` from expo-updates request headers and returns a signed `multipart/mixed` manifest or a `noUpdateAvailable` directive via `manifest.service.ts`.
+- **Public manifest endpoint** (`packages/api/src/routes/updates.ts`): `GET /updates/v1/apps/:clientId/manifest` — no auth; `:clientId` is an `ApplicationCredential.publicKey` (`oxy_dk_…`). Resolves `(channel, runtimeVersion, platform)` from expo-updates request headers and returns a signed `multipart/mixed` manifest or a `noUpdateAvailable` directive via `manifest.service.ts`.
 - **Admin surface** (`packages/api/src/routes/updatesAdmin.ts`): channel/publish/rollback management, gated by the `Application`/role permission system (not a separate auth scheme).
 - **Models** (`packages/api/src/models/`): `AppUpdate`, `UpdateAsset`, `UpdateChannel`.
 - **Services** (`packages/api/src/services/updates/`): `manifest.service.ts`, `publish.service.ts`, `signing.service.ts` (code-signing; throws `CodeSigningNotConfiguredError` when keys aren't set up — see the keygen script), `assetKeys.ts`.

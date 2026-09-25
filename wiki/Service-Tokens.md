@@ -116,7 +116,7 @@ app.get('/data', (req, res) => {
 - The `jwtSecret` option must be provided to `auth()` / `serviceAuth()` for signature verification
 - If `jwtSecret` is not provided, service tokens are **rejected** (secure default)
 - Secrets are stored as sha256 hashes; the exchange uses a timing-safe comparison
-- Service tokens bypass CSRF protection (bearer-only, not vulnerable to CSRF)
+- Bearer-only, so not exposed to CSRF (the API has no ambient credential)
 - Expiration is checked locally (no DB round-trip)
 - Per-scope authorisation via `oxy.requireScope(...)` after `serviceAuth()`
 
