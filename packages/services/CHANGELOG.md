@@ -9,6 +9,28 @@
   (`openAccountDialog('signup')`), never by a local passkey ceremony (ADR 0024
   D4). No ecosystem app called it; `auth.oxy.so` opens the canonical flow.
 
+## [4.0.6] - 2026-09-26
+
+Requires `@oxy.so/core` `^1.12.0`. The new copy is English until the next core
+release carries its `deleteAccount.handoff.*` strings (en-US, es-ES).
+
+### Fixed
+
+- "Delete account" in an app whose identity key Oxy Commons keeps on the same
+  device no longer fails with "No identity found on this device". Before
+  anything is deleted, the screen checks whether this app holds the key: if it
+  does, its own confirmation runs as before; if Commons is installed, it offers
+  to open Commons' delete-account screen (`oxycommons://delete-account`);
+  otherwise it explains where the account can be deleted (Oxy Commons, Settings
+  > Delete account, on the device that holds the identity, or `id.oxy.so` in a
+  browser that holds it). None of those paths calls the deletion API. An
+  unreadable keystore is reported, never treated as "the key is elsewhere"
+  (OxyHQ/Mention#1169).
+- A failed deletion's message was error-coloured text on an error-tinted box,
+  which read as an empty red rectangle. It is Bloom's error `Admonition` now:
+  theme text colour on the theme background with an error border
+  (OxyHQ/Mention#1169).
+
 ## [4.0.5] - 2026-09-25
 
 Requires `@oxy.so/core` `^1.12.0`.
