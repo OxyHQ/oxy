@@ -473,6 +473,25 @@ The flow, from inside an assistant:
    `McpPrincipal.activeAccountId`, and `createCatalogMcpHttpService` binds the
    app's authorization decision to that, not to `accountId`.
 
+5. `POST /auth/mcp/oauth/connections/viewer-graph` (service credential, body
+   `{ token }`) answers `{ account_id, graph }`: the follows, mutuals, blocks and
+   restrictions of the connection's ACTIVE account, the one introspection
+   reports. This is how a resource server enforces the served account's privacy
+   on an MCP request. `GET /users/me/graph` cannot: it never discloses blocks or
+   restrictions to a service credential, because its `X-Oxy-User-Id` is a bare
+   header any `user:read` service could set. Here the live token is the proof,
+   it must be for a resource the calling application registered, and Oxy picks
+   the account. Refuse a graph whose `account_id` is not the account you serve.
+
+6. `POST /auth/mcp/oauth/connections/follow` (service credential, body
+   `{ token, tool, target_user_id, action }`) follows or unfollows a LOCAL
+   account as the connection's active account. A local follow graph moves only
+   with its owner's consent, and here that consent is the token. `tool` must be
+   a non-read tool in the resource's registered catalog, and the token must hold
+   every capability that tool requires. That is the write action the person
+   approved at consent. A federated target is refused (409): the resource
+   server follows it over its own protocol.
+
 Revocation needs no special path: a member revokes its own grant, `revokeGrant`
 retires its memberships, and a selection that is no longer usable falls back to
 the origin account on the next introspection.
