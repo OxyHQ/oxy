@@ -37,8 +37,11 @@ import {
   approveMcpAccountLink,
   createMcpAccountLinkIntent,
   describeMcpAccountLinkIntent,
+  resolveMcpConnectionState,
   setMcpConnectionActiveAccount,
 } from '../services/mcpConnection.service';
+import { userService } from '../services/user.service';
+import graphCache from '../utils/graphCache';
 import { listActiveCapabilityCatalogs } from '../services/capabilityCatalog.service';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { logger } from '../utils/logger';
@@ -87,6 +90,20 @@ const connectionLimiter = rateLimit({
 });
 const introspectionLimiter = rateLimit({
   prefix: 'rl:auth:mcp:introspect:',
+  windowMs: 60 * 1_000,
+  max: process.env.NODE_ENV === 'development' ? 12_000 : 6_000,
+  keyGenerator: (request) =>
+    (request as ServiceAuthRequest).serviceApp?.appId ?? 'unknown',
+});
+
+/**
+ * The viewer-graph read runs on the same cadence as introspection — once per
+ * served request the resource server cannot answer from its own short cache —
+ * so it gets introspection's per-application budget, not the connection
+ * endpoints' (which serve rare, human-paced link and switch actions).
+ */
+const viewerGraphLimiter = rateLimit({
+  prefix: 'rl:auth:mcp:viewer-graph:',
   windowMs: 60 * 1_000,
   max: process.env.NODE_ENV === 'development' ? 12_000 : 6_000,
   keyGenerator: (request) =>
@@ -447,6 +464,47 @@ router.post('/connections/active', serviceAuthMiddleware, connectionLimiter, asy
     });
     response.set('cache-control', 'no-store');
     response.json({ connection });
+  } catch (error) {
+    sendMcpOAuthError(response, error);
+  }
+});
+
+/**
+ * The social graph of the account this connection is serving — the follows,
+ * mutuals, blocks and restrictions the resource server needs to render that
+ * account's own view of its content.
+ *
+ * `GET /users/me/graph` refuses to disclose blocks and restrictions to a
+ * service credential, because `X-Oxy-User-Id` there is a bare header: any
+ * service holding `user:read` could name any user. An MCP request has no Oxy
+ * session to present instead — the connector's token is bound to the resource,
+ * and the resource server must never forward it as a session. So the resource
+ * server that registered the token's resource presents it HERE as proof, the
+ * same proof introspection and the other connection endpoints take:
+ *
+ *   - the token is live, unrevoked, and for a resource THIS service credential's
+ *     application registered (a token for another app's resource is refused);
+ *   - the account is Oxy's choice, never the caller's: the connection's active
+ *     member exactly as introspection reports it, so a resource server can read
+ *     only the graph of the account the person connected and selected;
+ *   - revoking the grant (or the member's authority) ends it on the next call.
+ *
+ * `account_id` is returned alongside, so the caller can refuse a graph for an
+ * account other than the one it is serving instead of trusting it blindly.
+ */
+router.post('/connections/viewer-graph', serviceAuthMiddleware, viewerGraphLimiter, async (request: ServiceAuthRequest, response) => {
+  try {
+    const body = connectionTokenSchema.parse(request.body);
+    const caller = await connectionCallerGrant(request, body.token);
+    const connection = await resolveMcpConnectionState(caller.grant);
+    const accountId = connection.active_account_id;
+    let graph = await graphCache.get(accountId);
+    if (!graph) {
+      graph = await userService.getViewerGraph(accountId);
+      await graphCache.set(accountId, graph);
+    }
+    response.set('cache-control', 'no-store');
+    response.json({ account_id: accountId, graph });
   } catch (error) {
     sendMcpOAuthError(response, error);
   }

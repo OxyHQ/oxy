@@ -53,6 +53,8 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { appCapabilityCatalogRegistrations } from '../../db/schema/agency';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
+import { blocks } from '../../db/schema/blocks';
+import { mcpOauthGrants } from '../../db/schema/mcpOAuth';
 import { users } from '../../db/schema/users';
 import mcpOAuthRouter, { mcpOAuthDiscoveryRouter } from '../mcpOAuth';
 
@@ -372,4 +374,99 @@ it('requires the selected account and never presents an unrequested write action
     });
   expect(mismatchedAccount.status).toBe(403);
   expect(mismatchedAccount.body).toMatchObject({ error: 'access_denied' });
+});
+
+/** Register a client and run the consent + code exchange for the fixture's owner. */
+async function issueAccessToken(input: Awaited<ReturnType<typeof fixture>>): Promise<string> {
+  const registration = await request(app).post('/auth/mcp/oauth/register').send({
+    client_name: 'Viewer graph MCP client',
+    redirect_uris: [input.redirectUri],
+    token_endpoint_auth_method: 'none',
+  });
+  const clientId = registration.body.client_id as string;
+  const verifier = 'v'.repeat(64);
+  const authorization = await request(app)
+    .post('/auth/mcp/oauth/authorize')
+    .set('authorization', 'Bearer user-session')
+    .send({
+      responseType: 'code',
+      clientId,
+      redirectUri: input.redirectUri,
+      resource: input.resource,
+      scope: 'resource.read',
+      accountId: principalUserId,
+      codeChallenge: createHash('sha256').update(verifier).digest('base64url'),
+      codeChallengeMethod: 'S256',
+    });
+  expect(authorization.status).toBe(200);
+  const token = await request(app)
+    .post('/auth/mcp/oauth/token')
+    .type('form')
+    .send({
+      grant_type: 'authorization_code',
+      code: authorization.body.code,
+      client_id: clientId,
+      redirect_uri: input.redirectUri,
+      code_verifier: verifier,
+      resource: input.resource,
+    });
+  expect(token.status).toBe(200);
+  return token.body.access_token as string;
+}
+
+describe('POST /auth/mcp/oauth/connections/viewer-graph', () => {
+  it('answers the connected account its own blocks, only for the resource this service registered', async () => {
+    const input = await fixture();
+    const viewerId = principalUserId;
+    const [blocked] = await getDb().insert(users).values({
+      username: `mcp-blocked-${randomUUID()}`,
+      nameDisplay: 'Blocked account',
+      color: 'teal',
+    }).returning({ id: users.id });
+    await getDb().insert(blocks).values({ userId: viewerId, blockedId: blocked.id });
+    const accessToken = await issueAccessToken(input);
+
+    const graph = await request(app)
+      .post('/auth/mcp/oauth/connections/viewer-graph')
+      .set('authorization', 'Bearer service-token')
+      .send({ token: accessToken });
+    expect(graph.status).toBe(200);
+    expect(graph.headers['cache-control']).toBe('no-store');
+    expect(graph.body.account_id).toBe(viewerId);
+    expect(graph.body.graph).toMatchObject({ blockedIds: [blocked.id], restrictedIds: [] });
+
+    // A different application's service credential cannot read this viewer's
+    // graph with the token: the resource belongs to the fixture's application.
+    const owningApplicationId = serviceApplicationId;
+    await fixture();
+    const foreign = await request(app)
+      .post('/auth/mcp/oauth/connections/viewer-graph')
+      .set('authorization', 'Bearer service-token')
+      .send({ token: accessToken });
+    expect(foreign.status).toBe(401);
+    expect(foreign.body).toMatchObject({ error: 'invalid_grant' });
+    expect(foreign.body).not.toHaveProperty('graph');
+    serviceApplicationId = owningApplicationId;
+    principalUserId = viewerId;
+
+    // Revoking the grant ends the read on the very next call.
+    await getDb().update(mcpOauthGrants).set({ revokedAt: new Date() })
+      .where(eq(mcpOauthGrants.effectiveAccountId, viewerId));
+    const revoked = await request(app)
+      .post('/auth/mcp/oauth/connections/viewer-graph')
+      .set('authorization', 'Bearer service-token')
+      .send({ token: accessToken });
+    expect(revoked.status).toBe(401);
+    expect(revoked.body).not.toHaveProperty('graph');
+  });
+
+  it('refuses a token that is not a live MCP access token', async () => {
+    await fixture();
+    const response = await request(app)
+      .post('/auth/mcp/oauth/connections/viewer-graph')
+      .set('authorization', 'Bearer service-token')
+      .send({ token: 'not-a-token' });
+    expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({ error: 'invalid_grant' });
+  });
 });
