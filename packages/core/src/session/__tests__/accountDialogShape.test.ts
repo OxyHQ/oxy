@@ -68,6 +68,7 @@ const SNAPSHOT_KEYS = [
   'commonsAvailability',
   'directory',
   'error',
+  'hasSession',
   'loading',
   'removingContextId',
   'removingPrincipalId',

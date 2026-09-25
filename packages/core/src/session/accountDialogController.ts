@@ -311,6 +311,16 @@ export interface AccountDialogSnapshot {
    */
   backView: AccountDialogView | null;
   /**
+   * Whether THIS client is signed in: a bearer is planted.
+   *
+   * Not the same question as "does the directory list anyone". The directory is
+   * the DEVICE's, and a device can go on listing a shared identity (Commons, or a
+   * sibling app) after this app signed out. A host names its sign-in entry, and
+   * whether a listed account reads as the current one, from this — never from
+   * the directory's size.
+   */
+  hasSession: boolean;
+  /**
    * The server-authoritative device directory — principals and the contexts
    * each may act as (ADR 0002) — or `null` before the first read.
    *
@@ -336,6 +346,21 @@ export interface AccountDialogSnapshot {
   /** Whether Commons is installed on this device. See {@link CommonsAvailability}. */
   commonsAvailability: CommonsAvailability;
 }
+
+/**
+ * What {@link AccountDialogController.chooseContext} did with a chosen row.
+ *
+ * - `'current'` — the row is already the active account; nothing to do.
+ * - `'switched'` — the switch to the row happened (signed in; or signed out,
+ *   after the silent sign-in landed on a different pair and the chosen one was
+ *   then activated).
+ * - `'signing-in'` — signed out: the row started "Continue with Oxy", and the
+ *   sign-in flow (its own view, its own completion) owns what happens next —
+ *   including closing the dialog, through `onSignedIn`.
+ * - `'failed'` — the switch was attempted and failed (the reason is `error`).
+ * - `'busy'` — another device mutation is in flight; the press was dropped.
+ */
+export type ContextChoiceOutcome = 'current' | 'switched' | 'signing-in' | 'failed' | 'busy';
 
 /** Construction options for {@link AccountDialogController}. */
 export interface AccountDialogControllerOptions {
@@ -878,6 +903,45 @@ export class AccountDialogController {
       },
       () => this.sessionClient.activateContext(contextId),
     );
+  }
+
+  /**
+   * A device account row was chosen — the one entry point for "use this
+   * account", whether or not anybody is signed in here.
+   *
+   * Signed in, it is a switch: the active row is already the answer
+   * (`'current'`), any other row is {@link activateContext}.
+   *
+   * Signed out, it is NOT a switch. The row is on the list because the DEVICE
+   * still holds that identity (Commons' shared identity, or a sibling app's
+   * session), not because this app does, so there is no bearer to activate a
+   * context with — and the active-row short-circuit used to read that stale
+   * "active" as "already signed in" and close the sheet on a signed-out app
+   * (OxyHQ/oxy#1375 item 20). Choosing the row is "Continue as @handle": the
+   * same {@link signInWithOxy} path as the "Continue with Oxy" button, which
+   * mints silently from the shared identity and otherwise falls back to the
+   * request. When that silent mint lands on a different pair from the one
+   * chosen (a device holding more than one person, or an organization row), the
+   * chosen row is then activated under the new bearer, so the press ends where
+   * it pointed.
+   */
+  async chooseContext(contextId: string): Promise<ContextChoiceOutcome> {
+    if (this.isDeviceMutationInFlight()) return 'busy';
+    if (this.hasSession()) {
+      if (contextId === this.snapshot.activeContext?.contextId) return 'current';
+      return (await this.activateContext(contextId)) ? 'switched' : 'failed';
+    }
+    await this.signInWithOxy();
+    // Only a sign-in that finished here (the silent shared-identity mint) can be
+    // steered to the chosen row; a request still waiting on approval belongs to
+    // whoever approves it.
+    if (this.signIn.phase !== 'completed' || !this.hasSession()) return 'signing-in';
+    const directory = this.sessionClient.getDirectory();
+    const offered = directory?.principals.some((principal) =>
+      principal.contexts.some((context) => context.id === contextId),
+    );
+    if (!offered || resolveActiveContext(directory)?.contextId === contextId) return 'signing-in';
+    return (await this.activateContext(contextId)) ? 'switched' : 'signing-in';
   }
 
   /**
@@ -1780,6 +1844,7 @@ export class AccountDialogController {
     return {
       view,
       backView: backViewOf(view, hasSession),
+      hasSession,
       directory,
       activeContext: resolveActiveContext(directory),
       loading: this.loading,

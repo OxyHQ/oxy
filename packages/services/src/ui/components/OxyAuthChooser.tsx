@@ -169,30 +169,40 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   const handleActivate = useCallback(
     async (contextId: string) => {
       if (!controller) return;
-      // Another switch or removal is already changing this device: the press is
-      // dropped, not queued — and it is not a failure to report.
-      if (controller.isDeviceMutationInFlight()) return;
-      // Already live: activating it again bumps nothing server-side, so treat
-      // the press as "yes, this one" and close.
-      if (contextId === controller.getSnapshot().activeContext?.contextId) {
-        onComplete?.();
-        return;
+      // The controller decides what choosing a row MEANS. Signed in it is a
+      // switch; signed out it is "Continue as @handle" — the same sign-in
+      // "Continue with Oxy" runs. The signed-out case is why this is not a
+      // host-side "already active → close": the device can list an identity
+      // (Commons') as active while THIS app holds no session, and closing on it
+      // left the app signed out behind a sheet that looked done (#1375 item 20).
+      const outcome = await controller.chooseContext(contextId).catch(() => 'failed' as const);
+      switch (outcome) {
+        // Another switch or removal is already changing this device: the press
+        // is dropped, not queued — and it is not a failure to report.
+        case 'busy':
+          return;
+        // The sign-in flow owns the rest: its own view while it runs, and the
+        // dialog's close (through `onSignedIn`) when it completes.
+        case 'signing-in':
+          return;
+        // Already live: activating it again bumps nothing server-side, so treat
+        // the press as "yes, this one" and close.
+        case 'current':
+          onComplete?.();
+          return;
+        // The controller's own verdict on the SWITCH — never `snapshot.error`,
+        // which the directory re-read after a successful switch can also set.
+        case 'failed':
+          toast.error(t('accountSwitcher.toasts.activateFailed'));
+          return;
+        case 'switched':
+          // The subject changed, so every account-scoped query is now about
+          // somebody else. The runtime resets its own caches between the bearer
+          // commit and the notify; this drops the Query cache the same way.
+          queryClient.invalidateQueries();
+          onComplete?.();
+          return;
       }
-      // The controller's own verdict on the SWITCH — never `snapshot.error`,
-      // which the directory re-read after a successful switch can also set.
-      // Reading that as "the switch failed" left the dialog open on a false
-      // error with the previous account's queries still cached.
-      const switched = await controller.activateContext(contextId).catch(() => false);
-      if (!switched) {
-        toast.error(t('accountSwitcher.toasts.activateFailed'));
-        return;
-      }
-      // The subject changed, so every account-scoped query is now about
-      // somebody else. The runtime resets its own caches between the bearer
-      // commit and the notify; this drops the Query cache the same way the
-      // account switch did.
-      queryClient.invalidateQueries();
-      onComplete?.();
     },
     [controller, onComplete, queryClient, t],
   );

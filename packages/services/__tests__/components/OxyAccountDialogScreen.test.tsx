@@ -10,12 +10,15 @@
  */
 
 import { render } from '@testing-library/react';
+import type { DeviceDirectory } from '@oxy.so/contracts';
 import type { AccountDialogSnapshot } from '@oxy.so/core';
 import type { SurfaceHeaderContent } from '../../src/ui/hooks/useSurfaceHeader';
 
 const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnapshot => ({
   view: 'accounts',
   backView: null,
+  hasSession: false,
+  directory: null,
   accounts: [],
   activeAccountId: null,
   loading: false,
@@ -179,5 +182,52 @@ describe('OxyAccountDialogScreen — shared nav header', () => {
     render(<OxyAccountDialogScreen />);
 
     expect(lastHeader()?.onBack).toBeUndefined();
+  });
+
+  describe('the sign-in entry is titled by THIS app\'s session, not by the device directory (OxyHQ/oxy#1375 item 21)', () => {
+    /** The directory Commons leaves behind: its shared identity, listed as active. */
+    const commonsDirectory = {
+      deviceId: 'device-1',
+      revision: 4,
+      activeContextId: 'ctx-qa',
+      updatedAt: 1_720_000_000_000,
+      principals: [
+        {
+          id: 'p-qa',
+          userId: 'qa',
+          authuser: 0,
+          user: { id: 'qa', username: 'qatest0925' },
+          contexts: [
+            {
+              id: 'ctx-qa',
+              accountId: 'qa',
+              kind: 'personal',
+              relationship: 'self',
+              account: { id: 'qa', username: 'qatest0925' },
+              onDevice: true,
+              available: true,
+              active: true,
+              lastUsedAt: null,
+            },
+          ],
+        },
+      ],
+    } as unknown as DeviceDirectory;
+
+    it('signed out, reads "Sign in" even though the device still lists an account', () => {
+      snapshot = makeSnapshot({ view: 'signin', hasSession: false, directory: commonsDirectory });
+      render(<OxyAccountDialogScreen />);
+
+      expect(lastHeader()?.title).toBe('Sign in');
+      expect(lastHeader()?.subtitle).toBe('One identity for the whole ecosystem.');
+    });
+
+    it('signed in, the same entry reads "Add another account"', () => {
+      snapshot = makeSnapshot({ view: 'add', backView: 'accounts', hasSession: true, directory: commonsDirectory });
+      render(<OxyAccountDialogScreen />);
+
+      expect(lastHeader()?.title).toBe('Add another account');
+      expect(lastHeader()?.subtitle).toBe('Sign in with another account.');
+    });
   });
 });

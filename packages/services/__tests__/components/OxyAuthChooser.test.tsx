@@ -123,6 +123,8 @@ const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnaps
   const directory = over?.directory ?? null;
   return {
     view: 'accounts',
+    backView: null,
+    hasSession: true,
     directory,
     // Derived here rather than hand-set, so a fixture can never claim an active
     // context the directory it ships does not hold.
@@ -166,7 +168,18 @@ let snapshot = makeSnapshot();
 const controller = {
   subscribe: jest.fn((_l: () => void) => () => undefined),
   getSnapshot: () => snapshot,
-  activateContext: jest.fn(async () => true),
+  activateContext: jest.fn(async (_contextId: string) => true),
+  // The controller's real rule, over this double's own parts, so the tests
+  // below drive the chooser through the same decisions the controller makes.
+  chooseContext: jest.fn(async (contextId: string) => {
+    if (controller.isDeviceMutationInFlight()) return 'busy' as const;
+    if (!snapshot.hasSession) {
+      await controller.signInWithOxy();
+      return 'signing-in' as const;
+    }
+    if (contextId === snapshot.activeContext?.contextId) return 'current' as const;
+    return (await controller.activateContext(contextId)) ? ('switched' as const) : ('failed' as const);
+  }),
   signOutContext: jest.fn(async () => true),
   signOutPrincipal: jest.fn(async () => true),
   add: jest.fn(),
@@ -1012,6 +1025,59 @@ describe('OxyAuthChooser', () => {
       expect(controller.showQr).toHaveBeenCalledTimes(1);
     });
 
+  });
+
+  describe('a device account on the sign-in entry (OxyHQ/oxy#1375 items 20 and 21)', () => {
+    beforeEach(() => {
+      isWebBrowserMock.mockReturnValue(false);
+      isOxyRpOriginMock.mockReturnValue(false);
+    });
+
+    it('signed out, the account the device lists as active reads "Continue as @handle" and is not current', () => {
+      mockUser = null;
+      snapshot = makeSnapshot({ view: 'signin', hasSession: false, directory: soloDirectory('ctx-alice') });
+
+      render(<OxyAuthChooser />);
+
+      const row = screen.getByRole('button', { name: 'Continue as @a' });
+      // No check: nothing is signed in here, whatever the device marks active.
+      expect(row.querySelector('[data-icon="check-circle"]')).toBeNull();
+      expect(row.querySelector('[data-icon="chevron-right"]')).not.toBeNull();
+      // The account's name is still on the row, as its second line.
+      expect(row.textContent).toContain('Alice');
+      expect(screen.queryByRole('button', { name: 'Alice' })).toBeNull();
+    });
+
+    it('signed out, choosing it signs in the way "Continue with Oxy" does, and does not close the sheet', async () => {
+      mockUser = null;
+      snapshot = makeSnapshot({ view: 'signin', hasSession: false, directory: soloDirectory('ctx-alice') });
+
+      render(<OxyAuthChooser onComplete={closeAccountDialog} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Continue as @a' }));
+
+      await waitFor(() => expect(controller.chooseContext).toHaveBeenCalledWith('ctx-alice'));
+      await waitFor(() => expect(controller.signInWithOxy).toHaveBeenCalledTimes(1));
+      // Closing here is the bug: the app stayed signed out behind a sheet that
+      // looked done. The sign-in flow closes the dialog when it completes.
+      expect(closeAccountDialog).not.toHaveBeenCalled();
+      expect(controller.activateContext).not.toHaveBeenCalled();
+      expect(invalidateQueries).not.toHaveBeenCalled();
+    });
+
+    it('signed in, the same row is the current account: named, checked, and choosing it just closes', async () => {
+      snapshot = makeSnapshot({ view: 'add', hasSession: true, directory: soloDirectory('ctx-alice') });
+
+      render(<OxyAuthChooser onComplete={closeAccountDialog} />);
+      const row = screen.getByRole('button', { name: 'Alice' });
+      expect(row.querySelector('[data-icon="check-circle"]')).not.toBeNull();
+      expect(screen.queryByRole('button', { name: 'Continue as @a' })).toBeNull();
+
+      fireEvent.click(row);
+
+      await waitFor(() => expect(closeAccountDialog).toHaveBeenCalledTimes(1));
+      expect(controller.signInWithOxy).not.toHaveBeenCalled();
+      expect(controller.activateContext).not.toHaveBeenCalled();
+    });
   });
 
   describe('active request — one surface per route', () => {

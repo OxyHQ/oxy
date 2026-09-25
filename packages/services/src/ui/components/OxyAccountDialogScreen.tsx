@@ -74,9 +74,11 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const { view } = snapshot;
-  // Names the entry view "Add another account" rather than "Sign in" when
-  // somebody is already signed in on this device.
-  const hasSignedInAccounts = (snapshot.directory?.principals.length ?? 0) > 0;
+  // Names the entry view "Add another account" rather than "Sign in" only when
+  // THIS app is signed in. Not the directory's size: the device can go on
+  // listing a shared identity (Commons') after the app signed out, and that
+  // titled a signed-out sheet "Add another account" (OxyHQ/oxy#1375 item 21).
+  const hasSignedInAccounts = snapshot.hasSession;
   // Where back leads is the CONTROLLER's answer (`snapshot.backView`), never a
   // table here: a host-side "back = accounts" assumed a signed-in origin and
   // opened the account menu for nobody on a signed-out Back from sign-up.

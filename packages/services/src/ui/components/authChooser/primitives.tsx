@@ -96,19 +96,31 @@ export const Dividerish: React.FC<{ theme: Theme; label: string }> = ({ theme, l
  * directory), not from the theme and not from whoever is signed in. This surface
  * is where a device holding two people is most visible, and it is reached while
  * signed out — so there is no "current user" whose colour could stand in.
+ *
+ * `continueAsLabel` is the signed-out form. The device can list an identity
+ * (and even mark it active) while this app holds no session, so a check there
+ * would claim a sign-in that has not happened. Given a label, the row never
+ * reads as current: its first line is "Continue as @handle", the account's
+ * name moves to the second line, and it ends in a chevron like any other row.
  */
 export const AccountRow: React.FC<{
   context: SwitcherContextRow;
   /** The person this account is reached through, when that is not obvious. */
   operatedBy: string | null;
+  /** Signed out: the row's "Continue as @handle" line. `null` when signed in. */
+  continueAsLabel?: string | null;
   theme: Theme;
   activating: boolean;
   disabled: boolean;
   onPress: () => void;
-}> = ({ context, operatedBy, theme, activating, disabled, onPress }) => {
+}> = ({ context, operatedBy, continueAsLabel = null, theme, activating, disabled, onPress }) => {
   const accent = resolveAccentHex(context.color, theme.colors.primary);
   const rowDisabled = disabled || !context.canActivate;
-  const secondary = operatedBy ?? (context.handle ? `@${context.handle}` : null);
+  const current = continueAsLabel === null && context.isActive;
+  const primary = continueAsLabel ?? context.displayName;
+  const secondary =
+    operatedBy ??
+    (continueAsLabel !== null ? context.displayName : context.handle ? `@${context.handle}` : null);
 
   return (
     <BloomColorScope colorPreset={toPreset(context.color)} asChild>
@@ -116,7 +128,7 @@ export const AccountRow: React.FC<{
         style={[
           styles.accountRow,
           {
-            borderColor: context.isActive ? accent : theme.colors.border,
+            borderColor: current ? accent : theme.colors.border,
             backgroundColor: theme.colors.card,
           },
           rowDisabled && !activating ? styles.rowDisabled : null,
@@ -124,10 +136,10 @@ export const AccountRow: React.FC<{
         onPress={onPress}
         disabled={rowDisabled}
         accessibilityRole="button"
-        accessibilityState={{ selected: context.isActive, disabled: rowDisabled }}
-        accessibilityLabel={context.displayName}
+        accessibilityState={{ selected: current, disabled: rowDisabled }}
+        accessibilityLabel={primary}
       >
-        <View style={[styles.avatarRing, { borderColor: context.isActive ? accent : 'transparent' }]}>
+        <View style={[styles.avatarRing, { borderColor: current ? accent : 'transparent' }]}>
           <Avatar
             source={context.avatarUrl ?? undefined}
             variant="thumb"
@@ -137,7 +149,7 @@ export const AccountRow: React.FC<{
         </View>
         <View style={styles.rowMeta}>
           <Text style={[styles.rowName, { color: theme.colors.text }]} numberOfLines={1}>
-            {context.displayName}
+            {primary}
           </Text>
           {secondary ? (
             <Text style={[styles.rowHandle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
@@ -147,7 +159,7 @@ export const AccountRow: React.FC<{
         </View>
         {activating ? (
           <MaterialCommunityIcons name="loading" size={20} color={accent} />
-        ) : context.isActive ? (
+        ) : current ? (
           <MaterialCommunityIcons name="check-circle" size={20} color={accent} />
         ) : (
           <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.textSecondary} />

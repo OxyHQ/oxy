@@ -2469,3 +2469,176 @@ it('createAccountDialogController returns an AccountDialogController instance', 
 // Ensure the exported type surface is reachable at compile time for binders.
 const _typecheck: MinimalUserData | null = null;
 void _typecheck;
+
+describe('AccountDialogController — choosing a device account row (OxyHQ/oxy#1375 items 20 and 21)', () => {
+  /**
+   * The device's directory as Commons leaves it: `qa` on the device and active,
+   * plus (when `withOrg`) an organization `qa` also operates.
+   */
+  const deviceDirectory = (activeContextId: string | null, withOrg = false) => ({
+    deviceId: 'device-1',
+    revision: 4,
+    activeContextId,
+    updatedAt: 1_720_000_000_000,
+    principals: [
+      {
+        id: 'p-qa',
+        userId: 'qa',
+        authuser: 0,
+        user: { id: 'qa', username: 'qatest0925' },
+        contexts: [
+          {
+            id: 'ctx-qa',
+            accountId: 'qa',
+            kind: 'personal' as const,
+            relationship: 'self' as const,
+            account: { id: 'qa', username: 'qatest0925' },
+            onDevice: true,
+            available: true,
+            active: activeContextId === 'ctx-qa',
+            lastUsedAt: null,
+          },
+          ...(withOrg
+            ? [
+                {
+                  id: 'ctx-qa-org',
+                  accountId: 'org',
+                  kind: 'organization' as const,
+                  relationship: 'owner' as const,
+                  account: { id: 'org', username: 'oxy' },
+                  onDevice: true,
+                  available: true,
+                  active: activeContextId === 'ctx-qa-org',
+                  lastUsedAt: null,
+                },
+              ]
+            : []),
+        ],
+      },
+    ],
+  });
+
+  const sharedSession: SessionLoginResponse = {
+    sessionId: 'sess-shared',
+    deviceId: 'device-1',
+    expiresAt: '2030-01-01T00:00:00Z',
+    accessToken: 'access-shared',
+    user: { id: 'qa', username: 'qatest0925', name: { displayName: 'QA' } },
+  };
+
+  /**
+   * A device that still lists `qa` (Commons holds the shared identity) while
+   * THIS app holds no bearer — Mention after "Sign out".
+   */
+  async function signedOutDevice(options: { withOrg?: boolean } = {}) {
+    const oxy = makeOxy();
+    const urls: string[] = [];
+    const sc = new TestSessionClient({
+      makeRequest: jest.fn(async (_method: string, url: string) => {
+        urls.push(url);
+        if (url === '/session/device/directory') return deviceDirectory('ctx-qa', options.withOrg);
+        if (url === '/session/device/activate') {
+          return { directory: { ...deviceDirectory('ctx-qa-org', true), revision: 5 }, activeToken: null };
+        }
+        return undefined;
+      }),
+      getBaseURL: () => 'http://test.invalid',
+      getAccessToken: () => oxy.getAccessToken(),
+      getDeviceCredential: () => null,
+      onTokensChanged: () => () => undefined,
+      setTokens: jest.fn(),
+      getCurrentAccountId: () => null,
+    });
+    // The directory this client read while it was still signed in.
+    await sc.refreshDirectory();
+    oxy.emitTokenChange(null);
+    const commitSession = jest.fn().mockResolvedValue(undefined);
+    const onSignedIn = jest.fn();
+    const controller = createAccountDialogController({
+      oxyServices: oxy as unknown as OxyServices,
+      sessionClient: sc,
+      clientId: 'oxy_dk_test',
+      commitSession,
+      onSignedIn,
+    });
+    controller.start();
+    await flush();
+    urls.length = 0;
+    return { controller, oxy, sc, urls, commitSession, onSignedIn };
+  }
+
+  it('publishes that this client is signed out while the device still lists an active account', async () => {
+    const { controller } = await signedOutDevice();
+    const snap = controller.getSnapshot();
+    expect(snap.hasSession).toBe(false);
+    // The precondition of the bug: the row the sheet renders reads as "active".
+    expect(snap.activeContext?.contextId).toBe('ctx-qa');
+    controller.destroy();
+  });
+
+  it('signed out, choosing the listed account signs in through the shared identity, like "Continue with Oxy"', async () => {
+    const { controller, oxy, urls, commitSession, onSignedIn } = await signedOutDevice();
+    oxy.signInWithSharedIdentity.mockResolvedValue(sharedSession);
+
+    // It used to short-circuit on "already the active row" and report success,
+    // closing the sheet on an app that was still signed out.
+    expect(await controller.chooseContext('ctx-qa')).toBe('signing-in');
+
+    expect(oxy.signInWithSharedIdentity).toHaveBeenCalledWith({ plantTokens: false });
+    expect(commitSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-shared' }));
+    expect(onSignedIn).toHaveBeenCalledWith(expect.objectContaining({ id: 'qa' }));
+    expect(controller.getSnapshot().hasSession).toBe(true);
+    expect(controller.getSnapshot().signIn.phase).toBe('completed');
+    // The silent mint already landed on the chosen pair: no switch on top.
+    expect(urls).not.toContain('/session/device/activate');
+    controller.destroy();
+  });
+
+  it('signed out with no shared identity, choosing the account starts the same request "Continue with Oxy" does', async () => {
+    const { controller, oxy, onSignedIn } = await signedOutDevice();
+    oxy.signInWithSharedIdentity.mockResolvedValue(null);
+    oxy.startCommonsSignIn.mockResolvedValue({
+      sessionToken: 'secret-tok',
+      authorizeCode: 'AUTH-CODE',
+      qrPayload: 'oxycommons://approve?v=1&code=AUTH-CODE',
+      expiresAt: Date.now() + 300_000,
+      status: 'pending',
+    });
+
+    expect(await controller.chooseContext('ctx-qa')).toBe('signing-in');
+
+    expect(oxy.startCommonsSignIn).toHaveBeenCalledWith({ clientId: 'oxy_dk_test' });
+    expect(controller.getSnapshot().view).toBe('qr');
+    expect(controller.getSnapshot().signIn.phase).toBe('waiting');
+    expect(onSignedIn).not.toHaveBeenCalled();
+    controller.destroy();
+  });
+
+  it('signed out, choosing an organization row signs in and then activates that row', async () => {
+    const { controller, oxy, urls } = await signedOutDevice({ withOrg: true });
+    oxy.signInWithSharedIdentity.mockResolvedValue(sharedSession);
+
+    expect(await controller.chooseContext('ctx-qa-org')).toBe('switched');
+
+    expect(oxy.signInWithSharedIdentity).toHaveBeenCalledTimes(1);
+    expect(urls).toContain('/session/device/activate');
+    expect(controller.getSnapshot().activeContext?.contextId).toBe('ctx-qa-org');
+    controller.destroy();
+  });
+
+  it('signed in, the active row is "current" and any other row is a switch', async () => {
+    const { controller, oxy, urls } = await signedOutDevice({ withOrg: true });
+    oxy.emitTokenChange('access-token');
+    await flush();
+    urls.length = 0;
+    expect(controller.getSnapshot().hasSession).toBe(true);
+
+    expect(await controller.chooseContext('ctx-qa')).toBe('current');
+    expect(urls).not.toContain('/session/device/activate');
+
+    expect(await controller.chooseContext('ctx-qa-org')).toBe('switched');
+    expect(urls).toContain('/session/device/activate');
+    expect(oxy.signInWithSharedIdentity).not.toHaveBeenCalled();
+    controller.destroy();
+  });
+});
