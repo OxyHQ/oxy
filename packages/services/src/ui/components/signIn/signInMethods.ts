@@ -17,7 +17,7 @@ import type { CommonsAvailability } from '@oxy.so/core';
 
 /**
  * `direct`          — the WebAuthn ceremony runs on this page (`isOxyRpOrigin()`).
- * `identity-window` — it runs at the identity origin, in a popup.
+ * `identity-window` — it runs at auth.oxy.so, in the identity window (a popup).
  * `none`            — no passkey on this platform.
  */
 export type PasskeyRoute = 'direct' | 'identity-window' | 'none';

@@ -58,7 +58,7 @@ job without Auto Backup.
 
 **A passkey (WebAuthn PRF) wrapped key stored by Oxy.** Rejected for Phase 1. Oxy
 already has this model on the web: `crypto/webIdentityCarrier.ts` and the
-`identity_web_envelopes` table on `id.oxy.so`, which Oxy can store but cannot
+`identity_web_envelopes` table behind `auth.oxy.so`, which Oxy can store but cannot
 open. On Android it fails three of the requirements:
 - The user must approve a passkey prompt, so the restore is not silent.
 - The envelope is fetched from Oxy's API, so the restore needs the network.

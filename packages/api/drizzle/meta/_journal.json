@@ -743,6 +743,13 @@
       "when": 1790371407681,
       "tag": "0106_account_events",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1790376192492,
+      "tag": "0107_retire_oxy_identity_app",
+      "breakpoints": true
     }
   ]
 }

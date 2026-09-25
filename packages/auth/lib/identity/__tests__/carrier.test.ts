@@ -6,20 +6,25 @@
  * client that signs the wrong thing fails here.
  */
 
+import { describe, expect, it } from 'bun:test';
+// The real holder crypto, from core's source: the `@oxy.so/core` test mock is an
+// allowlist of what the APP imports, and several of these only the test does.
 import {
   deriveIdentityFromPrivateKey,
+  generateWebIdentity,
+  sealWebIdentity,
+  unlockWebIdentity,
+} from '../../../../core/src/crypto/webIdentityCarrier';
+import {
   deriveMoveKey,
   deriveMoveSas,
-  digestIdentityPayload,
   digestMoveCiphertext,
   generateMoveEphemeralKeyPair,
-  generateWebIdentity,
   openMovedIdentity,
-  sealWebIdentity,
   signMoveReceipt,
-  unlockWebIdentity,
   verifyMoveCommitment,
-} from '@oxy.so/core';
+} from '../../../../core/src/crypto/identityMove';
+import { digestIdentityPayload } from '../../../../core/src/crypto/identityProof';
 import {
   IDENTITY_ERROR_CODES,
   IDENTITY_PROOF_AUDIENCE,

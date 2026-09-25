@@ -24,7 +24,6 @@
       "packages/api",
       "packages/node",
       "packages/auth",
-      "packages/id",
       "packages/accounts",
       "packages/commons",
       "packages/test-app-expo",

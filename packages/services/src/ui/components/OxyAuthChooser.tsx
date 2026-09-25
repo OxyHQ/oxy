@@ -38,7 +38,7 @@ import { Linking, Platform } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { IDENTITY_WEB_ORIGIN, getNormalizedUserHandle, type User } from '@oxy.so/core';
+import { AUTH_WEB_ORIGIN, getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../context/OxyContext';
 import { useDeviceSwitcher } from '../hooks/useDeviceSwitcher';
@@ -87,12 +87,6 @@ const toastedFailureAttempt = new WeakMap<object, number>();
 export interface OxyAuthChooserProps {
   /** Called after a completed switch, sign-in, or sign-up. */
   onComplete?: () => void;
-  /**
-   * @deprecated No effect. The web sign-in entry no longer auto-starts a
-   * device-flow request: its primary action opens the identity origin
-   * (`id.oxy.so`) in a popup, which a browser only allows from a user gesture.
-   */
-  autoStartSignIn?: boolean;
 }
 
 /**
@@ -117,8 +111,8 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   // so the two switchers cannot drift.
   const { principals } = useDeviceSwitcher();
 
-  // Web sign-in and sign-up run at the identity origin (`id.oxy.so`), never
-  // on this page, whatever this page's origin: that is where the passkey
+  // Web sign-up, and sign-in off an `oxy.so` origin, run in the identity window
+  // (`auth.oxy.so/continue`), never on this page: that is where the passkey
   // ceremony can run for any app AND where the account's identity is created
   // and kept sealed under the passkey (one identity, two carriers). Native has
   // no passkey path: Commons owns identity there ('none').
@@ -413,7 +407,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
       onSignOut: () => {
         void handleSignOut();
       },
-      onOpenIdentity: passkeyMode === 'hub' ? () => openUrl(`${IDENTITY_WEB_ORIGIN}/`) : undefined,
+      onOpenIdentity: passkeyMode === 'hub' ? () => openUrl(`${AUTH_WEB_ORIGIN}/identity`) : undefined,
       customItems: (consumerHooks?.menuItems ?? []).map((item) => ({
         ...item,
         onPress: () => {

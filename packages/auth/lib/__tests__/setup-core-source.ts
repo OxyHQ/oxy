@@ -27,6 +27,31 @@ import { translate } from "../../../core/src/i18n"
 import { selectCommonsDelivery } from "../../../core/src/utils/commonsDelivery"
 import { buildSwitcherRows } from "../../../core/src/session/deviceSwitcherRows"
 import { projectDevicePrincipals } from "../../../core/src/session/deviceDirectory"
+import { OxyServices } from "../../../core/src/OxyServices"
+import {
+    WEB_IDENTITY_PRF_INPUT,
+    WebIdentityUnlockError,
+    deriveIdentityFromRecoveryMaterial,
+    generateWebIdentity,
+    isUsablePrfOutput,
+    parseRecoveryMaterial,
+    sealWebIdentity,
+    unlockWebIdentity,
+    wipeBytes,
+    wipeOpenedIdentity,
+} from "../../../core/src/crypto/webIdentityCarrier"
+import {
+    buildMoveQrPayload,
+    createMoveCommitment,
+    deriveMoveKey,
+    deriveMoveSas,
+    digestMoveCiphertext,
+    generateMoveEphemeralKeyPair,
+    sealIdentityForMove,
+    verifyMoveReceipt,
+} from "../../../core/src/crypto/identityMove"
+import { digestIdentityPayload, signIdentityProof } from "../../../core/src/crypto/identityProof"
+import { normalizeInlineText } from "../../../core/src/utils/textNormalization"
 
 mock.module("@oxy.so/core", () => ({
     getNormalizedUserHandle,
@@ -40,4 +65,28 @@ mock.module("@oxy.so/core", () => ({
     // grouping rule, not a second one for the IdP.
     buildSwitcherRows,
     projectDevicePrincipals,
+    // The web identity carrier (`lib/identity/`): the holder crypto itself, and
+    // the isolated client its ceremonies run on.
+    OxyServices,
+    WEB_IDENTITY_PRF_INPUT,
+    WebIdentityUnlockError,
+    deriveIdentityFromRecoveryMaterial,
+    generateWebIdentity,
+    isUsablePrfOutput,
+    parseRecoveryMaterial,
+    sealWebIdentity,
+    unlockWebIdentity,
+    wipeBytes,
+    wipeOpenedIdentity,
+    buildMoveQrPayload,
+    createMoveCommitment,
+    deriveMoveKey,
+    deriveMoveSas,
+    digestMoveCiphertext,
+    generateMoveEphemeralKeyPair,
+    sealIdentityForMove,
+    verifyMoveReceipt,
+    digestIdentityPayload,
+    signIdentityProof,
+    normalizeInlineText,
 }))

@@ -6,7 +6,7 @@
  * An account with `users.public_key IS NULL` can sign in but owns no identity:
  * it cannot sign anything, cannot be moved to Commons, and has no recovery
  * phrase. This script MEASURES that population so the prompt to create one on
- * `id.oxy.so` can be aimed and its effect watched. It is read-only by
+ * auth.oxy.so can be aimed and its effect watched. It is read-only by
  * construction — there is nothing to write, because an identity can only be
  * created by its owner, on their device.
  *

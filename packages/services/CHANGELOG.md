@@ -1,5 +1,19 @@
 # Changelog
 
+## [5.0.1] - 2026-09-26
+
+Requires `@oxy.so/core` `^1.15.0`.
+
+### Changed
+
+- The web identity carrier is `auth.oxy.so` (ADR 0028). The account menu's
+  identity row, web account deletion and the deletion hand-off copy point at
+  `auth.oxy.so/identity`; the passkey window is `auth.oxy.so/continue`.
+
+### Removed
+
+- `OxyAuthChooser`'s `autoStartSignIn` prop, which had no effect.
+
 ## [5.0.0] - 2026-09-26
 
 Requires `@oxy.so/core` `^1.14.0`.

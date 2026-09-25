@@ -374,21 +374,12 @@ export const SEED_APPS: SeedAppSpec[] = [
     description: 'Official Oxy authentication app and third-party OAuth Identity Provider.',
     websiteUrl: 'https://auth.oxy.so',
     type: 'first_party',
-    // The auth app is the third-party OAuth IdP, but it now ALSO consumes
-    // Sign-in-with-Oxy as its own Relying Party, so it registers its own
-    // origin as the redirect surface.
+    // The auth app is the third-party OAuth IdP and the web identity carrier
+    // (the sealed web envelope, recovery, the move to Commons, account
+    // deletion — routes that accept NO origin but this one), and it consumes
+    // Sign-in-with-Oxy as its own Relying Party, so it registers its own origin
+    // as the redirect surface.
     redirectUris: ['https://auth.oxy.so'],
-  },
-  {
-    name: 'Oxy Identity',
-    description:
-      'The web identity carrier (id.oxy.so): keeps an account\'s self-custody identity sealed under the person\'s passkey. Oxy never holds it.',
-    websiteUrl: 'https://id.oxy.so',
-    type: 'first_party',
-    // Trusted first-party origin: it calls the API with a bearer (passkey
-    // sign-in, the sealed web envelope, account deletion). The envelope routes
-    // additionally accept NO origin but this one (`IDENTITY_WEB_ORIGIN`).
-    redirectUris: ['https://id.oxy.so'],
   },
   // ── Ecosystem first-party apps ──
   {

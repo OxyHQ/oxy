@@ -63,7 +63,7 @@ const router = Router();
 function requireHolderOrigin(req: Request, _res: Response, next: NextFunction): void {
   const origin = req.headers.origin;
   if (typeof origin !== 'string' || !isHolderOrigin(origin)) {
-    next(new ForbiddenError('This endpoint is only available to the Oxy identity origin'));
+    next(new ForbiddenError('This endpoint is only available to auth.oxy.so'));
     return;
   }
   next();

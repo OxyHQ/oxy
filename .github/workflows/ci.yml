@@ -985,26 +985,6 @@ jobs:
         run: bun run build && bun run lint && bun run typescript && bun run test
         working-directory: ./packages/federation
 
-      # Identity origin (id.oxy.so) — the web identity carrier. Worker header policy
-      # (node:test) + carrier rules against the real core crypto (Jest, from
-      # source: jest.config.cjs maps every workspace package to src/, so the
-      # builds above do not reach it). Last, because it is the only suite here
-      # that ran on Node 24 rather than the runner image's node.
-      - name: Setup Node.js
-        id: node
-        if: ${{ !cancelled() }}
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24.x'
-      - name: 'Identity Origin Tests: test'
-        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.node.outcome == 'success' }}
-        run: bun run test
-        working-directory: ./packages/id
-      - name: 'Identity Origin Tests: build'
-        if: ${{ !cancelled() && steps.build-core.outcome == 'success' && steps.node.outcome == 'success' }}
-        run: bun run build
-        working-directory: ./packages/id
-
   # The app-facing packages' suites: services, auth, commons, accounts and
   # Console, on one runner with one install. Same rule as `packages-platform`:
   # dependency order, each build once at the first suite that needs it, and

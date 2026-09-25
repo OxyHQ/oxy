@@ -205,7 +205,7 @@ fragment).
 
 - `POST /auth/link` — first link of a root only (ADR 0024 D8): a root proof,
   plus a fresh passkey assertion for a keyless account. Clients reach it through
-  the holder flow on `id.oxy.so` (web) or Commons (native), not an SDK method.
+  the holder flow on `auth.oxy.so` (web) or Commons (native), not an SDK method.
 - `removePasskey(credentialId)` → `DELETE /auth/link/webauthn/:id`; refuses to
   drop the last web holder wrap.
 - A root is never unlinked; it is replaced only by `rotateKey()`.

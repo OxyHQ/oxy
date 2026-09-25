@@ -16,6 +16,9 @@ import { AuthorizePage } from "@/src/pages/authorize"
 import { HubAuthorizePage } from "@/src/pages/hub-authorize"
 import { McpLinkPage } from "@/src/pages/mcp-link"
 import { DevicePage } from "@/src/pages/device"
+import { ContinuePage } from "@/src/pages/continue"
+import { IdentityPage } from "@/src/pages/identity"
+import { PrfCheckPage } from "@/src/pages/prf-check"
 import "@/app/globals.css"
 
 function ExternalRedirect({ url }: { url: string }) {
@@ -104,6 +107,14 @@ function App() {
                                     which kept the secret, finishes by polling. */}
                                 <Route path="/device" element={<DevicePage />} />
                                 <Route path="/auth/device" element={<DevicePage />} />
+                                {/* The web identity carrier (ADR 0027): the popup an
+                                    app opens to sign in or create an account with a
+                                    passkey, and the person's identity — recovery
+                                    phrase, recovery, the move to Commons, deletion. */}
+                                <Route path="/continue" element={<ContinuePage />} />
+                                <Route path="/identity" element={<IdentityPage />} />
+                                <Route path="/identity/move" element={<IdentityPage intent="move" />} />
+                                <Route path="/prf-check" element={<PrfCheckPage />} />
                             </Route>
 
                             {/* Account management lives on accounts.oxy.so — the IdP no longer

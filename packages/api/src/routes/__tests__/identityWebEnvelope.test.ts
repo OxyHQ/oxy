@@ -60,7 +60,7 @@ import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import identityWebEnvelopeRouter from '../identityWebEnvelope';
 
-const IDENTITY_ORIGIN = 'https://id.oxy.so';
+const IDENTITY_ORIGIN = 'https://auth.oxy.so';
 
 interface JsonResponse {
   status: number;

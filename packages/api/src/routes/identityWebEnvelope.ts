@@ -15,8 +15,8 @@
  *
  * Guards beyond the bearer, each for a stated reason:
  *
- * 1. **Holder origin only.** Every call must come from the holder host
- *    (`IDENTITY_WEB_ORIGIN`) or loopback. Defense in depth — the proofs below
+ * 1. **Holder origin only.** Every call must come from auth.oxy.so, the web
+ *    identity carrier (`AUTH_WEB_ORIGIN`), or loopback. Defense in depth — the proofs below
  *    are the control.
  * 2. **Current root only.** A write is refused unless the envelope seals the
  *    account's linked `users.public_key`; a read of an envelope sealing any other
@@ -57,7 +57,7 @@ import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { isLoopbackOrigin } from '../utils/origin';
-import { getIdentityWebOrigin } from '../config/env';
+import { getAuthWebOrigin } from '../config/env';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { identityWebEnvelopes } from '../db/schema/identityWebEnvelopes';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
@@ -72,14 +72,14 @@ const router = Router();
 
 /** Whether a browser origin may reach the holder routes: the holder host, or loopback. */
 export function isHolderOrigin(origin: string): boolean {
-  return origin === getIdentityWebOrigin() || isLoopbackOrigin(origin);
+  return origin === getAuthWebOrigin() || isLoopbackOrigin(origin);
 }
 
 /** Reject any browser origin other than the holder host (and loopback). */
 function requireIdentityOrigin(req: Request, _res: Response, next: NextFunction): void {
   const origin = req.headers.origin;
   if (typeof origin !== 'string' || !isHolderOrigin(origin)) {
-    next(new ForbiddenError('This endpoint is only available to the Oxy identity origin'));
+    next(new ForbiddenError('This endpoint is only available to auth.oxy.so'));
     return;
   }
   next();

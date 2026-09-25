@@ -11,7 +11,7 @@
  *
  * The PRF output is produced inside the user's authenticator, behind user
  * verification, and never leaves the page that asked for it. The envelope is
- * therefore safe to store anywhere — the holder host's IndexedDB and the server
+ * therefore safe to store anywhere — auth.oxy.so's IndexedDB and the server
  * copy alike — and opens only with a registered passkey or the recovery material.
  *
  * PURE: no storage, no network, no WebAuthn call, no platform globals beyond the

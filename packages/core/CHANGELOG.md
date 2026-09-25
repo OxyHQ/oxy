@@ -1,5 +1,30 @@
 # Changelog — `@oxy.so/core`
 
+## 1.15.0
+
+The web identity carrier is `auth.oxy.so`; `id.oxy.so` is gone (ADR 0028).
+
+### Added
+
+- `AUTH_WEB_ORIGIN` (`https://auth.oxy.so`): the IdP's origin, which is also
+  the web identity carrier. `OXY_AUTHORIZE_URL` is built from it.
+- `buildOxyPagesHeaders({ sensitive: true })` serves the whole holder policy:
+  `base-uri` and `form-action 'none'`, `Referrer-Policy: no-referrer`, a
+  `Permissions-Policy` allowing passkeys for the origin only with every other
+  powerful feature off, and `Cross-Origin-Resource-Policy: same-origin`. Never
+  COOP: the identity window reports back to its opener.
+
+### Changed
+
+- The account dialog's passkey window opens `<authOrigin>/continue?user_code=…`
+  (was `id.oxy.so/continue?code=…`). The parameter is `user_code` because the
+  IdP's own `OxyProvider` cold boot consumes a `?code=` as an OAuth return.
+
+### Removed
+
+- `IDENTITY_WEB_ORIGIN`; use `AUTH_WEB_ORIGIN`.
+- The controller's `identityOrigin` option; it is `authOrigin`.
+
 ## 1.14.0
 
 ### Added

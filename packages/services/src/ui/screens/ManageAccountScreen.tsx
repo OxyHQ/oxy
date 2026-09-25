@@ -14,7 +14,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import {
-    IDENTITY_WEB_ORIGIN,
+    AUTH_WEB_ORIGIN,
     getAccountDisplayName,
     getAccountFallbackHandle,
     getNormalizedUserHandle,
@@ -324,10 +324,9 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
             return;
         }
         // Web: deleting an account is signed with its identity key, which only
-        // the identity origin can unseal — the deletion happens there, never on
-        // this page.
+        // auth.oxy.so can unseal — the deletion happens there, never on this page.
         if (isWebBrowser()) {
-            await Linking.openURL(`${IDENTITY_WEB_ORIGIN}/`).catch(() => {
+            await Linking.openURL(`${AUTH_WEB_ORIGIN}/identity`).catch(() => {
                 toast.error(t('accountSwitcher.linkOpenFailed'));
             });
             return;
