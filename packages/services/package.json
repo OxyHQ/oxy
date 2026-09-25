@@ -155,7 +155,7 @@
   },
   "dependencies": {
     "@expo/config-plugins": "catalog:",
-    "@oxy.so/contracts": "workspace:*",
+    "@oxy.so/contracts": "workspace:^",
     "@simplewebauthn/browser": "^13.3.0",
     "color": "^4.2.3"
   },
