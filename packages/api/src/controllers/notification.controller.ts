@@ -18,13 +18,15 @@
  *     selected. Absent optionals are OMITTED rather than emitted as `null`,
  *     because that is what Mongo did and what the SDK's zod parses expect.
  *
- * ## `title` / `message` / `data` are accepted and DISCARDED, as they always were
+ * ## `title` / `message` / `url` are stored for `system` only
  *
- * `createNotificationSchema` accepts them, but the Mongoose model declared none
- * of them, so `strict: true` stripped them on save and neither the 201 body nor
- * the socket payload has ever carried them. The `notifications` table has no
- * such columns either. They stay accepted so a caller sending them is not
- * newly rejected, and they stay discarded.
+ * A `system` notification (an Oxy service telling a user about their own
+ * account) has no actor action for a client to render from, so its `title`
+ * and `message` are required and stored, with an optional validated deep link
+ * `url`; they appear in the 201 body, the list and the socket payload. For
+ * every other type `title` / `message` / `data` are accepted and DISCARDED as
+ * they always were (the Mongoose model declared none of them), and the table's
+ * CHECKs keep those columns null.
  *
  * ## Two behaviours the port could not preserve, both flagged
  *
@@ -48,33 +50,16 @@ import { and, count, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { getDb } from '../config/postgres';
-import type { AuthRequest } from '../middleware/auth';
-import {
-  NOTIFICATION_ENTITY_TYPES,
-  NOTIFICATION_TYPES,
-  notifications,
-} from '../db/schema/notifications';
+import type { AuthRequest, ServiceAuthRequest } from '../middleware/auth';
+import { notifications } from '../db/schema/notifications';
 import { users } from '../db/schema/users';
 import { isForeignKeyViolation } from '@oxy.so/db';
 import { logger } from '../utils/logger';
 import { sendSuccess } from '../utils/asyncHandler';
 import { UnauthorizedError, BadRequestError, NotFoundError, ConflictError, InternalServerError } from '../utils/error';
 import { PAGINATION } from '../utils/constants';
-
-// =============================================================================
-// VALIDATION SCHEMAS
-// =============================================================================
-
-const CREATE_NOTIFICATION_SCHEMA = z.object({
-  recipientId: z.string().min(1, 'Recipient ID is required'),
-  actorId: z.string().min(1, 'Actor ID is required'),
-  type: z.enum(NOTIFICATION_TYPES),
-  entityId: z.string().min(1, 'Entity ID is required'),
-  entityType: z.enum(NOTIFICATION_ENTITY_TYPES),
-  title: z.string().optional(),
-  message: z.string().optional(),
-  data: z.record(z.any()).optional(),
-});
+import { createOxyNotificationRequestSchema } from '@oxy.so/contracts';
+import { applications } from '../db/schema/applications';
 
 // =============================================================================
 // WIRE SERIALIZERS
@@ -104,6 +89,10 @@ interface NotificationResponse {
   type: NotificationRow['type'];
   entityId: string;
   entityType: NotificationRow['entityType'];
+  /** `system` notifications only. */
+  title?: string;
+  message?: string;
+  url?: string;
   read: boolean;
   createdAt: string;
   updatedAt: string;
@@ -165,10 +154,55 @@ function toNotificationResponse(
     type: row.type,
     entityId: row.entityId,
     entityType: row.entityType,
+    ...(row.title !== null ? { title: row.title } : {}),
+    ...(row.message !== null ? { message: row.message } : {}),
+    ...(row.url !== null ? { url: row.url } : {}),
     read: row.read,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+/**
+ * A `system` notification's deep link must be somewhere the notifying app is
+ * allowed to send people: an `https:` URL, or a CUSTOM SCHEME that the calling
+ * application registered as one of its redirect URIs (`oxymove://…` for Oxy
+ * Move). Anything else — `javascript:`, `http:`, credentials in the URL,
+ * another app's scheme — is refused, because every client that renders the
+ * notification would otherwise open it on a tap.
+ */
+async function assertAllowedNotificationUrl(url: string, appId: string | undefined): Promise<void> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new BadRequestError('Invalid notification data', { errors: [{ path: ['url'], message: 'url must be an absolute URL' }] });
+  }
+  if (parsed.username || parsed.password) {
+    throw new BadRequestError('Invalid notification data', { errors: [{ path: ['url'], message: 'url cannot carry credentials' }] });
+  }
+  if (parsed.protocol === 'https:') return;
+  if (parsed.protocol !== 'http:' && appId) {
+    const [app] = await getDb()
+      .select({ redirectUris: applications.redirectUris })
+      .from(applications)
+      .where(eq(applications.id, appId))
+      .limit(1);
+    const registeredSchemes = new Set(
+      (app?.redirectUris ?? []).flatMap((uri) => {
+        try {
+          const scheme = new URL(uri).protocol;
+          return scheme === 'https:' || scheme === 'http:' ? [] : [scheme];
+        } catch {
+          return [];
+        }
+      }),
+    );
+    if (registeredSchemes.has(parsed.protocol)) return;
+  }
+  throw new BadRequestError('Invalid notification data', {
+    errors: [{ path: ['url'], message: 'url must be https or a scheme registered by the calling application' }],
+  });
 }
 
 // =============================================================================
@@ -196,6 +230,9 @@ async function emitNotification(req: Request, notification: NotificationResponse
         actorId: notification.actorId,
         entityId: notification.entityId,
         entityType: notification.entityType,
+        ...(notification.title !== undefined ? { title: notification.title } : {}),
+        ...(notification.message !== undefined ? { message: notification.message } : {}),
+        ...(notification.url !== undefined ? { url: notification.url } : {}),
         createdAt: notification.createdAt,
       });
     }
@@ -280,15 +317,24 @@ export const getNotifications = async (req: AuthRequest, res: Response): Promise
  */
 export const createNotification = async (req: Request, res: Response): Promise<void> => {
   try {
-    const validatedData = CREATE_NOTIFICATION_SCHEMA.parse(req.body);
+    const validatedData = createOxyNotificationRequestSchema.parse(req.body);
     const { recipientId, actorId, type, entityId, entityType } = validatedData;
+    // Text is stored for `system` only; for every other type it is accepted and
+    // discarded exactly as before (the contract refuses `url` elsewhere).
+    const isSystem = type === 'system';
+    if (isSystem && validatedData.url !== undefined) {
+      await assertAllowedNotificationUrl(validatedData.url, (req as ServiceAuthRequest).serviceApp?.appId);
+    }
+    const text = isSystem
+      ? { title: validatedData.title ?? null, message: validatedData.message ?? null, url: validatedData.url ?? null }
+      : {};
 
     // The duplicate check and the insert are ONE statement: the unique index
     // `notifications_recipient_id_actor_id_type_entity_id_key` decides, so two
     // concurrent creates can no longer both pass a check and then collide.
     const [created] = await getDb()
       .insert(notifications)
-      .values({ recipientId, actorId, type, entityId, entityType })
+      .values({ recipientId, actorId, type, entityId, entityType, ...text })
       .onConflictDoNothing({
         target: [
           notifications.recipientId,

@@ -3,6 +3,7 @@ import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { canonicalFederationHost } from '@oxy.so/federation';
 import { resolveExternalIdentityRequestSchema, resolveExternalIdentityResponseSchema, lookupExternalIdentitiesRequestSchema, lookupExternalIdentitiesResponseSchema } from '@oxy.so/contracts';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
+import type { ApplicationScope } from '../utils/applicationScopes';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { validate } from '../middleware/validate';
 import { ApiError, ForbiddenError, NotFoundError, ConflictError, BadRequestError } from '../utils/error';
@@ -49,8 +50,22 @@ const router = Router();
 
 const REQUIRED_SCOPE = 'federation:write';
 
+/**
+ * The identity routes also accept the narrow `federation:identities:resolve`
+ * (see `utils/applicationScopes.ts`): a service that only needs "which Oxy user
+ * is this remote account" (Oxy Move) must not hold signing authority.
+ */
+const IDENTITY_RESOLVE_SCOPE: ApplicationScope = 'federation:identities:resolve';
+
+function assertIdentityResolveScope(req: ServiceAuthRequest): void {
+  const scopes = req.serviceApp?.scopes ?? [];
+  if (!scopes.includes(REQUIRED_SCOPE) && !scopes.includes(IDENTITY_RESOLVE_SCOPE)) {
+    throw new ForbiddenError(`Missing required scope: ${REQUIRED_SCOPE} or ${IDENTITY_RESOLVE_SCOPE}`);
+  }
+}
+
 router.post('/identities/resolve', serviceAuthMiddleware, validate({ body: resolveExternalIdentityRequestSchema }), asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-  if (!req.serviceApp?.scopes.includes(REQUIRED_SCOPE)) throw new ForbiddenError('Missing required scope: federation:write');
+  assertIdentityResolveScope(req);
   const { actorUri, handle, transportAcct } = req.body ?? {};
   if ((typeof actorUri === 'string') === (typeof handle === 'string')
     || (actorUri !== undefined && (typeof actorUri !== 'string' || !actorUri || actorUri.length > 2048))
@@ -64,7 +79,7 @@ router.post('/identities/resolve', serviceAuthMiddleware, validate({ body: resol
 }));
 
 router.post('/identities/lookup', serviceAuthMiddleware, validate({ body: lookupExternalIdentitiesRequestSchema }), asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-  if (!req.serviceApp?.scopes.includes(REQUIRED_SCOPE)) throw new ForbiddenError('Missing required scope: federation:write');
+  assertIdentityResolveScope(req);
   const identifiers: unknown = req.body?.identifiers;
   if (!Array.isArray(identifiers) || identifiers.length > 100 || identifiers.length < 1
     || identifiers.some(value => typeof value !== 'string' || !value || value.length > 2048)) {
