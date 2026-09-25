@@ -110,6 +110,33 @@ describe('OxyServices.getUsersByIds — dual-mode auth', () => {
     });
   });
 
+  describe('with an attestable workload identity and no key pair (ADR 0026 backend)', () => {
+    it('uses makeServiceRequest — an attested backend is still a backend', async () => {
+      jest
+        .spyOn(oxy as unknown as { _canUseWorkloadIdentity: () => Promise<boolean> }, '_canUseWorkloadIdentity')
+        .mockResolvedValue(true);
+      makeServiceRequestSpy.mockResolvedValueOnce([makeRawUser('a')]);
+
+      const result = await oxy.getUsersByIds(['a']);
+
+      expect(makeRequestSpy).not.toHaveBeenCalled();
+      expect(makeServiceRequestSpy).toHaveBeenCalledWith('POST', '/users/by-ids', { ids: ['a'] });
+      expect(result).toHaveLength(1);
+    });
+
+    it('stays on the user path when the host cannot attest', async () => {
+      jest
+        .spyOn(oxy as unknown as { _canUseWorkloadIdentity: () => Promise<boolean> }, '_canUseWorkloadIdentity')
+        .mockResolvedValue(false);
+      makeRequestSpy.mockResolvedValueOnce([makeRawUser('a')]);
+
+      await oxy.getUsersByIds(['a']);
+
+      expect(makeServiceRequestSpy).not.toHaveBeenCalled();
+      expect(makeRequestSpy).toHaveBeenCalledWith('POST', '/users/by-ids', { ids: ['a'] }, { cache: false });
+    });
+  });
+
   describe('chunking + resilience (applies to both modes)', () => {
     it('chunks at 100 ids per request on the user path and flattens results', async () => {
       const ids = Array.from({ length: 250 }, (_, i) => `id-${i}`);

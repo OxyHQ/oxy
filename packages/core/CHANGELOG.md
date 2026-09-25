@@ -1,5 +1,17 @@
 # Changelog — `@oxy.so/core`
 
+## 1.12.1
+
+### Fixed
+
+- `getUsersByIds` sent an attested backend (ADR 0026: an ECS task with no key
+  pair) down the anonymous user path, because it asked only whether a key pair
+  was configured. Every chunk then went out with no bearer, was charged to the
+  shared NAT address's per-IP budget and paid its 500ms slow-down penalty:
+  measured from Mention's task, 520ms per chunk against 20ms with the service
+  token, which put Mention's 1.5s author-hydration deadline out of reach on
+  every cache miss. A host that can attest now takes the service path.
+
 ## 1.12.0
 
 ### Added
