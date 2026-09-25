@@ -72,11 +72,24 @@ import {
   issueWorkloadChallenge,
   WorkloadIdentityError,
 } from '../workloadIdentity.service';
-import { registerAttestationVerifier, type AttestationVerifier } from '../workloadAttestation.service';
+import {
+  registerAttestationVerifier,
+  workloadAttestationHandle,
+  type AttestationVerifier,
+} from '../workloadAttestation.service';
+import { applicationCredentials } from '../../db/schema/applicationCredentials';
 
 const SUBJECT = `arn:aws:sts::237343248947:assumed-role/oxy-test-${randomUUID()}/task`;
 
-/** Stands in for AWS: the real verifier is exercised in `workloadAttestation.test.ts`. */
+/**
+ * Stands in for AWS: the real verifier is exercised in `workloadAttestation.test.ts`.
+ *
+ * `attestationId` is DERIVED, by the one definition every real verifier uses. A
+ * made-up `wl_…` here would let the mint and the materialised attribution row
+ * disagree about which identity this is — and since the row is what the usage
+ * ledger's foreign key names, a stub that lies about the handle is a stub that
+ * cannot catch the thing worth catching.
+ */
 const stubVerifier: AttestationVerifier = {
   provider: 'aws-iam',
   verify: async (payload: unknown, nonce: string) => {
@@ -84,7 +97,7 @@ const stubVerifier: AttestationVerifier = {
     if ((payload as { answersNonce?: string }).answersNonce !== nonce) {
       throw new Error('the stub was handed a nonce it was not told to answer');
     }
-    return { provider: 'aws-iam', subject, attestationId: `wl_${subject.slice(-8)}` };
+    return { provider: 'aws-iam', subject, attestationId: workloadAttestationHandle(subject) };
   },
 };
 
@@ -140,6 +153,16 @@ function scopesOf(token: string): string[] {
   return verified.payload.scopes;
 }
 
+/** The materialised attribution row for a handle, or `undefined`. */
+async function readCredentialRow(id: string) {
+  const [row] = await getDb()
+    .select()
+    .from(applicationCredentials)
+    .where(eq(applicationCredentials.id, id))
+    .limit(1);
+  return row;
+}
+
 async function exchange(subject: string) {
   const { nonce } = await issueWorkloadChallenge();
   return exchangeWorkloadAttestation({
@@ -171,6 +194,57 @@ describe('workload-identity mint', () => {
     // A workload mint is attributable to the attestation, and is never mistaken
     // for a credential that somebody could try to revoke.
     expect(verified.payload.credentialId.startsWith('wl_')).toBe(true);
+    expect(verified.payload.credentialId).toBe(workloadAttestationHandle(subject));
+  });
+
+  it('materialises the row the usage ledger will name, before the token exists', async () => {
+    // The mint is the single point at which a `wl_…` `credentialId` enters
+    // circulation, so this is where "a token naming a handle has a row the ledger
+    // can reference" is made a precondition rather than a hope about the past —
+    // and it is why the thirteen bindings already live in production need no
+    // backfill.
+    const application = await applicationFixture();
+    const subject = `${SUBJECT}-materialise`;
+    await bind(application.id, subject);
+    const handle = workloadAttestationHandle(subject);
+    expect(await readCredentialRow(handle)).toBeUndefined();
+
+    const grant = await exchange(subject);
+    const verified = verifyServiceToken(grant.token);
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+
+    const row = await readCredentialRow(verified.payload.credentialId);
+    expect(row).toBeDefined();
+    expect(row?.type).toBe('workload');
+    expect(row?.applicationId).toBe(application.id);
+    // The claim names the row that was written, not a second computation of the
+    // same hash.
+    expect(verified.payload.credentialId).toBe(handle);
+  });
+
+  it('refuses to mint when the workload is already attributed to another application', async () => {
+    const first = await applicationFixture();
+    const second = await applicationFixture();
+    const subject = `${SUBJECT}-conflict`;
+    await bind(first.id, subject);
+    await exchange(subject);
+
+    // The role is unbound and given to another application — which the bind path
+    // refuses, but a raw-SQL move does not.
+    await getDb()
+      .delete(applicationWorkloadIdentities)
+      .where(eq(applicationWorkloadIdentities.subject, subject));
+    await bind(second.id, subject);
+
+    const error = await exchange(subject).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(WorkloadIdentityError);
+    expect((error as WorkloadIdentityError).reason).toBe('workload_attribution_conflict');
+    // Refusing beats minting a token whose first reservation would fail, and beats
+    // relabelling the spend the role already made.
+    expect((await readCredentialRow(workloadAttestationHandle(subject)))?.applicationId).toBe(
+      first.id
+    );
   });
 
   it('spends a challenge once, so the same attestation cannot be replayed', async () => {

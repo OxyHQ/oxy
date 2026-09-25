@@ -17,6 +17,7 @@ import { AuthorizePage } from "@/src/pages/authorize"
 import { HubAuthorizePage } from "@/src/pages/hub-authorize"
 import { McpLinkPage } from "@/src/pages/mcp-link"
 import { HubPasskeyPage } from "@/src/pages/hub-passkey"
+import { DevicePage } from "@/src/pages/device"
 import "@/app/globals.css"
 
 function ExternalRedirect({ url }: { url: string }) {
@@ -105,6 +106,12 @@ function App() {
                                     approves here and returns to their assistant. */}
                                 <Route path="/mcp/link" element={<McpLinkPage />} />
                                 <Route path="/auth/mcp/link" element={<McpLinkPage />} />
+                                {/* Approving a device sign-in (e.g. `codea login`) from a
+                                    code the device shows. Also not an OAuth request:
+                                    the approval lands server-side and the device,
+                                    which kept the secret, finishes by polling. */}
+                                <Route path="/device" element={<DevicePage />} />
+                                <Route path="/auth/device" element={<DevicePage />} />
                             </Route>
 
                             {/* Account management lives on accounts.oxy.so — the IdP no longer

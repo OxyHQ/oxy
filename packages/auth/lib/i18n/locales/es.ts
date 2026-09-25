@@ -99,6 +99,26 @@ const es: LocaleDict = {
       switchFailed: 'No se pudo seleccionar esa cuenta. Vuelve a iniciar sesión para continuar.',
     },
   },
+  device: {
+    noRequestTitle: 'No hay ninguna solicitud de inicio de sesión',
+    noRequestDesc:
+      'Esta página se abre desde el enlace que muestra un dispositivo al pedirte que inicies sesión; por ejemplo, "codea login" en una terminal.',
+    unavailableTitle: 'Esta solicitud de inicio de sesión no se puede usar',
+    loadFailed: 'No se encontró esta solicitud de inicio de sesión. Vuelve a empezar en tu dispositivo.',
+    codeHint: 'Continúa solo si este código coincide con el que muestra tu dispositivo:',
+    ackVerified: 'He iniciado yo este inicio de sesión en {{app}}.',
+    ackUnverified:
+      'No pudimos verificar de dónde viene esta solicitud. Entiendo el riesgo y he iniciado yo este inicio de sesión en {{app}}.',
+    approvedTitle: 'Sesión iniciada',
+    approvedDesc: '{{app}} continuará por su cuenta. Ya puedes cerrar esta pestaña.',
+    deniedTitle: 'Inicio de sesión rechazado',
+    deniedDesc: 'No se ha autorizado nada. Ya puedes cerrar esta pestaña.',
+    errors: {
+      approveFailed: 'No se pudo completar el inicio de sesión. Vuelve a empezar en tu dispositivo.',
+      noToken: 'Tu sesión ha caducado. Vuelve a iniciar sesión para continuar.',
+      switchFailed: 'No se pudo seleccionar esa cuenta. Vuelve a iniciar sesión para continuar.',
+    },
+  },
   authorize: {
     title: 'Continuar a {{app}}',
     subtitle:

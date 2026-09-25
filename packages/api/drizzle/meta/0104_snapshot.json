@@ -1,6 +1,6 @@
 {
-  "id": "6d41176d-f99f-49e5-a16e-dac2a8dd33c8",
-  "prevId": "8a388329-d671-4898-b0b7-a58e5c5e54e9",
+  "id": "6f69c17c-7880-4e12-8b6c-6a1a13e465d6",
+  "prevId": "6d41176d-f99f-49e5-a16e-dac2a8dd33c8",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -11859,6 +11859,148 @@
       },
       "isRLSEnabled": false
     },
+    "public.inference_catalogue_auto_approval_policies": {
+      "name": "inference_catalogue_auto_approval_policies",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "availability_scope": {
+          "name": "availability_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "commercial_permission": {
+          "name": "commercial_permission",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "inference_catalogue_auto_approval_policies_internal_only": {
+          "name": "inference_catalogue_auto_approval_policies_internal_only",
+          "value": "\"inference_catalogue_auto_approval_policies\".\"availability_scope\" = 'platform_internal' and \"inference_catalogue_auto_approval_policies\".\"commercial_permission\" = 'standard_application_use'"
+        },
+        "inference_catalogue_auto_approval_policies_description_check": {
+          "name": "inference_catalogue_auto_approval_policies_description_check",
+          "value": "length(btrim(\"inference_catalogue_auto_approval_policies\".\"description\")) between 1 and 2000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.inference_catalogue_blocklist": {
+      "name": "inference_catalogue_blocklist",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "inference_catalogue_blocklist_created_by_user_id_users_id_fk": {
+          "name": "inference_catalogue_blocklist_created_by_user_id_users_id_fk",
+          "tableFrom": "inference_catalogue_blocklist",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "inference_catalogue_blocklist_model_id_key": {
+          "name": "inference_catalogue_blocklist_model_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "model_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "inference_catalogue_blocklist_model_id_format": {
+          "name": "inference_catalogue_blocklist_model_id_format",
+          "value": "\"inference_catalogue_blocklist\".\"model_id\" ~ '^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$'"
+        },
+        "inference_catalogue_blocklist_reason_check": {
+          "name": "inference_catalogue_blocklist_reason_check",
+          "value": "length(btrim(\"inference_catalogue_blocklist\".\"reason\")) between 1 and 500"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.inference_deployments": {
       "name": "inference_deployments",
       "schema": "",
@@ -12017,6 +12159,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "auto_approval_policy_id": {
+          "name": "auto_approval_policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "upstream_wholesale_cost_amount": {
           "name": "upstream_wholesale_cost_amount",
           "type": "numeric(30, 12)",
@@ -12129,6 +12277,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "inference_deployments_auto_approval_policy_id_idx": {
+          "name": "inference_deployments_auto_approval_policy_id_idx",
+          "columns": [
+            {
+              "expression": "auto_approval_policy_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -12203,6 +12366,19 @@
           "tableTo": "price_versions",
           "columnsFrom": [
             "platform_fee_price_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "inference_deployments_auto_approval_policy_id_inference_catalogue_auto_approval_policies_id_fk": {
+          "name": "inference_deployments_auto_approval_policy_id_inference_catalogue_auto_approval_policies_id_fk",
+          "tableFrom": "inference_deployments",
+          "tableTo": "inference_catalogue_auto_approval_policies",
+          "columnsFrom": [
+            "auto_approval_policy_id"
           ],
           "columnsTo": [
             "id"
@@ -13688,6 +13864,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "reasoning_efforts": {
+          "name": "reasoning_efforts",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
         "license_id": {
           "name": "license_id",
           "type": "text",
@@ -13760,6 +13943,19 @@
           "type": "date",
           "primaryKey": false,
           "notNull": false
+        },
+        "provider_released_at": {
+          "name": "provider_released_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "catalogue_source": {
+          "name": "catalogue_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'reviewed'"
         },
         "deprecation_status": {
           "name": "deprecation_status",
@@ -13872,6 +14068,14 @@
         "inference_models_output_modalities_check": {
           "name": "inference_models_output_modalities_check",
           "value": "cardinality(\"inference_models\".\"output_modalities\") >= 1 and \"inference_models\".\"output_modalities\" <@ array['text', 'image', 'audio', 'video', 'embedding']::text[]"
+        },
+        "inference_models_reasoning_efforts_check": {
+          "name": "inference_models_reasoning_efforts_check",
+          "value": "\"inference_models\".\"reasoning_efforts\" <@ array['low', 'medium', 'high']::text[]"
+        },
+        "inference_models_catalogue_source_check": {
+          "name": "inference_models_catalogue_source_check",
+          "value": "\"inference_models\".\"catalogue_source\" in ('reviewed', 'kaana_sync')"
         },
         "inference_models_token_limits_check": {
           "name": "inference_models_token_limits_check",

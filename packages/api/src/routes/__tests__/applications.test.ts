@@ -122,6 +122,8 @@ import {
 } from '../../db/schema';
 import applicationsRouter from '../applications';
 import { errorHandler } from '../../middleware/errorHandler';
+import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
+import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
 
 interface JsonResponse {
   status: number;
@@ -1245,5 +1247,115 @@ describe('ownership integrity', () => {
     const res = await requestJson(server, 'GET', `/applications/${app.id}`);
     expect(res.status).toBe(200);
     expect(res.body.application).not.toHaveProperty('createdByUserId');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Materialised workload rows are not credentials this surface manages        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * An attested identity (ADR 0026) has a row in `application_credentials` so the
+ * usage ledger's foreign keys can name it — see
+ * `db/schema/applicationCredentials.ts`. It is not a credential, and the four
+ * endpoints here are the ones that CAN still reach one, because they select by row
+ * id or by `application_id` rather than by `public_key` (which is NULL on a
+ * workload row, so every OAuth lane misses it by construction).
+ *
+ * Each case is a 404 or an absence rather than an error, because the honest answer
+ * is that this surface has no such credential: an attested identity is managed
+ * through its binding, with `scripts/bind-workload-identity.ts`.
+ */
+describe('materialised workload rows', () => {
+  /** A binding on `applicationId`, materialised exactly as the service does. */
+  async function seedWorkloadRow(applicationId: string): Promise<string> {
+    const subject = `arn:aws:iam::237343248947:role/oxy-app-test-${crypto.randomBytes(6).toString('hex')}`;
+    const [binding] = await getDb()
+      .insert(applicationWorkloadIdentities)
+      .values({ applicationId, provider: 'aws-iam', subject })
+      .returning({ id: applicationWorkloadIdentities.id });
+    const { credentialId } = await ensureWorkloadAttributionIdentity({
+      bindingId: binding.id,
+      applicationId,
+      subject,
+    });
+    return credentialId;
+  }
+
+  it('cannot be asked for: `workload` is not a creatable credential type', async () => {
+    const app = await seedApp({ type: 'first_party', isOfficial: true, isInternal: true });
+    const res = await requestJson(server, 'POST', `/applications/${app.id}/credentials`, {
+      name: 'impostor',
+      type: 'workload',
+      environment: 'production',
+    });
+    // A 400 from the schema, not a 500 from the two CHECKs such a row would fail —
+    // and the wire enum the OpenAPI document advertises is unchanged, so no client
+    // learns `workload` exists.
+    expect(res.status).toBe(400);
+    const rows = await getDb()
+      .select({ id: applicationCredentials.id })
+      .from(applicationCredentials)
+      .where(eq(applicationCredentials.applicationId, app.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  it('are absent from the credentials list, which still shows real credentials', async () => {
+    const app = await seedApp({ type: 'first_party', isOfficial: true, isInternal: true });
+    const credential = await seedCredential(app.id);
+    const handle = await seedWorkloadRow(app.id);
+
+    const list = await requestJson(server, 'GET', `/applications/${app.id}/credentials`);
+    expect(list.status).toBe(200);
+    const ids = (list.body.credentials as { _id: string }[]).map((row) => row._id);
+    // The control half: an exclusion that returned nothing at all would pass a
+    // bare `not.toContain`.
+    expect(ids).toEqual([credential.id]);
+    expect(ids).not.toContain(handle);
+  });
+
+  it('cannot be rotated', async () => {
+    const app = await seedApp({ type: 'first_party', isOfficial: true, isInternal: true });
+    const handle = await seedWorkloadRow(app.id);
+    const res = await requestJson(
+      server,
+      'POST',
+      `/applications/${app.id}/credentials/${handle}/rotate`,
+      {}
+    );
+    expect(res.status).toBe(404);
+    // And nothing was written: a rotation would have minted a second row, whose
+    // uuid id the `workload_handle_id` CHECK refuses anyway.
+    const rows = await getDb()
+      .select({ id: applicationCredentials.id })
+      .from(applicationCredentials)
+      .where(eq(applicationCredentials.applicationId, app.id));
+    expect(rows.map((row) => row.id)).toEqual([handle]);
+  });
+
+  it('cannot be revoked', async () => {
+    const app = await seedApp({ type: 'first_party', isOfficial: true, isInternal: true });
+    const handle = await seedWorkloadRow(app.id);
+    const res = await requestJson(
+      server,
+      'DELETE',
+      `/applications/${app.id}/credentials/${handle}`
+    );
+    expect(res.status).toBe(404);
+    // The status is untouched, which matters: a revoked-looking row would tell an
+    // operator a service was cut off when the binding that actually authorises it
+    // carried on serving.
+    expect((await readCredential(handle))?.status).toBe('active');
+  });
+
+  it('have no credential audit trail to read', async () => {
+    const app = await seedApp({ type: 'first_party', isOfficial: true, isInternal: true });
+    const handle = await seedWorkloadRow(app.id);
+    const res = await requestJson(
+      server,
+      'GET',
+      `/applications/${app.id}/credentials/${handle}/audit`
+    );
+    expect(res.status).toBe(404);
   });
 });

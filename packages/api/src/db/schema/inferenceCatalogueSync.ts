@@ -24,7 +24,7 @@ import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { MODEL_ID_CHECK_PATTERN } from './inferenceSlug';
 import { users } from './users';
 
-/** The one policy the sync writes under. Seeded by migration 0103. */
+/** The one policy the sync writes under. Seeded by migration 0104. */
 export const KAANA_SYNC_AUTO_APPROVAL_POLICY_ID = 'kaana-sync';
 
 export const inferenceCatalogueAutoApprovalPolicies = pgTable(

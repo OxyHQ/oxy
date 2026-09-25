@@ -14,6 +14,7 @@ import {
 import { resolveServiceTokenPrincipal } from '../attribution.service';
 import { workloadTokenEnvironment } from '../../utils/credentialEnvironment';
 import { workloadAttestationHandle } from '../workloadAttestation.service';
+import { ensureWorkloadAttributionIdentity } from '../workloadAttributionIdentity.service';
 
 beforeAll(async () => {
   await connectPostgres();
@@ -94,7 +95,9 @@ describe('live agency service principal', () => {
 describe('live agency workload principal', () => {
   const ROLE = () => `arn:aws:iam::237343248947:role/oxy-test-${randomUUID().slice(0, 8)}`;
 
-  async function workloadFixture(overrides: { bindingScopes?: string[]; expiresAt?: Date } = {}) {
+  async function workloadFixture(
+    overrides: { bindingScopes?: string[]; expiresAt?: Date; attribute?: boolean } = {},
+  ) {
     const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
     const [application] = await getDb().insert(applications).values({
       name: `Attested product ${randomUUID()}`,
@@ -105,15 +108,31 @@ describe('live agency workload principal', () => {
       capabilities: [],
     }).returning({ id: applications.id });
     const subject = ROLE();
-    await getDb().insert(applicationWorkloadIdentities).values({
+    const [binding] = await getDb().insert(applicationWorkloadIdentities).values({
       applicationId: application.id,
       provider: 'aws-iam',
       subject,
       description: 'test binding',
       scopes: overrides.bindingScopes ?? ['inference:invoke', 'acting-as:offline'],
       ...(overrides.expiresAt ? { expiresAt: overrides.expiresAt } : {}),
-    });
-    return { owner, application, subject };
+    }).returning({ id: applicationWorkloadIdentities.id });
+    /**
+     * The materialised attribution row, unless the case is about its absence.
+     *
+     * `resolveLiveAgencyWorkloadByHandle` requires the binding→row link, because
+     * an attested caller it resolves goes on to spend and the usage ledger names
+     * that identity with a foreign key to `application_credentials.id`. Both
+     * writers of the row run before a token carrying the handle can exist, so a
+     * fixture without it is a fixture no production token corresponds to.
+     */
+    if (overrides.attribute !== false) {
+      await ensureWorkloadAttributionIdentity({
+        bindingId: binding.id,
+        applicationId: application.id,
+        subject,
+      });
+    }
+    return { owner, application, subject, bindingId: binding.id };
   }
 
   it('resolves the binding, and reports the handle a token minted from it carries', async () => {
@@ -208,7 +227,9 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
    * application that holds BOTH is the only fixture in which "the wrong row was
    * re-read" is distinguishable from "no row was re-read".
    */
-  async function bothFixture(overrides: { bindingScopes?: string[] } = {}) {
+  async function bothFixture(
+    overrides: { bindingScopes?: string[]; capabilities?: string[] } = {},
+  ) {
     const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
     const [application] = await getDb().insert(applications).values({
       name: `Attested and credentialed ${randomUUID()}`,
@@ -216,8 +237,8 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       status: 'active',
       isInternal: true,
       scopes: ['inference:invoke', 'acting-as:offline', 'user:read'],
-      capabilities: [],
-    }).returning({ id: applications.id });
+      capabilities: overrides.capabilities ?? [],
+    }).returning({ id: applications.id, capabilities: applications.capabilities });
     const subject = ROLE();
     const [binding] = await getDb().insert(applicationWorkloadIdentities).values({
       applicationId: application.id,
@@ -226,6 +247,12 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       description: 'handle test binding',
       scopes: overrides.bindingScopes ?? ['inference:invoke'],
     }).returning({ id: applicationWorkloadIdentities.id });
+    // The binding's own attribution row, as both writers produce it.
+    await ensureWorkloadAttributionIdentity({
+      bindingId: binding.id,
+      applicationId: application.id,
+      subject,
+    });
     const [credential] = await getDb().insert(applicationCredentials).values({
       applicationId: application.id,
       name: 'Beside the binding',
@@ -244,12 +271,140 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       appName: 'Attested and credentialed',
       credentialId: handle,
       ownerAccountId: owner.id,
-      environment: 'production',
+      /**
+       * What THIS deployment's mint writes, not a literal.
+       *
+       * A binding has no environment, so `exchangeWorkloadAttestation` takes the
+       * claim from `workloadTokenEnvironment()` — and
+       * `resolveLiveAgencyServicePrincipal` compares the claim against that same
+       * single definition, so a fixture with a hard-coded `production` would be a
+       * token this deployment's mint could not have produced and would make that
+       * comparison untestable.
+       */
+      environment: workloadTokenEnvironment(),
       scopes: ['inference:invoke'],
     };
-    const credentialToken: ServiceTokenPayload = { ...attestedToken, credentialId: credential.id };
+    const credentialToken: ServiceTokenPayload = {
+      ...attestedToken,
+      credentialId: credential.id,
+      // The credential's own environment, which is the column the credential arm
+      // compares against.
+      environment: 'production',
+    };
     return { owner, application, subject, handle, binding, credential, attestedToken, credentialToken };
   }
+
+  /**
+   * The control-plane hop, on both proofs.
+   *
+   * `resolveLiveAgencyServicePrincipal` re-reads a caller's live authority on
+   * every capability, MCP-OAuth and provider-connection call, and it looked its
+   * `credentialId` up in `application_credentials` and nowhere else — so an
+   * attested token resolved to nothing and every one of those routes answered
+   * `401 service_principal_no_longer_active` to a first-party service that had
+   * given up its key pair. Measured in production: Kaana's
+   * `GET /capabilities/service-identity` answered `200` with its pair and `401`
+   * with a token attested from `oxy-kaana-task`, and
+   * `authorizeKaanaValidation` — the gate on the BYOK verdict callback Kaana
+   * actually makes — is behind the same resolver.
+   *
+   * The pairing is what makes these cases evidence: the application holds BOTH a
+   * live credential and a live binding, so "the right row was re-read" is
+   * distinguishable from "some row of this application was re-read".
+   */
+  it('resolves an attested token to its BINDING, with the application capability its gate reads', async () => {
+    const fixture = await bothFixture({
+      capabilities: ['kaana:provider-credential-validation'],
+    });
+
+    const live = await resolveLiveAgencyServicePrincipal(fixture.attestedToken);
+    expect(live).toEqual({
+      applicationId: fixture.application.id,
+      credentialId: fixture.handle,
+      ownerAccountId: fixture.owner.id,
+      scopes: ['inference:invoke'],
+      capabilities: ['kaana:provider-credential-validation'],
+    });
+    // The credential of the same application is NOT what came back — the gate
+    // would otherwise be checking a row this caller does not hold.
+    expect(live?.credentialId).not.toBe(fixture.credential.id);
+  });
+
+  it('leaves a credential-minted token on the credential arm, unchanged', async () => {
+    const fixture = await bothFixture({ capabilities: ['catalog:alia'] });
+    const live = await resolveLiveAgencyServicePrincipal(fixture.credentialToken);
+    expect(live).toEqual({
+      applicationId: fixture.application.id,
+      credentialId: fixture.credential.id,
+      ownerAccountId: fixture.owner.id,
+      // `token ∩ credential ∩ application`, as before: the token asked for one.
+      scopes: ['inference:invoke'],
+      capabilities: ['catalog:alia'],
+    });
+  });
+
+  it('ends an attested token the moment its binding is deleted, with the credential untouched', async () => {
+    const fixture = await bothFixture();
+    await expect(
+      resolveLiveAgencyServicePrincipal(fixture.attestedToken)
+    ).resolves.not.toBeNull();
+
+    // Deleting the binding is how a compromised workload is cut off. The token
+    // itself is unexpired throughout.
+    await getDb()
+      .delete(applicationWorkloadIdentities)
+      .where(eq(applicationWorkloadIdentities.id, fixture.binding.id));
+
+    await expect(resolveLiveAgencyServicePrincipal(fixture.attestedToken)).resolves.toBeNull();
+    // One identity's liveness never covers for the other's, in either direction.
+    await expect(
+      resolveLiveAgencyServicePrincipal(fixture.credentialToken)
+    ).resolves.not.toBeNull();
+  });
+
+  it('refuses an attested token naming an owner account or an environment that is not this one', async () => {
+    const fixture = await bothFixture();
+    const stranger = await bothFixture();
+
+    // The claims that are about the TOKEN rather than about the binding, and the
+    // two the credential arm already compares.
+    await expect(
+      resolveLiveAgencyServicePrincipal({
+        ...fixture.attestedToken,
+        ownerAccountId: stranger.owner.id,
+      })
+    ).resolves.toBeNull();
+    await expect(
+      resolveLiveAgencyServicePrincipal({ ...fixture.attestedToken, environment: 'staging' })
+    ).resolves.toBeNull();
+  });
+
+  it('refuses an attested token whose application was suspended or demoted from first-party', async () => {
+    const suspended = await bothFixture();
+    await getDb()
+      .update(applications)
+      .set({ status: 'suspended' })
+      .where(eq(applications.id, suspended.application.id));
+    await expect(resolveLiveAgencyServicePrincipal(suspended.attestedToken)).resolves.toBeNull();
+
+    const demoted = await bothFixture();
+    await getDb()
+      .update(applications)
+      .set({ isOfficial: false, isInternal: false, type: 'third_party' })
+      .where(eq(applications.id, demoted.application.id));
+    // The attested arm asks MORE than the credential arm: the mint applies this
+    // trust gate, so a live ceiling that admitted a demoted application would
+    // admit more than a fresh mint would.
+    await expect(resolveLiveAgencyServicePrincipal(demoted.attestedToken)).resolves.toBeNull();
+  });
+
+  it('refuses an attested token whose binding names no route to the scope it asks for', async () => {
+    const fixture = await bothFixture({ bindingScopes: ['user:read'] });
+    const live = await resolveLiveAgencyServicePrincipal(fixture.attestedToken);
+    // Resolved, but with nothing the token asked for — so every scope gate above
+    // it refuses, and the refusal names the scope rather than the principal.
+    expect(live?.scopes).toEqual([]);
+  });
 
   it('answers exactly what the subject addressing answers', async () => {
     const fixture = await bothFixture();
@@ -260,6 +415,29 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
     ).resolves.toEqual(
       await resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject)
     );
+  });
+
+  it('refuses a live binding that has no attribution row, where the ARN path still resolves', async () => {
+    /**
+     * The asymmetry is deliberate and is the whole point of requiring the link
+     * here. A caller resolved by the HANDLE arrived with a service token and goes
+     * on to spend, and the usage ledger names that identity with a foreign key to
+     * `application_credentials.id`; without the materialised row the first
+     * reservation fails a constraint half way through an authenticated request.
+     * A caller resolved by the ARN declared it itself (a native product agent
+     * entry point) and does not spend, so that path is left alone.
+     */
+    const fixture = await bothFixture();
+    await getDb()
+      .delete(applicationCredentials)
+      .where(eq(applicationCredentials.id, fixture.handle));
+
+    await expect(
+      resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject)
+    ).resolves.not.toBeNull();
+    await expect(
+      resolveLiveAgencyWorkloadByHandle(fixture.application.id, fixture.handle)
+    ).resolves.toBeNull();
   });
 
   it('refuses anything that is not a handle, and a handle nobody bound', async () => {
