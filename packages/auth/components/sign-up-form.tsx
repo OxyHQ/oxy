@@ -28,6 +28,8 @@ type SignUpFormProps = React.ComponentProps<"div"> & {
     responseMode?: string
     /** `?mcp_link_intent=` — return to `/mcp/link` after the account exists. */
     mcpLinkIntent?: string
+    /** `?user_code=` — return to `/device` after the account exists. */
+    userCode?: string
 }
 
 export function SignUpForm({
@@ -44,6 +46,7 @@ export function SignUpForm({
     responseType,
     responseMode,
     mcpLinkIntent,
+    userCode,
     ...props
 }: SignUpFormProps) {
     const navigate = useNavigate()
@@ -60,6 +63,7 @@ export function SignUpForm({
         if (responseType) params.set("response_type", responseType)
         if (responseMode) params.set("response_mode", responseMode)
         if (mcpLinkIntent) params.set("mcp_link_intent", mcpLinkIntent)
+        if (userCode) params.set("user_code", userCode)
         const query = params.toString()
         return query ? `/login?${query}` : "/login"
     })()
@@ -96,10 +100,11 @@ export function SignUpForm({
                 responseType,
                 responseMode,
                 mcpLinkIntent,
+                userCode,
             }))
         }
         wasAuthenticatedRef.current = isAuthenticated
-    }, [isAuthenticated, navigate, sessionToken, redirectUri, state, clientId, codeChallenge, codeChallengeMethod, scope, resource, responseType, responseMode, mcpLinkIntent])
+    }, [isAuthenticated, navigate, sessionToken, redirectUri, state, clientId, codeChallenge, codeChallengeMethod, scope, resource, responseType, responseMode, mcpLinkIntent, userCode])
 
     function handleCreate() {
         // Both synchronous, inside the click: the account window is a popup, and
