@@ -100,7 +100,9 @@ export {
  */
 export {
   createInboundDispatcher,
+  parseInboundMove,
   ActorResolutionPendingError,
+  type InboundMove,
   type InboundDispatcher,
   type InboundDispatcherConfig,
   type InboundDispatcherLogger,
