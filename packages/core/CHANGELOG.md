@@ -2,6 +2,9 @@
 
 ## 1.9.0
 
+Requires `@oxy.so/protocol` 1.1.1. Includes the crypto-polyfill ordering fix
+from #1377 (1.8.1).
+
 ### Added
 
 - `AccountDialogController.back()` and `AccountDialogSnapshot.backView`: the
