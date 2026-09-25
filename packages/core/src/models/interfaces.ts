@@ -115,6 +115,13 @@ export interface User {
    * lists, profile search) — the two are separate fields on the User document.
    */
   description?: string;
+  /**
+   * ActivityPub actor URIs this account is also known as — its live,
+   * OAuth-proven linked Mastodon-API accounts marked as aliases. Emitted by
+   * `GET /profiles/username/:username`; a relying app passes it to the shared
+   * actor builder (`@oxy.so/federation`) so its actor publishes it.
+   */
+  alsoKnownAs?: string[];
   phone?: string;
   address?: string;
   /** Legacy free-text birthday, kept for backward compatibility. Prefer `dateOfBirth`. */
