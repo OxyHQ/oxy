@@ -9,7 +9,9 @@ import accountService from '../services/account.service';
 import sessionService from '../services/session.service';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { resolveMachineCredential } from '../middleware/machineCredential';
-import { verifyServiceToken } from '../middleware/serviceToken';
+import { verifyServiceToken, type ServiceTier } from '../middleware/serviceToken';
+import { applications } from '../db/schema/applications';
+import { isTrustedApplication } from '../utils/trustedApplication';
 import { validate } from '../middleware/validate';
 import { NATIVE_PRODUCT_AGENTS } from '../config/nativeProductAgents';
 import { getDb } from '../config/postgres';
@@ -26,12 +28,24 @@ type Introspection = {
   credentialId?: string;
   environment?: string;
   delegatedUserId?: string;
+  /** Internal (one of Oxy's own applications) or external; see `ServiceTier`. */
+  tier?: ServiceTier;
   scopes: string[];
   permissions: string[];
   expiresAt?: string;
 };
 
 const inactive = (): Introspection => ({ active: false, scopes: [], permissions: [] });
+
+/** A session's application, as the boundary sees it: one of Oxy's own, or not. */
+async function applicationTier(applicationId: string): Promise<ServiceTier> {
+  const [app] = await getDb()
+    .select({ isOfficial: applications.isOfficial, isInternal: applications.isInternal, type: applications.type })
+    .from(applications)
+    .where(and(eq(applications.id, applicationId), eq(applications.status, 'active')))
+    .limit(1);
+  return app && isTrustedApplication(app) ? 'internal' : 'external';
+}
 
 function requireCanonicalClarityBackend(
   request: ServiceAuthRequest,
@@ -69,6 +83,8 @@ router.post(
           applicationId: machine.principal.applicationId,
           credentialId: machine.principal.credentialId,
           environment: machine.principal.environment,
+          // A machine credential (`oxy_sk_`) is the third-party lane.
+          tier: 'external',
           scopes: machine.principal.scopes,
           permissions: [],
         } satisfies Introspection);
@@ -83,6 +99,7 @@ router.post(
           applicationId: service.payload.appId,
           credentialId: service.payload.credentialId,
           environment: service.payload.environment,
+          tier: service.payload.tier,
           scopes: service.payload.scopes,
           permissions: [],
           expiresAt: service.payload.exp
@@ -104,6 +121,7 @@ router.post(
         accountId: identity.subjectAccountId,
         applicationId: identity.applicationId,
         delegatedUserId: identity.principalUserId,
+        tier: await applicationTier(identity.applicationId),
         scopes: [...identity.scopes],
         permissions: access?.permissions ?? [],
       } satisfies Introspection);

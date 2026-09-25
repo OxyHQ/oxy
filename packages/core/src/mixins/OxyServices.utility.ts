@@ -24,6 +24,7 @@ interface JwtPayload {
   ownerAccountId?: string;
   appName?: string;
   scopes?: string[];
+  tier?: string;
   aud?: string | string[];
   iss?: string;
   environment?: string;
@@ -78,6 +79,14 @@ export interface ServiceApp {
   appId: string;
   appName: string;
   scopes: string[];
+  /**
+   * `internal` when the caller is one of Oxy's own applications: app to app it
+   * is trusted outright — {@link requireScope} passes and it may act for a user
+   * without a delegation grant. `external` keeps every scope and grant rule.
+   * What the USER may do (their accounts, plan, limits) is still for the
+   * receiving service to decide. A token without the claim reads as `external`.
+   */
+  tier: 'internal' | 'external';
   /** The credentialId of the specific service credential that minted this token. */
   credentialId: string;
   /**
@@ -705,6 +714,8 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               return res.status(401).json(error);
             }
 
+            const tier: ServiceApp['tier'] = decoded.tier === 'internal' ? 'internal' : 'external';
+
             // Read delegated user ID from header
             const oxyUserIdRaw = req.headers['x-oxy-user-id'];
             const oxyUserId = isExactNonEmptyServiceClaim(oxyUserIdRaw) ? oxyUserIdRaw : null;
@@ -725,12 +736,20 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               return res.status(401).json(error);
             }
 
-            // C3: a service may only act as a user when an explicit
-            // ServiceActingAs grant exists for that (appId, userId) pair.
-            // Without the grant we MUST refuse — silently attaching
-            // `req.userId = oxyUserId` would let any service impersonate
-            // any user simply by setting the header.
-            if (oxyUserId) {
+            // One of Oxy's own applications acts for a user without a grant:
+            // inside the ecosystem that is trust, not consent. It still acts
+            // with the USER's authority only — what that user may do is for the
+            // receiving service to check.
+            if (oxyUserId && tier === 'internal') {
+              req.userId = oxyUserId;
+              req.user = { id: oxyUserId } as User;
+              req.serviceActingAs = { userId: oxyUserId, scopes: [] };
+            } else if (oxyUserId) {
+              // C3: an EXTERNAL service may only act as a user when an explicit
+              // ServiceActingAs grant exists for that (appId, userId) pair.
+              // Without the grant we MUST refuse — silently attaching
+              // `req.userId = oxyUserId` would let any service impersonate
+              // any user simply by setting the header.
               const grant = await oxyInstance.verifyServiceActingAs(appId, oxyUserId);
               if (!grant || !grant.authorized) {
                 logger.warn('[oxy.auth] Service token rejected — no delegation grant', {
@@ -781,6 +800,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               ownerAccountId,
               scopes: Array.isArray(decoded.scopes) ? decoded.scopes : [],
               environment,
+              tier,
             };
 
             if (debug) {
@@ -1252,6 +1272,13 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
             code: 'SERVICE_TOKEN_REQUIRED',
             status: 403,
           });
+          return;
+        }
+
+        // Oxy's own applications are trusted app to app; scopes are the
+        // external lane.
+        if (req.serviceApp.tier === 'internal') {
+          next();
           return;
         }
 

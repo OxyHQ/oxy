@@ -16,7 +16,12 @@ const budget = {
   // Baseline after screen-barrel isolation (2026-09-08):
   // 8,902,470 raw / 2,047,700 gzip. The small margin absorbs deterministic
   // dependency patch drift without permitting another screen graph in entry.
-  raw: 9_000_000,
+  //
+  // Re-baselined 2026-09-25 after the Bloom 4 adoption (#1354) left main at
+  // 8,999,965 raw / 2,042,787 gzip — 35 bytes of margin, so any change failed.
+  // The raw ceiling moves by the same ~100 KB margin the first baseline had;
+  // a screen graph is still several times that, which is what this catches.
+  raw: 9_100_000,
   gzip: 2_100_000,
 };
 

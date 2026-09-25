@@ -91,6 +91,7 @@ app.get('/data', (req, res) => {
   "credentialId": "<applicationCredentialId>",
   "ownerAccountId": "<accountId>",
   "environment": "production",
+  "tier": "internal",
   "scopes": ["notifications:write"],
   "iss": "oxy-auth",
   "aud": "oxy-api",
@@ -108,6 +109,7 @@ verifiers — the API's `verifyServiceToken` answers `not_service`, and
 - `credentialId` attributes the token to the specific `ApplicationCredential` that minted it (useful for post-rotation revocation).
 - `ownerAccountId` is `applications.owner_account_id`: the Oxy account that owns the application and is **financially responsible** for what it does (ADR 0007). It is resolved server-side from the presented credential at mint time and is never accepted from the request; it is read live, so an application transferred to another account mints the new owner from the next token onward.
 - `environment` mirrors the minting `ApplicationCredential.environment`, for test/live isolation.
+- `tier` says which side of the ecosystem boundary the application is on: `internal` for one of Oxy's own applications (`isTrustedApplication` — every workload-identity token), `external` for anything else (today only the payments-only exception reaches the mint). App to app, an internal caller is trusted outright; scopes, consent and quotas are the external lane. What a USER may do — their accounts, their plan, their limits — is decided separately and applies to both. A token with no `tier` (minted before it existed) reads as `external`. Introspection (`/auth/resources/introspect`) returns the same field.
 - `scopes` are the EFFECTIVE scopes: the credential's requested scopes **intersected** with the application's granted scopes (`intersectScopes`, the single authority — nothing intersects a second time downstream). A credential with no explicit scopes inherits the app's full set. The intersection runs at MINT time, so a scope the application has since lost is gone from the next token even though the credential row still names it.
 
 There is deliberately **no user claim**. A delegated end user travels in the

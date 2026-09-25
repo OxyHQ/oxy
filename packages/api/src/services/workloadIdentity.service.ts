@@ -243,6 +243,9 @@ export async function exchangeWorkloadAttestation(input: {
      * goes on to do. See {@link workloadTokenEnvironment}.
      */
     environment: workloadTokenEnvironment(),
+    // Only a trusted application passes the gate above: a workload identity is
+    // always one of Oxy's own.
+    tier: 'internal',
     scopes,
   });
 
