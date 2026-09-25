@@ -1,6 +1,14 @@
 /**
  * Reviewed, deliberately small bootstrap for Kaana's first Oxy-owned catalogue.
  *
+ * NOT the production catalogue writer. Since 2026-09-25 the model catalogue is
+ * written by the automatic Kaana sync (`services/kaanaCatalogueSync.service.ts`),
+ * which never rewrites the reviewed rows declared here. This file remains the
+ * reviewed source for exactly two things the sync does not own: Inbox's
+ * `kaana-v1` routing profile over the gpt-oss routes, and Alia's xAI speech
+ * route and its `kaana-v1-speech` profile (non-text output needs a reviewed
+ * provenance declaration the sync cannot make).
+ *
  * Kaana's discovery snapshot proves only that an exact deployment exists. Oxy
  * still owns the model identity, commercial scope, customer price and routing
  * scorecard. Keep those facts explicit here: never derive any of them from a
@@ -303,71 +311,25 @@ export const KAANA_INITIAL_PROVIDERS: readonly KaanaInitialProvider[] = [
  * remain human-facing catalogue labels and collision checks only; neither a
  * deploy workflow nor a product may discover one of these rows by slug, name,
  * or insertion order.
+ *
+ * Only `default` (`kaana-v1`) remains, because Inbox point inference pins it
+ * (`config/inboxInference.ts`). The Alia product presets (`kaana-lite`,
+ * `-codea`, `-cowork`, `-browser`, `-pro`, `-thinking`, `-pro-max`) were removed
+ * from this seed on 2026-09-25: Alia now names real models from the catalogue
+ * the Kaana sync keeps current (docs/inference/catalogue.md, "Automatic sync
+ * from Kaana"). Their primary keys stay reserved — rows the bootstrap already
+ * wrote are not deleted by this change, and a key is never reused.
  */
 export const KAANA_INITIAL_ROUTING_PROFILE_IDS = {
-  lite: "01a06477-94f5-74f0-bc25-4a1ff59d6945",
   default: "01a06477-94f5-74f0-bc25-4c5c13b93ccd",
-  code: "01a06477-94f5-74f0-bc25-52437e0c724d",
-  cowork: "01a06477-94f5-74f0-bc25-55ea2ebdb2b6",
-  browser: "01a06477-94f5-74f0-bc25-5a78baecbef6",
-  pro: "01a06477-94f5-74f0-bc25-5d796b49b616",
-  thinking: "01a06477-94f5-74f0-bc25-628b5f45d802",
-  proMax: "01a06477-94f5-74f0-bc25-658eeb277737",
 } as const;
 
-/** Text profiles Alia currently needs. Unsupported modality profiles stay absent. */
+/** The one text profile still owned by the reviewed bootstrap: Inbox's. */
 export const KAANA_INITIAL_ROUTING_PROFILES = [
-  {
-    id: KAANA_INITIAL_ROUTING_PROFILE_IDS.lite,
-    slug: "kaana-lite",
-    displayName: "Kaana Lite",
-    optimiseFor: "price",
-  },
   {
     id: KAANA_INITIAL_ROUTING_PROFILE_IDS.default,
     slug: "kaana-v1",
     displayName: "Kaana",
-    optimiseFor: "balanced",
-  },
-  {
-    id: KAANA_INITIAL_ROUTING_PROFILE_IDS.code,
-    slug: "kaana-v1-codea",
-    displayName: "Kaana Code",
-    optimiseFor: "balanced",
-  },
-  {
-    id: KAANA_INITIAL_ROUTING_PROFILE_IDS.cowork,
-    slug: "kaana-v1-cowork",
-    displayName: "Kaana Cowork",
-    optimiseFor: "balanced",
-  },
-  // There is no comparable exact-deployment latency measurement yet, so the
-  // browser preset uses the reviewed balanced dimension rather than inventing
-  // a latency ordering from provider marketing or a display name.
-  {
-    id: KAANA_INITIAL_ROUTING_PROFILE_IDS.browser,
-    slug: "kaana-v1-browser",
-    displayName: "Kaana Browser",
-    optimiseFor: "balanced",
-  },
-  // Runtime has no quality score dimension yet. Product presentation does not
-  // get to invent one: these profiles use the supported balanced scorecard.
-  {
-    id: KAANA_INITIAL_ROUTING_PROFILE_IDS.pro,
-    slug: "kaana-v1-pro",
-    displayName: "Kaana Pro",
-    optimiseFor: "balanced",
-  },
-  {
-    id: KAANA_INITIAL_ROUTING_PROFILE_IDS.thinking,
-    slug: "kaana-v1-thinking",
-    displayName: "Kaana Thinking",
-    optimiseFor: "balanced",
-  },
-  {
-    id: KAANA_INITIAL_ROUTING_PROFILE_IDS.proMax,
-    slug: "kaana-v1-pro-max",
-    displayName: "Kaana Pro Max",
     optimiseFor: "balanced",
   },
 ] as const;

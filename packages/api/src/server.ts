@@ -62,6 +62,7 @@ import accountBillingRoutes from './routes/accountBilling';
 import costCenterRoutes from './routes/costCenters';
 import inferenceCatalogueRoutes from './routes/inferenceCatalogue';
 import inferenceEdgeRoutes from './routes/inferenceEdge';
+import { startKaanaCatalogueSyncSchedule } from './services/kaanaCatalogueSync.service';
 import inferenceAdminRoutes from './routes/inferenceAdmin';
 import inferenceRoutingPolicyRoutes from './routes/inferenceRoutingPolicies';
 import inferenceProviderConnectionRoutes from './routes/inferenceProviderConnections';
@@ -1336,6 +1337,12 @@ export async function bootstrap(
       );
   }, RECONCILIATION_SWEEP_INTERVAL_MS);
   reconciliationSweep.unref();
+
+  // Keep the model catalogue in step with what Kaana actually serves (owner
+  // direction 2026-09-25: no hand-curated list). Every task registers; a
+  // fleet-wide advisory lock lets one run at a time. A task without the Kaana
+  // binding registers nothing. Failures are logged, never thrown.
+  startKaanaCatalogueSyncSchedule();
 
   // Outbound relay readiness. Say it at boot: without a relay every send is
   // refused, and the failure is otherwise only discoverable by a user trying to

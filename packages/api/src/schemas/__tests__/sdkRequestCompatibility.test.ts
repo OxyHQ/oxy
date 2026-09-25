@@ -72,6 +72,7 @@ const exhaustiveRequest: OxyResponsesRequest = {
   ],
   toolChoice: 'auto',
   responseFormat: { type: 'json_object' },
+  reasoning: { effort: 'medium' },
   labels: { team: 'search' },
   clientRequestId: 'client-1',
 };

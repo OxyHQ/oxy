@@ -20,6 +20,12 @@
   `authorizedRoutes`; terminal and partial usage evidence both require the exact
   Kaana `deploymentId`. The shape-specific versioning consequences are recorded
   below.
+- Changed in part: [ADR 0027](0027-automatic-internal-catalogue-from-kaana.md)
+  (2026-09-25) — edge step 5 serves a policy-less OFFICIAL application under
+  `platform-internal-default@1` (price-ranked, no failover); the envelope gains an
+  optional `reasoning { effort }` (contract set 3.1.0), forwarded only when the
+  resolved model lists that effort. `reasoning_effort` on the compatibility
+  surface is OpenAI's own field, not an Oxy extension.
 - Issue: #972
 
 ## Context

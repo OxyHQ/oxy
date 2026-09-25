@@ -42,6 +42,29 @@ names or owns a provider route: Kaana is the inference data plane, and Inbox or
 another official product can consume the same reviewed platform route directly
 through Oxy without pretending to be Alia.
 
+### Which models Alia offers, and how it names them
+
+Every model the Kaana catalogue sync has written for `platform_internal`
+([catalogue.md](./catalogue.md#automatic-sync-from-kaana), ADR 0027) — no
+hand-curated list. Alia reads `GET /v1/models` with its service credential
+(`inference:models:read`), shows the entries, and sends:
+
+- `model`: the entry's `modelId` (`publisher/model`), never a routing profile.
+  With no routing policy of its own, the `Alia` application is served under
+  `platform-internal-default@1`, which ranks the model's routes by list price.
+  If an operator ever gives Alia's application a policy, it must optimise for
+  `price` while synced routes carry no measured scores, or every synced model
+  refuses with `routing_evidence:missing-score`.
+- `reasoning: { effort }` only when the entry's
+  `capabilities.reasoningEfforts` lists that effort; anything else is a 400.
+
+The seven Alia text presets (`kaana-lite`, `kaana-v1-codea`, `-cowork`,
+`-browser`, `-pro`, `-thinking`, `-pro-max`) are no longer seeded. Their existing
+rows are not deleted by this change; remove them once no Alia release references
+them. Speech is unchanged: Alia still pins the reviewed `kaana-v1-speech`
+profile (`cc2471c8-807e-46ec-b5da-b6f3b39d2db5`) over the reviewed xAI route,
+because the sync does not write non-text-output models.
+
 ### Scopes: what Alia holds, and what it does not
 
 Alia is a **consumer** of the inference platform, not an operator of it. That
@@ -347,6 +370,10 @@ never register a GitHub secret with a placeholder value.
   by them are Alia-side surfaces whose registration belongs with whoever ships
   them. Registering four more applications now would mint four sets of
   credentials nobody has asked for.
+- **Alia switching from presets to model ids.** Alia must stop sending the
+  retired preset profile IDs and send `model` (+ `reasoning.effort`) from the
+  synced catalogue, on `@oxy.so/core` 1.8.0 / `@oxy.so/contracts` 1.4.0. Until
+  then the preset rows that already exist keep serving.
 - **Alia actually invoking Oxy inference.** The edge, Kaana runtime and reviewed
   bootstrap exist in merged source, but bootstrap application, live
   audience gates, canonical Kaana configuration and a real signed canary still require production

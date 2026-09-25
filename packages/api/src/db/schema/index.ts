@@ -84,6 +84,7 @@ export * from './identityMoves';
 export * from './identityProofChallenges';
 export * from './identityRecoveryAttempts';
 export * from './identityBindings';
+export * from './inferenceCatalogueSync';
 export * from './inferenceDeployments';
 export * from './inferenceDeploymentRoutingScores';
 export * from './inferenceModelEvaluations';

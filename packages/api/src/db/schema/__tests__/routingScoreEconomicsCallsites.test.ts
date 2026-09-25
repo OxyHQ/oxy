@@ -119,5 +119,7 @@ test('every application and script routing-score insert states reviewed economic
   // 10 -> 13: the validity renewal (scripts/kaanaScorecardRenewal.ts) writes
   // one score event, and its test seeds the superseded row and its event.
   // 13 -> 14: kaanaStreaming.test.ts seeds the reviewed speech scorecard.
-  expect(callsites).toHaveLength(14);
+  // 14 -> 16: the Kaana catalogue sync writes a synced route's scorecard and
+  // its append-only event (services/kaanaCatalogueSync.service.ts).
+  expect(callsites).toHaveLength(16);
 });
