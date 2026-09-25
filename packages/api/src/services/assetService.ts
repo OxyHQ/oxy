@@ -80,6 +80,52 @@ const FEDERATION_REPAIR_MAX_BYTES = 10 * 1024 * 1024;
 const FEDERATION_REPAIR_MAX_REDIRECTS = 3;
 const FEDERATION_REPAIR_USER_AGENT = 'OxyHQ/1.0 (Federation Asset Repair)';
 
+/**
+ * How long a repair whose remote bytes did not hash to the record's `sha256` is
+ * refused without downloading again. The repair runs on public stream reads, so
+ * without this every read of such an asset would re-download and re-hash a
+ * source already known to be wrong. Bounded in time AND size: a mismatch is
+ * never remembered as a success, and it expires so a remote that reverts to the
+ * original bytes is repaired on a later read.
+ */
+const FEDERATION_REPAIR_MISMATCH_TTL_MS = 15 * 60 * 1000;
+const FEDERATION_REPAIR_MISMATCH_MAX_ENTRIES = 1000;
+
+/** fileId → epoch ms until which a repair of that file is not re-attempted. */
+const federationRepairMismatches = new Map<string, number>();
+
+function isRecentFederationRepairMismatch(fileId: string): boolean {
+  const until = federationRepairMismatches.get(fileId);
+  if (until === undefined) return false;
+  if (until > Date.now()) return true;
+  federationRepairMismatches.delete(fileId);
+  return false;
+}
+
+function recordFederationRepairMismatch(fileId: string): void {
+  federationRepairMismatches.delete(fileId);
+  if (federationRepairMismatches.size >= FEDERATION_REPAIR_MISMATCH_MAX_ENTRIES) {
+    // Map iteration is insertion order, so the first key is the oldest entry.
+    const oldest = federationRepairMismatches.keys().next().value;
+    if (oldest !== undefined) federationRepairMismatches.delete(oldest);
+  }
+  federationRepairMismatches.set(fileId, Date.now() + FEDERATION_REPAIR_MISMATCH_TTL_MS);
+}
+
+/** Test seam: forget every remembered repair mismatch. */
+export function clearFederationRepairMismatches(): void {
+  federationRepairMismatches.clear();
+}
+
+/** The host of a repair URL, for logs: the full URL may carry credentials. */
+function repairUrlHost(remoteUrl: string): string | null {
+  try {
+    return new URL(remoteUrl).host;
+  } catch {
+    return null;
+  }
+}
+
 export class AssetService {
   private variantService: VariantService;
 
@@ -197,7 +243,7 @@ export class AssetService {
       return null;
     }
     if (protocol !== 'https:') {
-      logger.warn('Federation repair URL rejected: non-https protocol', { url: remoteUrl });
+      logger.warn('Federation repair URL rejected: non-https protocol', { remoteHost: repairUrlHost(remoteUrl) });
       return null;
     }
 
@@ -216,13 +262,13 @@ export class AssetService {
     } catch (error) {
       if (error instanceof SsrfRejection) {
         logger.warn('Blocked unsafe federation repair URL', {
-          url: remoteUrl,
+          remoteHost: repairUrlHost(remoteUrl),
           reason: error.message,
         });
         return null;
       }
       logger.warn('Federation repair download failed', {
-        url: remoteUrl,
+        remoteHost: repairUrlHost(remoteUrl),
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
@@ -232,7 +278,7 @@ export class AssetService {
       if (result.status < 200 || result.status >= 300) {
         result.response.destroy();
         logger.warn('Federation repair download failed', {
-          url: result.finalUrl,
+          remoteHost: repairUrlHost(result.finalUrl),
           status: result.status,
         });
         return null;
@@ -246,7 +292,7 @@ export class AssetService {
       if (!mime.startsWith('image/') || !isAllowedCacheMime(mime)) {
         result.response.destroy();
         logger.warn('Federation repair rejected non-image content', {
-          url: result.finalUrl,
+          remoteHost: repairUrlHost(result.finalUrl),
           contentType: rawContentType,
         });
         return null;
@@ -259,7 +305,7 @@ export class AssetService {
       if (Number.isFinite(declaredLength) && declaredLength > FEDERATION_REPAIR_MAX_BYTES) {
         result.response.destroy();
         logger.warn('Federation repair image is too large', {
-          url: result.finalUrl,
+          remoteHost: repairUrlHost(result.finalUrl),
           declaredLength,
         });
         return null;
@@ -268,7 +314,7 @@ export class AssetService {
       const buffer = await this.readBodyLimited(result.response, FEDERATION_REPAIR_MAX_BYTES);
       if (!buffer || buffer.length === 0) {
         logger.warn('Federation repair image has invalid size', {
-          url: result.finalUrl,
+          remoteHost: repairUrlHost(result.finalUrl),
           size: buffer?.length ?? 0,
         });
         return null;
@@ -278,7 +324,7 @@ export class AssetService {
     } catch (error) {
       result.response.destroy();
       logger.warn('Federation repair download failed while reading body', {
-        url: result.finalUrl,
+        remoteHost: repairUrlHost(result.finalUrl),
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
@@ -1335,6 +1381,19 @@ export class AssetService {
     return this.s3Service.fileExists(fileObj.storageKey);
   }
 
+  /**
+   * Re-fetch the missing original of a federated asset from its persisted
+   * `metadata.remoteUrl` and store it back under the record's content-addressed
+   * key.
+   *
+   * A URL is a location, not a content identity: the remote may now serve
+   * different bytes. The record's `sha256`, its storage key, dedup and every
+   * `by-sha256` lookup all name the ORIGINAL bytes, so the downloaded buffer is
+   * stored only when `sha256(downloaded) === file.sha256`, checked before any
+   * upload, row patch, cache write or variant enqueue. A mismatch returns false
+   * (the caller's missing-file path) and leaves the record untouched; a changed
+   * remote image is a new content identity for the ingest flow, not a repair.
+   */
   async repairMissingFederationFileContent(file: FileRecord): Promise<boolean> {
     if (!file || file.status === 'deleted') {
       return false;
@@ -1347,10 +1406,26 @@ export class AssetService {
     if (!remoteUrl) {
       return false;
     }
+    if (isRecentFederationRepairMismatch(file.id)) {
+      return false;
+    }
 
     try {
       const repaired = await this.fetchFederationRepairImage(remoteUrl);
       if (!repaired) {
+        return false;
+      }
+
+      const downloadedSha256 = AssetService.calculateSHA256(repaired.buffer);
+      if (downloadedSha256 !== file.sha256) {
+        recordFederationRepairMismatch(file.id);
+        logger.warn('Federation repair refused: remote bytes do not match the stored digest', {
+          fileId: file.id,
+          expectedSha256: file.sha256,
+          downloadedSha256,
+          remoteHost: repairUrlHost(remoteUrl),
+          size: repaired.buffer.length,
+        });
         return false;
       }
 
