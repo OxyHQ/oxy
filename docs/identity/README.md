@@ -7,7 +7,7 @@
 > types are in `@oxy.so/contracts`.
 >
 > Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Identity device backup](device-backup.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
-> [External identities and aliases](external-identities.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
+> [External identities and aliases](external-identities.md) · [Linked accounts](linked-accounts.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
 
 ---
 

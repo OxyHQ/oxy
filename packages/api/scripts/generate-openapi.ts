@@ -670,6 +670,7 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
   'civic.ts': ['/civic'],
   'nodes.ts': ['/nodes'],
   'federation.ts': ['/federation'],
+  'linkedAccounts.ts': ['/linked-accounts'],
   'did.ts': ['/'],
 };
 
@@ -684,6 +685,7 @@ const TAG_GROUPS: Record<string, string> = {
   '/storage': 'Files',
   '/search': 'Search',
   '/profiles': 'Profiles',
+  '/linked-accounts': 'Profiles',
   '/users': 'Users',
   '/users/me/app-data': 'Users',
   '/session/device': 'Sessions',
