@@ -59,8 +59,18 @@ interface RefreshMockOverrides {
 
 function makeOxy(
   overrides: RefreshMockOverrides = {},
-): { oxy: OxyServices; setTokens: jest.Mock; noteRefreshRateLimited: jest.Mock } {
+): {
+  oxy: OxyServices;
+  setTokens: jest.Mock;
+  noteRefreshRateLimited: jest.Mock;
+  /** `HttpService`'s session epoch; bump it to simulate a sign-out mid-refresh. */
+  epoch: { current: number };
+  /** `HttpService.hasSessionEnded()`: a sign-out with no token planted since. */
+  ended: { current: boolean };
+} {
   const setTokens = jest.fn();
+  const epoch = { current: 0 };
+  const ended = { current: false };
   const noteRefreshRateLimited = jest.fn();
   const oxy = {
     setTokens,
@@ -71,9 +81,11 @@ function makeOxy(
     httpService: {
       runSingleFlightDeviceSecretMint: makeMintSingleFlight(),
       noteRefreshRateLimited,
+      getSessionEpoch: () => epoch.current,
+      hasSessionEnded: () => ended.current,
     },
   } as unknown as OxyServices;
-  return { oxy, setTokens, noteRefreshRateLimited };
+  return { oxy, setTokens, noteRefreshRateLimited, epoch, ended };
 }
 
 describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
@@ -294,6 +306,107 @@ describe('refreshPersistedSession — arm 2 (native shared-key fallback)', () =>
       accessToken: 'access-shared',
       expiresAt: '2030-01-01T00:00:00.000Z',
     });
+  });
+});
+
+describe('refreshPersistedSession — a sign-out mid-refresh', () => {
+  it('arm 1: plants nothing and leaves a cleared store cleared', async () => {
+    const store = createMemoryAuthStateStore();
+    await store.save(STORED);
+    let respond!: () => void;
+    const { oxy, setTokens, epoch } = makeOxy({
+      mintFromDeviceSecret: () =>
+        new Promise((resolve) => {
+          respond = () => resolve(MINT);
+        }),
+    });
+
+    const pending = refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The sign-out: the credential is dropped and the session epoch moves.
+    await store.clear();
+    epoch.current += 1;
+    respond();
+
+    await expect(pending).resolves.toBeNull();
+    expect(setTokens).not.toHaveBeenCalled();
+    expect(await store.load()).toBeNull();
+  });
+
+  it('arm 1: still persists the rotated secret when the store kept the credential', async () => {
+    const store = createMemoryAuthStateStore();
+    await store.save(STORED);
+    let respond!: () => void;
+    const { oxy, setTokens, epoch } = makeOxy({
+      mintFromDeviceSecret: () =>
+        new Promise((resolve) => {
+          respond = () => resolve(MINT);
+        }),
+    });
+
+    const pending = refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // A local teardown that keeps the store (so a reload can restore): the
+    // server rotated the secret, and the store must not be left holding the old one.
+    epoch.current += 1;
+    respond();
+
+    await expect(pending).resolves.toBeNull();
+    expect(setTokens).not.toHaveBeenCalled();
+    expect((await store.load())?.deviceSecret).toBe('ds-next-secret');
+  });
+
+  it('arm 2: the shared keychain does not sign the user back in', async () => {
+    const store = createMemoryAuthStateStore();
+    let respond!: () => void;
+    const signInWithSharedIdentity = jest.fn(
+      (_opts?: { plantTokens?: boolean }) =>
+        new Promise<SessionLoginResponse>((resolve) => {
+          respond = () =>
+            resolve({
+              sessionId: 'sess-shared',
+              deviceId: 'dev-1',
+              deviceSecret: 'ds-shared',
+              expiresAt: '2030-01-01T00:00:00.000Z',
+              user: { id: 'user-1', username: 'u', name: {}, avatar: undefined },
+              accessToken: 'access-shared',
+            });
+        }),
+    );
+    const { oxy, setTokens, epoch } = makeOxy({ signInWithSharedIdentity });
+
+    const pending = refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    epoch.current += 1;
+    respond();
+
+    await expect(pending).resolves.toBeNull();
+    expect(signInWithSharedIdentity).toHaveBeenCalledWith({ plantTokens: false });
+    expect(setTokens).not.toHaveBeenCalled();
+    expect(await store.load()).toBeNull();
+  });
+});
+
+describe('refreshPersistedSession — after a sign-out', () => {
+  it('does not re-sign-in with the shared keychain', async () => {
+    const store = createMemoryAuthStateStore();
+    const signInWithSharedIdentity = jest.fn(async () => null);
+    const { oxy, setTokens, ended } = makeOxy({ signInWithSharedIdentity });
+    ended.current = true;
+
+    await expect(refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true })).resolves.toBeNull();
+    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    expect(setTokens).not.toHaveBeenCalled();
+  });
+
+  it('still mints from a device credential the store holds (a sign-in made in another tab)', async () => {
+    const store = createMemoryAuthStateStore();
+    await store.save(STORED);
+    const { oxy, setTokens, ended } = makeOxy();
+    ended.current = true;
+
+    await expect(refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true })).resolves.toBe('access-new');
+    expect(setTokens).toHaveBeenCalledWith('access-new');
   });
 });
 

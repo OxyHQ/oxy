@@ -233,6 +233,59 @@ describe('HttpService in-session refresh handler', () => {
   });
 });
 
+describe('HttpService.endSession — a sign-out outranks a refresh', () => {
+  it('plants nothing when the session ends while a re-mint is in flight', async () => {
+    const oldToken = createJwt({ userId: 'u', exp: farFutureExp(), jti: 'old' });
+    const lateToken = createJwt({ userId: 'u', exp: farFutureExp(), jti: 'late' });
+    const http = new HttpService({ baseURL: 'https://api.mention.earth', enableRetry: false });
+    http.setTokens(oldToken);
+
+    let finish!: (token: string | null) => void;
+    http.setAuthRefreshHandler(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const seen: Array<string | null> = [];
+    http.addTokenChangeListener((token) => seen.push(token));
+
+    const pending = http.refreshAccessToken('preflight');
+    http.endSession();
+    finish(lateToken);
+
+    await expect(pending).resolves.toBeNull();
+    expect(http.getAccessToken()).toBeNull();
+    expect(seen).toEqual([null]);
+  });
+
+  it('abandons only what was in flight: a later re-mint (another tab signed in) still runs', async () => {
+    const http = new HttpService({ baseURL: 'https://api.mention.earth', enableRetry: false });
+    const fresh = createJwt({ userId: 'u', exp: farFutureExp(), jti: 'fresh' });
+    const handler = jest.fn(async () => fresh);
+    http.setAuthRefreshHandler(handler);
+
+    http.endSession();
+    expect(http.hasSessionEnded()).toBe(true);
+    await expect(http.refreshAccessToken('preflight')).resolves.toBe(fresh);
+    expect(http.getAccessToken()).toBe(fresh);
+    expect(http.hasSessionEnded()).toBe(false);
+  });
+
+  it('is what OxyServices.clearTokens does; a plain HttpService.clearTokens (a mirror) is not', () => {
+    const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+    const before = oxy.httpService.getSessionEpoch();
+    oxy.clearTokens();
+    expect(oxy.httpService.getSessionEpoch()).toBe(before + 1);
+    expect(oxy.httpService.hasSessionEnded()).toBe(true);
+
+    const mirror = new HttpService({ baseURL: 'https://api.mention.earth', enableRetry: false });
+    mirror.clearTokens();
+    expect(mirror.getSessionEpoch()).toBe(0);
+    expect(mirror.hasSessionEnded()).toBe(false);
+  });
+});
+
 describe('OxyServices.getAccessTokenExpiry', () => {
   it('returns the JWT exp (seconds) of the current access token', () => {
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });

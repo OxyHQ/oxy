@@ -393,6 +393,21 @@ export class HttpService {
   private authRefreshHandler: AuthRefreshHandler | null = null;
   private accessTokenProvider: AccessTokenProvider | null = null;
   private deviceSecretMintInFlight: Promise<DeviceSecretMintOutcome> | null = null;
+  /**
+   * Bumped by every {@link endSession}. A re-mint captures it before its first
+   * await and plants nothing if it moved: a refresh that was already in flight
+   * when the user signed out would otherwise complete a moment later and put a
+   * bearer — and through the token listeners, the account — back.
+   */
+  private sessionEpoch = 0;
+  /**
+   * Set by {@link endSession}, cleared by the next {@link setTokens}. Read by the
+   * native shared-keychain re-mint arm: after a sign-out a 401 is the expected
+   * answer, not a cue to sign back in with the identity key. The device-secret
+   * arm is NOT gated on it — minting from a credential the store still holds is
+   * how a signed-out tab joins a sign-in made in another tab.
+   */
+  private sessionEnded = false;
 
   /**
    * Epoch (ms) before which a cache-size telemetry warning must not be
@@ -1368,12 +1383,21 @@ export class HttpService {
       // by calling `noteRefreshRateLimited()` from INSIDE this call, so clearing
       // on the way out would discard the flag it just set.
       this.lastRefreshWasRateLimited = false;
+      const epoch = this.sessionEpoch;
       this.tokenRefreshPromise = this.authRefreshHandler(reason)
         .then((newToken) => {
+          if (epoch !== this.sessionEpoch) {
+            // The session ended while this re-mint was in flight. Not a failure
+            // (no cooldown), and nothing to plant.
+            this.logger.debug('Discarded a token refresh that outlived its session');
+            return null;
+          }
           if (!newToken) {
             this.lastRefreshFailureAt = Date.now();
             return null;
           }
+          // A token is planted again, so there is a session again.
+          this.sessionEnded = false;
           if (this.tokenStore.getAccessToken() !== newToken) {
             this.tokenStore.setTokens(newToken);
             this.notifyTokenChange();
@@ -1623,8 +1647,36 @@ export class HttpService {
 
   // Token management
   setTokens(accessToken: string): void {
+    this.sessionEnded = false;
     this.tokenStore.setTokens(accessToken);
     this.notifyTokenChange();
+  }
+
+  /**
+   * End the local session: clear the bearer and abandon every re-mint already
+   * in flight, so none of them can plant a token after the sign-out.
+   *
+   * {@link clearTokens} alone only drops the bearer, which is right for a
+   * mirror (a linked client following its parent) but not for a sign-out: a
+   * refresh started a moment earlier would finish and plant a new one.
+   */
+  endSession(): void {
+    this.sessionEpoch += 1;
+    this.sessionEnded = true;
+    this.clearTokens();
+  }
+
+  /**
+   * The current session epoch — see {@link endSession}. A re-mint lane that
+   * plants tokens itself (the device-secret arm) compares it across its awaits.
+   */
+  getSessionEpoch(): number {
+    return this.sessionEpoch;
+  }
+
+  /** Whether {@link endSession} ran and no token has been planted since. */
+  hasSessionEnded(): boolean {
+    return this.sessionEnded;
   }
 
   setAuthRefreshHandler(handler: AuthRefreshHandler | null): void {
@@ -1762,6 +1814,7 @@ export class HttpService {
 
   // Test-only utility — clears tokens on this instance
   __resetTokensForTests(): void {
+    this.sessionEnded = false;
     this.tokenStore.clearTokens();
     this.tokenStore.clearCsrfToken();
   }

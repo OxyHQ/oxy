@@ -99,6 +99,11 @@ export interface RefreshDeps {
  *    The device secret is FINE — it is the identity binding that went stale, so
  *    the caller must re-establish from the local key, never drop the credential.
  *  - `transient` — network / 5xx; keep the secret, a later attempt can succeed.
+ *  - `session-ended` — the mint succeeded, but the local session was ended
+ *    (`HttpService.endSession`, i.e. a sign-out) while it was in flight. Nothing
+ *    is planted. The rotated secret is persisted only if the store still holds
+ *    the credential that was presented — a store the sign-out cleared stays
+ *    clear.
  *  - `persist-failed` — the mint succeeded but `nextDeviceSecret` could NOT be
  *    durably persisted. The token is deliberately NOT planted: advertising a
  *    healthy session on a secret that will not survive a reload is exactly the
@@ -111,6 +116,7 @@ export type DeviceSecretMintOutcome =
   | { status: 'no-session' }
   | { status: 'account-not-on-device' }
   | { status: 'transient' }
+  | { status: 'session-ended' }
   | { status: 'persist-failed' };
 
 /**
@@ -144,6 +150,7 @@ export async function refreshDeviceSecretArm(deps: {
   const { oxy, store } = deps;
   const pin = deps.pin ?? null;
   return oxy.httpService.runSingleFlightDeviceSecretMint(async () => {
+    const epoch = oxy.httpService.getSessionEpoch();
     const persisted = await store.load();
     if (!persisted?.deviceId || !persisted?.deviceSecret) {
       return { status: 'no-secret' };
@@ -207,11 +214,25 @@ export async function refreshDeviceSecretArm(deps: {
       expiresAt: mint.expiresAt,
       ...(bound ? { sessionId: bound.sessionId, userId: bound.accountId } : {}),
     };
+    if (oxy.httpService.getSessionEpoch() !== epoch) {
+      // Signed out while minting. The server has rotated the secret, so a store
+      // that still holds the presented one must learn the rotation (the
+      // token-null lane keeps the store so a reload can restore); a store the
+      // sign-out cleared must NOT be refilled. Either way, plant nothing.
+      const current = await store.load();
+      if (current?.deviceId === persisted.deviceId && current.deviceSecret === persisted.deviceSecret) {
+        await store.save(next);
+      }
+      return { status: 'session-ended' };
+    }
     // Persist nextDeviceSecret (read-back-verified) BEFORE planting the token.
     // A failed durable persist must NOT plant.
     const persistedOk = await store.save(next);
     if (!persistedOk) {
       return { status: 'persist-failed' };
+    }
+    if (oxy.httpService.getSessionEpoch() !== epoch) {
+      return { status: 'session-ended' };
     }
     oxy.setTokens(mint.accessToken);
     return {
@@ -251,6 +272,7 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
   const identity = deps.identity ?? null;
   // The shared keychain is never an identity-bound client's recovery path.
   const allowSharedKeyFallback = identity ? false : (deps.allowSharedKeyFallback ?? isNative());
+  const epoch = oxy.httpService.getSessionEpoch();
   // Resolved per call: a re-established identity session can move the pin, and a
   // replaced/removed local key clears it (in which case arm 1 must NOT mint —
   // an unpinned mint would adopt whatever account the device switched to).
@@ -263,6 +285,8 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
   switch (arm1.status) {
     case 'ok':
       return arm1.token;
+    case 'session-ended':
+      return null;
     case 'transient':
       logger.debug(
         'Persisted deviceSecret mint failed (transient) — keeping store',
@@ -312,10 +336,18 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
     return recoverIdentitySession(oxy, store, identity);
   }
 
-  if (allowSharedKeyFallback) {
+  // Never after a sign-out: the shared keychain holds an identity KEY, not a
+  // session, and using it here would sign the user straight back in.
+  if (allowSharedKeyFallback && !oxy.httpService.hasSessionEnded()) {
     try {
-      const session = await oxy.signInWithSharedIdentity();
+      // Planted here, not by the sign-in: a sign-out that lands while the
+      // challenge round-trips must win, or the shared keychain signs the user
+      // straight back in.
+      const session = await oxy.signInWithSharedIdentity({ plantTokens: false });
       if (session?.accessToken) {
+        if (oxy.httpService.getSessionEpoch() !== epoch) {
+          return null;
+        }
         // Repopulate the fast device-secret lane from the shared-key re-mint.
         if (session.deviceId && session.deviceSecret) {
           await store.save({
@@ -327,6 +359,10 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
             expiresAt: session.expiresAt,
           });
         }
+        if (oxy.httpService.getSessionEpoch() !== epoch) {
+          return null;
+        }
+        oxy.setTokens(session.accessToken);
         return session.accessToken;
       }
     } catch (error) {
