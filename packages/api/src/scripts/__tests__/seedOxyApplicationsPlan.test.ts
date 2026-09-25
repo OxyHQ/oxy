@@ -31,6 +31,7 @@ function commonsMissingCapability(): SeedApplicationState {
   return {
     description: COMMONS_TARGET.description,
     websiteUrl: null,
+    webhookUrl: null,
     status: 'active',
     type: 'first_party',
     isOfficial: true,
@@ -103,5 +104,54 @@ describe('computeSeedApplicationPlan', () => {
     });
 
     expect(state.websiteUrl).toBeNull();
+  });
+});
+
+describe('webhookUrl (account events, OxyHQ/Mention#1169)', () => {
+  const HOOK = 'https://api.mention.earth/webhooks/oxy/account-events';
+
+  it('sets a declared webhook and the dry run reports exactly that change', () => {
+    const plan = computeSeedApplicationPlan(commonsMissingCapability(), {
+      ...COMMONS_TARGET,
+      capabilities: [],
+      webhookUrl: HOOK,
+    });
+    expect(plan.changes).toEqual([{ field: 'webhookUrl', from: '(none)', to: HOOK }]);
+
+    const record = mutableRecord(commonsMissingCapability());
+    expect(applySeedApplicationPlan(record, plan)).toEqual(['webhookUrl']);
+    expect(record.webhookUrl).toBe(HOOK);
+  });
+
+  it('leaves an undeclared webhook exactly as the Console set it', () => {
+    const current = { ...commonsMissingCapability(), webhookUrl: 'https://console-set.example/hook' };
+    const plan = computeSeedApplicationPlan(current, { ...COMMONS_TARGET, capabilities: [] });
+    expect(plan.changes).toEqual([]);
+    expect(plan.desired.webhookUrl).toBe('https://console-set.example/hook');
+  });
+
+  it('is a no-op once the declared webhook is in place', () => {
+    const current = { ...commonsMissingCapability(), webhookUrl: HOOK };
+    const plan = computeSeedApplicationPlan(current, { ...COMMONS_TARGET, capabilities: [], webhookUrl: HOOK });
+    expect(plan.changes).toEqual([]);
+  });
+
+  it('declares the webhook on a create', () => {
+    const plan = computeSeedApplicationPlan(null, { ...COMMONS_TARGET, webhookUrl: HOOK });
+    expect(plan.changes).toContainEqual({ field: 'webhookUrl', from: '(absent)', to: HOOK });
+    expect(plan.desired.webhookUrl).toBe(HOOK);
+  });
+
+  it('reads a stored webhook back', () => {
+    const state = readSeedApplicationState({
+      description: 'x',
+      webhookUrl: HOOK,
+      status: 'active',
+      type: 'first_party',
+      isOfficial: true,
+      isInternal: false,
+      ownerAccountId: OWNER,
+    });
+    expect(state.webhookUrl).toBe(HOOK);
   });
 });

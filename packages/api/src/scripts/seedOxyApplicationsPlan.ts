@@ -16,6 +16,7 @@ const NONE = '(none)';
 export interface SeedApplicationState {
   description: string;
   websiteUrl: string | null;
+  webhookUrl: string | null;
   status: ApplicationStatus;
   type: ApplicationType;
   isOfficial: boolean;
@@ -29,6 +30,11 @@ export interface SeedApplicationState {
 export interface SeedApplicationTarget {
   description: string;
   websiteUrl?: string;
+  /**
+   * Declared webhook, or undefined to leave whatever the Console set. The seed
+   * never clears a webhook it does not declare.
+   */
+  webhookUrl?: string;
   type: ApplicationType;
   ownerAccountId: string;
   redirectUris: readonly string[];
@@ -53,6 +59,7 @@ export interface SeedApplicationPlan {
 export interface MutableSeedApplicationFields {
   description: string;
   websiteUrl: string | null;
+  webhookUrl: string | null;
   status: ApplicationStatus;
   type: ApplicationType;
   isOfficial: boolean;
@@ -66,6 +73,7 @@ export interface MutableSeedApplicationFields {
 export interface ReadableSeedApplication {
   description: string | null;
   websiteUrl?: string | null;
+  webhookUrl?: string | null;
   status: ApplicationStatus;
   type: ApplicationType;
   isOfficial: boolean;
@@ -96,6 +104,7 @@ export function readSeedApplicationState(application: ReadableSeedApplication): 
   return {
     description: application.description ?? '',
     websiteUrl: normalizeWebsiteUrl(application.websiteUrl),
+    webhookUrl: application.webhookUrl ?? null,
     status: application.status,
     type: application.type,
     isOfficial: application.isOfficial,
@@ -114,6 +123,7 @@ export function computeSeedApplicationPlan(
   const desired: SeedApplicationState = {
     description: target.description,
     websiteUrl: normalizeWebsiteUrl(target.websiteUrl),
+    webhookUrl: target.webhookUrl ?? current?.webhookUrl ?? null,
     status: 'active',
     type: target.type,
     isOfficial: true,
@@ -134,6 +144,7 @@ export function computeSeedApplicationPlan(
           from: ABSENT,
           to: desired.websiteUrl ?? NONE,
         },
+        { field: 'webhookUrl', from: ABSENT, to: desired.webhookUrl ?? NONE },
         { field: 'status', from: ABSENT, to: desired.status },
         { field: 'type', from: ABSENT, to: desired.type },
         { field: 'isOfficial', from: ABSENT, to: String(desired.isOfficial) },
@@ -157,6 +168,13 @@ export function computeSeedApplicationPlan(
       field: 'websiteUrl',
       from: current.websiteUrl ?? NONE,
       to: desired.websiteUrl ?? NONE,
+    });
+  }
+  if (current.webhookUrl !== desired.webhookUrl) {
+    changes.push({
+      field: 'webhookUrl',
+      from: current.webhookUrl ?? NONE,
+      to: desired.webhookUrl ?? NONE,
     });
   }
   if (current.status !== desired.status) {
@@ -224,6 +242,9 @@ export function applySeedApplicationPlan(
         break;
       case 'websiteUrl':
         target.websiteUrl = plan.desired.websiteUrl;
+        break;
+      case 'webhookUrl':
+        target.webhookUrl = plan.desired.webhookUrl;
         break;
       case 'status':
         target.status = plan.desired.status;
