@@ -24,7 +24,7 @@
  * Those three RN modules are declared OPTIONAL peer dependencies in
  * `package.json`. A static `import` contradicts that: an optional peer that is
  * omitted does not degrade, it fails to RESOLVE, and Metro aborts the whole
- * bundle. Because `@oxy.so/core`'s `crypto/polyfill` imports `@oxy.so/protocol`
+ * bundle. Because `@oxy.so/core` imports `@oxy.so/protocol`
  * from its root entry, this file is in the eager graph of EVERY React Native
  * app on `@oxy.so/core` — so a single undeclared optional peer broke the native
  * bundle of every app that did not happen to install it, with a resolution
@@ -54,6 +54,8 @@
 
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import type { ExpoCryptoLike, ExpoSecureStoreLike, SharedIdentityBridge } from './expoTypes';
+import { missingOptionalPeerError } from './optionalPeer';
+import { requireExpoCrypto } from './random.native';
 
 // Re-export the interfaces so consumers can import them from the same
 // entry-point they use for the loaders (mirrors the default variant).
@@ -77,14 +79,6 @@ type AsyncStorageLike = {
   removeItem: (key: string) => Promise<void>;
 };
 
-let expoCryptoModule: ExpoCryptoLike | null = null;
-let expoCryptoError: unknown;
-try {
-  expoCryptoModule = require('expo-crypto') as ExpoCryptoLike;
-} catch (error) {
-  expoCryptoError = error;
-}
-
 let secureStoreModule: ExpoSecureStoreLike | null = null;
 let secureStoreError: unknown;
 try {
@@ -105,23 +99,6 @@ try {
   asyncStorageModule = namespace.default ?? namespace;
 } catch (error) {
   asyncStorageError = error;
-}
-
-/**
- * Actionable error for a missing optional peer. Carries the underlying Metro
- * resolution message so the failure is never silent — the `catch` above only
- * defers the report to the point where the capability is actually needed.
- */
-function missingOptionalPeerError(packageName: string, capability: string, cause: unknown): Error {
-  const sentences = [
-    `[oxy.protocol.crypto] '${packageName}' is not installed, so ${capability} is unavailable in this app.`,
-    'It is an optional peer dependency of @oxy.so/protocol that the React Native runtime needs —',
-    `install it with \`npx expo install ${packageName}\`.`,
-  ];
-  if (cause instanceof Error) {
-    sentences.push(`Underlying error: ${cause.message}`);
-  }
-  return new Error(sentences.join(' '));
 }
 
 // ---------------------------------------------------------------------------
@@ -149,10 +126,7 @@ export async function loadNodeCrypto(): Promise<typeof import('crypto')> {
 // ---------------------------------------------------------------------------
 
 export async function loadExpoCrypto(): Promise<ExpoCryptoLike> {
-  if (!expoCryptoModule) {
-    throw missingOptionalPeerError('expo-crypto', 'React Native cryptography', expoCryptoError);
-  }
-  return expoCryptoModule;
+  return requireExpoCrypto('React Native cryptography');
 }
 
 // ---------------------------------------------------------------------------
@@ -188,24 +162,12 @@ export async function loadAsyncStorage(): Promise<{ default: AsyncStorageLike }>
   return { default: asyncStorageModule };
 }
 
-/**
- * Synchronous random-bytes via `expo-crypto.getRandomBytes`.
- *
- * Synchronous by contract: `@oxy.so/core`'s crypto polyfill uses this to back
- * `globalThis.crypto.getRandomValues`, which cannot await. That is why
- * `expo-crypto` is resolved with a synchronous `require` at module scope rather
- * than a dynamic `import()`.
- */
-export function getRandomBytesRN(byteCount: number): Uint8Array {
-  if (!expoCryptoModule) {
-    throw missingOptionalPeerError(
-      'expo-crypto',
-      'the React Native CSPRNG (crypto.getRandomValues)',
-      expoCryptoError,
-    );
-  }
-  return expoCryptoModule.getRandomBytes(byteCount);
-}
+// Synchronous random bytes (and the single `expo-crypto` resolution) live in
+// the dependency-free `./random.native` module, so `@oxy.so/core`'s crypto
+// polyfill can load them through `@oxy.so/protocol/random` without evaluating
+// any crypto library first. The explicit `.native` specifier keeps tsc and
+// Metro pointed at the same file.
+export { getRandomBytesRN } from './random.native';
 
 // ---------------------------------------------------------------------------
 // Shared identity bridge — `@oxy.so/expo-oxy-identity` (native-only, OPTIONAL).

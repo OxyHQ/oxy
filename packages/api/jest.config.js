@@ -46,6 +46,7 @@ module.exports = {
     // computeRecordId, imported by the signed-record + civic + node-sync services):
     // resolve from source so the api-test job needs no prior protocol build.
     '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxy.so/protocol/random$': '<rootDir>/../protocol/src/random.ts',
     '^@oxy.so/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
     // Same rationale for @oxy.so/core (getNormalizedUserHandle in did.service.ts,
     // User model, etc.) and @oxy.so/core/server (safeFetch/SsrfRejection): resolve

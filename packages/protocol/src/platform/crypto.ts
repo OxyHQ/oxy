@@ -148,15 +148,10 @@ export async function loadAsyncStorage(): Promise<{
   throw notReactNativeError('@react-native-async-storage/async-storage');
 }
 
-/**
- * Synchronous random-bytes via `expo-crypto.getRandomBytes`. Only available
- * in the React Native variant. The default variant throws because Node and
- * browsers have their own native CSPRNGs (`crypto.randomBytes` and
- * `crypto.getRandomValues` respectively) — callers should use those.
- */
-export function getRandomBytesRN(_byteCount: number): Uint8Array {
-  throw notReactNativeError('expo-crypto.getRandomBytes (sync)');
-}
+// Synchronous random bytes live in the dependency-free `./random` module so
+// `@oxy.so/core`'s crypto polyfill can load them through the
+// `@oxy.so/protocol/random` entry without evaluating any crypto library first.
+export { getRandomBytesRN } from './random';
 
 // ---------------------------------------------------------------------------
 // Shared identity bridge — `@oxy.so/expo-oxy-identity` (native-only).
