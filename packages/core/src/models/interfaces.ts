@@ -801,7 +801,12 @@ export interface AssetUploadProgress {
 export interface DeviceLinkedSession {
   sessionId: string;
   deviceId: string;
-  deviceName: string;
+  /**
+   * Not sent by `GET /session/device/sessions/:sessionId` today — every row
+   * shares one device, and the account a row belongs to is `user`. Optional so
+   * a caller cannot render it unchecked ("undefined (This device)").
+   */
+  deviceName?: string;
   isActive: boolean;
   lastActive: string;
   expiresAt: string;

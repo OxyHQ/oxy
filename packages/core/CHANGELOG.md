@@ -1,5 +1,32 @@
 # Changelog — `@oxy.so/core`
 
+## 1.9.0
+
+Requires `@oxy.so/protocol` 1.1.1. Includes the crypto-polyfill ordering fix
+from #1377 (1.8.1).
+
+### Added
+
+- `AccountDialogController.back()` and `AccountDialogSnapshot.backView`: the
+  controller owns where the account dialog's Back leads. `signup` and `qr`
+  return to the sign-in entry (`'add'` when somebody is signed in, `'signin'`
+  when nobody is), `add` returns to the account menu, and the first view
+  reports `backView: null` so the host closes instead. Leaving an active
+  request withdraws it.
+
+### Fixed
+
+- The account dialog never shows the `'accounts'` view (the signed-in account
+  menu) without a session: `setView('accounts')`, a fresh controller and the
+  signed-out edge all resolve to `'signin'`. Signed out, Back from "Create your
+  account" used to open the menu, "Sign out" included, for nobody
+  (OxyHQ/oxy#1375).
+- `DeviceLinkedSession.deviceName` is optional: `GET
+  /session/device/sessions/:sessionId` never sends it, and a required type let
+  Services render "undefined (This device)".
+- i18n: `accounts.manage.switch.countOne` ("1 account", not "1 accounts") and
+  `manageAccount.sessions.otherSession` (en-US, es-ES).
+
 ## 1.8.0
 
 Requires `@oxy.so/contracts` 1.4.0.

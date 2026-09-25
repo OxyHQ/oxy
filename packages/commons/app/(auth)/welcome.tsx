@@ -129,9 +129,17 @@ export default function WelcomeScreen() {
   return (
     <View style={[styles.container, containerStyle]}>
       <View className="flex-1 justify-center items-center px-space-24">
-        <View style={styles.textContainer}>
+        {/* ONE heading for assistive technology: the lead and the rotating
+            phrase are per-letter / multi-copy animations, so the sentence they
+            form is named here once and the animation itself is hidden. */}
+        <View
+          style={styles.textContainer}
+          accessible
+          accessibilityRole="header"
+          accessibilityLabel={`${t('auth.welcome.lead')} ${rotatingTexts[0]}`}
+        >
           {/* "Oxy is your" text */}
-          <Animated.View style={entranceOxyStyle}>
+          <Animated.View style={entranceOxyStyle} aria-hidden>
             <StaggeredText
               text={t('auth.welcome.lead')}
               ref={oxyRef}

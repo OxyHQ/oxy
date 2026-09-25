@@ -1850,6 +1850,7 @@
       "switch": {
         "title": "Switch account",
         "count": "{{count}} accounts",
+        "countOne": "{{count}} account",
         "empty": "Accounts you own or share"
       }
     },
@@ -1970,7 +1971,8 @@
       "loading": "Loading sessions…",
       "empty": "No active sessions",
       "signOutAllOnThisDevice": "Sign out of all other devices",
-      "signOutAllSubtitle": "End {{count}} other device session(s)"
+      "signOutAllSubtitle": "End {{count}} other device session(s)",
+      "otherSession": "Another session"
     },
     "confirms": {
       "removeDeviceTitle": "Remove device",

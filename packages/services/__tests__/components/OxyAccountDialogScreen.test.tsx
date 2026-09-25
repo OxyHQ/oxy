@@ -15,6 +15,7 @@ import type { SurfaceHeaderContent } from '../../src/ui/hooks/useSurfaceHeader';
 
 const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnapshot => ({
   view: 'accounts',
+  backView: null,
   accounts: [],
   activeAccountId: null,
   loading: false,
@@ -39,11 +40,13 @@ const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnaps
 let snapshot = makeSnapshot();
 const setView = jest.fn();
 const cancelSignIn = jest.fn();
+const back = jest.fn(() => true);
 const controller = {
   subscribe: (_l: () => void) => () => undefined,
   getSnapshot: () => snapshot,
   setView,
   cancelSignIn,
+  back,
 };
 
 const closeAccountDialog = jest.fn();
@@ -139,48 +142,36 @@ describe('OxyAccountDialogScreen — shared nav header', () => {
   });
 
   it('contributes a back handler in the qr view', () => {
-    snapshot = makeSnapshot({ view: 'qr' });
+    snapshot = makeSnapshot({ view: 'qr', backView: 'signin' });
     render(<OxyAccountDialogScreen />);
 
     expect(typeof lastHeader()?.onBack).toBe('function');
   });
 
   it('contributes a back handler in the signup view', () => {
-    snapshot = makeSnapshot({ view: 'signup' });
+    snapshot = makeSnapshot({ view: 'signup', backView: 'signin' });
     render(<OxyAccountDialogScreen />);
 
     expect(typeof lastHeader()?.onBack).toBe('function');
   });
 
-  it('the back handler returns to the accounts view', () => {
-    snapshot = makeSnapshot({ view: 'qr' });
+  it('the back handler asks the controller to go back — it never picks a view itself', () => {
+    // Signed out, Back from "Create your account" used to be a hard-coded
+    // `setView('accounts')` here, opening the signed-in menu for nobody
+    // (OxyHQ/oxy#1375). The destination is the controller's `backView`.
+    snapshot = makeSnapshot({ view: 'signup', backView: 'signin' });
     render(<OxyAccountDialogScreen />);
 
     lastHeader()?.onBack?.();
-    expect(setView).toHaveBeenCalledWith('accounts');
+    expect(back).toHaveBeenCalledTimes(1);
+    expect(setView).not.toHaveBeenCalled();
   });
 
-  it('the back handler withdraws an active sign-in request before returning to accounts', () => {
-    snapshot = makeSnapshot({
-      view: 'qr',
-      signIn: {
-        phase: 'waiting',
-        authorizeCode: 'AUTH-CODE',
-        qrPayload: 'oxycommons://approve?code=AUTH-CODE',
-        expiresAt: Date.now() + 300_000,
-        error: null,
-        route: 'qr',
-        routeFailed: false,
-        pushSentAt: null,
-        openedAt: null,
-        progress: 'waiting',
-      },
-    });
+  it('contributes no back handler when the controller has nowhere to go back to', () => {
+    snapshot = makeSnapshot({ view: 'signin', backView: null });
     render(<OxyAccountDialogScreen />);
 
-    lastHeader()?.onBack?.();
-    expect(cancelSignIn).toHaveBeenCalled();
-    expect(setView).toHaveBeenCalledWith('accounts');
+    expect(lastHeader()?.onBack).toBeUndefined();
   });
 
   it('contributes no back handler in the sign-in entry with no accounts yet', () => {

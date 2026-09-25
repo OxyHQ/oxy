@@ -72,11 +72,14 @@ const TroubleDisclosure: React.FC<TroubleDisclosureProps> = ({ actions, revealed
       type="single"
       value={openItem}
       onValueChange={setOpenItem}
-      style={styles.troubleTrigger}
+      style={styles.troubleDisclosure}
       testID="trouble-disclosure"
     >
       <AccordionItem value={TROUBLE_ITEM}>
-        <AccordionTrigger textStyle={[styles.linkText, { color: theme.colors.textSecondary }]}>
+        <AccordionTrigger
+          style={styles.troubleTrigger}
+          textStyle={[styles.linkText, { color: theme.colors.textSecondary }]}
+        >
           {t('accountSwitcher.havingTrouble')}
         </AccordionTrigger>
         <AccordionContent>{links}</AccordionContent>

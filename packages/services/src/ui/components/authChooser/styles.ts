@@ -205,9 +205,19 @@ export const authChooserStyles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  /** The disclosure trigger, aligned with the subordinate links it reveals. */
+  /**
+   * The disclosure spans the content width, so the alternatives it reveals are
+   * centred across the sheet rather than inside the trigger's own width. It
+   * used to be `alignSelf: 'center'` — shrink-wrapped — and on Android that
+   * both wrapped the trigger to "Having / trouble?" and squeezed the revealed
+   * links into the same narrow column (OxyHQ/oxy#1375).
+   */
+  troubleDisclosure: {
+    width: '100%',
+    marginTop: 12,
+  },
+  /** The trigger itself stays a compact, centred affordance like the links. */
   troubleTrigger: {
     alignSelf: 'center',
-    marginTop: 12,
   },
 });
