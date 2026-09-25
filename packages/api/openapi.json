@@ -3034,7 +3034,8 @@
                         "chains:read",
                         "acting-as:offline",
                         "accounts:act-as-session",
-                        "podcasts:write"
+                        "podcasts:write",
+                        "linked-accounts:read"
                       ]
                     }
                   }
@@ -3306,7 +3307,8 @@
                         "chains:read",
                         "acting-as:offline",
                         "accounts:act-as-session",
-                        "podcasts:write"
+                        "podcasts:write",
+                        "linked-accounts:read"
                       ]
                     }
                   },
@@ -3669,7 +3671,8 @@
                         "chains:read",
                         "acting-as:offline",
                         "accounts:act-as-session",
-                        "podcasts:write"
+                        "podcasts:write",
+                        "linked-accounts:read"
                       ]
                     }
                   },
@@ -27931,6 +27934,428 @@
           }
         ],
         "operationId": "getInferenceRoutingPoliciesPolicyIdVersionsPolicyVersion"
+      }
+    },
+    "/linked-accounts": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "GET /linked-accounts",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getLinkedAccounts"
+      }
+    },
+    "/linked-accounts/atproto/client-metadata.json": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "GET /linked-accounts/atproto/client-metadata.json",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getLinkedAccountsAtprotoClientMetadataJson"
+      }
+    },
+    "/linked-accounts/by-user/{userId}": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "GET /linked-accounts/by-user/{userId}",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "getLinkedAccountsByUserUserId"
+      }
+    },
+    "/linked-accounts/{id}": {
+      "delete": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "DELETE /linked-accounts/{id}",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "deleteLinkedAccountsId"
+      }
+    },
+    "/linked-accounts/{network}/callback": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "GET /linked-accounts/{network}/callback",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "network",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "activitypub",
+                "atproto"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getLinkedAccountsNetworkCallback"
+      }
+    },
+    "/linked-accounts/{network}/start": {
+      "post": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "POST /linked-accounts/{network}/start",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "network",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "activitypub",
+                "atproto"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "instance": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 320
+                  },
+                  "handle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 320
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "returnTo": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postLinkedAccountsNetworkStart"
       }
     },
     "/location-search/cache": {

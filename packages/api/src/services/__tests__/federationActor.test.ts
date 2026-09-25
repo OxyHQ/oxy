@@ -101,4 +101,17 @@ describe('getUserActor', () => {
   it('returns null without touching the key store when there is no username', async () => {
     expect(await getUserActor({ kind: 'personal' }, DOMAIN)).toBeNull();
   });
+
+  it('publishes verified aliases as alsoKnownAs, with the term declared, only when there are some', async () => {
+    const plain = await getUserActor({ username: 'no-alias', kind: 'personal', alsoKnownAs: [] }, DOMAIN);
+    expect(plain).not.toHaveProperty('alsoKnownAs');
+    expect(plain?.['@context']).toEqual(['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1']);
+
+    const aliased = await getUserActor(
+      { username: 'aliased', kind: 'personal', alsoKnownAs: ['https://mastodon.example/users/aliased', 'http://insecure.example/u'] },
+      DOMAIN,
+    );
+    expect(aliased?.alsoKnownAs).toEqual(['https://mastodon.example/users/aliased']);
+    expect(aliased?.['@context']).toContainEqual({ alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' } });
+  });
 });

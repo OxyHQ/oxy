@@ -77,6 +77,7 @@ import {
 import { identityMoves } from './schema/identityMoves';
 import { identityProofChallenges } from './schema/identityProofChallenges';
 import { identityRecoveryAttempts } from './schema/identityRecoveryAttempts';
+import { linkedAccountOauthChallenges } from './schema/userLinkedAccounts';
 import { domainVerifications } from './schema/domainVerifications';
 import {
   mcpOauthAccessTokens,
@@ -231,6 +232,18 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Storage reclamation ONLY, an hour after the deadline. Every transition ' +
       'in `routes/identityRecovery.ts` filters `expires_at` in the same UPDATE, ' +
       'so an expired attempt is unspendable whether or not the sweep has run.',
+  },
+  {
+    table: linkedAccountOauthChallenges,
+    column: linkedAccountOauthChallenges.expiresAt,
+    retentionSeconds: 600,
+    reason:
+      'Storage reclamation ONLY, ten minutes after the deadline so a replayed ' +
+      'callback is still recognised as spent rather than as an unknown state. ' +
+      'The callback spends the row in one transaction filtering `used_at is null` ' +
+      'and `expires_at > now()`, and wipes the PKCE verifier and provider state ' +
+      'in the same UPDATE, so an expired challenge is unspendable whether or not ' +
+      'the sweep has run.',
   },
   {
     table: webauthnChallenges,

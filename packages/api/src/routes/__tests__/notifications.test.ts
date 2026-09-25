@@ -460,6 +460,29 @@ describe('POST /notifications — privileged service scope only', () => {
     expect(await storedFor(RECIPIENT_ID)).toHaveLength(1);
   });
 
+  it('accepts a `system` notification about the recipient\'s own account', async () => {
+    const res = await request('POST', '/notifications', {
+      recipientId: RECIPIENT_ID,
+      actorId: RECIPIENT_ID,
+      type: 'system',
+      entityId: RECIPIENT_ID,
+      entityType: 'profile',
+    });
+    expect(res.status).toBe(201);
+    expect((res.body.data as { notification: { type: string } }).notification.type).toBe('system');
+  });
+
+  it('refuses a type outside the closed set', async () => {
+    const res = await request('POST', '/notifications', {
+      recipientId: RECIPIENT_ID,
+      actorId: ACTOR_ID,
+      type: 'promo',
+      entityId: RECIPIENT_ID,
+      entityType: 'profile',
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('emits the realtime notification to the RECIPIENT\'s room only', async () => {
     await request('POST', '/notifications', {
       recipientId: RECIPIENT_ID,

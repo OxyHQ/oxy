@@ -23,18 +23,16 @@
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, boolean, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
+import { OXY_NOTIFICATION_TYPES } from '@oxy.so/contracts';
 import { users } from './users';
 
-/** What happened. Mongo's `type` enum, unchanged. */
-export const NOTIFICATION_TYPES = [
-  'like',
-  'reply',
-  'mention',
-  'follow',
-  'repost',
-  'quote',
-  'welcome',
-] as const;
+/**
+ * What happened. Mongo's `type` enum, plus `system`: a message from an Oxy
+ * service about the recipient's own account (Oxy Move's "your migration
+ * finished"), where the actor is the recipient and the entity is their profile.
+ * The tuple is owned by `@oxy.so/contracts` so the SDK and the CHECK cannot drift.
+ */
+export const NOTIFICATION_TYPES = OXY_NOTIFICATION_TYPES;
 
 /** What `entity_id` points at. Mongo's `entityType` enum, unchanged. */
 export const NOTIFICATION_ENTITY_TYPES = ['post', 'reply', 'profile'] as const;

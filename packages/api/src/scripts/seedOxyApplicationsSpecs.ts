@@ -307,6 +307,12 @@ export const HOMIIO_APPLICATION_ID = '6a2f851751b784a86fd0e922';
 export const MENTION_APPLICATION_ID = '6a2f851751b784a86fd0e916';
 
 /**
+ * Oxy Move (move.oxy.so) — the first-party migrator. A new identity, so the
+ * seed mints it with this exact id rather than by name.
+ */
+export const OXY_MOVE_APPLICATION_ID = '4bac8f1baed68fd02d65d592';
+
+/**
  * The official Oxy ecosystem apps that integrate Oxy auth.
  * `name` is the idempotency key (with createdByUserId=oxyId) — DO NOT rename
  * casually, a rename creates a new Application rather than updating one.
@@ -582,6 +588,27 @@ export const SEED_APPS: SeedAppSpec[] = [
     type: 'internal',
     redirectUris: [],
     scopes: ['user:read'],
+  },
+  {
+    id: OXY_MOVE_APPLICATION_ID,
+    name: 'Oxy Move',
+    description:
+      'Bring your account to Oxy: connect Mastodon, Bluesky and more, and your profile, follows and posts come with you.',
+    websiteUrl: 'https://move.oxy.so',
+    // `first_party` makes it trusted (`isTrustedApplication`), which is what
+    // mints its service tokens with `tier: 'internal'`.
+    type: 'first_party',
+    // The apex origin and native scheme for sign-in, plus the two EXACT return
+    // URIs of the linked-accounts flow: `isAllowedRedirectUri` matches exactly
+    // (only a bare `https://host/` is folded to its origin), so `…/linked`
+    // must be registered on its own for `returnTo` to be accepted.
+    redirectUris: ['https://move.oxy.so', 'oxymove://', 'https://move.oxy.so/linked', 'oxymove://linked'],
+    // `linked-accounts:read` reads which external accounts a user proved they
+    // own (the import source). `files:write` uploads imported media as the
+    // user's own files. `notifications:write` tells the user the migration
+    // finished (`system` notification). The two privileged ones are why this is
+    // a staff-run seed and not a self-service registration.
+    scopes: ['user:read', 'linked-accounts:read', 'files:write', 'notifications:write'],
   },
   {
     id: NILO_APPLICATION_ID,

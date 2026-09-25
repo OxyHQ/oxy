@@ -156,6 +156,10 @@
  *   consuming app's resource server needs has to exist here or it can never
  *   reach a token. A per-application scope namespace would be the better
  *   long-run answer; until one exists, a resource scope lands here.
+ * - `linked-accounts:read` permits a service credential to read the external
+ *   accounts ANY Oxy user has proven they own
+ *   (`GET /linked-accounts/by-user/:userId`). PRIVILEGED — see
+ *   {@link PRIVILEGED_APPLICATION_SCOPES}.
  */
 export const APPLICATION_SCOPES = [
   'files:read',
@@ -203,6 +207,7 @@ export const APPLICATION_SCOPES = [
   'acting-as:offline',
   'accounts:act-as-session',
   'podcasts:write',
+  'linked-accounts:read',
 ] as const;
 
 export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
@@ -304,6 +309,16 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   is a decision and not an omission — the reasoning is recorded on that
  *   constant, because the question it asks is answered on a different lane.
  *
+ * - `linked-accounts:read` reads, for an arbitrary user, which Mastodon and
+ *   Bluesky accounts that person has proven they own. That is cross-tenant
+ *   identity data a self-granting owner could otherwise harvest to correlate
+ *   pseudonymous accounts with Oxy accounts, so only staff grant it — to the
+ *   first-party migration service (Oxy Move) that imports from those accounts.
+ *   It is deliberately NOT consent-required: it is read off a SERVICE TOKEN on
+ *   a lane that never meets the OAuth consent screen, and the user's decision
+ *   is the act of linking itself, revocable per account with
+ *   `DELETE /linked-accounts/:id`.
+ *
  * All non-privileged scopes in {@link APPLICATION_SCOPES} authorise an app only
  * over its OWN resources (files, models, webhooks, public user reads) or over
  * the subject user's own content under that user's explicit grant
@@ -331,6 +346,7 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'capability-tickets:issue',
   'capability-audit:write',
   'capability-events:publish',
+  'linked-accounts:read',
 ] as const satisfies readonly ApplicationScope[];
 
 /**

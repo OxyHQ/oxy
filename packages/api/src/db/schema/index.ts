@@ -174,6 +174,7 @@ export * from './wallets';
 export * from './webauthnChallenges';
 export * from './webauthnCredentials';
 export * from './externalIdentities';
+export * from './userLinkedAccounts';
 
 export * from './externalIdentityMetaProofs';
 export * from './families';

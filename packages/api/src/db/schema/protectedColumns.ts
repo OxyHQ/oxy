@@ -77,6 +77,7 @@ import {
 } from './inferenceModelGpaiDocumentation';
 import { messages } from './messages';
 import { sessions } from './sessions';
+import { linkedAccountOauthChallenges, mastodonAppRegistrations } from './userLinkedAccounts';
 import { users } from './users';
 
 /**
@@ -301,6 +302,26 @@ export const INFERENCE_GPAI_DOCUMENTATION_PROTECTED_COLUMNS =
   GPAI_DOCUMENTATION_INTERNAL_COLUMNS;
 
 /**
+ * `linked_account_oauth_challenges` columns that complete an OAuth flow.
+ *
+ * New in Postgres, so there is no Mongoose expectation. The PKCE verifier and
+ * the atproto library's per-flow state (its own verifier and an ephemeral DPoP
+ * private key) are what turn a leaked authorization code into a completed link;
+ * both are wiped when the challenge is spent, and neither is ever part of a
+ * response.
+ */
+export const LINKED_ACCOUNT_OAUTH_CHALLENGES_PROTECTED_COLUMNS = [
+  'pkceVerifier',
+  'providerState',
+] as const;
+
+/**
+ * `mastodon_app_registrations.client_secret` — Oxy's own OAuth client secret at
+ * a Mastodon-API instance. Not a user secret, and still a client secret.
+ */
+export const MASTODON_APP_REGISTRATIONS_PROTECTED_COLUMNS = ['clientSecret'] as const;
+
+/**
  * The registry, keyed by SQL table name. Declared `as const` and passed
  * straight through to `@oxy.so/db/assert`'s `publicColumns` at every call
  * site — that is what keeps the type-level guarantee (see that function's
@@ -317,6 +338,8 @@ export const PROTECTED_COLUMNS_BY_TABLE = {
   inference_deployment_routing_score_events:
     INFERENCE_ROUTING_SCORE_EVENTS_PROTECTED_COLUMNS,
   inference_model_gpai_documentation: INFERENCE_GPAI_DOCUMENTATION_PROTECTED_COLUMNS,
+  linked_account_oauth_challenges: LINKED_ACCOUNT_OAUTH_CHALLENGES_PROTECTED_COLUMNS,
+  mastodon_app_registrations: MASTODON_APP_REGISTRATIONS_PROTECTED_COLUMNS,
 } as const;
 
 /** A protected column, with the reason it is one. */
@@ -544,5 +567,27 @@ export const PROTECTED_COLUMNS: readonly ProtectedColumn[] = [
       "Article 55(1)(a): the systemic-risk model evaluation, including " +
       'adversarial testing. A red-team report is a map of what a model can be ' +
       'made to do, and the Act asks for it as documentation for an authority.',
+  },
+  {
+    table: linkedAccountOauthChallenges,
+    column: linkedAccountOauthChallenges.pkceVerifier,
+    reason:
+      'The PKCE verifier of a live linking flow: with an intercepted ' +
+      'authorization code it completes the link. Wiped when the challenge is spent.',
+  },
+  {
+    table: linkedAccountOauthChallenges,
+    column: linkedAccountOauthChallenges.providerState,
+    reason:
+      "The atproto client library's per-flow state, including its PKCE verifier " +
+      'and the ephemeral DPoP private key the token exchange is bound to. Wiped ' +
+      'when the challenge is spent.',
+  },
+  {
+    table: mastodonAppRegistrations,
+    column: mastodonAppRegistrations.clientSecret,
+    reason:
+      "Oxy's own OAuth client secret at a Mastodon-API instance. It authorizes " +
+      'nothing without a user and PKCE, and it is still a client secret.',
   },
 ];
