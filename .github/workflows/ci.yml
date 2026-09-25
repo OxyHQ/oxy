@@ -1,147 +1,39 @@
 name: CI/CD Pipeline
 
 on:
+  # No `main` here. main only moves through the merge queue (ruleset 24004899),
+  # and the queue has already run this whole workflow on the exact commit that
+  # lands, so a push run on main re-tested a tested tree and held runners the
+  # org's 20-job cap needed for the queue. Nothing reads a main-push run: the
+  # deploy workflows trigger on `push` themselves, none uses `workflow_run`, and
+  # the ruleset requires `CI complete` on the queue entry, not on main.
   push:
-    branches: [main, develop]
+    branches: [develop]
   pull_request:
     branches: [main, develop]
   # The merge queue tests each PR against the main it will actually land on,
   # so PRs no longer wait to be brought up to date by hand one at a time.
   merge_group:
 
+# A new push to a pull request cancels that pull request's older run, and only
+# that one. The key carries the event name and the PR number, so no two pull
+# requests share a group. A merge-queue run has no PR number and falls back to
+# its ref, `refs/heads/gh-readonly-queue/main/pr-<n>-<base sha>`, which is unique
+# per queue entry: one entry never cancels another.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# The small suites run as three grouped jobs (`guards`, `packages-platform`,
+# `packages-apps`) instead of one job each. The org's free plan runs at most 20
+# jobs at once across every repository, and ~20 one-minute jobs per run, each
+# paying its own checkout, Bun and `bun install`, kept merge-queue entries
+# waiting for runners longer than they spent testing. Every suite keeps its own
+# named step(s), commands, env and caps. In a group each suite step runs under
+# `!cancelled()` gated on the shared setup having succeeded, so one red suite
+# does not stop the others: the job still fails, and its log names every
+# failing step rather than the first.
 jobs:
-  # Gates the rollout logic that deploy-aws.yml runs against production. Mirrors
-  # Mention's "Verify deployment transaction safeguards" step -- the two repos
-  # share this script, so they share its test.
-  deploy-script-test:
-    name: Deploy Script Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-      - name: Verify deployment transaction safeguards
-        run: |
-          bash -n .github/scripts/*.sh
-          bash .github/scripts/test-deploy-ecs-image.sh
-          bash .github/scripts/test-verify-reused-service-credential.sh
-          bash .github/scripts/test-put-secure-parameter.sh
-          bash .github/scripts/test-run-native-product-agent-bootstrap.sh
-          bash .github/scripts/test-report-native-product-agent-task-failure.sh
-          bash .github/scripts/test-smoke-inbox-mcp.sh
-          bash .github/scripts/test-attest-kaana-catalogue-rollout.sh
-          node --test .github/scripts/release-external-identity-packages.test.mjs
-          node --test .github/scripts/release-external-identity-publication.test.mjs
-          bash .github/scripts/test-run-external-identity-reconciliation.sh
-          bash .github/scripts/test-collect-external-identity-task.sh
-          python3 .github/scripts/test-read-external-identity-api-logs.py
-          PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/test-read-redis-capacity.py
-          node scripts/test-check-external-identity-operations.mjs
-          node scripts/check-external-identity-operations.mjs
-          node scripts/test-check-asset-worker-rollout.mjs
-          node scripts/check-asset-worker-rollout.mjs
-          node scripts/test-check-kaana-dns-boundary.mjs
-          node scripts/check-kaana-dns-boundary.mjs
-          node scripts/test-check-kaana-identity.mjs
-          node scripts/check-kaana-identity.mjs
-          node scripts/test-service-credential-workflow-ids.mjs
-          node scripts/test-service-credential-handoff.mjs
-          node scripts/test-service-credential-two-phase.mjs
-          node scripts/test-seed-oxy-applications-workflow.mjs
-          node scripts/test-native-product-agent-bootstrap-workflow.mjs
-          node scripts/test-kaana-catalogue-bootstrap-workflow.mjs
-          node scripts/test-check-kaana-request-v2-rollout.mjs
-          node scripts/check-kaana-request-v2-rollout.mjs
-          node scripts/test-check-kaana-signed-canary.mjs
-          node scripts/check-kaana-signed-canary.mjs
-          node --test packages/api/scripts/run-kaana-signed-canary.test.mjs
-          node scripts/test-check-inbox-routing-profile-readback.mjs
-          node scripts/check-inbox-routing-profile-readback.mjs
-          node scripts/test-check-kaana-catalogue-bootstrap-workflow.mjs
-          node scripts/check-kaana-catalogue-bootstrap-workflow.mjs
-
-  # The API package's one-off checks. They used to run inside `api-test` before
-  # the suite; now that the suite is a matrix they would otherwise run once per
-  # shard, so they live here and run exactly once, beside the shards rather
-  # than in front of them.
-  api-checks:
-    name: API Checks
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    # A backstop over the step that can run long (the 10m dependency-closure
-    # cap) plus the fixed steps at their observed maxima (checkout/bun/node 19s,
-    # install 30s, guards 10s, build 70s, lint 20s).
-    timeout-minutes: 15
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24.x'
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile --minimum-release-age=0
-      - name: Verify API image production dependency closure
-        timeout-minutes: 10
-        run: node scripts/test-api-runtime-dependencies.mjs
-      # Before the builds and the suite, and needing neither: it reads the tracked
-      # file listing. The backfill, 82 Mongoose models and the mongoose dependency
-      # were removed on 2026-08-08 and `oxy-prod` is gone, so a Mongo reference is
-      # now always a mistake — and it would arrive as a hoisted transitive or a
-      # stray env name, neither of which breaks a build.
-      - name: Guard against MongoDB returning
-        run: bun run validate:no-mongo
-
-      # Same shape, same reason, one layer up. The switcher's flat account list
-      # was replaced by the server's device directory (ADR 0002, issue #937), and
-      # it would come back the way the Mongo references would: one surface
-      # reaching for `listAccounts()` because it is right there, one hook
-      # flattening the grouped rows. None of that fails a build on its own.
-      - name: Guard against the flat account list returning
-        run: bun run validate:no-flat-account-list
-
-      # AGENTS.md is prepended to EVERY agent session, so its bytes are paid on
-      # every task forever. It reached 152 KB here by accretion — a mechanism
-      # write-up appended by the branch that shipped it, none wrong on its own
-      # and none visible except in the sum. Same family as the two guards above:
-      # nothing breaks, which is why it survives. Reads the tracked file listing
-      # and nothing else, and covers the create-oxy-app template too, so every
-      # scaffolded app is born bounded.
-      - name: Guard the AGENTS.md budget
-        run: bun run validate:agents-md
-
-      - name: Guard exact metadata-only Inbox Daily Brief counts
-        run: |
-          node scripts/test-check-inbox-daily-brief.mjs
-          node scripts/check-inbox-daily-brief.mjs
-
-      # Type-aware lint (`parserOptions.project`) resolves the same workspace
-      # packages the suite does, so it runs after the same builds it always has.
-      - name: Build core SDK, federation, MCP + db (for lint resolution)
-        run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-          bun run --filter @oxy.so/core build
-          bun run --filter @oxy.so/federation build
-          bun run --filter @oxy.so/mcp build
-          bun run --filter @oxy.so/db build
-
-      - name: Run linter
-        run: bun run lint
-        working-directory: ./packages/api
-
-      # The tests of the merge that `api-coverage` runs over the shard reports.
-      - name: Test native coverage gate
-        run: bun run test:coverage-merge
-        working-directory: ./packages/api
-
   # API Package Tests
   #
   # One shard of the suite per runner. Until 2026-09-25 this was ONE job that ran
@@ -511,6 +403,9 @@ jobs:
   api-build:
     name: API Build
     runs-on: ubuntu-latest
+    # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -556,255 +451,446 @@ jobs:
       # stops a release rather than degrading it. A human caught it by reading
       # the generated file instead of trusting it, which is not a control.
       #
-      # Here rather than in `migration-phases` because this needs `drizzle-kit`,
-      # and that job deliberately runs with NO install at all — a property its
-      # own fixture test asserts. DATABASE_URL is only for drizzle-kit's config;
+      # Here rather than beside the migration-phases gates in `guards` because
+      # this needs `drizzle-kit`, and those gates deliberately run BEFORE that
+      # job's install — a property their own fixture test asserts. DATABASE_URL is only for drizzle-kit's config;
       # the generate never connects.
       - name: Schema and snapshots agree
         run: bun scripts/check-drizzle-snapshot-sync.mjs
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
 
-  # bun.lock must match the package.json files (see scripts/check-lockfile-sync.mjs).
-  #
-  # Deliberately NOT `bun install --frozen-lockfile --minimum-release-age=0`: measured on bun 1.4.2
-  # against this repo, that flag exits 0 on both shapes of desync we actually
-  # shipped (a workspace `version` bump, and a widened-but-satisfiable dependency
-  # range). It would have caught none of the three incidents while reading like
-  # enforcement. The script regenerates the lockfile and asks git whether the
-  # file moved, which is the same question without bun's judgement in the middle.
-  lockfile-sync:
-    name: Lockfile Sync
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      # The gate's own fixture tests. Offline (every fixture dependency resolves
-      # through the workspace protocol) and the reason the manifest-comparison
-      # layer cannot be dropped without something going red.
-      - run: bun scripts/test-check-lockfile-sync.mjs
-      - run: bun scripts/check-lockfile-sync.mjs
 
-  # Every secret the API needs at boot must actually reach SSM
-  # (see scripts/check-deploy-secrets-sync.mjs).
+  # Repository guards and the API package's one-off checks, on one runner.
   #
-  # deploy-aws.yml syncs GitHub secrets through two hand-maintained allowlists,
-  # and a name missing from either is silent: nothing is written, the deploy is
-  # green, and the ECS task later fails to start with
-  # `ResourceInitializationError: unable to pull secrets`. DATABASE_URL was in
-  # neither. Runs here rather than in the deploy workflow so the mismatch is
-  # caught on the pull request, before anything is pushed to main.
-  deploy-secrets-sync:
-    name: Deploy Secrets Sync
+  # Two phases, and the order is load-bearing. First, before `bun install`, the
+  # gates that must work with NO node_modules (lockfile sync, deploy secrets,
+  # secret scan, migration journal, dependency audit, deploy scripts): several of
+  # their fixture tests assert exactly that, and running them ahead of the
+  # install keeps the job proving it rather than an empty tree it no longer has.
+  # Then the install, and every guard that needs it.
+  #
+  # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
+  # flagged the absent default on the jobs this replaces; scoped here rather than
+  # at workflow level, because a workflow-wide block would silently re-scope the
+  # token of every other job in this file, including the coverage artifact upload.
+  guards:
+    name: Guards
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # A backstop over the step caps below: the no-install phase (~2m), the
+    # install (30s), the API checks' dependency-closure step (10m cap) and the
+    # builds, lint and remaining guards (~3m) at their observed maxima.
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        id: bun
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
+
+      # ── Phase 1: no install ────────────────────────────────────────────────
+
+      # bun.lock must match the package.json files (see scripts/check-lockfile-sync.mjs).
+      #
+      # Deliberately NOT `bun install --frozen-lockfile --minimum-release-age=0`: measured on bun 1.4.2
+      # against this repo, that flag exits 0 on both shapes of desync we actually
+      # shipped (a workspace `version` bump, and a widened-but-satisfiable dependency
+      # range). It would have caught none of the three incidents while reading like
+      # enforcement. The script regenerates the lockfile and asks git whether the
+      # file moved, which is the same question without bun's judgement in the middle.
+      #
+      # The gate's own fixture tests first. Offline (every fixture dependency
+      # resolves through the workspace protocol) and the reason the
+      # manifest-comparison layer cannot be dropped without something going red.
+      - name: 'Lockfile Sync: fixture tests'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/test-check-lockfile-sync.mjs
+      - name: 'Lockfile Sync: check'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/check-lockfile-sync.mjs
+
+      # Every secret the API needs at boot must actually reach SSM
+      # (see scripts/check-deploy-secrets-sync.mjs).
+      #
+      # deploy-aws.yml syncs GitHub secrets through two hand-maintained allowlists,
+      # and a name missing from either is silent: nothing is written, the deploy is
+      # green, and the ECS task later fails to start with
+      # `ResourceInitializationError: unable to pull secrets`. DATABASE_URL was in
+      # neither. Runs here rather than in the deploy workflow so the mismatch is
+      # caught on the pull request, before anything is pushed to main.
+      #
       # The gate's own fixture tests — mutated copies of the real workflow and
       # env module. No install: the gate reads files and shells out to nothing.
-      - run: bun scripts/test-check-deploy-secrets-sync.mjs
-      - run: bun scripts/check-deploy-secrets-sync.mjs
+      - name: 'Deploy Secrets Sync: fixture tests'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/test-check-deploy-secrets-sync.mjs
+      - name: 'Deploy Secrets Sync: check'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/check-deploy-secrets-sync.mjs
 
-  # No issued credential material in tracked source (see scripts/check-secret-scan.mjs).
-  #
-  # Nothing scanned source for secrets before #972 workstream 12: no gitleaks, no
-  # trufflehog, no detect-secrets, no CodeQL config, no pre-commit hook — while
-  # `packages/api/.env` was once committed with live JWT secrets in it.
-  #
-  # Deliberately not gitleaks: the maintained action is licensed per organisation
-  # for private repositories, a pinned release binary adds a network dependency and
-  # a checksum to a job whose value is determinism, and a `.gitleaks.toml`
-  # allow-list cannot carry the exact-count assertion this repository's gate
-  # convention requires. The scanner's own header states what it therefore does NOT
-  # cover, measured on this tree.
-  #
-  # No install: the gate reads `git ls-files` and file bytes and shells out to
-  # nothing, which its fixture test asserts by running against trees that have no
-  # node_modules at any level.
-  secret-scan:
-    name: Secret Scan
-    runs-on: ubuntu-latest
-    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
-    # flagged the absent default; scoped here rather than at workflow level,
-    # because a workflow-wide block would silently re-scope the token of every
-    # other job in this file, including the coverage artifact upload.
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      # The gate's own fixture tests, run before the gate — one planted-secret case
-      # per rule, built from the rule set the gate itself emits, plus the cases
-      # proving it does NOT fire on this tree's deliberate placeholder credentials.
-      - run: bun scripts/test-check-secret-scan.mjs
-      - run: bun scripts/check-secret-scan.mjs
+      # No issued credential material in tracked source (see scripts/check-secret-scan.mjs).
+      #
+      # Nothing scanned source for secrets before #972 workstream 12: no gitleaks, no
+      # trufflehog, no detect-secrets, no CodeQL config, no pre-commit hook — while
+      # `packages/api/.env` was once committed with live JWT secrets in it.
+      #
+      # Deliberately not gitleaks: the maintained action is licensed per organisation
+      # for private repositories, a pinned release binary adds a network dependency and
+      # a checksum to a job whose value is determinism, and a `.gitleaks.toml`
+      # allow-list cannot carry the exact-count assertion this repository's gate
+      # convention requires. The scanner's own header states what it therefore does NOT
+      # cover, measured on this tree.
+      #
+      # No install: the gate reads `git ls-files` and file bytes and shells out to
+      # nothing, which its fixture test asserts by running against trees that have no
+      # node_modules at any level. The fixture tests run before the gate — one
+      # planted-secret case per rule, built from the rule set the gate itself emits,
+      # plus the cases proving it does NOT fire on this tree's deliberate
+      # placeholder credentials.
+      - name: 'Secret Scan: fixture tests'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/test-check-secret-scan.mjs
+      - name: 'Secret Scan: check'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/check-secret-scan.mjs
 
-  # No column in the persisted schema can hold a prompt, a completion, a chat
-  # message body or a tool argument (see scripts/check-no-payload-persistence.mjs
-  # and docs/adr/0016-no-inference-payload-persistence.md).
-  #
-  # ADR 0016's decision is a REFUSAL, and a refusal with nothing enforcing it is a
-  # sentence in a document. The census reads the drizzle schema barrel — the same
-  # module `drizzle.config.ts` generates migrations from, so a table it misses gets
-  # no migration — and requires every open-shaped column to declare what it holds.
-  #
-  # Its own job rather than a step inside `api-test` so the check has a NAME in the
-  # required set: `check-ci-complete.mjs` then refuses a run where it is not a
-  # dependency of `CI complete`. It needs `@oxy.so/contracts` and `@oxy.so/db` built
-  # because the schema modules import them; nothing else.
-  schema-policy:
-    name: Schema Payload Policy
-    runs-on: ubuntu-latest
-    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
-    # flagged the absent default; scoped here rather than at workflow level,
-    # because a workflow-wide block would silently re-scope the token of every
-    # other job in this file, including the coverage artifact upload.
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/db build
-      # The guard's own fixture schemas — a planted payload column per banned
-      # pattern, and the narrowness cases proving it does not fire on the boolean
-      # capability flags or on the product's own free-text columns.
-      - run: bun scripts/test-check-no-payload-persistence.mjs
-      - run: bun scripts/check-no-payload-persistence.mjs
+      # Two questions about the same journal, both answerable with no database:
+      # whether each migration says which side of a deploy it belongs on, and whether
+      # the order it is listed in can apply at all.
+      #
+      # 0013_users_account_categories reached production ahead of the column it adds,
+      # because deploy-aws.yml had no migration step and the ordering lived in a
+      # human's head across two manual dispatches. The deploy now applies migrations
+      # itself; these steps are what stop that from being silently disarmed — deleting
+      # one `RUN_MIGRATIONS: 'true'` line reproduces the outage exactly, with a green
+      # deploy and no other symptom.
+      #
+      # `check-migration-journal-order.mjs` covers the other half. A migration is
+      # applied only when its journal `when` is strictly newer than the newest already
+      # recorded, and `drizzle-kit generate` stamps that from the local wall clock, so
+      # a regenerate-after-rebase can land below a sibling that already merged. Twice
+      # in one day (`ce0eccc8`, then PR #997) that produced a migration nothing would
+      # ever run. `@oxy.so/db`'s `planLedgerRun` does refuse it — but only in the
+      # production one-shot, after the pull request has merged, where the cost is a
+      # blocked release. Both gates here were mutation-tested against the real journal
+      # and this one goes RED on a swap that leaves `check-migration-phases.mjs` green.
+      #
+      # Runs on the pull request, before anything is pushed to main, and needs no
+      # install: both gates and the marker reader touch only node builtins, which each
+      # gate's fixture test asserts with a tree that has no node_modules at any level.
+      # Each gate's own fixture tests — mutated copies of the real journal,
+      # migrations, deploy workflow and deploy script.
+      - name: 'Migration Journal and Deploy Phases: phases fixture tests'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/test-check-migration-phases.mjs
+      - name: 'Migration Journal and Deploy Phases: phases check'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/check-migration-phases.mjs
+      - name: 'Migration Journal and Deploy Phases: journal order fixture tests'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/test-check-migration-journal-order.mjs
+      - name: 'Migration Journal and Deploy Phases: journal order check'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/check-migration-journal-order.mjs
 
-  # `packages/console` hand-duplicates the API's two permission vocabularies, and
-  # NOTHING can make that drift a compile error: `@oxy.so/core` types the wire field
-  # `AccountMember.permissions` as `string[]`, so no API type ever flows into
-  # Console's unions, which are consumed only as parameter types whose call sites
-  # pass literals Console itself wrote. #1032 added eleven `inference:*` strings
-  # Console never learned, and `tsc --noEmit` stayed green over all of it.
-  #
-  # Its own job rather than a step inside `console-test` so the check has a NAME in
-  # the required set: `check-ci-complete.mjs` then refuses a run where it is not a
-  # dependency of `CI complete`. `bun install` is for `typescript`, which reads the
-  # Console type aliases with the real compiler instead of a regex; the API module
-  # the gate imports has no dependencies of its own, so nothing needs building.
-  permission-vocabulary:
-    name: Permission Vocabulary
-    runs-on: ubuntu-latest
-    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
-    # flagged the absent default; scoped here rather than at workflow level,
-    # because a workflow-wide block would silently re-scope the token of every
-    # other job in this file, including the coverage artifact upload.
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
+      # Dependency advisories (see scripts/check-dependency-audit.mjs).
+      #
+      # This used to run `npm audit --audit-level=high || true`. Ask the standard
+      # question — what would that report if a high-severity advisory were present?
+      # Exactly what it reported with none, because `|| true` made it unconditionally
+      # green, and `ci-complete` counted it as satisfied whatever it found. It also ran
+      # `npm` against a repository that has no package-lock.json.
+      #
+      # A hard fail is not the replacement, and the number says why: `bun audit` reports
+      # 152 advisories here, 76 of them high or critical, essentially all transitive
+      # through eslint, expo, metro, vite and release-it, whose version floors cannot be
+      # raised from this repository. That gate is red on arrival and blocks every
+      # unrelated pull request, which is how `|| true` came to be appended in the first
+      # place.
+      #
+      # So: a ratchet. An advisory in a package nobody has acknowledged fails, every
+      # CRITICAL must be named individually, and an acknowledgement that no longer
+      # matches fails too — which is also the positive control, since a non-empty list
+      # plus an audit that returned nothing is red rather than green.
+      #
+      # No install: verified that `bun audit` needs only bun.lock and the workspace
+      # manifests by running it against a tree holding exactly those. The fixture
+      # tests are offline: every failing branch is driven from a synthesised audit
+      # payload, because the live audit on this tree only ever exercises the
+      # passing path.
+      - name: 'Security Audit: fixture tests'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/test-check-dependency-audit.mjs
+      - name: 'Security Audit: check'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/check-dependency-audit.mjs
+
+      # Gates the rollout logic that deploy-aws.yml runs against production. Mirrors
+      # Mention's "Verify deployment transaction safeguards" step -- the two repos
+      # share this script, so they share its test. Before Setup Node on purpose:
+      # it has always run on the runner image's own node and python.
+      - name: 'Deploy Script Tests: verify deployment transaction safeguards'
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        run: |
+          bash -n .github/scripts/*.sh
+          bash .github/scripts/test-deploy-ecs-image.sh
+          bash .github/scripts/test-verify-reused-service-credential.sh
+          bash .github/scripts/test-put-secure-parameter.sh
+          bash .github/scripts/test-run-native-product-agent-bootstrap.sh
+          bash .github/scripts/test-report-native-product-agent-task-failure.sh
+          bash .github/scripts/test-smoke-inbox-mcp.sh
+          bash .github/scripts/test-attest-kaana-catalogue-rollout.sh
+          node --test .github/scripts/release-external-identity-packages.test.mjs
+          node --test .github/scripts/release-external-identity-publication.test.mjs
+          bash .github/scripts/test-run-external-identity-reconciliation.sh
+          bash .github/scripts/test-collect-external-identity-task.sh
+          python3 .github/scripts/test-read-external-identity-api-logs.py
+          PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/test-read-redis-capacity.py
+          node scripts/test-check-external-identity-operations.mjs
+          node scripts/check-external-identity-operations.mjs
+          node scripts/test-check-asset-worker-rollout.mjs
+          node scripts/check-asset-worker-rollout.mjs
+          node scripts/test-check-kaana-dns-boundary.mjs
+          node scripts/check-kaana-dns-boundary.mjs
+          node scripts/test-check-kaana-identity.mjs
+          node scripts/check-kaana-identity.mjs
+          node scripts/test-service-credential-workflow-ids.mjs
+          node scripts/test-service-credential-handoff.mjs
+          node scripts/test-service-credential-two-phase.mjs
+          node scripts/test-seed-oxy-applications-workflow.mjs
+          node scripts/test-native-product-agent-bootstrap-workflow.mjs
+          node scripts/test-kaana-catalogue-bootstrap-workflow.mjs
+          node scripts/test-check-kaana-request-v2-rollout.mjs
+          node scripts/check-kaana-request-v2-rollout.mjs
+          node scripts/test-check-kaana-signed-canary.mjs
+          node scripts/check-kaana-signed-canary.mjs
+          node --test packages/api/scripts/run-kaana-signed-canary.test.mjs
+          node scripts/test-check-inbox-routing-profile-readback.mjs
+          node scripts/check-inbox-routing-profile-readback.mjs
+          node scripts/test-check-kaana-catalogue-bootstrap-workflow.mjs
+          node scripts/check-kaana-catalogue-bootstrap-workflow.mjs
+
+      # ── Phase 2: installed ─────────────────────────────────────────────────
+
+      - name: Setup Node.js
+        id: node
+        if: ${{ !cancelled() }}
+        uses: actions/setup-node@v7
         with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
+          node-version: '24.x'
+
+      - name: Install dependencies
+        id: install
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' && steps.node.outcome == 'success' }}
+        run: bun install --frozen-lockfile --minimum-release-age=0
+
+      # The API package's one-off checks. They used to run inside `api-test` before
+      # the suite; now that the suite is a matrix they would otherwise run once per
+      # shard, so they live here and run exactly once, beside the shards rather
+      # than in front of them.
+      - name: 'API Checks: verify API image production dependency closure'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        timeout-minutes: 10
+        run: node scripts/test-api-runtime-dependencies.mjs
+      # Before the builds and the suite, and needing neither: it reads the tracked
+      # file listing. The backfill, 82 Mongoose models and the mongoose dependency
+      # were removed on 2026-08-08 and `oxy-prod` is gone, so a Mongo reference is
+      # now always a mistake — and it would arrive as a hoisted transitive or a
+      # stray env name, neither of which breaks a build.
+      - name: 'API Checks: guard against MongoDB returning'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run validate:no-mongo
+
+      # Same shape, same reason, one layer up. The switcher's flat account list
+      # was replaced by the server's device directory (ADR 0002, issue #937), and
+      # it would come back the way the Mongo references would: one surface
+      # reaching for `listAccounts()` because it is right there, one hook
+      # flattening the grouped rows. None of that fails a build on its own.
+      - name: 'API Checks: guard against the flat account list returning'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run validate:no-flat-account-list
+
+      # AGENTS.md is prepended to EVERY agent session, so its bytes are paid on
+      # every task forever. It reached 152 KB here by accretion — a mechanism
+      # write-up appended by the branch that shipped it, none wrong on its own
+      # and none visible except in the sum. Same family as the two guards above:
+      # nothing breaks, which is why it survives. Reads the tracked file listing
+      # and nothing else, and covers the create-oxy-app template too, so every
+      # scaffolded app is born bounded.
+      - name: 'API Checks: guard the AGENTS.md budget'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run validate:agents-md
+
+      - name: 'API Checks: guard exact metadata-only Inbox Daily Brief counts'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          node scripts/test-check-inbox-daily-brief.mjs
+          node scripts/check-inbox-daily-brief.mjs
+
+      # `packages/console` hand-duplicates the API's two permission vocabularies, and
+      # NOTHING can make that drift a compile error: `@oxy.so/core` types the wire field
+      # `AccountMember.permissions` as `string[]`, so no API type ever flows into
+      # Console's unions, which are consumed only as parameter types whose call sites
+      # pass literals Console itself wrote. #1032 added eleven `inference:*` strings
+      # Console never learned, and `tsc --noEmit` stayed green over all of it.
+      #
+      # A named step of this required job rather than a step inside the Console
+      # suite, so its failure names it. The install is for `typescript`, which reads
+      # the Console type aliases with the real compiler instead of a regex; the API
+      # module the gate imports has no dependencies of its own, so nothing needs
+      # building — it runs before the build below.
+      #
       # The gate's own fixture cases, run before the gate — both directions of
       # drift, the vacuity floor on a pair of sets that agree perfectly, and a
       # permission named only in an apostrophe-heavy doc comment, which is what a
       # regex census reads as a match that does not exist.
-      - run: bun scripts/test-check-permission-vocabulary.mjs
-      - run: bun scripts/check-permission-vocabulary.mjs
+      - name: 'Permission Vocabulary: fixture tests'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun scripts/test-check-permission-vocabulary.mjs
+      - name: 'Permission Vocabulary: check'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun scripts/check-permission-vocabulary.mjs
 
-  # No source in this monorepo reads a raw client IP, and nothing reads one inside
-  # a rate limiter's options at all (see scripts/check-no-raw-ip-keys.mjs).
-  #
-  # Oxy persists no user IP in any form; anonymous rate-limit keys are the one
-  # transient exception and must go through `hashedIpKey`. `packages/api/src/routes/store.ts`
-  # broke that without touching the invariant's own code: an account-keyed
-  # limiter mounted BEFORE `authMiddleware`, so its `?? req.ip` fallback was the
-  # only branch that ever ran and every store write minted a Redis key holding a
-  # raw address. Nothing in the limiter's own source says so — the bug is the
-  # order of two arguments two hundred lines away — which is why this is a census
-  # of the flat fact (is there a raw IP anywhere?) rather than a review.
-  #
-  # Its own job rather than a step inside `api-test` so the check has a NAME in the
-  # required set: `check-ci-complete.mjs` then refuses a run where it is not a
-  # dependency of `CI complete`. `bun install` is for `typescript`, which reads the
-  # source with the real parser instead of a regex — necessary because most textual
-  # `req.ip` hits on this tree are comments. Nothing needs building.
-  raw-ip-keys:
-    name: Raw Client IP Guard
-    runs-on: ubuntu-latest
-    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
-    # flagged the absent default; scoped here rather than at workflow level,
-    # because a workflow-wide block would silently re-scope the token of every
-    # other job in this file, including the coverage artifact upload.
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
+      # No source in this monorepo reads a raw client IP, and nothing reads one inside
+      # a rate limiter's options at all (see scripts/check-no-raw-ip-keys.mjs).
+      #
+      # Oxy persists no user IP in any form; anonymous rate-limit keys are the one
+      # transient exception and must go through `hashedIpKey`. `packages/api/src/routes/store.ts`
+      # broke that without touching the invariant's own code: an account-keyed
+      # limiter mounted BEFORE `authMiddleware`, so its `?? req.ip` fallback was the
+      # only branch that ever ran and every store write minted a Redis key holding a
+      # raw address. Nothing in the limiter's own source says so — the bug is the
+      # order of two arguments two hundred lines away — which is why this is a census
+      # of the flat fact (is there a raw IP anywhere?) rather than a review.
+      #
+      # The install is for `typescript`, which reads the source with the real parser
+      # instead of a regex — necessary because most textual `req.ip` hits on this
+      # tree are comments. Nothing needs building, so it runs before the build.
+      #
       # The gate's own fixture cases, run before the gate — the original store.ts
       # keyGenerator verbatim, every banned member and header, both directions of
       # allow-list drift, the vacuity floors, and a file naming every banned
       # spelling only in comments, which is what a regex census cannot survive.
-      - run: bun scripts/test-check-no-raw-ip-keys.mjs
-      - run: bun scripts/check-no-raw-ip-keys.mjs
+      - name: 'Raw Client IP Guard: fixture tests'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun scripts/test-check-no-raw-ip-keys.mjs
+      - name: 'Raw Client IP Guard: check'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun scripts/check-no-raw-ip-keys.mjs
 
-  # Two questions about the same journal, both answerable with no database:
-  # whether each migration says which side of a deploy it belongs on, and whether
-  # the order it is listed in can apply at all.
-  #
-  # 0013_users_account_categories reached production ahead of the column it adds,
-  # because deploy-aws.yml had no migration step and the ordering lived in a
-  # human's head across two manual dispatches. The deploy now applies migrations
-  # itself; this job is what stops that from being silently disarmed — deleting
-  # one `RUN_MIGRATIONS: 'true'` line reproduces the outage exactly, with a green
-  # deploy and no other symptom.
-  #
-  # `check-migration-journal-order.mjs` covers the other half. A migration is
-  # applied only when its journal `when` is strictly newer than the newest already
-  # recorded, and `drizzle-kit generate` stamps that from the local wall clock, so
-  # a regenerate-after-rebase can land below a sibling that already merged. Twice
-  # in one day (`ce0eccc8`, then PR #997) that produced a migration nothing would
-  # ever run. `@oxy.so/db`'s `planLedgerRun` does refuse it — but only in the
-  # production one-shot, after the pull request has merged, where the cost is a
-  # blocked release. Both gates here were mutation-tested against the real journal
-  # and this one goes RED on a swap that leaves `check-migration-phases.mjs` green.
-  #
-  # Runs on the pull request, before anything is pushed to main, and needs no
-  # install: both gates and the marker reader touch only node builtins, which each
-  # gate's fixture test asserts with a tree that has no node_modules at any level.
-  migration-phases:
-    name: Migration Journal and Deploy Phases
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      # Each gate's own fixture tests — mutated copies of the real journal,
-      # migrations, deploy workflow and deploy script.
-      - run: bun scripts/test-check-migration-phases.mjs
-      - run: bun scripts/check-migration-phases.mjs
-      - run: bun scripts/test-check-migration-journal-order.mjs
-      - run: bun scripts/check-migration-journal-order.mjs
+      # ONE build for every guard below, a superset of what each needs:
+      #   * API Checks' lint: type-aware lint (`parserOptions.project`) resolves the
+      #     same workspace packages the API suite does — all six.
+      #   * Schema Payload Policy: `@oxy.so/contracts` and `@oxy.so/db`, which the
+      #     schema modules import.
+      #   * OpenAPI Contract: contracts, protocol, core, mcp and db. `@oxy.so/protocol`
+      #     is there even though nothing in packages/api imports it directly: core's
+      #     BUILT esm output (`dist/esm/crypto/polyfill.js`) imports it at RUNTIME.
+      #     Measured on a cold tree — `@oxy.so/core build` SUCCEEDS without
+      #     protocol's dist, and the generator then dies importing auth.schemas.ts.
+      #     A build-order list derived from what compiles is not the same list as
+      #     what runs.
+      - name: Build core SDK, federation, MCP + db (lint, schema policy, OpenAPI)
+        id: build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
+          bun run --filter @oxy.so/federation build
+          bun run --filter @oxy.so/mcp build
+          bun run --filter @oxy.so/db build
 
-  # DB package tests (Jest — Postgres service for the live suites that are
-  # always-skipped without one: liveDatabase.test.ts, schemaInvariants.live.test.ts,
-  # expiryIndexes.live.test.ts).
-  db-test:
-    name: DB Tests
+      - name: 'API Checks: run linter'
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: bun run lint
+        working-directory: ./packages/api
+
+      # The tests of the merge that `api-coverage` runs over the shard reports.
+      - name: 'API Checks: test native coverage gate'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run test:coverage-merge
+        working-directory: ./packages/api
+
+      # No column in the persisted schema can hold a prompt, a completion, a chat
+      # message body or a tool argument (see scripts/check-no-payload-persistence.mjs
+      # and docs/adr/0016-no-inference-payload-persistence.md).
+      #
+      # ADR 0016's decision is a REFUSAL, and a refusal with nothing enforcing it is a
+      # sentence in a document. The census reads the drizzle schema barrel — the same
+      # module `drizzle.config.ts` generates migrations from, so a table it misses gets
+      # no migration — and requires every open-shaped column to declare what it holds.
+      #
+      # The guard's own fixture schemas first — a planted payload column per banned
+      # pattern, and the narrowness cases proving it does not fire on the boolean
+      # capability flags or on the product's own free-text columns.
+      - name: 'Schema Payload Policy: fixture tests'
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: bun scripts/test-check-no-payload-persistence.mjs
+      - name: 'Schema Payload Policy: check'
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: bun scripts/check-no-payload-persistence.mjs
+
+      # packages/api/openapi.json must describe the API it claims to
+      # (see scripts/check-openapi-fresh.mjs).
+      #
+      # The generator walks only route files present in a hand-maintained MOUNT_MAP
+      # and silently skips any file absent from it — a clean exit with the routes
+      # simply not in the document. Measured before this check existed: the entire
+      # inference surface was missing while the deprecated Alia proxy was described,
+      # `/models/stats` was described from a route file deleted a fortnight earlier,
+      # and 128 authenticated operations were published as needing no credential.
+      # Nothing failed.
+      #
+      # Deliberately NOT a diff alone: the committed document matched what the map
+      # produced through all of it, and a diff stays green forever when a map entry
+      # is dropped and the artifact regenerated in the same commit. The check asserts
+      # the surface by NAME and the credential requirement by rule as well.
+      #
+      # The generator imports src/schemas/**, which reach @oxy.so/contracts, and it
+      # REFUSES to write a partial document when a schema module cannot be imported.
+      # packages/api's own `tsc` is deliberately not run: the generator executes
+      # the route TypeScript through bun rather than from dist/, so `api-build`
+      # already owns that check and this does not repeat it.
+      #
+      # The gate's own fixture tests, including the positive control: an entry
+      # removed from a fixture MOUNT_MAP with the artifact regenerated in the same
+      # commit, so the freshness layer is green and only the by-name layer fails.
+      - name: 'OpenAPI Contract: fixture tests'
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: bun scripts/test-check-openapi-fresh.mjs
+      - name: 'OpenAPI Contract: check'
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: bun scripts/check-openapi-fresh.mjs
+
+  # The platform packages' suites: contracts, db, protocol, core, ship, node,
+  # federation and the identity origin, on one runner with one install.
+  #
+  # The suites run in dependency order and each one sees AT LEAST the workspace
+  # builds its own job used to make, never fewer: a suite that ran against
+  # unbuilt dependencies (contracts, db) runs before any build, and a package's
+  # own tests run before that package is built, as they always did. Each build
+  # happens once, at the first suite that needs it.
+  packages-platform:
+    name: Package Tests (platform)
     runs-on: ubuntu-latest
-    # The other Postgres job, and by far the smaller one: p50 1m37s, max 1m57s,
-    # sd 6s over the same 118 runs. It had no cap at all, so a wedge here would
-    # have burned GitHub's 6-hour default. 15m is ~7.7x its worst observed run.
-    timeout-minutes: 15
+    # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
+    permissions:
+      contents: read
+    # A backstop: containers (35s), install (30s), the DB suite at its own 15m
+    # cap, and every other suite at its observed maximum (~5m together).
+    timeout-minutes: 30
     services:
+      # For the DB suite's live tests (liveDatabase.test.ts,
+      # schemaInvariants.live.test.ts, expiryIndexes.live.test.ts), which are
+      # always-skipped without one.
+      #
       # PostGIS, matching api-test: this package's live suites build their own
       # throwaway schemas (never PostGIS types), but the image is pinned the
       # same way everywhere else in this repo so no job disagrees about what a
@@ -824,13 +910,32 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
+      - id: bun
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: bun run lint && bun run typescript && bun run build
+      - name: Install dependencies
+        id: install
+        run: bun install --frozen-lockfile --minimum-release-age=0
+
+      # Contracts package tests (Jest — no MongoDB), against nothing built.
+      - name: 'Contracts Tests: test'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run test
+        working-directory: ./packages/contracts
+
+      # DB package tests (Jest — Postgres service for the live suites).
+      # p50 1m37s, max 1m57s as a job of its own; 15m, its old job cap, is kept
+      # on each of its steps.
+      - name: 'DB Tests: lint, typecheck, build'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        timeout-minutes: 15
+        run: bun run lint && bun run typescript && bun run build
         working-directory: ./packages/db
-      - run: bun run test
+      - name: 'DB Tests: test'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        timeout-minutes: 15
+        run: bun run test
         working-directory: ./packages/db
         env:
           # The admin connection the live suites create/drop throwaway
@@ -839,356 +944,191 @@ jobs:
           # from passing; this is what makes them actually run in CI.
           OXYDB_TEST_ADMIN_URL: postgres://oxy:oxy@127.0.0.1:5432/postgres
 
-  # Contracts package tests (Jest — no MongoDB)
-  contracts-test:
-    name: Contracts Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: bun run test
-        working-directory: ./packages/contracts
-
-  # Protocol package tests (Jest — build contracts first)
-  protocol-test:
-    name: Protocol Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: bun run --filter @oxy.so/contracts build
-      - run: bun run test
+      # Protocol package tests (Jest — build contracts first)
+      - name: Build contracts
+        id: build-contracts
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run --filter @oxy.so/contracts build
+      - name: 'Protocol Tests: test'
+        if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
+        run: bun run test
         working-directory: ./packages/protocol
 
-  # Federation substrate tests (Jest — build + lint + typecheck)
-  federation-test:
-    name: Federation Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: bun run build && bun run lint && bun run typescript && bun run test
-        working-directory: ./packages/federation
-
-  # Core SDK tests (Jest — build contracts + protocol first)
-  core-test:
-    name: Core Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-      - run: bun run test
+      # Core SDK tests (Jest — build contracts + protocol first)
+      - name: Build protocol
+        id: build-protocol
+        if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
+        run: bun run --filter @oxy.so/protocol build
+      - name: 'Core Tests: test'
+        if: ${{ !cancelled() && steps.build-protocol.outcome == 'success' }}
+        run: bun run test
         working-directory: ./packages/core
 
-  # Ship CLI tests (bun test — build workspace deps first)
-  ship-test:
-    name: Ship Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-          bun run --filter @oxy.so/core build
-      - run: bun run test
+      # Ship CLI tests (bun test) and Node package tests (Jest) — both build
+      # contracts, protocol and core first.
+      - name: Build core
+        id: build-core
+        if: ${{ !cancelled() && steps.build-protocol.outcome == 'success' }}
+        run: bun run --filter @oxy.so/core build
+      - name: 'Ship Tests: test'
+        if: ${{ !cancelled() && steps.build-core.outcome == 'success' }}
+        run: bun run test
         working-directory: ./packages/ship
-
-  # Node package tests (Jest — build workspace deps first)
-  node-test:
-    name: Node Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-          bun run --filter @oxy.so/core build
-      - run: bun run test
+      - name: 'Node Tests: test'
+        if: ${{ !cancelled() && steps.build-core.outcome == 'success' }}
+        run: bun run test
         working-directory: ./packages/node
 
-  # Services SDK tests (Jest — build workspace deps first)
-  services-test:
-    name: Services Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-          bun run --filter @oxy.so/core build
-      - run: bun run test
-        working-directory: ./packages/services
-      # `postbuild` runs scripts/verify-package.mjs, which packs the tarball and
-      # asserts every `exports` target is really in it. The auth, commons and
-      # accounts jobs happen to build services too, but a packaging gate that
-      # only runs as a side effect of an unrelated job is one edit away from
-      # running nowhere, and no job name would say so.
-      - name: Build and verify the publishable package
-        run: bun run build
-        working-directory: ./packages/services
-      - name: Enforce services web bundle budget
-        run: bun run build && bun run check:bundle-budget
-        working-directory: ./packages/test-app-vite
+      # Federation substrate tests (Jest — build + lint + typecheck)
+      - name: 'Federation Tests: build, lint, typecheck, test'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run build && bun run lint && bun run typescript && bun run test
+        working-directory: ./packages/federation
 
-  # Auth IdP tests (bun test — NOT jest)
-  auth-test:
-    name: Auth Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-          bun run --filter @oxy.so/core build
-          bun run --filter @oxy.so/services build
-      - run: bun run test
-        working-directory: ./packages/auth
-      - run: bunx tsc --noEmit
-        working-directory: ./packages/auth
-
-  # Identity origin (id.oxy.so) — the web identity carrier. Worker header policy
-  # (node:test) + carrier rules against the real core crypto (Jest, from source).
-  id-test:
-    name: Identity Origin Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - uses: actions/setup-node@v7
+      # Identity origin (id.oxy.so) — the web identity carrier. Worker header policy
+      # (node:test) + carrier rules against the real core crypto (Jest, from
+      # source: jest.config.cjs maps every workspace package to src/, so the
+      # builds above do not reach it). Last, because it is the only suite here
+      # that ran on Node 24 rather than the runner image's node.
+      - name: Setup Node.js
+        id: node
+        if: ${{ !cancelled() }}
+        uses: actions/setup-node@v7
         with:
           node-version: '24.x'
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: bun run test
-        working-directory: ./packages/id
-      - run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-          bun run --filter @oxy.so/core build
-      - run: bun run build
-        working-directory: ./packages/id
-
-  # Commons app tests (Jest — native identity vault)
-  commons-test:
-    name: Commons Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-          bun run --filter @oxy.so/core build
-          bun run --filter @oxy.so/services build
-          bun run --filter @oxy.so/expo-splash build
-      # Jest never compiles the root layout or any screen it does not import, so a
-      # broken JSX tree can reach main green without this.
-      - run: bunx tsc --noEmit -p tsconfig.json
-        working-directory: ./packages/commons
-      - run: bun run test
-        working-directory: ./packages/commons
-
-
-  # Accounts app tests (Jest — keyless account management)
-  accounts-test:
-    name: Accounts Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-          bun run --filter @oxy.so/core build
-          bun run --filter @oxy.so/services build
-          bun run --filter @oxy.so/expo-splash build
-      - run: bun run test
-        working-directory: ./packages/accounts
-
-  # Console developer portal (Vitest — Vite + RN Web)
-  #
-  # Console had no CI job at all until #972, while `deploy-cloudflare.yml` ships
-  # it to production from `main` on every merge that touches `packages/console`.
-  # Nothing ran between a pull request and that deploy.
-  #
-  # `tsc --noEmit` is the specific hole. Console's `build` script is
-  # `writePagesHeaders && vite build`, and Vite ERASES types rather than checking
-  # them — so a type error builds cleanly, deploys cleanly, and is found by a
-  # user. It lives here rather than in the `build` script because `build` is what
-  # the production deploy runs: moving the check there would turn a type error
-  # into "Console cannot deploy at all" — a failure discovered AFTER merge, with
-  # no way to ship an unrelated urgent fix around it. The gap being closed is
-  # that nothing gates the pull request, so the check belongs on the pull
-  # request. `auth-test` above already places its typecheck this way.
-  #
-  # `--filter=oxy-console...` (with the ellipsis) builds the workspace
-  # dependencies too. Without them the build fails on an unresolvable
-  # `@oxy.so/services` and the error names the wrong package entirely.
-  #
-  # The test step's own vacuity floor is in `packages/console/package.json`:
-  # `test` dropped `--passWithNoTests`, which would have reported a green step
-  # over a broken glob matching zero files. Console has 4 test files, so the
-  # floor is satisfied today and a run finding none is a real failure.
-  #
-  # Lint is deliberately NOT a step here: `bun run lint` reports 45 pre-existing
-  # problems on `main` (42 errors), so adding it would make this gate red on
-  # arrival, which gates nothing. Most are `no-unnecessary-condition` — removing
-  # a defensive `?.` on the strength of a type claim is a semantic change, not a
-  # CI change, and does not belong in the same pull request as the gate. See the
-  # pull request body for what including it would take.
-  console-test:
-    name: Console Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - name: Build Console and its workspace dependencies
-        run: bunx turbo run build --filter=oxy-console...
-      - name: Typecheck
-        run: bunx tsc --noEmit
-        working-directory: ./packages/console
-      - name: Run tests
+      - name: 'Identity Origin Tests: test'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.node.outcome == 'success' }}
         run: bun run test
-        working-directory: ./packages/console
+        working-directory: ./packages/id
+      - name: 'Identity Origin Tests: build'
+        if: ${{ !cancelled() && steps.build-core.outcome == 'success' && steps.node.outcome == 'success' }}
+        run: bun run build
+        working-directory: ./packages/id
 
-  # packages/api/openapi.json must describe the API it claims to
-  # (see scripts/check-openapi-fresh.mjs).
-  #
-  # The generator walks only route files present in a hand-maintained MOUNT_MAP
-  # and silently skips any file absent from it — a clean exit with the routes
-  # simply not in the document. Measured before this job existed: the entire
-  # inference surface was missing while the deprecated Alia proxy was described,
-  # `/models/stats` was described from a route file deleted a fortnight earlier,
-  # and 128 authenticated operations were published as needing no credential.
-  # Nothing failed.
-  #
-  # Deliberately NOT a diff alone: the committed document matched what the map
-  # produced through all of it, and a diff stays green forever when a map entry
-  # is dropped and the artifact regenerated in the same commit. The check asserts
-  # the surface by NAME and the credential requirement by rule as well.
-  openapi-contract:
-    name: OpenAPI Contract
+  # The app-facing packages' suites: services, auth, commons, accounts and
+  # Console, on one runner with one install. Same rule as `packages-platform`:
+  # dependency order, each build once at the first suite that needs it, and
+  # services' own tests run before services is built, as they always did.
+  packages-apps:
+    name: Package Tests (apps)
     runs-on: ubuntu-latest
-
+    # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
+    permissions:
+      contents: read
+    # A backstop: install (30s), builds (~2m) and every suite at its observed
+    # maximum (~4m together).
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
+      - id: bun
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
-
       - name: Install dependencies
+        id: install
         run: bun install --frozen-lockfile --minimum-release-age=0
-      # The generator imports src/schemas/**, which reach @oxy.so/contracts, and it
-      # REFUSES to write a partial document when a schema module cannot be
-      # imported — it names this sequence itself when they are missing.
-      #
-      # @oxy.so/protocol is here even though nothing in packages/api imports it
-      # directly: core's BUILT esm output (`dist/esm/crypto/polyfill.js`) imports
-      # it at RUNTIME. Measured on a cold tree — `@oxy.so/core build` SUCCEEDS
-      # without protocol's dist, and the generator then dies importing
-      # auth.schemas.ts. A build-order list derived from what compiles is not the
-      # same list as what runs.
-      #
-      # packages/api's own `tsc` is deliberately not run: the generator executes
-      # the route TypeScript through bun rather than from dist/, so `api-build`
-      # already owns that check and this job does not repeat it.
-      - name: Build the workspace deps the generator reads
+
+      - name: Build contracts, protocol, core
+        id: build-core
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
           bun run --filter @oxy.so/contracts build
           bun run --filter @oxy.so/protocol build
           bun run --filter @oxy.so/core build
-          bun run --filter @oxy.so/mcp build
-          bun run --filter @oxy.so/db build
 
-      # The gate's own fixture tests, including the positive control: an entry
-      # removed from a fixture MOUNT_MAP with the artifact regenerated in the same
-      # commit, so the freshness layer is green and only the by-name layer fails.
-      - run: bun scripts/test-check-openapi-fresh.mjs
-      - run: bun scripts/check-openapi-fresh.mjs
+      # Services SDK tests (Jest — build workspace deps first)
+      - name: 'Services Tests: test'
+        if: ${{ !cancelled() && steps.build-core.outcome == 'success' }}
+        run: bun run test
+        working-directory: ./packages/services
+      # `postbuild` runs scripts/verify-package.mjs, which packs the tarball and
+      # asserts every `exports` target is really in it. A named step of its own:
+      # a packaging gate that only runs as a side effect of an unrelated suite's
+      # build is one edit away from running nowhere, and no step name would say
+      # so. This is also the services build auth, commons and accounts use.
+      - name: 'Services Tests: build and verify the publishable package'
+        id: build-services
+        if: ${{ !cancelled() && steps.build-core.outcome == 'success' }}
+        run: bun run build
+        working-directory: ./packages/services
+      - name: 'Services Tests: enforce services web bundle budget'
+        if: ${{ !cancelled() && steps.build-services.outcome == 'success' }}
+        run: bun run build && bun run check:bundle-budget
+        working-directory: ./packages/test-app-vite
 
-  # Dependency advisories (see scripts/check-dependency-audit.mjs).
-  #
-  # This job used to run `npm audit --audit-level=high || true`. Ask the standard
-  # question — what would that report if a high-severity advisory were present?
-  # Exactly what it reported with none, because `|| true` made it unconditionally
-  # green, and `ci-complete` counted it as satisfied whatever it found. It also ran
-  # `npm` against a repository that has no package-lock.json.
-  #
-  # A hard fail is not the replacement, and the number says why: `bun audit` reports
-  # 152 advisories here, 76 of them high or critical, essentially all transitive
-  # through eslint, expo, metro, vite and release-it, whose version floors cannot be
-  # raised from this repository. That gate is red on arrival and blocks every
-  # unrelated pull request, which is how `|| true` came to be appended in the first
-  # place.
-  #
-  # So: a ratchet. An advisory in a package nobody has acknowledged fails, every
-  # CRITICAL must be named individually, and an acknowledgement that no longer
-  # matches fails too — which is also the positive control, since a non-empty list
-  # plus an audit that returned nothing is red rather than green.
-  #
-  # No install: verified that `bun audit` needs only bun.lock and the workspace
-  # manifests by running it against a tree holding exactly those.
-  security-audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
-    # flagged the absent default; scoped here rather than at workflow level,
-    # because a workflow-wide block would silently re-scope the token of every
-    # other job in this file, including the coverage artifact upload.
-    permissions:
-      contents: read
+      # Auth IdP tests (bun test — NOT jest)
+      - name: 'Auth Tests: test'
+        if: ${{ !cancelled() && steps.build-services.outcome == 'success' }}
+        run: bun run test
+        working-directory: ./packages/auth
+      - name: 'Auth Tests: typecheck'
+        if: ${{ !cancelled() && steps.build-services.outcome == 'success' }}
+        run: bunx tsc --noEmit
+        working-directory: ./packages/auth
 
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      # The gate's own fixture tests, offline: every failing branch is driven from a
-      # synthesised audit payload, because the live audit on this tree only ever
-      # exercises the passing path.
-      - run: bun scripts/test-check-dependency-audit.mjs
-      - run: bun scripts/check-dependency-audit.mjs
+      # Commons app tests (Jest — native identity vault) and Accounts app tests
+      # (Jest — keyless account management) — both also build expo-splash.
+      - name: Build expo-splash
+        id: build-splash
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run --filter @oxy.so/expo-splash build
+      # Jest never compiles the root layout or any screen it does not import, so a
+      # broken JSX tree can reach main green without this.
+      - name: 'Commons Tests: typecheck'
+        if: ${{ !cancelled() && steps.build-services.outcome == 'success' && steps.build-splash.outcome == 'success' }}
+        run: bunx tsc --noEmit -p tsconfig.json
+        working-directory: ./packages/commons
+      - name: 'Commons Tests: test'
+        if: ${{ !cancelled() && steps.build-services.outcome == 'success' && steps.build-splash.outcome == 'success' }}
+        run: bun run test
+        working-directory: ./packages/commons
+      - name: 'Accounts Tests: test'
+        if: ${{ !cancelled() && steps.build-services.outcome == 'success' && steps.build-splash.outcome == 'success' }}
+        run: bun run test
+        working-directory: ./packages/accounts
+
+      # Console developer portal (Vitest — Vite + RN Web)
+      #
+      # Console had no CI job at all until #972, while `deploy-cloudflare.yml` ships
+      # it to production from `main` on every merge that touches `packages/console`.
+      # Nothing ran between a pull request and that deploy.
+      #
+      # `tsc --noEmit` is the specific hole. Console's `build` script is
+      # `writePagesHeaders && vite build`, and Vite ERASES types rather than checking
+      # them — so a type error builds cleanly, deploys cleanly, and is found by a
+      # user. It lives here rather than in the `build` script because `build` is what
+      # the production deploy runs: moving the check there would turn a type error
+      # into "Console cannot deploy at all" — a failure discovered AFTER merge, with
+      # no way to ship an unrelated urgent fix around it. The gap being closed is
+      # that nothing gates the pull request, so the check belongs on the pull
+      # request. The auth typecheck above is placed the same way.
+      #
+      # `--filter=oxy-console...` (with the ellipsis) builds the workspace
+      # dependencies too. Without them the build fails on an unresolvable
+      # `@oxy.so/services` and the error names the wrong package entirely.
+      #
+      # The test step's own vacuity floor is in `packages/console/package.json`:
+      # `test` dropped `--passWithNoTests`, which would have reported a green step
+      # over a broken glob matching zero files. Console has 4 test files, so the
+      # floor is satisfied today and a run finding none is a real failure.
+      #
+      # Lint is deliberately NOT a step here: `bun run lint` reports 45 pre-existing
+      # problems on `main` (42 errors), so adding it would make this gate red on
+      # arrival, which gates nothing. Most are `no-unnecessary-condition` — removing
+      # a defensive `?.` on the strength of a type claim is a semantic change, not a
+      # CI change, and does not belong in the same pull request as the gate.
+      - name: 'Console Tests: build Console and its workspace dependencies'
+        id: build-console
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bunx turbo run build --filter=oxy-console...
+      - name: 'Console Tests: typecheck'
+        if: ${{ !cancelled() && steps.build-console.outcome == 'success' }}
+        run: bunx tsc --noEmit
+        working-directory: ./packages/console
+      - name: 'Console Tests: run tests'
+        if: ${{ !cancelled() && steps.build-console.outcome == 'success' }}
+        run: bun run test
+        working-directory: ./packages/console
 
   # THE one status check `main` requires. Everything above it reports here.
   #
@@ -1207,35 +1147,17 @@ jobs:
   ci-complete:
     name: CI complete
     needs:
-      - deploy-script-test
-      - api-checks
+      - guards
       - api-test
       - api-coverage
       - api-build
-      - lockfile-sync
-      - deploy-secrets-sync
-      - secret-scan
-      - schema-policy
-      - permission-vocabulary
-      - raw-ip-keys
-      - migration-phases
-      - db-test
-      - contracts-test
-      - protocol-test
-      - federation-test
-      - core-test
-      - ship-test
-      - node-test
-      - services-test
-      - auth-test
-      - id-test
-      - commons-test
-      - accounts-test
-      - console-test
-      - openapi-contract
-      - security-audit
+      - packages-platform
+      - packages-apps
     if: always()
     runs-on: ubuntu-latest
+    # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
+    permissions:
+      contents: read
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
@@ -1243,7 +1165,7 @@ jobs:
         with:
           bun-version-file: package.json
       # The gate's own fixture tests, run before the gate itself — same shape as
-      # lockfile-sync, deploy-secrets-sync and migration-phases beside it. No
+      # the lockfile, deploy-secrets and migration gates in `guards`. No
       # install: both files read YAML through Bun's built-in parser and shell out
       # to nothing.
       - run: bun scripts/test-check-ci-complete.mjs
