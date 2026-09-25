@@ -15,17 +15,12 @@ interface StatColumnsProps {
 }
 
 /**
- * Two-or-more roomy stat columns split by a rule: a tiny uppercase caption above
- * a big tabular value. The reputation Influence / Reliability pair.
+ * Two-or-more roomy stat columns split by a vertical `Divider`: a tiny uppercase
+ * caption above a big tabular value. The reputation Influence / Reliability pair.
  *
- * It is NOT Bloom's `StatCards`, deliberately. That family draws KPI CARDS — an
- * icon, a delta, a comparison footer, each on its own surface — and these two
- * numbers sit inside an existing card, under a rule, as a quiet footer to the
- * standing block. A card inside a card is the thing the flat reputation design
- * was written to avoid.
- *
- * What it no longer draws by hand is the rule: that is Bloom's `Divider`, in its
- * vertical form, rather than a 1px `View` tinted from `useColors()`.
+ * Deliberately NOT Bloom's `StatCards`, which draws each KPI on its own card;
+ * these sit inside an existing card, and a card inside a card is what the flat
+ * reputation design avoids.
  */
 export function StatColumns({ items }: StatColumnsProps) {
   const colors = useColors();

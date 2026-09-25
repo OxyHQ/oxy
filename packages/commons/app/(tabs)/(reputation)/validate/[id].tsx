@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Icons } from '@/constants/icons';
 import { fullWidthControl } from '@/constants/styles';
@@ -15,6 +14,8 @@ import {
   Section,
   GroupedList,
   SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
 import { useValidatorInbox } from '@/hooks/useValidatorInbox';
 import { useValidationVote } from '@/hooks/useValidationVote';
@@ -62,7 +63,7 @@ export default function ValidationVoteScreen() {
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -78,16 +79,13 @@ export default function ValidationVoteScreen() {
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     if (isPending && !request) {
-      return <EmptyState
-               illustration={<Loading variant="spinner" size="lg" />}
-               minHeight={360}
-             />;
+      return <LoadingState />;
     }
 
     if (isError && !request) {
@@ -97,7 +95,7 @@ export default function ValidationVoteScreen() {
           title={t('civic.validate.inbox.error.title')}
           description={t('civic.validate.inbox.error.body')}
           action={{ label: t('common.retry'), onPress: () => refetch() }}
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -113,7 +111,7 @@ export default function ValidationVoteScreen() {
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }

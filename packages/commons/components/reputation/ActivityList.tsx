@@ -1,12 +1,12 @@
 import React from 'react';
 import { Icons } from '@/constants/icons';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { ActivityRow } from '@/components/reputation/ActivityRow';
 import type { ReputationTransaction } from '@oxy.so/contracts';
 import { useTranslation } from '@/lib/i18n';
+import { LoadingState, STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
 
 interface ActivityListProps {
   transactions: ReputationTransaction[] | undefined;
@@ -26,11 +26,7 @@ export function ActivityList({ transactions, isLoading, isError }: ActivityListP
   const { t } = useTranslation();
 
   if (isLoading && !transactions) {
-    return <EmptyState
-             illustration={<Loading variant="spinner" size="lg" />}
-             description={t('civic.reputation.activity.loading')}
-             minHeight={360}
-           />;
+    return <LoadingState description={t('civic.reputation.activity.loading')} />;
   }
 
   if (isError && !transactions) {
@@ -38,7 +34,7 @@ export function ActivityList({ transactions, isLoading, isError }: ActivityListP
       <EmptyState
         icon={Icons.alert}
         description={t('civic.reputation.activity.error')}
-        minHeight={360}
+        minHeight={STATE_MIN_HEIGHT}
       />
     );
   }
@@ -47,7 +43,7 @@ export function ActivityList({ transactions, isLoading, isError }: ActivityListP
     return <EmptyState
              icon={Icons.history}
              description={t('civic.reputation.activity.empty')}
-             minHeight={360}
+             minHeight={STATE_MIN_HEIGHT}
            />;
   }
 

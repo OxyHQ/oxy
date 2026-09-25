@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
+import { GlyphButton } from '@oxy.so/bloom/button';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
 import { Icons } from '@/constants/icons';
 import { LogoIcon } from '@oxy.so/services';
@@ -123,16 +124,14 @@ export function ApprovalRequest({
 
   return (
     <View className="pb-7">
-      <Pressable
+      <GlyphButton
+        icon={Icons.close}
         onPress={onClose}
-        accessibilityRole="button"
         accessibilityLabel={t('common.close')}
         testID="approval-close"
-        className="absolute right-3 top-3 h-9 w-9 items-center justify-center rounded-full"
-        style={{ backgroundColor: colors.backgroundSecondary }}
-      >
-        <Icons.close size='md' fill={colors.textSecondary} />
-      </Pressable>
+        fill={colors.backgroundSecondary}
+        style={styles.close}
+      />
 
       {/* WHO IS ASKING — server-resolved identity, paired with the Oxy mark. */}
       <View className="items-center px-8 pt-12">
@@ -320,6 +319,11 @@ function confirmationIssueKey(issue: ApprovalConfirmationIssue): string {
 }
 
 const styles = StyleSheet.create({
+  close: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+  },
   tile: {
     borderCurve: 'continuous',
   },

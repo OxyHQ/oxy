@@ -25,22 +25,13 @@ interface ListRowProps {
 }
 
 /**
- * One comfortable list row — now Bloom's `Item` with this app's slots filled in.
+ * One comfortable list row: Bloom's `Item` with this app's slots filled in.
  *
- * `Item` is "the one row primitive": it owns the height, the press feedback, the
- * disabled treatment, the title/subtitle column and the announced role, so a row
- * here is the same row as one in every other Oxy app. What this wrapper keeps is
- * the three things that are Commons' own and would otherwise be repeated at
- * every call site: the leading glyph comes from the app's icon vocabulary rather
- * than being passed as a node, the right-hand READOUT (a count, a status word)
- * and the chevron share one trailing slot, and both default their colour from
- * `useColors()`.
- *
- * VISUAL DELTA from the hand-rolled version: the row's geometry is Bloom's
- * (`comfortable` density) rather than the previous 16pt vertical padding on a
- * 56pt floor, the title and subtitle take Bloom's type roles instead of 16/500
- * and 13/18, and the press feedback is Bloom's rather than
- * `TouchableOpacity activeOpacity={0.6}`.
+ * `Item` owns the height, press feedback, disabled treatment, title/subtitle
+ * column and announced role. This wrapper keeps what is Commons' own: the
+ * leading glyph comes from the app's icon vocabulary, the right-hand READOUT (a
+ * count, a status word) and the chevron share one trailing slot, and both
+ * default their colour from `useColors()`.
  */
 export function ListRow({
   icon,

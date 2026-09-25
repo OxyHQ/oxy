@@ -22,7 +22,6 @@ import { PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
 import { ImageResolverProvider, type ImageResolver } from '@oxy.so/bloom/image-resolver';
 import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
 
-import { THEME_PERSIST_KEY, themeStorage } from '@/lib/theme-storage';
 import {
   useOnboardingStatus,
   ONBOARDING_IDENTITY_QUERY_KEY,
@@ -202,24 +201,17 @@ export default function RootLayout() {
             packages/services/src/ui/components/OxyProvider.tsx). The consumer
             (this app) owns the BloomProvider.
 
-            It is UNCONTROLLED: `persistKey` + `storage` make Bloom the single
-            source of truth for mode and colour preset, which is what retired
-            this app's own 106-line `ThemeModeProvider`. With both set Bloom also
-            gates its subtree until the async read resolves, so a native cold
-            start cannot flash the default palette — the same guarantee the old
-            provider's synchronous-web / async-native split was reaching for. A
-            future theme toggle calls `useTheme().setMode`, not an app store.
+            No `persistKey`/`storage`: nothing in the app sets a theme, so a
+            persisted read could only ever return the default — and with both
+            set Bloom gates the whole tree on that async read. Add them together
+            with the first theme toggle (`useTheme().setMode`).
 
             `scrollAdapter` is what ARMS Bloom's automatic route scroll
             restoration; without it the whole `@oxy.so/bloom/scroll` primitive is
             inert, which is half of why this app had a hand-rolled ScrollProvider.
             The adapter reference must stay stable, so it is the module-level
             export, never an inline lambda. */}
-        <BloomProvider
-          persistKey={THEME_PERSIST_KEY}
-          storage={themeStorage}
-          scrollAdapter={expoRouterScrollAdapter}
-        >
+        <BloomProvider scrollAdapter={expoRouterScrollAdapter}>
           {/* `sessionMode="identity"` — Commons IS the identity, so its session
               is PINNED to the owner of this device's PRIMARY identity key for as
               long as that key exists, not to whichever account the shared

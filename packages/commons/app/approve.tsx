@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
 import { AppIcon, Icons } from '@/constants/icons';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, ScrollView, StyleSheet, Linking, Platform, BackHandler } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -13,6 +12,7 @@ import { ApprovalRequest } from '@/components/commons-signin/approval-request';
 import { resolveApprovedAction } from '@/lib/commons-signin/approval-return';
 import { ErrorFallback } from '@/components/error-fallback';
 import { getDisplayNameOrNull } from '@/utils/date-utils';
+import { LoadingState, STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
 
 /** How long the success confirmation lingers before we return / close. */
 const APPROVED_RETURN_DELAY_MS = 1000;
@@ -154,7 +154,7 @@ export default function ApproveSignInScreen() {
                     : 'signInApproval.approve.deniedBody',
                 )
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       </View>
     );
@@ -171,7 +171,7 @@ export default function ApproveSignInScreen() {
               ? (errorMessage ?? t('signInApproval.approve.errorBody'))
               : t('signInApproval.approve.noCode')
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       </View>
     );
@@ -191,11 +191,7 @@ export default function ApproveSignInScreen() {
     // --- Loading ---
     content = (
       <View className="px-5 py-2">
-        <EmptyState
-          illustration={<Loading variant="spinner" size="lg" />}
-          description={t('signInApproval.approve.loading')}
-          minHeight={360}
-        />
+        <LoadingState description={t('signInApproval.approve.loading')} />
       </View>
     );
   } else {

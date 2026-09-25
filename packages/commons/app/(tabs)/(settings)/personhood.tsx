@@ -3,7 +3,6 @@ import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Button } from '@oxy.so/bloom/button';
 import { View, StyleSheet } from 'react-native';
@@ -15,6 +14,8 @@ import {
   Screen,
   StackHeader,
   SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
 import { useMyPersonhood } from '@/hooks/usePersonhood';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
@@ -61,11 +62,7 @@ export default function PersonhoodScreen() {
 
   const renderBody = () => {
     if (statusQuery.isPending && !status) {
-      return <EmptyState
-               illustration={<Loading variant="spinner" size="lg" />}
-               description={t('civic.personhood.loading')}
-               minHeight={360}
-             />;
+      return <LoadingState description={t('civic.personhood.loading')} />;
     }
 
     if (statusQuery.isError && !status) {
@@ -79,7 +76,7 @@ export default function PersonhoodScreen() {
               <Button appearance="solid" tone="accent" size="lg" onPress={() => statusQuery.refetch()}>{t('common.retry')}</Button>
             </View>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }

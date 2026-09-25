@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { KeyManager, IdentityUnavailableError } from '@oxy.so/core';
@@ -11,6 +11,7 @@ import {
   Screen,
   StackHeader,
   Section,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
 import { RecoveryPhraseGrid } from '@/components/identity/RecoveryPhraseGrid';
 import { useColors } from '@/hooks/useColors';
@@ -114,7 +115,7 @@ export default function RecoveryPhraseScreen() {
           icon={Icons.error}
           title={t('settings.recoveryPhrase.notStoredTitle')}
           description={t('settings.recoveryPhrase.notStoredBody')}
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       ) : state.kind === 'unavailable' ? (
         <EmptyState
@@ -122,7 +123,7 @@ export default function RecoveryPhraseScreen() {
           title={t('settings.recoveryPhrase.unavailableTitle')}
           description={t('settings.recoveryPhrase.unavailableBody')}
           action={{ label: t('common.retry'), onPress: reveal }}
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       ) : state.kind === 'gateFailed' ? (
         <EmptyState
@@ -130,7 +131,7 @@ export default function RecoveryPhraseScreen() {
           title={t('settings.recoveryPhrase.gateFailedTitle')}
           description={state.message}
           action={{ label: t('common.retry'), onPress: reveal }}
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       ) : (
         <Section>

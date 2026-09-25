@@ -2,9 +2,8 @@ import React, { useCallback } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Icons } from '@/constants/icons';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import {
@@ -13,6 +12,8 @@ import {
   GroupedList,
   ListRow,
   SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
 import { useValidatorInbox } from '@/hooks/useValidatorInbox';
 import { prettyActionType } from '@/lib/civic/validation-format';
@@ -38,11 +39,7 @@ export default function ValidatorInboxScreen() {
 
   const renderBody = () => {
     if (isPending) {
-      return <EmptyState
-               illustration={<Loading variant="spinner" size="lg" />}
-               description={t('civic.validate.inbox.loading')}
-               minHeight={360}
-             />;
+      return <LoadingState description={t('civic.validate.inbox.loading')} />;
     }
 
     if (isError) {
@@ -60,7 +57,7 @@ export default function ValidatorInboxScreen() {
               <Text style={styles.retryText}>{t('common.retry')}</Text>
             </TouchableOpacity>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -71,7 +68,7 @@ export default function ValidatorInboxScreen() {
           icon={Icons.validation}
           title={t('civic.validate.inbox.empty.title')}
           description={t('civic.validate.inbox.empty.body')}
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }

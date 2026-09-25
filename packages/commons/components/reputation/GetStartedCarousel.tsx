@@ -6,7 +6,7 @@ import { GlyphButton } from '@oxy.so/bloom/button';
 import { H4, Text } from '@oxy.so/bloom/typography';
 import { AppIcon, Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { withAlpha } from '@/utils/color';
+import { withAlpha } from '@oxy.so/bloom/theme';
 import type { IconName } from '@/constants/icons';
 
 /** One civic-duty call to action rendered as a carousel card. */

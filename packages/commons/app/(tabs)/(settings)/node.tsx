@@ -4,7 +4,6 @@ import { Admonition } from '@oxy.so/bloom/admonition';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
 import { Card } from '@oxy.so/bloom/card';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
@@ -18,6 +17,8 @@ import {
   GroupedList,
   ListRow,
   SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
 import {
   useMyNode,
@@ -159,7 +160,7 @@ export default function NodeScreen() {
               <Button appearance="solid" tone="accent" size="lg" onPress={handleProvisionDone}>{t('common.done')}</Button>
             </View>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       </Screen>
     );
@@ -178,7 +179,7 @@ export default function NodeScreen() {
               <Button appearance="solid" tone="accent" size="lg" onPress={handleRegisterDone}>{t('common.done')}</Button>
             </View>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       </Screen>
     );
@@ -510,11 +511,7 @@ export default function NodeScreen() {
 
   const renderBody = () => {
     if (query.isPending && node === undefined) {
-      return <EmptyState
-               illustration={<Loading variant="spinner" size="lg" />}
-               description={t('civic.nodes.loading')}
-               minHeight={360}
-             />;
+      return <LoadingState description={t('civic.nodes.loading')} />;
     }
 
     if (query.isError && node === undefined) {
@@ -528,7 +525,7 @@ export default function NodeScreen() {
               <Button appearance="solid" tone="accent" size="lg" onPress={() => query.refetch()}>{t('common.retry')}</Button>
             </View>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }

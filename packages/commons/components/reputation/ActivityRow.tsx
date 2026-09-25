@@ -5,7 +5,7 @@ import { Text } from '@oxy.so/bloom/typography';
 import { AppIcon, Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { CircleIconBadge } from '@/components/ui/circle-icon-badge';
-import { withAlpha } from '@/utils/color';
+import { withAlpha } from '@oxy.so/bloom/theme';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { describeReputationAction, formatPointsDelta } from '@/lib/civic/reputation-activity';
 import type { ReputationTransaction } from '@oxy.so/contracts';

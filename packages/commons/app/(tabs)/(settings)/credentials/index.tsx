@@ -3,7 +3,6 @@ import { Text } from '@oxy.so/bloom/typography';
 import { Icons } from '@/constants/icons';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -12,9 +11,10 @@ import { useColors } from '@/hooks/useColors';
 import {
   Screen,
   StackHeader,
-  Section,
   GroupedList,
   SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { useMyCredentials } from '@/hooks/useCredentials';
@@ -79,11 +79,7 @@ export default function CredentialsScreen() {
 
   const renderBody = () => {
     if (query.isPending && !credentials) {
-      return <EmptyState
-               illustration={<Loading variant="spinner" size="lg" />}
-               description={t('civic.credentials.loading')}
-               minHeight={360}
-             />;
+      return <LoadingState description={t('civic.credentials.loading')} />;
     }
 
     if (query.isError && !credentials) {
@@ -101,7 +97,7 @@ export default function CredentialsScreen() {
               <Text style={styles.retryText}>{t('common.retry')}</Text>
             </TouchableOpacity>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -112,7 +108,7 @@ export default function CredentialsScreen() {
           icon={Icons.credential}
           title={t('civic.credentials.empty.title')}
           description={t('civic.credentials.empty.body')}
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }

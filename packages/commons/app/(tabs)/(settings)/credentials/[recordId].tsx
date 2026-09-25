@@ -3,11 +3,10 @@ import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AppIcon, Icons } from '@/constants/icons';
 import { useOxy } from '@oxy.so/services';
@@ -19,6 +18,8 @@ import {
   Section,
   GroupedList,
   SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
 import { useMyCredentials } from '@/hooks/useCredentials';
 import { useVerifyCredential } from '@/hooks/useVerifyCredential';
@@ -93,11 +94,7 @@ export default function CredentialDetailScreen() {
   const renderBody = () => {
     // Resolving the credential from the list for the first time.
     if (!credential && listQuery.isPending) {
-      return <EmptyState
-               illustration={<Loading variant="spinner" size="lg" />}
-               description={t('civic.credentials.loading')}
-               minHeight={360}
-             />;
+      return <LoadingState description={t('civic.credentials.loading')} />;
     }
 
     if (!credential) {
@@ -111,7 +108,7 @@ export default function CredentialDetailScreen() {
               <Button appearance="solid" tone="accent" size="lg" onPress={handleBack}>{t('common.back')}</Button>
             </View>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }

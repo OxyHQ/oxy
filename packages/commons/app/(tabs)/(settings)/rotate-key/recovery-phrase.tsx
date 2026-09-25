@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icons } from '@/constants/icons';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { BackHandler, Platform } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -10,6 +9,8 @@ import { useColors } from '@/hooks/useColors';
 import { RecoveryPhraseStep } from '@/components/auth/RecoveryPhraseStep';
 import {
   useScreenBottomPad,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
@@ -115,17 +116,13 @@ export default function RotateKeyRecoveryPhraseScreen() {
         illustration={<Icons.key size="3xl" fill={colors.error} />}
         title={t('rotateKey.newPhrase.error')}
         action={{ label: t('rotateKey.newPhrase.retry'), onPress: handleRetry }}
-        minHeight={360}
+        minHeight={STATE_MIN_HEIGHT}
       />
     );
   }
 
   if (!words) {
-    return <EmptyState
-             illustration={<Loading variant="spinner" size="lg" />}
-             title={t('rotateKey.newPhrase.deriving')}
-             minHeight={360}
-           />;
+    return <LoadingState title={t('rotateKey.newPhrase.deriving')} />;
   }
 
   return (

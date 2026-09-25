@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
@@ -13,6 +12,8 @@ import {
   Screen,
   StackHeader,
   Section,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { useVouch } from '@/hooks/useVouch';
@@ -82,7 +83,7 @@ export default function VouchScreen() {
           icon={Icons.alert}
           title={t('civic.vouch.confirm.invalidTitle')}
           description={t('civic.vouch.confirm.invalidBody')}
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -110,7 +111,7 @@ export default function VouchScreen() {
               )}
             </View>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -126,7 +127,7 @@ export default function VouchScreen() {
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
             </View>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -142,18 +143,14 @@ export default function VouchScreen() {
               <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
             </View>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     // Resolving the subject card (name/avatar) for the first time.
     if (cardQuery.isPending && !card) {
-      return <EmptyState
-               illustration={<Loading variant="spinner" size="lg" />}
-               description={t('civic.vouch.confirm.loading')}
-               minHeight={360}
-             />;
+      return <LoadingState description={t('civic.vouch.confirm.loading')} />;
     }
 
     return (

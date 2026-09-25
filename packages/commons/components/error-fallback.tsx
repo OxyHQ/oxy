@@ -56,8 +56,7 @@ export function ErrorFallback({ error, retry }: ErrorFallbackProps) {
 
             `MinimalErrorFallback` below does NOT do this, and must not: it is
             the fallback for a crash in the theme provider itself, so it can use
-            no Bloom component and keeps its own literal palette — which is why
-            the styles here are still shared with it. */}
+            no Bloom component and keeps its own literal palette and styles. */}
         <EmptyState
           illustration={<Icons.alert size="3xl" fill={colors.error} />}
           title={t('errors.boundary.title')}
@@ -232,26 +231,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 16,
   },
-  iconBubble: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: Platform.OS === 'web' ? '600' : undefined,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 15,
-    textAlign: 'center',
-    lineHeight: 22,
-    maxWidth: 360,
-  },
   devDetails: {
     width: '100%',
     maxWidth: 480,
@@ -274,20 +253,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: MONO_FONT_FAMILY,
     lineHeight: 14,
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 22,
-    borderRadius: 24,
-    gap: 8,
-    marginTop: 8,
-  },
-  retryText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
   },
 });

@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
@@ -15,6 +14,8 @@ import {
   Section,
   GroupedList,
   ListRow,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { usePersonhood } from '@/hooks/usePersonhood';
@@ -78,18 +79,14 @@ export default function ScannedCardScreen() {
           icon={Icons.closeCircle}
           title={t('civic.card.error.invalidTitle')}
           description={t('civic.card.error.invalidBody')}
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     // First resolve with nothing cached yet.
     if (cardQuery.isPending && !card) {
-      return <EmptyState
-               illustration={<Loading variant="spinner" size="lg" />}
-               description={t('civic.card.loading')}
-               minHeight={360}
-             />;
+      return <LoadingState description={t('civic.card.loading')} />;
     }
 
     // Failed to resolve and we have no cached card to fall back to.
@@ -104,7 +101,7 @@ export default function ScannedCardScreen() {
               <Button appearance="solid" tone="accent" size="lg" onPress={() => cardQuery.refetch()}>{t('common.retry')}</Button>
             </View>
           }
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }

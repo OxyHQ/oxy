@@ -6,7 +6,6 @@ import {
 } from '@oxy.so/bloom/segmented-control';
 import { Text } from '@oxy.so/bloom/typography';
 import { Icons } from '@/constants/icons';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -16,6 +15,8 @@ import { useColors } from '@/hooks/useColors';
 import {
   Screen,
   SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
 import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
 import { ReputationHeader } from '@/components/reputation/ReputationHeader';
@@ -138,11 +139,7 @@ export default function ReputationScreen() {
 
   const renderContent = () => {
     if (balanceQuery.isPending && !balance) {
-      return <EmptyState
-               illustration={<Loading variant="spinner" size="lg" />}
-               description={t('civic.reputation.loading')}
-               minHeight={360}
-             />;
+      return <LoadingState description={t('civic.reputation.loading')} />;
     }
 
     if (balanceQuery.isError && !balance) {
@@ -152,7 +149,7 @@ export default function ReputationScreen() {
           title={t('civic.reputation.error.title')}
           description={t('civic.reputation.error.body')}
           action={{ label: t('common.retry'), onPress: () => balanceQuery.refetch() }}
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }

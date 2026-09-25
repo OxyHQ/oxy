@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { Icons } from '@/constants/icons';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
@@ -15,6 +15,7 @@ import { RotatingTextAnimation } from '@/components/staggered-text/rotating-text
 import { useTranslation } from '@/lib/i18n';
 import { useOnboardingStatus, ONBOARDING_IDENTITY_QUERY_KEY, getOnboardingResumeHref } from '@/hooks/useOnboardingStatus';
 import { persistOnboardingFlow } from '@/hooks/identity/identityStore';
+import { STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
 
 const humanTranslations = [
   'Human',
@@ -158,7 +159,7 @@ export default function AuthIndexScreen() {
           title={t('recovery.lockedTitle')}
           description={t('recovery.lockedBody')}
           action={{ label: t('common.retry'), onPress: handleRetryIdentityProbe }}
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       </View>
     );

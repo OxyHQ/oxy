@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icons } from '@/constants/icons';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { parseAttestPayload } from '@oxy.so/core';
@@ -10,6 +9,8 @@ import {
   Screen,
   StackHeader,
   SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
 import { useAttestFlow } from '@/hooks/civic/useAttestFlow';
 import type { AttestSubmitParams } from '@/hooks/civic/attestStore';
@@ -116,7 +117,7 @@ export default function AttestDeepLinkScreen() {
         title={t('civic.attest.confirm.error.title')}
         description={body}
         action={{ label: t('common.close'), onPress: handleClose }}
-        minHeight={360}
+        minHeight={STATE_MIN_HEIGHT}
       />
     );
   };
@@ -137,17 +138,13 @@ export default function AttestDeepLinkScreen() {
           title={t('civic.attest.confirm.error.title')}
           description={t('civic.attest.error.subject_not_found')}
           action={{ label: t('common.close'), onPress: handleClose }}
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     if (status === 'idle' || (status === 'reviewing' && !flow.subject)) {
-      return <EmptyState
-               illustration={<Loading variant="spinner" size="lg" />}
-               description={t('civic.attest.confirm.loading')}
-               minHeight={360}
-             />;
+      return <LoadingState description={t('civic.attest.confirm.loading')} />;
     }
 
     return (

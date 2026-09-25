@@ -12,6 +12,7 @@ import { bloomToneFor, getTrustTierMeta } from '@/lib/civic/card-presentation';
 import type { AttestErrorCode } from '@/lib/civic/civic-errors';
 import type { IconName } from '@/constants/icons';
 import { useTranslation } from '@/lib/i18n';
+import { STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
 
 /** The confirm-lane statuses this sheet renders (a subset of AttestFlowStatus). */
 export type AttestReviewStatus = 'reviewing' | 'submitting' | 'done' | 'error';
@@ -120,7 +121,7 @@ export function AttestReviewSheet({
           icon={Icons.alert}
           title={t('civic.attest.review.unresolvedTitle')}
           description={t('civic.attest.review.unresolvedBody')}
-          minHeight={360}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }

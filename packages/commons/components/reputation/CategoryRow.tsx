@@ -5,7 +5,7 @@ import { AppIcon } from '@/constants/icons';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { CircleIconBadge } from '@/components/ui/circle-icon-badge';
-import { withAlpha } from '@/utils/color';
+import { withAlpha } from '@oxy.so/bloom/theme';
 import type { IconName } from '@/constants/icons';
 
 interface CategoryRowProps {

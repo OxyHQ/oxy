@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyManager, IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { Fonts } from '@/constants/theme';
-import { withAlpha } from '@/utils/color';
+import { withAlpha } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
 import {
   KeyboardAwareScrollViewWrapper,

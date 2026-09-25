@@ -1,38 +1,25 @@
 /**
  * Every glyph Commons draws, as a Bloom icon component.
  *
- * ## Why this file exists
- *
- * Two reasons, and neither is "a barrel is convenient".
- *
  * 1. **The imports below are the required shape.** Each glyph comes from its own
  *    `@oxy.so/bloom/icons/Ri*` subpath, never from `@oxy.so/bloom/icons` —
  *    Metro does not tree-shake, so naming one glyph through that barrel bundles
- *    all 461 (measured by Bloom: 318,869 B of glyph modules against 7,406 B for
- *    twelve subpaths). Collecting the subpath imports here keeps that rule in
- *    ONE place instead of asking 34 files to remember it.
+ *    all of them. Collecting the subpath imports here keeps that rule in one
+ *    place.
  * 2. **Several icons are DATA.** `lib/civic/reputation-activity.ts` maps a civic
- *    action type to a glyph, `components/sections/types.ts` types a section's
- *    icon, and the settings screens build row tables. Those need a value to put
- *    in a record, and a component reference is that value now that the old
- *    `MaterialCommunityIconName` string is gone.
+ *    action type to a glyph and the settings screens build row tables; those
+ *    need a value to put in a record, and a component reference is that value.
  *
- * ## The names are the app's, not Remix's
+ * The names are the app's, not Remix's (`Icons.validation`, not
+ * `RiHammerLine`), so a better glyph for one of the approximations below
+ * changes this file and nothing else.
  *
- * A screen asks for `Icons.validation`, not `RiHammerLine`. The indirection is
- * the point: when Bloom gains a better glyph for one of the approximations
- * flagged below, this file changes and nothing else does.
+ * ## Approximations
  *
- * ## Approximations, and what they replaced
+ * Bloom's Remix set has no exact match for these (`@expo/vector-icons` stays out
+ * of the app: one glyph ships its whole 1.3 MB font):
  *
- * Commons used to draw `@expo/vector-icons`' MaterialCommunityIcons, which
- * ships a 1,307,660-byte font — 42% of the app's 3.0 MB of iOS assets, measured
- * in `expo export`, for 76 glyph sites. Dropping it is all-or-nothing: one
- * remaining MCI glyph ships the whole font. Bloom's 461-glyph Remix set covers
- * 46 of the 54 glyphs exactly. These eight are the ones it does not, kept here
- * in one list so the debt is visible rather than scattered:
- *
- * | was (MCI)          | now                    | how close |
+ * | wanted             | now                    | how close |
  * | ------------------ | ---------------------- | --------- |
  * | `fingerprint`      | `RiShieldUserLine`     | POOR — "a verified human" instead of a fingerprint. The personhood and credential screens are the ones that read less precisely. |
  * | `scale-balance`    | `RiHammerLine`         | POOR — the scales of justice became the gavel, so validation and its verdict now share a glyph. |

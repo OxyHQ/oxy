@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { Icons } from '@/constants/icons';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
@@ -20,6 +19,7 @@ import {
 } from '@/hooks/useOnboardingStatus';
 import { persistOnboardingComplete, persistOnboardingFlow } from '@/hooks/identity/identityStore';
 import { shortenKey } from '@/utils/shorten-key';
+import { LoadingState, STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
 
 const RECOVERY_MARKER_QUERY_KEY = ['recover-identity', 'marker'] as const;
 
@@ -156,11 +156,9 @@ export default function RecoverIdentityScreen() {
   if (isAttempting || recovered) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <EmptyState
-          illustration={<Loading variant="spinner" size="lg" />}
+        <LoadingState
           title={recovered ? t('recovery.restoredTitle') : t('recovery.attemptingTitle')}
           description={recovered ? t('recovery.restoredBody') : t('recovery.attemptingBody')}
-          minHeight={360}
         />
       </View>
     );
@@ -185,7 +183,7 @@ export default function RecoverIdentityScreen() {
             </Button>
           </View>
         }
-        minHeight={360}
+        minHeight={STATE_MIN_HEIGHT}
       />
     </View>
   );
