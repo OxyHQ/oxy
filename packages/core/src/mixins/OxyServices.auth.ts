@@ -15,6 +15,7 @@ import {
   emailVerificationStartResponseSchema,
   loginResultSchema,
   safeParseContract,
+  secondFactorRequiredSchema,
   type EmailVerificationConfirmResponse,
   type EmailVerificationStartRequest,
   type EmailVerificationStartResponse,
@@ -26,7 +27,7 @@ export {
   getCommonsApprovalBlockingReason,
   parseCommonsApprovalExpiresAt,
 } from '../utils/commonsApproval';
-import { OxyAuthenticationError } from '../OxyServices.errors';
+import { OxyAuthenticationError, SecondFactorRequiredError } from '../OxyServices.errors';
 import { KeyManager } from '../crypto/keyManager';
 import { solveRegistrationPow } from '../crypto/registrationPow';
 import { SignatureService } from '../crypto/signatureService';
@@ -1820,6 +1821,8 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
             ...(envelope.username !== undefined || envelope.recoveryTicket !== undefined ? { skipAuth: true } : {}),
           },
         );
+        const secondFactor = safeParseContract(secondFactorRequiredSchema, res);
+        if (secondFactor) throw new SecondFactorRequiredError(secondFactor);
         if (res && typeof res === 'object') {
           const record = res as Record<string, unknown>;
           // Signup branch: mints a session (LoginSessionResult, carries
@@ -1841,6 +1844,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         }
         throw new Error('auth/webauthn/register/verify returned an unexpected response shape');
       } catch (error) {
+        if (error instanceof SecondFactorRequiredError) throw error;
         throw this.handleError(error);
       }
     }
@@ -1892,6 +1896,8 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
           // Pre-session login ceremony — skip the bearer preflight.
           { cache: false, skipAuth: true },
         );
+        const secondFactor = safeParseContract(secondFactorRequiredSchema, res);
+        if (secondFactor) throw new SecondFactorRequiredError(secondFactor);
         const parsed = safeParseContract(loginResultSchema, res);
         if (!parsed) {
           throw new Error('auth/webauthn/login/verify returned an unexpected response shape');
@@ -1901,6 +1907,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         }
         return parsed;
       } catch (error) {
+        if (error instanceof SecondFactorRequiredError) throw error;
         throw this.handleError(error);
       }
     }

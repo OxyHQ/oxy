@@ -29,7 +29,8 @@ import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { userTotp, userTotpBackupCodes } from '../db/schema/userTotp';
 import { ApiError } from '../utils/error';
 import { openSecret, sealSecret } from '../utils/secretBox';
-import { clearFailures, isLockedOut, recordFailure } from './loginLockout.service';
+import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
+import { clearFailures, reserveAttempt } from './loginLockout.service';
 
 export const TOTP_LOCKOUT_SCOPE = 'totp';
 const SECRET_BYTES = 20;
@@ -119,16 +120,24 @@ function normaliseBackupCode(code: string): string {
 }
 
 function hashBackupCode(userId: string, code: string): string {
-  return crypto
-    .createHmac('sha256', process.env.DEVICE_ID_SALT ?? '')
-    .update(`totp-backup|${userId}|${normaliseBackupCode(code)}`)
-    .digest('hex');
+  return serverHmacHex(SERVER_KEY_LABELS.totpBackupCode, `totp-backup|${userId}|${normaliseBackupCode(code)}`);
 }
 
-function newBackupCode(): string {
+/** Exactly six digits: an authenticator code. Anything else is tried as a backup code. */
+export function isAuthenticatorCode(code: string): boolean {
+  return /^\d{6}$/.test(code.trim());
+}
+
+/** A new backup code: ten characters, always with a letter, shown as `xxxxx-xxxxx`. */
+export function newBackupCode(): string {
   let code = '';
-  for (let index = 0; index < 10; index += 1) {
-    code += BACKUP_ALPHABET[crypto.randomInt(0, BACKUP_ALPHABET.length)];
+  // Always at least one letter: an all-digit code could be read as an
+  // authenticator code.
+  while (!/[a-z]/.test(code)) {
+    code = '';
+    for (let index = 0; index < 10; index += 1) {
+      code += BACKUP_ALPHABET[crypto.randomInt(0, BACKUP_ALPHABET.length)];
+    }
   }
   return `${code.slice(0, 5)}-${code.slice(5)}`;
 }
@@ -250,7 +259,10 @@ export async function regenerateBackupCodes(userId: string): Promise<string[]> {
 async function spendSecondFactorCode(userId: string, code: string, now: Date): Promise<boolean> {
   const db = getDb();
   const trimmed = code.trim();
-  if (/^\d+$/.test(trimmed)) {
+  // Exactly six digits is an authenticator code. A backup code is ten
+  // characters and always has a letter (`newBackupCode`), so the two never
+  // collide — however it was typed.
+  if (isAuthenticatorCode(trimmed)) {
     const [row] = await db
       .select({ secretCiphertext: userTotp.secretCiphertext, lastUsedStep: userTotp.lastUsedStep })
       .from(userTotp)
@@ -300,14 +312,10 @@ function lockedOut(retryAfterSeconds?: number): ApiError {
  * (and spent).
  */
 export async function verifySecondFactor(userId: string, code: string, now: Date = new Date()): Promise<boolean> {
-  const lockout = await isLockedOut({ scope: TOTP_LOCKOUT_SCOPE, identifier: userId });
-  if (lockout.locked) throw lockedOut(lockout.retryAfterSeconds);
+  // Reserved BEFORE the check: concurrent guesses share one budget.
+  const reservation = await reserveAttempt({ scope: TOTP_LOCKOUT_SCOPE, identifier: userId });
+  if (reservation.locked) throw lockedOut(reservation.retryAfterSeconds);
   const ok = await spendSecondFactorCode(userId, code, now);
-  if (ok) {
-    await clearFailures({ scope: TOTP_LOCKOUT_SCOPE, identifier: userId });
-    return true;
-  }
-  const after = await recordFailure({ scope: TOTP_LOCKOUT_SCOPE, identifier: userId });
-  if (after.locked) throw lockedOut(after.retryAfterSeconds);
-  return false;
+  if (ok) await clearFailures({ scope: TOTP_LOCKOUT_SCOPE, identifier: userId });
+  return ok;
 }

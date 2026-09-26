@@ -5,7 +5,7 @@
  * second-factor step, and validates every answer against the contracts.
  */
 import type { LoginResult } from '@oxy.so/contracts';
-import { OxyServices } from '../../OxyServices';
+import { OxyServices, SecondFactorRequiredError } from '../../OxyServices';
 
 const SESSION: LoginResult = {
   sessionId: 'sess-1',
@@ -138,8 +138,8 @@ describe('the signed-in account', () => {
     await oxy.getSignInMethods();
     expect(makeRequest).toHaveBeenCalledWith('GET', '/users/me/sign-in-methods', undefined, { cache: false });
     makeRequest.mockResolvedValueOnce({ verificationId: 'v1', expiresAt: 1_900_000_000_000 });
-    await oxy.requestReauthEmailCode();
-    expect(makeRequest).toHaveBeenLastCalledWith('POST', '/users/me/reauth/email', undefined, { cache: false });
+    await oxy.requestReauthEmailCode('delete_account');
+    expect(makeRequest).toHaveBeenLastCalledWith('POST', '/users/me/reauth/email', { action: 'delete_account' }, { cache: false });
   });
 
   it('sets a password with its proof', async () => {
@@ -174,5 +174,17 @@ describe('the signed-in account', () => {
     makeRequest.mockResolvedValueOnce({ success: true });
     await oxy.completeIdentityLinkWithEmailCode('ab'.repeat(16), reauth);
     expect(makeRequest).toHaveBeenLastCalledWith('POST', `/identity/link/${'ab'.repeat(16)}/complete`, { reauth }, { cache: false });
+  });
+});
+
+describe('passkey sign-in with an authenticator on the account', () => {
+  it('throws SecondFactorRequiredError carrying the challenge, and plants nothing', async () => {
+    makeRequest.mockResolvedValueOnce(CHALLENGE);
+    const error = await oxy.webauthnLoginVerify({ id: 'cred' }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(SecondFactorRequiredError);
+    expect(error).toMatchObject({ challengeId: CHALLENGE.challengeId, code: 'SECOND_FACTOR_REQUIRED' });
+    makeRequest.mockResolvedValueOnce(CHALLENGE);
+    await expect(oxy.webauthnRegisterVerify({ id: 'cred' }, { recoveryTicket: TOKEN })).rejects.toBeInstanceOf(SecondFactorRequiredError);
+    expect(setTokens).not.toHaveBeenCalled();
   });
 });

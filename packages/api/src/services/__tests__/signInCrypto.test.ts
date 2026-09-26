@@ -6,7 +6,9 @@
 process.env.DEVICE_ID_SALT = 'sign-in-crypto-test-salt-0123456789abcdefghij';
 
 import { hashPassword, needsRehash, verifyPassword, verifyPasswordOrDummy } from '../password.service';
-import { base32Decode, base32Encode, hotp, matchTotpStep, totpCodeAt, totpStep } from '../totp.service';
+import { base32Decode, base32Encode, hotp, isAuthenticatorCode, matchTotpStep, newBackupCode, totpCodeAt, totpStep } from '../totp.service';
+import { _setScryptConcurrencyForTests } from '../password.service';
+import { SERVER_KEY_LABELS, derivedServerKey, serverHmacHex } from '../../utils/serverKey';
 import { openSecret, sealSecret } from '../../utils/secretBox';
 
 describe('password hashing', () => {
@@ -87,6 +89,47 @@ describe('the sealed box', () => {
     delete process.env.DEVICE_ID_SALT;
     try {
       expect(() => sealSecret('x', 'y')).toThrow(/DEVICE_ID_SALT/);
+    } finally {
+      process.env.DEVICE_ID_SALT = saved;
+    }
+  });
+});
+
+describe('backup codes never pass for authenticator codes', () => {
+  it('always carry a letter, so no backup code is six digits typed without its dash', () => {
+    for (let index = 0; index < 500; index += 1) {
+      const code = newBackupCode();
+      expect(code).toMatch(/^[a-z2-9]{5}-[a-z2-9]{5}$/);
+      expect(code).toMatch(/[a-z]/);
+      expect(isAuthenticatorCode(code.replace('-', ''))).toBe(false);
+    }
+    expect(isAuthenticatorCode('123456')).toBe(true);
+    // Ten digits is not an authenticator code: it is tried as a backup code.
+    expect(isAuthenticatorCode('2345623456')).toBe(false);
+  });
+});
+
+describe('scrypt concurrency', () => {
+  afterEach(() => _setScryptConcurrencyForTests(null));
+
+  it('fails fast with a 503 instead of queueing without bound', async () => {
+    _setScryptConcurrencyForTests(1);
+    const outcomes = await Promise.all(
+      Array.from({ length: 40 }, () => hashPassword('parallel password').then(() => 'hashed', (error: { statusCode?: number }) => error.statusCode)),
+    );
+    expect(outcomes.filter((outcome) => outcome === 503).length).toBeGreaterThan(0);
+    expect(outcomes.filter((outcome) => outcome === 'hashed').length).toBeGreaterThan(0);
+    expect(outcomes.every((outcome) => outcome === 'hashed' || outcome === 503)).toBe(true);
+  });
+});
+
+describe('server keys', () => {
+  it('derive one key per label, and fail closed without the server secret', () => {
+    expect(derivedServerKey(SERVER_KEY_LABELS.emailCode).equals(derivedServerKey(SERVER_KEY_LABELS.totpBackupCode))).toBe(false);
+    const saved = process.env.DEVICE_ID_SALT;
+    delete process.env.DEVICE_ID_SALT;
+    try {
+      expect(() => serverHmacHex(SERVER_KEY_LABELS.emailCode, 'x')).toThrow(/DEVICE_ID_SALT/);
     } finally {
       process.env.DEVICE_ID_SALT = saved;
     }

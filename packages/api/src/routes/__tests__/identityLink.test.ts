@@ -9,6 +9,8 @@
  * which account owns the credential are checked for real.
  */
 
+process.env.DEVICE_ID_SALT = 'identity-link-test-device-id-salt-0123456789';
+
 import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';
@@ -53,7 +55,10 @@ import { users } from '../../db/schema/users';
 import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
 import { errorHandler } from '../../middleware/errorHandler';
 import identityLinkRouter from '../identityLink';
-import { userTotp } from '../../db/schema/userTotp';
+import { userTotp, userTotpBackupCodes } from '../../db/schema/userTotp';
+import { userPasswords } from '../../db/schema/userPasswords';
+import { storePassword } from '../../services/password.service';
+import { confirmTotp, enrollTotp, totpCodeAt } from '../../services/totp.service';
 import { startReauthEmail } from '../../services/reauth.service';
 import { resetOriginRegistryForTests, setOriginSnapshotForTests } from '../../config/dynamicOriginRegistry';
 
@@ -292,9 +297,9 @@ describe('linking Commons from two devices', () => {
   });
 
   describe('confirmed with a code sent to the email', () => {
-    async function reauthCode(userId: string) {
+    async function reauthCode(userId: string, action: 'link_commons' | 'delete_account' = 'link_commons') {
       mockSendReauthCode.mockClear();
-      const { verificationId } = await startReauthEmail(userId);
+      const { verificationId } = await startReauthEmail(userId, action);
       const code = mockSendReauthCode.mock.calls[0][1] as string;
       return { verificationId, code };
     }
@@ -331,6 +336,30 @@ describe('linking Commons from two devices', () => {
       expect((await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode } })).status).toBe(200);
       const again = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode } });
       expect(again.status).toBe(404);
+    });
+
+    it('refuses a code asked for another change (deleting the account)', async () => {
+      const { account, link } = await signedLink();
+      const forDeletion = await reauthCode(account.id, 'delete_account');
+      const res = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: forDeletion } });
+      expect(res.status).toBe(401);
+      expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
+    });
+
+    it('deletes the password and the authenticator with the email, in the link', async () => {
+      const { account, link, key } = await signedLink();
+      await storePassword(account.id, 'a password to lose');
+      const enrolled = await enrollTotp(account.id, 'x');
+      await confirmTotp(account.id, totpCodeAt(enrolled.secret, new Date(Date.now() - 30_000)));
+      const emailCode = await reauthCode(account.id);
+      const done = await call('POST', `/${link.linkId}/complete`, {
+        reauth: { emailCode, totpCode: totpCodeAt(enrolled.secret, new Date()) },
+      });
+      expect(done.status).toBe(200);
+      expect(await storedUser(account.id)).toEqual({ publicKey: key.publicKey, email: null });
+      expect(await getDb().select().from(userPasswords).where(eq(userPasswords.userId, account.id))).toHaveLength(0);
+      expect(await getDb().select().from(userTotp).where(eq(userTotp.userId, account.id))).toHaveLength(0);
+      expect(await getDb().select().from(userTotpBackupCodes).where(eq(userTotpBackupCodes.userId, account.id))).toHaveLength(0);
     });
 
     it('refuses a code sent to another account', async () => {

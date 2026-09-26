@@ -39,6 +39,8 @@ import {
 import { getWebauthnRpId } from '../config/env';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { emailVerifications } from '../db/schema/emailVerifications';
+import { userPasswords } from '../db/schema/userPasswords';
+import { userTotp, userTotpBackupCodes } from '../db/schema/userTotp';
 import { identityLinkRequests } from '../db/schema/identityLinkRequests';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users } from '../db/schema/users';
@@ -133,6 +135,12 @@ export async function linkRootToAccount(tx: DatabaseOrTransaction, input: LinkRo
     // goes with the custodial way back in (ADR 0029 D3).
     await tx.update(users).set({ publicKey, email: null }).where(eq(users.id, userId));
     await tx.delete(emailVerifications).where(eq(emailVerifications.userId, userId));
+    // …and so does every other way in Oxy checked for it: a Commons account
+    // signs in with Commons, so its password and authenticator go too, in
+    // the same transaction.
+    await tx.delete(userPasswords).where(eq(userPasswords.userId, userId));
+    await tx.delete(userTotpBackupCodes).where(eq(userTotpBackupCodes.userId, userId));
+    await tx.delete(userTotp).where(eq(userTotp.userId, userId));
   }
 
   // The key on the account and its `user_auth_methods` row are ONE fact.
@@ -329,7 +337,7 @@ export async function completeLinkRequest(
   let emailReauthVerified: true | undefined;
   if ('reauth' in confirmation) {
     await ownedSignedRequest(db, linkId, userId, now);
-    await verifyEmailReauth(userId, confirmation.reauth, now);
+    await verifyEmailReauth(userId, confirmation.reauth, 'link_commons', now);
     emailReauthVerified = true;
   }
   const [before] = await db

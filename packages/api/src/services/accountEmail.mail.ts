@@ -7,7 +7,7 @@
  * The relay is loaded on first send: `smtp.outbound` pulls in the mailbox and
  * attachment stack, which the routes that only mint codes have no use for.
  */
-import type { EmailVerificationPurpose } from '@oxy.so/contracts';
+import type { EmailVerificationPurpose, ReauthAction } from '@oxy.so/contracts';
 import { getAuthWebOrigin } from '../config/env';
 
 async function sendSystem(message: { to: string; subject: string; text: string; html: string }): Promise<void> {
@@ -101,10 +101,17 @@ export async function sendSignInEmail(
   });
 }
 
-/** A code a signed-in person enters to confirm a sensitive change. */
-export async function sendReauthCode(to: string, code: string, username: string | null): Promise<void> {
+const REAUTH_ACTION_TEXT: Record<ReauthAction, string> = {
+  change_password: 'set or change the password of your Oxy account',
+  totp: 'change the authenticator app of your Oxy account',
+  link_commons: 'link your Oxy account to Commons (this email will be removed from it)',
+  delete_account: 'DELETE your Oxy account permanently',
+};
+
+/** A code a signed-in person enters to confirm ONE named sensitive change. */
+export async function sendReauthCode(to: string, code: string, username: string | null, action: ReauthAction): Promise<void> {
   const greeting = username ? `Hi @${username},` : 'Hi,';
-  const lead = 'Enter this code to confirm the change to your Oxy account:';
+  const lead = `Enter this code to ${REAUTH_ACTION_TEXT[action]}. It works for nothing else:`;
   const tail = [
     'It expires in 10 minutes.',
     "If you didn't ask for it, someone may be signed in to your account: sign out of every device from your account settings.",

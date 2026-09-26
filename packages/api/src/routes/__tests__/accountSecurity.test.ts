@@ -104,9 +104,9 @@ async function signedIn() {
   return { id: row.id, username: row.username as string, email };
 }
 
-async function emailCode() {
+async function emailCode(action = 'change_password') {
   mockSendReauthCode.mockClear();
-  const res = await call('POST', '/reauth/email');
+  const res = await call('POST', '/reauth/email', { action });
   expect(res.status).toBe(200);
   const code = mockSendReauthCode.mock.calls[0][1] as string;
   return { verificationId: res.body.verificationId as string, code };
@@ -120,13 +120,23 @@ describe('re-verification by email', () => {
   it("sends a code to the account's own email", async () => {
     const me = await signedIn();
     await emailCode();
-    expect(mockSendReauthCode).toHaveBeenCalledWith(me.email, expect.stringMatching(/^\d{6}$/), me.username);
+    expect(mockSendReauthCode).toHaveBeenCalledWith(me.email, expect.stringMatching(/^\d{6}$/), me.username, 'change_password');
+  });
+
+  it('binds the code to the one change it was asked for', async () => {
+    await signedIn();
+    expect((await call('POST', '/reauth/email', {})).status).toBe(400);
+    const forDeletion = await emailCode('delete_account');
+    const refused = await setPassword('a long password', { emailCode: forDeletion });
+    expect(refused.status).toBe(401);
+    expect(refused.body.error).toBe('EMAIL_CODE_INVALID');
+    expect((await setPassword('a long password', { emailCode: await emailCode('change_password') })).status).toBe(200);
   });
 
   it('refuses an account without an email', async () => {
     const [row] = await getDb().insert(users).values({ username: `noemail${randomUUID().slice(0, 8)}` }).returning({ id: users.id });
     currentUserId = row.id;
-    expect((await call('POST', '/reauth/email')).status).toBe(400);
+    expect((await call('POST', '/reauth/email', { action: 'change_password' })).status).toBe(400);
   });
 });
 
@@ -166,14 +176,25 @@ describe('the password', () => {
     expect((await setPassword('short', { emailCode: await emailCode() })).status).toBe(400);
   });
 
-  it('locks the password proof after five wrong tries', async () => {
+  it('counts parallel wrong passwords atomically: 50 at once, at most five are checked', async () => {
     await signedIn();
     await setPassword('right password 1', { emailCode: await emailCode() });
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    const answers = await Promise.all(
+      Array.from({ length: 50 }, () => setPassword('new password 22', { password: 'wrong password' })),
+    );
+    const checked = answers.filter((answer) => answer.status === 401).length;
+    expect(checked).toBeLessThanOrEqual(5);
+    expect(answers.filter((answer) => answer.status === 429).length).toBeGreaterThanOrEqual(45);
+  });
+
+  it('locks the password proof after five wrong tries (the sixth is refused unchecked)', async () => {
+    await signedIn();
+    await setPassword('right password 1', { emailCode: await emailCode() });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
       expect((await setPassword('new password 22', { password: 'wrong password' })).status).toBe(401);
     }
-    const fifth = await setPassword('new password 22', { password: 'wrong password' });
-    expect(fifth.status).toBe(429);
+    const sixth = await setPassword('new password 22', { password: 'wrong password' });
+    expect(sixth.status).toBe(429);
     expect((await setPassword('new password 22', { password: 'right password 1' })).status).toBe(429);
   });
 
@@ -262,6 +283,16 @@ describe('the authenticator', () => {
   });
 });
 
+describe('an account with a Commons key', () => {
+  it('cannot add a password or an authenticator: it signs in with Commons', async () => {
+    const me = await signedIn();
+    await getDb().update(users).set({ publicKey: `04${'b'.repeat(128)}` }).where(eq(users.id, me.id));
+    expect((await call('POST', '/totp/enroll')).status).toBe(403);
+    expect((await setPassword('a long password', { emailCode: await emailCode() })).status).toBe(403);
+    expect(await getDb().select().from(userPasswords).where(eq(userPasswords.userId, me.id))).toHaveLength(0);
+  });
+});
+
 describe('who may call', () => {
   it('refuses a third-party site and a third-party bearer', async () => {
     await signedIn();
@@ -272,7 +303,7 @@ describe('who may call', () => {
       .values({ name: 'Third party', type: 'third_party', ownerAccountId: currentUserId, createdByUserId: currentUserId })
       .returning({ id: applications.id });
     currentApplicationId = app.id;
-    const res = await call('POST', '/reauth/email');
+    const res = await call('POST', '/reauth/email', { action: 'delete_account' });
     expect(res.status).toBe(403);
     expect(mockSendReauthCode).not.toHaveBeenCalled();
   });

@@ -218,6 +218,17 @@ export function isSecondFactorRequired(result: SignInStepResult | EmailSignInPen
 }
 
 /**
+ * What a re-verification email code confirms. The code is bound to it: a code
+ * asked for one change never authorises another, and the email names it.
+ */
+export const REAUTH_ACTIONS = ['change_password', 'totp', 'link_commons', 'delete_account'] as const;
+export type ReauthAction = (typeof REAUTH_ACTIONS)[number];
+
+/** `POST /users/me/reauth/email` */
+export const reauthEmailStartRequestSchema = z.object({ action: z.enum(REAUTH_ACTIONS) }).strict();
+export type ReauthEmailStartRequest = z.infer<typeof reauthEmailStartRequestSchema>;
+
+/**
  * A fresh proof that the person, not only their session, is asking: the
  * current password, or a code just sent to the account's email
  * (`POST /users/me/reauth/email`) — plus the authenticator code when the

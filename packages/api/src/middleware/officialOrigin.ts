@@ -16,6 +16,13 @@
  *   admits them. The routes' own proofs (codes, secrets, device credentials)
  *   are what protect them.
  *
+ * DEFENCE IN DEPTH ONLY. `Origin` is set by the browser, so this stops a
+ * third-party PAGE from driving Oxy's sign-in in a visitor's browser; it does
+ * not stop a server, which can send any header or none. Nothing may rely on it
+ * as an authentication boundary: every route behind it is secured by its own
+ * proofs — one-use codes and secrets, the device proof, atomic lockouts and
+ * hashed-IP limits.
+ *
  * Unlike `requireSameSiteOrigin` this guard has no log-only mode: it always
  * enforces.
  */

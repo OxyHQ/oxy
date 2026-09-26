@@ -17,23 +17,13 @@
  * introduced later next to this one and rows re-sealed on use.
  */
 import crypto from 'node:crypto';
+import { SERVER_KEY_LABELS, derivedServerKey } from './serverKey';
 
 const VERSION = 'v1';
 const IV_BYTES = 12;
-const KEY_INFO = 'oxy/secret-box/v1';
-
-let cachedKey: { salt: string; key: Buffer } | null = null;
 
 function key(): Buffer {
-  const salt = process.env.DEVICE_ID_SALT;
-  if (!salt) {
-    // Fail closed: an empty salt would make the key public.
-    throw new Error('secretBox: DEVICE_ID_SALT is not configured');
-  }
-  if (cachedKey?.salt === salt) return cachedKey.key;
-  const derived = Buffer.from(crypto.hkdfSync('sha256', salt, Buffer.alloc(0), KEY_INFO, 32));
-  cachedKey = { salt, key: derived };
-  return derived;
+  return derivedServerKey(SERVER_KEY_LABELS.secretBox);
 }
 
 /** Encrypt `plaintext`, bound to `context`. */

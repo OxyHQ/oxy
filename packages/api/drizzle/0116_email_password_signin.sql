@@ -1,9 +1,10 @@
 -- oxy:deploy-phase=pre
 -- Signing in without a passkey: an email code or link, an optional password
 -- and an optional authenticator (TOTP) with one-use backup codes.
--- Five new tables nothing in the running image reads or writes, and a WIDER
--- purpose check on email_verifications (adds 'signin' and 'reauth'; every
--- row the running image writes still passes it). Safe ahead of the rollout;
+-- Five new tables nothing in the running image reads or writes; on
+-- email_verifications a WIDER purpose check (adds 'signin' and 'reauth') and
+-- a nullable reauth_action column whose check every row the running image
+-- writes (signup/recovery, no action) passes. Safe ahead of the rollout;
 -- 'post' would leave the new image's sign-in routes addressing tables that
 -- do not exist yet.
 CREATE TABLE "email_signin_requests" (
@@ -68,6 +69,7 @@ CREATE TABLE "signin_second_factor_challenges" (
 );
 --> statement-breakpoint
 ALTER TABLE "email_verifications" DROP CONSTRAINT "email_verifications_purpose_check";--> statement-breakpoint
+ALTER TABLE "email_verifications" ADD COLUMN "reauth_action" text;--> statement-breakpoint
 ALTER TABLE "email_signin_requests" ADD CONSTRAINT "email_signin_requests_verification_id_email_verifications_id_fk" FOREIGN KEY ("verification_id") REFERENCES "public"."email_verifications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "email_signin_requests" ADD CONSTRAINT "email_signin_requests_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_passwords" ADD CONSTRAINT "user_passwords_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -79,4 +81,5 @@ CREATE INDEX "email_signin_requests_expires_at_idx" ON "email_signin_requests" U
 CREATE INDEX "user_totp_backup_codes_user_id_idx" ON "user_totp_backup_codes" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "signin_second_factor_challenges_user_id_idx" ON "signin_second_factor_challenges" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "signin_second_factor_challenges_expires_at_idx" ON "signin_second_factor_challenges" USING btree ("expires_at");--> statement-breakpoint
+ALTER TABLE "email_verifications" ADD CONSTRAINT "email_verifications_reauth_action_check" CHECK (("email_verifications"."purpose" = 'reauth') = ("email_verifications"."reauth_action" is not null) and ("email_verifications"."reauth_action" is null or "email_verifications"."reauth_action" in ('change_password', 'totp', 'link_commons', 'delete_account')));--> statement-breakpoint
 ALTER TABLE "email_verifications" ADD CONSTRAINT "email_verifications_purpose_check" CHECK ("email_verifications"."purpose" in ('signup', 'recovery', 'signin', 'reauth'));

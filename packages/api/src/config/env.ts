@@ -350,6 +350,11 @@ export function validateRequiredEnvVars(): void {
         { component: 'env', placeholder: DEV_DEVICE_ID_SALT_DEFAULT }
       );
     }
+  } else if (isProduction() && deviceIdSalt === DEV_DEVICE_ID_SALT_DEFAULT) {
+    // It is also the root every sign-in HMAC and the TOTP sealing key are
+    // derived from (`utils/serverKey.ts`): the public placeholder in
+    // production would make all of them computable.
+    missing.push('DEVICE_ID_SALT (the development placeholder is not allowed in production)');
   } else if (deviceIdSalt.length < MIN_DEVICE_ID_SALT_LENGTH) {
     missing.push(
       `DEVICE_ID_SALT (insecure: must be at least ${MIN_DEVICE_ID_SALT_LENGTH} characters; got ${deviceIdSalt.length})`

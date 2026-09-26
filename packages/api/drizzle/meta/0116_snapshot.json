@@ -1,5 +1,5 @@
 {
-  "id": "f1948d48-fb3d-4ecb-b0c7-3ba65fe69af8",
+  "id": "d0e998ec-326f-4241-91d0-93b5c97fdb14",
   "prevId": "c55ef45a-d3b2-4121-9ba0-0958e9f444ca",
   "version": "7",
   "dialect": "postgresql",
@@ -11419,6 +11419,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "reauth_action": {
+          "name": "reauth_action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "ticket_hash": {
           "name": "ticket_hash",
           "type": "text",
@@ -11534,6 +11540,10 @@
         "email_verifications_attempts_check": {
           "name": "email_verifications_attempts_check",
           "value": "\"email_verifications\".\"attempts\" >= 0"
+        },
+        "email_verifications_reauth_action_check": {
+          "name": "email_verifications_reauth_action_check",
+          "value": "(\"email_verifications\".\"purpose\" = 'reauth') = (\"email_verifications\".\"reauth_action\" is not null) and (\"email_verifications\".\"reauth_action\" is null or \"email_verifications\".\"reauth_action\" in ('change_password', 'totp', 'link_commons', 'delete_account'))"
         }
       },
       "isRLSEnabled": false

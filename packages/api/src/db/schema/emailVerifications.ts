@@ -22,7 +22,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { EMAIL_VERIFICATION_PURPOSES } from '@oxy.so/contracts';
+import { EMAIL_VERIFICATION_PURPOSES, REAUTH_ACTIONS } from '@oxy.so/contracts';
 import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { users } from './users';
 
@@ -46,6 +46,11 @@ export const emailVerifications = pgTable(
     expiresAt: timestamptz().notNull(),
     /** When the right code was given. */
     confirmedAt: timestamptz(),
+    /**
+     * `reauth` only: the one change the code confirms (`REAUTH_ACTIONS`). A
+     * code asked for one change never authorises another.
+     */
+    reauthAction: text({ enum: REAUTH_ACTIONS }),
     /** SHA-256 hex of the ticket `confirm` returned. */
     ticketHash: text(),
     /** When the ticket was spent. */
@@ -61,5 +66,9 @@ export const emailVerifications = pgTable(
     check('email_verifications_ticket_check', sql`${t.ticketHash} is null or ${t.confirmedAt} is not null`),
     check('email_verifications_used_check', sql`${t.usedAt} is null or ${t.ticketHash} is not null`),
     check('email_verifications_attempts_check', sql`${t.attempts} >= 0`),
+    check(
+      'email_verifications_reauth_action_check',
+      sql`(${t.purpose} = 'reauth') = (${t.reauthAction} is not null) and (${t.reauthAction} is null or ${t.reauthAction} in ('change_password', 'totp', 'link_commons', 'delete_account'))`,
+    ),
   ],
 );

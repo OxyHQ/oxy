@@ -30,6 +30,11 @@ optional authenticator app (TOTP), and sign-up with a confirmed email.
   account's password and authenticator, each change confirmed by a fresh
   `reauth` proof (the current password or an emailed code, plus the
   authenticator's code once it is on).
+- `SecondFactorRequiredError` (`challengeId`, `expiresAt`): thrown by
+  `webauthnLoginVerify` and `webauthnRegisterVerify` (recovery) when the
+  account has an authenticator — a passkey is a first factor too; finish with
+  `completeSecondFactor`.
+- `requestReauthEmailCode(action)` names the one change the code confirms.
 - `deleteAccountWithEmailCode(confirmText, reauth)` and
   `completeIdentityLinkWithEmailCode(linkId, reauth)`: deleting an account
   without a key and linking Commons, confirmed by an emailed code instead of a

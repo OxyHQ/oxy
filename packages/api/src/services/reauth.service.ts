@@ -13,22 +13,23 @@
  * Passwords here count against the same per-account lockout as sign-in, and
  * authenticator codes against the authenticator's.
  */
-import crypto from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import {
   SIGN_IN_ERROR_CODES,
   type EmailReauthProof,
   type EmailVerificationStartResponse,
+  type ReauthAction,
   type ReauthProof,
 } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 import { hashEmail } from '../utils/contactHash';
+import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
 import { ApiError, BadRequestError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { sendReauthCode } from './accountEmail.mail';
-import { assertEmailSendBudget, assertMailConfigured, consumeEmailCode, recordVerification } from './accountEmail.service';
-import { clearFailures, isLockedOut, recordFailure } from './loginLockout.service';
+import { assertMailConfigured, consumeEmailCode, recordVerification, reserveSendBudget } from './accountEmail.service';
+import { clearFailures, reserveAttempt } from './loginLockout.service';
 import { readPasswordHash, verifyPasswordOrDummy } from './password.service';
 import { isTotpEnabled, verifySecondFactor } from './totp.service';
 
@@ -40,13 +41,14 @@ export function accountLockoutKey(userId: string): string {
   return `u:${userId}`;
 }
 
-/** The lockout key for an identifier that names no account. */
+/**
+ * The sign-in lockout key of an identifier, exactly as typed (trimmed,
+ * lower-cased) — whether or not it names an account, so the lockout never
+ * tells the two apart. A username and an email are separate buckets. Never
+ * the identifier in the clear.
+ */
 export function identifierLockoutKey(identifier: string): string {
-  return `i:${crypto
-    .createHmac('sha256', process.env.DEVICE_ID_SALT ?? '')
-    .update(`lockout|${identifier.trim().toLowerCase()}`)
-    .digest('hex')
-    .slice(0, 32)}`;
+  return `i:${serverHmacHex(SERVER_KEY_LABELS.lockoutIdentifier, identifier.trim().toLowerCase()).slice(0, 32)}`;
 }
 
 function reauthInvalid(): ApiError {
@@ -71,8 +73,17 @@ async function accountEmail(userId: string): Promise<{ email: string | null; use
   return { email: row?.email?.trim().toLowerCase() || null, username: row?.username ?? null };
 }
 
-/** Send a confirmation code to the signed-in account's own email. */
-export async function startReauthEmail(userId: string, now: Date = new Date()): Promise<EmailVerificationStartResponse> {
+/**
+ * Send a confirmation code for `action` to the signed-in account's own email.
+ * Its own send budget (per account), which nothing a signed-out caller does
+ * can use up. The caller is the account itself, so being told it asked for
+ * too many is no oracle: this is the one budget answered with a 429.
+ */
+export async function startReauthEmail(
+  userId: string,
+  action: ReauthAction,
+  now: Date = new Date(),
+): Promise<EmailVerificationStartResponse> {
   assertMailConfigured();
   const { email, username } = await accountEmail(userId);
   if (!email) {
@@ -80,9 +91,15 @@ export async function startReauthEmail(userId: string, now: Date = new Date()): 
   }
   const db = getDb();
   const emailHash = hashEmail(email);
-  await assertEmailSendBudget(db, emailHash, now);
-  const { verificationId, code, expiresAt } = await recordVerification(db, { purpose: 'reauth', emailHash, userId }, now);
-  sendReauthCode(email, code, username).catch((error: unknown) => {
+  if (!(await reserveSendBudget({ group: 'reauth', emailHash, requesterKey: `u:${userId}` }))) {
+    throw new ApiError(429, 'Too many codes. Try again in an hour.', 'RATE_LIMITED');
+  }
+  const { verificationId, code, expiresAt } = await recordVerification(
+    db,
+    { purpose: 'reauth', emailHash, userId, reauthAction: action },
+    now,
+  );
+  sendReauthCode(email, code, username, action).catch((error: unknown) => {
     logger.error('Confirmation email could not be sent', error instanceof Error ? error : new Error(String(error)), {
       component: 'reauth',
     });
@@ -90,23 +107,26 @@ export async function startReauthEmail(userId: string, now: Date = new Date()): 
   return { verificationId, expiresAt: expiresAt.getTime() };
 }
 
-async function checkEmailCode(userId: string, emailCode: { verificationId: string; code: string }, now: Date): Promise<void> {
+async function checkEmailCode(
+  userId: string,
+  emailCode: { verificationId: string; code: string },
+  action: ReauthAction,
+  now: Date,
+): Promise<void> {
   const outcome = await getDb().transaction((tx) =>
-    consumeEmailCode(tx, { ...emailCode, purpose: 'reauth', userId }, now),
+    consumeEmailCode(tx, { ...emailCode, purpose: 'reauth', userId, reauthAction: action }, now),
   );
   if ('error' in outcome) throw outcome.error;
 }
 
 async function checkPassword(userId: string, password: string): Promise<void> {
   const key = accountLockoutKey(userId);
-  const lockout = await isLockedOut({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });
-  if (lockout.locked) throw lockedOut(lockout.retryAfterSeconds);
+  // The attempt is reserved BEFORE the check, so parallel guesses cannot all
+  // pass a read-only lockout test first. Past the cap nothing is hashed.
+  const reservation = await reserveAttempt({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });
+  if (reservation.locked) throw lockedOut(reservation.retryAfterSeconds);
   const ok = await verifyPasswordOrDummy(password, await readPasswordHash(userId));
-  if (!ok) {
-    const after = await recordFailure({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });
-    if (after.locked) throw lockedOut(after.retryAfterSeconds);
-    throw reauthInvalid();
-  }
+  if (!ok) throw reauthInvalid();
   await clearFailures({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });
 }
 
@@ -123,7 +143,12 @@ async function checkTotp(userId: string, totpCode: string | undefined, now: Date
  * then the authenticator code when the account has one. Throws when it fails;
  * every code it accepts is spent.
  */
-export async function verifyReauth(userId: string, proof: ReauthProof | undefined, now: Date = new Date()): Promise<void> {
+export async function verifyReauth(
+  userId: string,
+  proof: ReauthProof | undefined,
+  action: ReauthAction,
+  now: Date = new Date(),
+): Promise<void> {
   if (!proof) {
     throw new ApiError(401, 'Confirm it is you first.', SIGN_IN_ERROR_CODES.reauthRequired);
   }
@@ -132,7 +157,7 @@ export async function verifyReauth(userId: string, proof: ReauthProof | undefine
     throw new ApiError(401, 'Enter the code from your authenticator app too.', SIGN_IN_ERROR_CODES.totpRequired);
   }
   if (proof.emailCode) {
-    await checkEmailCode(userId, proof.emailCode, now);
+    await checkEmailCode(userId, proof.emailCode, action, now);
   } else if (proof.password !== undefined) {
     await checkPassword(userId, proof.password);
   } else {
@@ -142,6 +167,11 @@ export async function verifyReauth(userId: string, proof: ReauthProof | undefine
 }
 
 /** The email-only proof (deleting the account, linking Commons): the email code, plus the authenticator's. */
-export async function verifyEmailReauth(userId: string, proof: EmailReauthProof, now: Date = new Date()): Promise<void> {
-  await verifyReauth(userId, { emailCode: proof.emailCode, totpCode: proof.totpCode }, now);
+export async function verifyEmailReauth(
+  userId: string,
+  proof: EmailReauthProof,
+  action: ReauthAction,
+  now: Date = new Date(),
+): Promise<void> {
+  await verifyReauth(userId, { emailCode: proof.emailCode, totpCode: proof.totpCode }, action, now);
 }

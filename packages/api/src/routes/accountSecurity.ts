@@ -3,7 +3,8 @@
  * mounted at `/users/me`:
  *
  *  - `GET  /sign-in-methods`     → `{ hasEmail, hasPassword, totpEnabled, backupCodesRemaining }`
- *  - `POST /reauth/email`        → `{ verificationId, expiresAt }`: a code to the account's email
+ *  - `POST /reauth/email`        `{ action }` → `{ verificationId, expiresAt }`: a code to the
+ *    account's email for that ONE change (`change_password`, `totp`, `link_commons`, `delete_account`)
  *  - `PUT  /password`            `{ newPassword, reauth, revokeOtherSessions? }` → `{ success }`
  *  - `POST /totp/enroll`         → `{ secret, otpauthUri }` (pending until confirmed)
  *  - `POST /totp/confirm`        `{ code, reauth }` → `{ backupCodes }`
@@ -22,9 +23,11 @@ import { eq } from 'drizzle-orm';
 import {
   SIGN_IN_ERROR_CODES,
   passwordSetRequestSchema,
+  reauthEmailStartRequestSchema,
   totpConfirmRequestSchema,
   totpReauthRequestSchema,
   type PasswordSetRequest,
+  type ReauthEmailStartRequest,
   type SignInMethods,
   type TotpConfirmRequest,
   type TotpReauthRequest,
@@ -74,17 +77,24 @@ interface Owner {
   username: string | null;
 }
 
-/** The signed-in personal account. */
-async function owner(req: AuthRequest): Promise<Owner> {
+/**
+ * The signed-in personal account. `keyless`: a change that adds a way in
+ * (a password, an authenticator) is refused for an account with a Commons
+ * key — it signs in with Commons, and linking removed those factors.
+ */
+async function owner(req: AuthRequest, options: { keyless?: boolean } = {}): Promise<Owner> {
   const userId = req.user?.id;
   if (!userId) throw new UnauthorizedError('Authentication required');
   const [row] = await getDb()
-    .select({ email: users.email, username: users.username, kind: users.kind })
+    .select({ email: users.email, username: users.username, kind: users.kind, publicKey: users.publicKey })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
   if (!row) throw new NotFoundError('User not found');
   if (row.kind !== 'personal') throw new ForbiddenError('Only a personal account signs in with a password or an authenticator');
+  if (options.keyless && row.publicKey) {
+    throw new ForbiddenError('This account signs in with Commons');
+  }
   return { userId, email: row.email?.trim().toLowerCase() || null, username: row.username };
 }
 
@@ -117,9 +127,11 @@ router.get(
 router.post(
   '/reauth/email',
   reauthEmailLimiter,
+  validate({ body: reauthEmailStartRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const account = await owner(req);
-    res.status(200).json(await startReauthEmail(account.userId));
+    const { action } = req.body as ReauthEmailStartRequest;
+    res.status(200).json(await startReauthEmail(account.userId, action));
   }),
 );
 
@@ -128,9 +140,9 @@ router.put(
   changeLimiter,
   validate({ body: passwordSetRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const account = await owner(req);
+    const account = await owner(req, { keyless: true });
     const body = req.body as PasswordSetRequest;
-    await verifyReauth(account.userId, body.reauth);
+    await verifyReauth(account.userId, body.reauth, 'change_password');
     const hadPassword = (await readPasswordHash(account.userId)) !== null;
     await storePassword(account.userId, body.newPassword);
     if (body.revokeOtherSessions) {
@@ -145,7 +157,7 @@ router.post(
   '/totp/enroll',
   changeLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const account = await owner(req);
+    const account = await owner(req, { keyless: true });
     res.status(200).json(await enrollTotp(account.userId, account.username ?? account.userId));
   }),
 );
@@ -155,10 +167,10 @@ router.post(
   changeLimiter,
   validate({ body: totpConfirmRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const account = await owner(req);
+    const account = await owner(req, { keyless: true });
     const body = req.body as TotpConfirmRequest;
     // Not on yet, so the proof is the password or the email code alone.
-    await verifyReauth(account.userId, body.reauth);
+    await verifyReauth(account.userId, body.reauth, 'totp');
     const backupCodes = await confirmTotp(account.userId, body.code);
     await sessionService.deactivateAllUserSessions(account.userId, req.sessionId);
     notify(account, 'totp_enabled');
@@ -176,7 +188,7 @@ router.post(
     if (!(await isTotpEnabled(account.userId))) {
       throw new ApiError(400, 'This account has no authenticator', SIGN_IN_ERROR_CODES.totpNotEnabled);
     }
-    await verifyReauth(account.userId, body.reauth);
+    await verifyReauth(account.userId, body.reauth, 'totp');
     await disableTotp(account.userId);
     await sessionService.deactivateAllUserSessions(account.userId, req.sessionId);
     notify(account, 'totp_disabled');
@@ -191,7 +203,7 @@ router.post(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const account = await owner(req);
     const body = req.body as TotpReauthRequest;
-    await verifyReauth(account.userId, body.reauth);
+    await verifyReauth(account.userId, body.reauth, 'totp');
     const backupCodes = await regenerateBackupCodes(account.userId);
     notify(account, 'backup_codes_regenerated');
     res.status(200).json({ backupCodes });

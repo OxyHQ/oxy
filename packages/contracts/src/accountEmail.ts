@@ -78,6 +78,11 @@ export const emailVerificationConfirmRequestSchema = z
             .string()
             .trim()
             .regex(new RegExp(`^\\d{${EMAIL_CODE_LENGTH}}$`), `code must be ${EMAIL_CODE_LENGTH} digits`),
+        /**
+         * Recovery of an account with an authenticator: its code or a backup
+         * code. Without it the API answers `TOTP_REQUIRED` and spends nothing.
+         */
+        totpCode: z.string().trim().min(6).max(16).optional(),
     })
     .strict();
 export type EmailVerificationConfirmRequest = z.infer<typeof emailVerificationConfirmRequestSchema>;

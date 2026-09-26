@@ -142,8 +142,8 @@ async function signUp(): Promise<{ email: string; username: string; token: strin
   return { email, username, token: created.body.accessToken as string, userId: (created.body.user as { id: string }).id };
 }
 
-async function reauthCode(token: string, email: string) {
-  const res = await call('POST', '/users/me/reauth/email', undefined, token);
+async function reauthCode(token: string, email: string, action: string) {
+  const res = await call('POST', '/users/me/reauth/email', { action }, token);
   expect(res.status).toBe(200);
   return { verificationId: res.body.verificationId as string, code: lastCall(mockSendReauth, email)[1] as string };
 }
@@ -169,7 +169,7 @@ describe('one person, end to end', () => {
 
     // Set a password with a fresh email code, then sign in with it.
     const password = 'journey password 1';
-    const set = await call('PUT', '/users/me/password', { newPassword: password, reauth: { emailCode: await reauthCode(token, person.email) } }, token);
+    const set = await call('PUT', '/users/me/password', { newPassword: password, reauth: { emailCode: await reauthCode(token, person.email, 'change_password') } }, token);
     expect(set.status).toBe(200);
     const byPassword = await call('POST', '/auth/signin/password', { identifier: person.email, password });
     expect(byPassword.status).toBe(200);
@@ -228,7 +228,7 @@ describe('one person, end to end', () => {
       expiresAt: state.expiresAt,
     });
     expect((await call('POST', `/identity/link/${linkId}/proof`, { publicKey: key.publicKey, proof })).status).toBe(200);
-    const linkCode = await reauthCode(current, person.email);
+    const linkCode = await reauthCode(current, person.email, 'link_commons');
     const linked = await call(
       'POST',
       `/identity/link/${linkId}/complete`,
@@ -242,6 +242,11 @@ describe('one person, end to end', () => {
     // The other sessions were signed out; the one that linked stays.
     expect((await call('GET', '/users/me/sign-in-methods', undefined, token)).status).toBe(401);
     expect((await call('GET', '/users/me/sign-in-methods', undefined, current)).body).toMatchObject({ hasEmail: false });
+
+    // Neither does the password: linking removed it (and the authenticator).
+    const afterLink = await call('POST', '/auth/signin/password', { identifier: person.username, password });
+    expect(afterLink.status).toBe(401);
+    expect(afterLink.body.error).toBe('SIGNIN_INVALID_CREDENTIALS');
 
     // The address no longer signs anyone in.
     mockSendSignIn.mockClear();
@@ -260,7 +265,7 @@ describe('one person, end to end', () => {
     const person = await signUp();
     const refused = await call('DELETE', '/users/me', { confirmText: person.username }, person.token);
     expect(refused.status).toBe(400);
-    const wrong = await reauthCode(person.token, person.email);
+    const wrong = await reauthCode(person.token, person.email, 'delete_account');
     const bad = await call(
       'DELETE',
       '/users/me',

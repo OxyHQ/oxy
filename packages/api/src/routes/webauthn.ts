@@ -74,7 +74,9 @@ import userCache from '../utils/userCache';
 import { isAuthWebOrigin, isOxyApexOrigin } from '../utils/origin';
 import { getWebauthnRpId } from '../config/env';
 import { normalizeUsername } from '../utils/username';
-import { mintSignInSession } from '../services/signInSession.service';
+import { issueSecondFactorChallenge, mintSignInSession } from '../services/signInSession.service';
+import { resolveProvenDeviceId } from '../services/deviceJoin.service';
+import { isTotpEnabled } from '../services/totp.service';
 import securityActivityService from '../services/securityActivityService';
 
 const router = Router();
@@ -400,6 +402,12 @@ export async function mintWebauthnSession(
   account: WebauthnAccount,
   envelope: DeviceEnvelope,
 ): Promise<void> {
+  // A passkey is a first factor like any other: an account with an
+  // authenticator gets the one-use second-factor challenge, never a session.
+  if (await isTotpEnabled(account.id)) {
+    res.json(await issueSecondFactorChallenge(account.id, await resolveProvenDeviceId(envelope.device)));
+    return;
+  }
   res.json(await mintSignInSession(req, account, envelope));
 }
 

@@ -104,6 +104,7 @@ import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
 import { webauthnChallenges } from '../../db/schema/webauthnChallenges';
 import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
+import { userTotp } from '../../db/schema/userTotp';
 import webauthnRouter from '../webauthn';
 import { hashEmail } from '../../utils/contactHash';
 import { randomBytes } from 'node:crypto';
@@ -892,6 +893,20 @@ describe('recovery: a new passkey for the account a recovery code was confirmed 
     expect((await storedAuthMethods(userId)).map((method) => method.type)).toEqual(['webauthn']);
     expect((await storedTicket(ticket)).usedAt).toBeInstanceOf(Date);
     expect(mockInvalidate).toHaveBeenCalledWith(userId);
+  });
+
+  it('verify: an account with an authenticator gets the second-factor challenge, never a session', async () => {
+    // (A ticket for such an account already needed the authenticator's code at
+    // confirm; this is the second, independent gate on the session itself.)
+    const { userId, ticket } = await recoverable();
+    await getDb().insert(userTotp).values({ userId, secretCiphertext: 'v1.x.x.x', enabledAt: new Date() });
+    await request(server, 'POST', '/webauthn/register/options', { recoveryTicket: ticket });
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', { recoveryTicket: ticket, response: registrationResponse() });
+
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body).sort()).toEqual(['challengeId', 'expiresAt', 'secondFactorRequired']);
+    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
   it('verify: a spent ticket recovers nothing a second time', async () => {

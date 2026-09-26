@@ -50,9 +50,9 @@ import {
   confirmEmailSignIn,
   startEmailSignIn,
 } from '../services/emailSignIn.service';
-import { clearFailures, isLockedOut, recordFailure } from '../services/loginLockout.service';
+import { clearFailures, reserveAttempt } from '../services/loginLockout.service';
 import { readPasswordHash, verifyPasswordOrDummy } from '../services/password.service';
-import { PASSWORD_LOCKOUT_SCOPE, accountLockoutKey, identifierLockoutKey } from '../services/reauth.service';
+import { PASSWORD_LOCKOUT_SCOPE, identifierLockoutKey } from '../services/reauth.service';
 import { completeFirstFactor, completeSecondFactor, mintSignInSession } from '../services/signInSession.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ApiError, BadRequestError, ConflictError } from '../utils/error';
@@ -100,7 +100,7 @@ router.post(
   startLimiter,
   validate({ body: emailSignInStartRequestSchema }),
   asyncHandler(async (req: Request, res: Response) => {
-    res.status(200).json(await startEmailSignIn(req.body as EmailSignInStartRequest));
+    res.status(200).json(await startEmailSignIn(req.body as EmailSignInStartRequest, hashedIpKey(req)));
   }),
 );
 
@@ -152,18 +152,22 @@ function lockedOut(retryAfterSeconds?: number): ApiError {
   );
 }
 
-/** A personal, active account the identifier names — the only kind a password signs in. */
+/**
+ * A personal, active account WITHOUT a Commons key the identifier names — the
+ * only kind a password signs in. A Commons account signs in with Commons
+ * (linking deleted its password); it is answered exactly like an unknown name.
+ */
 async function passwordAccount(identifier: string): Promise<string | null> {
   const trimmed = identifier.trim();
   const match = trimmed.includes('@')
     ? sql`lower(btrim(${users.email})) = lower(btrim(${trimmed}))`
     : sql`lower(btrim(${users.username})) = lower(btrim(${trimmed}))`;
   const [row] = await getDb()
-    .select({ id: users.id, kind: users.kind, accountStatus: users.accountStatus })
+    .select({ id: users.id, kind: users.kind, accountStatus: users.accountStatus, publicKey: users.publicKey })
     .from(users)
     .where(match)
     .limit(1);
-  return row && row.kind === 'personal' && row.accountStatus === 'active' ? row.id : null;
+  return row && row.kind === 'personal' && row.accountStatus === 'active' && !row.publicKey ? row.id : null;
 }
 
 router.post(
@@ -174,18 +178,20 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const body = req.body as PasswordSignInRequest;
     const userId = await passwordAccount(body.identifier);
-    // One key per account however it is named; an unknown name is locked out
-    // exactly like a known one, so the lockout says nothing either.
-    const key = userId ? accountLockoutKey(userId) : identifierLockoutKey(body.identifier);
-    const lockout = await isLockedOut({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });
-    if (lockout.locked) throw lockedOut(lockout.retryAfterSeconds);
-
-    // The same query and the same scrypt work whether or not there is anything to check.
+    // Keyed by the identifier AS TYPED, whether or not it names an account,
+    // so the lockout behaves identically for both and says nothing. The
+    // attempt is reserved atomically BEFORE the check, so parallel guesses
+    // share one budget. A locked identifier is answered before any hashing —
+    // that depends only on the identifier's own count, never on whether an
+    // account exists, and a flood of locked guesses costs no scrypt work.
+    // Below the cap the same query and the same scrypt work run whether or
+    // not there is an account or a password, so the time says nothing either.
+    const key = identifierLockoutKey(body.identifier);
+    const reservation = await reserveAttempt({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });
+    if (reservation.locked) throw lockedOut(reservation.retryAfterSeconds);
     const stored = await readPasswordHash(userId ?? '00000000-0000-0000-0000-000000000000');
     const ok = await verifyPasswordOrDummy(body.password, userId ? stored : null);
     if (!ok || !userId) {
-      const after = await recordFailure({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });
-      if (after.locked) throw lockedOut(after.retryAfterSeconds);
       throw new ApiError(401, 'That username, email or password is not right.', SIGN_IN_ERROR_CODES.invalidCredentials);
     }
     await clearFailures({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });

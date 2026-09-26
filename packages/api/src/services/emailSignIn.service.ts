@@ -42,8 +42,13 @@ import { hashEmail } from '../utils/contactHash';
 import { ApiError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { sendSignInEmail } from './accountEmail.mail';
-import { assertEmailSendBudget, assertMailConfigured, consumeEmailCode, recordVerification } from './accountEmail.service';
+import { assertMailConfigured, consumeEmailCode, recordVerification, reserveSendBudget } from './accountEmail.service';
+import { clearFailures, reserveAttempt } from './loginLockout.service';
 import { resolveProvenDeviceId } from './deviceJoin.service';
+
+/** Code attempts one account gets per day, across all its sign-in requests. */
+export const SIGNIN_CODE_FAILURES_PER_DAY = 10;
+const SIGNIN_CODE_LOCKOUT_SCOPE = 'signin-code';
 
 function sha256Hex(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -111,13 +116,18 @@ async function resolveTarget(identifier: string): Promise<SignInTarget> {
 
 export async function startEmailSignIn(
   request: EmailSignInStartRequest,
+  requesterKey: string,
   now: Date = new Date(),
 ): Promise<EmailSignInStartResponse> {
   assertMailConfigured();
-  const target = await resolveTarget(request.identifier);
+  let target = await resolveTarget(request.identifier);
   const requesterDeviceId = await resolveProvenDeviceId(request.device);
   const db = getDb();
-  await assertEmailSendBudget(db, target.emailHash, now);
+  // Over the send budget: answered like any other request, as a decoy that
+  // sends nothing — the budget is never visible (`reserveSendBudget`).
+  if (!(await reserveSendBudget({ group: 'public', emailHash: target.emailHash, requesterKey }))) {
+    target = { ...target, userId: null, sendTo: null };
+  }
 
   const requestSecret = newToken();
   const linkToken = newToken();
@@ -178,12 +188,24 @@ export async function confirmEmailSignIn(
     if (!request || !hashesEqual(request.requestSecretHash, input.requestSecret)) {
       return { error: requestInvalid() };
     }
+    // Across every request for one account, at most
+    // SIGNIN_CODE_FAILURES_PER_DAY code attempts a day (reserved atomically,
+    // reset by a right one): past it even the right code is refused with the
+    // same generic error, and only the link — which needs the requester's own
+    // browser — still signs in. A decoy counts on a key of its own.
+    const accountCap = await reserveAttempt({
+      scope: SIGNIN_CODE_LOCKOUT_SCOPE,
+      identifier: request.userId ?? `request:${request.id}`,
+      maxAttempts: SIGNIN_CODE_FAILURES_PER_DAY,
+      windowSeconds: 24 * 60 * 60,
+    });
     const checked = await consumeEmailCode(
       tx,
-      { verificationId: request.verificationId, code: input.code, purpose: 'signin' },
+      { verificationId: request.verificationId, code: input.code, purpose: 'signin', refuse: accountCap.locked },
       now,
     );
     if ('error' in checked) return checked;
+    await clearFailures({ scope: SIGNIN_CODE_LOCKOUT_SCOPE, identifier: checked.userId });
     if (!request.userId || checked.userId !== request.userId) return { error: requestInvalid() };
     await tx.update(emailSignInRequests).set({ completedAt: now }).where(eq(emailSignInRequests.id, request.id));
     return { userId: request.userId };

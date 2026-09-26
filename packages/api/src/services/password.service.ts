@@ -20,6 +20,7 @@ import crypto from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { userPasswords } from '../db/schema/userPasswords';
+import { ApiError } from '../utils/error';
 
 const SCHEME = 'scrypt';
 const VERSION = 1;
@@ -37,7 +38,48 @@ interface Params {
   p: number;
 }
 
+/**
+ * At most {@link MAX_CONCURRENT_HASHES} scrypt runs at once (32 MiB each, on
+ * libuv's small thread pool), and at most {@link MAX_WAITING_HASHES} waiting
+ * for a slot. Beyond that the request fails FAST with a 503 instead of queueing
+ * without bound — a flood of sign-ins can neither exhaust the task's memory nor
+ * starve every other filesystem, DNS and crypto call of the thread pool.
+ */
+const MAX_CONCURRENT_HASHES = 4;
+const MAX_WAITING_HASHES = 32;
+let activeHashes = 0;
+const waitingHashes: Array<() => void> = [];
+let concurrencyLimit = MAX_CONCURRENT_HASHES;
+
+/** Test-only: shrink the pool to exercise the fail-fast path. */
+export function _setScryptConcurrencyForTests(limit: number | null): void {
+  concurrencyLimit = limit ?? MAX_CONCURRENT_HASHES;
+}
+
+async function withHashSlot<T>(work: () => Promise<T>): Promise<T> {
+  if (activeHashes >= concurrencyLimit) {
+    if (waitingHashes.length >= MAX_WAITING_HASHES) {
+      throw new ApiError(503, 'Oxy is busy. Try again in a moment.', 'SERVICE_BUSY');
+    }
+    await new Promise<void>((resolve) => waitingHashes.push(resolve));
+  } else {
+    activeHashes += 1;
+  }
+  try {
+    return await work();
+  } finally {
+    const next = waitingHashes.shift();
+    // The slot passes straight to the next waiter, or is released.
+    if (next) next();
+    else activeHashes -= 1;
+  }
+}
+
 function derive(password: string, salt: Buffer, params: Params): Promise<Buffer> {
+  return withHashSlot(() => runScrypt(password, salt, params));
+}
+
+function runScrypt(password: string, salt: Buffer, params: Params): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     crypto.scrypt(
       password.normalize('NFKC'),

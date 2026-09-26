@@ -16,6 +16,23 @@
  *
  * Nothing here issues a session for an account with an authenticator except
  * {@link completeSecondFactor}, after the code passed.
+ *
+ * Every OTHER issuer of a session or device credential was audited for the
+ * same rule (security review of #1421):
+ *
+ * - passkey sign-in and passkey recovery (`routes/webauthn.ts`) end in
+ *   {@link issueSecondFactorChallenge} when the account has an authenticator,
+ *   and a recovery ticket itself needs the authenticator's code
+ *   (`confirmEmailVerification`);
+ * - sign-up creates an account that has no authenticator yet;
+ * - the Commons QR claim, OAuth code exchange and MCP OAuth all spend an
+ *   approval made by an ALREADY signed-in session (which passed its second
+ *   factor when it was created), so they add no new first factor;
+ * - the browser bridge's device join and `/session/device/token` hand out
+ *   credentials for a device whose accounts are already signed in on it;
+ * - `/auth/verify` (a Commons key) and the account switch serve accounts with
+ *   a Commons key or operated accounts, which never have an authenticator:
+ *   linking Commons deletes it, and one cannot be added to a keyed account.
  */
 import crypto from 'node:crypto';
 import type { Request } from 'express';
@@ -127,7 +144,7 @@ export async function mintSignInSession(
 
 /**
  * The account a first factor named, if it may still sign in: a personal,
- * active account. Managed accounts are operated only through the audited
+ * active account without a Commons key. Managed accounts are operated only through the audited
  * account-switch flow.
  */
 export async function readSignInAccount(userId: string): Promise<SignInAccount | null> {
@@ -138,11 +155,13 @@ export async function readSignInAccount(userId: string): Promise<SignInAccount |
       avatar: users.avatar,
       kind: users.kind,
       accountStatus: users.accountStatus,
+      publicKey: users.publicKey,
     })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
-  if (!row || row.kind !== 'personal' || row.accountStatus !== 'active') return null;
+  // A Commons account signs in with Commons, never with an Oxy-held factor.
+  if (!row || row.kind !== 'personal' || row.accountStatus !== 'active' || row.publicKey) return null;
   return { id: row.id, username: row.username, avatar: row.avatar };
 }
 
@@ -162,19 +181,29 @@ export async function completeFirstFactor(
   }
   const provenDeviceId = await resolveProvenDeviceId(envelope.device);
 
-  if (await isTotpEnabled(userId)) {
-    const challengeId = crypto.randomBytes(32).toString('base64url');
-    const expiresAt = new Date(now.getTime() + SIGNIN_SECOND_FACTOR_TTL_MS);
-    await getDb().insert(signInSecondFactorChallenges).values({
-      challengeHash: sha256Hex(challengeId),
-      userId,
-      deviceId: provenDeviceId,
-      expiresAt,
-    });
-    return { secondFactorRequired: true, challengeId, expiresAt: expiresAt.getTime() };
-  }
-
+  if (await isTotpEnabled(userId)) return issueSecondFactorChallenge(userId, provenDeviceId, now);
   return mintSignInSession(req, account, envelope, provenDeviceId);
+}
+
+/**
+ * The one-use second-factor challenge, bound to the account and to the device
+ * the first factor proved (or to none). Its id is returned once; only its
+ * SHA-256 is stored.
+ */
+export async function issueSecondFactorChallenge(
+  userId: string,
+  provenDeviceId: string | null,
+  now: Date = new Date(),
+): Promise<SecondFactorRequired> {
+  const challengeId = crypto.randomBytes(32).toString('base64url');
+  const expiresAt = new Date(now.getTime() + SIGNIN_SECOND_FACTOR_TTL_MS);
+  await getDb().insert(signInSecondFactorChallenges).values({
+    challengeHash: sha256Hex(challengeId),
+    userId,
+    deviceId: provenDeviceId,
+    expiresAt,
+  });
+  return { secondFactorRequired: true, challengeId, expiresAt: expiresAt.getTime() };
 }
 
 /**

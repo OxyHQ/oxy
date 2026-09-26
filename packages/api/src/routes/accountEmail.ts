@@ -50,7 +50,7 @@ router.post(
   startLimiter,
   validate({ body: emailVerificationStartRequestSchema }),
   asyncHandler(async (req: Request, res: Response) => {
-    res.status(200).json(await startEmailVerification(req.body as EmailVerificationStartRequest));
+    res.status(200).json(await startEmailVerification(req.body as EmailVerificationStartRequest, hashedIpKey(req)));
   }),
 );
 
@@ -59,8 +59,8 @@ router.post(
   confirmLimiter,
   validate({ body: emailVerificationConfirmRequestSchema }),
   asyncHandler(async (req: Request, res: Response) => {
-    const { verificationId, code } = req.body as EmailVerificationConfirmRequest;
-    res.status(200).json(await confirmEmailVerification(verificationId, code));
+    const { verificationId, code, totpCode } = req.body as EmailVerificationConfirmRequest;
+    res.status(200).json(await confirmEmailVerification(verificationId, code, new Date(), totpCode));
   }),
 );
 

@@ -1,4 +1,4 @@
-import { EMAIL_VERIFICATION_PURPOSES } from '../accountEmail';
+import { EMAIL_VERIFICATION_PURPOSES, emailVerificationConfirmRequestSchema } from '../accountEmail';
 import { identityLinkCompleteRequestSchema } from '../identityLink';
 import {
   emailReauthProofSchema,
@@ -6,6 +6,7 @@ import {
   emailSignInStartRequestSchema,
   isSecondFactorRequired,
   passwordSetRequestSchema,
+  reauthEmailStartRequestSchema,
   passwordSignInRequestSchema,
   reauthProofSchema,
   secondFactorRequiredSchema,
@@ -75,5 +76,15 @@ describe('sign-in contracts', () => {
     const codes = Array.from({ length: 10 }, () => 'abcde-fghjk');
     expect(totpBackupCodesResponseSchema.safeParse({ backupCodes: codes }).success).toBe(true);
     expect(totpBackupCodesResponseSchema.safeParse({ backupCodes: codes.slice(1) }).success).toBe(false);
+  });
+
+  it('asks for a re-verification code for one named change only', () => {
+    expect(reauthEmailStartRequestSchema.safeParse({ action: 'delete_account' }).success).toBe(true);
+    expect(reauthEmailStartRequestSchema.safeParse({}).success).toBe(false);
+    expect(reauthEmailStartRequestSchema.safeParse({ action: 'anything' }).success).toBe(false);
+  });
+
+  it('lets a recovery confirmation carry the authenticator code', () => {
+    expect(emailVerificationConfirmRequestSchema.safeParse({ verificationId: 'v', code: '123456', totpCode: 'abcde-fghjk' }).success).toBe(true);
   });
 });

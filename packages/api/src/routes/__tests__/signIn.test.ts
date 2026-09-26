@@ -57,7 +57,9 @@ import { errorHandler } from '../../middleware/errorHandler';
 import deviceSessionService from '../../services/deviceSession.service';
 import { _resetInMemoryStateForTests } from '../../services/loginLockout.service';
 import { storePassword } from '../../services/password.service';
-import { confirmTotp, enrollTotp, totpCodeAt } from '../../services/totp.service';
+import { confirmTotp, enrollTotp, totpCodeAt, verifySecondFactor } from '../../services/totp.service';
+import { SIGNIN_CODE_FAILURES_PER_DAY, startEmailSignIn } from '../../services/emailSignIn.service';
+import { EMAIL_SENDS_PER_HOUR } from '../../services/accountEmail.service';
 import { logger } from '../../utils/logger';
 import signInRouter from '../signIn';
 
@@ -412,25 +414,44 @@ describe('password sign-in', () => {
     }
   });
 
-  it('locks an account out after five wrong passwords however it is named, and an unknown name the same way', async () => {
+  it('locks an identifier after five wrong passwords — a known one exactly like an unknown one', async () => {
     const real = await account();
     await storePassword(real.id, 'correct horse battery');
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      const identifier = attempt % 2 === 0 ? real.username : (real.email as string);
-      expect((await post('/signin/password', { identifier, password: 'nope-nope-nope' })).status).toBe(401);
-    }
-    const fifth = await post('/signin/password', { identifier: real.username, password: 'nope-nope-nope' });
-    expect(fifth.status).toBe(429);
-    expect(fifth.body.error).toBe('SIGNIN_LOCKED');
-    const right = await post('/signin/password', { identifier: real.username, password: 'correct horse battery' });
-    expect(right.status).toBe(429);
-    expect(await sessionCount(real.id)).toBe(0);
-
     const ghost = `ghost-${suffix()}`;
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      expect((await post('/signin/password', { identifier: ghost, password: 'nope-nope-nope' })).status).toBe(401);
+    for (const identifier of [real.username, ghost]) {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const res = await post('/signin/password', { identifier, password: 'nope-nope-nope' });
+        expect(res.status).toBe(401);
+        expect(res.body.error).toBe('SIGNIN_INVALID_CREDENTIALS');
+      }
+      const sixth = await post('/signin/password', { identifier, password: 'nope-nope-nope' });
+      expect(sixth.status).toBe(429);
+      expect(sixth.body.error).toBe('SIGNIN_LOCKED');
     }
-    expect((await post('/signin/password', { identifier: ghost, password: 'nope-nope-nope' })).body.error).toBe('SIGNIN_LOCKED');
+    // Locked: even the right password is refused, the same way.
+    expect((await post('/signin/password', { identifier: real.username, password: 'correct horse battery' })).status).toBe(429);
+    expect(await sessionCount(real.id)).toBe(0);
+    // The email is a bucket of its own (named separately).
+    expect((await post('/signin/password', { identifier: real.email as string, password: 'correct horse battery' })).status).toBe(200);
+  });
+
+  it('counts 50 parallel wrong passwords atomically: at most five are checked', async () => {
+    const real = await account();
+    await storePassword(real.id, 'correct horse battery');
+    const answers = await Promise.all(
+      Array.from({ length: 50 }, () => post('/signin/password', { identifier: real.username, password: 'nope-nope-nope' })),
+    );
+    expect(answers.filter((answer) => answer.status === 401).length).toBeLessThanOrEqual(5);
+    expect(answers.filter((answer) => answer.status === 429).length).toBeGreaterThanOrEqual(45);
+  });
+
+  it('answers a Commons account (a key) exactly like an unknown name, even with a password row', async () => {
+    const keyed = await account({ publicKey: `04${'c'.repeat(128)}` });
+    await storePassword(keyed.id, 'correct horse battery');
+    const res = await post('/signin/password', { identifier: keyed.username, password: 'correct horse battery' });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('SIGNIN_INVALID_CREDENTIALS');
+    expect(await sessionCount(keyed.id)).toBe(0);
   });
 
   it('never signs a managed account in with a password', async () => {
@@ -535,10 +556,94 @@ describe('the authenticator', () => {
   });
 });
 
+describe('the second factor on every path', () => {
+  it('stops a link collected by the dialog at the challenge too', async () => {
+    const real = await account();
+    await enableTotp(real.id);
+    const { auth, app } = await browserDevice();
+    const { requestId, requestSecret } = await start(real.username, app);
+    await post('/signin/email/link', { token: mailFor(real.email as string).linkToken, device: auth }, AUTH_ORIGIN);
+    const collected = await post('/signin/email/collect', { requestId, requestSecret, device: app });
+    expect(collected.body.secondFactorRequired).toBe(true);
+    expect(collected.raw).not.toMatch(/accessToken|sessionId|deviceSecret/);
+    expect(await sessionCount(real.id)).toBe(0);
+  });
+
+  it('counts 50 parallel wrong authenticator codes atomically: at most five are checked', async () => {
+    const real = await account();
+    await enableTotp(real.id);
+    const outcomes = await Promise.all(
+      Array.from({ length: 50 }, () =>
+        verifySecondFactor(real.id, 'wrong-wrong').then(
+          (ok) => (ok ? 'ok' : 'checked'),
+          () => 'locked',
+        ),
+      ),
+    );
+    expect(outcomes.filter((outcome) => outcome === 'checked').length).toBeLessThanOrEqual(5);
+    expect(outcomes.filter((outcome) => outcome === 'locked').length).toBeGreaterThanOrEqual(45);
+  });
+});
+
+describe('email codes across requests', () => {
+  it('refuses even the right code after ten wrong ones in a day, with the same error — the link still works', async () => {
+    const real = await account();
+    const { auth, app } = await browserDevice();
+    let wrongSoFar = 0;
+    while (wrongSoFar < SIGNIN_CODE_FAILURES_PER_DAY) {
+      const { requestId, requestSecret } = await start(real.username, app);
+      const right = mailFor(real.email as string).code;
+      mockSendSignIn.mockClear();
+      const wrong = right === '000000' ? '000001' : '000000';
+      for (let attempt = 0; attempt < 4 && wrongSoFar < SIGNIN_CODE_FAILURES_PER_DAY; attempt += 1) {
+        const res = await post('/signin/email/confirm', { requestId, requestSecret, code: wrong });
+        expect(res.status).toBe(401);
+        wrongSoFar += 1;
+      }
+    }
+    // A fresh request, the RIGHT code: refused like a wrong one.
+    const fresh = await start(real.username, app);
+    const mail = mailFor(real.email as string);
+    const refused = await post('/signin/email/confirm', { requestId: fresh.requestId, requestSecret: fresh.requestSecret, code: mail.code });
+    expect(refused.status).toBe(401);
+    expect(refused.body.error).toBe('EMAIL_CODE_INVALID');
+    expect(await sessionCount(real.id)).toBe(0);
+    // The link, which needs this browser, still signs in.
+    expect((await post('/signin/email/link', { token: mail.linkToken, device: auth }, AUTH_ORIGIN)).status).toBe(200);
+    const collected = await post('/signin/email/collect', { requestId: fresh.requestId, requestSecret: fresh.requestSecret, device: app });
+    expect(collected.status).toBe(200);
+    expect(await sessionCount(real.id)).toBe(1);
+  });
+});
+
+describe('the send budget', () => {
+  it('is never visible: over budget the answer is the same and nothing is sent', async () => {
+    const real = await account();
+    const answers = [];
+    for (let send = 0; send < EMAIL_SENDS_PER_HOUR + 3; send += 1) {
+      const res = await post('/signin/email/start', { identifier: real.username });
+      expect(res.status).toBe(200);
+      answers.push(Object.keys(res.body).sort().join(','));
+    }
+    expect(new Set(answers).size).toBe(1);
+    expect(mockSendSignIn).toHaveBeenCalledTimes(EMAIL_SENDS_PER_HOUR);
+  });
+
+  it("gives each requester its own slice, so one stranger cannot stop someone's mail", async () => {
+    const real = await account();
+    for (let send = 0; send < EMAIL_SENDS_PER_HOUR + 2; send += 1) {
+      await startEmailSignIn({ identifier: real.username }, 'attacker');
+    }
+    mockSendSignIn.mockClear();
+    await startEmailSignIn({ identifier: real.username }, 'the-owner');
+    expect(mockSendSignIn).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('sign-up', () => {
   async function signupTicket(email: string): Promise<string> {
     const { confirmEmailVerification, startEmailVerification } = await import('../../services/accountEmail.service');
-    const { verificationId } = await startEmailVerification({ purpose: 'signup', email });
+    const { verificationId } = await startEmailVerification({ purpose: 'signup', email }, 'test-requester');
     const code = mockSendCode.mock.calls.find(([to]) => to === email)?.[1] as string;
     return (await confirmEmailVerification(verificationId, code)).ticket;
   }

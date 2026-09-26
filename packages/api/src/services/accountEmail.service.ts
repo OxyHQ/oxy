@@ -18,29 +18,44 @@
  * stored as its SHA-256, that registration spends in its own transaction.
  */
 import crypto from 'node:crypto';
-import { and, count, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import {
   EMAIL_CODE_LENGTH,
   EMAIL_CODE_MAX_ATTEMPTS,
   EMAIL_CODE_TTL_MS,
   EMAIL_TICKET_TTL_MS,
   EMAIL_VERIFICATION_ERROR_CODES,
+  SIGN_IN_ERROR_CODES,
   type EmailVerificationConfirmResponse,
   type EmailVerificationPurpose,
   type EmailVerificationStartRequest,
   type EmailVerificationStartResponse,
+  type ReauthAction,
 } from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { emailVerifications } from '../db/schema/emailVerifications';
 import { users } from '../db/schema/users';
 import { hashEmail } from '../utils/contactHash';
+import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
 import { ApiError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { sendAccountExistsNotice, sendVerificationCode } from './accountEmail.mail';
+import { reserveAttempt } from './loginLockout.service';
+import { isTotpEnabled, verifySecondFactor } from './totp.service';
 import { SMTP_RELAYS } from '../config/email.config';
 
-/** Codes sent to one address (or asked for one identifier) per hour. */
+/** Mails one requester (hashed IP) may cause to one address per hour. */
 export const EMAIL_SENDS_PER_HOUR = 5;
+/** Mails one address receives per hour from every requester together. */
+export const EMAIL_SENDS_PER_ADDRESS_PER_HOUR = 20;
+/** Confirmation codes one signed-in account may ask for per hour. */
+export const REAUTH_SENDS_PER_HOUR = 10;
+
+/**
+ * The separate send budgets: nothing a signed-out caller does can use up the
+ * codes a signed-in person needs to confirm a change.
+ */
+export type SendBudgetGroup = 'public' | 'reauth';
 
 function codeInvalid(): ApiError {
   return new ApiError(401, 'That code is not right, or it has expired.', EMAIL_VERIFICATION_ERROR_CODES.codeInvalid);
@@ -54,12 +69,9 @@ function sha256Hex(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-/** HMAC of the code under the server salt, bound to its row. */
+/** HMAC of the code under a key derived from the server secret, bound to its row. Fails closed. */
 function hashCode(verificationId: string, code: string): string {
-  return crypto
-    .createHmac('sha256', process.env.DEVICE_ID_SALT ?? '')
-    .update(`email-code|${verificationId}|${code}`)
-    .digest('hex');
+  return serverHmacHex(SERVER_KEY_LABELS.emailCode, `email-code|${verificationId}|${code}`);
 }
 
 function newCode(): string {
@@ -135,20 +147,35 @@ export function assertMailConfigured(): void {
   }
 }
 
-/** 429 when {@link EMAIL_SENDS_PER_HOUR} codes already went to (or were asked for) `emailHash`. */
-export async function assertEmailSendBudget(db: DatabaseOrTransaction, emailHash: string, now: Date): Promise<void> {
-  const [recent] = await db
-    .select({ value: count() })
-    .from(emailVerifications)
-    .where(
-      and(
-        eq(emailVerifications.emailHash, emailHash),
-        gt(emailVerifications.createdAt, new Date(now.getTime() - 60 * 60 * 1000)),
-      ),
-    );
-  if ((recent?.value ?? 0) >= EMAIL_SENDS_PER_HOUR) {
-    throw new ApiError(429, 'Too many codes for this email. Try again in an hour.', 'RATE_LIMITED');
-  }
+/**
+ * Reserve one mail to `emailHash` for `requesterKey` (a hashed IP, or the
+ * signed-in account). Atomic (`reserveAttempt`: Redis `INCR`), counted per
+ * requester AND per address, per budget group. Answers whether the mail may
+ * go; the caller NEVER tells its caller which it was — an over-budget request
+ * is answered exactly like any other and simply sends nothing, so the budget
+ * is neither an enumeration oracle nor a switch a stranger can flip to stop
+ * someone's mail (one requester exhausts only its own slice).
+ */
+export async function reserveSendBudget(input: {
+  group: SendBudgetGroup;
+  emailHash: string;
+  requesterKey: string;
+}): Promise<boolean> {
+  const address = serverHmacHex(SERVER_KEY_LABELS.mailBudget, `${input.group}|${input.emailHash}`);
+  const perRequester = await reserveAttempt({
+    scope: `mail-requester-${input.group}`,
+    identifier: serverHmacHex(SERVER_KEY_LABELS.mailBudget, `${address}|${input.requesterKey}`),
+    maxAttempts: input.group === 'reauth' ? REAUTH_SENDS_PER_HOUR : EMAIL_SENDS_PER_HOUR,
+    windowSeconds: 60 * 60,
+  });
+  if (perRequester.locked) return false;
+  const perAddress = await reserveAttempt({
+    scope: `mail-address-${input.group}`,
+    identifier: address,
+    maxAttempts: EMAIL_SENDS_PER_ADDRESS_PER_HOUR,
+    windowSeconds: 60 * 60,
+  });
+  return !perAddress.locked;
 }
 
 /**
@@ -158,7 +185,7 @@ export async function assertEmailSendBudget(db: DatabaseOrTransaction, emailHash
  */
 export async function recordVerification(
   db: DatabaseOrTransaction,
-  row: { purpose: EmailVerificationPurpose; emailHash: string; userId: string | null },
+  row: { purpose: EmailVerificationPurpose; emailHash: string; userId: string | null; reauthAction?: ReauthAction },
   now: Date,
 ): Promise<{ verificationId: string; code: string; expiresAt: Date }> {
   const code = newCode();
@@ -169,6 +196,7 @@ export async function recordVerification(
     purpose: row.purpose,
     emailHash: row.emailHash,
     userId: row.userId,
+    reauthAction: row.purpose === 'reauth' ? (row.reauthAction ?? null) : null,
     codeHash: hashCode(verificationId, code),
     expiresAt,
   });
@@ -177,12 +205,16 @@ export async function recordVerification(
 
 export async function startEmailVerification(
   request: EmailVerificationStartRequest,
+  requesterKey: string,
   now: Date = new Date(),
 ): Promise<EmailVerificationStartResponse> {
   assertMailConfigured();
-  const delivery = await resolveDelivery(request);
+  let delivery = await resolveDelivery(request);
   const db = getDb();
-  await assertEmailSendBudget(db, delivery.emailHash, now);
+  if (!(await reserveSendBudget({ group: 'public', emailHash: delivery.emailHash, requesterKey }))) {
+    // Over budget: the same answer, a decoy row, and nothing sent.
+    delivery = { ...delivery, userId: null, sendCodeTo: null, sendNoticeTo: null };
+  }
 
   // A decoy's code is generated and hashed like a real one, and never sent.
   const { verificationId, code, expiresAt } = await recordVerification(db, delivery, now);
@@ -199,7 +231,16 @@ export async function startEmailVerification(
  */
 export async function consumeEmailCode(
   tx: DatabaseOrTransaction,
-  input: { verificationId: string; code: string; purpose: EmailVerificationPurpose; userId?: string },
+  input: {
+    verificationId: string;
+    code: string;
+    purpose: EmailVerificationPurpose;
+    userId?: string;
+    /** `reauth`: the change this code must have been asked for. */
+    reauthAction?: ReauthAction;
+    /** Refuse even the right code (a cap was reached), counting it like a wrong one. */
+    refuse?: boolean;
+  },
   now: Date,
 ): Promise<{ userId: string } | { error: ApiError }> {
   const [row] = await tx
@@ -217,6 +258,10 @@ export async function consumeEmailCode(
         isNull(emailVerifications.confirmedAt),
         gt(emailVerifications.expiresAt, now),
         ...(input.userId ? [eq(emailVerifications.userId, input.userId)] : []),
+        // A re-verification code confirms only the change it was asked for.
+        ...(input.purpose === 'reauth'
+          ? [input.reauthAction ? eq(emailVerifications.reauthAction, input.reauthAction) : sql`false`]
+          : []),
       ),
     )
     .for('update')
@@ -227,7 +272,7 @@ export async function consumeEmailCode(
   const expected = Buffer.from(row.codeHash, 'hex');
   const given = Buffer.from(hashCode(row.id, input.code), 'hex');
   const matches = expected.length === given.length && crypto.timingSafeEqual(expected, given);
-  if (!matches || !row.userId) {
+  if (!matches || !row.userId || input.refuse) {
     const attempts = row.attempts + 1;
     await tx.update(emailVerifications).set({ attempts }).where(eq(emailVerifications.id, row.id));
     return { error: attempts >= EMAIL_CODE_MAX_ATTEMPTS ? tooManyAttempts() : codeInvalid() };
@@ -239,10 +284,20 @@ export async function consumeEmailCode(
   return { userId: row.userId };
 }
 
+/**
+ * Confirm a sign-up or recovery code into a one-use ticket.
+ *
+ * A RECOVERY of an account with an authenticator also needs its code (or a
+ * backup code): a recovery ticket adds a passkey and signs in, so the email
+ * alone must not be enough to get past the second factor. Without one the
+ * answer is `TOTP_REQUIRED` and nothing is spent; a wrong one counts against
+ * the row's attempts and the authenticator's lockout.
+ */
 export async function confirmEmailVerification(
   verificationId: string,
   code: string,
   now: Date = new Date(),
+  totpCode?: string,
 ): Promise<EmailVerificationConfirmResponse> {
   const ticket = crypto.randomBytes(32).toString('base64url');
   const expiresAt = new Date(now.getTime() + EMAIL_TICKET_TTL_MS);
@@ -277,6 +332,19 @@ export async function confirmEmailVerification(
       const attempts = row.attempts + 1;
       await tx.update(emailVerifications).set({ attempts }).where(eq(emailVerifications.id, row.id));
       return { error: attempts >= EMAIL_CODE_MAX_ATTEMPTS ? tooManyAttempts() : codeInvalid() };
+    }
+
+    if (row.purpose === 'recovery' && row.userId && (await isTotpEnabled(row.userId))) {
+      if (!totpCode) {
+        return { error: new ApiError(401, 'Enter the code from your authenticator app too.', SIGN_IN_ERROR_CODES.totpRequired) };
+      }
+      if (!(await verifySecondFactor(row.userId, totpCode, now))) {
+        const attempts = row.attempts + 1;
+        await tx.update(emailVerifications).set({ attempts }).where(eq(emailVerifications.id, row.id));
+        return {
+          error: new ApiError(401, 'That authenticator code is not right.', SIGN_IN_ERROR_CODES.secondFactorInvalid),
+        };
+      }
     }
 
     await tx

@@ -14,6 +14,25 @@ export class OxyAuthenticationError extends Error {
 }
 
 /**
+ * Thrown by the PASSKEY sign-in methods (`webauthnLoginVerify`,
+ * `webauthnRegisterVerify` for a recovery) when the account has an
+ * authenticator: the server answered the one-use second-factor challenge, not a
+ * session. Finish with `completeSecondFactor({ challengeId, code })`.
+ */
+export class SecondFactorRequiredError extends Error {
+  public readonly code = 'SECOND_FACTOR_REQUIRED';
+  public readonly challengeId: string;
+  public readonly expiresAt: number;
+
+  constructor(challenge: { challengeId: string; expiresAt: number }) {
+    super('This account also needs the code from its authenticator app');
+    this.name = 'SecondFactorRequiredError';
+    this.challengeId = challenge.challengeId;
+    this.expiresAt = challenge.expiresAt;
+  }
+}
+
+/**
  * Thrown when an asset's authorized download URL cannot be resolved.
  *
  * `getFileDownloadUrlAsync` asks the API for a URL that is valid for the

@@ -20,6 +20,10 @@ Signing in without a passkey (email code or link, password, authenticator).
   `PASSWORD_MAX_LENGTH`, `TOTP_DIGITS`, `TOTP_PERIOD_SECONDS`,
   `TOTP_BACKUP_CODE_COUNT`) and their types.
 - `EMAIL_VERIFICATION_PURPOSES` gains `signin` and `reauth`.
+- `REAUTH_ACTIONS` and `reauthEmailStartRequestSchema` (`{ action }`): a
+  re-verification code confirms only the change it was asked for.
+- `emailVerificationConfirmRequestSchema.totpCode`: a recovery of an account
+  with an authenticator needs its code too.
 
 ### Changed
 

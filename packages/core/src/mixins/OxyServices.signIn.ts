@@ -39,6 +39,7 @@ import {
   type EmailSignInStartResponse,
   type EmailVerificationStartResponse,
   type LoginResult,
+  type ReauthAction,
   type ReauthProof,
   type SignInMethods,
   type SignInStepResult,
@@ -234,11 +235,13 @@ export function OxyServicesSignInMixin<T extends typeof OxyServicesBase>(Base: T
 
     /**
      * Send a confirmation code to the signed-in account's email, for a
-     * `reauth: { emailCode: { verificationId, code } }` proof.
+     * `reauth: { emailCode: { verificationId, code } }` proof of ONE change:
+     * the code works only for the `action` it was asked for, and the email
+     * names it.
      */
-    async requestReauthEmailCode(): Promise<EmailVerificationStartResponse> {
+    async requestReauthEmailCode(action: ReauthAction): Promise<EmailVerificationStartResponse> {
       try {
-        const res = await this.makeRequest<unknown>('POST', '/users/me/reauth/email', undefined, { cache: false });
+        const res = await this.makeRequest<unknown>('POST', '/users/me/reauth/email', { action }, { cache: false });
         const parsed = safeParseContract(emailVerificationStartResponseSchema, res);
         if (!parsed) throw new Error('users/me/reauth/email returned an unexpected response shape');
         return parsed;

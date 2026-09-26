@@ -1536,7 +1536,7 @@ router.delete(
     } else if (reauth) {
       // An account without a key: a code just sent to its email, plus its
       // authenticator code when it has one (`reauth.service.ts`).
-      await verifyEmailReauth(userId, reauth);
+      await verifyEmailReauth(userId, reauth, 'delete_account');
     } else {
       // A passkey account (ADR 0029 D3): a fresh assertion by one of its
       // passkeys, on auth.oxy.so, over a challenge minted for this account.
