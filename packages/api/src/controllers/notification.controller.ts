@@ -60,6 +60,7 @@ import { UnauthorizedError, BadRequestError, NotFoundError, ConflictError, Inter
 import { PAGINATION } from '../utils/constants';
 import { createOxyNotificationRequestSchema } from '@oxy.so/contracts';
 import { applications } from '../db/schema/applications';
+import { pushSystemNotification } from '../services/systemNotificationPush.service';
 
 // =============================================================================
 // WIRE SERIALIZERS
@@ -353,6 +354,18 @@ export const createNotification = async (req: Request, res: Response): Promise<v
 
     // Emit real-time notification
     await emitNotification(req, notification);
+
+    // A `system` notification is about the recipient's own account; the push to
+    // their vault (Commons) is how they learn of it. Not awaited — delivery
+    // never fails or delays the create.
+    if (created.type === 'system' && created.title !== null && created.message !== null) {
+      void pushSystemNotification({
+        notificationId: created.id,
+        recipientId: created.recipientId,
+        title: created.title,
+        message: created.message,
+      });
+    }
 
     sendSuccess(res, { notification }, 201);
   } catch (error) {

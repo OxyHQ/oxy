@@ -117,7 +117,7 @@ const url = oxyServices.getFileDownloadUrl('file123', 'thumb');
 
 ```typescript
 // Get notifications
-const notifications = await oxyServices.getNotifications();
+const { notifications } = await oxyServices.getNotifications();
 
 // Unread count
 const count = await oxyServices.getUnreadCount();

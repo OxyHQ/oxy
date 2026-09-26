@@ -1226,6 +1226,12 @@
       "description": "Avisos cuando otro dispositivo pide iniciar sesión como tú"
     }
   },
+  "accountNotifications": {
+    "channel": {
+      "name": "Novedades de la cuenta",
+      "description": "Mensajes de Oxy sobre tu cuenta, como una mudanza terminada"
+    }
+  },
   "civic": {
     "sessionGate": {
       "connecting": "Conectando tu identidad…",

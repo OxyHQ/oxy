@@ -36,6 +36,9 @@ import {
   useAuthRequestNotifications,
 } from '@/hooks/notifications/useAuthRequestNotifications';
 import { useForegroundNotificationHandler } from '@/hooks/notifications/useForegroundNotificationHandler';
+import { useSystemNotificationTaps } from '@/hooks/notifications/useSystemNotificationTaps';
+import { systemNotificationIdFromPush } from '@/lib/notifications/system-notification-push';
+import { takeLaunchNotificationData } from '@oxy.so/services/notifications';
 import {
   preventNativeSplashAutoHide,
   useHideNativeSplashWhenReady,
@@ -146,20 +149,31 @@ function scanTargetFromColdLaunch(url: string): ScanReplayHref | null {
 }
 
 /**
- * The cold-launch handoff target, from EITHER source that can start Commons
- * with an intent: a system deep link, or a tapped "Sign in with Oxy" push
- * (issue #691, Phase 4).
+ * What the app was cold-launched to do, from EITHER source that can start
+ * Commons with an intent: a system deep link, or a tapped push (issue #691,
+ * Phase 4).
  *
- * One resolver feeding the ONE replay below, so the push path inherits the
- * "wait until the routing gate settles, then navigate exactly once" behavior
- * instead of growing a parallel mechanism. The deep link wins when both are
- * present: it is the more specific intent (it can also address `attest`), and
- * the push only ever carries an approval code the link form already covers.
+ * `target` feeds the ONE replay below, so the push path inherits the "wait
+ * until the routing gate settles, then navigate exactly once" behavior instead
+ * of growing a parallel mechanism. The deep link wins when both are present: it
+ * is the more specific intent (it can also address `attest`), and the approval
+ * push only ever carries a code the link form already covers.
  *
- * Never rejects — both sources swallow their own failures — so the replay's
+ * `systemNotificationId` is a tapped `system` notification (Oxy Move's "your
+ * account moved"): it opens a link rather than a route, and needs a session to
+ * re-read the notification, so it is handed to `useSystemNotificationTaps`
+ * instead of the replay. The launching notification can be taken only ONCE,
+ * which is why this one reader offers it to both.
+ *
+ * Never rejects — every source swallows its own failures — so the replay's
  * readiness flag always flips.
  */
-async function resolveColdLaunchTarget(): Promise<ScanReplayHref | null> {
+interface ColdLaunchIntent {
+  target: ScanReplayHref | null;
+  systemNotificationId: string | null;
+}
+
+async function resolveColdLaunchIntent(): Promise<ColdLaunchIntent> {
   let url: string | null = null;
   try {
     url = await Linking.getInitialURL();
@@ -169,13 +183,16 @@ async function resolveColdLaunchTarget(): Promise<ScanReplayHref | null> {
     }, error);
   }
 
+  const launchData = await takeLaunchNotificationData();
+  const systemNotificationId = systemNotificationIdFromPush(launchData);
+
   const fromDeepLink = url ? scanTargetFromColdLaunch(url) : null;
   if (fromDeepLink) {
-    return fromDeepLink;
+    return { target: fromDeepLink, systemNotificationId };
   }
 
-  const code = await coldLaunchApprovalCode();
-  return code ? { pathname: '/approve', params: { code } } : null;
+  const code = coldLaunchApprovalCode(launchData);
+  return { target: code ? { pathname: '/approve', params: { code } } : null, systemNotificationId };
 }
 
 /**
@@ -424,7 +441,7 @@ function AppStackContent() {
   // exactly once. If the gate instead resolves to `needsAuth` (no local
   // identity), we drop the intent and let the normal onboarding flow proceed.
   //
-  // `resolveColdLaunchTarget()` is cold-launch-only and covers BOTH intent
+  // `resolveColdLaunchIntent()` is cold-launch-only and covers BOTH intent
   // sources (see its doc). Capturing into a ref + a resolved flag (state) makes
   // the replay race-free: it fires only once BOTH the launch target has been
   // read AND the gate has settled, guarded by a ref so later renders never
@@ -433,11 +450,15 @@ function AppStackContent() {
   const scanReplayDoneRef = useRef(false);
   const [initialUrlResolved, setInitialUrlResolved] = useState(false);
 
+  const [launchSystemNotificationId, setLaunchSystemNotificationId] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
-    void resolveColdLaunchTarget()
-      .then((target) => {
-        if (!cancelled) pendingScanTargetRef.current = target;
+    void resolveColdLaunchIntent()
+      .then(({ target, systemNotificationId }) => {
+        if (cancelled) return;
+        pendingScanTargetRef.current = target;
+        setLaunchSystemNotificationId(systemNotificationId);
       })
       .catch((error: unknown) => {
         logger.error('[commons] cold-launch handoff resolution failed', error, {
@@ -481,6 +502,11 @@ function AppStackContent() {
   // cold-launch path (which has already claimed the launching tap's code by the
   // time `initialUrlResolved` flips) owns that window.
   useAuthRequestNotifications(initialUrlResolved && splashReady && !needsAuth);
+
+  // Taps on a `system` notification (Oxy Move's "your account moved") open the
+  // link Oxy stored for it — the cold-launching one included. Same settled
+  // signal; the hook additionally waits for a usable session.
+  useSystemNotificationTaps(initialUrlResolved && splashReady && !needsAuth, launchSystemNotificationId);
 
   // No `<SafeAreaProvider>` here: this subtree renders inside the provider
   // above, which mounts one itself (on both the ready and the boot-shell

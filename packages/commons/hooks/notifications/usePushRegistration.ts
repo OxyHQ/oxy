@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useOxy } from '@oxy.so/services';
 import { logger } from '@oxy.so/core';
 import { useTranslation } from '@/lib/i18n';
-import { registerVaultPushToken } from '@/lib/notifications/push-registration';
+import { registerVaultPushToken, vaultChannelCopy } from '@/lib/notifications/push-registration';
 
 const LOG_CONTEXT = { component: 'usePushRegistration' } as const;
 
@@ -53,7 +53,7 @@ export function usePushRegistration(): void {
       try {
         const outcome = await registerVaultPushToken(
           oxyServices,
-          { name: t('signInApproval.channel.name'), description: t('signInApproval.channel.description') },
+          vaultChannelCopy(t),
           sessionClient?.getState()?.deviceId,
         );
         if (outcome.status === 'skipped') {

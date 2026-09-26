@@ -411,6 +411,8 @@ export type {
     User,
     LoginResponse,
     Notification,
+    NotificationActor,
+    NotificationPage,
     Wallet,
     Transaction,
     BlockedUser,

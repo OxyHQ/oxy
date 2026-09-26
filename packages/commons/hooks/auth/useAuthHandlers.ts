@@ -7,7 +7,7 @@ import { useAuthStore, useUpdateProfile } from '@oxy.so/services';
 import { requestNotificationPermission } from '@oxy.so/services/notifications';
 import { checkIfOffline } from '@/utils/auth/networkUtils';
 import { isNetworkOrTimeoutError, extractAuthErrorMessage, handleAuthError } from '@/utils/auth/errorUtils';
-import { registerVaultPushToken } from '@/lib/notifications/push-registration';
+import { registerVaultPushToken, vaultChannelCopy } from '@/lib/notifications/push-registration';
 import { STORE_UPDATE_DELAY_MS } from '@/constants/auth';
 import { useTranslation } from '@/lib/i18n';
 
@@ -252,10 +252,7 @@ export function useAuthHandlers({
       if (granted && oxyServices) {
         // Fire-and-forget: a failed registration costs the user the push
         // convenience, never their onboarding. The QR handoff still works.
-        void registerVaultPushToken(oxyServices, {
-          name: t('signInApproval.channel.name'),
-          description: t('signInApproval.channel.description'),
-        }).catch((error: unknown) => {
+        void registerVaultPushToken(oxyServices, vaultChannelCopy(t)).catch((error: unknown) => {
           logger.warn(
             '[commons] onboarding push token registration failed',
             { component: 'useAuthHandlers' },

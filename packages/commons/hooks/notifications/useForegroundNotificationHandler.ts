@@ -4,6 +4,7 @@ import {
   type ForegroundPresentation,
 } from '@oxy.so/services/notifications';
 import { authRequestCodeFromPush } from '@/lib/notifications/auth-request-push';
+import { systemNotificationIdFromPush } from '@/lib/notifications/system-notification-push';
 
 /**
  * Make a "Sign in with Oxy" approval request VISIBLE while Commons is open
@@ -20,6 +21,9 @@ import { authRequestCodeFromPush } from '@/lib/notifications/auth-request-push';
  *     payload that is not ours, is malformed, or carries an already-stale link
  *     yields no code, so tapping it could not open anything — a banner for it
  *     would be a dead end.
+ *   - SHOW a well-formed `system` notification push (Oxy Move's "your account
+ *     moved"): its title and body are the notification itself, and tapping it
+ *     opens the link Oxy stored for it (`useSystemNotificationTaps`).
  *   - SUPPRESS everything else, which is `expo-notifications`' own default for
  *     a foregrounded app. Commons has essentially one notification type today;
  *     stating the default this way means installing the handler changes the
@@ -45,7 +49,9 @@ import { authRequestCodeFromPush } from '@/lib/notifications/auth-request-push';
 export function useForegroundNotificationHandler(): void {
   useEffect(() => {
     void installForegroundNotificationHandler((data): ForegroundPresentation =>
-      authRequestCodeFromPush(data) === null ? 'suppress' : 'show',
+      authRequestCodeFromPush(data) !== null || systemNotificationIdFromPush(data) !== null
+        ? 'show'
+        : 'suppress',
     );
   }, []);
 }

@@ -1226,6 +1226,12 @@
       "description": "Alerts when another device asks to sign in as you"
     }
   },
+  "accountNotifications": {
+    "channel": {
+      "name": "Account updates",
+      "description": "Messages from Oxy about your account, like a finished move"
+    }
+  },
   "civic": {
     "sessionGate": {
       "connecting": "Connecting your identity…",

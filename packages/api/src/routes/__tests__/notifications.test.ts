@@ -51,6 +51,12 @@ jest.mock('../../middleware/auth', () => ({
   rejectQueryToken: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
+/** The vault push a `system` notification triggers; its own suite covers delivery. */
+const mockPushSystemNotification = jest.fn();
+jest.mock('../../services/systemNotificationPush.service', () => ({
+  pushSystemNotification: (...args: unknown[]) => mockPushSystemNotification(...args),
+}));
+
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
@@ -462,6 +468,9 @@ describe('POST /notifications — privileged service scope only', () => {
       updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     });
     expect(await storedFor(RECIPIENT_ID)).toHaveLength(1);
+    // An actor's follow is rendered by the app it happened in; only `system`
+    // notifications are pushed to the vault.
+    expect(mockPushSystemNotification).not.toHaveBeenCalled();
   });
 
   it('stores and returns the text and deep link of a `system` notification', async () => {
@@ -483,6 +492,14 @@ describe('POST /notifications — privileged service scope only', () => {
       url: 'https://move.oxy.so/jobs/job-1',
     });
     expect(emitted.at(-1)).toMatchObject({ payload: { title: 'Your move is complete', url: 'https://move.oxy.so/jobs/job-1' } });
+    const created = (res.body.data as { notification: { _id: string } }).notification;
+    expect(mockPushSystemNotification).toHaveBeenCalledTimes(1);
+    expect(mockPushSystemNotification).toHaveBeenCalledWith({
+      notificationId: created._id,
+      recipientId: RECIPIENT_ID,
+      title: 'Your move is complete',
+      message: 'Oxy Move brought 12 posts over from Mastodon.',
+    });
 
     mockBearerUser.current = RECIPIENT_ID;
     const list = await request('GET', '/notifications');

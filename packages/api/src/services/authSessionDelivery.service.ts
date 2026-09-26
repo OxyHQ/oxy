@@ -101,8 +101,12 @@ export type DeliverAuthRequestOutcome =
  * ("not scoped to any application") joins nothing and is never targeted, and a
  * scoped install is targeted only while its application is `active` AND carries
  * the staff-controlled capability.
+ *
+ * These installs are the identity's VAULT — where the Oxy account itself lives
+ * on a device — so a `system` notification about that account is delivered to
+ * the same set (`systemNotificationPush.service.ts`).
  */
-async function resolveIdentityApprovalTokens(userId: string): Promise<string[]> {
+export async function resolveIdentityApprovalTokens(userId: string): Promise<string[]> {
   const installs = await getDb()
     .select({ token: pushTokens.token })
     .from(pushTokens)

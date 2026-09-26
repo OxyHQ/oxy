@@ -5,6 +5,7 @@ import type { CreateOxyNotificationRequest } from '@oxy.so/contracts';
 import type {
   User,
   Notification,
+  NotificationPage,
   NotificationPreferences,
   UserPreferences,
   SearchProfilesResponse,
@@ -1092,11 +1093,13 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
     }
 
     /**
-     * Get notifications
+     * One page of the signed-in user's Oxy notifications, newest first
+     * (`GET /notifications`), with the unread count across all pages.
      */
-    async getNotifications(): Promise<Notification[]> {
+    async getNotifications(params: { page?: number; limit?: number } = {}): Promise<NotificationPage> {
+      const query = buildQueryParams({ page: params.page, limit: params.limit });
       return this.withAuthRetry(async () => {
-        return await this.makeRequest<Notification[]>('GET', '/notifications', undefined, {
+        return await this.makeRequest<NotificationPage>('GET', '/notifications', query, {
           cache: false, // Don't cache notifications - always get fresh data
         });
       }, 'getNotifications');
@@ -1107,10 +1110,10 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
      */
     async getUnreadCount(): Promise<number> {
       try {
-        const res = await this.makeRequest<{ count: number }>('GET', '/notifications/unread-count', undefined, {
+        const res = await this.makeRequest<{ unreadCount: number }>('GET', '/notifications/unread-count', undefined, {
           cache: false, // Don't cache unread count - always get fresh data
         });
-        return res.count;
+        return res.unreadCount;
       } catch (error) {
         throw this.handleError(error);
       }
@@ -1123,20 +1126,29 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
      * from an Oxy service about the recipient's own account, with the recipient
      * as actor and their profile as the entity.
      */
-    async createNotification(data: CreateOxyNotificationRequest | Partial<Notification>): Promise<Notification> {
+    async createNotification(data: CreateOxyNotificationRequest): Promise<Notification> {
       try {
-        return await this.makeRequest<Notification>('POST', '/notifications', data, { cache: false });
+        const res = await this.makeRequest<{ notification: Notification }>('POST', '/notifications', data, { cache: false });
+        return res.notification;
       } catch (error) {
         throw this.handleError(error);
       }
     }
 
     /**
-     * Mark notification as read
+     * Mark one of the signed-in user's notifications read and return it as
+     * stored. Scoped to the recipient server-side, so it is also the
+     * authoritative read of a notification by id: a foreign or unknown id 404s.
      */
-    async markNotificationAsRead(notificationId: string): Promise<void> {
+    async markNotificationAsRead(notificationId: string): Promise<Notification> {
       try {
-        await this.makeRequest('PUT', `/notifications/${notificationId}/read`, undefined, { cache: false });
+        const res = await this.makeRequest<{ notification: Notification }>(
+          'PUT',
+          `/notifications/${encodeURIComponent(notificationId)}/read`,
+          undefined,
+          { cache: false },
+        );
+        return res.notification;
       } catch (error) {
         throw this.handleError(error);
       }
