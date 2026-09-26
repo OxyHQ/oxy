@@ -61,6 +61,7 @@ and in any third-party verifier — using the exact same `@oxy.so/core` code.
 | [auth/device-session.md](auth/device-session.md) | DeviceSession API (`/session/device/*`), `session_state` socket sync, multi-account switching, `SessionClient` |
 | [auth/integration-guide.md](auth/integration-guide.md) | "Sign in with Oxy" for third-party apps: Console registration, OAuth 2.0 + PKCE (SPA / server / native), `OxySignInButton`, consent, grant revocation |
 | [identity/README.md](identity/README.md) | `did:web` documents (custodial ↔ self-sovereign), signed records (envelope v2, hash chain, `verifyEnvelope`), signed export, domain verification, "Sign in with Oxy" |
+| [identity/instance-fetch.md](identity/instance-fetch.md) | Oxy's instance actor signs one ActivityPub GET for a first-party service (`federation:instance-fetch`), so Oxy Move can read authorized-fetch servers without a key |
 | [identity/account-events.md](identity/account-events.md) | Account deletion → relying parties: signed `account.deleted` Security Event Token, webhook push with retries, `GET /account-events` pull feed, retention |
 | [reputation/README.md](reputation/README.md) | Oxy Trust ledger (tiers/influence), crypto-owned reputation, F2 real-life attestation + validator jury, F3 proof-of-personhood, F4 verifiable credentials |
 | [nodes/README.md](nodes/README.md) | The data-node model, `@oxy.so/node` server, registration, Oxy→node export, node→Oxy ingest (verify/LWW/fork/counter-sign), managed vault |

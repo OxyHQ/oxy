@@ -3031,7 +3031,8 @@
                         "podcasts:write",
                         "linked-accounts:read",
                         "files:user-media:write",
-                        "federation:identities:resolve"
+                        "federation:identities:resolve",
+                        "federation:instance-fetch"
                       ]
                     }
                   }
@@ -3306,7 +3307,8 @@
                         "podcasts:write",
                         "linked-accounts:read",
                         "files:user-media:write",
-                        "federation:identities:resolve"
+                        "federation:identities:resolve",
+                        "federation:instance-fetch"
                       ]
                     }
                   },
@@ -3672,7 +3674,8 @@
                         "podcasts:write",
                         "linked-accounts:read",
                         "files:user-media:write",
-                        "federation:identities:resolve"
+                        "federation:identities:resolve",
+                        "federation:instance-fetch"
                       ]
                     }
                   },
@@ -16841,6 +16844,97 @@
           }
         },
         "operationId": "postFederationIdentitiesResolve"
+      }
+    },
+    "/federation/instance-fetch/sign": {
+      "post": {
+        "tags": [
+          "Federation"
+        ],
+        "summary": "Oxy's instance actor signs ONE ActivityPub GET of `url` for the calling",
+        "description": "service, which then sends the returned `Host`/`Date`/`Signature` on that GET\nitself. The service holds no key and Oxy fetches nothing. See\n`services/federation/instanceFetchSignature.ts` for why it is the instance\nactor and what bounds it: GET only (Oxy composes the signing string), the\ninstance key only, public https URLs only.\n\n - `federation:instance-fetch` scope     → 403\n - body schema (`{ url }`, strict)       → 400 (validate)\n - not https / credentials / not public  → 400 `details.reason`",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/federation.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postFederationInstanceFetchSign"
       }
     },
     "/federation/move": {

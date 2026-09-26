@@ -389,6 +389,17 @@ async function getInstanceKeyPair(domain: string = AP_DOMAIN): Promise<KeyPairDo
 }
 
 /**
+ * The keyId of Oxy's own instance actor (`https://<AP_DOMAIN>/ap/users/instance`),
+ * minting its key pair if this database has none yet — the actor route mints it
+ * the same way on first read. Used by `POST /federation/instance-fetch/sign`,
+ * which then signs through {@link signWithKeyId}, so the private key stays in
+ * this module.
+ */
+export async function ensureInstanceKeyId(): Promise<string> {
+  return (await getInstanceKeyPair()).keyId;
+}
+
+/**
  * Get or create a per-user key pair scoped to a domain.
  *
  * The key material is keyed by the full keyId (which embeds the domain), so a

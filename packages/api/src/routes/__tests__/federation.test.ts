@@ -44,6 +44,7 @@ import type { AddressInfo } from 'net';
 const mockGetUserPublicKey = jest.fn();
 const mockSignWithKeyId = jest.fn();
 const mockResolveExternalIdentity = jest.fn();
+const mockEnsureInstanceKeyId = jest.fn();
 
 /** The credential `serviceAuthMiddleware` presents — set per test. */
 let currentServiceApp: Record<string, unknown> | undefined;
@@ -63,6 +64,7 @@ jest.mock('../../services/federation.service', () => ({
   __esModule: true,
   getUserPublicKey: (...args: unknown[]) => mockGetUserPublicKey(...args),
   signWithKeyId: (...args: unknown[]) => mockSignWithKeyId(...args),
+  ensureInstanceKeyId: (...args: unknown[]) => mockEnsureInstanceKeyId(...args),
   federationService: {
     resolveExternalIdentity: (...args: unknown[]) => mockResolveExternalIdentity(...args),
   },
@@ -139,6 +141,8 @@ const SIGNING_STRING = [
   'host: mastodon.social',
   'date: Wed, 18 Jun 2026 00:00:00 GMT',
 ].join('\n');
+
+const INSTANCE_KEY_ID = 'https://oxy.so/ap/users/instance#main-key';
 
 let server: http.Server;
 let publicKeyPem: string;
@@ -219,6 +223,7 @@ beforeEach(async () => {
     return Promise.resolve(signer.sign(privateKeyPem, 'base64'));
   });
   mockGetUserPublicKey.mockResolvedValue({ keyId: MENTION_KEY_ID, publicKeyPem });
+  mockEnsureInstanceKeyId.mockResolvedValue(INSTANCE_KEY_ID);
 });
 
 describe('loadAllowedDomains — the allow-list must FAIL CLOSED', () => {
@@ -583,3 +588,86 @@ describe('identity lookup/resolve — federation:identities:resolve without fede
     expect(mockSignWithKeyId).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * `POST /federation/instance-fetch/sign` — the signer is REAL here
+ * (`services/federation/instanceFetchSignature.ts`, `signRequest`, the SSRF
+ * guard); only the key store is the test key. A public IP literal stands in for
+ * a remote host so the guard decides without DNS.
+ */
+describe('POST /federation/instance-fetch/sign — the instance actor signs one GET', () => {
+  const OUTBOX = 'https://1.1.1.1/users/ada/outbox?page=true';
+
+  function parseSignature(header: string): Record<string, string> {
+    return Object.fromEntries([...header.matchAll(/(\w+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+  }
+
+  it('signs a GET of exactly that URL with the instance key, and the signature verifies', async () => {
+    presentCredential('move-app', ['federation:instance-fetch']);
+    const res = await requestJson('POST', '/federation/instance-fetch/sign', { url: OUTBOX });
+    expect(res.status).toBe(200);
+    const data = res.body.data as { keyId: string; headers: Record<string, string> };
+    expect(data.keyId).toBe(INSTANCE_KEY_ID);
+    expect(Object.keys(data.headers).sort()).toEqual(['Date', 'Host', 'Signature']);
+    expect(data.headers.Host).toBe('1.1.1.1');
+
+    const signature = parseSignature(data.headers.Signature);
+    expect(signature.keyId).toBe(INSTANCE_KEY_ID);
+    expect(signature.headers).toBe('(request-target) host date');
+    expect(mockSignWithKeyId).toHaveBeenCalledTimes(1);
+    expect(mockSignWithKeyId.mock.calls[0][0]).toBe(INSTANCE_KEY_ID);
+
+    const signingString = [
+      '(request-target): get /users/ada/outbox?page=true',
+      'host: 1.1.1.1',
+      `date: ${data.headers.Date}`,
+    ].join('\n');
+    const verifier = crypto.createVerify('sha256');
+    verifier.update(signingString);
+    verifier.end();
+    expect(verifier.verify(publicKeyPem, signature.signature, 'base64')).toBe(true);
+    expect(JSON.stringify(res.body)).not.toContain('PRIVATE KEY');
+  });
+
+  it('is refused without federation:instance-fetch — federation:write and the resolve scope do not imply it', async () => {
+    for (const scopes of [['federation:write'], ['federation:identities:resolve'], []]) {
+      presentCredential('move-app', scopes);
+      const res = await requestJson('POST', '/federation/instance-fetch/sign', { url: OUTBOX });
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe('Missing required scope: federation:instance-fetch');
+    }
+    expect(mockSignWithKeyId).not.toHaveBeenCalled();
+  });
+
+  it('does not let federation:instance-fetch reach /federation/sign', async () => {
+    presentCredential('move-app', ['federation:instance-fetch']);
+    const res = await requestJson('POST', '/federation/sign', { keyId: MENTION_KEY_ID, signingString: SIGNING_STRING });
+    expect(res.status).toBe(403);
+    expect(mockSignWithKeyId).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['http://1.1.1.1/users/ada/outbox', 'not_https'],
+    ['https://127.0.0.1/users/ada/outbox', 'not_public'],
+    ['https://10.0.0.5/users/ada/outbox', 'not_public'],
+    ['https://169.254.169.254/latest/meta-data', 'not_public'],
+    ['https://ada:secret@1.1.1.1/users/ada/outbox', 'credentials_in_url'],
+    ['not a url', 'invalid_url'],
+  ])('refuses %s (%s) and signs nothing', async (url, reason) => {
+    presentCredential('move-app', ['federation:instance-fetch']);
+    const res = await requestJson('POST', '/federation/instance-fetch/sign', { url });
+    expect(res.status).toBe(400);
+    expect(res.body.details).toEqual({ reason });
+    expect(mockSignWithKeyId).not.toHaveBeenCalled();
+  });
+
+  it('accepts a URL and nothing else — no keyId, no signing string, no method', async () => {
+    presentCredential('move-app', ['federation:instance-fetch']);
+    for (const extra of [{ keyId: MENTION_KEY_ID }, { signingString: SIGNING_STRING }, { method: 'POST' }]) {
+      const res = await requestJson('POST', '/federation/instance-fetch/sign', { url: OUTBOX, ...extra });
+      expect(res.status).toBe(400);
+    }
+    expect(mockSignWithKeyId).not.toHaveBeenCalled();
+  });
+});
+

@@ -160,6 +160,10 @@
  *   accounts ANY Oxy user has proven they own
  *   (`GET /linked-accounts/by-user/:userId`). PRIVILEGED — see
  *   {@link PRIVILEGED_APPLICATION_SCOPES}.
+ * - `federation:instance-fetch` permits a service credential to have Oxy's
+ *   INSTANCE actor (`https://<federation domain>/ap/users/instance`) sign one
+ *   ActivityPub GET (`POST /federation/instance-fetch/sign`). PRIVILEGED — see
+ *   {@link PRIVILEGED_APPLICATION_SCOPES}.
  */
 export const APPLICATION_SCOPES = [
   'files:read',
@@ -210,6 +214,7 @@ export const APPLICATION_SCOPES = [
   'linked-accounts:read',
   'files:user-media:write',
   'federation:identities:resolve',
+  'federation:instance-fetch',
 ] as const;
 
 export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
@@ -339,6 +344,19 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   profile fields, which is why it is acceptable here. Privileged because a
  *   self-granting owner could otherwise drive unbounded remote fetches and
  *   shadow-user creation.
+ * - `federation:instance-fetch` has Oxy's instance actor sign a GET for the
+ *   caller, so a first-party service can read an instance in authorized-fetch
+ *   ("secure") mode without holding a key. It is the smallest signing authority
+ *   there is, and it is NOT a slice of `federation:write`'s: Oxy builds the
+ *   signing string itself from a URL (never a caller-supplied string), the
+ *   method is always GET, the key is always the instance actor's (never a
+ *   person's), and the URL must be public https. A GET signed by the instance
+ *   actor proves only "this request comes from the Oxy server", which unlocks
+ *   PUBLIC content on an instance that has not blocked Oxy — the instance actor
+ *   follows nobody, so nothing followers-only is reachable with it. Privileged
+ *   anyway, because every signature spends Oxy's reputation as a fetcher: a
+ *   remote admin who sees abusive reads from `instance@oxy.so` blocks all of
+ *   Oxy, not the app that made them.
  *
  * All non-privileged scopes in {@link APPLICATION_SCOPES} authorise an app only
  * over its OWN resources (files, models, webhooks, public user reads) or over
@@ -370,6 +388,7 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'linked-accounts:read',
   'files:user-media:write',
   'federation:identities:resolve',
+  'federation:instance-fetch',
 ] as const satisfies readonly ApplicationScope[];
 
 /**

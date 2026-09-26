@@ -1,12 +1,22 @@
 import { Router, type Response } from 'express';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { canonicalFederationHost } from '@oxy.so/federation';
-import { resolveExternalIdentityRequestSchema, resolveExternalIdentityResponseSchema, lookupExternalIdentitiesRequestSchema, lookupExternalIdentitiesResponseSchema } from '@oxy.so/contracts';
+import {
+  resolveExternalIdentityRequestSchema,
+  resolveExternalIdentityResponseSchema,
+  lookupExternalIdentitiesRequestSchema,
+  lookupExternalIdentitiesResponseSchema,
+  instanceFetchSignRequestSchema,
+  instanceFetchSignResponseSchema,
+  type InstanceFetchSignRequest,
+} from '@oxy.so/contracts';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import type { ApplicationScope } from '../utils/applicationScopes';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { validate } from '../middleware/validate';
-import { ApiError, ForbiddenError, NotFoundError, ConflictError, BadRequestError } from '../utils/error';
+import { rateLimit } from '../middleware/rateLimiter';
+import { hashedIpKey } from '../utils/ipKey';
+import { ApiError, ForbiddenError, NotFoundError, ConflictError, BadRequestError, ServiceUnavailableError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
@@ -22,6 +32,7 @@ import { getEquivalentUserIds, getExternalIdentitiesForUser, resolveExternalIden
 import { externalIdentities, externalIdentityActors } from '../db/schema/externalIdentities';
 import { userService } from '../services/user.service';
 import { applyFederationMove, FederationMoveRefused } from '../services/federationMove.service';
+import { InstanceFetchRefused, InstanceKeyUnavailable, signInstanceFetch } from '../services/federation/instanceFetchSignature';
 import {
   DEFAULT_PURGE_LIMIT,
   purgeBlockedDomain,
@@ -280,6 +291,71 @@ router.post(
       algorithm: 'rsa-sha256',
       signature,
     });
+  }),
+);
+
+/**
+ * The ONLY scope `POST /federation/instance-fetch/sign` accepts. Not
+ * `federation:write`: a holder of that signs through `/sign` with its own
+ * domain's keys and has no reason to borrow Oxy's instance actor, and letting
+ * it would make the smaller authority a side effect of the larger one.
+ */
+const INSTANCE_FETCH_SCOPE: ApplicationScope = 'federation:instance-fetch';
+
+/**
+ * One signature per remote GET. Oxy Move reads a Mastodon host at most once a
+ * second per worker, so this is headroom for several concurrent migrations,
+ * not a budget any single one approaches.
+ */
+const instanceFetchLimiter = rateLimit({
+  prefix: 'rl:federation:instance-fetch:',
+  windowMs: 60 * 1000,
+  max: 1200,
+  keyGenerator: (req) => (req as ServiceAuthRequest).serviceApp?.appId ?? hashedIpKey(req),
+});
+
+/**
+ * POST /federation/instance-fetch/sign
+ *
+ * Oxy's instance actor signs ONE ActivityPub GET of `url` for the calling
+ * service, which then sends the returned `Host`/`Date`/`Signature` on that GET
+ * itself. The service holds no key and Oxy fetches nothing. See
+ * `services/federation/instanceFetchSignature.ts` for why it is the instance
+ * actor and what bounds it: GET only (Oxy composes the signing string), the
+ * instance key only, public https URLs only.
+ *
+ *  - `federation:instance-fetch` scope     → 403
+ *  - body schema (`{ url }`, strict)       → 400 (validate)
+ *  - not https / credentials / not public  → 400 `details.reason`
+ */
+router.post(
+  '/instance-fetch/sign',
+  serviceAuthMiddleware,
+  instanceFetchLimiter,
+  validate({ body: instanceFetchSignRequestSchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
+    if (!(req.serviceApp?.scopes ?? []).includes(INSTANCE_FETCH_SCOPE)) {
+      throw new ForbiddenError(`Missing required scope: ${INSTANCE_FETCH_SCOPE}`);
+    }
+    const { url } = req.body as InstanceFetchSignRequest;
+    try {
+      const signed = await signInstanceFetch(url);
+      logger.debug('federation/instance-fetch: signed a GET', {
+        appId: req.serviceApp?.appId,
+        host: signed.headers.Host,
+      });
+      return sendSuccess(res, instanceFetchSignResponseSchema.parse(signed));
+    } catch (error) {
+      if (error instanceof InstanceFetchRefused) {
+        logger.warn('federation/instance-fetch: refused to sign', {
+          appId: req.serviceApp?.appId,
+          reason: error.reason,
+        });
+        throw new BadRequestError(error.message, { reason: error.reason });
+      }
+      if (error instanceof InstanceKeyUnavailable) throw new ServiceUnavailableError(error.message);
+      throw error;
+    }
   }),
 );
 
