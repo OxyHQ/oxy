@@ -1,5 +1,18 @@
 # Changelog — `@oxy.so/core`
 
+## 3.0.1
+
+### Fixed
+
+- `OxyServer`'s middleware (`middleware.auth()`, `.service()`, `.socket()`)
+  types `req.user` as `OxyRequestUser`, the shape `OxyAuthRequest` already
+  declared — it used the full `User`, so an app that augments Express's
+  `Request` with `OxyRequestUser` needed a cast to mount them. A validated
+  user still carries every field.
+- The 3.0 codemod also rewrites calls on `this._oxyServices`, getter calls
+  (`oxy()`, `getOxyClient()`) and parenthesised receivers
+  (`(a ?? oxy).getUserById`).
+
 ## 3.0.0
 
 The client is organised by namespace, the server half is its own class, and
