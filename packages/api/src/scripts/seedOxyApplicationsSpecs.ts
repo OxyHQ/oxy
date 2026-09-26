@@ -664,6 +664,10 @@ export const SEED_APPS: SeedAppSpec[] = [
     description:
       'Official Oxy participatory moderation platform — reviewers are assigned cases by the server and review them blind.',
     websiteUrl: 'https://crowdsource.oxy.so',
+    // CrowdSource erases or anonymises a deleted Oxy account's reviewer profile,
+    // reports and community notes on this push (OxyHQ/Mention#1178), and
+    // reconciles from GET /account-events when it misses one.
+    webhookUrl: 'https://api.crowdsource.oxy.so/webhooks/oxy/account-events',
     type: 'first_party',
     // Two web surfaces share this client, so each origin is listed: the
     // reviewer app, and the Trust & Safety / developer console. Trust

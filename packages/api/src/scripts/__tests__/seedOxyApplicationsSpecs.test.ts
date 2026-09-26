@@ -509,6 +509,19 @@ describe('the canonical official-application registry', () => {
     });
   });
 
+  describe('relying parties that hold account data receive account.deleted (OxyHQ/Mention#1178)', () => {
+    it.each([
+      ['Mention', 'https://api.mention.earth/webhooks/oxy/account-events'],
+      ['CrowdSource', 'https://api.crowdsource.oxy.so/webhooks/oxy/account-events'],
+    ])('%s declares its account-events webhook and is a recipient of every event', (name, hook) => {
+      const spec = specNamed(name);
+      expect(spec.webhookUrl).toBe(hook);
+      // docs/identity/account-events.md: first_party, internal and system apps are
+      // told of every deletion; any other type only of the people it served.
+      expect(['first_party', 'internal', 'system']).toContain(spec.type);
+    });
+  });
+
   describe('Mercaria owns only its catalog execution authority', () => {
     it('declares the scopes used by catalog registration, ticket introspection and audit', () => {
       expect(specNamed('Mercaria').scopes).toEqual([

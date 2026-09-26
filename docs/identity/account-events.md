@@ -137,7 +137,11 @@ oxy-event-type: account.deleted
   accumulating and the pull feed keeps serving them.
 
 The webhook URL is set on the application in the Oxy Console (`webhookUrl`).
-Mention's is `https://api.mention.earth/webhooks/oxy/account-events`.
+Mention's is `https://api.mention.earth/webhooks/oxy/account-events`;
+CrowdSource's is `https://api.crowdsource.oxy.so/webhooks/oxy/account-events`
+(OxyHQ/Mention#1178). Both are declared in the application seed
+(`seedOxyApplicationsSpecs.ts`), which sets a declared webhook and mints a fresh
+secret whenever it changes the URL.
 
 ## Pull
 
