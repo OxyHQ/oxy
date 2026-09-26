@@ -191,25 +191,25 @@ describe('sparse-unique becomes a plain UNIQUE on a nullable column', () => {
     ).resolves.toBeDefined();
 
     const rows = await getDb()
-      .select({ secretHash: deviceSessions.secretHash })
+      .select({ hubSecretHash: deviceSessions.hubSecretHash })
       .from(deviceSessions)
       .where(inArray(deviceSessions.deviceId, deviceIds));
 
     expect(rows).toHaveLength(3);
     // NULL, never `''` — an empty string is a VALUE and would collide for real.
-    expect(rows.map((row) => row.secretHash)).toEqual([null, null, null]);
+    expect(rows.map((row) => row.hubSecretHash)).toEqual([null, null, null]);
   });
 
   it('still refuses two devices bound to the SAME secret hash', async () => {
-    const secretHash = `sha-${randomUUID()}`;
-    await getDb().insert(deviceSessions).values({ deviceId: `d-${randomUUID()}`, secretHash });
+    const hubSecretHash = `sha-${randomUUID()}`;
+    await getDb().insert(deviceSessions).values({ deviceId: `d-${randomUUID()}`, hubSecretHash });
 
     const error = await rejection(
-      getDb().insert(deviceSessions).values({ deviceId: `d-${randomUUID()}`, secretHash })
+      getDb().insert(deviceSessions).values({ deviceId: `d-${randomUUID()}`, hubSecretHash })
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
-    expect(pgErrorText(error)).toContain('device_sessions_secret_hash_key');
+    expect(pgErrorText(error)).toContain('device_sessions_hub_secret_hash_key');
   });
 
   it('lets many authorization requests carry NO authorize code at once', async () => {
@@ -240,15 +240,15 @@ describe('sparse-unique becomes a plain UNIQUE on a nullable column', () => {
     // asserted: an empty string is a VALUE, so a `default: ''` port of Mongo's
     // `default: undefined` would make every secret-less device collide with
     // every other one — converting a non-problem into a live outage.
-    await getDb().delete(deviceSessions).where(eq(deviceSessions.secretHash, ''));
-    await getDb().insert(deviceSessions).values({ deviceId: `d-${randomUUID()}`, secretHash: '' });
+    await getDb().delete(deviceSessions).where(eq(deviceSessions.hubSecretHash, ''));
+    await getDb().insert(deviceSessions).values({ deviceId: `d-${randomUUID()}`, hubSecretHash: '' });
 
     const error = await rejection(
-      getDb().insert(deviceSessions).values({ deviceId: `d-${randomUUID()}`, secretHash: '' })
+      getDb().insert(deviceSessions).values({ deviceId: `d-${randomUUID()}`, hubSecretHash: '' })
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
-    await getDb().delete(deviceSessions).where(eq(deviceSessions.secretHash, ''));
+    await getDb().delete(deviceSessions).where(eq(deviceSessions.hubSecretHash, ''));
   });
 
   it('never defaults either column to an empty string', async () => {
@@ -256,7 +256,7 @@ describe('sparse-unique becomes a plain UNIQUE on a nullable column', () => {
       select table_name, column_name from information_schema.columns
       where table_schema = 'public'
         and (table_name, column_name) in (
-          ('device_sessions', 'secret_hash'), ('auth_sessions', 'authorize_code')
+          ('device_sessions', 'hub_secret_hash'), ('auth_sessions', 'authorize_code')
         )
         and column_default is not null
     `);

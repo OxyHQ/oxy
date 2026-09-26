@@ -67,6 +67,37 @@ describe('SessionClient state', () => {
     expect(transport.ensureActiveToken).toHaveBeenCalledWith(expect.objectContaining({ revision: 1 }));
   });
 
+  // ADR 0029 D2: every official web app shares the browser's DeviceSession, so
+  // a sign-out in ANOTHER app reaches this one as a `session_state` push.
+  it('re-converges on the remaining account when another app signs this one out', async () => {
+    const transport: TokenTransport = { ensureActiveToken: jest.fn().mockResolvedValue(undefined) };
+    const onUnauthenticated = jest.fn();
+    const c = new TestClient(makeHost(), { transport, onUnauthenticated });
+    const two = (rev: number, accounts: string[], active: string | null): DeviceSessionState => ({
+      deviceId: 'd1',
+      accounts: accounts.map((accountId, authuser) => ({ accountId, sessionId: `s-${accountId}`, authuser })),
+      activeAccountId: active,
+      revision: rev,
+      updatedAt: 1720000000000,
+    });
+    c.apply(two(1, ['a1', 'a2'], 'a1'));
+    const seen: (DeviceSessionState | null)[] = [];
+    c.subscribe((state) => seen.push(state));
+
+    expect(c.apply(two(2, ['a2'], 'a2'))).toBe(true);
+    // The bearer is minted for the new active account BEFORE anyone is told.
+    expect(transport.ensureActiveToken).toHaveBeenLastCalledWith(expect.objectContaining({ activeAccountId: 'a2' }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(seen.at(-1)?.activeAccountId).toBe('a2');
+    expect(onUnauthenticated).not.toHaveBeenCalled();
+
+    // The last account leaving is a sign-out here too — but a PUSH, so the
+    // consumer keeps its durable credential (the next mint answers for it).
+    expect(c.apply(two(3, [], null))).toBe(true);
+    expect(onUnauthenticated).toHaveBeenCalledWith('push');
+  });
+
   it('unsubscribe stops notifications', () => {
     const c = new TestClient(makeHost());
     const seen: unknown[] = [];

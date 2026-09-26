@@ -36,6 +36,7 @@ jest.mock('../session.service', () => ({
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';
+import { deviceCredentials } from '../../db/schema/deviceCredentials';
 import { devicePrincipals } from '../../db/schema/devicePrincipals';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import { users } from '../../db/schema/users';
@@ -94,6 +95,16 @@ async function storedAccounts(device: string) {
   }));
 }
 
+/** The stored holder-credential hashes of a device, read straight from Postgres. */
+async function storedCredentialHashes(device: string): Promise<string[]> {
+  const rows = await getDb()
+    .select({ secretHash: deviceCredentials.secretHash })
+    .from(deviceCredentials)
+    .innerJoin(deviceSessions, eq(deviceCredentials.deviceSessionId, deviceSessions.id))
+    .where(eq(deviceSessions.deviceId, device));
+  return rows.map((row) => row.secretHash);
+}
+
 const sha256 = (value: string) =>
   nodeCrypto.createHash('sha256').update(value).digest('hex');
 
@@ -117,9 +128,6 @@ describe('projectState', () => {
         id: 'row1',
         deviceId: 'd1',
         activeAccountId: 'a1',
-        secretHash: null,
-        prevSecretHash: null,
-        prevSecretExpiresAt: null,
         backgroundSecretHash: null,
         backgroundSecretAccountId: null,
         backgroundSecretExpiresAt: null,
@@ -143,9 +151,6 @@ describe('projectState', () => {
       id: 'row1',
       deviceId: 'd1',
       activeAccountId: 'org1',
-      secretHash: null,
-      prevSecretHash: null,
-      prevSecretExpiresAt: null,
       backgroundSecretHash: null,
       backgroundSecretAccountId: null,
       backgroundSecretExpiresAt: null,
@@ -560,55 +565,77 @@ describe('signout', () => {
   });
 });
 
-describe('signout — device-secret cleanup', () => {
+describe('signout — holder credentials (ADR 0029 D2)', () => {
   /*
-   * These assertions read the STORED ROW, not an update payload. Clearing this
-   * material is what stops a retained secret from minting a token after a
-   * signout, so the property that matters is the column's value afterwards —
-   * and specifically that it is NULL rather than `''`, which would be a real
-   * value occupying the unique `secret_hash` slot while still reading as
-   * "no secret" to `getStateBySecret`.
+   * The browser's DeviceSession is shared by every official web app, each with
+   * its own `device_credentials` row. These read the STORED rows: whether a
+   * holder can still mint after a sign-out is the property that matters.
    */
-  it('signout-ALL clears every secret column, device AND background, to NULL', async () => {
+  it('signout-ALL deletes every holder credential and clears the background one to NULL', async () => {
     const device = deviceId();
     const a1 = await account();
     await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
-    await deviceSessionService.issueDeviceSecret(device);
+    const auth = await deviceSessionService.issueDeviceSecret(device);
+    const app = await deviceSessionService.issueDeviceSecret(device);
     mockGetAccessToken.mockResolvedValue({ accessToken: 'jwt', expiresAt: new Date() });
     await deviceSessionService.issueBackgroundCredential(device, a1);
 
-    const before = await storedDevice(device);
-    expect(before.secretHash).not.toBeNull();
-    expect(before.backgroundSecretHash).not.toBeNull();
+    expect(await storedCredentialHashes(device)).toHaveLength(2);
+    expect((await storedDevice(device)).backgroundSecretHash).not.toBeNull();
 
     await deviceSessionService.signout(device, { all: true });
 
     const after = await storedDevice(device);
-    expect(after.secretHash).toBeNull();
-    expect(after.prevSecretHash).toBeNull();
-    expect(after.prevSecretExpiresAt).toBeNull();
+    expect(await storedCredentialHashes(device)).toEqual([]);
     expect(after.backgroundSecretHash).toBeNull();
     expect(after.backgroundSecretAccountId).toBeNull();
     expect(after.backgroundSecretExpiresAt).toBeNull();
+    expect(await deviceSessionService.getStateBySecret(device, auth as string)).toBeNull();
+    expect(await deviceSessionService.getStateBySecret(device, app as string)).toBeNull();
   });
 
-  it('single-account signout revokes the shared device secret', async () => {
+  it('single-account signout keeps EVERY holder minting for the account that remains', async () => {
     const device = deviceId();
     const a1 = await account();
     const a2 = await account();
     await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
     await deviceSessionService.addAccount(device, { accountId: a2, sessionId: 's2' });
-    const previousRetainedSecret = await deviceSessionService.issueDeviceSecret(device);
-    const retainedSecret = await deviceSessionService.issueDeviceSecret(device);
+    const auth = await deviceSessionService.issueDeviceSecret(device);
+    const app = await deviceSessionService.issueDeviceSecret(device);
 
     await deviceSessionService.signout(device, { accountId: a1 });
 
-    const after = await storedDevice(device);
-    expect(after.secretHash).toBeNull();
-    expect(after.prevSecretHash).toBeNull();
-    expect(after.prevSecretExpiresAt).toBeNull();
-    expect(await deviceSessionService.getStateBySecret(device, retainedSecret as string)).toBeNull();
-    expect(await deviceSessionService.getStateBySecret(device, previousRetainedSecret as string)).toBeNull();
+    expect(await storedCredentialHashes(device)).toHaveLength(2);
+    for (const secret of [auth, app]) {
+      const state = await deviceSessionService.getStateBySecret(device, secret as string);
+      expect(state?.accounts.map((a) => a.accountId)).toEqual([a2]);
+      expect(state?.activeAccountId).toBe(a2);
+    }
+  });
+
+  it('signing out the LAST account revokes every holder credential', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    const auth = await deviceSessionService.issueDeviceSecret(device);
+    const app = await deviceSessionService.issueDeviceSecret(device);
+
+    await deviceSessionService.signout(device, { accountId: a1 });
+
+    expect(await storedCredentialHashes(device)).toEqual([]);
+    expect(await deviceSessionService.getStateBySecret(device, auth as string)).toBeNull();
+    expect(await deviceSessionService.getStateBySecret(device, app as string)).toBeNull();
+  });
+
+  it('detaching the last account of a device revokes its holder credentials too', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    await deviceSessionService.issueDeviceSecret(device);
+
+    await deviceSessionService.detachMigratedAccount(device, a1, 'migrated-sess');
+
+    expect(await storedCredentialHashes(device)).toEqual([]);
   });
 
   it('single-account signout DOES clear a background credential bound to the removed account', async () => {
@@ -626,8 +653,8 @@ describe('signout — device-secret cleanup', () => {
     const after = await storedDevice(device);
     expect(after.backgroundSecretHash).toBeNull();
     expect(after.backgroundSecretAccountId).toBeNull();
-    // The device secret is shared, so removing any account must revoke it too.
-    expect(after.secretHash).toBeNull();
+    // The holder credential is the browser's, not a1's: a2 is still here.
+    expect(await storedCredentialHashes(device)).toHaveLength(1);
   });
 
   it('single-account signout leaves a background credential bound to a DIFFERENT account alone', async () => {
@@ -649,7 +676,7 @@ describe('signout — device-secret cleanup', () => {
 });
 
 describe('issueDeviceSecret', () => {
-  it('mints a fresh secret, stores only its hash, and leaves no prev on first issuance', async () => {
+  it('mints a fresh secret and stores only its hash, as a holder credential', async () => {
     const device = deviceId();
     await deviceSessionService.getState(device);
 
@@ -657,64 +684,49 @@ describe('issueDeviceSecret', () => {
 
     expect(typeof secret).toBe('string');
     expect((secret as string).length).toBeGreaterThan(20);
-    const stored = await storedDevice(device);
     // Only the HASH is stored, never the raw value.
-    expect(stored.secretHash).toBe(sha256(secret as string));
-    expect(stored.secretHash).not.toBe(secret);
-    expect(stored.prevSecretHash).toBeNull();
-    expect(stored.prevSecretExpiresAt).toBeNull();
+    expect(await storedCredentialHashes(device)).toEqual([sha256(secret as string)]);
   });
 
-  it('binds the FIRST secret on a row whose secret_hash is NULL', async () => {
-    // The CAS guard for a never-bound device is `secret_hash IS NULL`. Mongo
-    // expressed it as `{$exists: false}` only because a sparse unique index
-    // collides on nulls; comparing against `''` here would match nothing and
-    // silently never bind a first secret.
+  it('ADDS a credential per holder and never rotates an earlier one out', async () => {
     const device = deviceId();
-    await deviceSessionService.getState(device);
-    expect((await storedDevice(device)).secretHash).toBeNull();
-
-    expect(await deviceSessionService.issueDeviceSecret(device)).not.toBeNull();
-    expect((await storedDevice(device)).secretHash).not.toBeNull();
-  });
-
-  it('rotates: moves the existing secret to prev with a ~60s grace and sets the new one', async () => {
-    const device = deviceId();
-    await deviceSessionService.getState(device);
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
     const first = await deviceSessionService.issueDeviceSecret(device);
-    const firstHash = sha256(first as string);
-
-    const before = Date.now();
     const second = await deviceSessionService.issueDeviceSecret(device);
-    const after = Date.now();
 
     expect(second).not.toBe(first);
-    const stored = await storedDevice(device);
-    expect(stored.prevSecretHash).toBe(firstHash);
-    expect(stored.secretHash).toBe(sha256(second as string));
-    const grace = stored.prevSecretExpiresAt as Date;
-    expect(grace.getTime()).toBeGreaterThanOrEqual(before + 60_000);
-    expect(grace.getTime()).toBeLessThanOrEqual(after + 60_000);
+    expect((await storedCredentialHashes(device)).sort()).toEqual(
+      [sha256(first as string), sha256(second as string)].sort(),
+    );
+    expect((await deviceSessionService.getStateBySecret(device, first as string))?.activeAccountId).toBe(a1);
+    expect((await deviceSessionService.getStateBySecret(device, second as string))?.activeAccountId).toBe(a1);
+  });
+
+  it('keeps at most 32 holders per device, evicting the least recently used', async () => {
+    const device = deviceId();
+    await deviceSessionService.getState(device);
+    const oldest = await deviceSessionService.issueDeviceSecret(device);
+    await getDb()
+      .update(deviceCredentials)
+      .set({ lastUsedAt: new Date(Date.now() - 86_400_000) })
+      .where(eq(deviceCredentials.secretHash, sha256(oldest as string)));
+    for (let i = 0; i < 32; i += 1) {
+      await deviceSessionService.issueDeviceSecret(device);
+    }
+
+    const hashes = await storedCredentialHashes(device);
+    expect(hashes).toHaveLength(32);
+    expect(hashes).not.toContain(sha256(oldest as string));
   });
 
   it('returns null for a device row that does not exist (never binds a phantom device)', async () => {
     expect(await deviceSessionService.issueDeviceSecret(deviceId())).toBeNull();
   });
-
-  it('two devices can both sit at a NULL secret_hash — NULLs are distinct in Postgres', async () => {
-    // The sparse-unique workaround did not travel. If NULL were replaced by
-    // `''` this would violate `device_sessions_secret_hash_key`.
-    const one = deviceId();
-    const two = deviceId();
-    await deviceSessionService.getState(one);
-    await deviceSessionService.getState(two);
-    expect((await storedDevice(one)).secretHash).toBeNull();
-    expect((await storedDevice(two)).secretHash).toBeNull();
-  });
 });
 
 describe('getStateBySecret', () => {
-  it('returns the projected state for the current secret', async () => {
+  it('returns the projected state for a holder credential', async () => {
     const device = deviceId();
     const a1 = await account();
     await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
@@ -726,28 +738,37 @@ describe('getStateBySecret', () => {
     expect(state?.activeAccountId).toBe(a1);
   });
 
-  it('accepts the PREVIOUS secret within the grace window', async () => {
-    const device = deviceId();
-    await deviceSessionService.getState(device);
-    const first = await deviceSessionService.issueDeviceSecret(device);
-    await deviceSessionService.issueDeviceSecret(device); // rotate
+  it("refuses another device's credential presented under this device's id", async () => {
+    const mine = deviceId();
+    const theirs = deviceId();
+    await deviceSessionService.getState(mine);
+    await deviceSessionService.getState(theirs);
+    const theirSecret = await deviceSessionService.issueDeviceSecret(theirs);
 
-    const state = await deviceSessionService.getStateBySecret(device, first as string);
-    expect(state?.deviceId).toBe(device);
+    expect(await deviceSessionService.getStateBySecret(mine, theirSecret as string)).toBeNull();
   });
 
-  it('rejects the previous secret once the grace window has expired', async () => {
+  it('refreshes a stale last_used_at on use, and leaves a fresh one alone', async () => {
     const device = deviceId();
     await deviceSessionService.getState(device);
-    const first = await deviceSessionService.issueDeviceSecret(device);
-    await deviceSessionService.issueDeviceSecret(device);
-    // Expire the grace directly in the database rather than waiting 60s.
-    await getDb()
-      .update(deviceSessions)
-      .set({ prevSecretExpiresAt: new Date(Date.now() - 1000) })
-      .where(eq(deviceSessions.deviceId, device));
+    const secret = await deviceSessionService.issueDeviceSecret(device);
+    const hash = sha256(secret as string);
+    const stale = new Date(Date.now() - 2 * 3_600_000);
+    await getDb().update(deviceCredentials).set({ lastUsedAt: stale }).where(eq(deviceCredentials.secretHash, hash));
 
-    expect(await deviceSessionService.getStateBySecret(device, first as string)).toBeNull();
+    await deviceSessionService.getStateBySecret(device, secret as string);
+    const [touched] = await getDb()
+      .select({ lastUsedAt: deviceCredentials.lastUsedAt })
+      .from(deviceCredentials)
+      .where(eq(deviceCredentials.secretHash, hash));
+    expect(touched.lastUsedAt.getTime()).toBeGreaterThan(stale.getTime());
+
+    await deviceSessionService.getStateBySecret(device, secret as string);
+    const [again] = await getDb()
+      .select({ lastUsedAt: deviceCredentials.lastUsedAt })
+      .from(deviceCredentials)
+      .where(eq(deviceCredentials.secretHash, hash));
+    expect(again.lastUsedAt.getTime()).toBe(touched.lastUsedAt.getTime());
   });
 
   it('returns null on a secret mismatch, for a secret-less row, and for an unknown device', async () => {

@@ -1339,17 +1339,18 @@ export class HttpService {
   }
 
   /**
-   * PROCESS-WIDE single-flight for the rotating device-secret mint
+   * PROCESS-WIDE single-flight for the device-secret mint
    * (`POST /session/device/token`).
    *
-   * The server rotates the presented `deviceSecret` on every successful mint, so
-   * two concurrent mints would double-rotate and the durable store could end up
-   * holding a superseded secret → a later cold-boot mint 401s → the user is
-   * signed out. Every mint lane (the re-mint handler behind `refreshAccessToken`,
-   * the device-first cold boot, the socket token transport, the tab-focus
-   * reconcile) funnels its `refreshDeviceSecretArm` call through here, so
-   * concurrent callers await the SAME in-flight mint and all receive its result —
-   * exactly one server rotation.
+   * The server does not rotate the presented `deviceSecret` (it echoes it back
+   * as `nextDeviceSecret`; each holder of a shared DeviceSession has its own
+   * stable credential), so this is no longer what keeps the store's secret
+   * valid. It still collapses concurrent callers onto one request and one
+   * persisted write. Every mint lane (the re-mint handler behind
+   * `refreshAccessToken`, the device-first cold boot, the socket token
+   * transport, the tab-focus reconcile) funnels its `refreshDeviceSecretArm`
+   * call through here, so concurrent callers await the SAME in-flight mint and
+   * all receive its result.
    *
    * Distinct from {@link tokenRefreshPromise} (which dedups the FULL re-mint
    * handler incl. the native shared-key arm + the failure cooldown): this inner

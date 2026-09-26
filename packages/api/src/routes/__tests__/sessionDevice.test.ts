@@ -4,8 +4,8 @@
  * The previous suite mocked `deviceSession.service` wholesale, so every
  * assertion about the mint was really an assertion about a `jest.fn()`: it
  * proved the ROUTE called the service it was told to call, and nothing at all
- * about whether a wrong secret is actually rejected, whether rotation actually
- * moves the old hash into the grace slot, or whether a pinned mint actually
+ * about whether a wrong secret is actually rejected, whether a mint actually
+ * leaves every holder's credential intact, or whether a pinned mint actually
  * leaves `active_account_id` alone. Those are the properties this endpoint
  * exists to hold, and they live in stored rows.
  *
@@ -87,6 +87,7 @@ jest.mock('../../utils/logger', () => ({
 import { deviceTokenMintResponseSchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';
+import { deviceCredentials } from '../../db/schema/deviceCredentials';
 import { devicePrincipals } from '../../db/schema/devicePrincipals';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import { users } from '../../db/schema/users';
@@ -116,6 +117,16 @@ async function storedDevice(device: string) {
     .where(eq(deviceSessions.deviceId, device))
     .limit(1);
   return row;
+}
+
+/** The device's stored holder-credential hashes, sorted, read straight from Postgres. */
+async function storedHashes(device: string): Promise<string[]> {
+  const rows = await getDb()
+    .select({ secretHash: deviceCredentials.secretHash })
+    .from(deviceCredentials)
+    .innerJoin(deviceSessions, eq(deviceCredentials.deviceSessionId, deviceSessions.id))
+    .where(eq(deviceSessions.deviceId, device));
+  return rows.map((row) => row.secretHash).sort();
 }
 
 /**
@@ -253,7 +264,7 @@ beforeEach(() => {
 describe('POST /session/device/token — the public deviceSecret mint', () => {
   it('mints an access token, preserves the shared device secret, and returns the wire shape the SDK parses', async () => {
     const { deviceId, accountId, secret } = await deviceWithSecret();
-    const hashBefore = (await storedDevice(deviceId)).secretHash;
+    const hashesBefore = await storedHashes(deviceId);
 
     const res = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
 
@@ -268,9 +279,9 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     // The credential is stable: separate official app origins can mint
     // concurrently without invalidating one another.
     const nextSecret = (data as { nextDeviceSecret: string }).nextDeviceSecret;
-    const after = await storedDevice(deviceId);
-    expect(after.secretHash).toBe(sha256(nextSecret));
-    expect(after.secretHash).toBe(hashBefore);
+    expect(nextSecret).toBe(secret);
+    expect(hashesBefore).toEqual([sha256(secret)]);
+    expect(await storedHashes(deviceId)).toEqual(hashesBefore);
 
     // The raw secret is never logged — only the lane and the device id.
     expect(logger.info).toHaveBeenCalledWith('device.token.mint', {
@@ -281,7 +292,6 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
 
   it('REJECTS a wrong secret for a device that has a live one — 401, no rotation, failure recorded', async () => {
     const { deviceId, secret } = await deviceWithSecret();
-    const before = await storedDevice(deviceId);
 
     const res = await requestJson('POST', '/session/device/token', {
       deviceId,
@@ -291,9 +301,7 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('invalid_device_secret');
     // The stored secret is untouched: a guess must not consume the real one.
-    const after = await storedDevice(deviceId);
-    expect(after.secretHash).toBe(before.secretHash);
-    expect(after.prevSecretHash).toBe(before.prevSecretHash);
+    expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
     expect(mockRecordFailure).toHaveBeenCalledWith({ scope: 'device-token', identifier: deviceId });
     expect(mockClearFailures).not.toHaveBeenCalled();
   });
@@ -309,41 +317,40 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('invalid_device_secret');
-    expect((await storedDevice(victim.deviceId)).secretHash).toBe(sha256(victim.secret));
+    expect(await storedHashes(victim.deviceId)).toEqual([sha256(victim.secret)]);
   });
 
-  it('accepts the just-superseded secret INSIDE the rotation grace window (multi-tab race)', async () => {
+  it('the same credential mints again and again (several tabs of one holder)', async () => {
     const { deviceId, secret } = await deviceWithSecret();
 
     const first = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
     expect(first.status).toBe(200);
 
-    // A second tab still holding the ORIGINAL secret mints successfully.
     const second = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
     expect(second.status).toBe(200);
     expect((second.body.data as { accessToken: string }).accessToken).toBe('jwt-active');
   });
 
-  it('continues accepting the stable secret after the legacy grace window has passed', async () => {
-    const { deviceId, secret } = await deviceWithSecret();
-
-    const first = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
-    expect(first.status).toBe(200);
-
-    // Expire the grace slot in the stored row rather than sleeping for it — the
-    // deadline IS a column, so moving it is the honest way to cross the boundary.
+  it('a second holder joining never locks the first out (ADR 0029 D2)', async () => {
+    // auth.oxy.so holds the first credential; an official app then joins the
+    // same browser device and gets its own. The single rotating secret this
+    // replaced left the first holder a 60s grace, then 401.
+    const { deviceId, secret: authSecret } = await deviceWithSecret();
+    const appSecret = await deviceSessionService.issueDeviceSecret(deviceId);
     await getDb()
-      .update(deviceSessions)
-      .set({ prevSecretExpiresAt: new Date(Date.now() - 1_000) })
-      .where(eq(deviceSessions.deviceId, deviceId));
+      .update(deviceCredentials)
+      .set({ createdAt: new Date(Date.now() - 3_600_000), lastUsedAt: new Date(Date.now() - 3_600_000) })
+      .where(eq(deviceCredentials.secretHash, sha256(authSecret)));
 
-    const late = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
-    expect(late.status).toBe(200);
+    for (const deviceSecret of [authSecret, appSecret as string]) {
+      const res = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret });
+      expect(res.status).toBe(200);
+      expect((res.body.data as { nextDeviceSecret: string }).nextDeviceSecret).toBe(deviceSecret);
+    }
   });
 
   it('401 no_active_session WITHOUT rotating when the secret is valid but the session is dead', async () => {
     const { deviceId, secret } = await deviceWithSecret();
-    const before = await storedDevice(deviceId);
     // A session that cannot mint IS the dead session: `getAccessToken` re-reads
     // the row and re-checks the operator's act_as, and is the only authority
     // `resolveTokenForSession` consults.
@@ -354,7 +361,7 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('no_active_session');
     // The client keeps a still-valid secret and re-authenticates.
-    expect((await storedDevice(deviceId)).secretHash).toBe(before.secretHash);
+    expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
     expect(mockClearFailures).toHaveBeenCalledWith({ scope: 'device-token', identifier: deviceId });
     expect(mockRecordFailure).not.toHaveBeenCalled();
   });
@@ -376,12 +383,11 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
   it('429 when the device is locked out — never touches the secret', async () => {
     const { deviceId, secret } = await deviceWithSecret();
     mockIsLockedOut.mockResolvedValueOnce({ locked: true, retryAfterSeconds: 42, attempts: 5 });
-    const before = await storedDevice(deviceId);
 
     const res = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
 
     expect(res.status).toBe(429);
-    expect((await storedDevice(deviceId)).secretHash).toBe(before.secretHash);
+    expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
     expect(mockRecordFailure).not.toHaveBeenCalled();
   });
 
@@ -405,7 +411,7 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     const { deviceId, secret } = await deviceWithSecret();
 
     await deviceSessionService.signout(deviceId, { all: true });
-    expect((await storedDevice(deviceId)).secretHash).toBeNull();
+    expect(await storedHashes(deviceId)).toEqual([]);
 
     const res = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
     expect(res.status).toBe(401);
@@ -468,7 +474,6 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
   it('401 account_not_on_device for an account that is not registered — no rotation, no lockout failure', async () => {
     const { deviceId, secret } = await twoAccountDevice();
     const stranger = await account();
-    const before = await storedDevice(deviceId);
 
     const res = await requestJson('POST', '/session/device/token', {
       deviceId,
@@ -478,7 +483,7 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('account_not_on_device');
-    expect((await storedDevice(deviceId)).secretHash).toBe(before.secretHash);
+    expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
     // The secret was proven — a bad pin must never count as secret guessing.
     expect(mockRecordFailure).not.toHaveBeenCalled();
     expect(mockClearFailures).toHaveBeenCalledWith({ scope: 'device-token', identifier: deviceId });
@@ -716,6 +721,64 @@ describe('POST /session/device/signout', () => {
     expect((await storedDevice(deviceId)).activeAccountId).toBeNull();
     const [signalled] = mockBroadcastAccounts.mock.calls.at(-1) as [string[], number, string];
     expect([...signalled].sort()).toEqual([operator, org].sort());
+  });
+
+  it('is SHARED: one app signing an account out leaves every holder minting for the rest (ADR 0029 D2)', async () => {
+    const deviceId = newDeviceId();
+    const alice = await account();
+    const bob = await account();
+    await deviceSessionService.addAccount(deviceId, { accountId: alice, sessionId: `s-${randomUUID()}` });
+    await deviceSessionService.addAccount(deviceId, { accountId: bob, sessionId: `s-${randomUUID()}` });
+    const authSecret = await deviceSessionService.issueDeviceSecret(deviceId);
+    const mentionSecret = await deviceSessionService.issueDeviceSecret(deviceId);
+    const aliaSecret = await deviceSessionService.issueDeviceSecret(deviceId);
+    callerDeviceId = deviceId;
+
+    // Signed out from one app…
+    const res = await requestJson('POST', '/session/device/signout', { accountId: alice });
+    expect(res.status).toBe(200);
+    // …announced to the device room every holder's socket sits in…
+    expect(mockBroadcast).toHaveBeenCalledWith(expect.objectContaining({ deviceId, activeAccountId: bob }));
+
+    // …and every holder, the signing-out one included, now mints Bob.
+    for (const deviceSecret of [authSecret, mentionSecret, aliaSecret] as string[]) {
+      const mint = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret });
+      expect(mint.status).toBe(200);
+      const state = (mint.body.data as { state: { accounts: { accountId: string }[]; activeAccountId: string } }).state;
+      expect(state.accounts.map((a) => a.accountId)).toEqual([bob]);
+      expect(state.activeAccountId).toBe(bob);
+    }
+  });
+
+  it('signing out the LAST account signs every holder out', async () => {
+    const { deviceId, accountId, secret: authSecret } = await deviceWithSecret();
+    const appSecret = await deviceSessionService.issueDeviceSecret(deviceId);
+    callerDeviceId = deviceId;
+
+    const res = await requestJson('POST', '/session/device/signout', { accountId });
+    expect(res.status).toBe(200);
+
+    expect(await storedHashes(deviceId)).toEqual([]);
+    for (const deviceSecret of [authSecret, appSecret as string]) {
+      const mint = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret });
+      expect(mint.status).toBe(401);
+      expect(mint.body.error).toBe('invalid_device_secret');
+    }
+  });
+
+  it('removing the last CONTEXT signs every holder out too', async () => {
+    const { deviceId, accountId } = await deviceWithSecret();
+    await deviceSessionService.issueDeviceSecret(deviceId);
+    const [context] = await getDb()
+      .select({ id: deviceAccountContexts.id })
+      .from(deviceAccountContexts)
+      .where(eq(deviceAccountContexts.accountId, accountId));
+    callerDeviceId = deviceId;
+
+    const res = await requestJson('POST', '/session/device/signout', { contextId: context.id });
+    expect(res.status).toBe(200);
+
+    expect(await storedHashes(deviceId)).toEqual([]);
   });
 
   it('400 when neither accountId nor all is supplied', async () => {

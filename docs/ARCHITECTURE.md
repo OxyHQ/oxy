@@ -226,15 +226,17 @@ are signed in on that device. The full reference lives in
   QR claim, challenge verify) returns the session's `deviceId` and a 256-bit
   `deviceSecret`. The client persists both first-party (localStorage per web
   origin; SecureStore on native) — the server stores only
-  `sha256(deviceSecret)` (`DeviceSession.secretHash`, sparse-unique).
+  `sha256(deviceSecret)`, one `device_credentials` row per holder (each
+  official app that joined the browser's shared device — ADR 0029 D2).
 - **Mint** — to restore or refresh, the client POSTs `{ deviceId,
   deviceSecret }` to `POST /session/device/token` (no bearer, no cookies —
-  possession of the secret is the proof) and gets a short access token plus a
-  rotated `nextDeviceSecret` (rotation-in-use, 60s grace).
+  possession of the secret is the proof) and gets a short access token plus
+  `nextDeviceSecret` (the same secret, echoed back — nothing rotates).
 - **No cookie, no refresh-token family, no `#oxy_boot` bootstrap hop** — all
-  deleted in the zero-cookie cutover (2026-07-07). A `deviceId` is per web
-  origin / per native app-group; there is no implicit cross-subdomain or
-  cross-app device sync (the deliberate trade for zero cookies).
+  deleted in the zero-cookie cutover (2026-07-07). An origin joins the
+  browser's shared `deviceId` only when the user signs in there (the popup to
+  `auth.oxy.so` threads it onto the code, ADR 0029 D2); there is no implicit
+  sync before that (the deliberate trade for zero cookies).
 
 ### Server authority
 
@@ -397,7 +399,7 @@ POST /auth/verify                 # Verify signed challenge
 ### Device session — transport & authority
 
 ```
-POST /session/device/token         # Zero-cookie mint: {deviceId, deviceSecret} -> access token + rotated deviceSecret (no bearer, no cookies)
+POST /session/device/token         # Zero-cookie mint: {deviceId, deviceSecret} -> access token + the same deviceSecret (no bearer, no cookies)
 GET  /session/device/state         # Token-free DeviceSessionState for this device
 POST /session/device/add           # Add the bearer's account to the device set
 POST /session/device/switch        # Set activeAccountId (revision++)
@@ -512,10 +514,9 @@ DELETE /auth/link/:type           # Unlink auth method
     operatedByUserId: ObjectId // set for managed/org accounts (audit)
   }],
   activeAccountId: ObjectId,   // ref: User, nullable
-  secretHash: String,          // sha256 of the current deviceSecret (sparse unique)
-  prevSecretHash: String,      // sha256 of the just-superseded secret (short grace window)
   revision: Number             // bumped on every mutation; drives socket sync
 }
+// device_credentials: one row per holder — { deviceSessionId, secretHash (unique), lastUsedAt }
 ```
 
 ### AuthSession Collection (QR / cross-app flow)
@@ -554,11 +555,12 @@ DELETE /auth/link/:type           # Unlink auth method
 ### Token & Device Security
 
 - **JWT tokens**: Short-lived access tokens
-- **`deviceSecret` rotation-in-use**: each mint via `POST /session/device/token`
-  rotates the secret; the just-superseded secret stays valid for a short grace
-  window (60s) so a multi-tab race is not locked out
+- **Stable per-holder `deviceSecret`**: nothing rotates; each sign-in adds a
+  holder credential, so official apps sharing one browser device never lock
+  each other out. All of a device's credentials are deleted when it ends with
+  no account signed in, or on sign-out-all
 - **Secret never stored raw**: the server stores only `sha256(deviceSecret)`
-  (`DeviceSession.secretHash`); a database dump cannot forge the secret
+  (`device_credentials.secret_hash`); a database dump cannot forge the secret
 - **Token-free sync**: the `session_state` socket payload never contains tokens
 - **Session binding**: Tokens bound to device fingerprint
 

@@ -25,9 +25,10 @@ import { logger } from '../logger';
  * `sessionId` + `userId` identify the owning device session and active account.
  * `deviceId` + `deviceSecret` are the zero-cookie mint credential: the client
  * presents BOTH at `POST /session/device/token` — the secret is the proof, the
- * deviceId selects the device doc. The secret is rotated in-use: the mint returns
- * `nextDeviceSecret`, which the cold boot / re-mint handler persist BEFORE
- * planting the minted access token (multi-tab anti-loss).
+ * deviceId selects the device doc. The mint returns `nextDeviceSecret` (today the
+ * presented secret, unchanged — the server never rotates a holder's
+ * credential), which the cold boot / re-mint handler persist BEFORE planting
+ * the minted access token.
  *
  * `accessToken` + `expiresAt` are OPTIONAL warm-boot fields. Persisting them lets
  * the cold boot plant a still-valid access token on the very first paint WITHOUT
@@ -49,9 +50,9 @@ export interface PersistedAuthState {
    */
   deviceId?: string;
   /**
-   * The rotating device secret (zero-cookie transport). Possession of it mints a
-   * short access token for the device's active account via
-   * `POST /session/device/token`. Rotated in-use.
+   * This holder's device secret (zero-cookie transport). Possession of it mints
+   * a short access token for the device's active account via
+   * `POST /session/device/token`. Stable: the server never rotates it.
    */
   deviceSecret?: string;
   /** Optional warm-boot access token (short-lived; see interface docs). */

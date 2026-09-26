@@ -115,7 +115,7 @@ it('holds every schema invariant', async () => {
  * storing the secret in plaintext, which is a worse failure that other gates
  * catch.
  *
- * ## What the two permitted answers are
+ * ## What the permitted answers are
  *
  * `application_credentials` is the one customer credential lifecycle ADR 0005
  * permits: every customer credential shape is a `type` on it, the machine
@@ -123,16 +123,22 @@ it('holds every schema invariant', async () => {
  *
  * `device_sessions` is NOT a customer credential and is not an exception being
  * carved out — it is the device-first SESSION transport, whose whole design is
- * that possession of a rotating per-device secret proves a session. It is a
+ * that possession of a per-device secret proves a session. It is a
  * different lifecycle with a different owner (the device, not the customer's
  * application), and collapsing the two would be the actual architectural error.
  *
- * Anything else with a `*secret_hash` is a third key table, which is what this
+ * `device_credentials` is the same device transport, split out of
+ * `device_sessions` rather than new to it: one row per HOLDER of a browser's or
+ * app group's shared DeviceSession (ADR 0029 D2), because several official web
+ * origins join one device and cannot share one secret. Same owner (the device),
+ * same lifecycle (revoked with the device's last account), not a customer key.
+ *
+ * Anything else with a `*secret_hash` is a fourth key table, which is what this
  * fails on. Adding one is an amendment to ADR 0005 with its reason stated — and
  * the amendment includes this list, deliberately, so the decision is recorded in
  * the same commit as the table.
  */
-it('stores a hashed secret in exactly the two tables ADR 0005 permits', async () => {
+it('stores a hashed secret only in the customer credential table and the device transport', async () => {
   const rows = await getDb().execute<{ table_name: string; column_name: string }>(sql`
     select table_name, column_name from information_schema.columns
     where table_schema = 'public' and column_name like '%secret\\_hash'
@@ -148,6 +154,7 @@ it('stores a hashed secret in exactly the two tables ADR 0005 permits', async ()
 
   expect([...new Set(rows.map((row) => row.table_name))].sort()).toEqual([
     'application_credentials',
+    'device_credentials',
     'device_sessions',
   ]);
 });

@@ -177,7 +177,7 @@ export async function establishIdentitySession(args: {
     return null;
   }
 
-  // Persist the rotating device credential so later boots re-mint through the
+  // Persist the device credential so later boots re-mint through the
   // fast `POST /session/device/token` lane instead of re-signing a challenge.
   if (session.deviceId && session.deviceSecret) {
     await store.save({

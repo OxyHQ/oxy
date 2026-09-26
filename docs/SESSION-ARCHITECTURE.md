@@ -29,13 +29,23 @@
 Model: `packages/api/src/models/DeviceSession.ts` (collection `devicesessions`).
 
 ```
-deviceId          string   unique — stable identifier for one device/origin
+deviceId          string   unique — stable identifier for one browser (shared by every official web app) or native app group
 accounts[]        { accountId, sessionId, authuser, addedAt, operatedByUserId? }
 activeAccountId   ObjectId | null
-secretHash        sha256 of the current deviceSecret (sparse-unique; see Transport)
-prevSecretHash    sha256 of the just-superseded secret (short grace; transient)
 revision          number   monotonic — $inc on every mutation
 ```
+
+Holder credentials live beside it, one row per holder, in `device_credentials`
+(`packages/api/src/db/schema/deviceCredentials.ts`):
+
+```
+device_session_id  FK → device_sessions (ON DELETE CASCADE)
+secret_hash        sha256 of ONE holder's deviceSecret (UNIQUE; the lookup key)
+created_at, last_used_at   last_used_at orders the per-device cap (32, LRU evicted)
+```
+
+A holder is whatever stores a `deviceSecret`: `auth.oxy.so`, each official web app that
+joined the browser's device, a native app group. See "One browser, one session" below.
 
 `accounts[]` is the **device set**: the accounts currently signed in on this device.
 `operatedByUserId` records the human operator when the entry is a managed account
@@ -50,11 +60,11 @@ from the request body.
 
 | Method | Route | Body | Behavior |
 |--------|-------|------|----------|
-| POST | `/session/device/token` | `{ deviceId, deviceSecret }` | **The zero-cookie mint** — PUBLIC (no bearer, no cookies): possession of the secret is the device-ownership proof. Verifies `sha256(deviceSecret)` (constant-time) against the device's `secretHash`, mints a short access token for the active account, and returns the proven secret unchanged as `nextDeviceSecret`. Keeping the credential stable lets multiple official apps/origins sharing one device refresh concurrently. Per-device lockout + rate limit blunt online guessing. |
+| POST | `/session/device/token` | `{ deviceId, deviceSecret }` | **The zero-cookie mint** — PUBLIC (no bearer, no cookies): possession of the secret is the device-ownership proof. Looks `sha256(deviceSecret)` up among the device's holder credentials (`device_credentials`) — any live one proves the device — mints a short access token for the active account, and returns the proven secret unchanged as `nextDeviceSecret`. Nothing rotates, so every holder of one device refreshes concurrently. Per-device lockout + rate limit blunt online guessing. |
 | GET | `/session/device/state` | — | Returns current state for the caller's JWT device. |
 | POST | `/session/device/add` | — | Registers the caller's account into the device set. Account + session ids come from the bearer (IDOR-safe); `operatedByUserId` is resolved from the session document. Idempotent — an unchanged re-register does not broadcast. |
 | POST | `/session/device/switch` | `{ accountId }` | Sets `activeAccountId`, bumps `revision`, broadcasts. If the target session was revoked, heals the device set (drops the dead account), broadcasts the healed state, and returns 403. |
-| POST | `/session/device/signout` | `{ accountId }` or `{ all: true }` | Removes one account or clears the device set; picks the next active account; broadcasts. `{ all: true }` also clears the device's `secretHash`. |
+| POST | `/session/device/signout` | `{ accountId }`, `{ contextId }`, `{ principalId }` or `{ all: true }` | Removes one account (or context, or person) or clears the device set; picks the next active account; broadcasts to every app on the device. Holder credentials survive while any account remains; they are all deleted when the device ends with none, and always on `{ all: true }`. |
 
 Every response is validated against `deviceSessionSyncSchema` from `@oxy.so/contracts`:
 
@@ -75,24 +85,28 @@ origin, `auth.oxy.so` included.
 1. **`deviceId` + `deviceSecret`** — every successful sign-in (password, 2FA, QR claim,
    challenge verify) returns the session's `deviceId` and a 256-bit `deviceSecret`. The
    client persists both first-party (localStorage on web per origin; SecureStore on
-   native). The server stores only `sha256(deviceSecret)` (`DeviceSession.secretHash`,
-   sparse-unique), so a database dump cannot forge the secret and the secret reveals
-   nothing about any other device.
+   native). Each sign-in ADDS a holder credential; the server stores only
+   `sha256(deviceSecret)` (`device_credentials.secret_hash`, unique), so a database dump
+   cannot forge the secret and the secret reveals nothing about any other device.
 2. **Mint** — to restore or refresh, the client POSTs `{ deviceId, deviceSecret }` to
-   `POST /session/device/token` (no bearer, no cookies). The server verifies the secret
-   (constant-time) and returns a short access token for the active account plus the same
-   proven secret as `nextDeviceSecret`. The credential is intentionally stable: several
-   official apps/origins can share a `DeviceSession` without rotating one another out.
-3. **Revocation** — sign-out-all (`POST /session/device/signout { all: true }`) clears
-   `secretHash` so a retained secret can never mint again. A theft divergence is detected
-   at the next mint (the loser's secret no longer matches → `invalid_device_secret`).
+   `POST /session/device/token` (no bearer, no cookies). The server resolves the secret
+   among the device's holder credentials and returns a short access token for the active
+   account plus the same proven secret as `nextDeviceSecret`. **The credential is stable:**
+   neither a mint nor a later sign-in by another holder invalidates it. (The single
+   rotating `secretHash` this replaced gave the superseded secret a 60-second grace, so
+   every app that joined a device signed every earlier holder out a minute later.)
+3. **Revocation** — a holder credential is deleted when its device ends with nobody
+   signed in (the last account signed out or removed, from any app), on sign-out-all
+   (`POST /session/device/signout { all: true }`), or when the device passes 32 holders
+   (least recently used first). A retained secret then answers `invalid_device_secret`.
 4. **Cross-origin convergence is USER-INITIATED (zero cookies).** Each web origin
-   persists its own `{ deviceId, deviceSecret }` copy in `localStorage`. Official apps
-   (including custom domains like `mention.earth`) and third-party RPs converge on the
-   **same** server-side `DeviceSession` only when the user actually signs in on that
-   origin: the authorize round trip threads the same `deviceId`, so the origin ends up
-   holding a credential for the device session it just joined. Once each app holds a
-   bearer, realtime changes propagate over Socket.IO `session_state` on
+   persists its own `{ deviceId, deviceSecret }` in `localStorage`. Official apps
+   (including custom domains like `mention.earth`) converge on the **same** server-side
+   `DeviceSession` only when the user actually signs in on that origin: the popup to
+   `auth.oxy.so/authorize` puts the browser's `deviceId` on the code, and
+   `/oauth/token` joins the app to that device and issues it its own holder credential.
+   A third-party RP never joins: it gets an isolated per-(user, client) device. Once each
+   app holds a bearer, realtime changes propagate over Socket.IO `session_state` on
    `device:<deviceId>`.
 
    There is **no automatic convergence**. An origin the user has never signed in on
@@ -115,6 +129,32 @@ origin, `auth.oxy.so` included.
    Do not reintroduce either. The accepted trade is explicit: a signed-out first visit
    on a new origin, in exchange for a tab that never leaves the relying party's route
    without the user asking.
+
+### One browser, one session (ADR 0029 D2)
+
+Every official Oxy web app (mention.earth, alia.onl, willo.sh, `*.oxy.so`…) signs in
+through a popup to `auth.oxy.so` (ADR 0029 D1) (`/authorize`, `response_mode=web_message`; official
+apps are auto-approved), and all of them share the browser's ONE `DeviceSession`, like
+Google's accounts in one browser:
+
+- **Join.** `/oauth/authorize` reads the `deviceId` from `auth.oxy.so`'s bearer and puts
+  it on the code; `/oauth/token`, for an `isTrustedApplication` client, creates the
+  session on that device and calls `finalizeDeviceLogin`, which registers the account
+  (`activate: 'if-empty'`) and issues a NEW holder credential. Nobody else's is touched.
+- **Switch.** Activating an account in any app bumps `revision` and broadcasts
+  `session_state`; every other app's `SessionClient` mints a bearer for the new active
+  account before it notifies (see "Real-time sync").
+- **Sign out one account.** `useOxy().logout` calls `POST /session/device/signout
+  { accountId }` on the shared device, so the account leaves every app at once. Every
+  holder keeps its credential and re-mints for whichever account is now active; an app
+  whose own bearer died re-mints on its next 401.
+- **Sign out the last account / all.** Every holder credential of the device is deleted.
+  Apps receive an empty `session_state` push and drop their local session; their next
+  mint answers `invalid_device_secret`, which clears the stored credential.
+
+A credential therefore proves "this browser", not "this account": a browser holding Alice
+and Bob stays signed in to Bob in every app after Alice signs out anywhere, which is the
+point.
 
 ## Cold boot
 
@@ -143,7 +183,7 @@ PRIMARY identity key owns the session PERMANENTLY, independent of the device's m
    the token's own identity-tag claim).
 2. **`device-secret-mint`** (web + native) — when the origin persisted a `deviceId` +
    `deviceSecret`, mint a short access token with a single bearer-less POST to
-   `/session/device/token`, persist the rotated secret, plant the token. In `'account'`
+   `/session/device/token`, persist `nextDeviceSecret`, plant the token. In `'account'`
    mode this mints for the device's active account; in `'identity'` mode it passes the
    pinned `accountId` as the optional `accountId` field of that same request (see
    [device-session.md](./auth/device-session.md)) — a rejected pin

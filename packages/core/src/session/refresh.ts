@@ -230,10 +230,10 @@ export async function refreshDeviceSecretArm(deps: {
       ...(bound ? { sessionId: bound.sessionId, userId: bound.accountId } : {}),
     };
     if (oxy.httpService.getSessionEpoch() !== epoch) {
-      // Signed out while minting. The server has rotated the secret, so a store
-      // that still holds the presented one must learn the rotation (the
-      // token-null lane keeps the store so a reload can restore); a store the
-      // sign-out cleared must NOT be refilled. Either way, plant nothing.
+      // Signed out while minting. A store that still holds the presented
+      // secret takes the server's `nextDeviceSecret` (the token-null lane keeps
+      // the store so a reload can restore); a store the sign-out cleared must
+      // NOT be refilled. Either way, plant nothing.
       const current = await store.load();
       if (current?.deviceId === persisted.deviceId && current.deviceSecret === persisted.deviceSecret) {
         await store.save(next);
