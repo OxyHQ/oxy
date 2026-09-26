@@ -1,5 +1,5 @@
 {
-  "id": "664b3241-306f-487c-85ef-f26676c79009",
+  "id": "a65174c4-f387-4616-be48-9633d1746f80",
   "prevId": "313bb74a-08d3-4c89-8db8-cac001262517",
   "version": "7",
   "dialect": "postgresql",
@@ -11054,6 +11054,328 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.identity_web_envelopes": {
+      "name": "identity_web_envelopes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "algorithm": {
+          "name": "algorithm",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "secret_kind": {
+          "name": "secret_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entropy_nonce": {
+          "name": "entropy_nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sealed_entropy": {
+          "name": "sealed_entropy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wraps": {
+          "name": "wraps",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phrase_confirmed_at": {
+          "name": "phrase_confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recovery_verified_at": {
+          "name": "recovery_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "identity_web_envelopes_public_key_idx": {
+          "name": "identity_web_envelopes_public_key_idx",
+          "columns": [
+            {
+              "expression": "public_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "identity_web_envelopes_user_id_users_id_fk": {
+          "name": "identity_web_envelopes_user_id_users_id_fk",
+          "tableFrom": "identity_web_envelopes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "identity_web_envelopes_user_id_key": {
+          "name": "identity_web_envelopes_user_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "identity_web_envelopes_revision_check": {
+          "name": "identity_web_envelopes_revision_check",
+          "value": "\"identity_web_envelopes\".\"revision\" >= 1"
+        },
+        "identity_web_envelopes_version_check": {
+          "name": "identity_web_envelopes_version_check",
+          "value": "\"identity_web_envelopes\".\"version\" = 2"
+        },
+        "identity_web_envelopes_secret_kind_check": {
+          "name": "identity_web_envelopes_secret_kind_check",
+          "value": "\"identity_web_envelopes\".\"secret_kind\" in ('mnemonic-entropy', 'raw-private-key')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.identity_moves": {
+      "name": "identity_moves",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "move_id": {
+          "name": "move_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "initiator_commitment": {
+          "name": "initiator_commitment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "initiator_commitment_nonce": {
+          "name": "initiator_commitment_nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "initiator_ephemeral_public_key": {
+          "name": "initiator_ephemeral_public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responder_ephemeral_public_key": {
+          "name": "responder_ephemeral_public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ciphertext": {
+          "name": "ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "receipt_signature": {
+          "name": "receipt_signature",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "receipt_timestamp": {
+          "name": "receipt_timestamp",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "identity_moves_expires_at_idx": {
+          "name": "identity_moves_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "identity_moves_user_id_users_id_fk": {
+          "name": "identity_moves_user_id_users_id_fk",
+          "tableFrom": "identity_moves",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "identity_moves_move_id_key": {
+          "name": "identity_moves_move_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "move_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "identity_moves_status_check": {
+          "name": "identity_moves_status_check",
+          "value": "\"identity_moves\".\"status\" in ('pending', 'joined', 'sealed', 'completed', 'cancelled', 'expired')"
+        },
+        "identity_moves_sealed_payload_check": {
+          "name": "identity_moves_sealed_payload_check",
+          "value": "(\"identity_moves\".\"nonce\" is null) = (\"identity_moves\".\"ciphertext\" is null)"
+        },
+        "identity_moves_receipt_check": {
+          "name": "identity_moves_receipt_check",
+          "value": "(\"identity_moves\".\"receipt_signature\" is null) = (\"identity_moves\".\"receipt_timestamp\" is null)"
+        },
+        "identity_moves_reveal_after_join_check": {
+          "name": "identity_moves_reveal_after_join_check",
+          "value": "\"identity_moves\".\"initiator_ephemeral_public_key\" is null or \"identity_moves\".\"responder_ephemeral_public_key\" is not null"
+        },
+        "identity_moves_reveal_nonce_check": {
+          "name": "identity_moves_reveal_nonce_check",
+          "value": "(\"identity_moves\".\"initiator_commitment_nonce\" is null) = (\"identity_moves\".\"initiator_ephemeral_public_key\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.identity_proof_challenges": {
       "name": "identity_proof_challenges",
       "schema": "",
@@ -11155,6 +11477,136 @@
         "identity_proof_challenges_challenge_hash_check": {
           "name": "identity_proof_challenges_challenge_hash_check",
           "value": "\"identity_proof_challenges\".\"challenge_hash\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.identity_recovery_attempts": {
+      "name": "identity_recovery_attempts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "challenge_hash": {
+          "name": "challenge_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ticket_hash": {
+          "name": "ticket_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "root_public_key": {
+          "name": "root_public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "registration_challenge": {
+          "name": "registration_challenge",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'challenged'"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "identity_recovery_attempts_expires_at_idx": {
+          "name": "identity_recovery_attempts_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "identity_recovery_attempts_user_id_users_id_fk": {
+          "name": "identity_recovery_attempts_user_id_users_id_fk",
+          "tableFrom": "identity_recovery_attempts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "identity_recovery_attempts_challenge_hash_key": {
+          "name": "identity_recovery_attempts_challenge_hash_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "challenge_hash"
+          ]
+        },
+        "identity_recovery_attempts_ticket_hash_key": {
+          "name": "identity_recovery_attempts_ticket_hash_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "ticket_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "identity_recovery_attempts_status_check": {
+          "name": "identity_recovery_attempts_status_check",
+          "value": "\"identity_recovery_attempts\".\"status\" in ('challenged', 'started', 'completed')"
+        },
+        "identity_recovery_attempts_started_check": {
+          "name": "identity_recovery_attempts_started_check",
+          "value": "(\"identity_recovery_attempts\".\"status\" = 'challenged') = (\"identity_recovery_attempts\".\"ticket_hash\" is null and \"identity_recovery_attempts\".\"user_id\" is null and \"identity_recovery_attempts\".\"root_public_key\" is null and \"identity_recovery_attempts\".\"registration_challenge\" is null)"
         }
       },
       "isRLSEnabled": false
@@ -32262,6 +32714,152 @@
         "email_verifications_attempts_check": {
           "name": "email_verifications_attempts_check",
           "value": "\"email_verifications\".\"attempts\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.identity_link_requests": {
+      "name": "identity_link_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "link_id": {
+          "name": "link_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "challenge_hash": {
+          "name": "challenge_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "proof": {
+          "name": "proof",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "identity_link_requests_user_id_idx": {
+          "name": "identity_link_requests_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "identity_link_requests_expires_at_idx": {
+          "name": "identity_link_requests_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "identity_link_requests_user_id_users_id_fk": {
+          "name": "identity_link_requests_user_id_users_id_fk",
+          "tableFrom": "identity_link_requests",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "identity_link_requests_link_id_key": {
+          "name": "identity_link_requests_link_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "link_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "identity_link_requests_status_check": {
+          "name": "identity_link_requests_status_check",
+          "value": "\"identity_link_requests\".\"status\" in ('pending', 'signed', 'completed', 'cancelled')"
+        },
+        "identity_link_requests_signed_check": {
+          "name": "identity_link_requests_signed_check",
+          "value": "(\"identity_link_requests\".\"public_key\" is null) = (\"identity_link_requests\".\"proof\" is null)"
+        },
+        "identity_link_requests_link_id_check": {
+          "name": "identity_link_requests_link_id_check",
+          "value": "\"identity_link_requests\".\"link_id\" ~ '^[0-9a-f]{32}$'"
+        },
+        "identity_link_requests_challenge_hash_check": {
+          "name": "identity_link_requests_challenge_hash_check",
+          "value": "\"identity_link_requests\".\"challenge_hash\" ~ '^[0-9a-f]{64}$'"
         }
       },
       "isRLSEnabled": false
