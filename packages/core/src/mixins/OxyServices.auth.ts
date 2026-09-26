@@ -473,6 +473,12 @@ export class ServiceCredentialMismatchError extends Error {
   }
 }
 
+/**
+ * How long a failed service-token mint sends session-less requests anonymous
+ * before the next attempt, under `serviceIdentity: 'when-anonymous'`.
+ */
+export const ANONYMOUS_SERVICE_TOKEN_RETRY_MS = 30_000;
+
 export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) {
   return class extends Base {
     /**
@@ -499,8 +505,57 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
     /** @internal Raw apiSecret stored by configureServiceAuth() for use by getServiceToken() */
     _serviceApiSecret: string | null = null;
 
+    /**
+     * Before this instant, a request without a user session does not try to
+     * mint a service token and goes out anonymous. Set after a failed mint; see
+     * {@link _serviceTokenForAnonymousRequest}.
+     *
+     * @internal
+     */
+    _anonymousServiceTokenRetryAt = 0;
+
     constructor(...args: any[]) {
       super(...(args as [any]));
+      if (this.config.serviceIdentity === 'when-anonymous') {
+        this.httpService.setAnonymousAuthProvider(() => this._serviceTokenForAnonymousRequest());
+      }
+    }
+
+    /**
+     * The bearer for a request with no user session, under `serviceIdentity:
+     * 'when-anonymous'`: this process's service token, or `null` to send the
+     * request anonymous as before.
+     *
+     * `null`, never a throw, whenever there is no token to offer:
+     * - no key pair and no attestable workload (a local checkout) — asking
+     *   costs nothing and there is nothing to ask for;
+     * - the mint failed. The request still goes out, anonymous, and so does
+     *   every request for the next {@link ANONYMOUS_SERVICE_TOKEN_RETRY_MS}, so
+     *   an Oxy that is refusing attestation (seen for ~2.5 minutes after a
+     *   deploy on 2026-09-25) is asked once per window rather than once per
+     *   read, and no read waits on a mint that just failed.
+     *
+     * The token itself comes from {@link getServiceToken}: cached for its
+     * lifetime and single-flight, so concurrent reads share one mint.
+     *
+     * @internal
+     */
+    async _serviceTokenForAnonymousRequest(): Promise<string | null> {
+      if (Date.now() < this._anonymousServiceTokenRetryAt) return null;
+      const hasKeyPair = Boolean(this._serviceApiKey && this._serviceApiSecret);
+      if (!hasKeyPair && !(await this._canUseWorkloadIdentity())) return null;
+      try {
+        return await this.getServiceToken();
+      } catch (error) {
+        this._anonymousServiceTokenRetryAt = Date.now() + ANONYMOUS_SERVICE_TOKEN_RETRY_MS;
+        logger.warn('[oxy.auth] No service token for a request without a session; sending it anonymous', {
+          component: 'auth',
+          method: '_serviceTokenForAnonymousRequest',
+          retryInMs: ANONYMOUS_SERVICE_TOKEN_RETRY_MS,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+      }
     }
 
     /**
