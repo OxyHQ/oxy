@@ -565,6 +565,9 @@ describe('atproto', () => {
       token_endpoint_auth_method: 'none',
       dpop_bound_access_tokens: true,
     });
+    // Bluesky's authorization server refuses a document whose client_uri is
+    // on another origin than its client_id (invalid_client_metadata).
+    expect(new URL(res.body.client_uri).origin).toBe(new URL(res.body.client_id).origin);
   });
 
   it('verifies the DID, signs the session out, keeps none of it, and links on complete', async () => {

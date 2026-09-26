@@ -98,7 +98,9 @@ export function atprotoClientMetadata(): Record<string, unknown> {
   return {
     client_id: `${origin}/linked-accounts/atproto/client-metadata.json`,
     client_name: 'Oxy',
-    client_uri: 'https://oxy.so',
+    // Must share the client_id's origin: authorization servers reject the
+    // whole document otherwise (`invalid_client_metadata`), before any sign-in.
+    client_uri: origin,
     redirect_uris: [redirectUri],
     scope: ATPROTO_LINK_SCOPE,
     grant_types: ['authorization_code'],
