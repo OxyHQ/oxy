@@ -38,6 +38,7 @@ jest.mock('../../utils/userCache', () => ({
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
+import { wallets } from '../../db/schema/wallets';
 import * as holdsService from '../../services/accountFinancialHolds.service';
 import { parseDeleteAccountsArgs, planAccountDeletions, recheckPlannedAccount, runAccountDeletions } from '../delete-accounts';
 
@@ -200,6 +201,19 @@ describe('runAccountDeletions', () => {
     expect(report.results.map((entry) => entry.id)).toEqual([first.id]);
     expect(report.aborted).toEqual({ identifier: second.username, reason: 'changed since the plan: has an email now' });
     expect(await exists([first.id, second.id])).toEqual([second.id]);
+  });
+
+  it('plans a full delete for an account with only an empty, never-used wallet, and removes the wallet', async () => {
+    const target = await account();
+    const [wallet] = await getDb().insert(wallets).values({ userId: target.id }).returning({ id: wallets.id });
+
+    const [planned] = (await planAccountDeletions([target.username])).planned;
+    expect(planned).toMatchObject({ outcome: 'delete', emptyWalletsRemoved: 1, retainedRecords: [] });
+
+    const report = await runAccountDeletions({ identifiers: [target.username], confirm: true });
+    expect(report.results).toEqual([{ id: target.id, username: target.username, result: expect.objectContaining({ retained: false }) }]);
+    expect(await exists([target.id])).toEqual([]);
+    expect(await getDb().select({ id: wallets.id }).from(wallets).where(eq(wallets.id, wallet.id))).toHaveLength(0);
   });
 
   it('deletes every planned account with --confirm, through the one workflow', async () => {

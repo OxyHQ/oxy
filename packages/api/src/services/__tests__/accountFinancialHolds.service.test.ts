@@ -34,9 +34,12 @@ import {
 } from '../../db/schema/inferenceProviderConnections';
 import { inferenceProviders } from '../../db/schema/inferenceProviders';
 import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVersions';
+import { transactions } from '../../db/schema/transactions';
 import { users } from '../../db/schema/users';
+import { wallets } from '../../db/schema/wallets';
 import {
   archiveAccountForRetention,
+  deleteDisposableWallets,
   describeAccountFinancialHolds,
   listRestrictingReferences,
 } from '../accountFinancialHolds.service';
@@ -196,6 +199,72 @@ describe('an account that has never transacted', () => {
     expect(holds.hasLiveProviderConnection).toBe(false);
     expect(holds.liveProviderConnections).toEqual([]);
     expect(holds.retainedRecords).toEqual([]);
+  });
+});
+
+/**
+ * An empty, never-used wallet is not a hold (the owner's decision, 2026-09-26):
+ * it would otherwise turn every deletion of an account that merely HAS a wallet
+ * into an archive. Strict the other way: any balance, payout address, change,
+ * or ledger row keeps it a hold.
+ */
+describe('a wallet', () => {
+  async function withWallet(values: Partial<typeof wallets.$inferInsert> = {}) {
+    const accountId = await seedAccount();
+    const [wallet] = await getDb().insert(wallets).values({ userId: accountId, ...values }).returning({ id: wallets.id });
+    return { accountId, walletId: wallet.id };
+  }
+
+  it('that is empty and never used is disposable, not a hold', async () => {
+    const { accountId, walletId } = await withWallet();
+    const holds = await describeAccountFinancialHolds(accountId);
+    expect(holds.blocksHardDelete).toBe(false);
+    expect(holds.retainedRecords).toEqual([]);
+    expect(holds.disposableWalletIds).toEqual([walletId]);
+  });
+
+  it.each([
+    ['a non-zero balance', { balance: '0.00000001' }],
+    ['a payout address', { address: 'fairc0inAddress' }],
+  ] as const)('with %s is a hold', async (_label, values) => {
+    const { accountId } = await withWallet(values);
+    const holds = await describeAccountFinancialHolds(accountId);
+    expect(holds.blocksHardDelete).toBe(true);
+    expect(holds.disposableWalletIds).toEqual([]);
+    expect(holds.retainedRecords).toContainEqual({ table: 'wallets', column: 'user_id', rows: 1 });
+  });
+
+  it('that was ever updated is a hold, even back at zero', async () => {
+    const { accountId, walletId } = await withWallet();
+    await getDb().update(wallets).set({ updatedAt: new Date(Date.now() + 1000) }).where(eq(wallets.id, walletId));
+    const holds = await describeAccountFinancialHolds(accountId);
+    expect(holds.blocksHardDelete).toBe(true);
+    expect(holds.disposableWalletIds).toEqual([]);
+  });
+
+  it('is deleted only while still untouched: a balance that arrives after the check fails the deletion', async () => {
+    const { accountId, walletId } = await withWallet();
+    const { disposableWalletIds } = await describeAccountFinancialHolds(accountId);
+    await getDb().update(wallets).set({ balance: '2' }).where(eq(wallets.id, walletId));
+
+    await expect(
+      getDb().transaction((tx) => deleteDisposableWallets(tx, accountId, disposableWalletIds)),
+    ).rejects.toThrow(/changed during its deletion/);
+    expect(await getDb().select({ id: wallets.id }).from(wallets).where(eq(wallets.id, walletId))).toHaveLength(1);
+  });
+
+  it.each(['sender', 'recipient'] as const)('whose account is on any ledger row (as %s) is a hold', async (side) => {
+    const { accountId } = await withWallet();
+    const other = await seedAccount();
+    await getDb().insert(transactions).values(
+      side === 'sender'
+        ? { userId: accountId, recipientId: other, type: 'transfer', amount: '0', status: 'cancelled' }
+        : { userId: other, recipientId: accountId, type: 'transfer', amount: '0', status: 'pending' },
+    );
+    const holds = await describeAccountFinancialHolds(accountId);
+    expect(holds.blocksHardDelete).toBe(true);
+    expect(holds.disposableWalletIds).toEqual([]);
+    expect(holds.retainedRecords).toContainEqual({ table: 'wallets', column: 'user_id', rows: 1 });
   });
 });
 

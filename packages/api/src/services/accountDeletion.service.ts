@@ -32,6 +32,7 @@ import userCache from '../utils/userCache';
 import {
   archiveAccountForRetention,
   beginAccountClosure,
+  deleteDisposableWallets,
   describeAccountFinancialHolds,
   type AccountFinancialHolds,
   type RetainedRecordCount,
@@ -148,6 +149,8 @@ export async function deleteAccount(userId: string, username: string | null): Pr
   const { deletedEvent, storage } = await getDb().transaction(async (tx) => {
     const recorded = await recordAccountDeletedEvent(tx, { userId, username, retained: false });
     const recordedStorage = await recordAccountStorageDeletion(tx, userId, { removeAssetRows: false });
+    // An empty, never-used wallet is not a hold; it goes with the account.
+    await deleteDisposableWallets(tx, userId, holds.disposableWalletIds);
     await tx.delete(users).where(eq(users.id, userId));
     return { deletedEvent: recorded, storage: recordedStorage };
   });

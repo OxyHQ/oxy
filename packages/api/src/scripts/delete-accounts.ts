@@ -77,6 +77,8 @@ export interface PlannedDeletion {
   username: string | null;
   /** `delete` removes the row; `archive` keeps it for retained financial records. */
   outcome: 'delete' | 'archive';
+  /** Empty, never-used wallets the deletion removes with the account. */
+  emptyWalletsRemoved: number;
   retainedRecords: { table: string; column: string; rows: number }[];
 }
 
@@ -149,6 +151,7 @@ export async function planAccountDeletions(identifiers: readonly string[]): Prom
       id: account.id,
       username: account.username,
       outcome: holds.blocksHardDelete ? 'archive' : 'delete',
+      emptyWalletsRemoved: holds.blocksHardDelete ? 0 : holds.disposableWalletIds.length,
       retainedRecords: holds.retainedRecords.map((record) => ({ ...record })),
     });
   }

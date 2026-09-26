@@ -34,6 +34,11 @@
  * `RESTRICT` converts that silent loss into a loud "settle this account first",
  * which is a step the deletion path has to grow. `SET NULL` is not available:
  * `user_id` is the wallet's owner identity, NOT NULL and unique.
+ *
+ * An EMPTY, never-used wallet (zero balance, no payout address, never updated,
+ * no ledger row naming the account) is not something to settle: the deletion
+ * removes it before the account (`accountFinancialHolds.service.ts`,
+ * `deleteDisposableWallets`). Anything else keeps the account archived.
  */
 
 import { sql } from 'drizzle-orm';
