@@ -344,16 +344,20 @@ describe('user tokens without a sessionId are refused', () => {
     expect(req.accessToken).toBeUndefined();
   });
 
-  it('does not admit a session-less token via the jwtSecret / service-token path', async () => {
-    // `jwtSecret` exists to verify SERVICE tokens. A user token must not gain
-    // anything by its presence, whether or not it is signed with that secret.
+  it('does not admit a session-less token via the service-token path', async () => {
+    // Service tokens verify only against Oxy's published JWKS (ADR 0012). A
+    // user token signed with the access-token secret must gain nothing there:
+    // it never enters the service lane, so no key set is even fetched.
+    const jwksFetch = jest.spyOn(globalThis, 'fetch');
     const token = signToken({ userId: VICTIM_ID }, ACCESS_TOKEN_SECRET);
     const req = makeReq({ headers: { authorization: `Bearer ${token}` } });
     const res = makeRes();
     const next = jest.fn();
 
-    await run(oxy.auth({ jwtSecret: ACCESS_TOKEN_SECRET }), req, res, next);
+    await run(oxy.auth(), req, res, next);
 
+    expect(jwksFetch).not.toHaveBeenCalled();
+    jwksFetch.mockRestore();
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(401);
     expect(res.body).toMatchObject({ code: 'SESSION_REQUIRED' });
@@ -374,7 +378,7 @@ describe('user tokens without a sessionId are refused', () => {
     const res = makeRes();
     const next = jest.fn();
 
-    await run(oxy.auth({ jwtSecret: ACCESS_TOKEN_SECRET }), req, res, next);
+    await run(oxy.auth(), req, res, next);
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(401);

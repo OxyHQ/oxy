@@ -868,6 +868,7 @@ app.use('/nodes', nodeRoutes);
 // ActivityPub endpoints — serves actor profiles and public keys for federation.
 import { getInstanceActor, getUserActor, isOwnFederationDomain } from './services/federation.service';
 import federationRoutes from './routes/federation';
+import { createWebfingerHandler } from './routes/webfinger';
 
 // Federation domain constant — used by nodeinfo, webfinger, and actor endpoints
 const AP_DOMAIN = process.env.FEDERATION_DOMAIN || 'oxy.so';
@@ -999,45 +1000,13 @@ app.get('/nodeinfo/2.0', async (_req: any, res: Response) => {
 });
 
 // WebFinger endpoint
-app.get('/.well-known/webfinger', async (req: any, res: Response) => {
-  try {
-    const resource = req.query.resource as string;
-    if (!resource?.startsWith('acct:')) return res.status(400).json({ error: 'Invalid resource' });
-
-    const acct = resource.replace('acct:', '');
-    const atIndex = acct.indexOf('@');
-    if (atIndex === -1) return res.status(400).json({ error: 'Invalid acct format' });
-
-    const canonicalUsername = acct.substring(0, atIndex).trim().toLowerCase();
-    const domain = acct.substring(atIndex + 1);
-
-    if (!isOwnFederationDomain(domain)) return res.status(404).json({ error: 'Domain not served here' });
-
-    const user = await findFederatableUserByUsername(canonicalUsername);
-    if (!user || !isFederatableUser(user)) return res.status(404).json({ error: 'User not found' });
-
-    res.setHeader('Content-Type', 'application/jrd+json');
-    res.setHeader('Cache-Control', 'max-age=3600');
-    return res.json({
-      subject: `acct:${canonicalUsername}@${AP_DOMAIN}`,
-      links: [
-        {
-          rel: 'self',
-          type: 'application/activity+json',
-          href: `https://${AP_DOMAIN}/ap/users/${canonicalUsername}`,
-        },
-        {
-          rel: 'http://webfinger.net/rel/profile-page',
-          type: 'text/html',
-          href: `https://${AP_DOMAIN}/@${canonicalUsername}`,
-        },
-      ],
-    });
-  } catch (err: any) {
-    logger.error('WebFinger error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
+app.get('/.well-known/webfinger', createWebfingerHandler({
+  domain: AP_DOMAIN,
+  isOwnFederationDomain,
+  findUserByUsername: findFederatableUserByUsername,
+  isFederatableUser,
+  logger,
+}));
 
 // Federation identity & sign-on-behalf endpoints.
 //

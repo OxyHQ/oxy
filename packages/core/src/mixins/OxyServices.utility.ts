@@ -232,13 +232,6 @@ class ServiceTokenSignatureError extends Error {
   }
 }
 
-class ServiceTokenConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ServiceTokenConfigurationError';
-  }
-}
-
 class ServiceTokenClaimError extends Error {
   constructor(message: string) {
     super(message);
@@ -281,13 +274,6 @@ interface AuthMiddlewareOptions {
    * to `/.well-known/jwks.json` on this Oxy client's configured API origin.
    */
   serviceTokenJwksUrl?: string;
-  /**
-   * @deprecated Oxy-API-only transition for pre-cutover HS256 service tokens.
-   * External services omit this option and verify Ed25519 tokens through the
-   * public JWKS. Never distribute `ACCESS_TOKEN_SECRET`: a host holding it can
-   * mint user access tokens as well as verify legacy service tokens.
-   */
-  jwtSecret?: string;
   /**
    * Expected JWT issuer. Defaults to `'oxy-auth'`. Override only if you run
    * a private fork of the Oxy auth server under a different `iss` claim.
@@ -563,7 +549,8 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * - Service tokens (type: 'service') ARE stateless, so they use Ed25519
      *   verification against Oxy's public JWKS and are additionally checked
      *   for `aud`, `iss`, `type`, time, attribution and scope claims. The
-     *   `jwtSecret` path exists only for Oxy API's bounded HS256 transition.
+     *   algorithm is pinned to EdDSA and never read from the token: an HS256,
+     *   `none` or any other JOSE header is refused before any key lookup.
      * - The backend's own `authMiddleware` uses `jwt.verify()` because it has
      *   direct access to `ACCESS_TOKEN_SECRET`.
      *
@@ -624,7 +611,6 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
         onRefusal,
         loadUser = false,
         optional = false,
-        jwtSecret,
         serviceTokenJwksUrl = new URL('/.well-known/jwks.json', this.getBaseURL()).toString(),
         expectedIssuer = OXY_JWT_ISSUER,
         expectedAudience = OXY_JWT_AUDIENCE,
@@ -755,7 +741,6 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
             // per-platform, so Metro never bundles a Node built-in reference.
             try {
               await verifyServiceTokenSignature(token, {
-                legacySecret: jwtSecret,
                 jwksUrl: serviceTokenJwksUrl,
                 cache: this._serviceTokenJwksCache,
               });
@@ -767,29 +752,6 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               // Structure + signature + claim errors all map to 401. Anything
               // else (e.g. Node crypto failing to load on a misconfigured host)
               // genuinely IS a 500.
-              if (
-                verifyError instanceof ServiceTokenConfigurationError
-              ) {
-                recordRefusal(req, {
-                  code: 'SERVICE_TOKEN_NOT_CONFIGURED',
-                  stage: 'service-token',
-                  reason: verifyError.message,
-                  status: 403,
-                });
-                if (optional) {
-                  req.userId = null;
-                  req.user = null;
-                  return next();
-                }
-                const error = {
-                  error: 'SERVICE_TOKEN_NOT_CONFIGURED',
-                  message: verifyError.message,
-                  code: 'SERVICE_TOKEN_NOT_CONFIGURED',
-                  status: 403,
-                };
-                if (onError) return onError(error);
-                return res.status(403).json(error);
-              }
               if (
                 verifyError instanceof ServiceTokenStructureError ||
                 verifyError instanceof ServiceTokenSignatureError ||
@@ -1408,8 +1370,6 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
       debug?: boolean;
       /** Observe refusals on the service lane; forwarded straight to `auth()`. */
       onRefusal?: (refusal: OxyAuthRefusal) => void;
-      /** @deprecated Oxy-API-only HS256 transition; external verifiers use JWKS. */
-      jwtSecret?: string;
       serviceTokenJwksUrl?: string;
       expectedIssuer?: string;
       expectedAudience?: string;
@@ -1642,10 +1602,14 @@ async function resolveServiceTokenPublicKey(
   return resolved;
 }
 
-/** Ed25519/JWKS verification with an Oxy-API-only HS256 transition. */
+/**
+ * Ed25519 verification against Oxy's published JWKS (ADR 0012). The algorithm
+ * is pinned: the header must be exactly `{ alg: 'EdDSA', typ: 'JWT', kid }`,
+ * so HS256, `none` and every other header is refused before any key lookup.
+ */
 async function verifyServiceTokenSignature(
   token: string,
-  options: { legacySecret?: string; jwksUrl: string; cache: ServiceTokenJwksCache },
+  options: { jwksUrl: string; cache: ServiceTokenJwksCache },
 ): Promise<void> {
   const nodeCrypto = await loadNodeCrypto();
   const parts = token.split('.');
@@ -1657,16 +1621,6 @@ async function verifyServiceTokenSignature(
     throw new ServiceTokenStructureError('Service token has empty segment');
   }
   const header = parseJsonSegment(headerB64);
-  if (header.alg === 'HS256') {
-    if (!options.legacySecret) throw new ServiceTokenConfigurationError('Legacy service token verification is not configured');
-    const expectedSig = nodeCrypto.createHmac('sha256', options.legacySecret)
-      .update(`${headerB64}.${payloadB64}`)
-      .digest('base64url');
-    const sigBuf = Buffer.from(signatureB64);
-    const expectedBuf = Buffer.from(expectedSig);
-    if (sigBuf.length !== expectedBuf.length || !nodeCrypto.timingSafeEqual(sigBuf, expectedBuf)) throw new ServiceTokenSignatureError();
-    return;
-  }
   if (
     Object.keys(header).length !== 3
     || header.alg !== 'EdDSA'

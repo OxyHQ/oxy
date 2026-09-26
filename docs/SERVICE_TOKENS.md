@@ -252,9 +252,11 @@ the endpoint is not an oracle for which users or applications exist.
 - A verifier pins EdDSA, issuer `oxy-auth`, audience `oxy-api`, expiry/not-before,
   token type and exact non-empty scopes/attribution IDs. Unknown keys and an
   unavailable expired cache fail closed.
-- Never pass or distribute `ACCESS_TOKEN_SECRET`. `jwtSecret` exists only as an
-  Oxy-API-internal HS256 transition while pre-cutover tokens drain; external
-  consumers use JWKS and hold no mint-capable key. See
+- EdDSA is the only service-token algorithm. An HS256 token is refused
+  everywhere, even one signed with a real platform secret, and the SDK has no
+  shared-secret option: a verifier holds public keys only and can never mint.
+  `oxy-api` refuses to boot in production without its signing key; outside
+  production it signs with a per-process ephemeral key. See
   [ADR 0012](adr/0012-service-token-signing-key-model.md).
 - Secrets stored as sha256 hashes; timing-safe comparison on exchange
 - Bearer-only, so not exposed to CSRF (the API has no ambient credential)

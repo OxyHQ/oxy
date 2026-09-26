@@ -10,14 +10,13 @@
  *     is visible exactly where delegation is meant to be visible
  *     (`req.userId`, `getOxyDelegatedUserId`) and nowhere else.
  *
- * Everything runs through the REAL `oxy.auth()` middleware with a real HMAC
- * signature, so the assertions are about the shipped lane rather than a
+ * Everything runs through the REAL `oxy.auth()` middleware with a real
+ * Ed25519 signature verified against a (fetch-mocked) published JWKS, so the assertions are about the shipped lane rather than a
  * hand-built request object. The one exception is deliberate and marked: the
  * tampering cases plant fields on an already-authenticated request to prove the
  * billing resolver does not read them.
  */
 
-import crypto from 'node:crypto';
 import { OxyServices } from '../../OxyServices';
 import {
   getOxyBillingPrincipal,
@@ -27,8 +26,17 @@ import {
   getRequiredOxyUserId,
 } from '../auth';
 import type { Request } from 'express';
+import {
+  b64url,
+  createSigningKey,
+  mockJwksFetch,
+  signEdDSA,
+  type ServiceTokenSigningKey,
+} from '../../__tests__/fixtures/serviceTokens';
 
-const SERVICE_SECRET = 'attribution-suite-secret-not-production';
+const SIGNING_KEY = createSigningKey('attribution-suite-a');
+// Same kid, different private key: the published key cannot verify it.
+const IMPOSTER_KEY = createSigningKey('attribution-suite-a');
 const OWNER_ACCOUNT = 'account-owning-the-application';
 const DELEGATED_USER = 'end-user-the-service-acts-for';
 
@@ -36,15 +44,8 @@ interface Claims {
   [key: string]: unknown;
 }
 
-const b64url = (input: Buffer | string): string =>
-  (typeof input === 'string' ? Buffer.from(input, 'utf8') : input)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-
-/** Sign an HS256 JWT byte-identically to `POST /auth/service-token`. */
-function signServiceToken(claims: Claims = {}, secret = SERVICE_SECRET): string {
+/** Sign an EdDSA JWT in the shape `POST /auth/service-token` mints (ADR 0012). */
+function signServiceToken(claims: Claims = {}, key: ServiceTokenSigningKey = SIGNING_KEY): string {
   const now = Math.floor(Date.now() / 1000);
   const payload: Claims = {
     iat: now,
@@ -60,16 +61,7 @@ function signServiceToken(claims: Claims = {}, secret = SERVICE_SECRET): string 
     scopes: ['inference:invoke'],
     ...claims,
   };
-  const headerB64 = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const payloadB64 = b64url(JSON.stringify(payload));
-  const signature = crypto
-    .createHmac('sha256', secret)
-    .update(`${headerB64}.${payloadB64}`)
-    .digest('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-  return `${headerB64}.${payloadB64}.${signature}`;
+  return signEdDSA(payload, key);
 }
 
 interface MockReq {
@@ -118,7 +110,7 @@ const makeRes = (): MockRes => ({
 async function authenticate(
   oxy: OxyServices,
   headers: Record<string, string>,
-  options: Parameters<OxyServices['auth']>[0] = { jwtSecret: SERVICE_SECRET },
+  options: Parameters<OxyServices['auth']>[0] = {},
 ): Promise<{ req: MockReq; res: MockRes; nextCalled: boolean }> {
   const req = makeReq(headers);
   const res = makeRes();
@@ -132,9 +124,17 @@ async function authenticate(
 const asRequest = (req: MockReq): Request => req as unknown as Request;
 
 let oxy: OxyServices;
+/** What the JWKS endpoint answers right now; a test may swap it for an outage. */
+let publishedJwks: () => ServiceTokenSigningKey[] | { status: number };
 
 beforeEach(() => {
   oxy = new OxyServices({ baseURL: 'http://test.invalid' });
+  publishedJwks = () => [SIGNING_KEY];
+  mockJwksFetch(() => publishedJwks());
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 describe('a verified service token resolves the whole attribution tuple locally', () => {
@@ -267,8 +267,8 @@ describe('a delegated X-Oxy-User-Id is attribution, never the payer', () => {
 });
 
 describe('signature verification is mandatory before any claim is trusted', () => {
-  it('refuses a token signed with a different secret (401, no principal)', async () => {
-    const forged = signServiceToken({}, 'a-secret-the-issuer-never-used');
+  it('refuses a token signed with a key Oxy never published (401, no principal)', async () => {
+    const forged = signServiceToken({}, IMPOSTER_KEY);
     const { req, res, nextCalled } = await authenticate(oxy, {
       authorization: `Bearer ${forged}`,
     });
@@ -334,18 +334,17 @@ describe('signature verification is mandatory before any claim is trusted', () =
     expect(req.serviceApp).toBeUndefined();
   });
 
-  it('refuses every service token when no verification secret is configured', async () => {
-    // The secure default: without a secret the middleware CANNOT verify, so it
-    // must not fall back to reading the decoded claims.
-    const { req, res, nextCalled } = await authenticate(
-      oxy,
-      { authorization: `Bearer ${signServiceToken()}` },
-      {},
-    );
+  it('refuses every service token when no verification key can be obtained', async () => {
+    // The secure default: without the published key the middleware CANNOT
+    // verify, so it must not fall back to reading the decoded claims.
+    publishedJwks = () => ({ status: 503 });
+    const { req, res, nextCalled } = await authenticate(oxy, {
+      authorization: `Bearer ${signServiceToken()}`,
+    });
 
     expect(nextCalled).toBe(false);
-    expect(res.statusCode).toBe(403);
-    expect(res.body).toMatchObject({ code: 'SERVICE_TOKEN_NOT_CONFIGURED' });
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toMatchObject({ code: 'INVALID_SERVICE_TOKEN' });
     expect(req.serviceApp).toBeUndefined();
     expect(getOxyBillingPrincipal(asRequest(req))).toBeNull();
   });
@@ -353,11 +352,11 @@ describe('signature verification is mandatory before any claim is trusted', () =
   it('attaches no principal on the OPTIONAL lane either', async () => {
     // `optional: true` degrades to anonymous rather than 401 — the thing that
     // must not happen is degrading to an UNVERIFIED principal.
-    const forged = signServiceToken({}, 'wrong-secret');
+    const forged = signServiceToken({}, IMPOSTER_KEY);
     const { req, nextCalled } = await authenticate(
       oxy,
       { authorization: `Bearer ${forged}` },
-      { jwtSecret: SERVICE_SECRET, optional: true },
+      { optional: true },
     );
 
     expect(nextCalled).toBe(true);

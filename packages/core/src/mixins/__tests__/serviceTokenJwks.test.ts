@@ -1,6 +1,11 @@
 import { generateKeyPairSync, sign as signBytes, type KeyObject } from 'node:crypto';
 import { OxyServices } from '../../OxyServices';
 import { createOxyAuthMiddleware } from '../../server/auth';
+import {
+  createSigningKey,
+  mockJwksFetch,
+  type ServiceTokenSigningKey,
+} from '../../__tests__/fixtures/serviceTokens';
 
 const b64url = (value: string | Uint8Array): string => Buffer.from(value).toString('base64url');
 
@@ -204,5 +209,179 @@ describe('Ed25519 Oxy service-token verification through JWKS', () => {
     );
     expect(result.next).not.toHaveBeenCalled();
     expect(result.response.statusCode).toBe(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Key lifecycle (ADR 0012, #877): current key, rotation grace, unknown kid,
+// JWKS outages and malformed key sets. `Date.now` is advanced by hand to step
+// past the one-per-minute unknown-kid refresh limit and the five-minute cache.
+// ---------------------------------------------------------------------------
+
+describe('service-token key lifecycle against the published JWKS', () => {
+  const KEY_A = createSigningKey('service-2026-09-a');
+  const KEY_B = createSigningKey('service-2026-10-b');
+  const KEY_C = createSigningKey('service-never-published');
+  const UNKNOWN_KID_REFRESH_MS = 60 * 1000;
+  const JWKS_CACHE_MS = 5 * 60 * 1000;
+
+  let published: () => ServiceTokenSigningKey[] | { status: number; body?: string };
+  let jwksFetch: jest.SpyInstance;
+  let clock: number;
+  let oxy: OxyServices;
+
+  const advance = (ms: number) => {
+    clock += ms;
+  };
+  const accepted = async (bearer: string) => (await authenticate(oxy, bearer)).next.mock.calls.length === 1;
+
+  beforeEach(() => {
+    const start = Date.now();
+    clock = 0;
+    jest.spyOn(Date, 'now').mockImplementation(() => start + clock);
+    published = () => [KEY_A];
+    jwksFetch = mockJwksFetch(() => published());
+    oxy = new OxyServices({ baseURL: 'https://api.oxy.test' });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('verifies a token from the current key, fetching the key set once', async () => {
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(true);
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(true);
+    expect(jwksFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('verifies a token from the rotation-grace key (second key in the JWKS)', async () => {
+    published = () => [KEY_B, KEY_A];
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(true);
+    expect(await accepted(token(KEY_B.privateKey, KEY_B.kid))).toBe(true);
+    expect(jwksFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('an unknown kid triggers exactly one refresh, then the new key is accepted', async () => {
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(true);
+    published = () => [KEY_B, KEY_A];
+    advance(UNKNOWN_KID_REFRESH_MS);
+
+    expect(await accepted(token(KEY_B.privateKey, KEY_B.kid))).toBe(true);
+    expect(jwksFetch).toHaveBeenCalledTimes(2);
+    // Now cached: no further fetch for the same kid.
+    expect(await accepted(token(KEY_B.privateKey, KEY_B.kid))).toBe(true);
+    expect(jwksFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('an unknown kid still unknown after the refresh is refused, and does not refetch at once', async () => {
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(true);
+    advance(UNKNOWN_KID_REFRESH_MS);
+
+    const unknown = await authenticate(oxy, token(KEY_C.privateKey, KEY_C.kid));
+    expect(unknown.next).not.toHaveBeenCalled();
+    expect(unknown.response.statusCode).toBe(401);
+    expect(unknown.response.body).toMatchObject({ code: 'INVALID_SERVICE_TOKEN' });
+    expect(jwksFetch).toHaveBeenCalledTimes(2);
+
+    expect(await accepted(token(KEY_C.privateKey, KEY_C.kid))).toBe(false);
+    expect(jwksFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('a token claiming a published kid but signed by another key is refused', async () => {
+    const forged = await authenticate(oxy, token(KEY_C.privateKey, KEY_A.kid));
+    expect(forged.next).not.toHaveBeenCalled();
+    expect(forged.response.statusCode).toBe(401);
+  });
+
+  it.each([
+    ['wrong environment', { environment: 'staging-typo' }],
+    ['missing environment', { environment: undefined }],
+    ['expired', { exp: Math.floor(Date.now() / 1_000) - 1 }],
+    ['wrong issuer', { iss: 'oxy-auth-fork' }],
+    ['wrong audience', { aud: 'kaana-api' }],
+  ])('refuses a correctly signed token with the %s', async (_label, claims) => {
+    const result = await authenticate(oxy, token(KEY_A.privateKey, KEY_A.kid, claims));
+    expect(result.next).not.toHaveBeenCalled();
+    expect(result.response.statusCode).toBe(401);
+    expect(result.request).not.toHaveProperty('serviceApp');
+  });
+
+  it('never treats a correctly signed non-service type as a service principal', async () => {
+    const result = await authenticate(oxy, token(KEY_A.privateKey, KEY_A.kid, { type: 'access' }));
+    expect(result.next).not.toHaveBeenCalled();
+    expect(result.response.statusCode).toBe(401);
+    expect(result.request).not.toHaveProperty('serviceApp');
+    // It took the user-token lane, which never consults the JWKS.
+    expect(jwksFetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps verifying a cached key while the JWKS is temporarily unavailable', async () => {
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(true);
+    published = () => ({ status: 503 });
+    advance(UNKNOWN_KID_REFRESH_MS);
+
+    // An unknown kid forces a refresh into the outage; it is refused...
+    expect(await accepted(token(KEY_B.privateKey, KEY_B.kid))).toBe(false);
+    expect(jwksFetch).toHaveBeenCalledTimes(2);
+    // ...but the failed refresh does not evict the key already held.
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(true);
+    expect(jwksFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps verifying a cached key when the JWKS fetch itself throws', async () => {
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(true);
+    jwksFetch.mockRejectedValue(new TypeError('fetch failed'));
+    advance(UNKNOWN_KID_REFRESH_MS);
+
+    expect(await accepted(token(KEY_B.privateKey, KEY_B.kid))).toBe(false);
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(true);
+  });
+
+  it('refuses once the cache has expired and the JWKS is still unavailable', async () => {
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(true);
+    published = () => ({ status: 503 });
+    advance(JWKS_CACHE_MS);
+
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(false);
+  });
+
+  it.each([
+    ['an empty key set', { status: 200, body: JSON.stringify({ keys: [] }) }],
+    ['no keys member', { status: 200, body: JSON.stringify({}) }],
+    ['a body that is not JSON', { status: 200, body: '<html>maintenance</html>' }],
+    ['an HTTP error', { status: 500, body: '' }],
+    ['a private key member', { status: 200, body: JSON.stringify({ keys: [{ ...KEY_A.jwk, d: 'AAAA' }] }) }],
+    ['a non-Ed25519 key', { status: 200, body: JSON.stringify({ keys: [{ ...KEY_A.jwk, crv: 'X25519' }] }) }],
+    ['a key without alg EdDSA', { status: 200, body: JSON.stringify({ keys: [{ ...KEY_A.jwk, alg: 'HS256' }] }) }],
+    ['a duplicate kid', { status: 200, body: JSON.stringify({ keys: [KEY_A.jwk, KEY_A.jwk] }) }],
+    ['a truncated public key', { status: 200, body: JSON.stringify({ keys: [{ ...KEY_A.jwk, x: 'AAAA' }] }) }],
+  ])('refuses every token when the JWKS is %s', async (_label, answer) => {
+    published = () => answer;
+    const result = await authenticate(oxy, token(KEY_A.privateKey, KEY_A.kid));
+    expect(result.next).not.toHaveBeenCalled();
+    expect(result.response.statusCode).toBe(401);
+    expect(result.response.body).toMatchObject({ code: 'INVALID_SERVICE_TOKEN' });
+  });
+
+  it('survives a key rotation during active traffic', async () => {
+    // Before rotation: key A signs everything.
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(true);
+
+    // The issuer publishes B next to A and starts signing with B. Tokens from
+    // A are still in flight.
+    published = () => [KEY_B, KEY_A];
+    advance(UNKNOWN_KID_REFRESH_MS);
+    const inFlightA = token(KEY_A.privateKey, KEY_A.kid);
+    expect(await accepted(token(KEY_B.privateKey, KEY_B.kid))).toBe(true);
+    expect(await accepted(inFlightA)).toBe(true);
+    expect(await accepted(token(KEY_B.privateKey, KEY_B.kid))).toBe(true);
+    expect(jwksFetch).toHaveBeenCalledTimes(2);
+
+    // Grace over: A is withdrawn. After the cache expires, A is refused and B
+    // carries on.
+    published = () => [KEY_B];
+    advance(JWKS_CACHE_MS);
+    expect(await accepted(token(KEY_B.privateKey, KEY_B.kid))).toBe(true);
+    expect(await accepted(token(KEY_A.privateKey, KEY_A.kid))).toBe(false);
   });
 });

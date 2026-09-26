@@ -1,6 +1,6 @@
 # ADR 0012 — Service tokens move to asymmetric signing with a published JWKS; the shared HMAC secret is retired
 
-- Status: accepted. Sub-decision (1), key custody, is DECIDED — an Ed25519 private key in SSM; see "Sub-decision (1): decided" below. Sub-decision (2), the cutover schedule and the cross-repository release ordering, is still open and blocks only the RETIREMENT of the old key, not the new one's arrival.
+- Status: accepted and IMPLEMENTED. Sub-decision (1), key custody, is DECIDED — an Ed25519 private key in SSM. Sub-decision (2), the cutover, is DONE: production has signed EdDSA since 2026-09-17, and HS256 issuance and verification were removed on 2026-09-25 (#877). See "Retirement (2026-09-25)" below.
 - Date: 2026-08-16
 - Issue: #972 (workstream 2.2), #987 (the documentation/key divergence this decides the fix for)
 
@@ -130,7 +130,7 @@ Concretely, the target state:
   become `SERVICE_TOKEN_SECRET`; there is no symmetric service-token key in the
   target state.
 
-**Implementation status (2026-09-03):** the source implementation now exists:
+**Implementation status (2026-09-03, superseded by "Retirement (2026-09-25)"):** the source implementation now exists:
 Ed25519 minting with `kid`, the database-independent public JWKS endpoint, and
 bounded JWKS verification/cache support in `@oxy.so/core`. The API retains
 HS256 verification/minting only as a transition when the asymmetric bindings
@@ -168,6 +168,41 @@ different things by it, and the difference is why option 2 is cheaper here:**
 Either way the window must be bounded by the maximum token lifetime, not by a
 calendar guess, and the retirement of the old key is a separate, verified step —
 not a line deleted in the same commit that adds the new one.
+
+## Retirement (2026-09-25)
+
+The HS256 path is gone, not gated. What was measured before removing it, and
+what now holds:
+
+- **The window had long closed.** Production's JWKS has published
+  `oxy-service-2026-09-17` since the bindings were deployed (#1315), and every
+  mint since then was EdDSA. Eight days is far past the bound this ADR sets:
+  one maximum token lifetime (1 hour) plus a verifier's JWKS cache (5 minutes).
+- **No verifier held the old key.** No repository under `~/Oxy` passed
+  `jwtSecret` to `@oxy.so/core`, and the ECS scan above had found no holder of
+  `ACCESS_TOKEN_SECRET` outside `oxy-api` and its one-shot derivatives.
+- **Issuance.** `mintServiceToken` signs EdDSA or throws. With no signing key,
+  `oxy-api` refuses to BOOT in production — a service that cannot mint is a
+  deployment error, never a reason to fall back. Outside production it signs
+  with a per-process ephemeral Ed25519 key (`dev-ephemeral-*`), generated at
+  first use and never persisted, so development keys and production keys cannot
+  meet and no environment needs `ACCESS_TOKEN_SECRET` to mint.
+- **Verification.** `verifyServiceToken` (API) and `auth()` / `serviceAuth()`
+  (SDK) pin `alg: EdDSA`. Any other header — HS256 under any secret, `none`,
+  RS256 — is not a service token, and nothing in it is read. The SDK's
+  `jwtSecret` option is removed.
+- **One consequence found while removing it.** `POST /reputation/award` chose
+  its lane by HMAC-verifying the bearer against `ACCESS_TOKEN_SECRET`; from the
+  cutover on, that check could never recognise a service token, so services
+  were sent down the user lane. The lane is now decided by `verifyServiceToken`.
+  Any code that decides "is this a service token?" must go through it.
+- **Monitoring.** The deploy checks the live key set after every `oxy-api`
+  rollout: non-empty, Ed25519 `sig` keys only, no private members.
+
+**Emergency rollback does not restore HS256.** A bad signing key is handled by
+the additive rotation in the runbook (`docs/runbooks/service-token-signing-key-rotation.md`):
+publish a new key, sign with it, withdraw the bad one. Re-introducing a
+symmetric path would re-create the dual-authority window this ADR rejects.
 
 ## Sub-decision (1): decided — an Ed25519 private key in SSM
 
@@ -212,10 +247,10 @@ change that adds the new one.
 ## What this ADR does not decide, and why it cannot
 
 Two sub-decisions were the owner's, not an agent's, because both are about
-production key custody and a production rollout window. **(1) has since been
-answered — see "Sub-decision (1): decided" above; the alternatives are kept here
-because a decision without the option it beat is a decision nobody can revisit.
-(2) is still open.**
+production key custody and a production rollout window. **Both have since been
+answered — see "Sub-decision (1): decided" and "Retirement (2026-09-25)" above;
+the alternatives are kept here because a decision without the option it beat is
+a decision nobody can revisit.**
 
 1. ~~**Where the private key lives.**~~ **DECIDED: SSM.** Two viable shapes, and
    they were not equally costly:
@@ -239,7 +274,8 @@ because a decision without the option it beat is a decision nobody can revisit.
    **The owner chose SSM, for operational consistency, accepting that a
    container compromise yields the service-token mint key.**
 
-2. **When the cutover runs, and how the window is bounded.** STILL OPEN. The mechanics are
+2. **When the cutover runs, and how the window is bounded.** DONE — see
+   "Retirement (2026-09-25)". As originally stated: The mechanics are
    settled above; what is not settled is the schedule and who is told. Under
    option 2 the window is cheap but still needs every verifier on a JWKS-capable
    `@oxy.so/core` before the old key retires, which is a release-ordering

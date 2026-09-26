@@ -32,7 +32,6 @@ import { randomUUID } from 'node:crypto';
 // "the internal audience still sees it" control here silently measures the
 // PUBLIC viewer instead — which is the same answer the flag produces.
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
-import jwt from 'jsonwebtoken';
 
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
@@ -59,6 +58,7 @@ import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
 import catalogueRouter from '../inferenceCatalogue';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 jest.setTimeout(60_000);
 
@@ -163,8 +163,7 @@ async function seed(): Promise<void> {
     })
     .returning({ id: applicationCredentials.id });
 
-  internalToken = jwt.sign(
-    {
+  internalToken = signServiceTokenEd25519({
       type: 'service',
       appId: internalApplication.id,
       appName: `Internal ${tag}`,
@@ -172,10 +171,10 @@ async function seed(): Promise<void> {
       ownerAccountId: account.id,
       environment: 'production',
       scopes: ['inference:invoke'],
-    },
-    process.env.ACCESS_TOKEN_SECRET as string,
-    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' }
-  );
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      exp: Math.floor(Date.now() / 1_000) + 3_600,
+    });
 
   const [attestedApplication] = await db
     .insert(applications)
@@ -213,8 +212,7 @@ async function seed(): Promise<void> {
     subject: attestedSubject,
   });
 
-  attestedInternalToken = jwt.sign(
-    {
+  attestedInternalToken = signServiceTokenEd25519({
       type: 'service',
       appId: attestedApplication.id,
       appName: `Attested Internal ${tag}`,
@@ -224,10 +222,10 @@ async function seed(): Promise<void> {
       ownerAccountId: account.id,
       environment: 'production',
       scopes: ['inference:invoke'],
-    },
-    process.env.ACCESS_TOKEN_SECRET as string,
-    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' }
-  );
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      exp: Math.floor(Date.now() / 1_000) + 3_600,
+    });
 
   await db.insert(inferencePublishers).values({ slug: publisherSlug, displayName: `Pub ${tag}` });
 

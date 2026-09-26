@@ -29,7 +29,6 @@ import { generateKeyPairSync, randomUUID } from 'node:crypto';
 // `jest.setup.cjs` stubs `jsonwebtoken` globally (sign → a fixed string). The
 // service-token claims ARE the gate here, so restore the real module.
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
-import jwt from 'jsonwebtoken';
 
 process.env.ACCESS_TOKEN_SECRET = 'test-access-token-secret';
 
@@ -85,6 +84,7 @@ import { permissionsForAccountRole, type AccountRole } from '../../utils/account
 import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
 import { workloadTokenEnvironment } from '../../utils/credentialEnvironment';
 import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 interface JsonResponse {
   status: number;
@@ -191,8 +191,7 @@ const serviceCredentialByApplication = new Map<string, { id: string; environment
 function serviceToken(input: { appId: string; ownerAccountId: string; scopes: string[] }): string {
   const credential = serviceCredentialByApplication.get(input.appId);
   if (!credential) throw new Error('serviceToken requires an application fixture credential');
-  return jwt.sign(
-    {
+  return signServiceTokenEd25519({
       type: 'service',
       appId: input.appId,
       appName: 'Fixture App',
@@ -200,10 +199,10 @@ function serviceToken(input: { appId: string; ownerAccountId: string; scopes: st
       ownerAccountId: input.ownerAccountId,
       environment: credential.environment,
       scopes: input.scopes,
-    },
-    process.env.ACCESS_TOKEN_SECRET as string,
-    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' },
-  );
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      exp: Math.floor(Date.now() / 1_000) + 3_600,
+    });
 }
 
 async function insertAccount(): Promise<string> {
@@ -864,8 +863,7 @@ describe('Kaana credential validation principal', () => {
     handle: string;
     scopes: string[];
   }): string {
-    return jwt.sign(
-      {
+    return signServiceTokenEd25519({
         type: 'service',
         appId: input.appId,
         appName: 'Kaana',
@@ -874,10 +872,10 @@ describe('Kaana credential validation principal', () => {
         // What this deployment's mint writes; the live re-read compares it.
         environment: workloadTokenEnvironment(),
         scopes: input.scopes,
-      },
-      process.env.ACCESS_TOKEN_SECRET as string,
-      { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' },
-    );
+        iss: 'oxy-auth',
+        aud: 'oxy-api',
+        exp: Math.floor(Date.now() / 1_000) + 3_600,
+      });
   }
 
   it('accepts the verdict from an ATTESTED Kaana with no credential at all', async () => {

@@ -88,6 +88,8 @@ Internal Oxy ecosystem apps authenticate via short-lived service JWTs (OAuth2 Cl
 3. Service uses JWT as `Authorization: Bearer <token>` + `X-Oxy-User-Id: <userId>` for delegation
 4. `@oxy.so/core` `auth()` middleware recognizes `type: 'service'` JWTs (stateless, no session DB lookup)
 
+Service tokens are EdDSA only, verified against `/.well-known/jwks.json` (ADR 0012). HS256 is refused everywhere. `oxy-api` does not boot in production without `SERVICE_TOKEN_PRIVATE_KEY` + `SERVICE_TOKEN_SIGNING_KEY_ID`, and outside production it mints with a per-process ephemeral key. Decide "is this a service token?" with `verifyServiceToken`, never with `jwt.verify(…, ACCESS_TOKEN_SECRET)`.
+
 **Workload identity — a first-party service with NO credential (ADR 0026):**
 
 An official service does not need step 1 or 2. It proves what it IS to the

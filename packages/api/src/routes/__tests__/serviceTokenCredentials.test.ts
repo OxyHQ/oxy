@@ -22,9 +22,8 @@ import * as nodeCrypto from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 
 // `jest.setup.cjs` stubs `jsonwebtoken` globally (sign → a fixed string). The
-// claims ARE the contract here, so restore the real module for this suite.
+// real module is kept for the user-session side of this suite.
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
-import jwt from 'jsonwebtoken';
 
 process.env.ACCESS_TOKEN_SECRET = 'test-access-token-secret';
 
@@ -64,6 +63,7 @@ import { applications } from '../../db/schema/applications';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import authRouter from '../auth';
+import { serviceTokenPublicJwks } from '../../config/serviceTokenSigning';
 
 interface JsonResponse {
   status: number;
@@ -175,8 +175,25 @@ interface ServiceClaims {
   aud?: string | string[];
 }
 
+/**
+ * Verifies a minted token the way an external verifier would — EdDSA against
+ * the key the API publishes for its `kid` — and returns its claims. A token
+ * that is not EdDSA, or names an unpublished kid, fails the test here.
+ */
 function decodeServiceJwt(token: string): ServiceClaims {
-  return jwt.verify(token, process.env.ACCESS_TOKEN_SECRET as string) as ServiceClaims;
+  const [headerSegment, payloadSegment, signatureSegment] = token.split('.');
+  const header = JSON.parse(Buffer.from(headerSegment, 'base64url').toString('utf8'));
+  expect(header).toMatchObject({ alg: 'EdDSA', typ: 'JWT' });
+  const jwk = serviceTokenPublicJwks().find((key) => key.kid === header.kid);
+  if (!jwk) throw new Error(`service token names an unpublished kid: ${String(header.kid)}`);
+  const verified = nodeCrypto.verify(
+    null,
+    Buffer.from(`${headerSegment}.${payloadSegment}`),
+    nodeCrypto.createPublicKey({ key: jwk, format: 'jwk' }),
+    Buffer.from(signatureSegment, 'base64url'),
+  );
+  if (!verified) throw new Error('service token signature does not verify');
+  return JSON.parse(Buffer.from(payloadSegment, 'base64url').toString('utf8')) as ServiceClaims;
 }
 
 beforeAll(async () => {

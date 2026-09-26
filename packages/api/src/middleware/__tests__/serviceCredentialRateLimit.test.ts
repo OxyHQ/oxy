@@ -32,10 +32,10 @@ const ACCESS_TOKEN_SECRET = 'test_access_token_secret_minimum_32_characters';
 process.env.ACCESS_TOKEN_SECRET = ACCESS_TOKEN_SECRET;
 
 import { rateLimiter, serviceCredentialLimiter, userRateLimiter, isFirstPartyServiceRequest } from '../security';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 function serviceToken(overrides: Record<string, unknown> = {}): string {
-  return jwt.sign(
-    {
+  return signServiceTokenEd25519({
       type: 'service',
       appId: 'app-1',
       appName: 'Mention',
@@ -47,10 +47,10 @@ function serviceToken(overrides: Record<string, unknown> = {}): string {
       environment: 'production',
       scopes: ['federation:write'],
       ...overrides,
-    },
-    ACCESS_TOKEN_SECRET,
-    { expiresIn: '5m', issuer: 'oxy-auth', audience: 'oxy-api' }
-  );
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      exp: Math.floor(Date.now() / 1_000) + 300,
+    });
 }
 
 function userSessionToken(userId = 'u-1'): string {
