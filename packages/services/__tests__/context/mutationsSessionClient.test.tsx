@@ -218,6 +218,7 @@ function buildStub(baseURL: string) {
       // stays the only trigger); keeps `startTokenRefreshScheduler` inert here.
       getAccessTokenExpiry: () => null,
       onTokensChanged: () => () => undefined,
+      setDeviceCredentialProvider: () => () => undefined,
       setTokens: (token: string) => { currentToken = token; },
       clearTokens: () => { currentToken = null; },
       clearCache: jest.fn(),

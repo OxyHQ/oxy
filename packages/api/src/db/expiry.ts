@@ -71,6 +71,7 @@ import { authChallenges } from './schema/authChallenges';
 import { authCodes } from './schema/authCodes';
 import { authSessions } from './schema/authSessions';
 import { civicNonces } from './schema/civicNonces';
+import { deviceJoinCodes } from './schema/deviceJoinCodes';
 import {
   PROVIDER_CONNECTION_AUDIT_RETENTION_SECONDS,
   inferenceProviderConnectionAuditEvents,
@@ -163,6 +164,15 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'replay (`used_at` is set) instead of answering "no such code". ' +
       'Lowering it to 0 converts a detected replay into an indistinguishable ' +
       'miss.',
+  },
+  {
+    table: deviceJoinCodes,
+    column: deviceJoinCodes.expiresAt,
+    retentionSeconds: 300,
+    reason:
+      'Same pad as `auth_codes`: a just-expired bridge code is still ' +
+      'recognised as a replay (`used_at` is set) rather than a miss. Every ' +
+      'redemption filters `expires_at` itself.',
   },
   {
     table: mcpOauthAuthorizationCodes,

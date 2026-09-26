@@ -1,9 +1,14 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import type { DeviceActivateResponse, DeviceSessionState } from '@oxy.so/contracts';
 import {
   deviceActivateRequestSchema,
   deviceActivateResponseSchema,
   deviceBackgroundTokenRequestSchema,
+  deviceJoinCodeRequestSchema,
+  deviceJoinCodeResponseSchema,
+  deviceJoinRequestSchema,
+  deviceJoinResponseSchema,
+  deviceRegisterResponseSchema,
   deviceTokenMintRequestSchema,
 } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
@@ -13,11 +18,12 @@ import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
 import { rateLimit } from '../middleware/rateLimiter';
 import { isLockedOut, recordFailure, clearFailures } from '../services/loginLockout.service';
 import deviceSessionService from '../services/deviceSession.service';
+import deviceJoinService from '../services/deviceJoin.service';
 import sessionService from '../services/session.service';
 import { broadcastDeviceState, broadcastSessionAccountsChanged } from '../utils/socket';
 import { asyncHandler } from '../utils/asyncHandler';
 import { logger } from '../utils/logger';
-import { isBrowserClient } from '../utils/origin';
+import { isAuthWebOrigin, isBrowserClient, normaliseOrigin } from '../utils/origin';
 import { hashedIpKey } from '../utils/ipKey';
 
 const router = Router();
@@ -128,6 +134,153 @@ router.post(
         // the response must not pretend otherwise.
         state,
       },
+    });
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// The browser bridge (ADR 0029 D2)
+// ---------------------------------------------------------------------------
+//
+// The browser's ONE Oxy session lives on auth.oxy.so, the only origin every app
+// can reach. The first time a person presses sign-in in an app that holds no
+// device credential, the app opens `auth.oxy.so/bridge` from that press. The
+// bridge loads (or registers) auth.oxy.so's device, asks for a one-use code
+// bound to the app, its exact redirect URI and its PKCE challenge, posts it to
+// the app's window only, and closes. The app redeems the code for its own
+// holder credential. See `services/deviceJoin.service.ts`.
+
+/** auth.oxy.so (and loopback): the only origin that holds the browser's device. */
+function requireAuthWebOrigin(req: Request, res: Response, next: NextFunction): void {
+  const origin = req.headers.origin;
+  if (typeof origin !== 'string' || !isAuthWebOrigin(origin)) {
+    res.status(403).json({ error: 'auth_origin_required' });
+    return;
+  }
+  next();
+}
+
+// A browser registers a device once, and again only after its device ended with
+// nobody signed in. The ceiling only has to stop a script from filling the table.
+const deviceRegisterLimiter = rateLimit({
+  prefix: 'rl:session:device-register:',
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  keyGenerator: (req) => `device-register:ip:${hashedIpKey(req)}`,
+});
+
+const deviceJoinCodeLimiter = rateLimit({
+  prefix: 'rl:session:device-join-code:',
+  windowMs: 60_000,
+  max: 30,
+  keyGenerator: (req) => `device-join-code:ip:${hashedIpKey(req)}`,
+});
+
+const deviceJoinLimiter = rateLimit({
+  prefix: 'rl:session:device-join:',
+  windowMs: 60_000,
+  max: 30,
+  keyGenerator: (req) => `device-join:ip:${hashedIpKey(req)}`,
+});
+
+/**
+ * Register the browser's device (auth.oxy.so only).
+ *
+ * No bearer, no body. A new, EMPTY DeviceSession with a server-chosen id and one holder credential.
+ * The bridge calls it when auth.oxy.so holds no credential, or its credential
+ * answers `invalid_device_secret` (the device ended with nobody signed in).
+ */
+router.post(
+  '/register',
+  requireAuthWebOrigin,
+  deviceRegisterLimiter,
+  asyncHandler(async (_req: Request, res: Response) => {
+    const credential = await deviceJoinService.registerDevice();
+    logger.info('device.bridge.register', { deviceId: credential.deviceId });
+    res.status(201).json({ data: deviceRegisterResponseSchema.parse(credential) });
+  }),
+);
+
+/**
+ * Mint a one-use code for an official app to join the browser's device.
+ *
+ * auth.oxy.so only (the bridge window). Proves auth.oxy.so's device with one of its holder secrets and mints a
+ * one-use, ~60 s code for an OFFICIAL application, bound to one of its exact
+ * registered redirect URIs and to the app's PKCE S256 challenge. A wrong secret
+ * counts toward the same per-device lockout as the mint.
+ *
+ * @requestBody deviceJoinCodeRequestSchema
+ */
+router.post(
+  '/join-code',
+  requireAuthWebOrigin,
+  deviceJoinCodeLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    const parsed = deviceJoinCodeRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid_request' });
+      return;
+    }
+    const { deviceId } = parsed.data;
+
+    const lockout = await isLockedOut({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+    if (lockout.locked) {
+      if (typeof lockout.retryAfterSeconds === 'number') {
+        res.setHeader('Retry-After', String(lockout.retryAfterSeconds));
+      }
+      res.status(429).json({ error: 'Too many attempts' });
+      return;
+    }
+
+    const outcome = await deviceJoinService.issueJoinCode(parsed.data);
+    if (!outcome.ok) {
+      if (outcome.reason === 'invalid_device_secret') {
+        await recordFailure({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+        res.status(401).json({ error: 'invalid_device_secret' });
+        return;
+      }
+      res.status(400).json({ error: outcome.reason });
+      return;
+    }
+    await clearFailures({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+    res.json({ data: deviceJoinCodeResponseSchema.parse({ code: outcome.code, expiresIn: outcome.expiresIn }) });
+  }),
+);
+
+/**
+ * Join the browser's device with a bridge code.
+ *
+ * Called by the app's own origin, no bearer. Redeems a bridge code with the PKCE verifier only the app holds: unused,
+ * unexpired, issued to this application for this exact redirect URI. Returns a
+ * NEW holder credential for the browser's device; the app then mints through
+ * `POST /session/device/token` like every other holder. A browser caller must
+ * be the redirect URI's own origin.
+ *
+ * @requestBody deviceJoinRequestSchema
+ */
+router.post(
+  '/join',
+  deviceJoinLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    const parsed = deviceJoinRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid_request' });
+      return;
+    }
+    const origin = req.headers.origin;
+    if (typeof origin === 'string' && normaliseOrigin(origin) !== normaliseOrigin(new URL(parsed.data.redirectUri).origin)) {
+      res.status(403).json({ error: 'origin_mismatch' });
+      return;
+    }
+
+    const outcome = await deviceJoinService.redeemJoinCode(parsed.data);
+    if (!outcome.ok) {
+      res.status(400).json({ error: outcome.reason });
+      return;
+    }
+    logger.info('device.bridge.join', { deviceId: outcome.deviceId });
+    res.json({
+      data: deviceJoinResponseSchema.parse({ deviceId: outcome.deviceId, deviceSecret: outcome.deviceSecret }),
     });
   }),
 );

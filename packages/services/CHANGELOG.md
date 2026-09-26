@@ -1,5 +1,25 @@
 # Changelog
 
+## [6.3.0] - 2026-09-26
+
+### Added
+
+- One browser, one session (ADR 0029 D2): the first time a person opens the
+  account dialog on the web in an app that holds no device credential, the
+  provider opens `auth.oxy.so/bridge` from that press — a window as small as the
+  browser allows that joins the app to the browser's device and closes at once.
+  If the browser is already signed in, the app is signed in and the dialog
+  closes; otherwise the dialog's sign-in carries the device proof, so the
+  account is shared with every Oxy app in that browser. Never on page load, on
+  auth.oxy.so itself or with `sessionMode: 'identity'`; a blocked window only
+  means the app signs in on its own device, as before. Native is unchanged.
+- `OxyProvider` wires `OxyServices.setDeviceCredentialProvider` from its store
+  on the web, so every sign-in proves the device this origin holds.
+
+### Changed
+
+- Requires `@oxy.so/core` ^1.19.0.
+
 ## [6.2.0] - 2026-09-26
 
 ### Changed

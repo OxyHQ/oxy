@@ -8,7 +8,10 @@ async function visit(directory) {
       await visit(path);
     } else if (name.endsWith('.js')) {
       const source = await readFile(path, 'utf8');
-      const updated = source.replace(/(from\s+['"]|import\s*\(\s*['"])(\.\.?\/[^'"]+?)(['"])/g, '$1$2.js$3');
+      // Idempotent: `tsc` is incremental here and does not re-emit an unchanged
+      // file, so a specifier that already ends in `.js` was fixed by an earlier
+      // build and must not become `.js.js`.
+      const updated = source.replace(/(from\s+['"]|import\s*\(\s*['"])(\.\.?\/[^'"]+?)(?<!\.js)(['"])/g, '$1$2.js$3');
       if (source !== updated) await writeFile(path, updated);
     }
   }

@@ -61,6 +61,9 @@ from the request body.
 | Method | Route | Body | Behavior |
 |--------|-------|------|----------|
 | POST | `/session/device/token` | `{ deviceId, deviceSecret }` | **The zero-cookie mint** — PUBLIC (no bearer, no cookies): possession of the secret is the device-ownership proof. Looks `sha256(deviceSecret)` up among the device's holder credentials (`device_credentials`) — any live one proves the device — mints a short access token for the active account, and returns the proven secret unchanged as `nextDeviceSecret`. Nothing rotates, so every holder of one device refreshes concurrently. Per-device lockout + rate limit blunt online guessing. |
+| POST | `/session/device/register` | — | The browser bridge (ADR 0029 D2) — auth.oxy.so (and loopback) only, no bearer, rate-limited per hashed IP. A new EMPTY device with a server-chosen id and one holder credential; returns `{ deviceId, deviceSecret }`. |
+| POST | `/session/device/join-code` | `{ deviceId, deviceSecret, clientId, redirectUri, codeChallenge, codeChallengeMethod: 'S256' }` | The bridge — auth.oxy.so only. Proves the device (a wrong secret counts toward the mint's lockout) and returns a one-use `{ code, expiresIn }` (~60 s) for an OFFICIAL application, bound to one of its exact registered redirect URIs and the PKCE challenge. |
+| POST | `/session/device/join` | `{ code, codeVerifier, clientId, redirectUri }` | The app's own origin (must equal the redirect URI's), no bearer. Redeems the code atomically (unused, unexpired, same app, same redirect URI, PKCE) and returns a NEW holder credential `{ deviceId, deviceSecret }`. |
 | GET | `/session/device/state` | — | Returns current state for the caller's JWT device. |
 | POST | `/session/device/add` | — | Registers the caller's account into the device set. Account + session ids come from the bearer (IDOR-safe); `operatedByUserId` is resolved from the session document. Idempotent — an unchanged re-register does not broadcast. |
 | POST | `/session/device/switch` | `{ accountId }` | Sets `activeAccountId`, bumps `revision`, broadcasts. If the target session was revoked, heals the device set (drops the dead account), broadcasts the healed state, and returns 403. |
@@ -102,9 +105,11 @@ origin, `auth.oxy.so` included.
 4. **Cross-origin convergence is USER-INITIATED (zero cookies).** Each web origin
    persists its own `{ deviceId, deviceSecret }` in `localStorage`. Official apps
    (including custom domains like `mention.earth`) converge on the **same** server-side
-   `DeviceSession` only when the user actually signs in on that origin: the popup to
-   `auth.oxy.so/authorize` puts the browser's `deviceId` on the code, and
-   `/oauth/token` joins the app to that device and issues it its own holder credential.
+   `DeviceSession` only from a press on that origin: the first sign-in press opens the
+   browser bridge (`auth.oxy.so/bridge`, see "One browser, one session"), which joins the
+   app to the browser's device; the passkey popup to `auth.oxy.so/authorize` puts the
+   browser's `deviceId` on the code, and `/oauth/token` joins the app to that device and
+   issues it its own holder credential.
    A third-party RP never joins: it gets an isolated per-(user, client) device. Once each
    app holds a bearer, realtime changes propagate over Socket.IO `session_state` on
    `device:<deviceId>`.
@@ -132,15 +137,54 @@ origin, `auth.oxy.so` included.
 
 ### One browser, one session (ADR 0029 D2)
 
-Every official Oxy web app (mention.earth, alia.onl, willo.sh, `*.oxy.so`…) signs in
-through a popup to `auth.oxy.so` (ADR 0029 D1) (`/authorize`, `response_mode=web_message`; official
-apps are auto-approved), and all of them share the browser's ONE `DeviceSession`, like
-Google's accounts in one browser:
+Every official Oxy web app (mention.earth, alia.onl, willo.sh, `*.oxy.so`…) signs in in
+its own account dialog (ADR 0029 D1), and all of them share the browser's ONE
+`DeviceSession` on auth.oxy.so, like Google's accounts in one browser:
 
-- **Join.** `/oauth/authorize` reads the `deviceId` from `auth.oxy.so`'s bearer and puts
-  it on the code; `/oauth/token`, for an `isTrustedApplication` client, creates the
-  session on that device and calls `finalizeDeviceLogin`, which registers the account
-  (`activate: 'if-empty'`) and issues a NEW holder credential. Nobody else's is touched.
+- **The bridge.** The first time a person presses sign-in in an app that holds no
+  device credential (`openAccountDialog`, on the web, not on auth.oxy.so itself, not
+  `sessionMode: 'identity'`), the provider opens `auth.oxy.so/bridge` SYNCHRONOUSLY in
+  that press, next to the dialog — a window as small as the browser allows, with no UI,
+  that closes in well under a second:
+  1. the bridge (`packages/auth/bridge.html` → `lib/bridge.ts`, a few KB, no React)
+     loads auth.oxy.so's own credential from the SAME store and key auth.oxy.so's
+     `OxyProvider` uses — or, when there is none or it answers `invalid_device_secret`,
+     registers a new empty device (`POST /session/device/register`, auth.oxy.so only)
+     and saves it;
+  2. asks `POST /session/device/join-code` (auth.oxy.so only; proves the device with
+     that secret) for a code bound to the app's `clientId`, one of its EXACT registered
+     redirect URIs and the app's PKCE S256 challenge — official applications only;
+  3. posts `{ type: 'oxy:bridge:code', code, state }` to `window.opener` with the
+     redirect URI's origin as the target (never `*`) and closes; any failure posts
+     `oxy:bridge:error` instead.
+  The app accepts the message only from the auth origin, from that exact window, with
+  its own `state`, then redeems the code at `POST /session/device/join` with its PKCE
+  verifier (its own origin must be the redirect URI's) and persists the NEW holder
+  credential it gets back. A code lives about 60 s, is spent on first use (even by a
+  wrong verifier), and is stored only as `sha256` (`device_join_codes`). The app then
+  mints through the ordinary `POST /session/device/token`: if the browser is already
+  signed in, it commits that account and closes the dialog; otherwise the dialog stays
+  and its sign-in carries the device proof. A blocked window, a timeout or any failure
+  only means the app signs in on a device of its own, as before. The bridge never opens
+  on page load, and once the app holds a credential it never opens again.
+- **Sign-in with a device proof.** `POST /auth/session/claim` (Commons QR),
+  `POST /auth/webauthn/login/verify` and `POST /auth/webauthn/register/verify` (sign-up,
+  recovery) accept an optional `device: { deviceId, deviceSecret }`. When it proves a
+  device (`getStateBySecret`) the new session is created ON that device — the claim
+  creates it there and retires the approval's claim-only session, for official
+  applications only — so the account is added to the browser's device and every holder
+  sees it. An invalid proof is ignored; it never fails a sign-in. The SDK attaches it
+  from the provider's store (`OxyServices.setDeviceCredentialProvider`, wired by
+  `OxyProvider` on the web), on auth.oxy.so's own sign-ins too.
+- **Join through OAuth.** `/oauth/authorize` reads the `deviceId` from `auth.oxy.so`'s
+  bearer and puts it on the code; `/oauth/token`, for an `isTrustedApplication` client,
+  creates the session on that device and calls `finalizeDeviceLogin`, which registers the
+  account (`activate: 'if-empty'`) and issues a NEW holder credential. Nobody else's is
+  touched.
+- **Joined, nobody signed in.** A credential on a device with no live account mints
+  `no_active_session` and is KEPT, by the cold boot and by the in-session re-mint alike
+  (the web store drops only the session fields), so the app stays a holder of the
+  browser's device and never needs the bridge again.
 - **Switch.** Activating an account in any app bumps `revision` and broadcasts
   `session_state`; every other app's `SessionClient` mints a bearer for the new active
   account before it notifies (see "Real-time sync").

@@ -146,7 +146,22 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
     expect(persisted?.deviceId).toBe('dev-mint');
   });
 
-  it('clears the store on a 401 when there is no shared-key fallback (web)', async () => {
+  it('clears the store on a 401 invalid_device_secret when there is no shared-key fallback (web)', async () => {
+    const store = createMemoryAuthStateStore();
+    await store.save(STORED);
+    const { oxy } = makeOxy({
+      mintFromDeviceSecret: async () => {
+        throw Object.assign(new Error('invalid_device_secret'), { status: 401 });
+      },
+    });
+
+    const token = await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
+
+    expect(token).toBeNull();
+    expect(await store.load()).toBeNull();
+  });
+
+  it('keeps ONLY the device credential on a 401 no_active_session on the web (ADR 0029 D2)', async () => {
     const store = createMemoryAuthStateStore();
     await store.save(STORED);
     const { oxy } = makeOxy({
@@ -157,8 +172,15 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
 
     const token = await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
 
+    // The browser's device still knows this holder: a sign-in in any app lands
+    // on it, and this app follows without opening the bridge again.
     expect(token).toBeNull();
-    expect(await store.load()).toBeNull();
+    expect(await store.load()).toEqual({
+      sessionId: '',
+      userId: '',
+      deviceId: STORED.deviceId,
+      deviceSecret: STORED.deviceSecret,
+    });
   });
 
   it('KEEPS the store and returns null on a transient (500 / network) error', async () => {

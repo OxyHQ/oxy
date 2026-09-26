@@ -13,6 +13,7 @@
 
 import { z } from 'zod';
 import { emailAddressSchema, emailTicketSchema } from './accountEmail';
+import { deviceProofSchema } from './deviceSession';
 
 /** A WebAuthn credential id, base64url as the browser reports it. */
 export const webauthnCredentialIdSchema = z
@@ -61,10 +62,16 @@ export type WebauthnAssertionResponse = z.infer<typeof webauthnAssertionResponse
  * server-side and already authorized (the account-switch route threading the
  * operator's own central device id); they pass it to `createSession` directly
  * and never through a request body.
+ *
+ * `device` is different: it PROVES a device (its id and one of its holder
+ * secrets) rather than naming one, so the caller already holds that device's
+ * credential and the session added to it discloses nothing new (ADR 0029 D2).
+ * An invalid proof is ignored and the sign-in proceeds as without it.
  */
 const deviceSessionEnvelope = {
   deviceName: z.string().trim().min(1).max(120).optional(),
   deviceFingerprint: z.string().trim().min(1).max(256).optional(),
+  device: deviceProofSchema.optional(),
 } as const;
 
 /**

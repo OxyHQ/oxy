@@ -98,6 +98,7 @@ function buildStub(overrides: Record<string, unknown> = {}) {
       getAccessToken: () => currentToken,
       getAccessTokenExpiry: () => null,
       onTokensChanged: () => () => undefined,
+      setDeviceCredentialProvider: () => () => undefined,
       setTokens: (token: string) => { currentToken = token; },
       clearTokens: () => { currentToken = null; },
       clearCache: jest.fn(),

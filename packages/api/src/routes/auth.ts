@@ -8,6 +8,7 @@
 
 import type {
   CommonsDenyReason,
+  DeviceProof,
   OauthAuthorizeCodeResponse,
   OauthConsentDecision,
 } from '@oxy.so/contracts';
@@ -18,7 +19,6 @@ import {
 import express from 'express';
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import crypto from 'crypto';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { SessionController } from '../controllers/session.controller';
 import { publicColumns } from '@oxy.so/db/assert';
@@ -43,7 +43,7 @@ import {
 } from '../utils/applicationScopes';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
-import { authMiddleware, rejectQueryToken, type AuthRequest } from '../middleware/auth';
+import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { serviceTokenMintRateLimitKey } from '../utils/serviceRateLimitKey';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
@@ -66,6 +66,7 @@ import accountEmailRouter from './accountEmail';
 import { validate } from '../middleware/validate';
 import sessionService from '../services/session.service';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
+import { resolveProvenDeviceId } from '../services/deviceJoin.service';
 import { formatUserResponse } from '../utils/userTransform';
 import { issueAuthCode, exchangeAuthCode, AUTH_CODE_TTL_MS } from '../services/oauthCode.service';
 import {
@@ -110,7 +111,7 @@ import {
   oauthConsentQuerySchema,
   grantApplicationIdParams,
 } from '../schemas/auth.schemas';
-import { normaliseOrigin, isLoopbackOrigin } from '../utils/origin';
+import { isLoopbackOrigin } from '../utils/origin';
 import { deriveCoarseClientLabel, generateDeviceId } from '../utils/deviceUtils';
 import { serializePublicApplication } from '../utils/serializeApplication';
 import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
@@ -1421,7 +1422,7 @@ router.post(
   authSessionClaimLimiter,
   validate({ body: authSessionClaimSchema }),
   asyncHandler(async (req, res) => {
-    const { sessionToken } = req.body as { sessionToken: string };
+    const { sessionToken, device } = req.body as { sessionToken: string; device?: DeviceProof };
 
     const outcome = await claimAuthSession({ sessionToken });
 
@@ -1464,13 +1465,13 @@ router.post(
     }
 
     // Pull the deviceId from the underlying Session for the response.
-    const [session] = await getDb()
-      .select({ deviceId: sessionsTable.deviceId, expiresAt: sessionsTable.expiresAt })
+    const [approvedSession] = await getDb()
+      .select({ deviceId: sessionsTable.deviceId, deviceName: sessionsTable.deviceName })
       .from(sessionsTable)
       .where(eq(sessionsTable.sessionId, authSession.authorizedSessionId))
       .limit(1);
 
-    if (!session) {
+    if (!approvedSession) {
       logger.error('[AuthSession] Underlying session disappeared between authorize and claim', new Error('session missing'), {
         sessionToken: sessionToken.substring(0, 8) + '...',
       });
@@ -1479,37 +1480,61 @@ router.post(
 
     const userData = formatUserResponse(user);
 
-    // Register the account on the fresh, claim-only device boundary created by
-    // the approval service, then mint its restore secret. `finalizeDeviceLogin`
-    // is best-effort, so an infrastructure failure still leaves the one-time
-    // access token usable without ever falling back to the approver's device.
+    // The approval minted the session on a fresh, claim-only device, because the
+    // requester must never choose a device whose restore secret it would then
+    // receive. A requester that PROVES a device already holds that device's
+    // credential, so the account joins it instead (ADR 0029 D2): the browser's
+    // shared device, which every official app on it then sees. Only an official
+    // application's claim does — a third party keeps its isolated device — and
+    // an invalid proof leaves the claim exactly as it was.
+    let session = { sessionId: authSession.authorizedSessionId, deviceId: approvedSession.deviceId };
+    if (device) {
+      const provenDeviceId = await resolveProvenDeviceId(device);
+      const app = provenDeviceId ? await findActiveApplicationById(authSession.applicationId) : null;
+      if (provenDeviceId && app && isTrustedApplication(app) && provenDeviceId !== session.deviceId) {
+        // A new session ON the proven device, and the approval's own retired:
+        // its tokens carry the claim-only device id, and a refresh keeps the id
+        // its token names, so moving the row would not move the session.
+        const joined = await sessionService.createSession(authSession.authorizedUserId, req, {
+          deviceName: approvedSession.deviceName ?? undefined,
+          deviceId: provenDeviceId,
+        });
+        await sessionService.deactivateSession(authSession.authorizedSessionId);
+        session = { sessionId: joined.sessionId, deviceId: joined.deviceId };
+      }
+    }
+
+    // Register the account on its device, then mint its restore secret.
+    // `finalizeDeviceLogin` is best-effort, so an infrastructure failure still
+    // leaves the one-time access token usable without ever falling back to the
+    // approver's device.
     const { deviceSecret } = await finalizeDeviceLogin({
-      session: { sessionId: authSession.authorizedSessionId, deviceId: session.deviceId },
+      session,
       userId: authSession.authorizedUserId,
     });
 
     // Finalization binds the session row to its device context. Mint only
     // afterwards so the credential returned to the claimant carries that
     // binding; a token read before finalization is rejected on first use.
-    const tokenResult = await sessionService.getAccessToken(authSession.authorizedSessionId);
+    const tokenResult = await sessionService.getAccessToken(session.sessionId);
     if (!tokenResult) {
       logger.error('[AuthSession] Could not resolve access token for claimed session', new Error('no access token'), {
         sessionToken: sessionToken.substring(0, 8) + '...',
-        sessionId: authSession.authorizedSessionId,
+        sessionId: session.sessionId,
       });
       throw new UnauthorizedError('invalid_grant');
     }
 
     logger.info('[AuthSession] Claim succeeded', {
       sessionToken: sessionToken.substring(0, 8) + '...',
-      sessionId: authSession.authorizedSessionId,
+      sessionId: session.sessionId,
       userId: authSession.authorizedUserId,
       applicationId: authSession.applicationId,
     });
 
     sendSuccess(res, {
       accessToken: tokenResult.accessToken,
-      sessionId: authSession.authorizedSessionId,
+      sessionId: session.sessionId,
       deviceId: session.deviceId,
       expiresAt: tokenResult.expiresAt.toISOString(),
       user: userData,

@@ -1,6 +1,6 @@
 import { resolve } from "path";
 import { createRequire } from "node:module";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import reactNativeWeb from "vite-plugin-react-native-web";
 
@@ -16,8 +16,32 @@ const reactNativeCssBabel = require("react-native-css/babel");
 // rolldown moduleTypes, strips Flow types, keeps expo-modules-core's
 // side-effectful web polyfill (`globalThis.expo`) from being tree-shaken, and
 // defines the RN globals.
+/**
+ * `/bridge` is its own tiny page (`bridge.html`, no React — ADR 0029 D2).
+ * Cloudflare Pages serves `bridge.html` at `/bridge`; the dev and preview
+ * servers would answer the SPA's `index.html` instead, so they are told too.
+ */
+function bridgePage(): Plugin {
+  const rewrite = (req: { url?: string }, _res: unknown, next: () => void) => {
+    if (req.url === "/bridge" || req.url?.startsWith("/bridge?")) {
+      req.url = `/bridge.html${req.url.slice("/bridge".length)}`;
+    }
+    next();
+  };
+  return {
+    name: "oxy-bridge-page",
+    configureServer(server) {
+      server.middlewares.use(rewrite);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(rewrite);
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => ({
   plugins: [
+    bridgePage(),
     reactNativeWeb(),
     react({
       babel: {
@@ -54,5 +78,11 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     outDir: "dist",
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+        bridge: resolve(__dirname, "bridge.html"),
+      },
+    },
   },
 }));

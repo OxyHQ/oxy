@@ -1,6 +1,6 @@
 # ADR 0029 — One Oxy session: the dialog in every app, auth.oxy.so's window on the web
 
-- Status: accepted; D1 and D3 are implemented (the web account — username, passkey, recovery email — its recovery by email, its deletion with the passkey, and linking Commons from two devices); D2 and D4 are being built in follow-up changes
+- Status: accepted; D1, D2 and D3 are implemented (the web account — username, passkey, recovery email — its recovery by email, its deletion with the passkey, and linking Commons from two devices; the browser bridge that shares one session across every Oxy web app); D4 is being built in follow-up changes
 - Date: 2026-09-26
 - Decided by: the owner (product direction), recorded here
 - Changes: ADR 0028 D1b (Oxy apps went to auth.oxy.so in the same tab);
@@ -51,11 +51,40 @@ MCP and the CLI.
 
 ### D2 — One browser session for every Oxy app
 
-Signing out or switching account in one Oxy web app does it in all of them in
-that browser. Every app that signs in through the window joins the browser's
-DeviceSession at auth.oxy.so, and the others follow a change on their next
-state read. Native already shares one DeviceSession (Commons and the shared
-keychain).
+Signing in, signing out or switching account in one Oxy web app does it in all
+of them in that browser, like Google. The browser's session is ONE DeviceSession
+held by auth.oxy.so — the only origin every app can reach — and every official
+app holds its own credential for it. Native already shares one DeviceSession
+(Commons and the shared keychain).
+
+How an app joins it (amended 2026-09-26, the owner's approved mechanism): the
+FIRST time a person presses sign-in in an app on the web and the app holds no
+device credential, a tiny window `auth.oxy.so/bridge` opens from that press,
+next to the dialog. It has no UI and closes in well under a second: it proves
+auth.oxy.so's device (or registers one), hands the app a one-use code to join
+it, and the app redeems the code for its own credential. From then on the app
+never opens it again. If the browser is already signed in, the app is signed in
+at once and the dialog closes; otherwise the sign-in in the dialog (the Commons
+QR, or the passkey in auth.oxy.so's window) carries the proof of that device, so
+the account lands on it and every other app sees it.
+
+The bridge's code is:
+
+- **one-use** — spent by the first redemption, even one with a wrong verifier;
+- **short** — about 60 seconds;
+- **PKCE-bound** — to an S256 challenge whose verifier only the app's page holds;
+- **official apps only** — `isTrustedApplication`; a third party never gets a
+  credential for the browser's device and keeps its isolated one;
+- **exact** — issued for one of the app's registered redirect URIs, matched
+  exactly, and redeemed only from that URI's origin;
+- **origin-checked in transit** — posted only to that redirect URI's origin
+  (never `*`), and accepted by the app only from the auth origin, from the exact
+  window it opened, with its own `state`.
+
+Only auth.oxy.so (and loopback) may register a device or ask for a code. The
+device id is always the server's. Nothing opens on page load, and a blocked or
+failed bridge only means the app signs in on a device of its own. No cookie,
+iframe, FedCM or `prompt=none` is involved (D4).
 
 ### D3 — Web accounts: username, passkey and a recovery email
 
