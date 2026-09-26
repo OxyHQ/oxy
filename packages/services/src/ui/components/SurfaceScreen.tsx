@@ -24,7 +24,6 @@ import {
   SurfaceHeaderContext,
   type SurfaceHeaderContent,
 } from '../hooks/useSurfaceHeader';
-import { SurfaceFrameWidthContext } from '../hooks/useSurfaceFrameWidth';
 import type { BaseScreenProps } from '../types/navigation';
 
 /** Error boundary catching screen render failures, so one bad screen cannot blank the surface. */
@@ -214,22 +213,17 @@ function SurfaceScreen({
   // container to a near-full-height, wider card and shrinks back on exit. Resolve
   // its viewport-relative height to px here (the Dialog clamps to the viewport).
   const { height: viewportHeight } = useWindowDimensions();
-  //
-  // A screen may also ask for a width of its own (`useSurfaceFrameWidth`) when
-  // its views differ in width; the width joins the frame's identity so each
-  // change morphs.
-  const [screenWidth, setScreenWidth] = useState<number | null>(null);
   const frameSize = useMemo(() => {
     const spec = config.frameSize;
-    if (!spec && screenWidth === null) return undefined;
+    if (!spec) return undefined;
     const height =
-      spec?.heightRatio !== undefined ? Math.round(viewportHeight * spec.heightRatio) : undefined;
-    return { height, maxWidth: screenWidth ?? spec?.maxWidth };
-  }, [config.frameSize, viewportHeight, screenWidth]);
+      spec.heightRatio !== undefined ? Math.round(viewportHeight * spec.heightRatio) : undefined;
+    return { height, maxWidth: spec.maxWidth };
+  }, [config.frameSize, viewportHeight]);
   useDialogFrame(
     useMemo(
-      () => ({ key: `${top.route}#${top.step}#${screenWidth ?? ''}`, morph: config.morph, size: frameSize }),
-      [top.route, top.step, screenWidth, config.morph, frameSize],
+      () => ({ key: `${top.route}#${top.step}`, morph: config.morph, size: frameSize }),
+      [top.route, top.step, config.morph, frameSize],
     ),
   );
   // Show a back affordance whenever the surface can navigate back — either an
@@ -279,13 +273,11 @@ function SurfaceScreen({
 
   return (
     <SurfaceHeaderContext.Provider value={headerContext}>
-      <SurfaceFrameWidthContext.Provider value={setScreenWidth}>
-        <ScreenErrorBoundary screenName={top.route}>
-          <Suspense fallback={<ScreenPending />}>
-            <ScreenComponent {...screenProps} />
-          </Suspense>
-        </ScreenErrorBoundary>
-      </SurfaceFrameWidthContext.Provider>
+      <ScreenErrorBoundary screenName={top.route}>
+        <Suspense fallback={<ScreenPending />}>
+          <ScreenComponent {...screenProps} />
+        </Suspense>
+      </ScreenErrorBoundary>
     </SurfaceHeaderContext.Provider>
   );
 }

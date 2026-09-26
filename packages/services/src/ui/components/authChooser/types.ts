@@ -111,8 +111,8 @@ export interface AccountsMenuActions {
 /**
  * Where a passkey sign-in or sign-up can run from the current surface.
  *
- * `'hub'`  = web: it runs on auth.oxy.so, in this tab (`continueOnAuth`), on
- *            every web origin, first-party or not.
+ * `'hub'`  = web: it runs in auth.oxy.so's window over the app
+ *            (`continueOnAuth`), on every web origin.
  * `'none'` = native, where Commons owns identity.
  */
 export type PasskeyMode = 'hub' | 'none';

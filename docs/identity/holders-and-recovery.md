@@ -64,7 +64,7 @@ a bug.
 | Caller | Uses |
 |---|---|
 | `packages/commons` | Commons sign-up (`/auth/register`, key included), backup, transfer receiver |
-| `packages/services` account dialog | sends the person to auth.oxy.so in the same tab (`continueOnAuth`: `/authorize?screen=signup|recover|signin`) for web sign-up, recovery, and sign-in off an `oxy.so` origin; `auth.oxy.so/identity` for the phrase, recovery and deletion; native creation goes to Commons |
+| `packages/services` account dialog | opens auth.oxy.so in a window over the app (`continueOnAuth`: `/authorize?screen=signup|recover|signin`, ADR 0029 D1) for every web sign-in and sign-up; `auth.oxy.so/identity` for the phrase, recovery and deletion; native creation goes to Commons |
 | `packages/auth` (`auth.oxy.so`, holder host) | passkey sign-in (no PRF); `lib/identity/` + `/signup`, `/recover`, `/identity`: sign-up with root, establish, phrase/recovery facts, signed-in reseal, signed-out recovery, transfer initiator, account deletion |
 | `packages/accounts` | `GET /identity/root-status` for the recovery-phrase row and recommendations; passkey list/remove |
 

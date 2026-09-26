@@ -16,15 +16,15 @@
  *
  *  - `accounts` → `AccountsMenuView` — the signed-in Oxy account menu.
  *  - `add` / `signin` → `OxySignInPanel` — THE sign-in screen, the one
- *    auth.oxy.so renders too: the device's accounts, then Commons (the
- *    embedded QR, or "Continue with Oxy"), then the passkey methods.
+ *    auth.oxy.so renders too: the device's accounts, then "Continue with
+ *    Oxy" (on the web, auth.oxy.so's window over the app).
  *  - `qr` → `SignInRequestView` — the ACTIVE REQUEST: the controller-bound
  *    wiring over the shared, presentational `OxySignInRequestSurface` (the same
  *    component the auth.oxy.so IdP mounts from its OAuth-bound request). It maps
  *    `snapshot.signIn` onto that surface's props; alternatives stay behind
  *    "Having trouble?" until the chosen route reports `routeFailed`.
- *  - `signup` → `OxySignUpPanel` — account creation, the one auth.oxy.so/signup
- *    renders.
+ *  - `signup` → `OxySignUpPanel` — account creation: auth.oxy.so's window on
+ *    the web, Commons on native.
  *
  * Per-account color re-theming uses Bloom's `APP_COLOR_PRESETS` + `BloomColorScope`
  * (same visual language auth.oxy.so uses). Base theming is `useTheme()` + a
@@ -38,7 +38,7 @@ import { Linking, Platform } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { AUTH_WEB_ORIGIN, getNormalizedUserHandle, type User } from '@oxy.so/core';
+import { AUTH_WEB_ORIGIN, getNormalizedUserHandle, type OxyAuthScreen, type User } from '@oxy.so/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../context/OxyContext';
 import { useDeviceSwitcher } from '../hooks/useDeviceSwitcher';
@@ -112,12 +112,22 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   // so the two switchers cannot drift.
   const { principals } = useDeviceSwitcher();
 
-  // Web sign-up, and sign-in off an `oxy.so` origin, run on auth.oxy.so in
-  // this tab (`continueOnAuth`), never on this page: that is where the passkey
-  // ceremony can run for any app AND where the account's identity is created
-  // and kept sealed under the passkey (one identity, two carriers). Native has
-  // no passkey path: Commons owns identity there ('none').
+  // On the web every sign-in and sign-up runs in auth.oxy.so's window over the
+  // app (`continueOnAuth`): the passkey belongs to that origin, and the
+  // browser's session lives there, shared by every Oxy app. Native has no
+  // passkey path: Commons owns identity there ('none').
   const passkeyMode = useMemo<PasskeyMode>(() => (isWebBrowser() ? 'hub' : 'none'), []);
+
+  /** auth.oxy.so's window; this surface closes once it signs the app in. */
+  const openOnOxy = useCallback(
+    (screen: OxyAuthScreen) => {
+      void continueOnAuth(screen).then((result) => {
+        if (result.status === 'signed-in') onComplete?.();
+        else if (result.status === 'failed') toast.error(t('signin.errors.failed'));
+      });
+    },
+    [continueOnAuth, onComplete, t],
+  );
 
   // Bind the headless controller. `getSnapshot` returns a stable reference
   // between changes, so it is `useSyncExternalStore`-safe. Guard the no-provider
@@ -356,14 +366,14 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   const alternatives = useMemo<SignInAlternatives>(
     () => ({
       passkeyAvailable: passkeyMode !== 'none',
-      // auth.oxy.so asserts the passkey, in this tab.
-      onSignInWithPasskey: () => void continueOnAuth('signin'),
+      // auth.oxy.so asserts the passkey, in its window.
+      onSignInWithPasskey: () => openOnOxy('signin'),
       onShowQr: () => void controller?.showQr(),
       onGetCommons: () => openExternal(getCommonsAcquisitionUrl(Platform.OS)),
       // Web: the account is made on auth.oxy.so. Native: Commons makes it.
-      onCreateAccount: () => (passkeyMode === 'hub' ? void continueOnAuth('signup') : controller?.startSignup()),
+      onCreateAccount: () => (passkeyMode === 'hub' ? openOnOxy('signup') : controller?.startSignup()),
     }),
-    [passkeyMode, controller, openExternal, continueOnAuth],
+    [passkeyMode, controller, openExternal, openOnOxy],
   );
 
   // Real storage usage for the account menu's "Oxy storage" block. Disabled
@@ -451,7 +461,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   }
 
   if (view === 'signup') {
-    return <OxySignUpPanel onSignIn={() => controller.setView('signin')} />;
+    return <OxySignUpPanel onSignIn={() => controller.setView('signin')} onCreateOnWeb={() => openOnOxy('signup')} />;
   }
 
   return (

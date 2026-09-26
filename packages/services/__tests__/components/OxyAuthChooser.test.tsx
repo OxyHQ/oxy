@@ -275,12 +275,6 @@ jest.mock('../../src/ui/utils/isWebBrowser', () => ({
   isWebBrowser: () => isWebBrowserMock(),
 }));
 
-const isOxyRpOriginMock = jest.fn(() => true);
-jest.mock('@oxy.so/core', () => {
-  const actual = jest.requireActual('@oxy.so/core');
-  return { __esModule: true, ...actual, isOxyRpOrigin: () => isOxyRpOriginMock() };
-});
-
 // eslint-disable-next-line import/first
 import OxyAuthChooser from '../../src/ui/components/OxyAuthChooser';
 // eslint-disable-next-line import/first
@@ -312,7 +306,6 @@ describe('OxyAuthChooser', () => {
     surfaces.confirm.mockReset();
     surfaces.confirm.mockResolvedValue(true);
     isWebBrowserMock.mockReturnValue(true);
-    isOxyRpOriginMock.mockReturnValue(true);
   });
 
   it('renders NOTHING without a controller (sessionMode: "identity" has no account dialog)', () => {
@@ -999,7 +992,6 @@ describe('OxyAuthChooser', () => {
 
     it('leads with "Get Commons" — the genuine primary route — when Commons is not installed', () => {
       isWebBrowserMock.mockReturnValue(false);
-      isOxyRpOriginMock.mockReturnValue(false);
       snapshot = requestSnapshot({ route: 'qr' }, { commonsAvailability: 'unavailable' });
       render(<OxyAuthChooser />);
 
@@ -1123,7 +1115,7 @@ describe('OxyAuthChooser', () => {
   });
 
   describe('signup view', () => {
-    it('on web, offers one action: create the account on auth.oxy.so, in this tab', () => {
+    it("on web, offers one action: create the account in auth.oxy.so's window", () => {
       snapshot = makeSnapshot({ view: 'signup' });
       render(<OxyAuthChooser />);
 
@@ -1134,7 +1126,6 @@ describe('OxyAuthChooser', () => {
 
     it('offers Commons identity creation on native', () => {
       isWebBrowserMock.mockReturnValue(false);
-      isOxyRpOriginMock.mockReturnValue(false);
       snapshot = makeSnapshot({ view: 'signup' });
       render(<OxyAuthChooser />);
 

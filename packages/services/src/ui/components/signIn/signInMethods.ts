@@ -3,56 +3,49 @@
  *
  * One screen everywhere; only the transport behind each block changes:
  *
- *  - the COMMONS way in — on the web the embedded QR (the split card's right
- *    column from `md`, with "Continue with Oxy" below `md`, where the screen
- *    is the phone that would scan it), on native "Continue with Oxy", and
- *    "Get Commons" on a native device that has no Commons to continue with;
- *  - the PASSKEY block under "or continue with" — run right here on an origin
- *    the `oxy.so` credential can be asserted from, on auth.oxy.so in this tab
- *    everywhere else on the web, and not at all on native, where Commons holds
- *    the identity.
+ *  - auth.oxy.so (`page`) is where the web signs in: the embedded Commons QR
+ *    (the split card's right column from `md`, "Continue with Oxy" below it),
+ *    the username with its Continue, and the passkey — asserted right here,
+ *    on the one origin every Oxy passkey belongs to;
+ *  - an app's account dialog on the web (`dialog`) opens that screen in a
+ *    window over the app ("Continue with Oxy"), like "Sign in with Google":
+ *    the browser's session lives on auth.oxy.so, so every Oxy app shares it;
+ *  - native signs in with Commons: "Continue with Oxy", or "Get Commons" on a
+ *    device that has no Commons to continue with.
  */
 
 import type { CommonsAvailability } from '@oxy.so/core';
 
 /**
- * `direct`          — the WebAuthn ceremony runs on this page (`isOxyRpOrigin()`).
- * `on-auth`         — it runs on auth.oxy.so: there in this tab, then back.
- * `none`            — no passkey on this platform.
- */
-export type PasskeyRoute = 'direct' | 'on-auth' | 'none';
-
-/**
- * `qr`          — the web: the embedded QR from `md`, "Continue with Oxy" below.
- * `continue`    — "Continue with Oxy": Oxy picks the route (shared keychain,
- *                 Commons on this device, a push, or the QR view).
+ * `qr`          — auth.oxy.so: the embedded QR from `md`, "Continue with Oxy" below.
+ * `window`      — an app on the web: "Continue with Oxy" opens auth.oxy.so's window.
+ * `continue`    — native "Continue with Oxy": Oxy picks the route (shared
+ *                 keychain, Commons on this device, a push, or the QR view).
  * `get-commons` — native, and Commons is not installed here.
  */
-export type CommonsEntry = 'qr' | 'continue' | 'get-commons';
+export type CommonsEntry = 'qr' | 'window' | 'continue' | 'get-commons';
 
 export interface SignInMethods {
   commons: CommonsEntry;
-  passkey: PasskeyRoute;
+  /** The username and passkey block: only on auth.oxy.so. */
+  passkey: boolean;
 }
 
 export interface SignInSurfaceFacts {
   /** Rendering in a browser (react-native-web), not a native app. */
   web: boolean;
-  /** `isOxyRpOrigin()` — only meaningful on the web. */
-  oxyRpOrigin: boolean;
+  /** `page` is auth.oxy.so; `dialog` is an app's account dialog. */
+  host: 'dialog' | 'page';
   /** The controller's native probe for an installed Commons. */
   commonsAvailability: CommonsAvailability;
 }
 
 export function resolveSignInMethods(facts: SignInSurfaceFacts): SignInMethods {
   if (facts.web) {
-    return {
-      commons: 'qr',
-      passkey: facts.oxyRpOrigin ? 'direct' : 'on-auth',
-    };
+    return facts.host === 'page' ? { commons: 'qr', passkey: true } : { commons: 'window', passkey: false };
   }
   return {
     commons: facts.commonsAvailability === 'unavailable' ? 'get-commons' : 'continue',
-    passkey: 'none',
+    passkey: false,
   };
 }
