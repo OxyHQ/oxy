@@ -76,6 +76,7 @@ import { violatesUniqueIndex } from '../utils/postgresErrors';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 import { archiveAccountForRetention } from './accountFinancialHolds.service';
+import { recordAccountDeletedEvent, type RecordedAccountEvent } from './accountEvents.service';
 
 /**
  * The permission that authorises assuming an account's identity — what
@@ -746,6 +747,15 @@ export class AccountService {
    * `accountStatus: 'archived'` — NEVER hard-deletes, so the tree edges and
    * history survive. Personal accounts cannot be archived (use the GDPR
    * self-delete flow instead).
+   *
+   * The archive records an `account.deleted` event (`retained: true`) in the
+   * same transaction, so every relying party erases what it holds for the
+   * account (OxyHQ/Mention#1178). The archive is permanent, since it writes a
+   * closure fence and nothing restores an archived account. It is reachable
+   * from surfaces no relying party sees (the Accounts app, the Console, the
+   * services SDK's account settings). Without the event, a channel archived
+   * there kept its posts and federated actor in Mention forever. See
+   * `docs/identity/account-events.md`.
    */
   async archiveAccount(accountId: string): Promise<AccountRow> {
     const db = getDb();
@@ -757,7 +767,16 @@ export class AccountService {
       throw new BadRequestError('A personal account cannot be archived');
     }
 
-    await archiveAccountForRetention(accountId);
+    let recorded: RecordedAccountEvent | undefined;
+    await archiveAccountForRetention(accountId, {
+      withinTransaction: async (tx) => {
+        recorded = await recordAccountDeletedEvent(tx, {
+          userId: accountId,
+          username: account.username ?? null,
+          retained: true,
+        });
+      },
+    });
     const [archived] = await db
       .select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE))
       .from(users)
@@ -768,7 +787,11 @@ export class AccountService {
     }
     userCache.invalidate(accountId);
 
-    logger.info('Account archived', { accountId });
+    logger.info('Account archived', {
+      accountId,
+      accountEventId: recorded?.eventId,
+      accountEventRecipients: recorded?.recipients,
+    });
     return archived;
   }
 
