@@ -186,3 +186,13 @@ describe('trackDeviceCredential', () => {
     expect(store.heldDeviceCredential()).toBeNull();
   });
 });
+
+describe('hasPersistedSessionCredential', () => {
+  it('a credential without an account cannot bring a lost session back', async () => {
+    const { hasPersistedSessionCredential } = await import('../../utils/deviceCredential');
+    const store = (state: unknown) => ({ load: async () => state, save: async () => true, clear: async () => undefined }) as never;
+    expect(await hasPersistedSessionCredential(store({ sessionId: 's', userId: 'u', deviceId: 'd', deviceSecret: 'x' }))).toBe(true);
+    expect(await hasPersistedSessionCredential(store({ sessionId: '', userId: '', deviceId: 'd', deviceSecret: 'x' }))).toBe(false);
+    expect(await hasPersistedSessionCredential(store(null))).toBe(false);
+  });
+});

@@ -32,7 +32,7 @@ jest.mock('../../src/ui/utils/deviceCredential', () => {
   const actual = jest.requireActual('../../src/ui/utils/deviceCredential');
   return {
     ...actual,
-    hasPersistedDeviceCredential: jest.fn(async () => mockHasDeviceCredential),
+    hasPersistedSessionCredential: jest.fn(async () => mockHasDeviceCredential),
   };
 });
 

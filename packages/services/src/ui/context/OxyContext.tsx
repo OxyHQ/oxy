@@ -48,7 +48,7 @@ import {
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { resolveDeliveryPlatform } from '../utils/deliveryPlatform';
 import { runProviderColdBoot } from '../boot/runProviderColdBoot';
-import { hasPersistedDeviceCredential, loadPersistedDeviceCredential } from '../utils/deviceCredential';
+import { hasPersistedSessionCredential, loadPersistedDeviceCredential } from '../utils/deviceCredential';
 import { createTokenLossRecovery } from '../session/tokenLossRecovery';
 import { bindAuthStoreToRuntime } from '../stores/authStore';
 import { useLanguageManagement } from '../hooks/useLanguageManagement';
@@ -569,7 +569,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     };
     const recovery = createTokenLossRecovery({
       remint: () => oxyServices.httpService.refreshAccessToken('preflight'),
-      hasDeviceCredential: () => hasPersistedDeviceCredential(authStore),
+      hasDeviceCredential: () => hasPersistedSessionCredential(authStore),
       hasKeyedRecovery: async () => {
         if (Platform.OS === 'web') {
           return false;

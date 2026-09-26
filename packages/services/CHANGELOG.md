@@ -19,6 +19,10 @@
 ### Changed
 
 - Requires `@oxy.so/core` ^1.19.0.
+- A lost-token recovery waits only on a credential that still names an account:
+  a web credential kept after `no_active_session` (core 1.19.0) can mint again
+  once someone signs in, but cannot bring back a session that ended, so the app
+  signs out locally as before.
 
 ## [6.2.0] - 2026-09-26
 
