@@ -100,12 +100,19 @@ export interface EmailSignInStartResponse {
     requestSecret: string;
     /** Unix milliseconds after which the code is refused. */
     expiresAt: number;
+    /**
+     * Present ONLY when the request proved a device this account is already on
+     * and no email could be sent right now (too many were): try again later.
+     * Every other caller gets the ordinary answer whatever happened.
+     */
+    retryLater?: true;
 }
 
 export const emailSignInStartResponseSchema: z.ZodType<EmailSignInStartResponse> = z.object({
     requestId: z.string().min(1).max(64),
     requestSecret: opaqueTokenSchema,
     expiresAt: z.number().int().positive(),
+    retryLater: z.literal(true).optional(),
 });
 
 /** `POST /auth/signin/email/confirm` — the code from the email. */

@@ -27,8 +27,10 @@ Signing in without a passkey (email code or link, password, authenticator).
 
 ### Changed
 
-- `identityLinkCompleteRequestSchema` is `{ reauth }` (an emailed code, plus the
-  authenticator's) OR `{ assertion }` (a passkey).
+- `identityLinkCompleteRequestSchema` is `{ reauth }` only (an emailed code,
+  plus the authenticator's): a passkey assertion no longer confirms a link.
+- `emailSignInStartResponseSchema.retryLater`: set only for a request that
+  proved a device the account is already on, when no email could be sent.
 
 ## 2.3.0
 

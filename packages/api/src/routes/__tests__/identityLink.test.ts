@@ -18,11 +18,17 @@ import type { AddressInfo } from 'net';
 import { eq } from 'drizzle-orm';
 
 let currentUserId = '';
+let currentApplicationId: string | undefined;
 const mockVerifyAuthentication = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: { _id: string; id: string } }, _res: unknown, next: () => void) => {
+  authMiddleware: (
+    req: { user?: { _id: string; id: string }; oxyToken?: { applicationId?: string } },
+    _res: unknown,
+    next: () => void,
+  ) => {
     req.user = { _id: currentUserId, id: currentUserId };
+    if (currentApplicationId) req.oxyToken = { applicationId: currentApplicationId };
     next();
   },
 }));
@@ -50,6 +56,7 @@ import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { emailVerifications } from '../../db/schema/emailVerifications';
 import { identityLinkRequests } from '../../db/schema/identityLinkRequests';
+import { applications } from '../../db/schema/applications';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
 import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
@@ -60,7 +67,6 @@ import { userPasswords } from '../../db/schema/userPasswords';
 import { storePassword } from '../../services/password.service';
 import { confirmTotp, enrollTotp, totpCodeAt } from '../../services/totp.service';
 import { startReauthEmail } from '../../services/reauth.service';
-import { resetOriginRegistryForTests, setOriginSnapshotForTests } from '../../config/dynamicOriginRegistry';
 
 const AUTH_ORIGIN = 'https://auth.oxy.so';
 
@@ -174,8 +180,15 @@ async function storedUser(id: string) {
   return row;
 }
 
+async function reauthCode(userId: string, action: 'link_commons' | 'delete_account' = 'link_commons') {
+  mockSendReauthCode.mockClear();
+  const { verificationId } = await startReauthEmail(userId, action);
+  const code = mockSendReauthCode.mock.calls[0][1] as string;
+  return { verificationId, code };
+}
+
 describe('linking Commons from two devices', () => {
-  it('links the key Commons signed with, once the passkey confirms — and deletes the recovery email', async () => {
+  it('links the key Commons signed with, once the email code confirms — and deletes the email', async () => {
     const account = await passkeyAccount();
     const link = await open();
     expect(link.qrPayload).toBe(`oxycommons://link?id=${link.linkId}&c=${link.challenge}`);
@@ -186,15 +199,10 @@ describe('linking Commons from two devices', () => {
     const { key, body } = await commonsProof(link.linkId, link.challenge);
     expect((await call('POST', `/${link.linkId}/proof`, body, null)).status).toBe(200);
     expect((await call('GET', `/${link.linkId}`, undefined, null)).body).toMatchObject({ status: 'signed', publicKey: key.publicKey });
-    // Signed is not linked: nothing changes before the passkey.
+    // Signed is not linked: nothing changes before the account confirms.
     expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
 
-    const options = await call('POST', `/${link.linkId}/options`, { challenge: link.challenge });
-    expect(options.status).toBe(200);
-    expect(options.body.challenge).toBe(Buffer.from(link.challenge, 'hex').toString('base64url'));
-    expect((options.body.allowCredentials as { id: string }[]).map((credential) => credential.id)).toEqual([account.credentialId]);
-
-    const done = await call('POST', `/${link.linkId}/complete`, { assertion: assertion(account.credentialId, link.challenge) });
+    const done = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: await reauthCode(account.id) } });
     expect(done).toEqual({ status: 200, body: { success: true } });
 
     expect(await storedUser(account.id)).toEqual({ publicKey: key.publicKey, email: null });
@@ -203,7 +211,6 @@ describe('linking Commons from two devices', () => {
     expect(await getDb().select().from(emailVerifications).where(eq(emailVerifications.userId, account.id))).toHaveLength(0);
     expect((await call('GET', `/${link.linkId}`, undefined, null)).body.status).toBe('completed');
   });
-
   it('takes the first proof only: a second key cannot replace it', async () => {
     await passkeyAccount();
     const link = await open();
@@ -226,39 +233,28 @@ describe('linking Commons from two devices', () => {
     expect(res.body.error).toBe('IDENTITY_ROOT_LINKED_ELSEWHERE');
   });
 
-  it('links nothing on a passkey asserted anywhere but auth.oxy.so', async () => {
+  it('links nothing on a passkey assertion, from any origin — a passkey no longer confirms a link', async () => {
     const account = await passkeyAccount();
     const link = await open();
     await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, link.challenge)).body, null);
 
-    const res = await call('POST', `/${link.linkId}/complete`, {
-      assertion: assertion(account.credentialId, link.challenge, 'https://accounts.oxy.so'),
-    });
+    const res = await call('POST', `/${link.linkId}/complete`, { assertion: assertion(account.credentialId, link.challenge) });
 
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe('IDENTITY_FRESH_FACTOR_REQUIRED');
+    expect(res.status).toBe(400);
+    expect(mockVerifyAuthentication).not.toHaveBeenCalled();
     expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
     expect((await call('GET', `/${link.linkId}`, undefined, null)).body.status).toBe('signed');
   });
-
   it('answers only the account that opened the request', async () => {
     const owner = await passkeyAccount();
     const link = await open();
     await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, link.challenge)).body, null);
 
     const intruder = await passkeyAccount();
-    expect((await call('POST', `/${link.linkId}/options`, { challenge: link.challenge })).status).toBe(404);
-    expect((await call('POST', `/${link.linkId}/complete`, { assertion: assertion(intruder.credentialId, link.challenge) })).status).toBe(404);
+    const res = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: await reauthCode(intruder.id) } });
+    expect(res.status).toBe(404);
     expect(await storedUser(owner.id)).toEqual({ publicKey: null, email: owner.email });
   });
-
-  it('refuses options for a challenge the request does not carry', async () => {
-    await passkeyAccount();
-    const link = await open();
-    await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, link.challenge)).body, null);
-    expect((await call('POST', `/${link.linkId}/options`, { challenge: 'ab'.repeat(32) })).status).toBe(401);
-  });
-
   it('withdraws a request, and forgets an expired one', async () => {
     await passkeyAccount();
     const link = await open();
@@ -297,13 +293,6 @@ describe('linking Commons from two devices', () => {
   });
 
   describe('confirmed with a code sent to the email', () => {
-    async function reauthCode(userId: string, action: 'link_commons' | 'delete_account' = 'link_commons') {
-      mockSendReauthCode.mockClear();
-      const { verificationId } = await startReauthEmail(userId, action);
-      const code = mockSendReauthCode.mock.calls[0][1] as string;
-      return { verificationId, code };
-    }
-
     async function signedLink() {
       const account = await passkeyAccount();
       const link = await open();
@@ -382,20 +371,19 @@ describe('linking Commons from two devices', () => {
       expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
     });
 
-    it('takes a passkey assertion only from auth.oxy.so, not from another official app', async () => {
+    it("refuses a third-party application's token, even with the right code", async () => {
       const { account, link } = await signedLink();
-      setOriginSnapshotForTests(['https://mention.earth'], []);
+      const [app] = await getDb()
+        .insert(applications)
+        .values({ name: 'Third party', type: 'third_party', ownerAccountId: account.id, createdByUserId: account.id })
+        .returning({ id: applications.id });
+      currentApplicationId = app.id;
       try {
-        const res = await call(
-          'POST',
-          `/${link.linkId}/complete`,
-          { assertion: assertion(account.credentialId, link.challenge) },
-          'https://mention.earth',
-        );
+        const res = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: await reauthCode(account.id) } });
         expect(res.status).toBe(403);
         expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
       } finally {
-        resetOriginRegistryForTests();
+        currentApplicationId = undefined;
       }
     });
   });

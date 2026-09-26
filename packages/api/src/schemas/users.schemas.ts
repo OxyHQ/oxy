@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { emailReauthProofSchema, webauthnAssertionResponseSchema } from '@oxy.so/contracts';
+import { emailReauthProofSchema, secondFactorCodeSchema } from '@oxy.so/contracts';
 import { privacySettingsSchema } from './privacy.schemas';
 
 // Shared params for routes with :userId
@@ -30,14 +30,16 @@ export const verifyRequestSchema = z.object({
 });
 
 // DELETE /users/me
-// An account with a Commons key signs the deletion with it; a passkey account
-// asserts one of its passkeys, on auth.oxy.so, over `POST /users/me/delete/options`.
+// An account with a Commons key signs the deletion with it; an account without
+// one confirms with a code emailed for this deletion. Either adds its
+// authenticator code when it has one. A passkey no longer deletes an account.
 export const deleteAccountSchema = z.object({
   signature: z.string().trim().min(1).optional(),
   timestamp: z.number().optional(),
-  assertion: webauthnAssertionResponseSchema.optional(),
   /** An account without a key: a code just sent to its email (+ its authenticator code). */
   reauth: emailReauthProofSchema.optional(),
+  /** An account with a key AND an authenticator: its code or a backup code. */
+  totpCode: secondFactorCodeSchema.optional(),
   confirmText: z.string().trim().min(1),
 });
 export type DeleteAccountBody = z.infer<typeof deleteAccountSchema>;

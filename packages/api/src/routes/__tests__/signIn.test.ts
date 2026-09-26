@@ -68,11 +68,16 @@ const APP_ORIGIN = 'https://mention.earth';
 
 let server: http.Server;
 
-async function post(path: string, body: unknown, origin: string | null = APP_ORIGIN) {
+async function post(path: string, body: unknown, origin: string | null = APP_ORIGIN, clientIp?: string) {
   const { port } = server.address() as AddressInfo;
   const response = await fetch(`http://127.0.0.1:${port}/auth${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', ...(origin ? { origin } : {}) },
+    headers: {
+      'content-type': 'application/json',
+      ...(origin ? { origin } : {}),
+      // The app trusts the proxy header here, so a test can speak from two IPs.
+      ...(clientIp ? { 'x-forwarded-for': clientIp } : {}),
+    },
     body: JSON.stringify(body),
   });
   const text = await response.text();
@@ -82,6 +87,7 @@ async function post(path: string, body: unknown, origin: string | null = APP_ORI
 beforeAll(async () => {
   await connectPostgres();
   const app = express();
+  app.set('trust proxy', true);
   app.use(express.json());
   app.use('/auth', signInRouter);
   app.use(errorHandler);
@@ -616,6 +622,64 @@ describe('email codes across requests', () => {
   });
 });
 
+describe('email codes are capped per requester', () => {
+  it("an attacker's ten failures from one IP do not stop the owner's right code from another", async () => {
+    const victim = await account();
+    const attacker = '203.0.113.7';
+    const owner = '198.51.100.9';
+    for (let round = 0; round < 3; round += 1) {
+      const { requestId, requestSecret } = (await post('/signin/email/start', { identifier: victim.username }, APP_ORIGIN, attacker)).body as {
+        requestId: string;
+        requestSecret: string;
+      };
+      const right = mailFor(victim.email as string).code;
+      mockSendSignIn.mockClear();
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        await post('/signin/email/confirm', { requestId, requestSecret, code: right === '000000' ? '000001' : '000000' }, APP_ORIGIN, attacker);
+      }
+    }
+    const mine = (await post('/signin/email/start', { identifier: victim.username }, APP_ORIGIN, owner)).body as {
+      requestId: string;
+      requestSecret: string;
+    };
+    const res = await post(
+      '/signin/email/confirm',
+      { requestId: mine.requestId, requestSecret: mine.requestSecret, code: mailFor(victim.email as string).code },
+      APP_ORIGIN,
+      owner,
+    );
+    expect(res.status).toBe(200);
+    expect(await sessionCount(victim.id)).toBe(1);
+  });
+});
+
+describe('identifiers are normalised once', () => {
+  it("'ALİCE' (a dotted capital I) names no account and has no bucket of the real account", async () => {
+    const real = await account();
+    await storePassword(real.id, 'correct horse battery');
+    const lookalike = real.username.toUpperCase().replace('I', 'İ').replace(/^SI/, 'Sİ');
+    expect(lookalike).not.toBe(real.username.toUpperCase());
+    const res = await post('/signin/password', { identifier: lookalike, password: 'correct horse battery' });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('SIGNIN_INVALID_CREDENTIALS');
+    // Five failures under the look-alike never lock the real name.
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      await post('/signin/password', { identifier: lookalike, password: 'nope-nope-nope' });
+    }
+    expect((await post('/signin/password', { identifier: real.username, password: 'correct horse battery' })).status).toBe(200);
+    // …and a full-width spelling IS the same name (NFKC).
+    const fullWidth = [...real.username].map((c) => String.fromCharCode(c.charCodeAt(0) + 0xfee0)).join('');
+    expect((await post('/signin/password', { identifier: fullWidth, password: 'correct horse battery' })).status).toBe(200);
+  });
+
+  it('never mails an address named with characters outside the charset', async () => {
+    const real = await account();
+    const lookalike = (real.email as string).replace('i', 'İ');
+    expect((await post('/signin/email/start', { identifier: lookalike })).status).toBe(200);
+    expect(mockSendSignIn).not.toHaveBeenCalled();
+  });
+});
+
 describe('the send budget', () => {
   it('is never visible: over budget the answer is the same and nothing is sent', async () => {
     const real = await account();
@@ -627,6 +691,33 @@ describe('the send budget', () => {
     }
     expect(new Set(answers).size).toBe(1);
     expect(mockSendSignIn).toHaveBeenCalledTimes(EMAIL_SENDS_PER_HOUR);
+  });
+
+  it("keeps a slice for a device the account is already on, and tells only that device to retry later", async () => {
+    const real = await account();
+    const { app } = await browserDevice();
+    // Sign in once on this device, so the account is on it.
+    const first = await start(real.username, app);
+    await post('/signin/email/confirm', { requestId: first.requestId, requestSecret: first.requestSecret, code: mailFor(real.email as string).code, device: app });
+    // Strangers use up the address's shared budget.
+    for (const stranger of ['a', 'b', 'c']) {
+      for (let send = 0; send < EMAIL_SENDS_PER_HOUR; send += 1) {
+        await startEmailSignIn({ identifier: real.username }, `stranger-${stranger}`);
+      }
+    }
+    mockSendSignIn.mockClear();
+    const unknown = await startEmailSignIn({ identifier: real.username }, 'stranger-d');
+    expect(mockSendSignIn).not.toHaveBeenCalled();
+    expect(unknown.retryLater).toBeUndefined();
+
+    // The owner's own browser still gets mail from the reserved slice…
+    const mine = await startEmailSignIn({ identifier: real.username, device: app }, 'owner-ip');
+    expect(mockSendSignIn).toHaveBeenCalledTimes(1);
+    expect(mine.retryLater).toBeUndefined();
+    // …and once that is used up too, only it is told to try later.
+    let last = mine;
+    for (let send = 0; send < 6; send += 1) last = await startEmailSignIn({ identifier: real.username, device: app }, `owner-ip-${send}`);
+    expect(last.retryLater).toBe(true);
   });
 
   it("gives each requester its own slice, so one stranger cannot stop someone's mail", async () => {

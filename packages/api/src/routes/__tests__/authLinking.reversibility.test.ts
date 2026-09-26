@@ -272,10 +272,10 @@ describe('first link only (ADR 0024 D8)', () => {
     mockVerifyAuthentication.mockResolvedValue({ verified: true, authenticationInfo: { newCounter: 0, userVerified: true } });
   });
 
-  it('links a keyless account’s first root with a root proof and a fresh passkey assertion', async () => {
+  it('refuses a keyless account’s first root with a root proof and a passkey assertion (security review of #1421)', async () => {
+    // A passkey no longer confirms a link: a stolen bearer could have planted
+    // it. A keyless account links through `/identity/link` with an emailed code.
     const identity = keyIdentity();
-    expect((await storedDidDocument(currentUserId)).controller).toEqual([OXY_DID]);
-
     const proof = await rootProof(identity, 'link_identity');
     const res = await request(server, 'POST', '/auth/link', {
       type: 'identity',
@@ -284,16 +284,13 @@ describe('first link only (ADR 0024 D8)', () => {
       assertion: assertionFor(await baselineCredentialId(), proof.challenge),
     });
 
-    expect(res.body).toMatchObject({ success: true });
-    expect(res.status).toBe(200);
-    expect((await storedUser(currentUserId)).publicKey).toBe(identity.publicKey);
-    expect((await storedAuthMethods(currentUserId)).filter((m) => m.type === 'identity')).toHaveLength(1);
-    expect(mockInvalidate).toHaveBeenCalledWith(currentUserId);
-    // Self-sovereign: controlled by the person, not co-controlled by Oxy.
-    expect((await storedDidDocument(currentUserId)).controller).toEqual([buildUserDid(currentUserId)]);
+    expect(res.status).toBe(401);
+    expect((await storedUser(currentUserId)).publicKey).toBeNull();
+    expect((await storedAuthMethods(currentUserId)).filter((m) => m.type === 'identity')).toHaveLength(0);
+    expect((await storedDidDocument(currentUserId)).controller).toEqual([OXY_DID]);
   });
 
-  it('makes the account self-custodied: the recovery email goes with the first link (ADR 0029 D3)', async () => {
+  it('keeps the email of a keyless account whose link it refuses', async () => {
     const email = `linked-${randomUUID()}@example.test`;
     await getDb().update(users).set({ email }).where(eq(users.id, currentUserId));
     const identity = keyIdentity();
@@ -306,9 +303,9 @@ describe('first link only (ADR 0024 D8)', () => {
       assertion: assertionFor(await baselineCredentialId(), proof.challenge),
     });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
     const [row] = await getDb().select({ email: users.email, publicKey: users.publicKey }).from(users).where(eq(users.id, currentUserId));
-    expect(row).toEqual({ email: null, publicKey: identity.publicKey });
+    expect(row).toEqual({ email, publicKey: null });
   });
 
   it('refuses a passkey asserted anywhere but auth.oxy.so', async () => {
@@ -334,24 +331,19 @@ describe('first link only (ADR 0024 D8)', () => {
     expect(mockInvalidate).not.toHaveBeenCalled();
   });
 
-  it('refuses an assertion made over a different challenge, and a replayed proof', async () => {
+  it('refuses any passkey assertion, over any challenge', async () => {
     const identity = keyIdentity();
     const proof = await rootProof(identity, 'link_identity');
-    const elsewhere = await request(server, 'POST', '/auth/link', {
-      type: 'identity',
-      publicKey: identity.publicKey,
-      proof,
-      assertion: assertionFor(await baselineCredentialId(), 'ff'.repeat(32)),
-    });
-    expect(elsewhere.status).toBe(401);
+    for (const challenge of ['ff'.repeat(32), proof.challenge]) {
+      const res = await request(server, 'POST', '/auth/link', {
+        type: 'identity',
+        publicKey: identity.publicKey,
+        proof,
+        assertion: assertionFor(await baselineCredentialId(), challenge),
+      });
+      expect(res.status).toBe(401);
+    }
     expect((await storedUser(currentUserId)).publicKey).toBeNull();
-
-    const body = { type: 'identity', publicKey: identity.publicKey, proof, assertion: assertionFor(await baselineCredentialId(), proof.challenge) };
-    expect((await request(server, 'POST', '/auth/link', body)).status).toBe(200);
-    const other = await account();
-    await addPasskey(other);
-    currentUserId = other;
-    expect((await request(server, 'POST', '/auth/link', body)).status).toBe(401);
   });
 
   it('never replaces an existing different root, whatever proofs come with the request', async () => {
@@ -405,7 +397,9 @@ describe('first link only (ADR 0024 D8)', () => {
       assertion: assertionFor(await baselineCredentialId(), proof.challenge),
     });
 
-    expect(res.status).toBe(409);
+    // Refused before the key is even looked at: a keyless account's first
+    // link is never made here (security review of #1421).
+    expect(res.status).toBe(401);
     expect((await storedUser(currentUserId)).publicKey).toBeNull();
     expect((await storedUser(other)).publicKey).toBe(taken.publicKey);
   });

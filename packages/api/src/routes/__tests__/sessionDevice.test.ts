@@ -43,7 +43,7 @@ const mockGetAccessToken = jest.fn();
 const mockDeactivateSession = jest.fn();
 const mockBroadcast = jest.fn();
 const mockBroadcastAccounts = jest.fn();
-const mockIsLockedOut = jest.fn();
+const mockReserveAttempt = jest.fn();
 const mockRecordFailure = jest.fn();
 const mockClearFailures = jest.fn();
 
@@ -72,7 +72,7 @@ jest.mock('../../services/session.service', () => ({
   },
 }));
 jest.mock('../../services/loginLockout.service', () => ({
-  isLockedOut: (...a: unknown[]) => mockIsLockedOut(...a),
+  reserveAttempt: (...a: unknown[]) => mockReserveAttempt(...a),
   recordFailure: (...a: unknown[]) => mockRecordFailure(...a),
   clearFailures: (...a: unknown[]) => mockClearFailures(...a),
 }));
@@ -256,7 +256,7 @@ beforeEach(() => {
   mockDeactivateSession.mockResolvedValue(true);
   // The FLAT row shape: a personal session's `operatedByUserId` is `null`.
   mockGetSession.mockResolvedValue({ operatedByUserId: null });
-  mockIsLockedOut.mockResolvedValue({ locked: false, attempts: 0 });
+  mockReserveAttempt.mockResolvedValue({ locked: false, attempts: 1 });
   mockRecordFailure.mockResolvedValue({ locked: false, attempts: 1 });
   mockClearFailures.mockResolvedValue(undefined);
 });
@@ -302,7 +302,8 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     expect(res.body.error).toBe('invalid_device_secret');
     // The stored secret is untouched: a guess must not consume the real one.
     expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
-    expect(mockRecordFailure).toHaveBeenCalledWith({ scope: 'device-token', identifier: deviceId });
+    expect(mockReserveAttempt).toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token', identifier: deviceId }));
+    expect(mockClearFailures).not.toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token' }));
     expect(mockClearFailures).not.toHaveBeenCalled();
   });
 
@@ -382,7 +383,7 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
 
   it('429 when the device is locked out — never touches the secret', async () => {
     const { deviceId, secret } = await deviceWithSecret();
-    mockIsLockedOut.mockResolvedValueOnce({ locked: true, retryAfterSeconds: 42, attempts: 5 });
+    mockReserveAttempt.mockResolvedValueOnce({ locked: true, retryAfterSeconds: 42, attempts: 21 });
 
     const res = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
 
@@ -394,7 +395,7 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
   it('400 when the body shape is invalid (missing deviceSecret) — before any lockout read', async () => {
     const res = await requestJson('POST', '/session/device/token', { deviceId: 'd1' });
     expect(res.status).toBe(400);
-    expect(mockIsLockedOut).not.toHaveBeenCalled();
+    expect(mockReserveAttempt).not.toHaveBeenCalled();
   });
 
   it('400 when accountId is present but empty (schema requires min(1))', async () => {
@@ -404,7 +405,7 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
       accountId: '',
     });
     expect(res.status).toBe(400);
-    expect(mockIsLockedOut).not.toHaveBeenCalled();
+    expect(mockReserveAttempt).not.toHaveBeenCalled();
   });
 
   it('signout-all revokes the deviceSecret: a retained secret no longer mints', async () => {
@@ -517,7 +518,8 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('invalid_device_secret');
-    expect(mockRecordFailure).toHaveBeenCalledWith({ scope: 'device-token', identifier: deviceId });
+    expect(mockReserveAttempt).toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token', identifier: deviceId }));
+    expect(mockClearFailures).not.toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token' }));
   });
 });
 
@@ -893,7 +895,8 @@ describe('POST /session/device/background-token', () => {
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('background_credential_invalid');
-    expect(mockRecordFailure).toHaveBeenCalledWith({ scope: 'background-token', identifier: deviceId });
+    expect(mockReserveAttempt).toHaveBeenCalledWith(expect.objectContaining({ scope: 'background-token', identifier: deviceId }));
+    expect(mockClearFailures).not.toHaveBeenCalledWith(expect.objectContaining({ scope: 'background-token' }));
   });
 
   it('401 background_credential_invalid once the credential has expired', async () => {
@@ -966,6 +969,6 @@ describe('POST /session/device/background-token', () => {
       { Authorization: '' },
     );
     expect(res.status).toBe(400);
-    expect(mockIsLockedOut).not.toHaveBeenCalled();
+    expect(mockReserveAttempt).not.toHaveBeenCalled();
   });
 });

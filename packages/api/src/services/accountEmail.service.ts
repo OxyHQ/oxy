@@ -37,6 +37,7 @@ import { emailVerifications } from '../db/schema/emailVerifications';
 import { users } from '../db/schema/users';
 import { hashEmail } from '../utils/contactHash';
 import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
+import { normalizeSignInIdentifier } from '../utils/signInIdentifier';
 import { ApiError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { sendAccountExistsNotice, sendVerificationCode } from './accountEmail.mail';
@@ -47,7 +48,13 @@ import { SMTP_RELAYS } from '../config/email.config';
 /** Mails one requester (hashed IP) may cause to one address per hour. */
 export const EMAIL_SENDS_PER_HOUR = 5;
 /** Mails one address receives per hour from every requester together. */
-export const EMAIL_SENDS_PER_ADDRESS_PER_HOUR = 20;
+export const EMAIL_SENDS_PER_ADDRESS_PER_HOUR = 10;
+/**
+ * A further slice per address and hour kept for requests that PROVE a device
+ * the account is already on — so strangers exhausting the address's budget
+ * cannot stop its owner's sign-in mail from their own browser.
+ */
+export const EMAIL_SENDS_RESERVED_FOR_KNOWN_DEVICE = 5;
 /** Confirmation codes one signed-in account may ask for per hour. */
 export const REAUTH_SENDS_PER_HOUR = 10;
 
@@ -108,9 +115,11 @@ async function resolveDelivery(request: EmailVerificationStartRequest): Promise<
   }
 
   const identifier = request.identifier.trim();
-  const match = identifier.includes('@')
-    ? emailMatches(identifier)
-    : sql`lower(btrim(${users.username})) = lower(btrim(${identifier}))`;
+  // The one sign-in normalisation (`utils/signInIdentifier.ts`); outside it a decoy.
+  const lookup = normalizeSignInIdentifier(identifier) ?? '';
+  const match = lookup.includes('@')
+    ? sql`lower(btrim(${users.email})) = ${lookup}`
+    : sql`lower(btrim(${users.username})) = ${lookup}`;
   const [account] = await db
     .select({ id: users.id, kind: users.kind, email: users.email, publicKey: users.publicKey, accountStatus: users.accountStatus })
     .from(users)
@@ -160,6 +169,8 @@ export async function reserveSendBudget(input: {
   group: SendBudgetGroup;
   emailHash: string;
   requesterKey: string;
+  /** The request proved a device this account is already signed in on. */
+  knownDevice?: boolean;
 }): Promise<boolean> {
   const address = serverHmacHex(SERVER_KEY_LABELS.mailBudget, `${input.group}|${input.emailHash}`);
   const perRequester = await reserveAttempt({
@@ -175,7 +186,15 @@ export async function reserveSendBudget(input: {
     maxAttempts: EMAIL_SENDS_PER_ADDRESS_PER_HOUR,
     windowSeconds: 60 * 60,
   });
-  return !perAddress.locked;
+  if (!perAddress.locked) return true;
+  if (!input.knownDevice) return false;
+  const reserved = await reserveAttempt({
+    scope: `mail-address-known-device-${input.group}`,
+    identifier: address,
+    maxAttempts: EMAIL_SENDS_RESERVED_FOR_KNOWN_DEVICE,
+    windowSeconds: 60 * 60,
+  });
+  return !reserved.locked;
 }
 
 /**

@@ -757,6 +757,10 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
 
 
     /**
+     * @deprecated The API no longer deletes an account with a passkey (security
+     * review of #1421); this endpoint is gone. Use
+     * {@link deleteAccountWithEmailCode}. Removed with passkeys.
+     *
      * WebAuthn request options to delete a PASSKEY account (ADR 0029 D3): its own
      * passkeys, user verification required, and a challenge bound to it. Opaque —
      * hand them to the browser's authentication ceremony, on auth.oxy.so. An
@@ -771,6 +775,8 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
     }
 
     /**
+     * @deprecated Refused by the API. Use {@link deleteAccountWithEmailCode}.
+     *
      * Delete a PASSKEY account permanently, with an assertion by one of its
      * passkeys over {@link getAccountDeletionOptions}' challenge.
      *

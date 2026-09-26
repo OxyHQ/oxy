@@ -44,11 +44,16 @@ import { logger } from '../utils/logger';
 import { sendSignInEmail } from './accountEmail.mail';
 import { assertMailConfigured, consumeEmailCode, recordVerification, reserveSendBudget } from './accountEmail.service';
 import { clearFailures, reserveAttempt } from './loginLockout.service';
-import { resolveProvenDeviceId } from './deviceJoin.service';
+import { resolveProvenDevice, resolveProvenDeviceId } from './deviceJoin.service';
+import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
+import { normalizeSignInIdentifier } from '../utils/signInIdentifier';
 
-/** Code attempts one account gets per day, across all its sign-in requests. */
+/** Code attempts one requester gets per account per day, across its sign-in requests. */
 export const SIGNIN_CODE_FAILURES_PER_DAY = 10;
-const SIGNIN_CODE_LOCKOUT_SCOPE = 'signin-code';
+/** Code attempts one account gets per day from every requester together (see `confirmEmailSignIn`). */
+export const SIGNIN_CODE_ACCOUNT_CEILING_PER_DAY = 50;
+const SIGNIN_CODE_REQUESTER_SCOPE = 'signin-code-requester';
+const SIGNIN_CODE_ACCOUNT_SCOPE = 'signin-code-account';
 
 function sha256Hex(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -90,9 +95,12 @@ interface SignInTarget {
 
 async function resolveTarget(identifier: string): Promise<SignInTarget> {
   const trimmed = identifier.trim();
-  const match = trimmed.includes('@')
-    ? sql`lower(btrim(${users.email})) = lower(btrim(${trimmed}))`
-    : sql`lower(btrim(${users.username})) = lower(btrim(${trimmed}))`;
+  // One normalisation for the match and every key (`utils/signInIdentifier.ts`);
+  // outside it the same query runs against a value nothing matches: a decoy.
+  const lookup = normalizeSignInIdentifier(identifier) ?? '';
+  const match = lookup.includes('@')
+    ? sql`lower(btrim(${users.email})) = ${lookup}`
+    : sql`lower(btrim(${users.username})) = ${lookup}`;
   const [account] = await getDb()
     .select({
       id: users.id,
@@ -121,11 +129,17 @@ export async function startEmailSignIn(
 ): Promise<EmailSignInStartResponse> {
   assertMailConfigured();
   let target = await resolveTarget(request.identifier);
-  const requesterDeviceId = await resolveProvenDeviceId(request.device);
+  const provenDevice = await resolveProvenDevice(request.device);
+  const requesterDeviceId = provenDevice?.deviceId ?? null;
+  // A device this account is already signed in on: it may use the budget's
+  // reserved slice, and only it is ever told the mail could not go.
+  const knownDevice = Boolean(target.userId && provenDevice?.accountIds.includes(target.userId));
   const db = getDb();
   // Over the send budget: answered like any other request, as a decoy that
   // sends nothing — the budget is never visible (`reserveSendBudget`).
-  if (!(await reserveSendBudget({ group: 'public', emailHash: target.emailHash, requesterKey }))) {
+  let retryLater = false;
+  if (!(await reserveSendBudget({ group: 'public', emailHash: target.emailHash, requesterKey, knownDevice }))) {
+    retryLater = knownDevice;
     target = { ...target, userId: null, sendTo: null };
   }
 
@@ -155,7 +169,7 @@ export async function startEmailSignIn(
       });
     });
   }
-  return { requestId, requestSecret, expiresAt: expiresAt.getTime() };
+  return { requestId, requestSecret, expiresAt: expiresAt.getTime(), ...(retryLater ? { retryLater: true as const } : {}) };
 }
 
 /**
@@ -164,7 +178,7 @@ export async function startEmailSignIn(
  * against the code's attempts (committed before the error is thrown).
  */
 export async function confirmEmailSignIn(
-  input: { requestId: string; requestSecret: string; code: string },
+  input: { requestId: string; requestSecret: string; code: string; requesterKey: string },
   now: Date = new Date(),
 ): Promise<string> {
   const outcome = await getDb().transaction(async (tx) => {
@@ -188,24 +202,43 @@ export async function confirmEmailSignIn(
     if (!request || !hashesEqual(request.requestSecretHash, input.requestSecret)) {
       return { error: requestInvalid() };
     }
-    // Across every request for one account, at most
-    // SIGNIN_CODE_FAILURES_PER_DAY code attempts a day (reserved atomically,
-    // reset by a right one): past it even the right code is refused with the
-    // same generic error, and only the link — which needs the requester's own
-    // browser — still signs in. A decoy counts on a key of its own.
-    const accountCap = await reserveAttempt({
-      scope: SIGNIN_CODE_LOCKOUT_SCOPE,
-      identifier: request.userId ?? `request:${request.id}`,
+    // Code attempts across requests, reserved atomically before the check
+    // and reset by a right code:
+    // - per (account, requester): SIGNIN_CODE_FAILURES_PER_DAY — the strict
+    //   cap. The requester is the hashed IP, kept only in the lockout store
+    //   (Redis / memory), never persisted;
+    // - per account: SIGNIN_CODE_ACCOUNT_CEILING_PER_DAY, looser, bounding
+    //   guesses from many requesters together. It never refuses a requester's
+    //   FIRST attempt of the day, so failures from OTHER requesters can never
+    //   by themselves stop the owner's right code.
+    // Past a cap even the right code is refused with the same generic error;
+    // the link — which needs the requester's own browser — still signs in. A
+    // decoy counts on keys of its own.
+    const accountKey = request.userId ?? `request:${request.id}`;
+    const perRequester = await reserveAttempt({
+      scope: SIGNIN_CODE_REQUESTER_SCOPE,
+      identifier: serverHmacHex(SERVER_KEY_LABELS.lockoutIdentifier, `${accountKey}|${input.requesterKey}`),
       maxAttempts: SIGNIN_CODE_FAILURES_PER_DAY,
       windowSeconds: 24 * 60 * 60,
     });
+    const perAccount = await reserveAttempt({
+      scope: SIGNIN_CODE_ACCOUNT_SCOPE,
+      identifier: accountKey,
+      maxAttempts: SIGNIN_CODE_ACCOUNT_CEILING_PER_DAY,
+      windowSeconds: 24 * 60 * 60,
+    });
+    const refuse = perRequester.locked || (perAccount.locked && perRequester.attempts > 1);
     const checked = await consumeEmailCode(
       tx,
-      { verificationId: request.verificationId, code: input.code, purpose: 'signin', refuse: accountCap.locked },
+      { verificationId: request.verificationId, code: input.code, purpose: 'signin', refuse },
       now,
     );
     if ('error' in checked) return checked;
-    await clearFailures({ scope: SIGNIN_CODE_LOCKOUT_SCOPE, identifier: checked.userId });
+    await clearFailures({
+      scope: SIGNIN_CODE_REQUESTER_SCOPE,
+      identifier: serverHmacHex(SERVER_KEY_LABELS.lockoutIdentifier, `${accountKey}|${input.requesterKey}`),
+    });
+    await clearFailures({ scope: SIGNIN_CODE_ACCOUNT_SCOPE, identifier: accountKey });
     if (!request.userId || checked.userId !== request.userId) return { error: requestInvalid() };
     await tx.update(emailSignInRequests).set({ completedAt: now }).where(eq(emailSignInRequests.id, request.id));
     return { userId: request.userId };

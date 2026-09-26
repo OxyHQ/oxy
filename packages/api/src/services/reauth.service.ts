@@ -25,6 +25,7 @@ import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 import { hashEmail } from '../utils/contactHash';
 import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
+import { normalizeSignInIdentifier } from '../utils/signInIdentifier';
 import { ApiError, BadRequestError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { sendReauthCode } from './accountEmail.mail';
@@ -48,7 +49,11 @@ export function accountLockoutKey(userId: string): string {
  * the identifier in the clear.
  */
 export function identifierLockoutKey(identifier: string): string {
-  return `i:${serverHmacHex(SERVER_KEY_LABELS.lockoutIdentifier, identifier.trim().toLowerCase()).slice(0, 32)}`;
+  const normalized = normalizeSignInIdentifier(identifier);
+  // An identifier outside the charset names no account; it still has a
+  // bucket of its own (keyed on its NFKC form) so it cannot be guessed freely.
+  const material = normalized ?? `invalid|${identifier.normalize('NFKC').trim()}`;
+  return `i:${serverHmacHex(SERVER_KEY_LABELS.lockoutIdentifier, material).slice(0, 32)}`;
 }
 
 function reauthInvalid(): ApiError {

@@ -69,6 +69,8 @@ import { signIdentityProof } from '@oxy.so/core';
 import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
+import { sessions } from '../../db/schema/sessions';
+import sessionService from '../../services/session.service';
 import { errorHandler } from '../../middleware/errorHandler';
 import deviceSessionService from '../../services/deviceSession.service';
 import SignatureService from '../../services/signature.service';
@@ -277,5 +279,18 @@ describe('one person, end to end', () => {
     const deleted = await call('DELETE', '/users/me', { confirmText: person.username, reauth: { emailCode: wrong } }, person.token);
     expect(deleted.status).toBe(200);
     expect(await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.userId))).toHaveLength(0);
+  });
+
+  it('refuses a revoked session token on every sensitive route', async () => {
+    const person = await signUp();
+    const code = await reauthCode(person.token, person.email, 'delete_account');
+    const [session] = await getDb().select({ sessionId: sessions.sessionId }).from(sessions).where(eq(sessions.userId, person.userId));
+    await sessionService.deactivateSession(session.sessionId);
+
+    expect((await call('DELETE', '/users/me', { confirmText: person.username, reauth: { emailCode: code } }, person.token)).status).toBe(401);
+    expect((await call('POST', '/identity/link', undefined, person.token)).status).toBe(401);
+    expect((await call('POST', '/users/me/totp/enroll', undefined, person.token)).status).toBe(401);
+    expect((await call('PUT', '/users/me/password', { newPassword: 'whatever password', reauth: { emailCode: code } }, person.token)).status).toBe(401);
+    expect(await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.userId))).toHaveLength(1);
   });
 });

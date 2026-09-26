@@ -5,11 +5,11 @@
  *  - `POST   /`                  official app, bearer → `{ linkId, challenge, expiresAt, qrPayload }`
  *  - `GET    /:linkId`           either device → status, account, the key once signed
  *  - `POST   /:linkId/proof`     Commons, no bearer → the root proof and its key
- *  - `POST   /:linkId/options`   auth.oxy.so, bearer → WebAuthn options over the challenge
  *  - `POST   /:linkId/complete`  official app, bearer → `{ reauth }` (a code just
- *    sent to the account's email, + its authenticator code) or, from
- *    auth.oxy.so, `{ assertion }` (a passkey); links, deletes the email, tells
- *    it so, and signs every other session of the account out
+ *    sent to the account's email for this link, + its authenticator code; a
+ *    passkey no longer confirms it); links, deletes the email, the password and
+ *    the authenticator, tells the email so, and signs every other session of
+ *    the account out
  *  - `DELETE /:linkId`           official app, bearer → withdraw
  *
  * The authority is a root proof over one challenge plus the account's own
@@ -18,15 +18,13 @@
  * and first-party bearers; the two Commons calls carry no bearer (Commons has
  * no session for the account yet) and are rate-limited by hashed IP.
  */
-import { Router, type NextFunction, type Request, type Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { requireOfficialOrigin } from '../middleware/officialOrigin';
 import {
   identityLinkCompleteRequestSchema,
-  identityLinkOptionsRequestSchema,
   identityLinkProofRequestSchema,
   type IdentityLinkCompleteRequest,
-  type IdentityLinkOptionsRequest,
   type IdentityLinkProofRequest,
 } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
@@ -37,14 +35,12 @@ import {
   cancelLinkRequest,
   completeLinkRequest,
   createLinkRequest,
-  linkAssertionOptions,
   readLinkRequest,
   submitLinkProof,
 } from '../services/identityLink.service';
 import { asyncHandler } from '../utils/asyncHandler';
-import { ForbiddenError, UnauthorizedError } from '../utils/error';
+import { UnauthorizedError } from '../utils/error';
 import { hashedIpKey } from '../utils/ipKey';
-import { isAuthWebOrigin } from '../utils/origin';
 import userCache from '../utils/userCache';
 import { logger } from '../utils/logger';
 import { sendSecurityNotice } from '../services/accountEmail.mail';
@@ -80,15 +76,6 @@ const readLimiter = ipLimiter('read', 1200);
 const proofLimiter = ipLimiter('proof', 30);
 const openLimiter = userLimiter('open', 20);
 const ownerLimiter = userLimiter('owner', 60);
-
-function requireAuthWebOrigin(req: Request, _res: Response, next: NextFunction): void {
-  const origin = req.headers.origin;
-  if (typeof origin !== 'string' || !isAuthWebOrigin(origin)) {
-    next(new ForbiddenError('This endpoint is only available to auth.oxy.so'));
-    return;
-  }
-  next();
-}
 
 function requireUserId(req: AuthRequest): string {
   const userId = req.user?.id;
@@ -127,18 +114,6 @@ router.post(
 );
 
 router.post(
-  '/:linkId/options',
-  requireAuthWebOrigin,
-  authMiddleware,
-  ownerLimiter,
-  validate({ params: identityLinkParams, body: identityLinkOptionsRequestSchema }),
-  asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { challenge } = req.body as IdentityLinkOptionsRequest;
-    res.status(200).json(await linkAssertionOptions(req.params.linkId as string, requireUserId(req), challenge));
-  }),
-);
-
-router.post(
   '/:linkId/complete',
   requireOfficialOrigin,
   authMiddleware,
@@ -148,13 +123,6 @@ router.post(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = requireUserId(req);
     const body = req.body as IdentityLinkCompleteRequest;
-    // A passkey is asserted only on auth.oxy.so (ADR 0029 D1).
-    if ('assertion' in body) {
-      const origin = req.headers.origin;
-      if (typeof origin !== 'string' || !isAuthWebOrigin(origin)) {
-        throw new ForbiddenError('A passkey is confirmed only on auth.oxy.so');
-      }
-    }
     const { formerEmail, username } = await completeLinkRequest(req.params.linkId as string, userId, body);
     userCache.invalidate(userId);
     // The account is the person's own now: every other session goes.

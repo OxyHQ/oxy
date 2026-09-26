@@ -509,11 +509,10 @@ router.post('/rotate/complete', rotateCompleteLimiter, validate({ body: rotateKe
  *   missing `identity` method row.
  * - An account with a DIFFERENT root: 409. Replacing a root is
  *   `POST /auth/rotate/*`, which needs the old root's proof too.
- * - A keyless (passkey) account: a root proof (`link_identity`, one-use
- *   challenge) AND a fresh assertion by one of the account's existing passkeys,
- *   made on auth.oxy.so, over the same challenge. A bearer plus a key generated a
- *   moment ago is not authority. The first link deletes the recovery email
- *   (ADR 0029 D3).
+ * - A keyless account: refused here. Its first link goes through
+ *   `routes/identityLink.ts`, confirmed by a code sent to its email (plus its
+ *   authenticator); a passkey assertion no longer confirms it, and a bearer
+ *   plus a key generated a moment ago is not authority.
  */
 router.post('/link', validate({ body: linkAuthMethodSchema }), asyncHandler(async (req: AuthRequest, res: Response) => {
   const userId = req.user?._id?.toString();
@@ -531,7 +530,7 @@ router.post('/link', validate({ body: linkAuthMethodSchema }), asyncHandler(asyn
 
   try {
     await getDb().transaction((tx) =>
-      linkRootToAccount(tx, { userId, publicKey: safePublicKey, proof: body.proof, assertion: body.assertion }),
+      linkRootToAccount(tx, { userId, publicKey: safePublicKey, proof: body.proof }),
     );
   } catch (error) {
     if (isUniqueViolation(error)) {

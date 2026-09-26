@@ -23,7 +23,6 @@
 import { z } from 'zod';
 import { identityProofSchema } from './identityProof';
 import { emailReauthProofSchema } from './signIn';
-import { webauthnAssertionResponseSchema } from './webauthn';
 
 export const IDENTITY_LINK_STATUSES = ['pending', 'signed', 'completed', 'cancelled'] as const;
 export type IdentityLinkStatus = (typeof IDENTITY_LINK_STATUSES)[number];
@@ -116,11 +115,8 @@ export type IdentityLinkOptionsRequest = z.infer<typeof identityLinkOptionsReque
 
 /**
  * `POST /identity/link/:linkId/complete` — the account's own confirmation: a
- * code just sent to its email (`reauth`, plus its authenticator code when it
- * has one), or the passkey assertion over the challenge.
+ * code just sent to its email for this link (`reauth`, plus its authenticator
+ * code when it has one). A passkey assertion no longer confirms a link.
  */
-export const identityLinkCompleteRequestSchema = z.union([
-    z.object({ reauth: emailReauthProofSchema }).strict(),
-    z.object({ assertion: webauthnAssertionResponseSchema }).strict(),
-]);
+export const identityLinkCompleteRequestSchema = z.object({ reauth: emailReauthProofSchema }).strict();
 export type IdentityLinkCompleteRequest = z.infer<typeof identityLinkCompleteRequestSchema>;

@@ -7,10 +7,9 @@
  *   POST /webauthn/login/options      — begin authentication
  *   POST /webauthn/login/verify       — finish authentication
  *
- * All four read an OPTIONAL bearer (like `sessionDevice.ts`'s
- * `resolveCallerDeviceId`) rather than mounting `authMiddleware`: a bearer means
- * "link a passkey to THIS signed-in account", its absence means "prospective
- * signup / usernameless login".
+ * None takes a bearer: registration is only a sign-up or a recovery, and a
+ * request that carries a bearer is refused (a passkey is never added to an
+ * existing signed-in account — see `refuseAddingToSignedInAccount`).
  *
  * CORE PRINCIPLE — reuse the session mint. The verify handlers do ONLY: verify
  * the assertion via `@simplewebauthn/server` → resolve the userId → run the exact
@@ -64,7 +63,6 @@ import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users } from '../db/schema/users';
 import { webauthnChallenges } from '../db/schema/webauthnChallenges';
 import { webauthnCredentials } from '../db/schema/webauthnCredentials';
-import { extractTokenFromRequest, decodeToken } from '../middleware/authUtils';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ApiError, BadRequestError, ConflictError, ForbiddenError, UnauthorizedError, InternalServerError } from '../utils/error';
@@ -132,18 +130,17 @@ function isPersonalAccount(kind: string): boolean {
 }
 
 /**
- * Resolve the authenticated userId from an OPTIONAL bearer, mirroring
- * `sessionDevice.ts`'s `resolveCallerDeviceId`: decode the access JWT and read
- * its `userId` claim. Returns null when there is no valid `access` bearer — the
- * caller then treats the request as unauthenticated (signup / usernameless).
+ * A passkey is never ADDED to an existing, signed-in account any more (security
+ * review of #1421): a bearer — possibly stolen, possibly a third party's —
+ * must not be able to plant a credential that then deletes the account or
+ * links another key. Only sign-up and recovery (by an emailed ticket, plus the
+ * authenticator when the account has one) register a passkey until passkeys
+ * are removed. A request carrying a bearer is refused outright.
  */
-function resolveOptionalBearerUserId(req: Request): string | null {
-  const token = extractTokenFromRequest(req);
-  const decoded = token ? decodeToken(token) : null;
-  if (!decoded || decoded.type !== 'access') {
-    return null;
+function refuseAddingToSignedInAccount(req: Request): void {
+  if (req.headers.authorization) {
+    throw new ForbiddenError('A passkey can no longer be added to an existing account');
   }
-  return typeof decoded.userId === 'string' && decoded.userId.length > 0 ? decoded.userId : null;
 }
 
 /**
@@ -451,7 +448,6 @@ async function insertPasskey(
 /**
  * POST /webauthn/register/options
  *
- * Bearer → link a passkey to the signed-in account (excludes existing passkeys).
  * `recoveryTicket` → a new passkey for the account a recovery code was confirmed
  * for (the ticket is read here and spent at verify). `username` → prospective
  * signup: validate the requested username is available WITHOUT creating the
@@ -468,18 +464,17 @@ router.post(
       throw new BadRequestError('Invalid request body');
     }
 
+    refuseAddingToSignedInAccount(req);
     const db = getDb();
     const rpID = getWebauthnRpId();
-    const bearerUserId = resolveOptionalBearerUserId(req);
 
     let userName: string;
     let userHandle: string;
     let challengeUserId: string | null = null;
     let excludeCredentials: { id: string; transports?: AuthenticatorTransportFuture[] }[] = [];
 
-    // Linking (bearer) and recovery (ticket) both add a passkey to an existing
-    // account; only how the account is named differs.
-    const existingAccountId = bearerUserId ?? (parsed.data.recoveryTicket ? await readRecoveryTicket(parsed.data.recoveryTicket) : null);
+    // Recovery (ticket) adds a passkey to an existing account.
+    const existingAccountId = parsed.data.recoveryTicket ? await readRecoveryTicket(parsed.data.recoveryTicket) : null;
 
     if (existingAccountId) {
       const [account] = await db
@@ -488,7 +483,7 @@ router.post(
         .where(eq(users.id, existingAccountId))
         .limit(1);
       if (!account) {
-        throw bearerUserId ? new UnauthorizedError('User not found') : ticketInvalid();
+        throw ticketInvalid();
       }
       if (!isPersonalAccount(account.kind)) {
         throw new ForbiddenError('Passkeys can only be linked to personal accounts');
@@ -577,7 +572,6 @@ router.post(
  * Verifies the attestation, atomically burns the matching `registration`
  * challenge, then:
  *
- * - bearer → LINKS the passkey to the signed-in account (`{ success: true }`);
  * - `recoveryTicket` → adds the passkey to the account being recovered, spends
  *   the ticket and signs in (the `/auth/verify` `AuthSuccess` shape);
  * - sign-up → CREATES the account — the username, this passkey and the
@@ -595,32 +589,30 @@ router.post(
     const envelope = parsedEnvelope.data;
     const response = readCeremonyResponse<RegistrationResponseJSON>(req.body);
 
+    refuseAddingToSignedInAccount(req);
     const db = getDb();
     const rpID = getWebauthnRpId();
-    const bearerUserId = resolveOptionalBearerUserId(req);
-    const recoveryTicket = bearerUserId ? undefined : envelope.recoveryTicket;
+    const recoveryTicket = envelope.recoveryTicket;
 
     const { origin, challenge } = decodeAndGuardClientData(response.response.clientDataJSON);
 
     // Refused before the challenge is spent, so the person can retry properly.
-    if (!bearerUserId) {
-      requireAuthWebCeremony(origin);
-      if (!recoveryTicket && (!envelope.email || !envelope.emailTicket)) {
-        throw new ApiError(
-          400,
-          'Confirm a recovery email before creating the account',
-          EMAIL_VERIFICATION_ERROR_CODES.ticketRequired,
-        );
-      }
+    requireAuthWebCeremony(origin);
+    if (!recoveryTicket && (!envelope.email || !envelope.emailTicket)) {
+      throw new ApiError(
+        400,
+        'Confirm a recovery email before creating the account',
+        EMAIL_VERIFICATION_ERROR_CODES.ticketRequired,
+      );
     }
 
     // The account a recovery adds the passkey to. Read (not spent) here so the
     // challenge can be bound to it; the ticket is spent with the passkey below.
     const recoveringUserId = recoveryTicket ? await readRecoveryTicket(recoveryTicket) : null;
 
-    // Bind the challenge to its flow: a linking or recovery challenge to its
-    // account, a signup challenge to no account.
-    const burned = await burnChallenge(challenge, 'registration', bearerUserId ?? recoveringUserId);
+    // Bind the challenge to its flow: a recovery challenge to its account, a
+    // signup challenge to no account.
+    const burned = await burnChallenge(challenge, 'registration', recoveringUserId);
     if (!burned) {
       throw new UnauthorizedError('Invalid or expired registration challenge');
     }
@@ -659,38 +651,6 @@ router.post(
     // actions"). A real step-up gate needs attestation.
     const registration = verification.registrationInfo;
     const credentialName = envelope.deviceName?.trim() || DEFAULT_CREDENTIAL_NAME;
-
-    if (bearerUserId) {
-      // ---- Linking branch --------------------------------------------------
-      const [account] = await db
-        .select({ id: users.id, kind: users.kind })
-        .from(users)
-        .where(eq(users.id, bearerUserId))
-        .limit(1);
-      if (!account) {
-        throw new UnauthorizedError('User not found');
-      }
-      if (!isPersonalAccount(account.kind)) {
-        throw new ForbiddenError('Passkeys can only be linked to personal accounts');
-      }
-
-      // A committed credential with no auth method would be invisible to
-      // `GET /auth/methods` and to the unlink guard.
-      try {
-        await db.transaction((tx) => insertPasskey(tx, account.id, registration, credentialName));
-      } catch (error) {
-        const constraint = uniqueViolationConstraint(error);
-        if (constraint !== null && CREDENTIAL_UNIQUE_CONSTRAINTS.has(constraint)) {
-          throw new ConflictError('This passkey is already registered');
-        }
-        throw error;
-      }
-
-      userCache.invalidate(account.id);
-
-      res.json({ success: true, message: 'Passkey registered successfully' });
-      return;
-    }
 
     if (recoveryTicket && recoveringUserId) {
       // ---- Recovery branch -------------------------------------------------

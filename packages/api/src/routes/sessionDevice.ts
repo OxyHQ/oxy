@@ -16,7 +16,7 @@ import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAcc
 import { requireSameSiteOrigin } from '../middleware/originGuard';
 import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
 import { rateLimit } from '../middleware/rateLimiter';
-import { isLockedOut, recordFailure, clearFailures } from '../services/loginLockout.service';
+import { clearFailures, reserveAttempt } from '../services/loginLockout.service';
 import deviceSessionService from '../services/deviceSession.service';
 import deviceJoinService from '../services/deviceJoin.service';
 import sessionService from '../services/session.service';
@@ -30,6 +30,14 @@ const router = Router();
 
 /** Lockout scope for the public deviceSecret mint (per-deviceId sliding window). */
 const DEVICE_TOKEN_LOCKOUT_SCOPE = 'device-token';
+/**
+ * Attempts per device per window. Every attempt is reserved before the check
+ * and a proven secret resets the count, so this also bounds how many official
+ * apps can mint for one browser device AT THE SAME INSTANT — hence above the
+ * default five. A 256-bit secret is not guessable either way; the lockout is
+ * defence in depth.
+ */
+const DEVICE_TOKEN_MAX_ATTEMPTS = 20;
 
 const deviceTokenLimiter = rateLimit({
   prefix: 'rl:session:device-token:',
@@ -86,7 +94,9 @@ router.post(
     }
     const { deviceId, deviceSecret, accountId } = parsed.data;
 
-    const lockout = await isLockedOut({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+    // Reserved atomically BEFORE the secret is checked, so parallel guesses
+    // share one budget; a proven secret resets it.
+    const lockout = await reserveAttempt({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId, maxAttempts: DEVICE_TOKEN_MAX_ATTEMPTS });
     if (lockout.locked) {
       if (typeof lockout.retryAfterSeconds === 'number') {
         res.setHeader('Retry-After', String(lockout.retryAfterSeconds));
@@ -97,7 +107,6 @@ router.post(
 
     const state = await deviceSessionService.getStateBySecret(deviceId, deviceSecret);
     if (!state) {
-      await recordFailure({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
       res.status(401).json({ error: 'invalid_device_secret' });
       return;
     }
@@ -223,7 +232,9 @@ router.post(
     }
     const { deviceId } = parsed.data;
 
-    const lockout = await isLockedOut({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+    // Reserved atomically BEFORE the secret is checked, so parallel guesses
+    // share one budget; a proven secret resets it.
+    const lockout = await reserveAttempt({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId, maxAttempts: DEVICE_TOKEN_MAX_ATTEMPTS });
     if (lockout.locked) {
       if (typeof lockout.retryAfterSeconds === 'number') {
         res.setHeader('Retry-After', String(lockout.retryAfterSeconds));
@@ -235,8 +246,7 @@ router.post(
     const outcome = await deviceJoinService.issueJoinCode(parsed.data);
     if (!outcome.ok) {
       if (outcome.reason === 'invalid_device_secret') {
-        await recordFailure({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
-        res.status(401).json({ error: 'invalid_device_secret' });
+          res.status(401).json({ error: 'invalid_device_secret' });
         return;
       }
       res.status(400).json({ error: outcome.reason });
@@ -302,7 +312,8 @@ router.post(
     }
     const { deviceId, secret } = parsed.data;
 
-    const lockout = await isLockedOut({ scope: BACKGROUND_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+    // Reserved atomically BEFORE the secret is checked (see above).
+    const lockout = await reserveAttempt({ scope: BACKGROUND_TOKEN_LOCKOUT_SCOPE, identifier: deviceId, maxAttempts: DEVICE_TOKEN_MAX_ATTEMPTS });
     if (lockout.locked) {
       if (typeof lockout.retryAfterSeconds === 'number') {
         res.setHeader('Retry-After', String(lockout.retryAfterSeconds));
@@ -313,9 +324,7 @@ router.post(
 
     const outcome = await deviceSessionService.mintFromBackgroundSecret(deviceId, secret);
     if (!outcome.ok) {
-      if (outcome.reason === 'background_credential_invalid') {
-        await recordFailure({ scope: BACKGROUND_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
-      } else {
+      if (outcome.reason !== 'background_credential_invalid') {
         // The credential was proven — a dead bound account must not count as
         // secret guessing.
         await clearFailures({ scope: BACKGROUND_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });

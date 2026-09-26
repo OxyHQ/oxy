@@ -1753,7 +1753,8 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      * `PublicKeyCredentialCreationOptions` the browser's `navigator.credentials
      * .create()` (or `@simplewebauthn/browser`'s `startRegistration`) needs.
      *
-     * With a bearer token planted this adds a passkey to the signed-in account.
+     * A passkey is never added to a signed-in account any more: the API refuses
+     * a request that carries a bearer (security review of #1421).
      * Without one, `username` is a prospective sign-up's handle, and
      * `recoveryTicket` a recovery's new passkey for the account it names. The
      * returned options are OPAQUE — Oxy does not own their shape (the browser /

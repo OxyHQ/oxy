@@ -59,6 +59,7 @@ import { ApiError, BadRequestError, ConflictError } from '../utils/error';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
 import { normalizeUsername } from '../utils/username';
+import { normalizeSignInIdentifier } from '../utils/signInIdentifier';
 
 const router = Router();
 
@@ -111,7 +112,7 @@ router.post(
   validate({ body: emailSignInConfirmRequestSchema }),
   asyncHandler(async (req: Request, res: Response) => {
     const body = req.body as EmailSignInConfirmRequest;
-    const userId = await confirmEmailSignIn(body);
+    const userId = await confirmEmailSignIn({ ...body, requesterKey: hashedIpKey(req) });
     res.status(200).json(await completeFirstFactor(req, userId, envelopeOf(body)));
   }),
 );
@@ -158,10 +159,13 @@ function lockedOut(retryAfterSeconds?: number): ApiError {
  * (linking deleted its password); it is answered exactly like an unknown name.
  */
 async function passwordAccount(identifier: string): Promise<string | null> {
-  const trimmed = identifier.trim();
-  const match = trimmed.includes('@')
-    ? sql`lower(btrim(${users.email})) = lower(btrim(${trimmed}))`
-    : sql`lower(btrim(${users.username})) = lower(btrim(${trimmed}))`;
+  // The same normalisation the lockout key uses; outside it, no account (the
+  // same one query still runs, against a value nothing matches).
+  const normalized = normalizeSignInIdentifier(identifier);
+  const lookup = normalized ?? '';
+  const match = lookup.includes('@')
+    ? sql`lower(btrim(${users.email})) = ${lookup}`
+    : sql`lower(btrim(${users.username})) = ${lookup}`;
   const [row] = await getDb()
     .select({ id: users.id, kind: users.kind, accountStatus: users.accountStatus, publicKey: users.publicKey })
     .from(users)

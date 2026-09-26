@@ -35,6 +35,15 @@ optional authenticator app (TOTP), and sign-up with a confirmed email.
   account has an authenticator — a passkey is a first factor too; finish with
   `completeSecondFactor`.
 - `requestReauthEmailCode(action)` names the one change the code confirms.
+
+### Deprecated
+
+- `getAccountDeletionOptions`, `deleteAccountWithPasskey`,
+  `getIdentityLinkAssertionOptions`, `completeIdentityLink` and adding a passkey
+  to a signed-in account (`webauthnRegisterOptions`/`webauthnRegisterVerify`
+  with a bearer): the API refuses them now (a stolen bearer could otherwise
+  plant a passkey and use it). Use `deleteAccountWithEmailCode` and
+  `completeIdentityLinkWithEmailCode`. They go with passkeys.
 - `deleteAccountWithEmailCode(confirmText, reauth)` and
   `completeIdentityLinkWithEmailCode(linkId, reauth)`: deleting an account
   without a key and linking Commons, confirmed by an emailed code instead of a
