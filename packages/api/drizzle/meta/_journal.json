@@ -813,6 +813,13 @@
       "when": 1790433959035,
       "tag": "0116_email_password_signin",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1790440983596,
+      "tag": "0117_storage_object_deletions",
+      "breakpoints": true
     }
   ]
 }

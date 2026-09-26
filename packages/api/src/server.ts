@@ -129,6 +129,10 @@ import {
   stopAccountEventWebhookWorker,
 } from './services/accountEventWebhook.worker';
 import {
+  startStorageDeletionWorker,
+  stopStorageDeletionWorker,
+} from './services/accountStorageDeletion.worker';
+import {
   startNormalizedEventOutboxWorker,
   stopNormalizedEventOutboxWorker,
 } from './services/normalizedAppEventOutbox.worker';
@@ -493,6 +497,7 @@ async function gracefulShutdown(signal: string) {
   stopFollowOutboxWorker();
   stopNormalizedEventOutboxWorker();
   stopAccountEventWebhookWorker();
+  stopStorageDeletionWorker();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
   await stopTransparencyCheckpointJobs();
@@ -1344,6 +1349,9 @@ export async function bootstrap(
   // Tell relying parties about account deletions (OxyHQ/Mention#1169). ON by
   // default: see `startAccountEventWebhookWorker`.
   startAccountEventWebhookWorker();
+  // Delete a deleted account's stored uploads (OxyHQ/Mention#1178). ON by
+  // default: see `startStorageDeletionWorker`.
+  startStorageDeletionWorker();
 
   // Start background jobs: durable BullMQ scheduling when REDIS_URL is set,
   // otherwise the in-process cron fallback. Never throws.

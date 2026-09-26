@@ -64,6 +64,10 @@ import { AFFINITY_EVENT_SEEN_TTL_SECONDS } from '../utils/recommendationWeights'
 import { ACCOUNT_EVENT_RETENTION_SECONDS, accountEvents } from './schema/accountEvents';
 import { appAffinitySeenEvents } from './schema/appAffinitySeenEvents';
 import {
+  STORAGE_OBJECT_DELETION_RETENTION_SECONDS,
+  storageObjectDeletions,
+} from './schema/storageObjectDeletions';
+import {
   CREDENTIAL_AUDIT_RETENTION_SECONDS,
   applicationCredentialAuditEvents,
 } from './schema/applicationCredentialAuditEvents';
@@ -378,5 +382,15 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'past the push retry window, so a party reconciling from the pull feed ' +
       'cannot miss one. After that the deleted account id itself is dropped; ' +
       'deliveries cascade with their event.',
+  },
+  {
+    table: storageObjectDeletions,
+    column: storageObjectDeletions.completedAt,
+    retentionSeconds: STORAGE_OBJECT_DELETION_RETENTION_SECONDS,
+    reason:
+      'Thirty days of proof that a deleted account\'s stored uploads were ' +
+      'removed, keyed on COMPLETION: an unfinished row has a NULL ' +
+      '`completed_at`, which no range predicate matches, so a deletion still ' +
+      'retrying is never swept away with its keys.',
   },
 ];
