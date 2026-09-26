@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="432" height="432" viewBox="0 0 432 432">
+<!-- PLACEHOLDER app mark shipped by create-oxy-app: replace it with your app's own mark,
+     then run `bun scripts/render-app-icons.mjs` to regenerate the PNG of the same name. -->
+<g transform="translate(99 99) scale(9.75)"><circle cx="12" cy="12" r="7.5" fill="none" stroke="#ffffff" stroke-width="2.5"/></g>
+</svg>

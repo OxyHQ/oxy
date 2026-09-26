@@ -11,6 +11,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { OxyProvider, useOxy } from '@oxy.so/services';
+import { preventNativeSplashAutoHide, useHideNativeSplashWhenReady } from '@oxy.so/expo-splash';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
@@ -19,6 +20,11 @@ import { queryClient } from '@/lib/queryClient';
 import { THEME_PERSIST_KEY, themeStorage } from '@/lib/themePersistence';
 import { LocaleProvider } from '@/lib/i18n';
 import { ErrorFallback } from '@/components/error-fallback';
+
+// Native only (no-op on web): hold the OS splash until cold boot knows whether
+// there is a session, so the first frame is the right group rather than a flash
+// of the sign-in screen. `AuthRouter` hides it.
+preventNativeSplashAutoHide();
 
 /**
  * Top-level error boundary. expo-router renders this whenever a render error
@@ -77,6 +83,7 @@ function AppImageResolver({ children }: { children: ReactNode }) {
 function AuthRouter() {
   const { isAuthenticated, isAuthResolved } = useOxy();
   const needsAuth = isAuthResolved ? !isAuthenticated : true;
+  useHideNativeSplashWhenReady(isAuthResolved);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
