@@ -654,10 +654,10 @@ describe('email codes are capped per requester', () => {
 });
 
 describe('the per-account code ceiling', () => {
-  it('past it, only the requester that started the request, or a device the account is on, may still try', async () => {
-    const victim = await account();
-    const wrongFor = (right: string) => (right === '000000' ? '000001' : '000000');
-    // Fifty wrong attempts, spread over ten requesters so none hits its own cap.
+  const wrongFor = (right: string) => (right === '000000' ? '000001' : '000000');
+
+  /** Fifty wrong 6-digit attempts, spread over ten requesters so none hits its own cap. */
+  async function burnCeiling(victim: { username: string; email: string | null }) {
     const burner = await startEmailSignIn({ identifier: victim.username }, 'burner');
     const burnerCode = mailFor(victim.email as string).code;
     for (let requester = 0; requester < 10; requester += 1) {
@@ -665,34 +665,58 @@ describe('the per-account code ceiling', () => {
         await confirmEmailSignIn({ ...burner, code: wrongFor(burnerCode), requesterKey: `rotating-${requester}` }).catch(() => undefined);
       }
     }
+  }
 
-    // A new request: a requester that did NOT start it is refused even with the right code…
+  it('past it, nobody is exempt by IP: even the requester that started a 6-digit request is refused', async () => {
+    const victim = await account();
+    const early = await startEmailSignIn({ identifier: victim.username }, 'owner-ip');
+    const earlyCode = mailFor(victim.email as string).code;
     mockSendSignIn.mockClear();
-    const owners = await startEmailSignIn({ identifier: victim.username }, 'owner-ip');
-    const right = mailFor(victim.email as string).code;
-    await expect(confirmEmailSignIn({ ...owners, code: right, requesterKey: 'fresh-rotated-ip' })).rejects.toMatchObject({
+    await burnCeiling(victim);
+    await expect(confirmEmailSignIn({ ...early, code: earlyCode, requesterKey: 'owner-ip' })).rejects.toMatchObject({
       code: 'EMAIL_CODE_INVALID',
     });
-    // …while the one that started it still gets its attempt.
-    await expect(confirmEmailSignIn({ ...owners, code: right, requesterKey: 'owner-ip' })).resolves.toBe(victim.id);
+    expect(await sessionCount(victim.id)).toBe(0);
   });
 
-  it('lets a device the account is already signed in on through the ceiling', async () => {
+  it('then every new email carries the long code: a 6-digit guess from a new IP is refused, the owner signs in with it', async () => {
+    const victim = await account();
+    await burnCeiling(victim);
+
+    // An attacker from a fresh address starts its own request and guesses 6 digits.
+    mockSendSignIn.mockClear();
+    const attackers = await startEmailSignIn({ identifier: victim.username }, 'fresh-attacker-ip');
+    const sent = mailFor(victim.email as string).code;
+    expect(sent).toMatch(/^[2-9A-HJKMNP-TV-Z]{5}-[2-9A-HJKMNP-TV-Z]{5}$/);
+    await expect(confirmEmailSignIn({ ...attackers, code: '123456', requesterKey: 'fresh-attacker-ip' })).rejects.toMatchObject({
+      code: 'EMAIL_CODE_INVALID',
+    });
+
+    // The owner, from anywhere, types the long code (any case, with or without its dash).
+    mockSendSignIn.mockClear();
+    const owners = await start(victim.username);
+    const long = mailFor(victim.email as string).code;
+    const res = await post(
+      '/signin/email/confirm',
+      { requestId: owners.requestId, requestSecret: owners.requestSecret, code: long.toLowerCase() },
+      APP_ORIGIN,
+      '192.0.2.77',
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.user).toMatchObject({ id: victim.id });
+  });
+
+  it('a device the account is already signed in on is still exempt for a 6-digit code', async () => {
     const victim = await account();
     const { app } = await browserDevice();
     const first = await start(victim.username, app);
     await post('/signin/email/confirm', { requestId: first.requestId, requestSecret: first.requestSecret, code: mailFor(victim.email as string).code, device: app });
-    const burner = await startEmailSignIn({ identifier: victim.username }, 'burner');
-    const burnerCode = mailFor(victim.email as string).code;
-    for (let requester = 0; requester < 10; requester += 1) {
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        await confirmEmailSignIn({ ...burner, code: burnerCode === '000000' ? '000001' : '000000', requesterKey: `rotating-${requester}` }).catch(() => undefined);
-      }
-    }
     mockSendSignIn.mockClear();
-    const again = await startEmailSignIn({ identifier: victim.username, device: app }, 'owner-ip');
-    const right = mailFor(victim.email as string).code;
-    await expect(confirmEmailSignIn({ ...again, code: right, requesterKey: 'another-ip', device: app })).resolves.toBe(victim.id);
+    const early = await startEmailSignIn({ identifier: victim.username, device: app }, 'owner-ip');
+    const earlyCode = mailFor(victim.email as string).code;
+    expect(earlyCode).toMatch(/^\d{6}$/);
+    await burnCeiling(victim);
+    await expect(confirmEmailSignIn({ ...early, code: earlyCode, requesterKey: 'another-ip', device: app })).resolves.toBe(victim.id);
   });
 });
 

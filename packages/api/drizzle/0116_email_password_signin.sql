@@ -14,6 +14,7 @@ CREATE TABLE "email_signin_requests" (
 	"request_secret_hash" text NOT NULL,
 	"link_token_hash" text NOT NULL,
 	"requester_device_id" text,
+	"long_code" boolean DEFAULT false NOT NULL,
 	"approved_at" timestamp with time zone,
 	"completed_at" timestamp with time zone,
 	"expires_at" timestamp with time zone NOT NULL,

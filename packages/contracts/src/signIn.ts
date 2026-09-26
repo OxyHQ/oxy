@@ -46,6 +46,26 @@ export const TOTP_PERIOD_SECONDS = 30;
 /** Backup codes issued when an authenticator is enabled or they are regenerated. */
 export const TOTP_BACKUP_CODE_COUNT = 10;
 
+/**
+ * The long sign-in code: ten characters of Crockford base32 without the
+ * look-alikes (no 0, O, 1, I, L, U), shown as `XXXXX-XXXXX`. An account whose
+ * sign-in codes were guessed at too often today (the per-account ceiling) is
+ * sent this instead of 6 digits for the rest of the day, so its owner can still
+ * type a code while guessing one is infeasible.
+ */
+export const EMAIL_SIGNIN_LONG_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+export const EMAIL_SIGNIN_LONG_CODE_LENGTH = 10;
+
+/**
+ * Normalise a typed sign-in code: 6 digits stay as they are; a long code is
+ * upper-cased with its dash and spaces removed. Anything else is returned
+ * trimmed (and will simply be wrong).
+ */
+export function normalizeEmailSignInCode(code: string): string {
+    const compact = code.trim().replace(/[\s-]/g, '').toUpperCase();
+    return compact;
+}
+
 const sixDigits = z
     .string()
     .trim()
@@ -115,12 +135,33 @@ export const emailSignInStartResponseSchema: z.ZodType<EmailSignInStartResponse>
     retryLater: z.literal(true).optional(),
 });
 
+/**
+ * The code from a sign-in email: 6 digits, or — for an account whose codes
+ * were guessed at too often today — the 10-character long code
+ * (`EMAIL_SIGNIN_LONG_CODE_ALPHABET`, with or without its dash, any case). The
+ * UI must accept BOTH in one field: the email says which was sent, and the
+ * start response is the same either way (it says nothing about the account).
+ */
+export const emailSignInCodeSchema = z
+    .string()
+    .trim()
+    .refine(
+        (value) => {
+            const code = normalizeEmailSignInCode(value);
+            return (
+                new RegExp(`^\\d{${EMAIL_CODE_LENGTH}}$`).test(code) ||
+                new RegExp(`^[${EMAIL_SIGNIN_LONG_CODE_ALPHABET}]{${EMAIL_SIGNIN_LONG_CODE_LENGTH}}$`).test(code)
+            );
+        },
+        { message: `code must be ${EMAIL_CODE_LENGTH} digits or the ${EMAIL_SIGNIN_LONG_CODE_LENGTH}-character code from the email` },
+    );
+
 /** `POST /auth/signin/email/confirm` — the code from the email. */
 export const emailSignInConfirmRequestSchema = z
     .object({
         requestId: z.string().trim().min(1).max(64),
         requestSecret: opaqueTokenSchema,
-        code: sixDigits,
+        code: emailSignInCodeSchema,
         ...sessionEnvelope,
     })
     .strict();

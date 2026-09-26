@@ -1,5 +1,5 @@
 {
-  "id": "d0e998ec-326f-4241-91d0-93b5c97fdb14",
+  "id": "50b7468d-a83f-4976-b0f9-976d0536e19a",
   "prevId": "c55ef45a-d3b2-4121-9ba0-0958e9f444ca",
   "version": "7",
   "dialect": "postgresql",
@@ -11587,6 +11587,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "long_code": {
+          "name": "long_code",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "approved_at": {
           "name": "approved_at",

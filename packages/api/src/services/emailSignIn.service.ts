@@ -31,6 +31,7 @@ import { and, eq, gt, isNotNull, isNull, sql } from 'drizzle-orm';
 import {
   EMAIL_SIGNIN_LINK_TTL_MS,
   SIGN_IN_ERROR_CODES,
+  normalizeEmailSignInCode,
   type EmailSignInPending,
   type EmailSignInStartRequest,
   type EmailSignInStartResponse,
@@ -43,26 +44,26 @@ import { ApiError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { sendSignInEmail } from './accountEmail.mail';
 import { assertMailConfigured, consumeEmailCode, recordVerification, reserveSendBudget } from './accountEmail.service';
-import { clearFailures, reserveAttempt } from './loginLockout.service';
+import { clearFailures, isLockedOut, reserveAttempt } from './loginLockout.service';
 import { resolveProvenDevice, resolveProvenDeviceId } from './deviceJoin.service';
 import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
 import { normalizeSignInIdentifier } from '../utils/signInIdentifier';
-import { getEphemeral, setEphemeral } from '../utils/ephemeralKeyValue';
 
 /** Code attempts one requester gets per account per day, across its sign-in requests. */
 export const SIGNIN_CODE_FAILURES_PER_DAY = 10;
-/** Code attempts one account gets per day from every requester together (see `confirmEmailSignIn`). */
+/** 6-digit code attempts one account gets per day from every requester together (see `confirmEmailSignIn`). */
 export const SIGNIN_CODE_ACCOUNT_CEILING_PER_DAY = 50;
 const SIGNIN_CODE_REQUESTER_SCOPE = 'signin-code-requester';
 const SIGNIN_CODE_ACCOUNT_SCOPE = 'signin-code-account';
 
-function starterKey(requestId: string): string {
-  return `signin-starter:${requestId}`;
-}
-
-/** The requester's hashed IP, hashed again for the ephemeral store. */
-function requesterFingerprint(requesterKey: string): string {
-  return serverHmacHex(SERVER_KEY_LABELS.lockoutIdentifier, `starter|${requesterKey}`);
+/** The per-account daily ceiling on sign-in code attempts, as a lockout. */
+function accountCeiling(accountKey: string) {
+  return {
+    scope: SIGNIN_CODE_ACCOUNT_SCOPE,
+    identifier: accountKey,
+    maxAttempts: SIGNIN_CODE_ACCOUNT_CEILING_PER_DAY,
+    windowSeconds: 24 * 60 * 60,
+  };
 }
 
 function sha256Hex(value: string): string {
@@ -145,6 +146,10 @@ export async function startEmailSignIn(
   // reserved slice, and only it is ever told the mail could not go.
   const knownDevice = Boolean(target.userId && provenDevice?.accountIds.includes(target.userId));
   const db = getDb();
+  // An account whose codes were guessed at too often today gets the long code
+  // for the rest of the day: its owner can still type it, nobody can guess it.
+  // (Decided for real and decoy targets alike; the answer never says which.)
+  const longCode = target.userId ? (await isLockedOut(accountCeiling(target.userId))).locked : false;
   // Over the send budget: answered like any other request, as a decoy that
   // sends nothing — the budget is never visible (`reserveSendBudget`).
   let retryLater = false;
@@ -157,7 +162,11 @@ export async function startEmailSignIn(
   const linkToken = newToken();
   const linkExpiresAt = new Date(now.getTime() + EMAIL_SIGNIN_LINK_TTL_MS);
   const { requestId, code, expiresAt } = await db.transaction(async (tx) => {
-    const verification = await recordVerification(tx, { purpose: 'signin', emailHash: target.emailHash, userId: target.userId }, now);
+    const verification = await recordVerification(
+      tx,
+      { purpose: 'signin', emailHash: target.emailHash, userId: target.userId, longCode },
+      now,
+    );
     const [row] = await tx
       .insert(emailSignInRequests)
       .values({
@@ -166,17 +175,16 @@ export async function startEmailSignIn(
         requestSecretHash: sha256Hex(requestSecret),
         linkTokenHash: sha256Hex(linkToken),
         requesterDeviceId,
+        longCode,
         expiresAt: linkExpiresAt,
       })
       .returning({ id: emailSignInRequests.id });
     return { requestId: row.id, code: verification.code, expiresAt: verification.expiresAt };
   });
-  // Who started it, kept only in Redis for the request's life (never in the
-  // database): the one requester the per-account ceiling never refuses.
-  await setEphemeral(starterKey(requestId), requesterFingerprint(requesterKey), Math.ceil(EMAIL_SIGNIN_LINK_TTL_MS / 1000));
 
   if (target.sendTo) {
-    sendSignInEmail(target.sendTo, { code, linkToken, username: target.username }).catch((error: unknown) => {
+    const shown = longCode ? `${code.slice(0, 5)}-${code.slice(5)}` : code;
+    sendSignInEmail(target.sendTo, { code: shown, linkToken, username: target.username }).catch((error: unknown) => {
       logger.error('Sign-in email could not be sent', error instanceof Error ? error : new Error(String(error)), {
         component: 'emailSignIn',
       });
@@ -200,10 +208,7 @@ export async function confirmEmailSignIn(
   },
   now: Date = new Date(),
 ): Promise<string> {
-  const [starter, provenDevice] = await Promise.all([
-    getEphemeral(starterKey(input.requestId)),
-    resolveProvenDevice(input.device),
-  ]);
+  const provenDevice = await resolveProvenDevice(input.device);
   const outcome = await getDb().transaction(async (tx) => {
     const [request] = await tx
       .select({
@@ -211,6 +216,7 @@ export async function confirmEmailSignIn(
         verificationId: emailSignInRequests.verificationId,
         userId: emailSignInRequests.userId,
         requestSecretHash: emailSignInRequests.requestSecretHash,
+        longCode: emailSignInRequests.longCode,
       })
       .from(emailSignInRequests)
       .where(
@@ -225,47 +231,38 @@ export async function confirmEmailSignIn(
     if (!request || !hashesEqual(request.requestSecretHash, input.requestSecret)) {
       return { error: requestInvalid() };
     }
-    // Code attempts across requests, reserved atomically before the check
-    // and reset by a right code:
+    // Code attempts across requests, reserved atomically before the check:
     // - per (account, requester): SIGNIN_CODE_FAILURES_PER_DAY — the strict
     //   cap. The requester is the hashed IP, kept only in the lockout store
-    //   (Redis / memory), never persisted;
-    // - per account: SIGNIN_CODE_ACCOUNT_CEILING_PER_DAY, looser, bounding
-    //   guesses from many requesters together. Past it, only the requester
-    //   that STARTED this request, or a device the account is already signed
-    //   in on, may still try — so failures from others can never stop the
-    //   owner's right code, and rotating IPs buys an attacker nothing.
-    // Past a cap even the right code is refused with the same generic error;
-    // the link — which needs the requester's own browser — still signs in. A
-    // decoy counts on keys of its own.
+    //   (Redis / memory), never persisted; a right code resets it;
+    // - per account: SIGNIN_CODE_ACCOUNT_CEILING_PER_DAY across every
+    //   requester. It is NOT reset by a right code and nobody is exempt by IP
+    //   (an attacker can start requests from any number of addresses). Past
+    //   it, a 6-digit code is refused with the same generic error unless the
+    //   request comes from a device the account is already signed in on; and
+    //   every NEW email for the account that day carries the long code
+    //   (`startEmailSignIn`), which the ceiling does not apply to — so the
+    //   owner can still sign in by code while guessing is infeasible. The link
+    //   (which needs the requester's own browser) keeps working throughout.
+    // A decoy counts on keys of its own.
     const accountKey = request.userId ?? `request:${request.id}`;
+    const requesterBucket = serverHmacHex(SERVER_KEY_LABELS.lockoutIdentifier, `${accountKey}|${input.requesterKey}`);
     const perRequester = await reserveAttempt({
       scope: SIGNIN_CODE_REQUESTER_SCOPE,
-      identifier: serverHmacHex(SERVER_KEY_LABELS.lockoutIdentifier, `${accountKey}|${input.requesterKey}`),
+      identifier: requesterBucket,
       maxAttempts: SIGNIN_CODE_FAILURES_PER_DAY,
       windowSeconds: 24 * 60 * 60,
     });
-    const perAccount = await reserveAttempt({
-      scope: SIGNIN_CODE_ACCOUNT_SCOPE,
-      identifier: accountKey,
-      maxAttempts: SIGNIN_CODE_ACCOUNT_CEILING_PER_DAY,
-      windowSeconds: 24 * 60 * 60,
-    });
-    const exempt =
-      starter === requesterFingerprint(input.requesterKey) ||
-      Boolean(request.userId && provenDevice?.accountIds.includes(request.userId));
+    const perAccount = await reserveAttempt(accountCeiling(accountKey));
+    const exempt = request.longCode || Boolean(request.userId && provenDevice?.accountIds.includes(request.userId));
     const refuse = perRequester.locked || (perAccount.locked && !exempt);
     const checked = await consumeEmailCode(
       tx,
-      { verificationId: request.verificationId, code: input.code, purpose: 'signin', refuse },
+      { verificationId: request.verificationId, code: normalizeEmailSignInCode(input.code), purpose: 'signin', refuse },
       now,
     );
     if ('error' in checked) return checked;
-    await clearFailures({
-      scope: SIGNIN_CODE_REQUESTER_SCOPE,
-      identifier: serverHmacHex(SERVER_KEY_LABELS.lockoutIdentifier, `${accountKey}|${input.requesterKey}`),
-    });
-    await clearFailures({ scope: SIGNIN_CODE_ACCOUNT_SCOPE, identifier: accountKey });
+    await clearFailures({ scope: SIGNIN_CODE_REQUESTER_SCOPE, identifier: requesterBucket });
     if (!request.userId || checked.userId !== request.userId) return { error: requestInvalid() };
     await tx.update(emailSignInRequests).set({ completedAt: now }).where(eq(emailSignInRequests.id, request.id));
     return { userId: request.userId };

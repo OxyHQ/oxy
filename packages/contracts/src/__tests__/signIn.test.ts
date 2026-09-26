@@ -2,7 +2,9 @@ import { EMAIL_VERIFICATION_PURPOSES, emailVerificationConfirmRequestSchema } fr
 import { identityLinkCompleteRequestSchema } from '../identityLink';
 import {
   emailReauthProofSchema,
+  emailSignInCodeSchema,
   emailSignInLinkRequestSchema,
+  normalizeEmailSignInCode,
   emailSignInStartRequestSchema,
   isSecondFactorRequired,
   passwordSetRequestSchema,
@@ -86,5 +88,15 @@ describe('sign-in contracts', () => {
 
   it('lets a recovery confirmation carry the authenticator code', () => {
     expect(emailVerificationConfirmRequestSchema.safeParse({ verificationId: 'v', code: '123456', totpCode: 'abcde-fghjk' }).success).toBe(true);
+  });
+
+  it('takes a sign-in code as 6 digits or as the 10-character long code, in any case, with or without its dash', () => {
+    for (const code of ['123456', 'ABCDE-FGHJK', 'abcdefghjk', ' 23456 789AB ']) {
+      expect(emailSignInCodeSchema.safeParse(code).success).toBe(true);
+    }
+    for (const code of ['12345', 'ABCDEFGHJ0', 'ABCDEFGHJI', 'ABCDEFGHJKL']) {
+      expect(emailSignInCodeSchema.safeParse(code).success).toBe(false);
+    }
+    expect(normalizeEmailSignInCode(' abcde-fghjk ')).toBe('ABCDEFGHJK');
   });
 });

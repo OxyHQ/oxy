@@ -105,7 +105,12 @@ export function OxyServicesSignInMixin<T extends typeof OxyServicesBase>(Base: T
       }
     }
 
-    /** The code from the email → a session, or the second-factor step. */
+    /**
+     * The code from the email → a session, or the second-factor step. The code
+     * is 6 digits, or the 10-character long code (`XXXXX-XXXXX`) an account
+     * gets after too many guesses in a day — accept both in one field and pass
+     * it as typed.
+     */
     async confirmEmailSignIn(
       request: { requestId: string; requestSecret: string; code: string } & SignInDeviceOptions,
     ): Promise<SignInStepResult> {

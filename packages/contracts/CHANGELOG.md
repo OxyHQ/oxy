@@ -29,6 +29,12 @@ Signing in without a passkey (email code or link, password, authenticator).
 
 - `identityLinkCompleteRequestSchema` is `{ reauth }` only (an emailed code,
   plus the authenticator's): a passkey assertion no longer confirms a link.
+- `emailSignInCodeSchema` / `normalizeEmailSignInCode`,
+  `EMAIL_SIGNIN_LONG_CODE_ALPHABET`, `EMAIL_SIGNIN_LONG_CODE_LENGTH`: a sign-in
+  code is 6 digits, or — for an account whose codes were guessed at too often
+  today — 10 characters of Crockford base32 without look-alikes
+  (`XXXXX-XXXXX`). UIs must accept both in one field; the start response is the
+  same either way.
 - `emailSignInStartResponseSchema.retryLater`: set only for a request that
   proved a device the account is already on, when no email could be sent.
 

@@ -21,7 +21,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { boolean, check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { emailVerifications } from './emailVerifications';
 import { users } from './users';
@@ -39,6 +39,11 @@ export const emailSignInRequests = pgTable(
     requestSecretHash: text().notNull(),
     linkTokenHash: text().notNull(),
     requesterDeviceId: text(),
+    /**
+     * The email carried the 10-character long code instead of 6 digits: the
+     * account had reached its daily ceiling of code guesses when it was sent.
+     */
+    longCode: boolean().notNull().default(false),
     /** When the link was opened in the requester's browser. */
     approvedAt: timestamptz(),
     /** When a session (or a second-factor challenge) was issued for it: spent. */

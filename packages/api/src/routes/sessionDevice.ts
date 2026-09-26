@@ -31,41 +31,27 @@ const router = Router();
 /** Lockout scope for the public deviceSecret mint (per-deviceId sliding window). */
 const DEVICE_TOKEN_LOCKOUT_SCOPE = 'device-token';
 /**
- * Mint attempts are reserved atomically BEFORE the secret is checked, in two
- * buckets, and a proven secret resets both:
- *
- * - per (device, requester): {@link DEVICE_TOKEN_MAX_ATTEMPTS} — the requester
- *   is the hashed IP, kept only in the lockout store. A stranger who knows a
- *   deviceId locks only their own bucket, never the browser's mint. It is above
- *   the default five because the official apps of one browser share an IP and
- *   may mint for one device at the same instant;
- * - per device: {@link DEVICE_TOKEN_DEVICE_CEILING}, a much looser ceiling on
- *   guesses from everywhere together.
- *
- * A 256-bit secret is not guessable either way; this is defence in depth.
+ * Mint attempts are reserved atomically BEFORE the secret is checked, per
+ * (device, requester) — the requester is the hashed IP, kept only in the
+ * lockout store — and a proven secret resets the bucket. A stranger who knows
+ * a deviceId locks only their own bucket, never the browser's mint. The cap is
+ * above the default five because the official apps of one browser share an IP
+ * and may mint for one device at the same instant. There is deliberately NO
+ * per-device ceiling: a 256-bit secret cannot be guessed, and a ceiling
+ * strangers could fill would only be a way to lock someone's browser out.
  */
 const DEVICE_TOKEN_MAX_ATTEMPTS = 20;
-const DEVICE_TOKEN_DEVICE_CEILING = 200;
 
 function mintRequesterKey(deviceId: string, req: Request): string {
   return `${deviceId}|${hashedIpKey(req)}`;
 }
 
-async function reserveMintAttempt(scope: string, deviceId: string, req: Request) {
-  const perRequester = await reserveAttempt({
-    scope: `${scope}-requester`,
-    identifier: mintRequesterKey(deviceId, req),
-    maxAttempts: DEVICE_TOKEN_MAX_ATTEMPTS,
-  });
-  if (perRequester.locked) return perRequester;
-  return reserveAttempt({ scope, identifier: deviceId, maxAttempts: DEVICE_TOKEN_DEVICE_CEILING });
+function reserveMintAttempt(scope: string, deviceId: string, req: Request) {
+  return reserveAttempt({ scope, identifier: mintRequesterKey(deviceId, req), maxAttempts: DEVICE_TOKEN_MAX_ATTEMPTS });
 }
 
 async function clearMintAttempts(scope: string, deviceId: string, req: Request): Promise<void> {
-  await Promise.all([
-    clearFailures({ scope: `${scope}-requester`, identifier: mintRequesterKey(deviceId, req) }),
-    clearFailures({ scope, identifier: deviceId }),
-  ]);
+  await clearFailures({ scope, identifier: mintRequesterKey(deviceId, req) });
 }
 
 const deviceTokenLimiter = rateLimit({

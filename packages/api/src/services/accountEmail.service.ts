@@ -24,6 +24,8 @@ import {
   EMAIL_CODE_MAX_ATTEMPTS,
   EMAIL_CODE_TTL_MS,
   EMAIL_TICKET_TTL_MS,
+  EMAIL_SIGNIN_LONG_CODE_ALPHABET,
+  EMAIL_SIGNIN_LONG_CODE_LENGTH,
   EMAIL_VERIFICATION_ERROR_CODES,
   SIGN_IN_ERROR_CODES,
   type EmailVerificationConfirmResponse,
@@ -79,6 +81,15 @@ function sha256Hex(value: string): string {
 /** HMAC of the code under a key derived from the server secret, bound to its row. Fails closed. */
 function hashCode(verificationId: string, code: string): string {
   return serverHmacHex(SERVER_KEY_LABELS.emailCode, `email-code|${verificationId}|${code}`);
+}
+
+/** Ten characters of `EMAIL_SIGNIN_LONG_CODE_ALPHABET`, stored (hashed) without its dash. */
+function newLongCode(): string {
+  let code = '';
+  for (let index = 0; index < EMAIL_SIGNIN_LONG_CODE_LENGTH; index += 1) {
+    code += EMAIL_SIGNIN_LONG_CODE_ALPHABET[crypto.randomInt(0, EMAIL_SIGNIN_LONG_CODE_ALPHABET.length)];
+  }
+  return code;
 }
 
 function newCode(): string {
@@ -204,10 +215,17 @@ export async function reserveSendBudget(input: {
  */
 export async function recordVerification(
   db: DatabaseOrTransaction,
-  row: { purpose: EmailVerificationPurpose; emailHash: string; userId: string | null; reauthAction?: ReauthAction },
+  row: {
+    purpose: EmailVerificationPurpose;
+    emailHash: string;
+    userId: string | null;
+    reauthAction?: ReauthAction;
+    /** A sign-in past the account's daily ceiling: the 10-character long code. */
+    longCode?: boolean;
+  },
   now: Date,
 ): Promise<{ verificationId: string; code: string; expiresAt: Date }> {
-  const code = newCode();
+  const code = row.longCode ? newLongCode() : newCode();
   const verificationId = crypto.randomUUID();
   const expiresAt = new Date(now.getTime() + EMAIL_CODE_TTL_MS);
   await db.insert(emailVerifications).values({

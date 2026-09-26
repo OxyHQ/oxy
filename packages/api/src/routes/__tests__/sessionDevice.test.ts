@@ -302,7 +302,7 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     expect(res.body.error).toBe('invalid_device_secret');
     // The stored secret is untouched: a guess must not consume the real one.
     expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
-    expect(mockReserveAttempt).toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token', identifier: deviceId }));
+    expect(mockReserveAttempt).toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token', identifier: expect.stringContaining(`${deviceId}|`) }));
     expect(mockClearFailures).not.toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token' }));
     expect(mockClearFailures).not.toHaveBeenCalled();
   });
@@ -363,7 +363,7 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     expect(res.body.error).toBe('no_active_session');
     // The client keeps a still-valid secret and re-authenticates.
     expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
-    expect(mockClearFailures).toHaveBeenCalledWith({ scope: 'device-token', identifier: deviceId });
+    expect(mockClearFailures).toHaveBeenCalledWith({ scope: 'device-token', identifier: expect.stringContaining(`${deviceId}|`) });
     expect(mockRecordFailure).not.toHaveBeenCalled();
   });
 
@@ -487,7 +487,7 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
     expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
     // The secret was proven — a bad pin must never count as secret guessing.
     expect(mockRecordFailure).not.toHaveBeenCalled();
-    expect(mockClearFailures).toHaveBeenCalledWith({ scope: 'device-token', identifier: deviceId });
+    expect(mockClearFailures).toHaveBeenCalledWith({ scope: 'device-token', identifier: expect.stringContaining(`${deviceId}|`) });
   });
 
   it('answers the SAME error when the pinned member exists but its session is dead (no existence oracle)', async () => {
@@ -518,7 +518,7 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('invalid_device_secret');
-    expect(mockReserveAttempt).toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token', identifier: deviceId }));
+    expect(mockReserveAttempt).toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token', identifier: expect.stringContaining(`${deviceId}|`) }));
     expect(mockClearFailures).not.toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token' }));
   });
 });
@@ -895,7 +895,7 @@ describe('POST /session/device/background-token', () => {
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('background_credential_invalid');
-    expect(mockReserveAttempt).toHaveBeenCalledWith(expect.objectContaining({ scope: 'background-token', identifier: deviceId }));
+    expect(mockReserveAttempt).toHaveBeenCalledWith(expect.objectContaining({ scope: 'background-token', identifier: expect.stringContaining(`${deviceId}|`) }));
     expect(mockClearFailures).not.toHaveBeenCalledWith(expect.objectContaining({ scope: 'background-token' }));
   });
 
@@ -941,7 +941,7 @@ describe('POST /session/device/background-token', () => {
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('account_not_on_device');
     expect(mockRecordFailure).not.toHaveBeenCalled();
-    expect(mockClearFailures).toHaveBeenCalledWith({ scope: 'background-token', identifier: deviceId });
+    expect(mockClearFailures).toHaveBeenCalledWith({ scope: 'background-token', identifier: expect.stringContaining(`${deviceId}|`) });
   });
 
   it('signing out the bound account CLEARS the background credential', async () => {

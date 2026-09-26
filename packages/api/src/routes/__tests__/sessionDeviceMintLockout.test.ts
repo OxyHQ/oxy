@@ -2,8 +2,7 @@
  * The device-token mint's lockout, with the REAL lockout service and a REAL
  * Postgres device (security review of #1421): attempts are reserved per
  * (device, requester) — a stranger who knows a browser's deviceId locks only
- * their own bucket, never the browser's mint — under a looser per-device
- * ceiling.
+ * their own bucket, never the browser's mint. There is no per-device ceiling.
  */
 
 process.env.DEVICE_ID_SALT = 'mint-lockout-test-device-id-salt-0123456789ab';
@@ -83,6 +82,18 @@ describe('the device-token mint lockout', () => {
 
     // The browser, from its own address, still proves its secret.
     const own = await mint(device, browser);
+    expect(own.status).not.toBe(429);
+    expect(own.body.error).not.toBe('invalid_device_secret');
+  });
+
+  it('ten IPs failing twenty times each still do not lock the real browser', async () => {
+    const device = await deviceSessionService.registerDevice();
+    for (let ip = 0; ip < 10; ip += 1) {
+      await Promise.all(
+        Array.from({ length: 20 }, () => mint({ deviceId: device.deviceId, deviceSecret: 'guessed-secret' }, `203.0.113.${ip + 1}`)),
+      );
+    }
+    const own = await mint(device, '198.51.100.20');
     expect(own.status).not.toBe(429);
     expect(own.body.error).not.toBe('invalid_device_secret');
   });
