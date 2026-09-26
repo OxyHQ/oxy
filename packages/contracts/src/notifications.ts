@@ -83,3 +83,27 @@ export const createOxyNotificationRequestSchema = z
   });
 
 export type CreateOxyNotificationRequest = z.infer<typeof createOxyNotificationRequestSchema>;
+
+/**
+ * Android notification channel a `system` notification is pushed on — a wire
+ * contract, because Android 8+ silently drops a push whose channel the app has
+ * not created. Created by the vault (Commons) before it registers its token.
+ */
+export const OXY_ACCOUNT_PUSH_CHANNEL = 'account';
+
+/** Runtime type discriminator of the push that announces a `system` notification. */
+export const OXY_SYSTEM_NOTIFICATION_PUSH_TYPE = 'oxy_system_notification';
+
+/**
+ * The ONLY data a `system` notification's push carries: its id. The title and
+ * message ride as the push's own title and body; the deep link does NOT travel,
+ * because a push payload is untrusted at the receiver. On a tap the vault
+ * re-reads the notification from Oxy by id (scoped to the signed-in recipient)
+ * and opens the `url` stored there.
+ */
+export const oxySystemNotificationPushDataSchema = z.object({
+  type: z.literal(OXY_SYSTEM_NOTIFICATION_PUSH_TYPE),
+  notificationId: z.string().min(1).max(64),
+});
+
+export type OxySystemNotificationPushData = z.infer<typeof oxySystemNotificationPushDataSchema>;

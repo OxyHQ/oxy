@@ -380,7 +380,7 @@ const followers = await oxyClient.getUserFollowers('user123');   // Get user fol
 const following = await oxyClient.getUserFollowing('user123');   // Get user following
 
 // Notifications
-const notifications = await oxyClient.getNotifications();        // Get notifications
+const { notifications } = await oxyClient.getNotifications();    // Get notifications
 const unreadCount = await oxyClient.getUnreadCount();            // Get unread count
 await oxyClient.markNotificationAsRead('notification123');       // Mark as read
 await oxyClient.markAllNotificationsAsRead();                    // Mark all as read

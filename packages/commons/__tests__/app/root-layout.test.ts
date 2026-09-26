@@ -56,4 +56,13 @@ describe('Commons root layout', () => {
     expect(providerIdx).toBeGreaterThan(-1);
     expect(toastIdx).toBeLessThan(providerIdx);
   });
+
+  it('takes the launching notification once and offers it to both push types', () => {
+    // The launch notification can be taken only once: a second reader would
+    // silently lose either the approval tap or the system-notification tap.
+    expect(ROOT_LAYOUT_SOURCE.match(/takeLaunchNotificationData\(\)/g)).toHaveLength(1);
+    expect(ROOT_LAYOUT_SOURCE).toMatch(/coldLaunchApprovalCode\(launchData\)/);
+    expect(ROOT_LAYOUT_SOURCE).toMatch(/systemNotificationIdFromPush\(launchData\)/);
+    expect(ROOT_LAYOUT_SOURCE).toMatch(/useSystemNotificationTaps\([^)]*launchSystemNotificationId\)/);
+  });
 });

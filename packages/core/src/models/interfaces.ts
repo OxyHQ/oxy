@@ -4,6 +4,8 @@ import type {
   UserNameResponse,
   UserRelationship,
   ThemePreference,
+  OxyNotificationEntityType,
+  OxyNotificationType,
 } from '@oxy.so/contracts';
 
 export interface OxyConfig {
@@ -267,25 +269,57 @@ export interface LoginResponse {
   message?: string;
 }
 
+/**
+ * The actor of a notification as `GET /notifications` populates it — the raw
+ * stored name, not a composed display name.
+ */
+export interface NotificationActor {
+  _id: string;
+  username?: string;
+  name?: { first: string; last: string };
+  avatar?: string;
+}
+
+/**
+ * One Oxy notification exactly as the API serializes it
+ * (`packages/api/src/controllers/notification.controller.ts`). `_id` — not
+ * `id` — is the key every notification endpoint addresses it by.
+ */
 export interface Notification {
-  id: string;
-  message: string;
+  _id: string;
+  recipientId: string;
+  /** Populated on a list read; the bare id on a create or a mark-read. */
+  actorId: string | NotificationActor;
   /** One of `OXY_NOTIFICATION_TYPES` (`@oxy.so/contracts`). */
-  type?: string;
-  /**
-   * `system` notifications only (with `message`): the text an Oxy service sent
-   * about the recipient's own account. Render these two instead of composing a
-   * sentence from actor + entity.
-   */
-  title?: string;
-  /** `system` notifications only: an optional deep link (https or the sending app's scheme). */
-  url?: string;
+  type: OxyNotificationType;
   /**
    * What `entityId` names: `post` | `reply` | `profile`, or `app` — an opaque id
    * in the notifying application's namespace (`system` notifications only).
    */
-  entityType?: string;
-  entityId?: string;
+  entityType: OxyNotificationEntityType;
+  entityId: string;
+  /**
+   * `system` notifications only: the text an Oxy service sent about the
+   * recipient's own account. Render these instead of composing a sentence from
+   * actor + entity.
+   */
+  title?: string;
+  message?: string;
+  /** `system` notifications only: an optional deep link (https or the sending app's scheme). */
+  url?: string;
+  read: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One page of `GET /notifications`, newest first. */
+export interface NotificationPage {
+  notifications: Notification[];
+  /** Unread notifications across ALL pages. */
+  unreadCount: number;
+  hasMore: boolean;
+  page: number;
+  limit: number;
 }
 
 export interface Wallet {

@@ -1,10 +1,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { logger } from '@oxy.so/core';
-import {
-  subscribeToNotificationResponses,
-  takeLaunchNotificationData,
-} from '@oxy.so/services/notifications';
+import { subscribeToNotificationResponses } from '@oxy.so/services/notifications';
 import {
   authRequestCodeFromPush,
   claimAuthRequestCode,
@@ -13,21 +10,19 @@ import {
 const LOG_CONTEXT = { component: 'useAuthRequestNotifications' } as const;
 
 /**
- * Resolve the approval code carried by the notification that COLD-LAUNCHED the
- * app, claiming it so the warm listener cannot route the same tap twice.
+ * The approval code carried by the notification that COLD-LAUNCHED the app,
+ * claimed so the warm listener cannot route the same tap twice.
  *
- * Deliberately a plain async function, not a hook: the cold-launch handoff is
- * replayed by the ONE existing replay path in `app/_layout.tsx` (which also
- * owns `Linking.getInitialURL()` and the "wait until the routing gate settles"
- * logic). A push tap is just another source feeding that path — never a second
- * replay mechanism.
+ * Handed the launching payload rather than reading it: the launch notification
+ * can be TAKEN only once, and the ONE cold-launch reader in `app/_layout.tsx`
+ * (which also owns `Linking.getInitialURL()` and the "wait until the routing
+ * gate settles" replay) takes it and offers it to each push type in turn.
  *
- * Never rejects: a launch that carries no notification, an unavailable native
- * module, or an unparseable payload all resolve to `null`.
+ * @returns The code, or `null` for no launching notification, an unparseable
+ *   payload, or a code this session already routed.
  */
-export async function coldLaunchApprovalCode(): Promise<string | null> {
-  const data = await takeLaunchNotificationData();
-  const code = authRequestCodeFromPush(data);
+export function coldLaunchApprovalCode(launchData: unknown): string | null {
+  const code = authRequestCodeFromPush(launchData);
   if (!code) {
     return null;
   }

@@ -1,4 +1,4 @@
-import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxy.so/contracts';
+import { IDENTITY_APPROVAL_PUSH_CHANNEL, OXY_ACCOUNT_PUSH_CHANNEL } from '@oxy.so/contracts';
 import type { PushTokenPlatform, RegisterPushTokenInput } from '@oxy.so/core';
 import { ensureNotificationChannel } from '@oxy.so/services';
 import {
@@ -40,7 +40,9 @@ function makeEnvironment(overrides: Partial<PushTokenEnvironment> = {}): PushTok
 }
 
 const CHANNEL = { name: 'Sign-in requests', description: 'Alerts when another device asks to sign in as you' };
-const OPTIONS = { clientId: 'oxy_dk_commons', deviceId: 'device-1', channel: CHANNEL };
+const ACCOUNT_CHANNEL = { name: 'Account updates', description: 'Messages from Oxy about your account' };
+const CHANNELS = { approval: CHANNEL, account: ACCOUNT_CHANNEL };
+const OPTIONS = { clientId: 'oxy_dk_commons', deviceId: 'device-1', channels: CHANNELS };
 
 describe('registerInstallationPushToken', () => {
   it('registers the Expo push token, scoped to the calling application', async () => {
@@ -63,7 +65,7 @@ describe('registerInstallationPushToken', () => {
 
     await registerInstallationPushToken(registry, makeEnvironment(), {
       clientId: OPTIONS.clientId,
-      channel: CHANNEL,
+      channels: CHANNELS,
     });
 
     expect(registry.registerPushToken).toHaveBeenCalledWith({
@@ -135,6 +137,23 @@ describe('registerInstallationPushToken', () => {
     // Android drops a push whose channel does not exist yet, so the ORDER is the
     // guarantee: the channel must exist before the server can ever send to it.
     expect(channelMock.mock.invocationCallOrder[0]).toBeLessThan(
+      (registry.registerPushToken as jest.Mock).mock.invocationCallOrder[0],
+    );
+  });
+
+  it('creates the account channel a `system` notification is pushed on, before registering', async () => {
+    const channelMock = ensureNotificationChannel as unknown as jest.Mock;
+    channelMock.mockClear();
+    const registry = makeRegistry();
+
+    await registerInstallationPushToken(registry, makeEnvironment(), OPTIONS);
+
+    const accountCall = channelMock.mock.calls.findIndex(
+      ([spec]: [{ id: string }]) => spec.id === OXY_ACCOUNT_PUSH_CHANNEL,
+    );
+    expect(accountCall).toBeGreaterThanOrEqual(0);
+    expect(channelMock.mock.calls[accountCall][0]).toMatchObject({ name: ACCOUNT_CHANNEL.name });
+    expect(channelMock.mock.invocationCallOrder[accountCall]).toBeLessThan(
       (registry.registerPushToken as jest.Mock).mock.invocationCallOrder[0],
     );
   });

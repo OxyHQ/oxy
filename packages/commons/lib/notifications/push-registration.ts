@@ -23,7 +23,7 @@
  */
 
 import type { PushTokenPlatform, RegisterPushTokenInput } from '@oxy.so/core';
-import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxy.so/contracts';
+import { IDENTITY_APPROVAL_PUSH_CHANNEL, OXY_ACCOUNT_PUSH_CHANNEL } from '@oxy.so/contracts';
 import {
   ensureNotificationChannel,
   getExpoPushToken,
@@ -33,13 +33,33 @@ import {
 import { OXY_CLIENT_ID } from '@/constants/oxy';
 
 /**
- * The channel's user-visible copy. Injected rather than read here: this module
+ * A channel's user-visible copy. Injected rather than read here: this module
  * is not a component, and Commons' translations are only reachable through a
  * hook — so the two hook call sites localize it and hand it down.
  */
-export interface ApprovalChannelCopy {
+export interface ChannelCopy {
   name: string;
   description: string;
+}
+
+/**
+ * The vault's two channels: sign-in approval requests, and `system`
+ * notifications about the account itself (Oxy Move's "your account moved").
+ */
+export interface VaultChannelCopy {
+  approval: ChannelCopy;
+  account: ChannelCopy;
+}
+
+/** The localized {@link VaultChannelCopy}, from a hook call site's `t`. */
+export function vaultChannelCopy(t: (key: string) => string): VaultChannelCopy {
+  return {
+    approval: { name: t('signInApproval.channel.name'), description: t('signInApproval.channel.description') },
+    account: {
+      name: t('accountNotifications.channel.name'),
+      description: t('accountNotifications.channel.description'),
+    },
+  };
 }
 
 /** The `@oxy.so/core` surface this module drives (satisfied by `OxyServices`). */
@@ -98,7 +118,7 @@ export type PushRetirementOutcome =
 export async function registerInstallationPushToken(
   registry: PushTokenRegistry,
   environment: PushTokenEnvironment,
-  options: { clientId: string; deviceId?: string; channel: ApprovalChannelCopy },
+  options: { clientId: string; deviceId?: string; channels: VaultChannelCopy },
 ): Promise<PushRegistrationOutcome> {
   const platform = environment.pushTokenPlatform();
   if (!platform) {
@@ -116,14 +136,20 @@ export async function registerInstallationPushToken(
     return { status: 'skipped', reason: 'no-token' };
   }
 
-  // Before the token, never after: the very first request the server sends must
+  // Before the token, never after: the very first push the server sends must
   // already have a channel to land on, or Android 8+ drops it with no error.
-  // The id is the wire contract; the name and description are Commons copy.
+  // The ids are the wire contract; the names and descriptions are Commons copy.
   await ensureNotificationChannel({
     id: IDENTITY_APPROVAL_PUSH_CHANNEL,
-    name: options.channel.name,
-    description: options.channel.description,
+    name: options.channels.approval.name,
+    description: options.channels.approval.description,
     importance: 'high',
+  });
+  await ensureNotificationChannel({
+    id: OXY_ACCOUNT_PUSH_CHANNEL,
+    name: options.channels.account.name,
+    description: options.channels.account.description,
+    importance: 'default',
   });
 
   const input: RegisterPushTokenInput = {
@@ -179,12 +205,12 @@ const deviceEnvironment: PushTokenEnvironment = {
  */
 export function registerVaultPushToken(
   registry: PushTokenRegistry,
-  channel: ApprovalChannelCopy,
+  channels: VaultChannelCopy,
   deviceId?: string,
 ): Promise<PushRegistrationOutcome> {
   return registerInstallationPushToken(registry, deviceEnvironment, {
     clientId: OXY_CLIENT_ID,
-    channel,
+    channels,
     ...(deviceId ? { deviceId } : {}),
   });
 }

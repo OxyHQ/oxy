@@ -407,16 +407,15 @@ const avatar = await oxyServices.uploadAvatar(file, 'user123', 'profiles');
 
 ## Notifications
 
-### `getNotifications()`
+### `getNotifications({ page?, limit? })`
 
-Get all notifications for the current user.
+One page of the current user's notifications, newest first.
 
 ```typescript
-const notifications = await oxyServices.getNotifications();
-// Returns: Notification[]
+const { notifications, unreadCount, hasMore } = await oxyServices.getNotifications({ page: 1, limit: 20 });
 ```
 
-**Returns:** `Promise<Notification[]>`
+**Returns:** `Promise<NotificationPage>` — `{ notifications, unreadCount, hasMore, page, limit }`
 
 ---
 
@@ -438,13 +437,13 @@ const count = await oxyServices.getUnreadCount();
 Mark a notification as read.
 
 ```typescript
-await oxyServices.markNotificationAsRead('notification123');
+const notification = await oxyServices.markNotificationAsRead('notification123');
 ```
 
 **Parameters:**
-- `notificationId` (string): Notification ID
+- `notificationId` (string): Notification ID (`_id`)
 
-**Returns:** `Promise<void>`
+**Returns:** `Promise<Notification>` — the notification as stored (scoped to the caller; an unknown id rejects)
 
 ---
 
