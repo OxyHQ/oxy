@@ -1,24 +1,8 @@
 # Changelog: `@oxy.so/contracts`
 
-## 2.1.0
+## 2.2.0
 
-### Added
-
-- `federationInstanceFetch`: `instanceFetchSignRequestSchema` (`{ url }`,
-  strict — no signing string, no method) and `instanceFetchSignResponseSchema`
-  (`{ keyId, headers: { Host, Date, Signature } }`) for
-  `POST /federation/instance-fetch/sign`, where Oxy's instance actor signs one
-  ActivityPub GET for a service holding `federation:instance-fetch`.
-  `INSTANCE_FETCH_MAX_URL_LENGTH` (2048).
-- `linkedAccounts`: `LINKED_ACCOUNT_START_ERROR_REASONS` —
-  `instance_invalid | instance_unreachable | handle_unresolvable |
-  provider_rejected | provider_unavailable` — with
-  `linkedAccountStartErrorReasonSchema` and
-  `linkedAccountStartErrorDetailsSchema` (`{ reason }`): the `details` of a
-  400 from `POST /linked-accounts/:network/start`, so a client can tell "check
-  what you typed" from "the other network refused Oxy".
-
-## 2.0.0
+Web accounts are a username, a passkey and a recovery email (ADR 0029 D3).
 
 ### Added
 
@@ -60,6 +44,28 @@
   the error codes `IDENTITY_ENVELOPE_REVISION_CONFLICT`, `IDENTITY_NO_ROOT`,
   `IDENTITY_LAST_WEB_HOLDER`, `IDENTITY_ENROLLMENT_REQUIRED`,
   `IDENTITY_ENROLLMENT_INVALID`, `IDENTITY_RECOVERY_FAILED`.
+
+## 2.1.0
+
+### Added
+
+- `federationInstanceFetch`: `instanceFetchSignRequestSchema` (`{ url }`,
+  strict — no signing string, no method) and `instanceFetchSignResponseSchema`
+  (`{ keyId, headers: { Host, Date, Signature } }`) for
+  `POST /federation/instance-fetch/sign`, where Oxy's instance actor signs one
+  ActivityPub GET for a service holding `federation:instance-fetch`.
+  `INSTANCE_FETCH_MAX_URL_LENGTH` (2048).
+- `linkedAccounts`: `LINKED_ACCOUNT_START_ERROR_REASONS` —
+  `instance_invalid | instance_unreachable | handle_unresolvable |
+  provider_rejected | provider_unavailable` — with
+  `linkedAccountStartErrorReasonSchema` and
+  `linkedAccountStartErrorDetailsSchema` (`{ reason }`): the `details` of a
+  400 from `POST /linked-accounts/:network/start`, so a client can tell "check
+  what you typed" from "the other network refused Oxy".
+
+## 2.0.0
+
+### Removed
 
 - `browserHub`: `BROWSER_HUB_COOKIE_NAME`, `BROWSER_HUB_COOKIE_ATTRIBUTES`,
   `BROWSER_HUB_HANDLE_TTL_MS` and every `browserHub*` / `hub*` schema and type.

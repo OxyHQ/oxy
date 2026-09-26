@@ -1,14 +1,8 @@
 # Changelog
 
-## [6.0.0] - 2026-09-26
+## [6.1.0] - 2026-09-26
 
-Requires `@oxy.so/core` `^1.17.0`.
-
-**Web sign-in in auth.oxy.so's window** (ADR 0029 D1). On the web, an app's
-account dialog shows "Continue with Oxy" and "Create account", and both open
-auth.oxy.so in a window over the app, like "Sign in with Google": the QR, the
-username and the passkey are there, on every domain alike. No code picks a
-route by domain any more.
+Requires `@oxy.so/core` `^1.18.0`.
 
 **Web accounts are a username, a passkey and a recovery email** (ADR 0029 D3):
 no web identity, no web recovery phrase.
@@ -30,6 +24,24 @@ no web identity, no web recovery phrase.
 
 - "Delete account" on the web opens `auth.oxy.so/delete-account`; the native
   handoff's "elsewhere" copy points there for a passkey account.
+
+### Removed
+
+- The account menu's "Your identity" row (`onOpenIdentity`): there is no web
+  identity to open.
+- Editing the email in `EditProfileScreen` / `EditProfileFieldScreen`: the
+  recovery email is not a profile field.
+
+## [6.0.0] - 2026-09-26
+
+**Web sign-in in auth.oxy.so's window** (ADR 0029 D1). On the web, an app's
+account dialog shows "Continue with Oxy" and "Create account", and both open
+auth.oxy.so in a window over the app, like "Sign in with Google": the QR, the
+username and the passkey are there, on every domain alike. No code picks a
+route by domain any more.
+
+### Changed
+
 - `useOxy().continueOnAuth(screen)` opens auth.oxy.so's window
   (`transport: 'popup'`) instead of leaving the tab; a blocked window still
   falls back to the tab. `startWebOAuthSignIn`'s `transport` takes `'popup'`
@@ -42,10 +54,6 @@ no web identity, no web recovery phrase.
 
 ### Removed
 
-- The account menu's "Your identity" row (`onOpenIdentity`): there is no web
-  identity to open.
-- Editing the email in `EditProfileScreen` / `EditProfileFieldScreen`: the
-  recovery email is not a profile field.
 - The passkey ceremony inside an app's dialog on `*.oxy.so`, and the
   `isOxyRpOrigin` route choice (`PasskeyRoute`).
 - The dialog's 880 split (`useSurfaceFrameWidth`) and `OxyAuthSplit`'s `bare`.

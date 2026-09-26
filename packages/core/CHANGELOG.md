@@ -1,6 +1,6 @@
 # Changelog — `@oxy.so/core`
 
-## 1.17.0
+## 1.18.0
 
 Web accounts are a username, a passkey and a recovery email (ADR 0029 D3). The
 web identity carrier is deleted: Commons is the one place a key lives.
