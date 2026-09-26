@@ -142,6 +142,19 @@ interface RequestConfig extends RequestOptions {
  * endpoint surfaces as an `AbortError` quickly rather than blocking the
  * request queue.
  */
+/**
+ * Strip leading or trailing `/`s without a regex: `/\/+$/` backtracks
+ * polynomially on a long run of slashes (CodeQL js/polynomial-redos), and this
+ * runs on every request.
+ */
+function trimSlashes(value: string, side: 'start' | 'end'): string {
+  let start = 0;
+  let end = value.length;
+  if (side === 'start') while (start < end && value.charCodeAt(start) === 47) start++;
+  else while (end > start && value.charCodeAt(end - 1) === 47) end--;
+  return value.slice(start, end);
+}
+
 /** Methods whose calls concurrent callers may share (read-only). */
 const SAFE_METHODS: ReadonlySet<string> = new Set(['GET']);
 
@@ -1165,7 +1178,7 @@ export class HttpService {
   private buildURL(url: string, params?: Record<string, unknown>): string {
     const base = /^https?:\/\//i.test(url)
       ? url
-      : `${this.baseURL.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`;
+      : `${trimSlashes(this.baseURL, 'end')}/${trimSlashes(url, 'start')}`;
     
     if (!params || Object.keys(params).length === 0) {
       return base;
