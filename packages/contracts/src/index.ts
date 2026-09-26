@@ -1290,4 +1290,5 @@ export type {
 } from './inference/inbox';
 export * from './externalIdentity';
 export * from './linkedAccounts';
+export * from './federationInstanceFetch';
 export * from './notifications';

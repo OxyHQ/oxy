@@ -1,8 +1,10 @@
 import {
+  LINKED_ACCOUNT_START_ERROR_REASONS,
   OXY_NOTIFICATION_TYPES,
   completeLinkedAccountResponseSchema,
   createOxyNotificationRequestSchema,
   linkedAccountSchema,
+  linkedAccountStartErrorDetailsSchema,
   serviceLinkedAccountSchema,
   startLinkedAccountRequestSchema,
 } from '../index';
@@ -72,5 +74,20 @@ describe('notification types', () => {
       createOxyNotificationRequestSchema.safeParse({ recipientId: 'u1', actorId: 'a', type: 'follow', entityId: 'u1', entityType: 'profile', url: 'https://oxy.so' }).success,
     ).toBe(false);
     expect(createOxyNotificationRequestSchema.safeParse({ recipientId: 'u1', actorId: 'u1', type: 'promo', entityId: 'u1', entityType: 'profile' }).success).toBe(false);
+  });
+});
+
+describe('linked accounts start refusal reasons', () => {
+  it('names each reason a client can show, and nothing else', () => {
+    expect(LINKED_ACCOUNT_START_ERROR_REASONS).toEqual([
+      'instance_invalid',
+      'instance_unreachable',
+      'handle_unresolvable',
+      'provider_rejected',
+      'provider_unavailable',
+    ]);
+    expect(linkedAccountStartErrorDetailsSchema.safeParse({ reason: 'provider_rejected' }).success).toBe(true);
+    expect(linkedAccountStartErrorDetailsSchema.safeParse({ reason: 'not_a_reason' }).success).toBe(false);
+    expect(linkedAccountStartErrorDetailsSchema.safeParse({ reason: 'handle_unresolvable', extra: 1 }).success).toBe(false);
   });
 });
