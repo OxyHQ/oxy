@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 2.0.5
+
+### Changed
+
+- The `@oxy.so/services` peer admits `^8.0.0`: the plugin entry point the
+  preset requires (`plugins/withSharedIdentityReader`) is unchanged.
+
 ## 2.0.4
 
 ### Changed
