@@ -6,6 +6,8 @@
  *
  * - `POST /:network/start` (user session) → `{ authorizeUrl, expiresAt }`;
  *   `returnTo` must be a redirect URI of a trusted (first-party) application.
+ *   A refusal the user can act on is a 400 with `details.reason`
+ *   (`LINKED_ACCOUNT_START_ERROR_REASONS`).
  * - `GET /:network/callback` (no session — the spent challenge row is the
  *   authentication) verifies the account and redirects to `returnTo` with a
  *   one-time `?link_code=` or `?link_error=<code>`. It never links.
@@ -147,7 +149,9 @@ router.post(
         }),
       );
     } catch (error) {
-      if (error instanceof LinkedAccountStartRefusal) throw new BadRequestError(error.message);
+      if (error instanceof LinkedAccountStartRefusal) {
+        throw new BadRequestError(error.message, { reason: error.reason });
+      }
       throw error;
     }
   }),

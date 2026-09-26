@@ -2,7 +2,7 @@
  * Shared vocabulary of the linked-accounts providers.
  */
 
-import type { LinkedAccountCallbackError, LinkedAccountNetwork } from '@oxy.so/contracts';
+import type { LinkedAccountCallbackError, LinkedAccountNetwork, LinkedAccountStartErrorReason } from '@oxy.so/contracts';
 
 /** The public origin of this API — the host of every callback and client-metadata URL. */
 export function oxyApiOrigin(): string {
@@ -38,10 +38,17 @@ export class LinkedAccountCallbackFailure extends Error {
   }
 }
 
-/** A start request that cannot proceed (bad instance, unresolvable handle). */
+/**
+ * A start request that cannot proceed. `reason` reaches the client as
+ * `details.reason` (`LINKED_ACCOUNT_START_ERROR_REASONS`), so an app can tell a
+ * typo (`handle_unresolvable`) from the other network refusing Oxy
+ * (`provider_rejected`); `message` is for the log.
+ */
 export class LinkedAccountStartRefusal extends Error {
-  constructor(message: string) {
+  readonly reason: LinkedAccountStartErrorReason;
+  constructor(reason: LinkedAccountStartErrorReason, message: string) {
     super(message);
     this.name = 'LinkedAccountStartRefusal';
+    this.reason = reason;
   }
 }
