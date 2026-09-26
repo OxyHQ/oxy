@@ -1,5 +1,23 @@
 # Changelog — `@oxy.so/core`
 
+## 2.0.0
+
+Includes everything in 1.19.0.
+
+### Removed
+
+- **Breaking:** the `jwtSecret` option is removed from `auth()` and
+  `serviceAuth()` (and so from `createOxyRateLimit`'s forwarded `auth` options).
+  HS256 service tokens are refused: service tokens verify only as Ed25519
+  (`alg: EdDSA` with a `kid`) against Oxy's published JWKS at
+  `/.well-known/jwks.json`, and the algorithm is pinned, never read from the
+  token. The `SERVICE_TOKEN_NOT_CONFIGURED` (403) refusal is gone with it; an
+  HS256, `none` or other header is `INVALID_SERVICE_TOKEN` (401) without any
+  JWKS fetch. Production has signed only EdDSA since 2026-09-17 (ADR 0012,
+  #877). Peable passes `jwtSecret` to `serviceAuth()`/`auth()` today: it keeps
+  verifying EdDSA tokens on core 1.x, and must drop the option when it moves to
+  core 2.
+
 ## 1.19.0
 
 One browser, one session: the browser bridge (ADR 0029 D2).

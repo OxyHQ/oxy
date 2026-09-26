@@ -67,6 +67,7 @@ import {
 import { SERVICE_ACCOUNT_SWITCH_SCOPE } from '../../utils/applicationScopes';
 import { deriveServiceDeviceId } from '../../utils/deviceUtils';
 import internalRouter from '../internal';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 const ACCESS_TOKEN_SECRET = 'service-account-switch-test-access-secret-32ch';
 const REFRESH_TOKEN_SECRET = 'service-account-switch-test-refresh-secret-32c';
@@ -172,8 +173,7 @@ async function seedApp(
 }
 
 function serviceToken(app: SeededApp): string {
-  return jwt.sign(
-    {
+  return signServiceTokenEd25519({
       type: 'service',
       appId: app.appId,
       appName: 'Alia',
@@ -181,10 +181,10 @@ function serviceToken(app: SeededApp): string {
       ownerAccountId: app.ownerAccountId,
       environment: 'production',
       scopes: app.scopes,
-    },
-    ACCESS_TOKEN_SECRET,
-    { expiresIn: 3600, issuer: 'oxy-auth', audience: 'oxy-api' }
-  );
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      exp: Math.floor(Date.now() / 1_000) + 3_600,
+    });
 }
 
 function serviceSwitch(

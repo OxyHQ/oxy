@@ -1,9 +1,7 @@
-import jwt from 'jsonwebtoken';
 import type { OxyServiceEnvironment } from '@oxy.so/core/server';
 
 import { signServiceTokenEd25519 } from '../config/serviceTokenSigning';
 import type { ServiceTier } from '../middleware/serviceToken';
-import { logger } from '../utils/logger';
 
 /**
  * Signing a service token — the one place a `type: 'service'` JWT is produced.
@@ -41,31 +39,18 @@ export interface ServiceTokenClaims {
 }
 
 /**
- * Signs the claims, preferring the asymmetric key.
- *
- * The HS256 fallback is the transitional path ADR 0012 is retiring; it stays
- * here rather than being reimplemented per caller, and it disappears from both
- * mints at once when that window closes.
+ * Signs the claims with the Ed25519 service-token key (ADR 0012). There is no
+ * symmetric fallback: a process that cannot sign EdDSA did not boot in
+ * production, and outside production signs with a per-process ephemeral key.
  */
 export function mintServiceToken(claims: ServiceTokenClaims): string {
-  const serviceClaims = { type: 'service' as const, ...claims };
   const now = Math.floor(Date.now() / 1_000);
-  const asymmetricToken = signServiceTokenEd25519({
-    ...serviceClaims,
+  return signServiceTokenEd25519({
+    type: 'service' as const,
+    ...claims,
     iat: now,
     exp: now + SERVICE_TOKEN_EXPIRY,
     iss: 'oxy-auth',
     aud: 'oxy-api',
-  });
-  if (asymmetricToken) return asymmetricToken;
-
-  if (!process.env.ACCESS_TOKEN_SECRET) {
-    logger.error('[ServiceToken] no asymmetric signing key or legacy access-token key configured');
-    throw new Error('Server configuration error');
-  }
-  return jwt.sign(serviceClaims, process.env.ACCESS_TOKEN_SECRET, {
-    expiresIn: SERVICE_TOKEN_EXPIRY,
-    issuer: 'oxy-auth',
-    audience: 'oxy-api',
   });
 }

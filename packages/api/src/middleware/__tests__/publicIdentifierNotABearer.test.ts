@@ -33,7 +33,6 @@ import { randomUUID } from 'node:crypto';
  * whole subject is whether a signature verifies.
  */
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
-import jwt from 'jsonwebtoken';
 
 jest.mock('../../services/securityActivityService', () => ({
   __esModule: true,
@@ -54,6 +53,7 @@ import {
   type ServiceAuthRequest,
 } from '../auth';
 import { rateLimit } from '../rateLimiter';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 /**
  * The probe routes below carry the repo's real limiter, exactly as a production
@@ -180,8 +180,7 @@ async function signIn(userId: string): Promise<string> {
 
 /** A REAL service JWT, signed exactly as `POST /auth/service-token` signs one. */
 function serviceToken(): string {
-  return jwt.sign(
-    {
+  return signServiceTokenEd25519({
       type: 'service',
       appId: randomUUID(),
       appName: 'Probe',
@@ -192,10 +191,10 @@ function serviceToken(): string {
       ownerAccountId: randomUUID(),
       environment: 'production',
       scopes: ['user:read'],
-    },
-    process.env.ACCESS_TOKEN_SECRET as string,
-    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' },
-  );
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      exp: Math.floor(Date.now() / 1_000) + 3_600,
+    });
 }
 
 beforeAll(async () => {

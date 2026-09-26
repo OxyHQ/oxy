@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The `@oxy.so/core` peer range admits core 2 (`^1.19.0 || ^2.0.0`). Core 2.0.0
+  only removes the server-side `jwtSecret` option, which this package never
+  used.
+
 ## [6.3.0] - 2026-09-26
 
 ### Added

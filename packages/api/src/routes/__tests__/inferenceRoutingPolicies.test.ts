@@ -46,7 +46,6 @@ import type { AddressInfo } from 'net';
 // service-token claims ARE the gate for one of this router's two lanes, so the
 // real implementation has to be restored before anything imports it.
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
-import jwt from 'jsonwebtoken';
 
 process.env.ACCESS_TOKEN_SECRET = 'test-access-token-secret';
 
@@ -93,6 +92,7 @@ import {
   resolveEffectivePermissions,
   type AccountRole,
 } from '../../utils/accountRoles';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 let server: http.Server;
 let currentUserId = '';
@@ -200,8 +200,7 @@ function serviceToken(input: {
   ownerAccountId: string;
   scopes: readonly string[];
 }): string {
-  return jwt.sign(
-    {
+  return signServiceTokenEd25519({
       type: 'service',
       appId: input.appId,
       appName: 'Routing Fixture App',
@@ -209,10 +208,10 @@ function serviceToken(input: {
       ownerAccountId: input.ownerAccountId,
       environment: 'production',
       scopes: [...input.scopes],
-    },
-    process.env.ACCESS_TOKEN_SECRET as string,
-    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' }
-  );
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      exp: Math.floor(Date.now() / 1_000) + 3_600,
+    });
 }
 
 const READ_SCOPE = 'inference:routing:read';
@@ -347,11 +346,10 @@ describe('the two lanes are dispatched, and neither is optional', () => {
     const tenant = await seedTenant();
     await createApplicationPolicy(tenant);
 
-    // A token signed with the wrong secret is not a service principal. It must
+    // A token signed with the wrong key is not a service principal. It must
     // fall through to `authMiddleware`, which here establishes the owner — so a
     // 200 proves the fall-through happened, and a 401/403 would prove it did not.
-    const forged = jwt.sign(
-      {
+    const genuine = signServiceTokenEd25519({
         type: 'service',
         appId: tenant.applicationId,
         appName: 'Forged',
@@ -359,10 +357,12 @@ describe('the two lanes are dispatched, and neither is optional', () => {
         ownerAccountId: tenant.accountId,
         environment: 'production',
         scopes: [READ_SCOPE, WRITE_SCOPE],
-      },
-      'not-the-access-token-secret',
-      { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' }
-    );
+        iss: 'oxy-auth',
+        aud: 'oxy-api',
+        exp: Math.floor(Date.now() / 1_000) + 3_600,
+      });
+    // Same header and claims, a signature no Oxy key produced.
+    const forged = `${genuine.split('.').slice(0, 2).join('.')}.${Buffer.alloc(64, 1).toString('base64url')}`;
 
     currentUserId = tenant.ownerUserId;
     const throughUserLane = await request(

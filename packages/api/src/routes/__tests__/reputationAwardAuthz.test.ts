@@ -12,9 +12,9 @@
  * `reputation_transactions` and the stored row is read back, so a spoofed
  * attribution would be visible in the data rather than only in a call log.
  *
- * `jsonwebtoken` is restored to the real implementation: `authUserOrService`
- * decides between the user and service lanes by verifying the token's `type`
- * claim itself, so a stubbed `verify` would make that dispatch untestable. The
+ * The service lane's token is a real Ed25519 service token: `authUserOrService`
+ * decides between the lanes through `verifyServiceToken`, so only a token that
+ * verifies as a service token reaches the service lane. The
  * two middlewares it dispatches TO are mocked — they attach the principal, which
  * is their production contract.
  */
@@ -25,7 +25,7 @@ import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 import { reputationTransactionSchema, safeParseContract } from '@oxy.so/contracts';
 
-/** `authUserOrService` verifies the token itself, so the real JWT must be used. */
+/** The user-lane token is an ordinary JWT; restore the real module for it. */
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 
 const ACCESS_TOKEN_SECRET = 'reputation-award-test-secret';
@@ -91,6 +91,7 @@ import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttrib
 import { LEASE_SIGNED_ACTION } from '../../utils/reputation.constants';
 import { errorHandler } from '../../middleware/errorHandler';
 import reputationRouter from '../reputation.routes';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 interface JsonResponse {
   status: number;
@@ -102,10 +103,20 @@ let server: http.Server;
 function award(payload: unknown, tokenType: 'service' | 'user'): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = JSON.stringify(payload);
-  const token = jwt.sign(
-    tokenType === 'service' ? { type: 'service' } : { type: 'access' },
-    ACCESS_TOKEN_SECRET,
-  );
+  const token = tokenType === 'service'
+    ? signServiceTokenEd25519({
+        type: 'service',
+        appId: 'app-dispatch',
+        appName: 'Test App',
+        credentialId: 'cred-dispatch',
+        ownerAccountId: 'owner-dispatch',
+        environment: 'production',
+        scopes: [],
+        iss: 'oxy-auth',
+        aud: 'oxy-api',
+        exp: Math.floor(Date.now() / 1_000) + 300,
+      })
+    : jwt.sign({ type: 'access' }, ACCESS_TOKEN_SECRET);
   return new Promise((resolve, reject) => {
     const req = http.request(
       {

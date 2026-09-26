@@ -4,6 +4,7 @@ import {
   SERVICE_TOKEN_PUBLIC_JWKS_VARIABLE,
   SERVICE_TOKEN_SIGNING_KEY_ID_VARIABLE,
   serviceTokenPublicJwks,
+  serviceTokenSigningConfig,
   signServiceTokenEd25519,
 } from '../../config/serviceTokenSigning';
 import { verifyServiceToken } from '../serviceToken';
@@ -21,6 +22,12 @@ beforeEach(() => {
   process.env[SERVICE_TOKEN_PRIVATE_KEY_VARIABLE] = privatePem;
   process.env[SERVICE_TOKEN_SIGNING_KEY_ID_VARIABLE] = 'service-2026-09-a';
   delete process.env[SERVICE_TOKEN_PUBLIC_JWKS_VARIABLE];
+});
+
+const originalNodeEnv = process.env.NODE_ENV;
+
+afterEach(() => {
+  process.env.NODE_ENV = originalNodeEnv;
 });
 
 afterAll(() => {
@@ -97,5 +104,39 @@ describe('Oxy API Ed25519 service tokens', () => {
   ])('rejects %s', (_label, override) => {
     const token = signServiceTokenEd25519(claims(override));
     expect(verifyServiceToken(token!)).toMatchObject({ ok: false });
+  });
+});
+
+describe('with no signing key configured', () => {
+  beforeEach(() => {
+    for (const name of names) delete process.env[name];
+  });
+
+  it('refuses to produce a signer in production — there is no HS256 fallback to fall to', () => {
+    process.env.NODE_ENV = 'production';
+    expect(() => serviceTokenSigningConfig()).toThrow(/required in production.*EdDSA only/);
+    expect(() => signServiceTokenEd25519(claims())).toThrow();
+  });
+
+  it('outside production, mints with one per-process ephemeral key that the JWKS publishes', () => {
+    process.env.NODE_ENV = 'test';
+    const token = signServiceTokenEd25519(claims());
+    const header = JSON.parse(Buffer.from(token.split('.')[0]!, 'base64url').toString('utf8'));
+
+    expect(header.kid).toMatch(/^dev-ephemeral-[0-9a-f]{12}$/);
+    expect(serviceTokenPublicJwks().map((key) => key.kid)).toEqual([header.kid]);
+    expect(JSON.stringify(serviceTokenPublicJwks())).not.toContain('"d"');
+    expect(verifyServiceToken(token)).toMatchObject({ ok: true });
+    // Stable for the life of the process: a second read is the same key.
+    expect(serviceTokenSigningConfig().keyId).toBe(header.kid);
+  });
+
+  it('a token from the ephemeral key stops verifying once a real key is configured', () => {
+    process.env.NODE_ENV = 'test';
+    const devToken = signServiceTokenEd25519(claims());
+    process.env[SERVICE_TOKEN_PRIVATE_KEY_VARIABLE] = privatePem;
+    process.env[SERVICE_TOKEN_SIGNING_KEY_ID_VARIABLE] = 'service-2026-09-a';
+
+    expect(verifyServiceToken(devToken)).toEqual({ ok: false, reason: 'invalid' });
   });
 });

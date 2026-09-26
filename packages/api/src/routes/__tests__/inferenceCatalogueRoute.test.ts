@@ -27,7 +27,6 @@ import type { AddressInfo } from 'net';
 // `jest.setup.cjs` stubs `jsonwebtoken` globally. The service-token claims are
 // what `viewerForRequest` reads, so the real implementation is required.
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
-import jwt from 'jsonwebtoken';
 
 process.env.ACCESS_TOKEN_SECRET = 'test-access-token-secret';
 
@@ -59,6 +58,7 @@ import { generateMachineCredentialToken } from '../../utils/machineCredentialTok
 import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
 import catalogueRouter from '../inferenceCatalogue';
 import type { ModelCatalogueEntry } from '@oxy.so/contracts';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 let server: http.Server;
 
@@ -428,10 +428,9 @@ function signServiceToken(input: {
   appId: string;
   ownerAccountId: string;
   credentialId?: string;
-  secret?: string;
+  forged?: boolean;
 }): string {
-  return jwt.sign(
-    {
+  const token = signServiceTokenEd25519({
       type: 'service',
       appId: input.appId,
       appName: 'Catalogue Fixture App',
@@ -439,10 +438,14 @@ function signServiceToken(input: {
       ownerAccountId: input.ownerAccountId,
       environment: 'production',
       scopes: ['inference:invoke'],
-    },
-    input.secret ?? (process.env.ACCESS_TOKEN_SECRET as string),
-    { expiresIn: '1h', issuer: 'oxy-auth', audience: 'oxy-api' }
-  );
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      exp: Math.floor(Date.now() / 1_000) + 3_600,
+    });
+  // Same header and claims, a signature no Oxy key produced.
+  return input.forged
+    ? `${token.split('.').slice(0, 2).join('.')}.${Buffer.alloc(64, 1).toString('base64url')}`
+    : token;
 }
 
 /** Pull one model id out of a list response, or `undefined` if it is withheld. */
@@ -500,12 +503,12 @@ describe('the audience is resolved from the request, and every branch but one is
     ['no Authorization header at all', async () => null],
     ['a plain user session bearer', async () => 'a-user-session-token-not-a-service-jwt'],
     [
-      'a service token signed with the wrong secret',
+      'a service token signed with the wrong key',
       async () =>
         signServiceToken({
           appId: 'whatever',
           ownerAccountId: 'whatever',
-          secret: 'not-the-access-token-secret',
+          forged: true,
         }),
     ],
     [

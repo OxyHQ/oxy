@@ -47,6 +47,7 @@ import {
   SERVICE_ACTING_AS_SCOPE,
 } from '../../services/serviceActingAs.service';
 import internalRouter from '../internal';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 const ACCESS_TOKEN_SECRET = 'service-acting-as-verify-test-secret';
 
@@ -113,24 +114,23 @@ async function revoke(userId: string, applicationId: string): Promise<void> {
   await revokeServiceActingAs(userId, applicationId);
 }
 
-function serviceToken(app: SeededApp, options: { expiresIn?: number; secret?: string } = {}) {
-  return jwt.sign(
-    {
-      type: 'service',
-      appId: app.appId,
-      appName: 'Verifier',
-      credentialId: app.credentialId,
-      ownerAccountId: app.ownerAccountId,
-      environment: 'production',
-      scopes: ['user:read'],
-    },
-    options.secret ?? ACCESS_TOKEN_SECRET,
-    {
-      expiresIn: options.expiresIn ?? 3600,
-      issuer: 'oxy-auth',
-      audience: 'oxy-api',
-    }
-  );
+function serviceToken(app: SeededApp, options: { expiresIn?: number; forged?: boolean } = {}) {
+  const token = signServiceTokenEd25519({
+    type: 'service',
+    appId: app.appId,
+    appName: 'Verifier',
+    credentialId: app.credentialId,
+    ownerAccountId: app.ownerAccountId,
+    environment: 'production',
+    scopes: ['user:read'],
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    exp: Math.floor(Date.now() / 1_000) + (options.expiresIn ?? 3_600),
+  });
+  // Same header and claims, a signature no Oxy key produced.
+  return options.forged
+    ? `${token.split('.').slice(0, 2).join('.')}.${Buffer.alloc(64, 1).toString('base64url')}`
+    : token;
 }
 
 function verify(
@@ -222,7 +222,7 @@ describe('authentication', () => {
     const subjectUser = await user();
     await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
 
-    const forged = serviceToken(caller, { secret: 'not-the-access-token-secret' });
+    const forged = serviceToken(caller, { forged: true });
     const res = await verify({ appId: subject.appId, userId: subjectUser }, forged);
 
     expect(res.status).toBe(401);

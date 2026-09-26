@@ -1,13 +1,12 @@
 import { createPublicKey, verify as verifyBytes } from 'node:crypto';
-import jwt from 'jsonwebtoken';
 import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '@oxy.so/core/server';
 import { serviceTokenPublicJwks } from '../config/serviceTokenSigning';
 
 /**
  * Service-token verification — the pure JWT half of the service-auth contract.
  *
- * Kept in its OWN module (importing only `jsonwebtoken`, the shared environment
- * vocabulary and `logger`) so it can be reused by request-path code — the
+ * Kept in its OWN module (importing only `node:crypto`, the shared environment
+ * vocabulary and the public signing keys) so it can be reused by request-path code — the
  * blocking `serviceAuthMiddleware`, the optional/dual-auth path, and the
  * rate-limiter's service-to-service exemption predicate — WITHOUT dragging in
  * the session-service / schema graph that `middleware/auth.ts` pulls in.
@@ -87,8 +86,9 @@ function isExactNonEmptyString(value: unknown): value is string {
  * tri-state so callers can produce the precise 4xx (blocking middleware) or
  * silently fall back to anonymous (non-blocking optional auth):
  *  - `{ ok: true, payload }` — a valid `service`-type token.
- *  - `{ ok: false, reason: 'not_service' }` — verified, but not a service token
- *    (a user session token, or missing required service claims).
+ *  - `{ ok: false, reason: 'not_service' }` — not a service token: signed with
+ *    anything other than EdDSA (a user session token — unverified, since this
+ *    module holds no user key), or a verified token missing service claims.
  *  - `{ ok: false, reason: 'expired' | 'invalid' }` — verification failed.
  */
 export type ServiceTokenVerification =
@@ -153,7 +153,8 @@ function verifyEd25519ServiceToken(token: string): UnverifiedServiceClaims | nul
  * Pure verification of a service JWT. SINGLE SOURCE OF TRUTH for the service
  * token contract — the blocking `serviceAuthMiddleware`, any optional /
  * dual-auth path, and the rate-limiter exemption verify through here so they
- * cannot drift. Performs the full `jwt.verify` (signature + expiry) and the
+ * cannot drift. Verifies the EdDSA signature against the published key named by `kid`,
+ * then expiry, issuer, audience and the
  * required-claim checks; never throws.
  */
 export function verifyServiceToken(token: string): ServiceTokenVerification {
@@ -167,21 +168,15 @@ export function verifyServiceToken(token: string): ServiceTokenVerification {
     return { ok: false, reason: 'invalid' };
   }
 
-  let decoded: UnverifiedServiceClaims | null = null;
-  if (header?.alg === 'EdDSA') {
-    decoded = verifyEd25519ServiceToken(token);
-  } else if (header?.alg === 'HS256' && process.env.ACCESS_TOKEN_SECRET) {
-    try {
-      decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, {
-        algorithms: ['HS256'],
-        issuer: 'oxy-auth',
-        audience: 'oxy-api',
-      }) as UnverifiedServiceClaims;
-    } catch (error) {
-      if (error instanceof jwt.TokenExpiredError) return { ok: false, reason: 'expired' };
-      return { ok: false, reason: 'invalid' };
-    }
+  // EdDSA is the only algorithm a service token is ever signed with (ADR 0012).
+  // Any other `alg` — a user access token, or an HS256 token claiming
+  // `type: 'service'` under any secret — is not a service token, and nothing
+  // in it is read. A caller that answers `not_service` with 403 keeps doing so
+  // for a user token; one that falls through to session auth still does.
+  if (header?.alg !== 'EdDSA') {
+    return { ok: false, reason: 'not_service' };
   }
+  const decoded = verifyEd25519ServiceToken(token);
   if (!decoded) {
     return { ok: false, reason: 'invalid' };
   }

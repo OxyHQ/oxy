@@ -46,6 +46,7 @@ import { workloadAttestationHandle } from '../../services/workloadAttestation.se
 import sessionCache from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
 import internalRouter from '../internal';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 const ACCESS_TOKEN_SECRET = `access-${randomUUID()}`;
 const HOMIIO = NATIVE_PRODUCT_AGENTS.products.homiio;
@@ -120,8 +121,7 @@ async function seedPrincipal(input: {
 }
 
 function serviceToken(principal: Principal): string {
-  return jwt.sign(
-    {
+  return signServiceTokenEd25519({
       type: 'service',
       appId: principal.appId,
       appName: 'Test',
@@ -129,10 +129,10 @@ function serviceToken(principal: Principal): string {
       ownerAccountId: principal.ownerAccountId,
       environment: 'production',
       scopes: principal.scopes,
-    },
-    ACCESS_TOKEN_SECRET,
-    { expiresIn: 3600, issuer: 'oxy-auth', audience: 'oxy-api' },
-  );
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      exp: Math.floor(Date.now() / 1_000) + 3_600,
+    });
 }
 
 function post(path: string, token: string | null, body: unknown): Promise<HttpResult> {

@@ -1,5 +1,4 @@
 import express, { type Response, type NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 import {
   awardReputationSchema,
   createReputationDisputeSchema,
@@ -31,13 +30,13 @@ import {
 } from '../middleware/auth';
 import type { AuthenticatedRequest } from '../middleware/authUtils';
 import { optionalAuthMiddleware } from '../middleware/optionalAuth';
+import { verifyServiceToken } from '../middleware/serviceToken';
 import { requireStaff } from '../middleware/requireStaff';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler, sendSuccess, sendPaginated } from '../utils/asyncHandler';
 import { ForbiddenError, UnauthorizedError } from '../utils/error';
 import { resolveUserIdToObjectId, validatePagination } from '../utils/validation';
-import { logger } from '../utils/logger';
 import { userIdentityFields } from '../utils/userTransform';
 import reputationService, { readMetadata } from '../services/reputation.service';
 import {
@@ -145,22 +144,13 @@ function authUserOrService(
     next(new UnauthorizedError('Invalid or missing authorization header'));
     return;
   }
-  const token = authHeader.slice('Bearer '.length);
-  const secret = process.env.ACCESS_TOKEN_SECRET;
-  if (!secret) {
-    logger.error('ACCESS_TOKEN_SECRET not configured');
-    res.status(500).json({ error: 'Server configuration error', message: 'Server configuration error' });
-    return;
-  }
-  let isServiceToken = false;
-  try {
-    const decoded = jwt.verify(token, secret) as { type?: string };
-    isServiceToken = decoded.type === 'service';
-  } catch {
-    // Defer to the dispatched middleware to produce the precise 401 (expired vs
-    // invalid). Treat an unverifiable token as a user token here.
-    isServiceToken = false;
-  }
+  // The lane is decided by the one service-token verifier, never by trying
+  // the user-token secret: service tokens are EdDSA (ADR 0012), so an HMAC
+  // check against ACCESS_TOKEN_SECRET can never recognise one. Anything that
+  // is recognisably a service token — valid, expired or forged — goes to the
+  // service lane for its precise 401; everything else is a user token.
+  const verification = verifyServiceToken(authHeader.slice('Bearer '.length));
+  const isServiceToken = verification.ok || verification.reason !== 'not_service';
   if (isServiceToken) {
     serviceAuthMiddleware(req, res, next);
     return;
