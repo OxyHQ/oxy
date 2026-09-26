@@ -1,5 +1,5 @@
 /**
- * The one tail every sign-in without a passkey ends in (email code, email
+ * The one tail every sign-in ends in (email code, email
  * link, password, second factor, sign-up), and the gate between a first factor
  * and the session.
  *
@@ -20,10 +20,6 @@
  * Every OTHER issuer of a session or device credential was audited for the
  * same rule (security review of #1421):
  *
- * - passkey sign-in and passkey recovery (`routes/webauthn.ts`) end in
- *   {@link issueSecondFactorChallenge} when the account has an authenticator,
- *   and a recovery ticket itself needs the authenticator's code
- *   (`confirmEmailVerification`);
  * - sign-up creates an account that has no authenticator yet;
  * - the Commons QR claim, OAuth code exchange and MCP OAuth all spend an
  *   approval made by an ALREADY signed-in session (which passed its second

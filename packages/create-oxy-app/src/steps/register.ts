@@ -19,10 +19,9 @@ function manualInstructions(config: ResolvedConfig): void {
  * Point the developer at the Console to register an Oxy client + public
  * credential for the new app.
  *
- * Automatic registration from the CLI is no longer possible: sign-in is passkey
- * (WebAuthn) or the Commons handoff — password login was removed ecosystem-wide,
- * and a headless Node CLI can drive neither. Registration is a quick one-time
- * step in the Console.
+ * The CLI does not sign in on the developer's behalf: registering a client is
+ * a quick one-time step in the Console, where the developer is already signed
+ * in.
  */
 export async function registerOxyClient(config: ResolvedConfig): Promise<void> {
   if (!config.register) {

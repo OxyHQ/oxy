@@ -46,7 +46,7 @@
  *
  * `username` is the one that CHANGES behaviour, deliberately: Mongo indexed it
  * case-SENSITIVELY while every lookup runs
- * `exactCaseInsensitiveUsernameRegex` (`server.ts:688`, `webauthn.ts:376`, …).
+ * `exactCaseInsensitiveUsernameRegex` (`server.ts:688`, …).
  * That pairing both permitted `Nate` and `nate` to coexist and made each lookup
  * a collection scan, since an anchored `/i` regex cannot use a b-tree index.
  * `lower(username)` fixes both. **Backfill consequence:** if two production

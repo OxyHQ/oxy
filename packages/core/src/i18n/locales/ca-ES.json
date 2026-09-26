@@ -306,7 +306,7 @@
       "keyed": "Aquest compte fa servir Commons: elimina'l a Oxy Commons, Configuració > Elimina el compte, amb la seva clau."
     },
     "handoff": {
-      "elsewhereMessage": "Per eliminar el compte cal la teva clau d'identitat, i no és en aquest dispositiu. Obre Oxy Commons al dispositiu que la guarda i ves a Configuració > Elimina el compte. Un compte sense clau s'elimina des de la seva configuració a {{site}}."
+      "elsewhereMessage": "Per eliminar el compte cal la teva clau d'identitat, i no és en aquest dispositiu. Obre Oxy Commons al dispositiu que la guarda i ves a Configuració > Elimina el compte."
     }
   },
   "linkCommons": {

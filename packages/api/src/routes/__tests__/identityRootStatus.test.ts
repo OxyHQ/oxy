@@ -1,6 +1,6 @@
 /**
  * `GET /identity/root-status` (ADR 0029 D3), against a REAL Postgres: how the
- * account is kept — Commons' root, or a passkey and a recovery email — readable
+ * account is kept — Commons' root, or the email it signs in with — readable
  * from any first-party origin with a bearer.
  */
 
@@ -49,7 +49,7 @@ afterAll(async () => {
   await closePostgres();
 });
 
-it('reports a passkey account by its recovery email', async () => {
+it('reports an account without a key by its email', async () => {
   const email = `${randomUUID()}@example.com`;
   const [row] = await getDb().insert(users).values({ email }).returning({ id: users.id });
   currentUserId = row.id;

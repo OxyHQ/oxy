@@ -1,6 +1,6 @@
 /**
  * Keys derived from the server secret, for the HMACs and the sealed box of
- * signing in without a passkey.
+ * signing in with an email code or link, a password and an authenticator.
  *
  * One secret — `DEVICE_ID_SALT`, which `config/env.ts` requires in production
  * (≥ 32 characters, never the development placeholder, fail-fast at boot) —

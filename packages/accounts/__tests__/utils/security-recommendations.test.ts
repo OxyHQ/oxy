@@ -110,9 +110,9 @@ describe('selectSecurityRecommendations', () => {
     ).not.toContain('biometric');
   });
 
-  it('recommends linking Commons to a passkey account, and not on a guess (ADR 0029 D3)', () => {
-    const passkey = { rootLinked: false, recoveryEmail: 'ada@example.com' };
-    expect(selectSecurityRecommendations(baseInput({ rootStatus: passkey }), NOW).map((r) => r.id)).toEqual(['link-commons']);
+  it('recommends linking Commons to an account without a key, and not on a guess (ADR 0029 D3)', () => {
+    const keyless = { rootLinked: false, recoveryEmail: 'ada@example.com' };
+    expect(selectSecurityRecommendations(baseInput({ rootStatus: keyless }), NOW).map((r) => r.id)).toEqual(['link-commons']);
     expect(selectSecurityRecommendations(baseInput({ rootStatus: undefined }), NOW)).toEqual([]);
     expect(selectSecurityRecommendations(baseInput({ rootStatus: { rootLinked: true, recoveryEmail: null } }), NOW)).toEqual([]);
   });

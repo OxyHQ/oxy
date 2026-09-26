@@ -4,22 +4,18 @@
  * Endpoints for linking multiple authentication methods to a single user account.
  * Allows users to:
  * - Link an identity (publicKey) to an existing account
- * - View and manage linked auth methods
- * - Remove an individual passkey (webauthn). A root is never unlinked; it is
- *   replaced by rotation (ADR 0024 D8).
+ * - View linked auth methods
+ * - Rotate the root. A root is never unlinked; it is replaced by rotation
+ *   (ADR 0024 D8).
  *
  * ## Storage (Postgres)
  *
  * The `authMethods[]` subdocument array is now the CHILD TABLE
  * `user_auth_methods`, so "push an entry" is an INSERT, "filter the array" is a
  * DELETE, and "replace the identity entry in place" is an UPDATE of exactly one
- * row. Three consequences worth stating, because each is a behaviour the Mongo
+ * row. Two consequences worth stating, because each is a behaviour the Mongo
  * version could not have:
  *
- * - **The last-auth-method guard runs under a row lock.** The count and the
- *   delete happen in ONE transaction that takes `select … for update` on the
- *   account row first, so two concurrent unlinks can no longer both observe
- *   "two methods remain" and leave the account with zero.
  * - **The rotation swap is one transaction** covering the `users.public_key`
  *   write, the in-place identity-row replacement, AND the stale
  *   `identity_backups` delete — a committed swap can no longer leave a backup
@@ -31,21 +27,20 @@
  */
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import { and, count, eq, gt, ne, sql } from 'drizzle-orm';
+import { and, eq, gt, ne, sql } from 'drizzle-orm';
 import { authMiddleware, type AuthRequest } from '../middleware/auth.js';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess.js';
-import { getDb, type Database } from '../config/postgres.js';
+import { getDb } from '../config/postgres.js';
 import { authChallenges } from '../db/schema/authChallenges.js';
 import { identityBackups } from '../db/schema/identityBackups.js';
 import { sessions } from '../db/schema/sessions.js';
 import { userAuthMethods } from '../db/schema/userAuthMethods.js';
 import { users } from '../db/schema/users.js';
-import { webauthnCredentials } from '../db/schema/webauthnCredentials.js';
 import SignatureService from '../services/signature.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { BadRequestError, ConflictError, UnauthorizedError } from '../utils/error.js';
 import { validate } from '../middleware/validate.js';
-import { linkAuthMethodSchema, unlinkWebauthnParams, type LinkAuthMethodBody } from '../schemas/authLinking.schemas.js';
+import { linkAuthMethodSchema, type LinkAuthMethodBody } from '../schemas/authLinking.schemas.js';
 import sessionService from '../services/session.service.js';
 import { rateLimit } from '../middleware/rateLimiter.js';
 import { hashedIpKey } from '../utils/ipKey.js';
@@ -66,59 +61,6 @@ import {
 } from '@oxy.so/contracts';
 
 const router = Router();
-
-/**
- * Anything that can run a query — the pool handle or an open transaction. Every
- * helper below takes one so the SAME read serves an ordinary request and a read
- * INSIDE a transaction; without it a guard would have to re-read through the
- * pool and could observe pre-transaction state, which is exactly the lost update
- * the transaction exists to prevent.
- */
-type Queryable = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
-
-/** The account's authentication posture, as the unlink guards read it. */
-interface AuthPosture {
-  /** The linked identity key, or null when the account is custodial. */
-  publicKey: string | null;
-  /** How many passkeys the account holds. */
-  webauthnCount: number;
-  /**
-   * The account's distinct authentication methods: the identity key AND each
-   * registered passkey. The unlink guards keep this at ≥1 after a removal —
-   * taking the last one would lock the user out.
-   */
-  total: number;
-}
-
-/**
- * Read the account's auth-method posture, LOCKING the account row.
- *
- * `for('update')` is the whole point: the guard is a check-then-act, so without
- * the lock two concurrent unlinks each read "2 methods" and each delete one,
- * ending at zero. The lock serializes them, and the loser re-reads "1 method"
- * and is refused. Returns null when the account does not exist.
- */
-async function readAuthPosture(db: Queryable, userId: string): Promise<AuthPosture | null> {
-  const [account] = await db
-    .select({ publicKey: users.publicKey })
-    .from(users)
-    .where(eq(users.id, userId))
-    .for('update')
-    .limit(1);
-  if (!account) return null;
-
-  const [passkeys] = await db
-    .select({ value: count() })
-    .from(userAuthMethods)
-    .where(and(eq(userAuthMethods.userId, userId), eq(userAuthMethods.type, 'webauthn')));
-
-  const webauthnCount = passkeys?.value ?? 0;
-  return {
-    publicKey: account.publicKey,
-    webauthnCount,
-    total: (account.publicKey ? 1 : 0) + webauthnCount,
-  };
-}
 
 /**
  * `where lower(btrim(public_key)) = lower(btrim($1))` — the spelling that both
@@ -217,8 +159,8 @@ router.use(requireFirstPartyForChanges);
 /**
  * GET /api/auth/methods
  * Get the account DID and all linked authentication methods for the current
- * user, shaped to the `authMethodsResponseSchema` contract. Identity methods
- * carry their DID verification-method id (`#key-1`); passkeys carry none.
+ * user, shaped to the `authMethodsResponseSchema` contract. The identity
+ * method carries its DID verification-method id (`#key-1`).
  */
 router.get('/methods', asyncHandler(async (req: AuthRequest, res: Response) => {
   const userId = req.user?._id?.toString();
@@ -244,8 +186,6 @@ router.get('/methods', asyncHandler(async (req: AuthRequest, res: Response) => {
     .select({
       type: userAuthMethods.type,
       linkedAt: userAuthMethods.linkedAt,
-      methodCredentialId: userAuthMethods.methodCredentialId,
-      methodName: userAuthMethods.methodName,
     })
     .from(userAuthMethods)
     .where(eq(userAuthMethods.userId, userId))
@@ -253,17 +193,9 @@ router.get('/methods', asyncHandler(async (req: AuthRequest, res: Response) => {
 
   const response = authMethodsResponseSchema.parse({
     did: buildUserDid(userId),
-    // `buildAuthMethodEntries` is shared with the signed data export and still
-    // reads the `metadata.*` shape the subdocument had; the child-table columns
-    // are adapted to it HERE rather than by changing a helper two routes depend
-    // on.
     methods: buildAuthMethodEntries({
       publicKey: account.publicKey,
-      authMethods: methods.map((method) => ({
-        type: method.type,
-        linkedAt: method.linkedAt,
-        metadata: { credentialID: method.methodCredentialId, name: method.methodName },
-      })),
+      authMethods: methods,
       createdAt: account.createdAt,
     }),
   });
@@ -526,8 +458,8 @@ router.post('/rotate/complete', rotateCompleteLimiter, validate({ body: rotateKe
  *   `POST /auth/rotate/*`, which needs the old root's proof too.
  * - A keyless account: refused here. Its first link goes through
  *   `routes/identityLink.ts`, confirmed by a code sent to its email (plus its
- *   authenticator); a passkey assertion no longer confirms it, and a bearer
- *   plus a key generated a moment ago is not authority.
+ *   authenticator); a bearer plus a key generated a moment ago is not
+ *   authority.
  */
 router.post('/link', validate({ body: linkAuthMethodSchema }), asyncHandler(async (req: AuthRequest, res: Response) => {
   const userId = req.user?._id?.toString();
@@ -556,69 +488,6 @@ router.post('/link', validate({ body: linkAuthMethodSchema }), asyncHandler(asyn
 
   userCache.invalidate(userId);
   res.json({ success: true, message: 'Identity linked successfully' });
-}));
-
-/**
- * DELETE /api/auth/link/webauthn/:credentialID
- * Unlink ONE passkey (by its public credential id) from the current account.
- * Passkeys are per-credential, so this needs the specific id rather than the
- * generic per-type unlink. Removes the `user_auth_methods` row AND the
- * `webauthn_credentials` row, keeping at least one usable auth method overall.
- * A third-party token is refused (`requireFirstPartyForChanges`).
- */
-router.delete('/link/webauthn/:credentialID', validate({ params: unlinkWebauthnParams }), asyncHandler(async (req: AuthRequest, res: Response) => {
-  const userId = req.user?._id?.toString();
-  if (!userId) {
-    throw new BadRequestError('User not authenticated');
-  }
-
-  const { credentialID } = req.params;
-
-  // Guard and removal share ONE transaction, and the posture read takes a row
-  // lock, so the "keep ≥1 auth method" check cannot be raced by a concurrent
-  // unlink of the account's other method.
-  await getDb().transaction(async (tx) => {
-    const posture = await readAuthPosture(tx, userId);
-    if (!posture) {
-      throw new BadRequestError('User not found');
-    }
-
-    // The passkey must belong to the caller (its public id alone is not proof of
-    // ownership — scope the lookup by userId).
-    const [credential] = await tx
-      .select({ id: webauthnCredentials.id })
-      .from(webauthnCredentials)
-      .where(
-        and(
-          eq(webauthnCredentials.credentialID, credentialID),
-          eq(webauthnCredentials.userId, userId),
-        ),
-      )
-      .limit(1);
-    if (!credential) {
-      throw new BadRequestError('No such passkey is linked to this account');
-    }
-
-    // Removing the last remaining auth method would lock the account out.
-    if (posture.total <= 1) {
-      throw new BadRequestError('Cannot unlink last authentication method - account would become inaccessible');
-    }
-
-    await tx
-      .delete(userAuthMethods)
-      .where(
-        and(
-          eq(userAuthMethods.userId, userId),
-          eq(userAuthMethods.type, 'webauthn'),
-          eq(userAuthMethods.methodCredentialId, credentialID),
-        ),
-      );
-    await tx.delete(webauthnCredentials).where(eq(webauthnCredentials.id, credential.id));
-  });
-
-  userCache.invalidate(userId);
-
-  res.json({ success: true, message: 'Passkey unlinked successfully' });
 }));
 
 export default router;

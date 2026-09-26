@@ -326,7 +326,7 @@ export const LINKED_ACCOUNT_OAUTH_CHALLENGES_PROTECTED_COLUMNS = [
 export const MASTODON_APP_REGISTRATIONS_PROTECTED_COLUMNS = ['clientSecret'] as const;
 
 /**
- * Sign-in secrets without a passkey (email code/link, password, authenticator).
+ * Sign-in secrets (email code/link, password, authenticator).
  * Every one is either a credential or what a credential is checked against;
  * none is ever part of a response.
  */

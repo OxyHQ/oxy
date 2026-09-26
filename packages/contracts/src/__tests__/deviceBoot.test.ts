@@ -9,8 +9,8 @@ import type {
 /**
  * The first-party login result contract MUST round-trip exactly what the
  * sign-in surfaces emit and what `@oxy.so/core`'s auth mixin parses, so producer
- * and consumers cannot drift. Sign-in is passkey (WebAuthn) or Commons handoff —
- * password and 2FA were removed, so the only outcome is a completed session. The
+ * and consumers cannot drift. This is the session arm every sign-in
+ * ends in (email code or link, password, authenticator, Commons handoff). The
  * device transport itself is the zero-cookie `deviceId` + `deviceSecret` mint
  * (see `deviceSession.test.ts`).
  */

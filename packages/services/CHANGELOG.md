@@ -2,7 +2,8 @@
 
 ## [7.0.0] - 2026-09-26
 
-Requires `@oxy.so/core` ^2.2.0.
+Requires `@oxy.so/core` ^2.2.0 and `@oxy.so/contracts` ^3.0.0 (passkeys are
+removed from the whole platform, ADR 0030).
 
 **Sign-in happens in the dialog, by email** (the plan "Oxy sin passkeys", PR 2
 of 4): no passkey, and no auth.oxy.so window except the browser bridge.
@@ -51,6 +52,8 @@ of 4): no passkey, and no auth.oxy.so window except the browser bridge.
   `removePasskey`; `useAuthMethods().passkeys`; `OxyCreateAccountPanel` and
   `OxyRecoverAccountPanel` (recovering an account is signing in with a code);
   `OxySignInPanelProps.onRecover`; the `@simplewebauthn/browser` dependency.
+- The native delete-account handoff no longer tells a keyless account to delete
+  itself on auth.oxy.so: it deletes with an emailed code in the dialog.
 
 ## [6.3.0] - 2026-09-26
 

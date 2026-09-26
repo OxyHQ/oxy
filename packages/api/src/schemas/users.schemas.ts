@@ -32,7 +32,7 @@ export const verifyRequestSchema = z.object({
 // DELETE /users/me
 // An account with a Commons key signs the deletion with it; an account without
 // one confirms with a code emailed for this deletion. Either adds its
-// authenticator code when it has one. A passkey no longer deletes an account.
+// authenticator code when it has one.
 export const deleteAccountSchema = z.object({
   signature: z.string().trim().min(1).optional(),
   timestamp: z.number().optional(),

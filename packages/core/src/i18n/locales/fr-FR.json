@@ -306,7 +306,7 @@
       "keyed": "Ce compte utilise Commons : supprimez-le dans Oxy Commons, Réglages > Supprimer le compte, avec sa clé."
     },
     "handoff": {
-      "elsewhereMessage": "La suppression de votre compte nécessite votre clé d'identité, et elle n'est pas sur cet appareil. Ouvrez Oxy Commons sur l'appareil qui la détient et allez dans Réglages > Supprimer le compte. Un compte sans clé se supprime depuis ses paramètres sur {{site}}."
+      "elsewhereMessage": "La suppression de votre compte nécessite votre clé d'identité, et elle n'est pas sur cet appareil. Ouvrez Oxy Commons sur l'appareil qui la détient et allez dans Réglages > Supprimer le compte."
     }
   },
   "linkCommons": {

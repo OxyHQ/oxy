@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/federation",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Oxy Federation \u2014 the app-agnostic ActivityPub identity + follow engine substrate: the network-connector contract, normalized cross-network DTOs, HTTP signatures, actor resolution, the outbound delivery transport + follow lifecycle, the inbound dispatcher, and the webfinger/actor/inbox Express routers. Domain-parameterized so every Oxy app backend federates under its own domain.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -93,7 +93,7 @@
     }
   },
   "dependencies": {
-    "@oxy.so/contracts": "^1.0.0 || ^2.0.0",
+    "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0",
     "@oxy.so/core": "^1.0.0 || ^2.0.0"
   },
   "peerDependencies": {

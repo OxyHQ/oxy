@@ -3,11 +3,10 @@ import {
   emailVerificationConfirmRequestSchema,
   emailVerificationStartRequestSchema,
 } from '../accountEmail';
-import { webauthnRegisterOptionsRequestSchema, webauthnRegisterVerifyRequestSchema } from '../webauthn';
 
 const TICKET = 'A'.repeat(43);
 
-describe('recovery email contracts', () => {
+describe('email verification contracts', () => {
   it('stores a sign-up email trimmed and lowercase', () => {
     expect(emailVerificationStartRequestSchema.parse({ purpose: 'signup', email: '  Ada@Example.COM ' })).toEqual({
       purpose: 'signup',
@@ -15,12 +14,8 @@ describe('recovery email contracts', () => {
     });
   });
 
-  it('recovers by username or email, and never takes an email field for recovery', () => {
-    expect(emailVerificationStartRequestSchema.parse({ purpose: 'recovery', identifier: 'ada' })).toEqual({
-      purpose: 'recovery',
-      identifier: 'ada',
-    });
-    expect(emailVerificationStartRequestSchema.safeParse({ purpose: 'recovery', email: 'ada@example.com' }).success).toBe(false);
+  it('is for sign-up only: there is no recovery purpose', () => {
+    expect(emailVerificationStartRequestSchema.safeParse({ purpose: 'recovery', identifier: 'ada' }).success).toBe(false);
   });
 
   it('refuses a malformed email and an unknown purpose', () => {
@@ -40,12 +35,9 @@ describe('recovery email contracts', () => {
     expect(emailTicketSchema.safeParse('A'.repeat(42)).success).toBe(false);
   });
 
-  it('carries the sign-up email and its ticket, and a recovery ticket, through registration', () => {
+  it('confirms a code alone: an authenticator code is not part of it', () => {
     expect(
-      webauthnRegisterVerifyRequestSchema.parse({ username: 'ada', email: 'Ada@example.com', emailTicket: TICKET }),
-    ).toEqual({ username: 'ada', email: 'ada@example.com', emailTicket: TICKET });
-    expect(webauthnRegisterOptionsRequestSchema.parse({ recoveryTicket: TICKET })).toEqual({ recoveryTicket: TICKET });
-    // The web identity enrollment is gone: an `identity` field is not part of the contract.
-    expect(webauthnRegisterVerifyRequestSchema.parse({ username: 'ada', identity: {} })).toEqual({ username: 'ada' });
+      emailVerificationConfirmRequestSchema.safeParse({ verificationId: 'v', code: '012345', totpCode: '123456' }).success,
+    ).toBe(false);
   });
 });

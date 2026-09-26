@@ -8,7 +8,7 @@
 `packages/auth` is the standalone identity-provider app served at **auth.oxy.so**: a pure-static Vite + React DOM SPA deployed to Cloudflare Pages (no Pages Function — see "Development" below). It owns:
 
 - The **OAuth 2.0 authorize + consent** surface for third-party "Sign in with Oxy" (Authorization Code + PKCE) — see [integration-guide.md](./integration-guide.md).
-- The fallback **login / signup / recover** flows (keyless password accounts, 2FA, social providers).
+- The **login** page — the same services `OxySignInPanel` every app's dialog renders (email or username → emailed code or link → optional password → optional authenticator; sign-up in place with `?screen=signup`), and `/email-signin`, where the email's link lands ([ADR 0030](../adr/0030-email-code-password-authenticator.md)).
 - The **device-account chooser feed** that lets a returning device pick one of its signed-in accounts before authorizing an app.
 
 It does **not** own account management: every `/settings/*` path permanently redirects to **accounts.oxy.so**, the sole owner of security, sessions, and profile settings.
@@ -18,7 +18,7 @@ It does **not** own account management: every `/settings/*` path permanently red
 | | |
 |---|---|
 | **Is** | The OAuth authorize/consent screen for `type: 'third_party'` Applications registered in Console |
-| **Is** | A login/signup/recover UI that authenticates against `api.oxy.so` |
+| **Is** | The login page (the services sign-in panel) and the email link's landing page, authenticating against `api.oxy.so` |
 | **Is not** | A third-party Relying Party — it authenticates device-first on its own origin, then emits OAuth codes for RPs |
 | **Is not** | The session authority — that is `api.oxy.so` (`DeviceSession`, see below) |
 | **Is not** | An account-management surface — `/settings/*` redirects to accounts.oxy.so |
@@ -41,18 +41,17 @@ import { OxyProvider } from '@oxy.so/services';
 </OxyProvider>
 ```
 
-The provider runs the SAME device-first cold boot every Oxy app runs (restore this origin's session from its own persisted `{deviceId, deviceSecret}`), enumerates the device directory through `useDeviceSwitcher`, authenticates through the SDK funnels (`signInWithPassword` / `completeTwoFactorSignIn` / `handleWebSession`), and switches through `activateContext`. It still supplies the `OxyAccountDialog` (Commons QR device-flow sign-in) and the `OxyConsentScreen` context. **It remains a SHELL** — after authenticating device-first it emits the OAuth authorization code for the third-party; it is NOT a Relying Party that bounces elsewhere for its own session. The former `coldBoot={false}` exception existed for the SSO bounce the zero-cookie cutover deleted.
+The provider runs the SAME device-first cold boot every Oxy app runs (restore this origin's session from its own persisted `{deviceId, deviceSecret}`), enumerates the device directory through `useDeviceSwitcher`, authenticates through the services sign-in panel (`/auth/signin/*`, ADR 0030), and switches through `activateContext`. It still supplies the `OxyAccountDialog` (Commons QR device-flow sign-in) and the `OxyConsentScreen` context. **It remains a SHELL** — after authenticating device-first it emits the OAuth authorization code for the third-party; it is NOT a Relying Party that bounces elsewhere for its own session. The former `coldBoot={false}` exception existed for the SSO bounce the zero-cookie cutover deleted.
 
 ## Routes / pages
 
 | Route | Page / handler | Purpose |
 |-------|----------------|---------|
-| `/login`, `/auth/login` | `src/pages/login.tsx` → `LoginForm` | Account chooser (device accounts) → identifier → password → 2FA. "Sign in with Oxy" opens the services `OxyAccountDialog` (Commons QR). Accepts OAuth params (`client_id`, `redirect_uri`, `state`, `code_challenge`, `scope`, `login_hint`) to resume an authorize flow after sign-in |
-| `/signup`, `/auth/signup` | `src/pages/signup.tsx` | Keyless password account creation (`POST /auth/signup`) |
+| `/login`, `/auth/login` | `src/pages/login.tsx` | Account chooser (device accounts), then the services `OxySignInPanel`: email or username → the emailed code (or the link, same browser) → "Use your password instead" → the authenticator step when the account has one; the Commons QR. `?screen=signup` renders `OxySignUpPanel` in place. Accepts OAuth params (`client_id`, `redirect_uri`, `state`, `code_challenge`, `scope`, `login_hint`) to resume an authorize flow after sign-in |
 | `/authorize`, `/auth/authorize` | `src/pages/authorize.tsx` | OAuth authorize: resolves the Application via `GET /auth/oauth/client/:clientId`, shows the account chooser, checks `GET /auth/oauth/consent`, renders **`OxyConsentScreen`** (from `@oxy.so/services`; shows the Application's name, logo, scopes, `privacyPolicyUrl`/`termsUrl`), mints the single-use code via `POST /auth/oauth/authorize`, redirects to the RP's `redirect_uri` |
-| `/recover`, `/auth/recover` | `src/pages/recover.tsx` | Password recovery (`/auth/recover/request` → `verify` → `reset`) |
-| `/auth/social/callback` | `src/pages/social-callback.tsx` | Social-provider OAuth callback (no layout) |
-| `/settings`, `/settings/password`, `/settings/linked-accounts` | `ExternalRedirect` | → `https://accounts.oxy.so/security` |
+| `/email-signin` | `src/pages/email-signin.tsx` | The email link's landing page: reads the token from `#t=` (and strips it from history), approves the request with THIS browser's device (`POST /auth/signin/email/link`); in another browser it asks for the code instead |
+| `/device`, `/mcp/link` | `src/pages/device.tsx`, `src/pages/mcp-link.tsx` | Device-flow approval (CLI) and adding an account to an MCP connection |
+| `/settings` | `ExternalRedirect` | → `https://accounts.oxy.so/security` |
 | `/settings/sessions` | `ExternalRedirect` | → `https://accounts.oxy.so/sessions` |
 | `/` | `ExternalRedirect` | → `https://oxy.so` |
 | `*` | `Navigate` | → `/login` |
@@ -65,7 +64,7 @@ The chooser ("Choose an account to continue") uses the SAME device-first SDK cha
 2. The SDK's `OxyAccountPicker` renders those rows on `/login` (inside `OxySignInPanel`), `/authorize`, `/device` and `/mcp/link`, grouped by person: the same organization reachable through two people is two rows, and the operator is named once anybody holds more than one account.
 3. Selecting the active context continues immediately; selecting any other calls `activateContext(contextId)` — the pair, never an account id — which re-plants the active bearer, then proceeds. A refusal (including a context id the server has since healed away) falls back to `/login?login_hint=…` for explicit re-auth.
 
-The app's own pages (login, signup, authorize, device, MCP link) are a static Vite SPA with history-fallback — no dynamic routes and no advanced-mode worker. The only Pages Function on this origin is the root `functions/_middleware.ts`, which records edge activity and serves no page.
+The app's own pages (login, authorize, device, MCP link, email sign-in) are a static Vite SPA with history-fallback — no dynamic routes and no advanced-mode worker. The only Pages Function on this origin is the root `functions/_middleware.ts`, which records edge activity and serves no page.
 
 ## API endpoints the IdP calls
 
@@ -73,10 +72,9 @@ All against `api.oxy.so` (`VITE_OXY_API_URL` in dev):
 
 | Endpoint | Used by |
 |----------|---------|
-| `POST /auth/login` · `POST /auth/signup` | Login / signup forms |
-| `POST /security/2fa/verify-login` | 2FA step |
-| `POST /auth/recover/{request,verify,reset}` | Recovery flow |
-| `GET /auth/social/:provider` + `/auth/social/callback` | Social sign-in |
+| `POST /auth/signin/email/{start,confirm,collect}` · `POST /auth/signin/password` · `POST /auth/signin/second-factor` | The sign-in panel |
+| `POST /auth/email/verify/{start,confirm}` · `POST /auth/signup` | The sign-up panel |
+| `POST /auth/signin/email/link` | `/email-signin` (auth.oxy.so only) |
 | `GET /auth/session/status/:token` · `POST /auth/session/{authorize,cancel}/:token` | Cross-device session handoff (QR approve/deny) |
 | `GET /auth/oauth/client/:clientId` | Resolve the requesting Application (public identity) |
 | `GET /auth/oauth/consent` | Consent decision for the signed-in user |

@@ -49,6 +49,9 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - Zero cookies on every origin, `auth.oxy.so` included; no third-party cookies, iframes, FedCM, `prompt=none` or silent redirects.
 - The SDK never navigates the top-level window on its own; silent restore is deleted, not gated.
 - ONE `OxyProvider` from `@oxy.so/services` with a registered `clientId`; no app-local restore or sign-in screen.
+- An account without a key signs in inside the dialog by email code or link, optional password, optional TOTP; no passkey, no auth.oxy.so window but the bridge — docs/adr/0030
+- Passwords only through `password.service.ts` (scrypt); TOTP secrets sealed by `secretBox`, backup codes HMAC'd; never logged or returned — auth-and-identity.md#accounts-without-a-key--email-code-password-authenticator-adr-0030
+- Password, TOTP, Commons link and deletion need a fresh `reauth` for that action (password or emailed code, + TOTP) — docs/adr/0030
 - App backends use `@oxy.so/core/server`; no local auth middleware; socket rooms from `socket.user.id`.
 - App backend clients use `oxyServices.createLinkedClient({ baseURL })`; no local token plumbing.
 - Never `new Model(req.body)` or spread `req.body` into an update; whitelist fields.

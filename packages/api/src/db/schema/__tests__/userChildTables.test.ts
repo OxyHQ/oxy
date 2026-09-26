@@ -277,7 +277,7 @@ describe('user_ancestors — the materialized path', () => {
 });
 
 describe('user_auth_methods', () => {
-  it('requires the identifier its own type is addressed by', async () => {
+  it('requires the key an identity method is addressed by, and knows no other type', async () => {
     const userId = await insertUser();
 
     const noKey = await rejection(
@@ -285,18 +285,14 @@ describe('user_auth_methods', () => {
     );
     expect(pgErrorCode(noKey)).toBe(CHECK_VIOLATION);
 
-    const noCredential = await rejection(
-      getDb().insert(userAuthMethods).values({ userId, type: 'webauthn' })
+    // Passkeys are gone (ADR 0030): the type check admits `identity` only.
+    const passkey = await rejection(
+      getDb().execute(sql`
+        insert into user_auth_methods (id, user_id, type, method_public_key)
+        values (${randomUUID()}, ${userId}, 'webauthn', ${`04${unique()}`})
+      `)
     );
-    expect(pgErrorCode(noCredential)).toBe(CHECK_VIOLATION);
-
-    // An identity key does not satisfy a webauthn row, and vice versa.
-    const wrongIdentifier = await rejection(
-      getDb()
-        .insert(userAuthMethods)
-        .values({ userId, type: 'webauthn', methodPublicKey: `04${unique()}` })
-    );
-    expect(pgErrorCode(wrongIdentifier)).toBe(CHECK_VIOLATION);
+    expect(pgErrorCode(passkey)).toBe(CHECK_VIOLATION);
   });
 
   it('binds one identity key to one account, case-insensitively', async () => {
@@ -315,17 +311,6 @@ describe('user_auth_methods', () => {
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
 
-  it('lets one account carry several passkeys', async () => {
-    const userId = await insertUser();
-    await expect(
-      getDb()
-        .insert(userAuthMethods)
-        .values([
-          { userId, type: 'webauthn', methodCredentialId: unique(), methodName: 'Laptop' },
-          { userId, type: 'webauthn', methodCredentialId: unique(), methodName: 'Phone' },
-        ])
-    ).resolves.toBeDefined();
-  });
 });
 
 describe('user_verified_domains', () => {

@@ -1,6 +1,7 @@
 # ADR 0029 — One Oxy session: the dialog in every app, auth.oxy.so's window on the web
 
 - Status: accepted; D1, D2 and D3 are implemented (the web account — username, passkey, recovery email — its recovery by email, its deletion with the passkey, and linking Commons from two devices; the browser bridge that shares one session across every Oxy web app); D4 is being built in follow-up changes
+- Superseded in part by [ADR 0030](0030-email-code-password-authenticator.md) (2026-09-26): D1 — an app signs in inside its own dialog and opens no auth.oxy.so window except the bridge (D2); D3 — an account without a key signs in by email (code or link), an optional password and an optional authenticator; there is no passkey. D2 and D4 still bind.
 - Date: 2026-09-26
 - Decided by: the owner (product direction), recorded here
 - Changes: ADR 0028 D1b (Oxy apps went to auth.oxy.so in the same tab);

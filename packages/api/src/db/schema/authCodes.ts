@@ -78,8 +78,7 @@ export const authCodes = pgTable(
     /**
      * Scopes bound at issue time. `NOT NULL DEFAULT '{}'` because Mongoose
      * declared `default: []` — an empty list is a VALUE here ("no scopes"), not
-     * an absence, which is the distinction `webauthn_credentials.transports`
-     * makes in the other direction.
+     * an absence.
      */
     scopes: text().array().notNull().default([]),
     /** Threads the exchange onto the originating device. Not a row id. */

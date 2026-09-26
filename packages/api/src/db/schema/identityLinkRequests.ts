@@ -1,10 +1,10 @@
 /**
- * `identity_link_requests` — the relay for linking Commons to a passkey account
- * (ADR 0029 D3).
+ * `identity_link_requests` — the relay for linking Commons to an account that
+ * has no key yet (ADR 0029 D3, ADR 0030).
  *
- * auth.oxy.so opens one for its signed-in account; Commons, on another device,
- * posts the root proof it signed over the request's challenge; auth.oxy.so
- * completes it with a passkey assertion over the same challenge, in the
+ * The signed-in app opens one for its account; Commons, on another device,
+ * posts the root proof it signed over the request's challenge; the app
+ * completes it with a code just sent to the account's email, in the
  * transaction that links the root (`services/identityLink.service.ts`).
  *
  * The challenge itself is never stored: `challenge_hash` is its SHA-256, and
@@ -26,7 +26,7 @@ export const identityLinkRequests = pgTable(
   {
     id: generatedId(),
     linkId: text().notNull(),
-    /** The passkey account being linked. `CASCADE`: nothing to link once it is gone. */
+    /** The account being linked. `CASCADE`: nothing to link once it is gone. */
     userId: text()
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),

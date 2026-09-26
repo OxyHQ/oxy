@@ -1,5 +1,5 @@
 /**
- * The primitives under sign-in without a passkey: the password hash, RFC 6238
+ * The primitives under sign-in: the password hash, RFC 6238
  * TOTP, and the sealed box the TOTP secret is stored in.
  */
 

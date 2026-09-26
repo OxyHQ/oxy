@@ -2,7 +2,7 @@
  * "How you sign in" for an account WITHOUT a key: its email, the optional
  * password, the authenticator app, and linking Commons — each row opening the
  * SDK's own panel. A Commons account gets none of them (it signs in with its
- * key). Passkeys are gone from here.
+ * key).
  */
 import { renderHook } from '@testing-library/react';
 import type { SignInMethods } from '@oxy.so/contracts';
@@ -41,7 +41,6 @@ describe('useSignInMethodItems', () => {
     const { result } = renderHook(() => useSignInMethodItems());
     const ids = result.current.map((item) => item.id);
     expect(ids).toEqual(['email-sign-in', 'password', 'authenticator', 'link-commons']);
-    expect(ids.some((id) => id.includes('passkey'))).toBe(false);
 
     const [email, password, authenticator, linkCommons] = result.current;
     expect(email.subtitle).toBe('ada@example.com');

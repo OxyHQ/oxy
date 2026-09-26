@@ -8,6 +8,8 @@
 
 > **Addendum — issue #937 (2026-08-11), posterior al cierre y al addendum de #691: la sección [§ Comportamiento esperado en el switcher](#comportamiento-esperado-en-el-switcher) de este plan está SUPERSEDIDA.** El switcher ya no carga «device sessions + account graph en paralelo» ni los une en el cliente: lee UNA petición, `GET /session/device/directory`, y selecciona un par `principal actuando como cuenta` con `activateContext(contextId)`. La unión cliente no era sólo trabajo redundante — un cliente sólo tiene el grafo de UN llamante y no puede enumerar el de otro principal, así que en un dispositivo con dos personas presentaba las cuentas de una como las del dispositivo, y decidía en cliente una pregunta de autorización. `switchToAccount` sobrevive para superficies que renderizan `AccountNode` (el switcher de workspaces de la Console, managed accounts), pero no es lo que llama el diálogo de cuenta. Los enlaces a `AccountSwitcher.tsx` y `AccountMember.ts` de esa sección apuntan a ficheros que ya no existen. Fuente viva: [`docs/adr/0001`](../adr/0001-multi-principal-device-model.md), [`docs/adr/0002`](../adr/0002-global-account-context.md) y [`docs/auth/index.md`](../auth/index.md).
 
+> **Addendum — ADR 0030 (2026-09-26):** el passkey desaparece de toda la plataforma y la Fase 5 de #691 («sin contraseña», QR/passkey tras "Having trouble?") queda superada: dentro del diálogo de cada app se entra con email (código de 6 dígitos o enlace que sólo aprueba el mismo navegador), contraseña opcional y authenticator opcional; Commons sigue siendo la vía oficial. Fuente viva: [`docs/adr/0030`](../adr/0030-email-code-password-authenticator.md).
+
 ---
 
 ## Briefing para el agente implementador

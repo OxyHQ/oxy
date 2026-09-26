@@ -92,7 +92,7 @@ export function selectSecurityRecommendations(
     recommendations.push({ id: 'biometric', priority: 1 });
   }
 
-  // 2. A passkey account can hold its own key (medium priority).
+  // 2. An account without a key can hold its own (medium priority).
   if (input.rootStatus && !input.rootStatus.rootLinked) {
     recommendations.push({ id: 'link-commons', priority: 2 });
   }

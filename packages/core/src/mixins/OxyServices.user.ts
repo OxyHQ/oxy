@@ -757,41 +757,6 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
 
 
     /**
-     * @deprecated The API no longer deletes an account with a passkey (security
-     * review of #1421); this endpoint is gone. Use
-     * {@link deleteAccountWithEmailCode}. Removed with passkeys.
-     *
-     * WebAuthn request options to delete a PASSKEY account (ADR 0029 D3): its own
-     * passkeys, user verification required, and a challenge bound to it. Opaque —
-     * hand them to the browser's authentication ceremony, on auth.oxy.so. An
-     * account with a Commons key deletes with {@link deleteAccount} instead.
-     */
-    async getAccountDeletionOptions(): Promise<unknown> {
-      try {
-        return await this.makeRequest<unknown>('POST', '/users/me/delete/options', undefined, { cache: false });
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
-     * @deprecated Refused by the API. Use {@link deleteAccountWithEmailCode}.
-     *
-     * Delete a PASSKEY account permanently, with an assertion by one of its
-     * passkeys over {@link getAccountDeletionOptions}' challenge.
-     *
-     * @param confirmText - Must equal the user's username (verified server-side)
-     * @param assertion - The ceremony's opaque `AuthenticationResponseJSON`
-     */
-    async deleteAccountWithPasskey(confirmText: string, assertion: unknown): Promise<{ message: string }> {
-      try {
-        return await this.makeRequest<{ message: string }>('DELETE', '/users/me', { confirmText, assertion }, { cache: false });
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
      * Delete an account WITHOUT a key permanently, confirmed with a code just
      * sent to its email (`requestReauthEmailCode`) — plus its authenticator
      * code when it has one.

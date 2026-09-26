@@ -2,7 +2,7 @@
  * The "Having trouble?" progressive disclosure (issue #691, Phase 5).
  *
  * The normal sign-in surface presents ONE primary action. Every alternative —
- * scanning a QR from another device, a passkey on this device, getting Commons,
+ * scanning a QR from another device, getting Commons,
  * creating an account — lives here, hidden until the user asks for it or the
  * chosen primary route fails.
  *

@@ -18,7 +18,6 @@ import { blocks } from '../blocks';
 import { labels } from '../labels';
 import { pushTokens } from '../pushTokens';
 import { users } from '../users';
-import { webauthnCredentials } from '../webauthnCredentials';
 
 /** Postgres `unique_violation`. */
 const UNIQUE_VIOLATION = '23505';
@@ -202,74 +201,6 @@ describe('closed value sets — text + CHECK, not a pg enum', () => {
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
-  });
-});
-
-describe('webauthn_credentials — Buffer becomes bytea', () => {
-  it('round-trips raw bytes, including 0x00 and the high half', async () => {
-    const key = Buffer.from([0x00, 0x01, 0x7f, 0x80, 0xfe, 0xff, 0x00]);
-    const credentialID = `cred-${randomUUID()}`;
-
-    await getDb().insert(webauthnCredentials).values({
-      userId: await owner(),
-      credentialID,
-      credentialPublicKey: key,
-      deviceType: 'multiDevice',
-      name: 'Test key',
-    });
-
-    const [row] = await getDb()
-      .select()
-      .from(webauthnCredentials)
-      .where(eq(webauthnCredentials.credentialID, credentialID));
-
-    expect(Buffer.isBuffer(row.credentialPublicKey)).toBe(true);
-    expect(row.credentialPublicKey.equals(key)).toBe(true);
-  });
-
-  it('keeps transports as a native array and distinguishes absent from empty', async () => {
-    const withHints = `cred-${randomUUID()}`;
-    const withoutHints = `cred-${randomUUID()}`;
-    const userId = await owner();
-
-    await getDb().insert(webauthnCredentials).values([
-      {
-        userId,
-        credentialID: withHints,
-        credentialPublicKey: Buffer.from([1]),
-        deviceType: 'singleDevice',
-        name: 'Security key',
-        transports: ['usb', 'nfc'],
-      },
-      {
-        userId,
-        credentialID: withoutHints,
-        credentialPublicKey: Buffer.from([2]),
-        deviceType: 'singleDevice',
-        name: 'Silent key',
-      },
-    ]);
-
-    const rows = await getDb()
-      .select()
-      .from(webauthnCredentials)
-      .where(eq(webauthnCredentials.userId, userId));
-    const hinted = rows.find((row) => row.credentialID === withHints);
-    const silent = rows.find((row) => row.credentialID === withoutHints);
-
-    expect(hinted?.transports).toEqual(['usb', 'nfc']);
-    expect(silent?.transports).toBeNull();
-  });
-
-  it('has no updated_at — the absence IS the append-only contract', async () => {
-    const rows = await getDb().execute<{ column_name: string }>(sql`
-      select column_name from information_schema.columns
-      where table_schema = 'public' and table_name = 'webauthn_credentials'
-    `);
-    const names = rows.map((row) => row.column_name);
-
-    expect(names).toContain('created_at');
-    expect(names).not.toContain('updated_at');
   });
 });
 

@@ -1,12 +1,10 @@
 /**
- * Linking Commons to a passkey account from two devices (ADR 0029 D3), through
- * the real `/identity/link` router, the real proof and challenge services and a
- * REAL Postgres.
+ * Linking Commons to an account without a key from two devices (ADR 0029 D3,
+ * ADR 0030), through the real `/identity/link` router, the real proof,
+ * challenge and re-verification services and a REAL Postgres.
  *
  * The root proof Commons posts is signed with a real secp256k1 key and verified
- * for real. `@simplewebauthn/server`'s assertion verifier is mocked at the
- * module boundary so the test drives its RESULT; the challenge, the origin and
- * which account owns the credential are checked for real.
+ * for real; the email code is read at the mail boundary.
  */
 
 process.env.DEVICE_ID_SALT = 'identity-link-test-device-id-salt-0123456789';
@@ -19,7 +17,6 @@ import { eq } from 'drizzle-orm';
 
 let currentUserId = '';
 let currentApplicationId: string | undefined;
-const mockVerifyAuthentication = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
@@ -46,10 +43,6 @@ jest.mock('../../services/accountEmail.mail', () => ({
   sendSecurityNotice: (...args: unknown[]) => mockSendSecurityNotice(...args),
 }));
 jest.mock('../../config/email.config', () => ({ SMTP_RELAYS: [{ name: 'test-relay' }] }));
-jest.mock('@simplewebauthn/server', () => ({
-  ...jest.requireActual('@simplewebauthn/server'),
-  verifyAuthenticationResponse: (...args: unknown[]) => mockVerifyAuthentication(...args),
-}));
 
 import { signIdentityProof } from '@oxy.so/core';
 import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
@@ -59,7 +52,6 @@ import { identityLinkRequests } from '../../db/schema/identityLinkRequests';
 import { applications } from '../../db/schema/applications';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
-import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
 import { errorHandler } from '../../middleware/errorHandler';
 import identityLinkRouter from '../identityLink';
 import { userTotp, userTotpBackupCodes } from '../../db/schema/userTotp';
@@ -102,36 +94,22 @@ afterAll(async () => {
 beforeEach(() => {
   mockSendReauthCode.mockReset().mockResolvedValue(undefined);
   mockSendSecurityNotice.mockReset().mockResolvedValue(undefined);
-  mockVerifyAuthentication.mockReset();
-  mockVerifyAuthentication.mockResolvedValue({ verified: true, authenticationInfo: { newCounter: 1, userVerified: true } });
 });
 
-/** A passkey account: a username, a recovery email with an outstanding code, one passkey. */
-async function passkeyAccount() {
+/** An account without a key: a username and an email with an outstanding sign-in code. */
+async function emailAccount() {
   const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
   const email = `link-${suffix}@example.test`;
   const [row] = await getDb().insert(users).values({ username: `link${suffix}`, email }).returning({ id: users.id, username: users.username });
-  const credentialId = `cred${suffix}`;
-  await getDb().insert(webauthnCredentials).values({
-    userId: row.id,
-    credentialID: credentialId,
-    credentialPublicKey: Buffer.from([1, 2, 3]),
-    counter: 0,
-    deviceType: 'multiDevice',
-    backedUp: true,
-    userVerified: true,
-    name: 'Laptop',
-  });
-  await getDb().insert(userAuthMethods).values({ userId: row.id, type: 'webauthn', methodCredentialId: credentialId, methodName: 'Laptop' });
   await getDb().insert(emailVerifications).values({
-    purpose: 'recovery',
+    purpose: 'signin',
     emailHash: 'ab'.repeat(32),
     userId: row.id,
     codeHash: 'cd'.repeat(32),
     expiresAt: new Date(Date.now() + 60_000),
   });
   currentUserId = row.id;
-  return { id: row.id, username: row.username as string, email, credentialId };
+  return { id: row.id, username: row.username as string, email };
 }
 
 function commonsKey() {
@@ -156,19 +134,6 @@ async function commonsProof(linkId: string, challenge: string, key = commonsKey(
   return { key, body: { publicKey: key.publicKey, proof } };
 }
 
-function assertion(credentialId: string, challengeHex: string, origin = AUTH_ORIGIN) {
-  const clientDataJSON = Buffer.from(
-    JSON.stringify({ type: 'webauthn.get', challenge: Buffer.from(challengeHex, 'hex').toString('base64url'), origin }),
-  ).toString('base64url');
-  return {
-    id: credentialId,
-    rawId: credentialId,
-    type: 'public-key',
-    response: { clientDataJSON, authenticatorData: 'AAAA', signature: 'AAAA' },
-    clientExtensionResults: {},
-  };
-}
-
 async function open() {
   const res = await call('POST', '/');
   expect(res.status).toBe(200);
@@ -189,7 +154,7 @@ async function reauthCode(userId: string, action: 'link_commons' | 'delete_accou
 
 describe('linking Commons from two devices', () => {
   it('links the key Commons signed with, once the email code confirms — and deletes the email', async () => {
-    const account = await passkeyAccount();
+    const account = await emailAccount();
     const link = await open();
     expect(link.qrPayload).toBe(`oxycommons://link?id=${link.linkId}&c=${link.challenge}`);
 
@@ -212,7 +177,7 @@ describe('linking Commons from two devices', () => {
     expect((await call('GET', `/${link.linkId}`, undefined, null)).body.status).toBe('completed');
   });
   it('takes the first proof only: a second key cannot replace it', async () => {
-    await passkeyAccount();
+    await emailAccount();
     const link = await open();
     expect((await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, link.challenge)).body, null)).status).toBe(200);
 
@@ -221,7 +186,7 @@ describe('linking Commons from two devices', () => {
   });
 
   it('refuses a proof over another challenge, and a key another account holds', async () => {
-    await passkeyAccount();
+    await emailAccount();
     const link = await open();
     const wrong = await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, 'ef'.repeat(32))).body, null);
     expect(wrong.status).toBe(401);
@@ -233,30 +198,29 @@ describe('linking Commons from two devices', () => {
     expect(res.body.error).toBe('IDENTITY_ROOT_LINKED_ELSEWHERE');
   });
 
-  it('links nothing on a passkey assertion, from any origin — a passkey no longer confirms a link', async () => {
-    const account = await passkeyAccount();
+  it('links nothing without the email code', async () => {
+    const account = await emailAccount();
     const link = await open();
     await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, link.challenge)).body, null);
 
-    const res = await call('POST', `/${link.linkId}/complete`, { assertion: assertion(account.credentialId, link.challenge) });
+    const res = await call('POST', `/${link.linkId}/complete`, { assertion: { id: 'c'.repeat(20) } });
 
     expect(res.status).toBe(400);
-    expect(mockVerifyAuthentication).not.toHaveBeenCalled();
     expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
     expect((await call('GET', `/${link.linkId}`, undefined, null)).body.status).toBe('signed');
   });
   it('answers only the account that opened the request', async () => {
-    const owner = await passkeyAccount();
+    const owner = await emailAccount();
     const link = await open();
     await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, link.challenge)).body, null);
 
-    const intruder = await passkeyAccount();
+    const intruder = await emailAccount();
     const res = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: await reauthCode(intruder.id) } });
     expect(res.status).toBe(404);
     expect(await storedUser(owner.id)).toEqual({ publicKey: null, email: owner.email });
   });
   it('withdraws a request, and forgets an expired one', async () => {
-    await passkeyAccount();
+    await emailAccount();
     const link = await open();
     expect((await call('DELETE', `/${link.linkId}`)).status).toBe(200);
     expect((await call('GET', `/${link.linkId}`, undefined, null)).body.status).toBe('cancelled');
@@ -268,7 +232,7 @@ describe('linking Commons from two devices', () => {
   });
 
   it('opens a request only from an official app, for an account without a root that can confirm it', async () => {
-    const account = await passkeyAccount();
+    const account = await emailAccount();
     expect((await call('POST', '/', undefined, 'https://third-party.example')).status).toBe(403);
 
     await getDb().update(users).set({ publicKey: commonsKey().publicKey }).where(eq(users.id, account.id));
@@ -279,14 +243,14 @@ describe('linking Commons from two devices', () => {
     currentUserId = emailOnly.id;
     expect((await call('POST', '/')).status).toBe(200);
 
-    // …but with neither an email nor a passkey there is nothing to confirm with.
+    // …but without an email there is nothing to confirm with.
     const [bare] = await getDb().insert(users).values({ username: `bare${randomUUID().slice(0, 8)}` }).returning({ id: users.id });
     currentUserId = bare.id;
     expect((await call('POST', '/')).status).toBe(401);
   });
 
   it('withdraws an earlier open request when a new one opens', async () => {
-    await passkeyAccount();
+    await emailAccount();
     const first = await open();
     await open();
     expect((await call('GET', `/${first.linkId}`, undefined, null)).body.status).toBe('cancelled');
@@ -294,7 +258,7 @@ describe('linking Commons from two devices', () => {
 
   describe('confirmed with a code sent to the email', () => {
     async function signedLink() {
-      const account = await passkeyAccount();
+      const account = await emailAccount();
       const link = await open();
       const { key, body } = await commonsProof(link.linkId, link.challenge);
       expect((await call('POST', `/${link.linkId}/proof`, body, null)).status).toBe(200);
@@ -353,7 +317,7 @@ describe('linking Commons from two devices', () => {
 
     it('refuses a code sent to another account', async () => {
       const { account, link } = await signedLink();
-      const other = await passkeyAccount();
+      const other = await emailAccount();
       const othersCode = await reauthCode(other.id);
       currentUserId = account.id;
       const res = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: othersCode } });

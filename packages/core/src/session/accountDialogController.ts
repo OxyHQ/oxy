@@ -37,10 +37,10 @@
  *     (native only, via the injected `canOpenApp` probe), so the QR view can
  *     offer a "Get Commons" fallback instead of a same-device dead end.
  *
- * Sign-in is passkey (WebAuthn) or the Commons QR / shared-keychain handoff —
- * password, social login, and 2FA were removed ecosystem-wide. Account
- * creation (`signup` view) is the same two identity backends: a passkey
- * ceremony on web, or a Commons-created identity.
+ * Sign-in is by email (a code or a link), an optional password and an
+ * optional authenticator, or the Commons QR / shared-keychain handoff. Account
+ * creation (`signup` view) is a username and a confirmed email, or a
+ * Commons-created identity.
  *
  * The controller owns NO surface PRESENTATION: whether the account dialog is
  * mounted, visible, or dismissed is the job of the shared surface stack
@@ -755,7 +755,7 @@ export class AccountDialogController {
     this.setView('add');
   }
 
-  /** Switch to the "create account" view (passkey / Commons signup entry). */
+  /** Switch to the "create account" view (email / Commons signup entry). */
   startSignup(): void {
     this.setView('signup');
   }

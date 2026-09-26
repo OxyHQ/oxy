@@ -21,7 +21,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "description": "User session JWT obtained from /auth/verify, /auth/webauthn/login/verify, /auth/oauth/token, or POST /session/device/token. Send as `Authorization: Bearer <token>`."
+        "description": "User session JWT obtained from /auth/verify, /auth/signin/*, /auth/signup, /auth/oauth/token, or POST /session/device/token. Send as `Authorization: Bearer <token>`."
       },
       "serviceTokenAuth": {
         "type": "http",
@@ -274,7 +274,7 @@
       },
       "AuthSuccess": {
         "type": "object",
-        "description": "Successful authentication response from /auth/verify, /auth/webauthn/login/verify, or /auth/oauth/token.",
+        "description": "Successful authentication response from /auth/verify, /auth/signin/*, /auth/signup, or /auth/oauth/token.",
         "properties": {
           "user": {
             "$ref": "#/components/schemas/User"
@@ -6796,7 +6796,7 @@
           "Authentication"
         ],
         "summary": "Link a root (`publicKey`) to a personal account that has NONE — first link only",
-        "description": "(ADR 0024 D8). Both factors in one request; linking Commons from another device\nrelays them through `routes/identityLink.ts`. Either way `linkRootToAccount`.\n\n- An account whose root is this key: idempotent with a root proof, and heals a\n  missing `identity` method row.\n- An account with a DIFFERENT root: 409. Replacing a root is\n  `POST /auth/rotate/*`, which needs the old root's proof too.\n- A keyless account: refused here. Its first link goes through\n  `routes/identityLink.ts`, confirmed by a code sent to its email (plus its\n  authenticator); a passkey assertion no longer confirms it, and a bearer\n  plus a key generated a moment ago is not authority.",
+        "description": "(ADR 0024 D8). Both factors in one request; linking Commons from another device\nrelays them through `routes/identityLink.ts`. Either way `linkRootToAccount`.\n\n- An account whose root is this key: idempotent with a root proof, and heals a\n  missing `identity` method row.\n- An account with a DIFFERENT root: 409. Replacing a root is\n  `POST /auth/rotate/*`, which needs the old root's proof too.\n- A keyless account: refused here. Its first link goes through\n  `routes/identityLink.ts`, confirmed by a code sent to its email (plus its\n  authenticator); a bearer plus a key generated a moment ago is not\n  authority.",
         "parameters": [],
         "responses": {
           "200": {
@@ -6884,70 +6884,6 @@
                       "expiresAt",
                       "signature"
                     ]
-                  },
-                  "assertion": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "pattern": "^[A-Za-z0-9_-]+$",
-                        "minLength": 16,
-                        "maxLength": 1024
-                      },
-                      "rawId": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 2048
-                      },
-                      "type": {
-                        "type": "string",
-                        "enum": [
-                          "public-key"
-                        ]
-                      },
-                      "response": {
-                        "type": "object",
-                        "properties": {
-                          "clientDataJSON": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 8192
-                          },
-                          "authenticatorData": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 8192
-                          },
-                          "signature": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 2048
-                          },
-                          "userHandle": {
-                            "type": "string",
-                            "maxLength": 2048
-                          }
-                        },
-                        "required": [
-                          "clientDataJSON",
-                          "authenticatorData",
-                          "signature"
-                        ]
-                      },
-                      "clientExtensionResults": {
-                        "type": "object",
-                        "additionalProperties": {}
-                      },
-                      "authenticatorAttachment": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "rawId",
-                      "type",
-                      "response"
-                    ]
                   }
                 },
                 "required": [
@@ -6960,77 +6896,6 @@
           }
         },
         "operationId": "postAuthLink"
-      }
-    },
-    "/auth/link/webauthn/{credentialID}": {
-      "delete": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "Unlink ONE passkey (by its public credential id) from the current account.",
-        "description": "Passkeys are per-credential, so this needs the specific id rather than the\ngeneric per-type unlink. Removes the `user_auth_methods` row AND the\n`webauthn_credentials` row, keeping at least one usable auth method overall.\nA third-party token is refused (`requireFirstPartyForChanges`).",
-        "parameters": [
-          {
-            "name": "credentialID",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/authLinking.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "operationId": "deleteAuthLinkWebauthnCredentialID"
       }
     },
     "/auth/lookup/{username}": {
@@ -7069,7 +6934,7 @@
           "Authentication"
         ],
         "summary": "Get the account DID and all linked authentication methods for the current",
-        "description": "user, shaped to the `authMethodsResponseSchema` contract. Identity methods\ncarry their DID verification-method id (`#key-1`); passkeys carry none.",
+        "description": "user, shaped to the `authMethodsResponseSchema` contract. The identity\nmethod carries its DID verification-method id (`#key-1`).",
         "parameters": [],
         "responses": {
           "200": {
@@ -8055,7 +7920,7 @@
           "Authentication"
         ],
         "summary": "Bearer-authed sibling of `POST /session/authorize/:sessionToken`, keyed on",
-        "description": "the PUBLIC `authorizeCode` instead of the secret `sessionToken` — for an\napprover that authenticates via bearer token (e.g. a passkey ceremony) but,\nunlike the Oxy Accounts app, never holds the secret. This lets the caller\ncarry ONLY the public code (safe in a URL); the secret `sessionToken` never\nhas to leave the originating client. The authenticated principal (bearer)\nis the sole source of \"who is authorising\" — mirrors `/session/authorize`.\n\nThe claim + mint live in `authorizeSessionWithBearer` (atomic, see its\ndoc) so two concurrent authorizes of the same code can't both mint a\nsession — the route only resolves the bearer identity and maps the\noutcome to a status code.",
+        "description": "the PUBLIC `authorizeCode` instead of the secret `sessionToken` — for an\napprover that authenticates via bearer token (e.g. the auth.oxy.so sign-in page) but,\nunlike the Oxy Accounts app, never holds the secret. This lets the caller\ncarry ONLY the public code (safe in a URL); the secret `sessionToken` never\nhas to leave the originating client. The authenticated principal (bearer)\nis the sole source of \"who is authorising\" — mirrors `/session/authorize`.\n\nThe claim + mint live in `authorizeSessionWithBearer` (atomic, see its\ndoc) so two concurrent authorizes of the same code can't both mint a\nsession — the route only resolves the bearer identity and maps the\noutcome to a status code.",
         "parameters": [
           {
             "name": "authorizeCode",
@@ -34934,7 +34799,7 @@
           "Users"
         ],
         "summary": "Permanently delete the current account",
-        "description": "Hard-delete the authenticated user's account. The person proves it is them at the time of deletion with the account's own factor: an account with a Commons key signs `delete:{publicKey}:{timestamp}` with it (see `KeyManager.sign` in `@oxy.so/core`), rejected if older than 5 minutes (plus `totpCode` if it has an authenticator); an account without a key sends `reauth` — the code `POST /users/me/reauth/email` (action `delete_account`) just sent to its email, plus its authenticator code when it has one. A passkey no longer confirms a deletion, and a third-party application's token is refused. Either way the confirmation text must match the account's username.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user, and records an `account.deleted` event that tells every relying application to erase what it holds for this account (pushed as a signed webhook and served from `/internal/account-events`; see docs/identity/account-events.md).\n",
+        "description": "Hard-delete the authenticated user's account. The person proves it is them at the time of deletion with the account's own factor: an account with a Commons key signs `delete:{publicKey}:{timestamp}` with it (see `KeyManager.sign` in `@oxy.so/core`), rejected if older than 5 minutes (plus `totpCode` if it has an authenticator); an account without a key sends `reauth` — the code `POST /users/me/reauth/email` (action `delete_account`) just sent to its email, plus its authenticator code when it has one. A third-party application's token is refused. Either way the confirmation text must match the account's username.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user, and records an `account.deleted` event that tells every relying application to erase what it holds for this account (pushed as a signed webhook and served from `/internal/account-events`; see docs/identity/account-events.md).\n",
         "requestBody": {
           "required": true,
           "content": {

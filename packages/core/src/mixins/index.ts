@@ -109,7 +109,7 @@ type MixinFunction = (Base: new (...args: unknown[]) => OxyServicesBase) => new 
 const MIXIN_PIPELINE: MixinFunction[] = [
     // Base authentication
     OxyServicesAuthMixin,
-    // Email, password, authenticator and sign-up (no passkey)
+    // Email, password, authenticator and sign-up
     OxyServicesSignInMixin,
 
     // User management (requires auth)

@@ -39,7 +39,6 @@ import {
 } from '../securityActivities';
 import { sessions } from '../sessions';
 import { users } from '../users';
-import { webauthnChallenges } from '../webauthnChallenges';
 
 /** Postgres `unique_violation`. */
 const UNIQUE_VIOLATION = '23505';
@@ -55,7 +54,6 @@ const CLUSTER_TABLES = [
   authSessions,
   deviceSessions,
   deviceSessionAccounts,
-  webauthnChallenges,
   identityBackups,
   identityBindings,
   domainVerifications,
@@ -66,7 +64,6 @@ const CLUSTER_TABLES = [
 /** Tables of this batch that had a Mongo TTL index, and what it replaced. */
 const EXPECTED_SWEEP_RETENTIONS: ReadonlyArray<readonly [string, number]> = [
   ['sessions', 0],
-  ['webauthn_challenges', 0],
   ['domain_verifications', 0],
   ['civic_nonces', 600],
   ['auth_sessions', 3600],
@@ -633,7 +630,7 @@ describe('expiry registry — every Mongo TTL index in this batch', () => {
       expect([table, registered.get(table)]).toEqual([table, retentionSeconds]);
     }
     // Vacuity floor: a broken lookup above would compare undefined to undefined.
-    expect(EXPECTED_SWEEP_RETENTIONS).toHaveLength(7);
+    expect(EXPECTED_SWEEP_RETENTIONS).toHaveLength(6);
   });
 
   it('has a supporting btree index on every swept column of this batch', async () => {
@@ -965,7 +962,7 @@ describe('domain_verifications — one live challenge per (user, domain)', () =>
   });
 });
 
-describe('civic_nonces and webauthn_challenges — single-use, unforgeably', () => {
+describe('civic_nonces — single-use, unforgeably', () => {
   it('refuses a replayed civic nonce', async () => {
     const nonceHash = `nonce-${randomUUID()}`;
     await getDb().insert(civicNonces).values({
@@ -987,30 +984,6 @@ describe('civic_nonces and webauthn_challenges — single-use, unforgeably', () 
     expect(pgErrorText(error)).toContain('civic_nonces_nonce_hash_key');
   });
 
-  it('binds a WebAuthn ceremony to an account only when there is one', async () => {
-    const userId = await owner();
-    await getDb().insert(webauthnChallenges).values([
-      {
-        challenge: `c-${randomUUID()}`,
-        type: 'authentication',
-        expiresAt: new Date(Date.now() + 300_000),
-      },
-      {
-        challenge: `c-${randomUUID()}`,
-        type: 'registration',
-        userId,
-        expiresAt: new Date(Date.now() + 300_000),
-      },
-    ]);
-
-    const bound = await getDb()
-      .select({ used: webauthnChallenges.used })
-      .from(webauthnChallenges)
-      .where(eq(webauthnChallenges.userId, userId));
-
-    // NULL `user_id` is the discoverable-login case, not a missing value.
-    expect(bound).toEqual([{ used: false }]);
-  });
 });
 
 describe('auth_codes', () => {

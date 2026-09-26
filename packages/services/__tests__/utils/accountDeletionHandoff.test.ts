@@ -95,7 +95,7 @@ describe('runAccountDeletionHandoff', () => {
     expect(confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         title: '[deleteAccount.handoff.elsewhereTitle]',
-        description: '[deleteAccount.handoff.elsewhereMessage|auth.oxy.so/delete-account]',
+        description: '[deleteAccount.handoff.elsewhereMessage]',
         confirmLabel: '[deleteAccount.handoff.gotIt]',
         hideCancel: true,
       }),
@@ -133,6 +133,5 @@ describe('runAccountDeletionHandoff', () => {
     const options = confirm.mock.calls[0]?.[0] as { title: string; description: string };
     expect(options.title).toBe('Delete your account where your identity is');
     expect(options.description).toContain('Settings > Delete account');
-    expect(options.description).toContain('auth.oxy.so/delete-account');
   });
 });

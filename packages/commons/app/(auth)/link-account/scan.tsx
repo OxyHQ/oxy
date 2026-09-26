@@ -10,7 +10,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { useTranslation } from '@/lib/i18n';
 
 /**
- * Scan the code auth.oxy.so/link-commons shows, to link that web account to
+ * Scan the code Security > Link Commons shows, to link that web account to
  * this phone (ADR 0029 D3).
  *
  * Lives in the `(auth)` flow, not `(scan)`: the person has no identity on this

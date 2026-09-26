@@ -1,13 +1,14 @@
 /**
- * The mail a recovery email receives (ADR 0029 D3): a verification code, or —
- * when someone tries to create an account with an address that already has
- * one — a notice pointing at recovery instead of a code. Plain text and a
- * minimal HTML part, from `noreply@`.
+ * The mail an account's email receives (ADR 0030): a sign-up code, or — when
+ * someone tries to create an account with an address that already has one — a
+ * notice pointing at sign-in instead of a code; a sign-in code and link; a
+ * re-verification code; and security notices. Plain text and a minimal HTML
+ * part, from `noreply@`.
  *
  * The relay is loaded on first send: `smtp.outbound` pulls in the mailbox and
  * attachment stack, which the routes that only mint codes have no use for.
  */
-import type { EmailVerificationPurpose, ReauthAction } from '@oxy.so/contracts';
+import type { ReauthAction } from '@oxy.so/contracts';
 import { getAuthWebOrigin } from '../config/env';
 
 async function sendSystem(message: { to: string; subject: string; text: string; html: string }): Promise<void> {
@@ -34,18 +35,13 @@ function htmlPage(paragraphs: string[], code?: string): string {
   );
 }
 
-/** The 6-digit code for a sign-up or a recovery. */
-export async function sendVerificationCode(to: string, code: string, purpose: EmailVerificationPurpose): Promise<void> {
-  const subject = purpose === 'signup' ? `${code} is your Oxy code` : `${code} is your Oxy recovery code`;
-  const lead =
-    purpose === 'signup'
-      ? 'Enter this code to confirm the email of your new Oxy account:'
-      : 'Enter this code to get back into your Oxy account and add a new passkey:';
+/** The 6-digit code that confirms a new account's email. */
+export async function sendVerificationCode(to: string, code: string): Promise<void> {
+  const subject = `${code} is your Oxy code`;
+  const lead = 'Enter this code to confirm the email of your new Oxy account:';
   const tail = [
     'It expires in 10 minutes.',
-    purpose === 'signup'
-      ? "If you didn't ask for it, you can ignore this email. No account is created without the code."
-      : "If you didn't ask for it, you can ignore this email: nobody gets into your account without the code.",
+    "If you didn't ask for it, you can ignore this email. No account is created without the code.",
   ];
   await sendSystem({
     to,

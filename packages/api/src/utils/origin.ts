@@ -58,23 +58,6 @@ export function isLoopbackOrigin(origin: string): boolean {
 }
 
 /**
- * True when `origin` belongs to the Oxy apex ecosystem — the `oxy.so` registrable
- * domain (`oxy.so` itself or any `*.oxy.so` subdomain over any scheme/port) OR a
- * loopback dev origin (see {@link isLoopbackOrigin}). This is the WebAuthn
- * `expectedOrigin` allow-set: a passkey minted with `WEBAUTHN_RP_ID=oxy.so` may be
- * used from any first-party Oxy web origin, and a `localhost` dev server may
- * exercise the ceremony locally. Fails closed: any unparseable origin, or a host
- * merely ending in the literal `oxy.so` without the dot boundary
- * (`notoxy.so`, `evil-oxy.so`), returns `false`.
- *
- * @example
- *   isOxyApexOrigin('https://accounts.oxy.so') // true
- *   isOxyApexOrigin('https://oxy.so')          // true
- *   isOxyApexOrigin('http://localhost:8081')   // true
- *   isOxyApexOrigin('https://evil-oxy.so')     // false
- *   isOxyApexOrigin('https://oxy.so.evil.com') // false
- */
-/**
  * True when the request carries browser context signals (`Origin` or
  * `Sec-Fetch-Site`). Native HTTP clients (OkHttp, URLSession, curl) send
  * neither; credentialed `fetch` in a browser always sends at least one.
@@ -95,26 +78,9 @@ export function isBrowserClient(
   return secFetchSite !== undefined;
 }
 
-export function isOxyApexOrigin(origin: string): boolean {
-  if (isLoopbackOrigin(origin)) {
-    return true;
-  }
-  const normalised = normaliseOrigin(origin);
-  if (normalised === null) {
-    return false;
-  }
-  let hostname: string;
-  try {
-    hostname = new URL(normalised).hostname.toLowerCase();
-  } catch {
-    return false;
-  }
-  return hostname === 'oxy.so' || hostname.endsWith('.oxy.so');
-}
-
 /**
- * auth.oxy.so (and loopback, in every environment): the one origin that creates
- * and recovers accounts and asserts the passkey (ADR 0029 D1, D3).
+ * auth.oxy.so (and loopback, in every environment): the identity origin that
+ * hosts the bridge, the OAuth pages and the email sign-in link (ADR 0030).
  */
 export function isAuthWebOrigin(origin: string): boolean {
   if (isLoopbackOrigin(origin)) {

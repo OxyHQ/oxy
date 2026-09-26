@@ -32,8 +32,8 @@ export const IDENTITY_PROOF_CHALLENGE_TTL_MS = 5 * 60 * 1000;
  */
 export const IDENTITY_PROOF_ACTIONS = {
     /**
-     * Link Commons' root to a passkey account that has none (`POST /auth/link`).
-     * The account becomes self-custodied and its recovery email is deleted
+     * Link Commons' root to an account that has none (`POST /auth/link`).
+     * The account becomes self-custodied and its email is deleted
      * (ADR 0029 D3).
      */
     link: 'link_identity',
@@ -182,7 +182,7 @@ export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[keyof typeof IDENT
 export interface IdentityRootStatus {
     /** Whether Commons' root is linked: the account is self-custodied. */
     rootLinked: boolean;
-    /** The recovery email of a passkey account; `null` once Commons is linked. */
+    /** The email of an account without a key; `null` once Commons is linked. */
     recoveryEmail: string | null;
 }
 

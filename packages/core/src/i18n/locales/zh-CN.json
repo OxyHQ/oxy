@@ -306,7 +306,7 @@
       "keyed": "此账户使用 Commons：请在 Oxy Commons 的“设置 > 删除账户”中用其密钥删除。"
     },
     "handoff": {
-      "elsewhereMessage": "删除账户需要你的身份密钥，而它不在此设备上。请在保存密钥的设备上打开 Oxy Commons，前往“设置 > 删除账户”。没有密钥的账户可在 {{site}} 的设置中删除。"
+      "elsewhereMessage": "删除账户需要你的身份密钥，而它不在此设备上。请在保存密钥的设备上打开 Oxy Commons，前往“设置 > 删除账户”。"
     }
   },
   "linkCommons": {

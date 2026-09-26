@@ -1,6 +1,7 @@
 # 0024 — One Oxy account: `auth.oxy.so` is the web entry, the root lives in user-controlled holders
 
 - Status: accepted; D1 and D2 changed by [ADR 0028](0028-the-identity-carrier-is-auth-oxy-so.md) (the holder is `auth.oxy.so`, `id.oxy.so` is gone); D3–D6 and D9 changed by [ADR 0029](0029-one-oxy-session.md) D3 (a web account is a username, a passkey and a recovery email: no web holder, no web phrase; Commons is the one holder of a root, and linking it deletes the recovery email)
+- Superseded in part by [ADR 0030](0030-email-code-password-authenticator.md) (2026-09-26): passkeys are removed; an account without a key signs in by email (code or link), an optional password and an optional authenticator. Every passkey line below, D2's RP ID and the "no password"/"no email" statements are history.
 - Issue: #1302 (coordinates with #937, #691, #1288–#1296, #1301)
 - Scope: web sign-in and account creation, the personal identity root, the web
   holder (`packages/id`), the identity envelope and move APIs, root link/unlink/

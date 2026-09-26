@@ -20,9 +20,11 @@ is four things in one Bun-workspaces monorepo:
    the client persists first-party (no cookies, no refresh-token family).
    Every web/native app restores its session through the shared SDK's
    device-first cold boot and stays in sync across apps via the
-   `session_state` socket event. `auth.oxy.so` is the third-party OAuth
-   authorize/consent IdP — it is not a relying party and not the session
-   authority.
+   `session_state` socket event. A person signs in inside each app's own
+   dialog — an email code or link, an optional password and authenticator, or
+   Commons ([ADR 0030](adr/0030-email-code-password-authenticator.md)).
+   `auth.oxy.so` is the third-party OAuth authorize/consent IdP and the browser
+   bridge — it is not a relying party and not the session authority.
 
 2. **A client SDK.** `@oxy.so/core` (platform-agnostic client, `SessionClient`,
    `/server` middleware), `@oxy.so/services` (the single UI SDK — `OxyProvider`

@@ -1,5 +1,5 @@
 /**
- * Signing in without a passkey, and how an account signs in.
+ * Signing in by email, password and authenticator, and how an account signs in.
  *
  * - Email: {@link startEmailSignIn} sends one email with a 6-digit code and a
  *   one-use link. The dialog keeps the returned `requestSecret` IN MEMORY and

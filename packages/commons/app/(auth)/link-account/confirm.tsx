@@ -29,9 +29,9 @@ type Step =
  * identity does, without registering a new account) and shows its recovery
  * phrase for the mandatory acknowledgement — before anything is linked, since
  * the signed-in account leaves onboarding at once. Then it signs the link proof
- * over the code's challenge and shows the 6-digit code auth.oxy.so shows for
- * that key. The person confirms there with their passkey; once the request
- * completes, this key signs in as the account.
+ * over the code's challenge and shows the 6-digit code the other screen shows
+ * for that key. The person confirms there with a code sent to the account's
+ * email; once the request completes, this key signs in as the account.
  */
 export default function LinkAccountConfirmScreen() {
   const router = useRouter();
@@ -84,7 +84,7 @@ export default function LinkAccountConfirmScreen() {
     [t],
   );
 
-  /** Sign the proof, show the code, wait for the passkey, sign in. */
+  /** Sign the proof, show the code, wait for the confirmation, sign in. */
   const finish = useCallback(async () => {
     if (!id || !c) return;
     setStep({ name: 'working' });

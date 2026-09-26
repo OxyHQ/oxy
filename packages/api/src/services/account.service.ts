@@ -1618,7 +1618,7 @@ export class AccountService {
    * ## Legality and availability are one question here
    *
    * Holds the request to `usernameSchema` — the SAME policy signup, public-key
-   * registration, webauthn and `PUT /users/me` apply. This path governs every
+   * registration, sign-up and `PUT /users/me` apply. This path governs every
    * managed account, and its own rule (`^[\w.-]+$`, dots, no length bound at
    * all) is how a bot could take a name no person could ask for, in the very same
    * unique index.

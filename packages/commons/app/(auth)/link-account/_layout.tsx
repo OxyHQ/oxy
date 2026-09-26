@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 
 /**
  * Linking an Oxy account made on the web to Commons (ADR 0029 D3): the intro,
- * the scan of auth.oxy.so's code, and the confirmation.
+ * the scan of the other screen's code, and the confirmation.
  */
 export default function LinkAccountLayout() {
   return (

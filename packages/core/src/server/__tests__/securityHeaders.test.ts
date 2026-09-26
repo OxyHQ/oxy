@@ -226,7 +226,7 @@ describe('@oxy.so/core/server buildOxyPagesHeaders on a sensitive origin (ADR 00
     expect(sensitive).toContain("base-uri 'none'");
     expect(sensitive).toContain("form-action 'none'");
     expect(sensitive).toContain('Referrer-Policy: no-referrer');
-    expect(sensitive).toContain('Permissions-Policy: publickey-credentials-get=(self), publickey-credentials-create=(self)');
+    expect(sensitive).toContain('Permissions-Policy: publickey-credentials-get=(), publickey-credentials-create=()');
     expect(sensitive).toContain('Cross-Origin-Resource-Policy: same-origin');
     // The third-party OAuth popup reports back to its opener: COOP would sever it.
     expect(sensitive).not.toContain('Cross-Origin-Opener-Policy');

@@ -31,7 +31,7 @@ interface ImportPhraseStepProps {
   onImportPrivateKey?: () => void;
   /**
    * Optional handler for "I have an Oxy account on the web": link that
-   * passkey account to this phone by scanning auth.oxy.so/link-commons.
+   * account to this phone by scanning its Security > Link Commons code.
    */
   onLinkWebAccount?: () => void;
   backgroundColor: string;

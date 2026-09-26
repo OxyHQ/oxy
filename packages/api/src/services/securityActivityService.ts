@@ -19,7 +19,7 @@
  * an account the trail stopped being written at all: sign-in, sign-out, email
  * change, device added, profile update — every one of them threw before
  * touching a table. Most callers `await` the helper inside a `try` that swallows
- * (`session.controller.ts`, `user.service.ts`, `webauthn.ts`), so the visible
+ * (`session.controller.ts`, `user.service.ts`), so the visible
  * symptom was an audit history that simply stayed empty; on
  * `POST /security/activity/{private-key-exported,backup-created}` the same throw
  * surfaced as an HTTP 500.

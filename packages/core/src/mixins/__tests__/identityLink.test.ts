@@ -1,5 +1,5 @@
 /**
- * Linking Commons to a passkey account (ADR 0029 D3): what each device sends.
+ * Linking Commons to an account without a key (ADR 0029 D3, ADR 0030): what each device sends.
  * `makeRequest` is stubbed; the proof Commons signs is verified for real.
  */
 import { buildIdentityProofMessage } from '@oxy.so/contracts';
@@ -67,22 +67,20 @@ describe('linking Commons', () => {
     expect(makeRequest).not.toHaveBeenCalled();
   });
 
-  it('the web opens, asks for the assertion options, completes and cancels', async () => {
+  it('the web opens, completes with an email code and cancels', async () => {
     makeRequest
       .mockResolvedValueOnce({ linkId: LINK_ID, challenge: CHALLENGE, expiresAt: 1, qrPayload: `oxycommons://link?id=${LINK_ID}&c=${CHALLENGE}` })
-      .mockResolvedValueOnce({ challenge: 'x' })
       .mockResolvedValueOnce({ success: true })
       .mockResolvedValueOnce({});
+    const reauth = { emailCode: { verificationId: 'v-1', code: '123456' } };
 
     await expect(oxy.createIdentityLink()).resolves.toMatchObject({ linkId: LINK_ID });
-    await oxy.getIdentityLinkAssertionOptions(LINK_ID, CHALLENGE);
-    await oxy.completeIdentityLink(LINK_ID, { id: 'cred' });
+    await oxy.completeIdentityLinkWithEmailCode(LINK_ID, reauth);
     await oxy.cancelIdentityLink(LINK_ID);
 
     expect(makeRequest.mock.calls.map(([method, path, body]) => [method, path, body])).toEqual([
       ['POST', '/identity/link', undefined],
-      ['POST', `/identity/link/${LINK_ID}/options`, { challenge: CHALLENGE }],
-      ['POST', `/identity/link/${LINK_ID}/complete`, { assertion: { id: 'cred' } }],
+      ['POST', `/identity/link/${LINK_ID}/complete`, { reauth }],
       ['DELETE', `/identity/link/${LINK_ID}`, undefined],
     ]);
   });

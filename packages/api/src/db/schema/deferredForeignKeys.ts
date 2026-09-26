@@ -87,12 +87,10 @@ import { transparencyCheckpointSnapshotEntries } from './transparencyCheckpoints
 import { usageReceipts } from './usageReceipts';
 import { usageRefunds } from './usageRefunds';
 import { usageReservations } from './usageReservations';
-import { userAuthMethods } from './userAuthMethods';
 import { userCredits } from './userCredits';
 import { userLocations } from './userLocations';
 import { users } from './users';
 import { validationRequests } from './validationRequests';
-import { webauthnCredentials } from './webauthnCredentials';
 
 /** An id-shaped column that will never carry a foreign key. */
 export interface IdColumnWithoutForeignKey {
@@ -105,7 +103,7 @@ export interface IdColumnWithoutForeignKey {
  * `users` landed, so every entry that owed it a constraint has been converted to
  * a real `.references()` and deleted from this list — `blocks.user_id`,
  * `blocks.blocked_id`, `bookmarks.user_id`, `push_tokens.user_id`,
- * `labels.user_id` and `webauthn_credentials.user_id`. What remains is owed to
+ * and `labels.user_id`. What remains is owed to
  * `applications`, which has not landed yet.
  */
 
@@ -206,13 +204,6 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'primary key of any row. Nothing to reference.',
   },
   {
-    table: webauthnCredentials,
-    column: webauthnCredentials.credentialID,
-    reason:
-      'The browser-supplied base64url WebAuthn credential handle. Id-shaped by ' +
-      'name only — it identifies an authenticator credential, not an Oxy row.',
-  },
-  {
     table: federationKeyPairs,
     column: federationKeyPairs.keyId,
     reason:
@@ -233,14 +224,6 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason:
       "`FederatedActor._id` in the CONSUMING app's database (Mention's), not " +
       'in this one. Oxy stores it and never resolves it.',
-  },
-  {
-    table: userAuthMethods,
-    column: userAuthMethods.methodCredentialId,
-    reason:
-      'The browser-supplied base64url WebAuthn credential handle, mirrored ' +
-      'from `webauthn_credentials.credential_id`. It identifies an ' +
-      'authenticator credential, not an Oxy row.',
   },
   {
     table: userLocations,

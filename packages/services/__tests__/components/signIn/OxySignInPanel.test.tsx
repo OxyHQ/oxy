@@ -224,8 +224,7 @@ describe('the entry — an email or username, and the Commons way in', () => {
     expect(screen.getByTestId('signin-identifier-continue')).toBeTruthy();
     expect(screen.getByTestId('create-account-link')).toBeTruthy();
     expect(screen.getByText('Terms of Service')).toBeTruthy();
-    // No passkey, no window, no recovery page.
-    expect(screen.queryByTestId('passkey-sign-in')).toBeNull();
+    // No window, no recovery page.
     expect(screen.queryByTestId('recover-link')).toBeNull();
   });
 

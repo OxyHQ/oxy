@@ -56,15 +56,14 @@ backed up. A separate client-side key would have to live somewhere that survives
 the wipe, and on this device that place is Block Store. Block Store also does the
 job without Auto Backup.
 
-**A passkey (WebAuthn PRF) wrapped key stored by Oxy.** Rejected for Phase 1. Oxy
-had this model on the web (a PRF-sealed envelope behind `auth.oxy.so`, deleted by
-ADR 0029 D3). On Android it fails three of the requirements:
-- The user must approve a passkey prompt, so the restore is not silent.
-- The envelope is fetched from Oxy's API, so the restore needs the network.
-- Commons would need a native PRF passkey flow, which it does not have.
+**A key wrapped by a platform authenticator and stored by Oxy.** Rejected for
+Phase 1. Oxy had this model on the web (an envelope sealed behind `auth.oxy.so`,
+deleted by ADR 0029 D3). On Android it fails the requirements: the user must
+approve a prompt, so the restore is not silent, and the envelope is fetched from
+Oxy's API, so the restore needs the network.
 
-The web no longer holds identities at all: a web account is a passkey and a
-recovery email, and Commons is where a key lives.
+The web no longer holds identities at all: an account without a key signs in by
+email (ADR 0030), and Commons is where a key lives.
 
 **The existing phrase-keyed Oxy backup (`/identity/backup`).** This is the
 "Restore from encrypted backup" entry on the import screen. Its AEAD key and its

@@ -306,7 +306,7 @@
       "keyed": "Dieses Konto nutzt Commons: Lösche es in Oxy Commons unter Einstellungen > Konto löschen, mit seinem Schlüssel."
     },
     "handoff": {
-      "elsewhereMessage": "Zum Löschen deines Kontos brauchst du deinen Identitätsschlüssel, und der ist nicht auf diesem Gerät. Öffne Oxy Commons auf dem Gerät, auf dem er liegt, und geh zu Einstellungen > Konto löschen. Ein Konto ohne Schlüssel wird in seinen Einstellungen auf {{site}} gelöscht."
+      "elsewhereMessage": "Zum Löschen deines Kontos brauchst du deinen Identitätsschlüssel, und der ist nicht auf diesem Gerät. Öffne Oxy Commons auf dem Gerät, auf dem er liegt, und geh zu Einstellungen > Konto löschen."
     }
   },
   "linkCommons": {

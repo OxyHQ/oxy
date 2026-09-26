@@ -1,9 +1,9 @@
 /**
  * Authentication Routes
  *
- * Sign-in is passkey (WebAuthn) or public-key challenge-response for local
- * identity wallets, plus the OAuth authorize/consent/token surface. Password
- * and social OAuth sign-in were removed ecosystem-wide.
+ * Sign-in is an email code or link, a password (with an authenticator when
+ * the account has one — `routes/signIn.ts`), or public-key challenge-response
+ * for Commons identities, plus the OAuth authorize/consent/token surface.
  */
 
 import type {
@@ -61,7 +61,6 @@ import { logger } from '../utils/logger';
 import SignatureService from '../services/signature.service';
 import { emitAuthSessionUpdate, emitAuthSessionProgress } from '../utils/authSessionSocket';
 import { broadcastSessionAccountsChanged } from '../utils/socket';
-import webauthnRouter from './webauthn';
 import accountEmailRouter from './accountEmail';
 import signInRouter from './signIn';
 import { validate } from '../middleware/validate';
@@ -201,33 +200,17 @@ async function findActiveApplicationById(applicationId: string): Promise<Applica
   return app ?? null;
 }
 
-// ============================================
-// WebAuthn / Passkey Routes
-// ============================================
-
 /**
- * POST /auth/webauthn/register/options  - begin passkey registration (link OR signup)
- * POST /auth/webauthn/register/verify   - finish passkey registration
- * POST /auth/webauthn/login/options     - begin passkey authentication
- * POST /auth/webauthn/login/verify      - finish passkey authentication
- *
- * Each reads an OPTIONAL bearer (link when signed in, signup/usernameless
- * otherwise). The verify handlers reuse the standard session mint and return the
- * same AuthSuccess shape as POST /auth/verify.
- */
-router.use('/webauthn', webauthnRouter);
-
-/**
- * POST /auth/email/verify/start    - send a recovery email code (sign-up or recovery)
- * POST /auth/email/verify/confirm  - the code → a one-use ticket for registration
+ * POST /auth/email/verify/start    - send a sign-up email code
+ * POST /auth/email/verify/confirm  - the code → a one-use ticket `POST /auth/signup` spends
  *
  * Official Oxy apps and auth.oxy.so; see `routes/accountEmail.ts`.
  */
 router.use('/email', accountEmailRouter);
 
 /**
- * Signing in and creating an account without a passkey (email code or link,
- * password, authenticator):
+ * Signing in and creating an account (email code or link, password,
+ * authenticator):
  * POST /auth/signin/email/{start,confirm,link,collect}, /auth/signin/password,
  * /auth/signin/second-factor and /auth/signup. Official Oxy apps and
  * auth.oxy.so only; see `routes/signIn.ts`.
@@ -1834,7 +1817,7 @@ const authSessionAuthorizeCodeLimiter = rateLimit({
  *
  * Bearer-authed sibling of `POST /session/authorize/:sessionToken`, keyed on
  * the PUBLIC `authorizeCode` instead of the secret `sessionToken` — for an
- * approver that authenticates via bearer token (e.g. a passkey ceremony) but,
+ * approver that authenticates via bearer token (e.g. the auth.oxy.so sign-in page) but,
  * unlike the Oxy Accounts app, never holds the secret. This lets the caller
  * carry ONLY the public code (safe in a URL); the secret `sessionToken` never
  * has to leave the originating client. The authenticated principal (bearer)

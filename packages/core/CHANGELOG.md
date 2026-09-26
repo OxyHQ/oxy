@@ -42,6 +42,26 @@ Also released for 1.x as 1.18.1 from `release/core-1.18.x`.
 
 ### Removed
 
+Passkeys are removed from Oxy (ADR 0030); 2.x is unreleased, so the removals
+ship in this same major. Requires `@oxy.so/contracts` ^3.0.0.
+
+- `OxyServices`: `webauthnRegisterOptions`, `webauthnRegisterVerify`,
+  `webauthnLoginOptions`, `webauthnLoginVerify`, `removePasskey`,
+  `getAccountDeletionOptions`, `deleteAccountWithPasskey`,
+  `getIdentityLinkAssertionOptions` and `completeIdentityLink` (a Commons link
+  completes with `completeIdentityLinkWithEmailCode`; a keyless account is
+  deleted with `deleteAccountWithEmailCode`).
+- `SecondFactorRequiredError`: only the passkey sign-ins threw it; the email
+  and password sign-ins answer the second-factor step as a value
+  (`SignInStepResult`).
+- `isOxyRpOrigin` (`utils/webauthnOrigin`) and the `LinkAuthMethodResult` type.
+- `startEmailVerification` takes the sign-up request only, and
+  `confirmEmailVerification` resolves to `{ ticket, expiresAt }` (contracts 3).
+- `buildOxyPagesHeaders` on a sensitive origin sends
+  `publickey-credentials-get=()` and `publickey-credentials-create=()`:
+  WebAuthn is off everywhere.
+- `deleteAccount.handoff.elsewhereMessage` (all 11 locales) no longer points a
+  passkey account at auth.oxy.so; the `{{site}}` variable is gone.
 - The passkey strings no longer used: `signin.username`, `signin.methods`,
   `signin.recoverLink`, `signin.errors.passkey*`, `signup.passkey`,
   `signup.webSubtitle`, `signup.createAccount`, `signup.commonsInstead`,

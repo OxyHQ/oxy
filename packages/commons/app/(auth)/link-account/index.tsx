@@ -7,10 +7,10 @@ import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 
 /**
- * "I have an Oxy account on the web": the account was made on auth.oxy.so
- * with a passkey and a recovery email. Linking it here gives it a key that
- * lives on this phone, makes it self-custodied, and deletes the email
- * (ADR 0029 D3). auth.oxy.so/link-commons shows the code this scans.
+ * "I have an Oxy account on the web": the account was made in an Oxy app with
+ * an email. Linking it here gives it a key that lives on this phone, makes it
+ * self-custodied, and deletes the email (ADR 0029 D3, ADR 0030). Security >
+ * Link Commons, in Oxy Accounts or the account menu, shows the code this scans.
  */
 export default function LinkAccountIntroScreen() {
   const router = useRouter();

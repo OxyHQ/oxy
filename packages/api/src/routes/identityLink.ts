@@ -6,8 +6,8 @@
  *  - `GET    /:linkId`           either device → status, account, the key once signed
  *  - `POST   /:linkId/proof`     Commons, no bearer → the root proof and its key
  *  - `POST   /:linkId/complete`  official app, bearer → `{ reauth }` (a code just
- *    sent to the account's email for this link, + its authenticator code; a
- *    passkey no longer confirms it); links, deletes the email, the password and
+ *    sent to the account's email for this link, + its authenticator code);
+ *    links, deletes the email, the password and
  *    the authenticator, tells the email so, and signs every other session of
  *    the account out
  *  - `DELETE /:linkId`           official app, bearer → withdraw

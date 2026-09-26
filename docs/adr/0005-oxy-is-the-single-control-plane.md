@@ -89,6 +89,27 @@ The epic's non-negotiable invariants, each with what it forbids in this repo:
    device-owned principal genuinely needs its own credential store, that is an
    amendment to this ADR with its reason stated, not a table that quietly appears
    beside `application_credentials`.
+
+   **Amendment (2026-09-26) — `*secret_hash` columns that are not key tables.**
+   The schema gate (`packages/api/src/db/schema/__tests__/schemaInvariants.test.ts`,
+   "stores a hashed secret only in the customer credential table and the device
+   transport") permits exactly these, each for its stated reason:
+
+   - `application_credentials.secret_hash` — the one customer credential
+     lifecycle this invariant names.
+   - `device_sessions` and `device_credentials` — the device-first SESSION
+     transport, not a customer credential: possession of a per-device secret
+     proves a session; `device_credentials` is one row per holder of a browser's
+     shared DeviceSession (ADR 0029 D2). Owned by the device, revoked with its
+     last account.
+   - `email_signin_requests.request_secret_hash` — the SHA-256 of a one-use
+     secret the sign-in dialog holds for at most 15 minutes to confirm or
+     collect ITS OWN pending email sign-in (ADR 0030 D4). Bound to one request
+     and spent with it, like an `auth_sessions.session_token`; it authorises
+     nothing else and has no customer and no rotation.
+
+   Any other `*secret_hash` column is a second key table and needs its own
+   amendment here, in the same commit as the table.
 4. **One billing account, balance and ledger: Oxy Billing.** Forbids a data-plane
    balance, quota counter or credit column that a customer could ever be shown.
    Kaana may count tokens; it may not decide whether the customer can afford

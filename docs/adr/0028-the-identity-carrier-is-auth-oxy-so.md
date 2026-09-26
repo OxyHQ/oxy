@@ -1,6 +1,7 @@
 # ADR 0028 — The web identity carrier is `auth.oxy.so`; `id.oxy.so` is gone
 
 - Status: accepted; D1b changed by [ADR 0029](0029-one-oxy-session.md) (Oxy apps use auth.oxy.so's window on the web); D1's page list changed by ADR 0029 D3 (no web identity: `/identity` and `/prf-check` are gone)
+- Superseded in part by [ADR 0030](0030-email-code-password-authenticator.md) (2026-09-26): there is no passkey and no RP ID `oxy.so`; auth.oxy.so's `/signup` and `/recover` are deleted (sign-up and sign-in happen in the dialog; `/email-signin` receives the email link).
 - Date: 2026-09-26
 - Decided by: the owner (product direction), recorded here
 - Changes: ADR 0024 D1 (the internal holder host `id.oxy.so`, and the gate it

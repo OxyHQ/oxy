@@ -199,8 +199,8 @@ export type DeviceBackgroundTokenResponse = z.infer<typeof deviceBackgroundToken
 /**
  * Proof that the caller holds a device: the `deviceId` it stored first-party and
  * one of that device's holder secrets. Sent with `POST /session/device/join-code`
- * and, optionally, with a sign-in (`POST /auth/session/claim`,
- * `POST /auth/webauthn/login/verify`, `POST /auth/webauthn/register/verify`), where
+ * and, optionally, with a sign-in (`POST /auth/session/claim`, the email,
+ * password and second-factor sign-ins, `POST /auth/signup`), where
  * a valid proof puts the new session on THAT device so every app holding it sees
  * the account. An invalid proof on a sign-in is ignored, never an error.
  */

@@ -1,5 +1,5 @@
 /**
- * Signing in and creating an account without a passkey, mounted under `/auth`:
+ * Signing in and creating an account, mounted under `/auth`:
  *
  *  - `POST /signin/email/start`    `{ identifier, device? }` → `{ requestId, requestSecret, expiresAt }`
  *  - `POST /signin/email/confirm`  `{ requestId, requestSecret, code, device? }` → session | second factor
@@ -216,7 +216,7 @@ router.post(
 
 /**
  * A new account: the username, and the email its `signup` ticket confirmed.
- * No key, no passkey, no password — those are added later from the account's
+ * No key and no password — those (and an authenticator) are added later from the account's
  * settings. The ticket is spent in the transaction that creates the account,
  * so a failed creation leaves it usable.
  */
