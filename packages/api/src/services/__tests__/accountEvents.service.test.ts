@@ -16,6 +16,8 @@ import { applications } from '../../db/schema/applications';
 import { sessions } from '../../db/schema/sessions';
 import { users } from '../../db/schema/users';
 import { archiveAccountForRetention } from '../accountFinancialHolds.service';
+import { accountService } from '../account.service';
+import * as accountEventsService from '../accountEvents.service';
 import {
   ACCOUNT_EVENT_FEED_SETTLE_MS,
   listAccountEventsForApplication,
@@ -180,6 +182,61 @@ describe('recordAccountDeletedEvent', () => {
       .from(users)
       .where(eq(users.id, world.person.id));
     expect(row.accountStatus).not.toBe('archived');
+  });
+});
+
+describe('archiving a managed account (DELETE /accounts/:id)', () => {
+  async function seedChannel(): Promise<{ id: string; username: string }> {
+    const suffix = randomUUID().slice(0, 8);
+    const [channel] = await getDb()
+      .insert(users)
+      .values({ username: `channel-${suffix}`, kind: 'channel' } as typeof users.$inferInsert)
+      .returning({ id: users.id, username: users.username });
+    return { id: channel.id, username: channel.username! };
+  }
+
+  it('records account.deleted, retained, with the archive, so relying parties erase the channel (Mention#1178)', async () => {
+    const world = await seedWorld();
+    const channel = await seedChannel();
+
+    const archived = await accountService.archiveAccount(channel.id);
+
+    expect(archived.accountStatus).toBe('archived');
+    const events = await getDb().select().from(accountEvents).where(eq(accountEvents.userId, channel.id));
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: 'account.deleted',
+      userId: channel.id,
+      username: channel.username,
+      retained: true,
+    });
+    // First-party applications (Mention) are always told; a stranger app is not.
+    const recipients = await recipientsOf(events[0].id);
+    expect(recipients).toContain(world.firstParty);
+    expect(recipients).not.toContain(world.stranger);
+  });
+
+  it('records no event for a personal account, which cannot be archived this way', async () => {
+    const person = await seedUser('personal');
+
+    await expect(accountService.archiveAccount(person.id)).rejects.toThrow('cannot be archived');
+
+    expect(await getDb().select().from(accountEvents).where(eq(accountEvents.userId, person.id))).toHaveLength(0);
+  });
+
+  it('does not archive the account when the event cannot be recorded', async () => {
+    const channel = await seedChannel();
+    jest
+      .spyOn(accountEventsService, 'recordAccountDeletedEvent')
+      .mockRejectedValueOnce(new Error('event write failed'));
+
+    await expect(accountService.archiveAccount(channel.id)).rejects.toThrow('event write failed');
+
+    const [row] = await getDb()
+      .select({ accountStatus: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, channel.id));
+    expect(row.accountStatus).toBe('active');
   });
 });
 

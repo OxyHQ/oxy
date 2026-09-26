@@ -33,8 +33,30 @@ Both outcomes of `DELETE /users/me`:
   `retained: true`. The person still deleted their account: relying parties
   erase either way; the flag is informational.
 
-Archiving an organisation or managed account (`DELETE /accounts/:id`) is not a
-person's erasure request and records no event.
+And archiving a managed account (`DELETE /accounts/:id`: a channel,
+organisation, project or bot; a personal account cannot be archived) records
+the same event with `retained: true`, in the archive's transaction
+(`accountService.archiveAccount`, OxyHQ/Mention#1178). It is not a person's
+erasure request, but relying parties need the same instruction, for three
+reasons:
+
+- **The archive is permanent.** It writes an account closure fence, and nothing
+  restores an archived account. The id is gone for good.
+- **Relying parties hold managed-account data and cannot see the archive.**
+  A Mention channel is an Oxy account whose posts, actor and followers live in
+  Mention. The Accounts app's managed-accounts screen, the Console and the
+  services SDK's account settings all archive directly. A channel archived
+  there used to keep its posts, and stay federated, in Mention forever.
+- **The event carries the handle**, which a relying party needs to address the
+  actor `Delete` once Oxy stops resolving the archived account.
+
+Recipients follow the rule below: first-party, internal and system
+applications, plus any application the managed account granted or had a session
+with.
+
+Archiving a remote federated actor (`federation.ts`, after a peer answers
+`410 Gone`) is a different path and records nothing. That identity was never
+an Oxy account a relying party served, and Mention itself triggers it.
 
 ### Who is told
 
