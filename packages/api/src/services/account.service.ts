@@ -77,6 +77,11 @@ import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 import { archiveAccountForRetention } from './accountFinancialHolds.service';
 import { recordAccountDeletedEvent, type RecordedAccountEvent } from './accountEvents.service';
+import {
+  recordAccountStorageDeletion,
+  type RecordedAccountStorageDeletion,
+} from './accountStorageDeletion.service';
+import fileCache from '../utils/fileCache';
 
 /**
  * The permission that authorises assuming an account's identity — what
@@ -756,6 +761,11 @@ export class AccountService {
    * services SDK's account settings). Without the event, a channel archived
    * there kept its posts and federated actor in Mention forever. See
    * `docs/identity/account-events.md`.
+   *
+   * The same permanence is why the account's uploads go too. In the same
+   * transaction the archive removes the account's asset rows and records their
+   * storage for the deletion worker, exactly as a personal account's archive
+   * does. See `docs/identity/account-storage-deletion.md`.
    */
   async archiveAccount(accountId: string): Promise<AccountRow> {
     const db = getDb();
@@ -768,6 +778,7 @@ export class AccountService {
     }
 
     let recorded: RecordedAccountEvent | undefined;
+    let storage: RecordedAccountStorageDeletion | undefined;
     await archiveAccountForRetention(accountId, {
       withinTransaction: async (tx) => {
         recorded = await recordAccountDeletedEvent(tx, {
@@ -775,6 +786,7 @@ export class AccountService {
           username: account.username ?? null,
           retained: true,
         });
+        storage = await recordAccountStorageDeletion(tx, accountId, { removeAssetRows: true });
       },
     });
     const [archived] = await db
@@ -786,11 +798,14 @@ export class AccountService {
       throw new NotFoundError('Account not found');
     }
     userCache.invalidate(accountId);
+    for (const fileId of storage?.fileIds ?? []) fileCache.invalidate(fileId);
 
     logger.info('Account archived', {
       accountId,
       accountEventId: recorded?.eventId,
       accountEventRecipients: recorded?.recipients,
+      storageDeletionFiles: storage?.fileIds.length ?? 0,
+      storageDeletionTargets: storage?.targets ?? 0,
     });
     return archived;
   }

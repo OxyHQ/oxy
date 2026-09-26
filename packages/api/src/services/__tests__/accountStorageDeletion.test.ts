@@ -16,6 +16,8 @@ import { messageAttachments } from '../../db/schema/messageAttachments';
 import { messages } from '../../db/schema/messages';
 import { storageObjectDeletions } from '../../db/schema/storageObjectDeletions';
 import { users } from '../../db/schema/users';
+import { accountService } from '../account.service';
+import * as accountStorageDeletionService from '../accountStorageDeletion.service';
 import {
   recordAccountStorageDeletion,
   storageTargetsForAsset,
@@ -243,6 +245,44 @@ describe('recordAccountStorageDeletion', () => {
     })).rejects.toThrow('deletion refused');
     expect(await rowsFor(person)).toHaveLength(0);
     expect(await getDb().select({ id: files.id }).from(files).where(eq(files.ownerUserId, person))).toHaveLength(1);
+  });
+});
+
+describe('archiving a managed account (DELETE /accounts/:id)', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  async function seedChannelWithUpload() {
+    const suffix = randomUUID().slice(0, 8);
+    const [channel] = await getDb()
+      .insert(users)
+      .values({ username: `channel-${suffix}`, kind: 'channel' } as typeof users.$inferInsert)
+      .returning({ id: users.id });
+    const asset = await createAsset({ ownerUserId: channel!.id });
+    return { channelId: channel!.id, asset };
+  }
+
+  it("purges the archived account's uploads: rows removed, storage recorded, in the archive's commit", async () => {
+    const { channelId, asset } = await seedChannelWithUpload();
+
+    const archived = await accountService.archiveAccount(channelId);
+
+    expect(archived.accountStatus).toBe('archived');
+    expect(await getDb().select({ id: files.id }).from(files).where(eq(files.id, asset.id))).toHaveLength(0);
+    expect((await rowsFor(channelId)).map((row) => `${row.kind}:${row.target}`)).toEqual([`object:${asset.storageKey}`]);
+  });
+
+  it('does not archive, and keeps the uploads, when the storage cannot be recorded', async () => {
+    const { channelId, asset } = await seedChannelWithUpload();
+    jest
+      .spyOn(accountStorageDeletionService, 'recordAccountStorageDeletion')
+      .mockRejectedValueOnce(new Error('storage record failed'));
+
+    await expect(accountService.archiveAccount(channelId)).rejects.toThrow('storage record failed');
+
+    const [row] = await getDb().select({ accountStatus: users.accountStatus }).from(users).where(eq(users.id, channelId));
+    expect(row!.accountStatus).toBe('active');
+    expect(await getDb().select({ id: files.id }).from(files).where(eq(files.id, asset.id))).toHaveLength(1);
+    expect(await rowsFor(channelId)).toHaveLength(0);
   });
 });
 
