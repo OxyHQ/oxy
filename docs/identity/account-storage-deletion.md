@@ -28,6 +28,11 @@ If it commits, the keys have been captured before the cascade drops them.
 |---|---|---|
 | Hard delete (`retained: false`) | Removed by the `users` cascade | Recorded, then deleted by the worker |
 | Archive for retention (`retained: true`) | Removed explicitly in the archive transaction (the cascade never fires) | Recorded, then deleted by the worker |
+| Managed account archived (`DELETE /accounts/:id`: organization, project, bot, channel) | Removed explicitly in the archive transaction, as above | Recorded, then deleted by the worker |
+
+A managed account's archive is permanent (a closure fence, no restore) and
+announces `account.deleted` too (`accountService.archiveAccount`, see
+[Account events](account-events.md)), so its uploads go the same way.
 
 Uploads are optional data, not financial records. Nothing financial references
 an asset, so the archive keeps none of them.
