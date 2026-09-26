@@ -29,6 +29,11 @@ interface ImportPhraseStepProps {
    * (but has no recovery phrase) recover their account directly from the key.
    */
   onImportPrivateKey?: () => void;
+  /**
+   * Optional handler for "I have an Oxy account on the web": link that
+   * passkey account to this phone by scanning auth.oxy.so/link-commons.
+   */
+  onLinkWebAccount?: () => void;
   backgroundColor: string;
   textColor: string;
 }
@@ -45,6 +50,7 @@ export function ImportPhraseStep({
   isLoading,
   onRestoreFromBackup,
   onImportPrivateKey,
+  onLinkWebAccount,
   backgroundColor,
   textColor,
 }: ImportPhraseStepProps) {
@@ -73,6 +79,10 @@ export function ImportPhraseStep({
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
         <Button appearance="solid" tone="accent" onPress={onImport} disabled={isLoading} loading={isLoading} className="mt-space-32">{t('auth.importStep.import')}</Button>
+
+        {onLinkWebAccount && (
+          <Button appearance="subtle" onPress={onLinkWebAccount} disabled={isLoading}>{t('linkAccount.entry')}</Button>
+        )}
 
         {onRestoreFromBackup && (
           <Button appearance="subtle" onPress={onRestoreFromBackup} disabled={isLoading}>{t('restoreBackup.entry')}</Button>

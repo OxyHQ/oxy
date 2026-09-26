@@ -16,9 +16,17 @@ web identity carrier is deleted: Commons is the one place a key lives.
   a recovery registers a new passkey for the account its ticket names.
 - `getAccountDeletionOptions()` and `deleteAccountWithPasskey(confirmText, assertion)`:
   a passkey account is deleted with an assertion by one of its passkeys.
+- Linking Commons to a passkey account from two devices:
+  `createIdentityLink()`, `getIdentityLink(linkId)`,
+  `getIdentityLinkAssertionOptions(linkId, challenge)`,
+  `completeIdentityLink(linkId, assertion)`, `cancelIdentityLink(linkId)` for
+  auth.oxy.so, and `signIdentityLink(linkId, challenge)` for Commons (signs the
+  `link_identity` proof with this device's key, native only).
+  `deriveIdentityLinkCode(linkId, publicKey)`: the 6-digit code both devices
+  show.
 - Locale keys in all 11 locales: `signup.username.*`, `signup.email.*`,
   `signup.passkey.*`, `signup.commonsInstead`, `emailCode.*`, `recover.*`
-  (replaced), `deleteAccount.passkey.*`. `signup.webSubtitle` and
+  (replaced), `deleteAccount.passkey.*`, `linkCommons.*`. `signup.webSubtitle` and
   `deleteAccount.handoff.elsewhereMessage` say what a web account is now.
 
 ### Removed

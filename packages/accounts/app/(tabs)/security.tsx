@@ -9,6 +9,7 @@ import { type DeviceRecord } from '@/utils/device-utils';
 import { useTranslation } from '@/lib/i18n';
 import { useBiometricSettings } from '@/hooks/useBiometricSettings';
 import { SecurityRecommendationsSection } from '@/components/security/security-recommendations-section';
+import { useIdentityRootStatus } from '@/hooks/useIdentityRootStatus';
 import { useSecurityRecommendations } from '@/components/security/useSecurityRecommendations';
 import { SecurityActivitySection } from '@/components/security/security-activity-section';
 import { useSecurityActivityItems } from '@/components/security/useSecurityActivityItems';
@@ -51,10 +52,12 @@ export default function SecurityScreen() {
         toggleBiometricLogin,
     } = useBiometricSettings();
 
+    const rootStatus = useIdentityRootStatus();
     const securityRecommendations = useSecurityRecommendations({
         canEnableBiometric,
         biometricEnabled,
         biometricLoading,
+        rootStatus,
         sessions,
         deviceCount: devices.length,
         securityActivities,

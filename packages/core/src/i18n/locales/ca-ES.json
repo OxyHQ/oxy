@@ -284,8 +284,23 @@
       "action": "Elimina amb passkey",
       "done": "El teu compte s'ha eliminat.",
       "closeWindow": "Pots tancar aquesta finestra.",
-      "signIn": "Inicia la sessió al compte que vols eliminar.",
       "commons": "Aquest compte fa servir Commons: elimina'l a Oxy Commons, Configuració > Elimina el compte, amb la seva clau."
     }
+  },
+  "linkCommons": {
+    "title": "Vincula Commons",
+    "subtitle": "Guarda la teva pròpia clau: vincula Commons i aquest compte serà només teu. El seu correu de recuperació s'elimina, i la frase de recuperació de Commons és com hi tornes a entrar.",
+    "scan": "Al mòbil, obre Commons, tria «Tinc un compte d'Oxy al web» i escaneja aquest codi.",
+    "waiting": "Esperant Commons…",
+    "compareTitle": "Comprova el codi",
+    "compare": "Commons mostra el mateix codi. Si no és així, cancel·la.",
+    "confirm": "Sí, vincula Commons",
+    "cancel": "Cancel·la",
+    "doneTitle": "Commons està vinculat",
+    "done": "Aquest compte ara és d'autocustòdia. El seu correu de recuperació s'ha eliminat: la frase de recuperació de Commons és com hi tornes a entrar.",
+    "already": "Aquest compte ja fa servir Commons.",
+    "expired": "Aquest codi ha caducat.",
+    "renew": "Mostra un codi nou",
+    "failed": "No s'ha pogut vincular Commons. Torna-ho a provar."
   }
 }

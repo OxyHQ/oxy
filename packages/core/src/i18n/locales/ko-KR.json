@@ -284,8 +284,23 @@
       "action": "패스키로 삭제",
       "done": "계정이 삭제되었습니다.",
       "closeWindow": "이 창을 닫아도 됩니다.",
-      "signIn": "삭제할 계정에 로그인하세요.",
       "commons": "이 계정은 Commons를 사용합니다. Oxy Commons의 설정 > 계정 삭제에서 해당 키로 삭제하세요."
     }
+  },
+  "linkCommons": {
+    "title": "Commons 연결",
+    "subtitle": "직접 키를 보관하세요. Commons를 연결하면 이 계정은 오직 당신의 것이 됩니다. 복구 이메일은 삭제되고, Commons의 복구 문구로 다시 들어올 수 있습니다.",
+    "scan": "휴대폰에서 Commons를 열고 “웹에 Oxy 계정이 있어요”를 선택한 다음 이 코드를 스캔하세요.",
+    "waiting": "Commons를 기다리는 중…",
+    "compareTitle": "코드 확인",
+    "compare": "Commons에 같은 코드가 표시됩니다. 다르면 취소하세요.",
+    "confirm": "네, Commons 연결",
+    "cancel": "취소",
+    "doneTitle": "Commons가 연결되었습니다",
+    "done": "이 계정은 이제 자기 보관 계정입니다. 복구 이메일은 삭제되었습니다. Commons의 복구 문구로 다시 들어올 수 있습니다.",
+    "already": "이 계정은 이미 Commons를 사용합니다.",
+    "expired": "이 코드는 만료되었습니다.",
+    "renew": "새 코드 보기",
+    "failed": "Commons를 연결하지 못했습니다. 다시 시도하세요."
   }
 }

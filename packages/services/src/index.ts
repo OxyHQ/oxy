@@ -369,13 +369,16 @@ export type { OxySignUpPanelProps } from './ui/components/signIn/OxySignUpPanel'
 export { OxyAccountPicker } from './ui/components/signIn/OxyAccountPicker';
 export type { OxyAccountPickerProps } from './ui/components/signIn/OxyAccountPicker';
 // auth.oxy.so's account pages (ADR 0029 D3): a passkey account is created,
-// recovered through its recovery email, and deleted with its passkey there.
+// recovered through its recovery email, deleted with its passkey, and linked
+// to Commons there.
 export { OxyCreateAccountPanel } from './ui/components/signIn/OxyCreateAccountPanel';
 export type { OxyCreateAccountPanelProps } from './ui/components/signIn/OxyCreateAccountPanel';
 export { OxyRecoverAccountPanel } from './ui/components/signIn/OxyRecoverAccountPanel';
 export type { OxyRecoverAccountPanelProps } from './ui/components/signIn/OxyRecoverAccountPanel';
 export { OxyDeleteAccountPanel } from './ui/components/signIn/OxyDeleteAccountPanel';
 export type { OxyDeleteAccountPanelProps } from './ui/components/signIn/OxyDeleteAccountPanel';
+export { OxyLinkCommonsPanel } from './ui/components/signIn/OxyLinkCommonsPanel';
+export type { OxyLinkCommonsPanelProps } from './ui/components/signIn/OxyLinkCommonsPanel';
 export {
   OxyAuthScreen,
   OxyAuthScreenHeader,

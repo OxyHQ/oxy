@@ -664,6 +664,7 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
   'appSignals.ts': ['/app-signals'],
   'identity.ts': ['/identity'],
   'identityProof.ts': ['/identity'],
+  'identityLink.ts': ['/identity/link'],
   'civic.ts': ['/civic'],
   'nodes.ts': ['/nodes'],
   'federation.ts': ['/federation'],

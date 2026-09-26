@@ -1852,7 +1852,6 @@
       "action": "Eliminar con passkey",
       "done": "Tu cuenta se ha eliminado.",
       "closeWindow": "Puedes cerrar esta ventana.",
-      "signIn": "Inicia sesión en la cuenta que quieres eliminar.",
       "commons": "Esta cuenta usa Commons: elimínala en Oxy Commons, Ajustes > Eliminar cuenta, con su clave."
     }
   },
@@ -2108,5 +2107,21 @@
       "unavailable": "Oxy no puede enviar emails ahora. Inténtalo más tarde.",
       "rateLimited": "Demasiados códigos. Inténtalo más tarde."
     }
+  },
+  "linkCommons": {
+    "title": "Vincula Commons",
+    "subtitle": "Guarda tu propia clave: vincula Commons y esta cuenta será solo tuya. Su email de recuperación se elimina y tu frase de recuperación en Commons es cómo vuelves a entrar.",
+    "scan": "En tu móvil, abre Commons, elige «Tengo una cuenta de Oxy en la web» y escanea este código.",
+    "waiting": "Esperando a Commons…",
+    "compareTitle": "Comprueba el código",
+    "compare": "Commons muestra el mismo código. Si no es así, cancela.",
+    "confirm": "Sí, vincular Commons",
+    "cancel": "Cancelar",
+    "doneTitle": "Commons está vinculado",
+    "done": "Esta cuenta ahora es de autocustodia. Su email de recuperación se ha eliminado: tu frase de recuperación en Commons es cómo vuelves a entrar.",
+    "already": "Esta cuenta ya usa Commons.",
+    "expired": "Este código ha caducado.",
+    "renew": "Mostrar un código nuevo",
+    "failed": "No se ha podido vincular Commons. Inténtalo de nuevo."
   }
 }

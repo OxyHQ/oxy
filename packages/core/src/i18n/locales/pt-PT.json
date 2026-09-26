@@ -284,8 +284,23 @@
       "action": "Eliminar com passkey",
       "done": "A tua conta foi eliminada.",
       "closeWindow": "Podes fechar esta janela.",
-      "signIn": "Inicia sessão na conta que queres eliminar.",
       "commons": "Esta conta usa o Commons: elimina-a no Oxy Commons, Definições > Eliminar conta, com a sua chave."
     }
+  },
+  "linkCommons": {
+    "title": "Associar o Commons",
+    "subtitle": "Guarda a tua própria chave: associa o Commons e esta conta passa a ser só tua. O email de recuperação é eliminado e a tua frase de recuperação no Commons é como voltas a entrar.",
+    "scan": "No telemóvel, abre o Commons, escolhe «Tenho uma conta Oxy na web» e digitaliza este código.",
+    "waiting": "À espera do Commons…",
+    "compareTitle": "Verifica o código",
+    "compare": "O Commons mostra o mesmo código. Se não mostrar, cancela.",
+    "confirm": "Sim, associar o Commons",
+    "cancel": "Cancelar",
+    "doneTitle": "O Commons está associado",
+    "done": "Esta conta passou a ser de autocustódia. O email de recuperação foi eliminado: a tua frase de recuperação no Commons é como voltas a entrar.",
+    "already": "Esta conta já usa o Commons.",
+    "expired": "Este código expirou.",
+    "renew": "Mostrar um novo código",
+    "failed": "Não foi possível associar o Commons. Tenta de novo."
   }
 }

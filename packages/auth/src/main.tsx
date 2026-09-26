@@ -16,6 +16,7 @@ import { McpLinkPage } from "@/src/pages/mcp-link"
 import { DevicePage } from "@/src/pages/device"
 import { RecoverPage } from "@/src/pages/recover"
 import { DeleteAccountPage } from "@/src/pages/delete-account"
+import { LinkCommonsPage } from "@/src/pages/link-commons"
 import "@/app/globals.css"
 
 function ExternalRedirect({ url }: { url: string }) {
@@ -75,11 +76,12 @@ function App() {
                                 <Route path="/device" element={<DevicePage />} />
                                 <Route path="/auth/device" element={<DevicePage />} />
                                 {/* A passkey account's own pages (ADR 0029 D3): getting
-                                    it back through its recovery email, and deleting it
-                                    with its passkey — both only here, where Oxy
-                                    passkeys are asserted. */}
+                                    it back through its recovery email, deleting it
+                                    with its passkey, and linking Commons — only here,
+                                    where Oxy passkeys are asserted. */}
                                 <Route path="/recover" element={<RecoverPage />} />
                                 <Route path="/delete-account" element={<DeleteAccountPage />} />
+                                <Route path="/link-commons" element={<LinkCommonsPage />} />
                             </Route>
 
                             {/* Account management lives on accounts.oxy.so — the IdP no longer

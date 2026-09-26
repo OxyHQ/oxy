@@ -284,8 +284,23 @@
       "action": "用通行密钥删除",
       "done": "你的账户已删除。",
       "closeWindow": "你可以关闭此窗口。",
-      "signIn": "请登录你要删除的账户。",
       "commons": "此账户使用 Commons：请在 Oxy Commons 的“设置 > 删除账户”中用其密钥删除。"
     }
+  },
+  "linkCommons": {
+    "title": "关联 Commons",
+    "subtitle": "自己保管密钥：关联 Commons 后，此账户只属于你。它的恢复邮箱会被删除，今后用 Commons 中的恢复短语找回账户。",
+    "scan": "在手机上打开 Commons，选择“我在网页上有 Oxy 账户”，然后扫描此码。",
+    "waiting": "正在等待 Commons…",
+    "compareTitle": "核对代码",
+    "compare": "Commons 会显示相同的代码。如果不同，请取消。",
+    "confirm": "是的，关联 Commons",
+    "cancel": "取消",
+    "doneTitle": "Commons 已关联",
+    "done": "此账户现在由你自己保管。它的恢复邮箱已删除：今后用 Commons 中的恢复短语找回账户。",
+    "already": "此账户已在使用 Commons。",
+    "expired": "此代码已过期。",
+    "renew": "显示新代码",
+    "failed": "无法关联 Commons，请重试。"
   }
 }

@@ -244,6 +244,7 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
 
   // ---- identity ---------------------------------------------------------------
   { table: 'signed_records', column: 'envelope', holds: 'a signed identity record envelope, verbatim' },
+  { table: 'identity_link_requests', column: 'proof', holds: "the `link_identity` root proof Commons posted, as `identityProofSchema` validated it: `{ v, challenge, expiresAt, signature }` — a signature over fixed claims, never a request or response" },
   { table: 'verifiable_credentials', column: 'claims', holds: 'the claims of a verifiable credential' },
   { table: 'webauthn_credentials', column: 'credentialPublicKey', holds: 'the COSE public key of a passkey — a public key, and the only `bytea` in the schema' },
 

@@ -81,6 +81,7 @@ export * from './followEvents';
 export * from './identityBackups';
 export * from './identityProofChallenges';
 export * from './emailVerifications';
+export * from './identityLinkRequests';
 export * from './identityBindings';
 export * from './inferenceCatalogueSync';
 export * from './inferenceDeployments';

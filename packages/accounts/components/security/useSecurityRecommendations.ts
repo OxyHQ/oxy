@@ -2,9 +2,11 @@ import { useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { alert } from '@oxy.so/bloom';
+import type { IdentityRootStatus } from '@oxy.so/contracts';
 import type { ClientSession, SecurityActivity } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
+import { useOpenLinkCommons } from '@/hooks/useIdentityRootStatus';
 import type { PrioritizedGroupedItem } from '@/components/sections/types';
 import {
   selectSecurityRecommendations,
@@ -15,6 +17,7 @@ interface UseSecurityRecommendationsArgs {
   canEnableBiometric: boolean;
   biometricEnabled: boolean;
   biometricLoading: boolean;
+  rootStatus: IdentityRootStatus | undefined;
   sessions: ClientSession[] | undefined;
   deviceCount: number;
   securityActivities: SecurityActivity[];
@@ -34,6 +37,7 @@ export function useSecurityRecommendations({
   canEnableBiometric,
   biometricEnabled,
   biometricLoading,
+  rootStatus,
   sessions,
   deviceCount,
   securityActivities,
@@ -41,12 +45,14 @@ export function useSecurityRecommendations({
   const colors = useColors();
   const router = useRouter();
   const { t } = useTranslation();
+  const openLinkCommons = useOpenLinkCommons();
 
   return useMemo(() => {
     const descriptors = selectSecurityRecommendations({
       canEnableBiometric,
       biometricEnabled,
       biometricLoading,
+      rootStatus,
       sessions,
       deviceCount,
       securityActivities,
@@ -74,6 +80,17 @@ export function useSecurityRecommendations({
                 [{ text: t('common.ok'), style: 'default' }]
               );
             },
+            showChevron: true,
+          };
+        case 'link-commons':
+          return {
+            id: descriptor.id,
+            priority: descriptor.priority,
+            icon: 'shield-key-outline',
+            iconColor: colors.warning,
+            title: t('security.recommendations.linkCommons'),
+            subtitle: t('security.recommendations.linkCommonsSubtitle'),
+            onPress: openLinkCommons,
             showChevron: true,
           };
         case 'old-sessions':
@@ -127,10 +144,12 @@ export function useSecurityRecommendations({
     canEnableBiometric,
     biometricEnabled,
     biometricLoading,
+    rootStatus,
     sessions,
     deviceCount,
     securityActivities,
     router,
+    openLinkCommons,
     t,
     colors.warning,
     colors.error,

@@ -284,8 +284,23 @@
       "action": "Elimina con passkey",
       "done": "Il tuo account è stato eliminato.",
       "closeWindow": "Puoi chiudere questa finestra.",
-      "signIn": "Accedi all'account che vuoi eliminare.",
       "commons": "Questo account usa Commons: eliminalo in Oxy Commons, Impostazioni > Elimina account, con la sua chiave."
     }
+  },
+  "linkCommons": {
+    "title": "Collega Commons",
+    "subtitle": "Tieni la tua chiave: collega Commons e questo account sarà solo tuo. La sua email di recupero viene eliminata e la frase di recupero in Commons è il modo per rientrare.",
+    "scan": "Sul telefono, apri Commons, scegli «Ho un account Oxy sul web» e scansiona questo codice.",
+    "waiting": "In attesa di Commons…",
+    "compareTitle": "Controlla il codice",
+    "compare": "Commons mostra lo stesso codice. Se non è così, annulla.",
+    "confirm": "Sì, collega Commons",
+    "cancel": "Annulla",
+    "doneTitle": "Commons è collegato",
+    "done": "Questo account ora è in autocustodia. La sua email di recupero è stata eliminata: la frase di recupero in Commons è il modo per rientrare.",
+    "already": "Questo account usa già Commons.",
+    "expired": "Questo codice è scaduto.",
+    "renew": "Mostra un nuovo codice",
+    "failed": "Non è stato possibile collegare Commons. Riprova."
   }
 }

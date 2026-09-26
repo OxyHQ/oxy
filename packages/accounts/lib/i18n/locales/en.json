@@ -164,7 +164,9 @@
       "suspicious_one": "{{count}} critical security event detected",
       "suspiciousSubtitle": "Review your security activity immediately",
       "suspiciousAlertTitle": "Critical Security Events",
-      "suspiciousAlertMessage": "You have {{count}} critical security event(s). Please review your security activity below and consider changing your password or signing out of all devices if you notice any suspicious activity."
+      "suspiciousAlertMessage": "You have {{count}} critical security event(s). Please review your security activity below and consider changing your password or signing out of all devices if you notice any suspicious activity.",
+      "linkCommons": "Link Commons",
+      "linkCommonsSubtitle": "Hold your own key: your account becomes yours alone, and your recovery phrase replaces the recovery email."
     },
     "activity": {
       "loading": "Loading security activity...",

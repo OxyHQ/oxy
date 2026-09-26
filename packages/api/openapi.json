@@ -6796,7 +6796,7 @@
           "Authentication"
         ],
         "summary": "Link a root (`publicKey`) to a personal account that has NONE — first link only",
-        "description": "(ADR 0024 D8).\n\n- An account whose root is this key: idempotent with a root proof, and heals a\n  missing `identity` method row.\n- An account with a DIFFERENT root: 409. Replacing a root is\n  `POST /auth/rotate/*`, which needs the old root's proof too.\n- A keyless account: a root proof (`link_identity`, one-use challenge) AND a\n  fresh assertion by one of the account's existing passkeys over the same\n  challenge. A bearer plus a key generated a moment ago is not authority.",
+        "description": "(ADR 0024 D8). Both factors in one request; linking Commons from another device\nrelays them through `routes/identityLink.ts`. Either way `linkRootToAccount`.\n\n- An account whose root is this key: idempotent with a root proof, and heals a\n  missing `identity` method row.\n- An account with a DIFFERENT root: 409. Replacing a root is\n  `POST /auth/rotate/*`, which needs the old root's proof too.\n- A keyless (passkey) account: a root proof (`link_identity`, one-use\n  challenge) AND a fresh assertion by one of the account's existing passkeys,\n  made on auth.oxy.so, over the same challenge. A bearer plus a key generated a\n  moment ago is not authority. The first link deletes the recovery email\n  (ADR 0029 D3).",
         "parameters": [],
         "responses": {
           "200": {
@@ -17490,6 +17490,584 @@
           {}
         ],
         "operationId": "getIdentityHeadUserId"
+      }
+    },
+    "/identity/link": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /identity/link",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "postIdentityLink"
+      }
+    },
+    "/identity/link/{linkId}": {
+      "get": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "GET /identity/link/{linkId}",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getIdentityLinkLinkId"
+      },
+      "delete": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "DELETE /identity/link/{linkId}",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "deleteIdentityLinkLinkId"
+      }
+    },
+    "/identity/link/{linkId}/complete": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /identity/link/{linkId}/complete",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assertion": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]+$",
+                        "minLength": 16,
+                        "maxLength": 1024
+                      },
+                      "rawId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2048
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "public-key"
+                        ]
+                      },
+                      "response": {
+                        "type": "object",
+                        "properties": {
+                          "clientDataJSON": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
+                          },
+                          "authenticatorData": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
+                          },
+                          "signature": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          },
+                          "userHandle": {
+                            "type": "string",
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": [
+                          "clientDataJSON",
+                          "authenticatorData",
+                          "signature"
+                        ]
+                      },
+                      "clientExtensionResults": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      "authenticatorAttachment": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "rawId",
+                      "type",
+                      "response"
+                    ]
+                  }
+                },
+                "required": [
+                  "assertion"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityLinkLinkIdComplete"
+      }
+    },
+    "/identity/link/{linkId}/options": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /identity/link/{linkId}/options",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "challenge": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "challenge"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityLinkLinkIdOptions"
+      }
+    },
+    "/identity/link/{linkId}/proof": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /identity/link/{linkId}/proof",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicKey": {
+                    "type": "string",
+                    "pattern": "^04[0-9a-f]{128}$"
+                  },
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
+                  }
+                },
+                "required": [
+                  "publicKey",
+                  "proof"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityLinkLinkIdProof"
       }
     },
     "/identity/log/{userId}": {

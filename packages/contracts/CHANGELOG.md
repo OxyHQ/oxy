@@ -34,6 +34,13 @@
   `.recoveryTicket`.
 - `webauthnCredentialIdSchema` and `webauthnAssertionResponseSchema` (with
   `WebauthnAssertionResponse`) now live in `webauthn`.
+- `identityLink`: linking Commons to a passkey account from two devices —
+  `IDENTITY_LINK_STATUSES`, `IDENTITY_LINK_QR_PREFIX`,
+  `buildIdentityLinkQrPayload` / `parseIdentityLinkQrPayload`
+  (`oxycommons://link?id=…&c=…`), `identityLinkIdSchema`,
+  `identityLinkCreateResponseSchema`, `identityLinkStateSchema`,
+  `identityLinkProofRequestSchema`, `identityLinkOptionsRequestSchema`,
+  `identityLinkCompleteRequestSchema` and their types.
 
 ### Changed
 

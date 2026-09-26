@@ -284,8 +284,23 @@
       "action": "Mit Passkey löschen",
       "done": "Dein Konto ist gelöscht.",
       "closeWindow": "Du kannst dieses Fenster schließen.",
-      "signIn": "Melde dich bei dem Konto an, das du löschen willst.",
       "commons": "Dieses Konto nutzt Commons: Lösche es in Oxy Commons unter Einstellungen > Konto löschen, mit seinem Schlüssel."
     }
+  },
+  "linkCommons": {
+    "title": "Commons verknüpfen",
+    "subtitle": "Behalte deinen eigenen Schlüssel: Verknüpfe Commons, und dieses Konto gehört nur dir. Seine Wiederherstellungs-E-Mail wird gelöscht, und deine Wiederherstellungsphrase in Commons bringt dich zurück.",
+    "scan": "Öffne Commons auf deinem Handy, wähle „Ich habe ein Oxy-Konto im Web“ und scanne diesen Code.",
+    "waiting": "Warte auf Commons…",
+    "compareTitle": "Prüfe den Code",
+    "compare": "Commons zeigt denselben Code. Wenn nicht, brich ab.",
+    "confirm": "Ja, Commons verknüpfen",
+    "cancel": "Abbrechen",
+    "doneTitle": "Commons ist verknüpft",
+    "done": "Dieses Konto ist jetzt selbstverwahrt. Seine Wiederherstellungs-E-Mail wurde gelöscht: Deine Wiederherstellungsphrase in Commons bringt dich zurück.",
+    "already": "Dieses Konto nutzt bereits Commons.",
+    "expired": "Dieser Code ist abgelaufen.",
+    "renew": "Neuen Code anzeigen",
+    "failed": "Commons konnte nicht verknüpft werden. Versuch es noch einmal."
   }
 }

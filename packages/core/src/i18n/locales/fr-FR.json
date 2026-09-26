@@ -284,8 +284,23 @@
       "action": "Supprimer avec la passkey",
       "done": "Votre compte est supprimé.",
       "closeWindow": "Vous pouvez fermer cette fenêtre.",
-      "signIn": "Connectez-vous au compte que vous voulez supprimer.",
       "commons": "Ce compte utilise Commons : supprimez-le dans Oxy Commons, Réglages > Supprimer le compte, avec sa clé."
     }
+  },
+  "linkCommons": {
+    "title": "Associer Commons",
+    "subtitle": "Gardez votre propre clé : associez Commons et ce compte n'appartient qu'à vous. Son e-mail de récupération est supprimé, et votre phrase de récupération dans Commons vous permet d'y revenir.",
+    "scan": "Sur votre téléphone, ouvrez Commons, choisissez « J’ai un compte Oxy sur le web » et scannez ce code.",
+    "waiting": "En attente de Commons…",
+    "compareTitle": "Vérifiez le code",
+    "compare": "Commons affiche le même code. Sinon, annulez.",
+    "confirm": "Oui, associer Commons",
+    "cancel": "Annuler",
+    "doneTitle": "Commons est associé",
+    "done": "Ce compte est désormais en autogarde. Son e-mail de récupération a été supprimé : votre phrase de récupération dans Commons vous permet d’y revenir.",
+    "already": "Ce compte utilise déjà Commons.",
+    "expired": "Ce code a expiré.",
+    "renew": "Afficher un nouveau code",
+    "failed": "Commons n'a pas pu être associé. Réessayez."
   }
 }

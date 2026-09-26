@@ -21,6 +21,33 @@ Commons is the official, recommended way: linking Commons to a passkey account
 makes it self-custodied and deletes its recovery email (ADR 0029 D3). There is
 no web identity carrier: no envelope, no web phrase, no PRF, no move.
 
+## Linking Commons to a passkey account
+
+Two devices, one authority (`POST /auth/link`'s: a `link_identity` root proof
+and a fresh passkey assertion over the same one-use challenge):
+
+1. `auth.oxy.so/link-commons` (`OxyLinkCommonsPanel`, signed in) opens a request
+   — `POST /identity/link` → `{ linkId, challenge, qrPayload }` — and shows the
+   QR `oxycommons://link?id=…&c=…`. Accounts' security recommendation "Link
+   Commons" and the account-recovery row open this page.
+2. Commons, fresh on the phone ("I already have an account" → "I have an Oxy
+   account on the web", `app/(auth)/link-account/`), scans it, reads the request
+   (`GET /identity/link/:linkId`: the account id and username), creates its key
+   and phrase without registering an account, signs the proof over the
+   challenge and posts it with its key (`POST /identity/link/:linkId/proof`,
+   no bearer; first proof wins).
+3. Both screens show `deriveIdentityLinkCode(linkId, key)`; the person checks
+   they match, so a photographed QR cannot slip another key in.
+4. auth.oxy.so asserts a passkey over the challenge
+   (`POST /identity/link/:linkId/options`, then `/complete`). In one
+   transaction the challenge is spent, `users.public_key` and the `identity`
+   method are written, and the recovery email and its outstanding codes are
+   deleted.
+5. Commons, polling the request, sees `completed` and signs in with its key;
+   the recovery phrase is acknowledged as in any Commons sign-up. While it
+   waits, the reconnect sync does not register the key as a new account
+   (`lib/link-account/linkInProgress.ts`).
+
 ## Vocabulary (for engineers, never for product copy)
 
 | Term | Meaning |
@@ -45,7 +72,9 @@ no web identity carrier: no envelope, no web phrase, no PRF, no move.
 | A ticket is spent once, by its purpose and its email | `spendSignupTicket` / `spendRecoveryTicket` — one conditional UPDATE inside the registration transaction |
 | An account that linked Commons is recovered in Commons | The recovery branch of `/webauthn/register/verify` refuses an account with `public_key` set |
 | Deleting a passkey account needs the person, not the session | `DELETE /users/me` with an `assertion` over a challenge from `POST /users/me/delete/options` (bound to the account, `authentication`, UV required, `auth.oxy.so` only); the confirmation is checked before the challenge is spent |
-| A root is linked first-time only, with a fresh factor | `POST /auth/link` (proof + WebAuthn assertion over the same challenge) |
+| A root is linked first-time only, with a fresh factor | `linkRootToAccount` (`services/identityLink.service.ts`), behind `POST /auth/link` and `POST /identity/link/:linkId/complete`: proof + a WebAuthn assertion from `auth.oxy.so` over the same challenge |
+| Linking Commons deletes the recovery email | `linkRootToAccount` clears `users.email` and deletes the account's `email_verifications` in the linking transaction |
+| A link request relays; it authorizes nothing | `identity_link_requests` keeps the challenge's hash, the first key and proof Commons posted; only the owner's passkey (`/complete`) links, and the proof's challenge is spent then |
 | A root is never unlinked | No route removes a root: `DELETE /auth/link/:type` does not exist; only `DELETE /auth/link/webauthn/:id` |
 | A root is replaced only by rotation | `POST /auth/rotate/*` (old-root + new-root proofs); rotation deletes the old root's backup |
 | The DID of a personal root is controlled by the person | `buildDidDocument` → `controller: [userDid]` |
@@ -61,7 +90,11 @@ no web identity carrier: no envelope, no web phrase, no PRF, no move.
 | `POST /webauthn/register/verify` | sign-up: `username` + `email` + `emailTicket`; recovery: `recoveryTicket`; link: bearer | Sign-up and recovery mint a session; link does not. |
 | `GET /identity/root-status` | bearer, any first-party origin | `{ rootLinked, recoveryEmail }`. |
 | `POST /identity/proof-challenge` | bearer | `link_identity` only. |
-| `POST /auth/link` | bearer + root proof; keyless → also a fresh passkey assertion | First link only; same-root call heals the method row. |
+| `POST /auth/link` | bearer + root proof; keyless → also a fresh passkey assertion (auth.oxy.so) | First link only; same-root call heals the method row; deletes the recovery email. |
+| `POST /identity/link` | bearer, auth.oxy.so, passkey account with a passkey | Opens a link request; withdraws earlier open ones. |
+| `GET /identity/link/:linkId` | the link id (either device) | `{ status, userId, username, publicKey, audience, expiresAt }`; 404 once expired. |
+| `POST /identity/link/:linkId/proof` | the link id + a root proof over its challenge (Commons, no bearer) | First proof wins; a key another account holds is refused. |
+| `POST /identity/link/:linkId/options`, `/complete`, `DELETE` | bearer (the owner), auth.oxy.so | Assertion options over the challenge; the passkey links; withdraw. |
 | `POST /auth/rotate/challenge`, `/complete` | old-root + new-root proofs, one-use challenge | Only way to replace a root. |
 | `DELETE /auth/link/webauthn/:id` | bearer | Keeps ≥1 auth method. |
 | `POST /users/me/delete/options` | bearer, passkey account | WebAuthn request options over the account's passkeys. |
@@ -72,10 +105,10 @@ no web identity carrier: no envelope, no web phrase, no PRF, no move.
 
 | Caller | Uses |
 |---|---|
-| `packages/commons` | Commons sign-up (`/auth/register`, key included, no email), backup, deletion |
-| `packages/services` | `OxyCreateAccountPanel`, `OxyRecoverAccountPanel`, `OxyDeleteAccountPanel` (auth.oxy.so's pages); the account dialog opens auth.oxy.so in a window (`continueOnAuth`, ADR 0029 D1); "Delete account" on the web opens `auth.oxy.so/delete-account` |
-| `packages/auth` (`auth.oxy.so`) | `/signup`, `/recover`, `/delete-account` render the services panels and continue to the request in the query |
-| `packages/accounts` | `GET /identity/root-status` for the account-recovery row; passkey list/remove |
+| `packages/commons` | Commons sign-up (`/auth/register`, key included, no email), backup, deletion, linking a web account (`app/(auth)/link-account/`) |
+| `packages/services` | `OxyCreateAccountPanel`, `OxyRecoverAccountPanel`, `OxyDeleteAccountPanel`, `OxyLinkCommonsPanel` (auth.oxy.so's pages); the account dialog opens auth.oxy.so in a window (`continueOnAuth`, ADR 0029 D1); "Delete account" on the web opens `auth.oxy.so/delete-account` |
+| `packages/auth` (`auth.oxy.so`) | `/signup`, `/recover`, `/delete-account`, `/link-commons` render the services panels (the first two continue to the request in the query) |
+| `packages/accounts` | `GET /identity/root-status` for the account-recovery row and the "Link Commons" recommendation (both open `auth.oxy.so/link-commons`); passkey list/remove |
 
 ## Mail
 

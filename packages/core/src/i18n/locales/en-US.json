@@ -1852,7 +1852,6 @@
       "action": "Delete with passkey",
       "done": "Your account is deleted.",
       "closeWindow": "You can close this window.",
-      "signIn": "Sign in to the account you want to delete.",
       "commons": "This account uses Commons: delete it in Oxy Commons, Settings > Delete account, with its key."
     }
   },
@@ -2108,5 +2107,21 @@
       "unavailable": "Oxy can't send email right now. Try again later.",
       "rateLimited": "Too many codes. Try again later."
     }
+  },
+  "linkCommons": {
+    "title": "Link Commons",
+    "subtitle": "Keep your own key: link Commons and this account becomes yours alone. Its recovery email is deleted, and your recovery phrase in Commons is how you get back in.",
+    "scan": "On your phone, open Commons, choose “I have an Oxy account on the web” and scan this code.",
+    "waiting": "Waiting for Commons…",
+    "compareTitle": "Check the code",
+    "compare": "Commons shows the same code. If it doesn’t, cancel.",
+    "confirm": "Yes, link Commons",
+    "cancel": "Cancel",
+    "doneTitle": "Commons is linked",
+    "done": "This account is self-custodied now. Its recovery email was deleted: your recovery phrase in Commons is how you get back in.",
+    "already": "This account already uses Commons.",
+    "expired": "This code expired.",
+    "renew": "Show a new code",
+    "failed": "Commons couldn’t be linked. Try again."
   }
 }

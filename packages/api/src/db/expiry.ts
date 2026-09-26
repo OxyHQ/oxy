@@ -77,6 +77,7 @@ import {
 } from './schema/inferenceProviderConnectionAuditEvents';
 import { identityProofChallenges } from './schema/identityProofChallenges';
 import { emailVerifications } from './schema/emailVerifications';
+import { identityLinkRequests } from './schema/identityLinkRequests';
 import { linkedAccountOauthChallenges } from './schema/userLinkedAccounts';
 import { domainVerifications } from './schema/domainVerifications';
 import {
@@ -111,8 +112,8 @@ import {
  * (that is the class-(A) rule above), so the ninety-day entries are indifferent
  * to anything under a day.
  *
- * What is not indifferent is `auth_sessions`, whose entries keep an hour of
- * grace so a late poll is told "expired" rather than "unknown".
+ * What is not indifferent is `auth_sessions` and `identity_link_requests`,
+ * whose entries keep an hour of grace so a late poll is told "expired" rather than "unknown".
  * Shortening this interval is therefore not a free "sweep more promptly"; it
  * spends that grace.
  *
@@ -214,6 +215,15 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Housekeeping only — the proof verifier burns `used_at` with an ' +
       '`expires_at > now()` predicate in the same UPDATE, so a challenge is ' +
       'unspendable at its deadline whether or not the sweep has run.',
+  },
+  {
+    table: identityLinkRequests,
+    column: identityLinkRequests.expiresAt,
+    retentionSeconds: 3600,
+    reason:
+      'Storage reclamation ONLY, an hour after the deadline so a late poll is ' +
+      'told "expired" rather than "unknown". Every read and transition in ' +
+      '`services/identityLink.service.ts` filters on `expires_at` itself.',
   },
   {
     table: emailVerifications,

@@ -86,6 +86,7 @@ import identityBackupRoutes from './routes/identityBackup';
 import linkedAccountsRoutes from './routes/linkedAccounts';
 import { aliasesForUser } from './services/linkedAccounts/linkedAccounts.service';
 import identityProofRoutes from './routes/identityProof';
+import identityLinkRoutes from './routes/identityLink';
 import civicRoutes from './routes/civic';
 import nodeRoutes from './routes/nodes';
 import { sweepValidations } from './services/civic/validator.service';
@@ -834,6 +835,10 @@ app.use('/app-signals', appSignalsRouter);
 // auth. Mounted
 // BEFORE `/identity` so the more specific `/identity/backup` prefix wins.
 app.use('/identity/backup', identityBackupRoutes);
+// Linking Commons to a passkey account from two devices (ADR 0029 D3): a relay
+// for the root proof Commons signs and the passkey auth.oxy.so asserts. Before
+// `/identity`.
+app.use('/identity/link', identityLinkRoutes);
 // One-use challenges for root proofs (ADR 0024 D7) and root readiness metadata.
 // Bearer only; a challenge authorizes nothing until a root signs it, and the
 // status carries no ciphertext. Two exact paths, before `/identity`.

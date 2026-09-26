@@ -6,7 +6,7 @@ import { ErrorFallback } from '@/components/error-fallback';
  * Auth Layout
  *
  * Layout for the Commons onboarding flow (welcome, create-identity,
- * import-identity). Commons is a NATIVE-ONLY app (iOS/Android) — there is no
+ * import-identity, link-account). Commons is a NATIVE-ONLY app (iOS/Android) — there is no
  * web build and no web sign-in, because the key vault never leaves the device.
  */
 export default function AuthLayout() {
@@ -21,6 +21,7 @@ export default function AuthLayout() {
                 <Stack.Screen name="welcome" />
                 <Stack.Screen name="create-identity" />
                 <Stack.Screen name="import-identity" />
+                <Stack.Screen name="link-account" />
                 <Stack.Screen name="recover-identity" />
             </Stack>
         </AuthFlowProvider>

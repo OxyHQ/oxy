@@ -20,6 +20,9 @@ no web identity, no web recovery phrase.
   email → a new passkey) and `OxyDeleteAccountPanel` (typed username → a
   passkey assertion): auth.oxy.so's `/signup`, `/recover` and
   `/delete-account`, built from the sign-in shell.
+- `OxyLinkCommonsPanel`: auth.oxy.so's `/link-commons` — a QR Commons scans
+  and signs, the code both devices show, then the passkey. The account
+  becomes self-custodied and its recovery email is deleted.
 - `useOxy().handleWebSession` takes a `LoginSessionResult` too (a passkey
   registration's session).
 

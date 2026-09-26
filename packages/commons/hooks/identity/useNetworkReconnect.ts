@@ -9,6 +9,7 @@ import {
   type CircuitBreakerState,
 } from './reconnectPolicy';
 import { getIdentitySyncStateFromStorage } from './identityStore';
+import { isLinkInProgress } from '@/lib/link-account/linkInProgress';
 
 export interface UseNetworkReconnectOptions {
   /** OxyServices instance */
@@ -81,7 +82,8 @@ export const useNetworkReconnect = (options: UseNetworkReconnectOptions): void =
           // Sync identity first (if not synced)
           try {
             const hasIdentityValue = await hasIdentity();
-            if (hasIdentityValue && !isSyncing) {
+            // A key being linked to a web account is not a new account to register.
+            if (hasIdentityValue && !isSyncing && !isLinkInProgress()) {
               // Check sync status directly from secure storage - sync if not explicitly 'true'
               const syncStatus = await getIdentitySyncStateFromStorage();
               if (!syncStatus) {

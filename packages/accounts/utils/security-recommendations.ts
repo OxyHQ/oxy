@@ -1,8 +1,10 @@
+import type { IdentityRootStatus } from '@oxy.so/contracts';
 import type { ClientSession, SecurityActivity } from '@oxy.so/core';
 
 /** Stable identifier for each security recommendation the app can surface. */
 export type SecurityRecommendationId =
   | 'biometric'
+  | 'link-commons'
   | 'old-sessions'
   | 'many-devices'
   | 'suspicious-activity';
@@ -21,6 +23,12 @@ export interface SecurityRecommendationInput {
   canEnableBiometric: boolean;
   biometricEnabled: boolean;
   biometricLoading: boolean;
+  /**
+   * How the account is kept (`GET /identity/root-status`), or `undefined` while
+   * unknown. A passkey account is recommended to link Commons (ADR 0029 D3):
+   * its own key, and its recovery phrase in place of the recovery email.
+   */
+  rootStatus: IdentityRootStatus | undefined;
   sessions: ClientSession[] | undefined;
   deviceCount: number;
   securityActivities: SecurityActivity[];
@@ -84,18 +92,23 @@ export function selectSecurityRecommendations(
     recommendations.push({ id: 'biometric', priority: 1 });
   }
 
-  // 2. Old/inactive sessions (medium priority).
+  // 2. A passkey account can hold its own key (medium priority).
+  if (input.rootStatus && !input.rootStatus.rootLinked) {
+    recommendations.push({ id: 'link-commons', priority: 2 });
+  }
+
+  // 3. Old/inactive sessions (medium priority).
   const oldSessionsCount = countStaleSessions(input.sessions, now);
   if (oldSessionsCount > 0) {
     recommendations.push({ id: 'old-sessions', priority: 2, count: oldSessionsCount });
   }
 
-  // 3. Many devices (low priority - informational).
+  // 4. Many devices (low priority - informational).
   if (input.deviceCount > MANY_DEVICES_THRESHOLD) {
     recommendations.push({ id: 'many-devices', priority: 3, count: input.deviceCount });
   }
 
-  // 4. Suspicious activity (critical priority).
+  // 5. Suspicious activity (critical priority).
   const suspiciousCount = countSuspiciousActivity(input.securityActivities);
   if (suspiciousCount > 0) {
     recommendations.push({ id: 'suspicious-activity', priority: 0, count: suspiciousCount });

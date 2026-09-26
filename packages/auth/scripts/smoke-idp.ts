@@ -22,7 +22,7 @@
  *   - SPA renders blank / build totally broken   → `/`, `/login`, `/signup`, `/authorize` lose the SPA root marker.
  *   - `/authorize` not routed at all             → a PKCE-bound authorize URL stops answering 200 with the SPA shell.
  *   - `/device` not served                        → the link `codea login` prints stops answering 200 with the SPA shell.
- *   - the account pages not served                → `/signup`, `/recover` and `/delete-account` lose the SPA shell.
+ *   - the account pages not served                → `/signup`, `/recover`, `/delete-account` and `/link-commons` lose the SPA shell.
  *   - FedCM manifest NOT removed                  → `/.well-known/web-identity` still serves the FedCM config JSON.
  *
  * What it CANNOT catch, despite an earlier comment here claiming otherwise: a
@@ -231,6 +231,7 @@ async function run(): Promise<void> {
   await checkSpaPage(PRIMARY_TARGET, '/authorize');
   await checkSpaPage(PRIMARY_TARGET, '/recover');
   await checkSpaPage(PRIMARY_TARGET, '/delete-account');
+  await checkSpaPage(PRIMARY_TARGET, '/link-commons');
   await checkAuthorizeWithPkce(PRIMARY_TARGET);
   await checkDeviceApproval(PRIMARY_TARGET);
   await checkWebIdentityGone(PRIMARY_TARGET);

@@ -13,13 +13,16 @@ interface UseSecurityOverviewItemsArgs {
   biometricLoading: boolean;
   /** `GET /identity/root-status`, or `undefined` while unknown. */
   rootStatus: IdentityRootStatus | undefined;
+  /** Link Commons to this passkey account (auth.oxy.so/link-commons). */
+  handleLinkCommons: () => void;
   handleSecurity: HomeHandlers['handleSecurity'];
 }
 
 /**
  * Builds the security-overview rows on the home screen (biometric status, how
- * the account is recovered, overall security status). Every row links to the
- * security screen. The biometric row is native-only.
+ * the account is recovered, overall security status). The recovery row of a
+ * passkey account links Commons; every other row opens the security screen.
+ * The biometric row is native-only.
  *
  * Extracted verbatim from the screen's inline `useMemo`.
  */
@@ -29,6 +32,7 @@ export function useSecurityOverviewItems({
   hasBiometricHardware,
   biometricLoading,
   rootStatus,
+  handleLinkCommons,
   handleSecurity,
 }: UseSecurityOverviewItemsArgs): GroupedItem[] {
   const colors = useColors();
@@ -77,7 +81,8 @@ export function useSecurityOverviewItems({
       iconColor: recoveryNeedsAttention ? colors.sidebarIconSecurity : colors.success,
       title: t('home.securityOverview.recovery'),
       subtitle: recoverySubtitle,
-      onPress: handleSecurity,
+      // A passkey account is one step from its own key.
+      onPress: rootStatus && !rootStatus.rootLinked ? handleLinkCommons : handleSecurity,
     });
 
     // Security status based on recommendations
@@ -92,5 +97,5 @@ export function useSecurityOverviewItems({
     });
 
     return items;
-  }, [biometricEnabled, canEnableBiometric, hasBiometricHardware, biometricLoading, colors.sidebarIconSecurity, colors.sidebarIconPayments, colors.success, rootStatus, handleSecurity, t]);
+  }, [biometricEnabled, canEnableBiometric, hasBiometricHardware, biometricLoading, colors.sidebarIconSecurity, colors.sidebarIconPayments, colors.success, rootStatus, handleLinkCommons, handleSecurity, t]);
 }

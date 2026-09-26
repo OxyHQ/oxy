@@ -164,7 +164,9 @@
       "suspicious_one": "Detectado {{count}} evento de seguridad crítico",
       "suspiciousSubtitle": "Revisa tu actividad de seguridad de inmediato",
       "suspiciousAlertTitle": "Eventos de seguridad críticos",
-      "suspiciousAlertMessage": "Tienes {{count}} evento(s) de seguridad críticos. Revisa tu actividad de seguridad y considera cambiar tu contraseña o cerrar sesión en todos los dispositivos si detectas actividad sospechosa."
+      "suspiciousAlertMessage": "Tienes {{count}} evento(s) de seguridad críticos. Revisa tu actividad de seguridad y considera cambiar tu contraseña o cerrar sesión en todos los dispositivos si detectas actividad sospechosa.",
+      "linkCommons": "Vincula Commons",
+      "linkCommonsSubtitle": "Guarda tu propia clave: tu cuenta será solo tuya y tu frase de recuperación sustituirá al email de recuperación."
     },
     "activity": {
       "loading": "Cargando actividad de seguridad...",

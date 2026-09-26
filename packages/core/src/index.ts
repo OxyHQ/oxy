@@ -347,6 +347,8 @@ export { deriveSharedSecret } from './crypto/ecdh';
 // Identity proofs — the one signed format for operations on a personal root
 // (docs/adr/0024-one-oxy-account-root-holders.md D7)
 export { digestIdentityPayload, signIdentityProof } from './crypto/identityProof';
+// Linking Commons to a passkey account: the code both screens compare (ADR 0029 D3)
+export { deriveIdentityLinkCode } from './crypto/identityLink';
 
 // ---------------------------------------------------------------------------
 // Devices

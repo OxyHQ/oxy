@@ -35,6 +35,7 @@ function baseInput(overrides: Partial<SecurityRecommendationInput> = {}): Securi
     canEnableBiometric: false,
     biometricEnabled: false,
     biometricLoading: false,
+    rootStatus: { rootLinked: true, recoveryEmail: null },
     sessions: [],
     deviceCount: 0,
     securityActivities: [],
@@ -109,6 +110,13 @@ describe('selectSecurityRecommendations', () => {
     ).not.toContain('biometric');
   });
 
+  it('recommends linking Commons to a passkey account, and not on a guess (ADR 0029 D3)', () => {
+    const passkey = { rootLinked: false, recoveryEmail: 'ada@example.com' };
+    expect(selectSecurityRecommendations(baseInput({ rootStatus: passkey }), NOW).map((r) => r.id)).toEqual(['link-commons']);
+    expect(selectSecurityRecommendations(baseInput({ rootStatus: undefined }), NOW)).toEqual([]);
+    expect(selectSecurityRecommendations(baseInput({ rootStatus: { rootLinked: true, recoveryEmail: null } }), NOW)).toEqual([]);
+  });
+
   it('carries the stale-session count on the old-sessions recommendation', () => {
     const recs = selectSecurityRecommendations(
       baseInput({
@@ -152,6 +160,7 @@ describe('selectSecurityRecommendations', () => {
       baseInput({
         canEnableBiometric: true, // priority 1, pushed first
         biometricEnabled: false,
+        rootStatus: { rootLinked: false, recoveryEmail: 'ada@example.com' }, // priority 2, pushed before old sessions
         sessions: [session({ lastActive: daysAgo(STALE_SESSION_DAYS + 5) })], // priority 2
         deviceCount: MANY_DEVICES_THRESHOLD + 1, // priority 3
         securityActivities: [activity({ severity: 'critical' })], // priority 0, pushed last
@@ -162,9 +171,10 @@ describe('selectSecurityRecommendations', () => {
     expect(recs.map((r) => r.id)).toEqual([
       'suspicious-activity',
       'biometric',
+      'link-commons',
       'old-sessions',
       'many-devices',
     ]);
-    expect(recs.map((r) => r.priority)).toEqual([0, 1, 2, 3]);
+    expect(recs.map((r) => r.priority)).toEqual([0, 1, 2, 2, 3]);
   });
 });

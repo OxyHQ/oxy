@@ -249,7 +249,7 @@ async function rootProof(identity: KeyIdentity, action: IdentityProofAction, ove
 }
 
 /** A WebAuthn assertion by `credentialId` over `challengeHex`, from `origin`. The signature check is mocked. */
-function assertionFor(credentialId: string, challengeHex: string, origin = 'https://accounts.oxy.so') {
+function assertionFor(credentialId: string, challengeHex: string, origin = 'https://auth.oxy.so') {
   const clientDataJSON = Buffer.from(
     JSON.stringify({ type: 'webauthn.get', challenge: Buffer.from(challengeHex, 'hex').toString('base64url'), origin }),
   ).toString('base64url');
@@ -291,6 +291,37 @@ describe('first link only (ADR 0024 D8)', () => {
     expect(mockInvalidate).toHaveBeenCalledWith(currentUserId);
     // Self-sovereign: controlled by the person, not co-controlled by Oxy.
     expect((await storedDidDocument(currentUserId)).controller).toEqual([buildUserDid(currentUserId)]);
+  });
+
+  it('makes the account self-custodied: the recovery email goes with the first link (ADR 0029 D3)', async () => {
+    const email = `linked-${randomUUID()}@example.test`;
+    await getDb().update(users).set({ email }).where(eq(users.id, currentUserId));
+    const identity = keyIdentity();
+
+    const proof = await rootProof(identity, 'link_identity');
+    const res = await request(server, 'POST', '/auth/link', {
+      type: 'identity',
+      publicKey: identity.publicKey,
+      proof,
+      assertion: assertionFor(await baselineCredentialId(), proof.challenge),
+    });
+
+    expect(res.status).toBe(200);
+    const [row] = await getDb().select({ email: users.email, publicKey: users.publicKey }).from(users).where(eq(users.id, currentUserId));
+    expect(row).toEqual({ email: null, publicKey: identity.publicKey });
+  });
+
+  it('refuses a passkey asserted anywhere but auth.oxy.so', async () => {
+    const identity = keyIdentity();
+    const proof = await rootProof(identity, 'link_identity');
+    const res = await request(server, 'POST', '/auth/link', {
+      type: 'identity',
+      publicKey: identity.publicKey,
+      proof,
+      assertion: assertionFor(await baselineCredentialId(), proof.challenge, 'https://accounts.oxy.so'),
+    });
+    expect(res.status).toBe(401);
+    expect((await storedUser(currentUserId)).publicKey).toBeNull();
   });
 
   it('refuses a keyless account’s first link carried by a bearer and a new key alone', async () => {

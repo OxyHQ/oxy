@@ -667,6 +667,29 @@ export {
     emailVerificationConfirmResponseSchema,
 } from './accountEmail';
 
+export {
+    // Linking Commons to a passkey account (ADR 0029 D3)
+    IDENTITY_LINK_STATUSES,
+    IDENTITY_LINK_QR_PREFIX,
+    identityLinkIdSchema,
+    buildIdentityLinkQrPayload,
+    parseIdentityLinkQrPayload,
+    identityLinkCreateResponseSchema,
+    identityLinkStateSchema,
+    identityLinkProofRequestSchema,
+    identityLinkOptionsRequestSchema,
+    identityLinkCompleteRequestSchema,
+} from './identityLink';
+
+export type {
+    IdentityLinkStatus,
+    IdentityLinkCreateResponse,
+    IdentityLinkState,
+    IdentityLinkProofRequest,
+    IdentityLinkOptionsRequest,
+    IdentityLinkCompleteRequest,
+} from './identityLink';
+
 export type {
     EmailVerificationPurpose,
     EmailVerificationStartRequest,
