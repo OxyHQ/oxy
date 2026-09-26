@@ -149,7 +149,10 @@ export async function startEmailSignIn(
   // An account whose codes were guessed at too often today gets the long code
   // for the rest of the day: its owner can still type it, nobody can guess it.
   // (Decided for real and decoy targets alike; the answer never says which.)
-  const longCode = target.userId ? (await isLockedOut(accountCeiling(target.userId))).locked : false;
+  // The same one lookup for a decoy (on a key no account uses), so the time
+  // taken says nothing about whether the account exists.
+  const ceiling = await isLockedOut(accountCeiling(target.userId ?? `decoy:${target.emailHash}`));
+  const longCode = target.userId ? ceiling.locked : false;
   // Over the send budget: answered like any other request, as a decoy that
   // sends nothing — the budget is never visible (`reserveSendBudget`).
   let retryLater = false;
