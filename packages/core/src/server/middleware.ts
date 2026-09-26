@@ -5,6 +5,7 @@
  *
  * Node only; reachable solely from `@oxy.so/core/server`.
  */
+import type { OxyRequestUser } from './auth';
 import { jwtDecode } from 'jwt-decode';
 import type { JsonWebKey } from 'node:crypto';
 import type { ApiError, User } from '../models/interfaces';
@@ -685,7 +686,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
           // receiving service to check.
           if (oxyUserId && tier === 'internal') {
             req.userId = oxyUserId;
-            req.user = { id: oxyUserId } as User;
+            req.user = { id: oxyUserId };
             req.serviceActingAs = { userId: oxyUserId, scopes: [] };
           } else if (oxyUserId) {
             // C3: an EXTERNAL service may only act as a user when an explicit
@@ -727,7 +728,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             // through `getOxyBillingPrincipal` (`@oxy.so/core/server`), whose
             // return type a user id cannot satisfy (ADR 0007).
             req.userId = oxyUserId;
-            req.user = { id: oxyUserId } as User;
+            req.user = { id: oxyUserId };
             req.serviceActingAs = { userId: oxyUserId, scopes: grant.scopes };
           } else {
             // No X-Oxy-User-Id means the service is acting as itself.
@@ -929,7 +930,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
           req.sessionId = sessionId;
           // Session validation already returned the full user, so `loadUser`
           // costs no extra round-trip.
-          req.user = loadUser ? validationResult.user : ({ id: validatedUserId } as User);
+          req.user = loadUser ? toRequestUser(validationResult.user) : { id: validatedUserId };
 
           if (debug) {
             logger.debug(`[oxy.auth] OK user=${validatedUserId} session=${sessionId}`, {
@@ -1449,6 +1450,11 @@ function readStringClaim(value: unknown): string | null {
  * `_id` instead. We accept either, but only a non-empty string — anything else
  * means the validated identity is unusable and the caller must reject.
  */
+/** A validated `User` as the request's `OxyRequestUser` (every field kept). */
+function toRequestUser(user: User): OxyRequestUser {
+  return { ...(user as unknown as Record<string, unknown>), id: user.id };
+}
+
 function getUserIdentityId(user: User): string | null {
   const candidate = (user as { id?: unknown; _id?: unknown }).id
     ?? (user as { id?: unknown; _id?: unknown })._id;
@@ -1497,7 +1503,9 @@ interface AuthReq {
   headers: Record<string, string | string[] | undefined>;
   query?: Record<string, unknown>;
   userId?: string | null;
-  user?: User | null;
+  // The same shape `OxyAuthRequest` (./auth) declares, so an app that augments
+  // Express's `Request` with `OxyRequestUser` can mount these handlers as is.
+  user?: OxyRequestUser | null;
   accessToken?: string;
   sessionId?: string | null;
   serviceApp?: ServiceApp;
