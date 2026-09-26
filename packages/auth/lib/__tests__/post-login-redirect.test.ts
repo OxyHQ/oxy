@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { buildPostLoginRedirect, postLoginRedirectFrom, withRequestQuery } from '@/lib/auth-utils';
+import { buildPostLoginRedirect, postLoginRedirectFrom } from '@/lib/auth-utils';
 
 const CODE = '0123456789abcdef0123456789abcdef';
 
@@ -45,16 +45,6 @@ describe('the request a sign-in continues to, read off the page query', () => {
     response_mode: 'web_message',
     login_hint: 'alice',
     error: 'shown once',
-  });
-
-  test('carries the request between /login and /signup, and nothing else', () => {
-    const url = new URL(withRequestQuery('/signup', query), 'https://auth.oxy.so');
-    expect(url.pathname).toBe('/signup');
-    expect(url.searchParams.get('client_id')).toBe('client-1');
-    expect(url.searchParams.get('response_mode')).toBe('web_message');
-    // The page's own one-shot parameters are not part of the request.
-    expect(url.searchParams.get('login_hint')).toBeNull();
-    expect(url.searchParams.get('error')).toBeNull();
   });
 
   test('continues to /authorize with the same request', () => {

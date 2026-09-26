@@ -10,13 +10,10 @@ import { OXY_CLIENT_ID } from "@/lib/oxy-client"
 import { DocumentLanguage } from "@/lib/i18n/document-language"
 import { AuthLayout } from "@/src/pages/layout"
 import { LoginPage } from "@/src/pages/login"
-import { SignUpPage } from "@/src/pages/signup"
 import { AuthorizePage } from "@/src/pages/authorize"
 import { McpLinkPage } from "@/src/pages/mcp-link"
 import { DevicePage } from "@/src/pages/device"
-import { RecoverPage } from "@/src/pages/recover"
-import { DeleteAccountPage } from "@/src/pages/delete-account"
-import { LinkCommonsPage } from "@/src/pages/link-commons"
+import { EmailSignInPage } from "@/src/pages/email-signin"
 import "@/app/globals.css"
 
 function ExternalRedirect({ url }: { url: string }) {
@@ -58,10 +55,8 @@ function App() {
                             {/* Auth flow routes */}
                             <Route element={<AuthLayout />}>
                                 <Route path="/login" element={<LoginPage />} />
-                                <Route path="/signup" element={<SignUpPage />} />
                                 <Route path="/authorize" element={<AuthorizePage />} />
                                 <Route path="/auth/login" element={<LoginPage />} />
-                                <Route path="/auth/signup" element={<SignUpPage />} />
                                 <Route path="/auth/authorize" element={<AuthorizePage />} />
                                 {/* Adding another account to an existing MCP
                                     connection. Not an OAuth request: there is no
@@ -75,13 +70,10 @@ function App() {
                                     which kept the secret, finishes by polling. */}
                                 <Route path="/device" element={<DevicePage />} />
                                 <Route path="/auth/device" element={<DevicePage />} />
-                                {/* A passkey account's own pages (ADR 0029 D3): getting
-                                    it back through its recovery email, deleting it
-                                    with its passkey, and linking Commons — only here,
-                                    where Oxy passkeys are asserted. */}
-                                <Route path="/recover" element={<RecoverPage />} />
-                                <Route path="/delete-account" element={<DeleteAccountPage />} />
-                                <Route path="/link-commons" element={<LinkCommonsPage />} />
+                                {/* Where the sign-in email's link lands: it approves the
+                                    request in the browser that asked, and the app's
+                                    own screen then signs in. */}
+                                <Route path="/email-signin" element={<EmailSignInPage />} />
                             </Route>
 
                             {/* Account management lives on accounts.oxy.so — the IdP no longer

@@ -23,6 +23,11 @@ const queryClient = new QueryClient({
 })
 
 const oxyBaseUrl = import.meta.env.VITE_OXY_URL || "https://api.oxy.so"
+// Optional, for running against a local stack: the app's registered client id
+// (the browser bridge and the QR sign-in need one) and the IdP's authorize URL
+// (the bridge opens that origin's `/bridge`).
+const oxyClientId = import.meta.env.VITE_OXY_CLIENT_ID || undefined
+const oxyAuthorizeUrl = import.meta.env.VITE_OXY_AUTHORIZE_URL || undefined
 
 const rootElement = document.getElementById("root")
 if (!rootElement) {
@@ -39,7 +44,12 @@ createRoot(rootElement).render(
   <QueryClientProvider client={queryClient}>
     <BloomThemeProvider mode="system" colorPreset="oxy">
       <ConnectionStatusToasts />
-      <OxyProvider baseURL={oxyBaseUrl} queryClient={queryClient}>
+      <OxyProvider
+        baseURL={oxyBaseUrl}
+        clientId={oxyClientId}
+        authorizeBaseUrl={oxyAuthorizeUrl}
+        queryClient={queryClient}
+      >
         <App />
       </OxyProvider>
     </BloomThemeProvider>

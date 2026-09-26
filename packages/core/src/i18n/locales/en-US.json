@@ -11,11 +11,6 @@
     },
     "addAccountTitle": "Add another account",
     "addAccountSubtitle": "Sign in with another account",
-    "username": {
-      "label": "Username",
-      "placeholder": "yourname",
-      "required": "Please enter your username."
-    },
     "actions": {
       "continue": "Continue",
       "back": "Back"
@@ -30,17 +25,18 @@
       "failed": "Couldn't start sign-in",
       "failedDescription": "Something went wrong. Please try again.",
       "rateLimited": "Too many attempts. Try again in {{seconds}}s.",
-      "passkeyCancelled": "Passkey prompt dismissed. Try again when you're ready.",
-      "passkeyFailed": "Couldn't complete the passkey. Please try again."
+      "invalidCredentials": "That username, email or password isn't right.",
+      "codeInvalid": "That code isn't right, or it has expired.",
+      "requestExpired": "This sign-in expired. Send a new email.",
+      "secondFactorInvalid": "That code isn't right. Try the current one.",
+      "originNotAllowed": "Sign-in isn't available here.",
+      "generic": "Something went wrong. Please try again."
     },
     "subtitleToApp": "to continue to {{app}}",
     "orContinueWith": "or continue with",
     "qr": {
       "caption": "Scan with Commons to sign in",
       "renew": "Show a new code"
-    },
-    "methods": {
-      "passkey": "Sign in with a passkey"
     },
     "terms": {
       "before": "By continuing, you agree to our",
@@ -50,15 +46,52 @@
     },
     "noAccount": "Don't have an account?",
     "createAccount": "Create account",
-    "recoverLink": "Lost your passkey? Recover your account"
+    "identifier": {
+      "label": "Email or username",
+      "placeholder": "you@example.com",
+      "required": "Enter your email or username."
+    },
+    "checkEmail": {
+      "title": "Check your email",
+      "description": "If an account matches {{identifier}}, we sent it a code and a sign-in link.",
+      "codeLabel": "Code",
+      "codeHint": "Type the code from the email, or open its link in this browser.",
+      "resend": "Send a new email",
+      "resendIn": "Send a new email in {{seconds}}s",
+      "resent": "We sent a new email.",
+      "retryLater": "We sent several emails already. Wait a few minutes and try again.",
+      "usePassword": "Use your password instead",
+      "differentAccount": "Use a different account"
+    },
+    "password": {
+      "title": "Enter your password",
+      "label": "Password",
+      "required": "Enter your password.",
+      "forgot": "Forgot it? Get a code by email"
+    },
+    "secondFactor": {
+      "title": "Two-step verification",
+      "description": "Enter the code from your authenticator app.",
+      "backupDescription": "Enter one of your backup codes. Each one works once.",
+      "label": "Authenticator code",
+      "backupLabel": "Backup code",
+      "useBackup": "Use a backup code",
+      "useAuthenticator": "Use your authenticator app"
+    },
+    "link": {
+      "approvedTitle": "You're signed in",
+      "approvedDescription": "Go back to the app where you asked to sign in: it continues by itself. You can close this tab.",
+      "otherDeviceTitle": "Open the link in the same browser",
+      "otherDeviceDescription": "This link only works in the browser where you asked to sign in. Open it there, or type the code from the email in the app.",
+      "invalidTitle": "This link can't be used",
+      "invalidDescription": "It expired or was already used. Ask for a new email in the app, or type the code from the latest one."
+    }
   },
   "signup": {
     "title": "Create your account",
-    "subtitle": "One identity for the whole ecosystem.",
-    "createInCommons": "Create your identity in Commons",
-    "createAccount": "Create account",
+    "subtitle": "Choose your username. Then we confirm your email.",
+    "createInCommons": "Create it in Commons instead",
     "backToSignInLink": "Already have an account? Sign in",
-    "webSubtitle": "No password: your device makes a passkey, and a recovery email gets you back in if you lose it.",
     "username": {
       "label": "Username",
       "placeholder": "yourname",
@@ -66,18 +99,14 @@
       "taken": "That username is taken."
     },
     "email": {
-      "title": "Your recovery email",
-      "subtitle": "If you lose your passkey, we send a code here to get you back in. It's used for nothing else.",
+      "title": "What's your email?",
+      "subtitle": "You sign in with it: we send you a code each time. Nobody else sees it.",
       "label": "Email",
       "placeholder": "you@example.com",
       "invalid": "Enter a valid email address."
     },
-    "passkey": {
-      "title": "Create your passkey",
-      "subtitle": "You sign in with it: your fingerprint, face or screen lock. There's nothing to remember.",
-      "action": "Create passkey"
-    },
-    "commonsInstead": "Want to hold your own key? Use Commons instead"
+    "commonsSubtitle": "Or create your identity in Commons, and hold your own key.",
+    "laterNote": "You can add a password or an authenticator app later, in your account's security settings."
   },
   "welcomeNew": {
     "navTitle": "Welcome",
@@ -224,22 +253,6 @@
     "title": "Feedback",
     "subtitle": "Tell us what you think"
   },
-  "recover": {
-    "title": "Recover your account",
-    "subtitle": "Enter your username or recovery email. We'll send a code to the account's recovery email.",
-    "identifier": {
-      "label": "Username or email",
-      "placeholder": "yourname",
-      "required": "Enter your username or email."
-    },
-    "commonsNote": "Does your account use Commons? Recover it in Commons with your recovery phrase.",
-    "passkey": {
-      "title": "Add a new passkey",
-      "subtitle": "For @{{username}}. Remove lost passkeys later in your account's security settings.",
-      "action": "Create passkey"
-    },
-    "backToSignIn": "Back to sign in"
-  },
   "accountCenter": {
     "sections": {
       "quickActions": "Quick Actions",
@@ -323,7 +336,6 @@
     "qrHeadline": "Sign in with your Oxy identity",
     "signInWithOxy": "Sign in with Oxy",
     "signUpWithOxy": "Sign up with Oxy",
-    "useIdentityOnDevice": "No Commons? Use a passkey on this device instead",
     "getCommons": "Get Commons",
     "commonsNotInstalled": "Don't have Commons? Get the app to sign in with your Oxy ID.",
     "showQrAnyway": "I have Commons on another device",
@@ -1843,16 +1855,16 @@
       "openCommons": "Open Oxy Commons",
       "commonsOpenFailed": "Couldn't open Oxy Commons. Open it yourself and go to Settings > Delete account.",
       "elsewhereTitle": "Delete your account where your identity is",
-      "elsewhereMessage": "Deleting your account needs your identity key, and it isn't on this device. Open Oxy Commons on the device that holds it and go to Settings > Delete account. An account that uses a passkey is deleted at {{site}}.",
+      "elsewhereMessage": "Deleting your account needs your identity key, and it isn't on this device. Open Oxy Commons on the device that holds it and go to Settings > Delete account. An account without a key is deleted from its settings at {{site}}.",
       "gotIt": "Got it",
       "identityUnreadable": "Couldn't read this device's identity storage. Unlock your device and try again."
     },
-    "passkey": {
-      "subtitle": "Confirm with your passkey. @{{username}} and everything in it are deleted for good.",
-      "action": "Delete with passkey",
+    "keyless": {
+      "subtitle": "@{{username}} and everything in it are deleted for good. Type your username, then confirm with a code we email you.",
+      "action": "Delete account",
       "done": "Your account is deleted.",
-      "closeWindow": "You can close this window.",
-      "commons": "This account uses Commons: delete it in Oxy Commons, Settings > Delete account, with its key."
+      "doneDescription": "You've been signed out.",
+      "keyed": "This account uses Commons: delete it in Oxy Commons, Settings > Delete account, with its key."
     }
   },
   "manageAccount": {
@@ -2095,7 +2107,6 @@
   "emailCode": {
     "title": "Check your email",
     "sentTo": "We sent a 6-digit code to {{email}}.",
-    "sentIfAccount": "If this account has a recovery email, we sent a 6-digit code to it.",
     "label": "Code",
     "resend": "Send a new code",
     "resent": "We sent a new code.",
@@ -2110,7 +2121,7 @@
   },
   "linkCommons": {
     "title": "Link Commons",
-    "subtitle": "Keep your own key: link Commons and this account becomes yours alone. Its recovery email is deleted, and your recovery phrase in Commons is how you get back in.",
+    "subtitle": "Keep your own key: link Commons and this account becomes yours alone. Its email is deleted, and your recovery phrase in Commons is how you get back in.",
     "scan": "On your phone, open Commons, choose “I have an Oxy account on the web” and scan this code.",
     "waiting": "Waiting for Commons…",
     "compareTitle": "Check the code",
@@ -2118,10 +2129,67 @@
     "confirm": "Yes, link Commons",
     "cancel": "Cancel",
     "doneTitle": "Commons is linked",
-    "done": "This account is self-custodied now. Its recovery email was deleted: your recovery phrase in Commons is how you get back in.",
+    "done": "This account is self-custodied now. Its email was deleted: your recovery phrase in Commons is how you get back in.",
     "already": "This account already uses Commons.",
     "expired": "This code expired.",
     "renew": "Show a new code",
-    "failed": "Commons couldn’t be linked. Try again."
+    "failed": "Commons couldn’t be linked. Try again.",
+    "confirmTitle": "Confirm the link",
+    "confirmDescription": "To finish, confirm it's you with a code we email you.",
+    "row": "Hold your own key with Commons"
+  },
+  "reauth": {
+    "title": "Confirm it's you",
+    "emailDescription": "We'll send a code to your email to confirm this change.",
+    "sendCode": "Send code",
+    "codeSent": "We sent a 6-digit code to your email.",
+    "codeLabel": "Code from the email",
+    "passwordLabel": "Current password",
+    "usePassword": "Use your password instead",
+    "useEmail": "Get a code by email instead",
+    "totpLabel": "Authenticator code or backup code",
+    "errors": {
+      "invalid": "That didn't work. Check what you typed and try again.",
+      "totpRequired": "Enter the code from your authenticator app too."
+    }
+  },
+  "signInSecurity": {
+    "password": {
+      "title": "Password",
+      "setTitle": "Set a password",
+      "changeTitle": "Change your password",
+      "description": "Sign in with your password instead of a code by email. Use at least {{min}} characters.",
+      "newLabel": "New password",
+      "repeatLabel": "Repeat the password",
+      "tooShort": "Use at least {{min}} characters.",
+      "mismatch": "The passwords don't match.",
+      "signOutOthers": "Sign out everywhere else",
+      "save": "Save password",
+      "saved": "Your password is saved.",
+      "row": "Optional: sign in with a password"
+    },
+    "totp": {
+      "title": "Authenticator app",
+      "description": "After your email code or password, Oxy also asks for a code from an app like Google Authenticator or 1Password.",
+      "setUp": "Set up",
+      "scan": "Scan this QR code with your authenticator app, or enter the setup key.",
+      "secretLabel": "Setup key",
+      "codeLabel": "Code from the app",
+      "enable": "Turn on",
+      "enabled": "The authenticator app is on.",
+      "disable": "Turn off the authenticator app",
+      "disabled": "The authenticator app is off.",
+      "on": "On",
+      "off": "Off",
+      "backupTitle": "Save your backup codes",
+      "backupDescription": "If you lose your phone, each code signs you in once. Keep them somewhere safe: they won't be shown again.",
+      "copy": "Copy codes",
+      "copied": "Backup codes copied.",
+      "savedThem": "I saved them",
+      "regenerate": "Get new backup codes",
+      "regenerateDescription": "Your old backup codes stop working.",
+      "remaining": "{{count}} backup codes left",
+      "row": "A second step when you sign in"
+    }
   }
 }

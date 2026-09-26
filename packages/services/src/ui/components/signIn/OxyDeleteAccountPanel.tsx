@@ -1,106 +1,91 @@
 /**
- * Deleting a passkey account (ADR 0029 D3), auth.oxy.so's `/delete-account`.
+ * Deleting an account that has no key of its own, from the account's settings
+ * (the account dialog's "Manage your account", or the Accounts app):
  *
- * A passkey account has no key to sign its deletion with, so the person types
- * the username and asserts one of the account's passkeys — on auth.oxy.so, the
- * one origin that asserts them — over a challenge the API minted for the
- * account. An account with a Commons key is deleted in Commons, with its key.
- * The page must be signed in as the account; the host renders sign-in first.
+ *   type the username → a code sent to the account's email (+ the
+ *   authenticator's code when it has one) → deleted, and signed out
+ *
+ * An account with a Commons key is deleted with that key — in Commons, or in
+ * an app that holds it (`ManageAccountScreen`); this panel says so instead.
+ * It must be rendered signed in as the account.
  */
 
 import type React from 'react';
 import { useState } from 'react';
 import { useOxy } from '../../context/OxyContext';
+import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import { useI18n } from '../../hooks/useI18n';
-import { isPasskeySupported, runAuthenticationCeremony } from '../../../webauthn/passkeyClient';
-import { PASSKEY_UNSUPPORTED_MESSAGE } from '../../context/passkeyFlow';
-import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
-import {
-  AccountFlowAction,
-  AccountFlowErrorLine,
-  AccountFlowField,
-  AccountFlowNote,
-  describeAccountFlowError,
-} from './accountFlowParts';
+import { OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
+import { ReauthStep } from './ReauthStep';
+import { AccountFlowField, AccountFlowNote } from './accountFlowParts';
 
 export interface OxyDeleteAccountPanelProps {
   /** The account is gone and this origin signed out of it. */
   onDeleted?: () => void;
+  /** "Cancel". */
+  onCancel?: () => void;
 }
 
-export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({ onDeleted }) => {
+export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({ onDeleted, onCancel }) => {
   const { t } = useI18n();
   const { user, oxyServices, logout } = useOxy();
+  const keyed = Boolean(user?.publicKey);
+  const methods = useSignInMethods({ enabled: !keyed });
   const [confirmText, setConfirmText] = useState('');
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [deleted, setDeleted] = useState(false);
 
   if (deleted) {
     return (
       <OxyAuthScreen>
-        <OxyAuthScreenHeader title={t('deleteAccount.passkey.done')} description={t('deleteAccount.passkey.closeWindow')} />
+        <OxyAuthScreenHeader title={t('deleteAccount.keyless.done')} description={t('deleteAccount.keyless.doneDescription')} />
       </OxyAuthScreen>
     );
   }
 
-  const username = user?.username ?? '';
-  if (user?.publicKey) {
+  if (keyed) {
     return (
       <OxyAuthScreen>
-        <OxyAuthScreenHeader title={t('deleteAccount.handoff.commonsTitle')} description={t('deleteAccount.passkey.commons')} />
+        <OxyAuthScreenHeader title={t('deleteAccount.handoff.commonsTitle')} description={t('deleteAccount.keyless.keyed')} />
       </OxyAuthScreen>
     );
   }
 
-  // The ceremony opens the browser's passkey prompt, so it starts from the press.
-  const remove = () => {
-    if (pending) return;
-    if (confirmText.trim() !== username) {
-      setError(t('deleteAccount.confirmLabel', { username }));
-      return;
-    }
-    setError(null);
-    setPending(true);
-    (async () => {
-      if (!isPasskeySupported()) throw new Error(PASSKEY_UNSUPPORTED_MESSAGE);
-      const options = await oxyServices.getAccountDeletionOptions();
-      const assertion = await runAuthenticationCeremony(options);
-      await oxyServices.deleteAccountWithPasskey(confirmText.trim(), assertion);
-      await logout().catch(() => undefined);
-      setDeleted(true);
-      onDeleted?.();
-    })()
-      .catch((reason: unknown) => setError(describeAccountFlowError(reason, t)))
-      .finally(() => setPending(false));
-  };
+  if (!methods.data) return <OxyAuthLoading />;
+
+  const username = user?.username ?? '';
 
   return (
-    <OxyAuthScreen>
-      <OxyAuthScreenHeader title={t('deleteAccount.title')} description={t('deleteAccount.passkey.subtitle', { username })} />
+    <ReauthStep
+      title={t('deleteAccount.title')}
+      description={t('deleteAccount.keyless.subtitle', { username })}
+      action="delete_account"
+      totpEnabled={methods.data.totpEnabled}
+      submitLabel={t('deleteAccount.keyless.action')}
+      destructive
+      validate={() => (confirmText.trim() === username ? null : t('deleteAccount.confirmLabel', { username }))}
+      onSubmit={async (proof) => {
+        if (!proof.emailCode) throw new Error(t('reauth.errors.invalid'));
+        await oxyServices.deleteAccountWithEmailCode(confirmText.trim(), {
+          emailCode: proof.emailCode,
+          ...(proof.totpCode ? { totpCode: proof.totpCode } : {}),
+        });
+        await logout().catch(() => undefined);
+        setDeleted(true);
+        onDeleted?.();
+      }}
+      secondary={onCancel ? { label: t('common.cancel'), onPress: onCancel } : undefined}
+    >
       <AccountFlowNote>{t('deleteAccount.warning')}</AccountFlowNote>
       <AccountFlowField
         label={t('deleteAccount.confirmLabel', { username })}
         value={confirmText}
-        onChange={(value) => {
-          setConfirmText(value);
-          if (error) setError(null);
-        }}
-        onSubmit={remove}
+        onChange={setConfirmText}
+        onSubmit={() => undefined}
         error={null}
-        disabled={pending}
         placeholder={username}
         autoComplete="off"
         testID="delete-account-confirm"
       />
-      {error ? <AccountFlowErrorLine message={error} /> : null}
-      <AccountFlowAction
-        label={t('deleteAccount.passkey.action')}
-        onPress={remove}
-        pending={pending}
-        disabled={confirmText.trim() !== username}
-        testID="delete-account-passkey"
-      />
-    </OxyAuthScreen>
+    </ReauthStep>
   );
 };

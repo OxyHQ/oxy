@@ -127,7 +127,7 @@
       "needsAttention": "Needs attention",
       "protected": "Protected",
       "recovery": "Account recovery",
-      "recoveryEmail": "Recovery email: {{email}}"
+      "recoveryEmail": "By email: {{email}}"
     }
   },
   "security": {
@@ -166,7 +166,7 @@
       "suspiciousAlertTitle": "Critical Security Events",
       "suspiciousAlertMessage": "You have {{count}} critical security event(s). Please review your security activity below and consider changing your password or signing out of all devices if you notice any suspicious activity.",
       "linkCommons": "Link Commons",
-      "linkCommonsSubtitle": "Hold your own key: your account becomes yours alone, and your recovery phrase replaces the recovery email."
+      "linkCommonsSubtitle": "Hold your own key: your account becomes yours alone, and your recovery phrase replaces its email."
     },
     "activity": {
       "loading": "Loading security activity...",
@@ -197,21 +197,6 @@
       "publicKeyAuth": "Public key authentication",
       "publicKeyAuthSubtitle": "Your account uses cryptographic keys for secure sign-in"
     },
-    "passkeys": {
-      "unnamed": "Passkey",
-      "addedOn": "Added {{date}}",
-      "addTitle": "Add a passkey",
-      "addSubtitle": "Sign in with your fingerprint, face, or device PIN",
-      "addSuccess": "Passkey added",
-      "addCancelled": "Passkey setup cancelled",
-      "addFailed": "Could not add a passkey",
-      "removeA11yLabel": "Remove passkey",
-      "removeConfirmTitle": "Remove this passkey?",
-      "removeConfirmMessage": "You will no longer be able to sign in with this passkey. Make sure you have another way to sign in.",
-      "removeAction": "Remove",
-      "removeSuccess": "Passkey removed",
-      "removeFailed": "Could not remove the passkey"
-    },
     "recoveryWarning": {
       "title": "No recovery phrase backup",
       "subtitle": "If you have not written down your 12-word recovery phrase, you cannot restore your account on a new device. Create an encrypted backup or note your phrase now.",
@@ -241,6 +226,18 @@
       "modalTitle": "Choose a language",
       "modalSubtitle": "Select your preferred language for this app",
       "changed": "Language updated"
+    },
+    "signInMethods": {
+      "email": "Email",
+      "emailSubtitle": "A code or a link each time you sign in",
+      "password": "Password",
+      "passwordSet": "Set — tap to change it",
+      "passwordNotSet": "Not set — optional",
+      "authenticator": "Authenticator app",
+      "authenticatorOn": "On · {{count}} backup codes left",
+      "authenticatorOff": "Off — add a second step to sign-in",
+      "linkCommons": "Link Commons",
+      "linkCommonsSubtitle": "Hold your own key: the account becomes yours alone, and its email is deleted"
     }
   },
   "data": {

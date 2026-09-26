@@ -1,12 +1,53 @@
 # Changelog
 
-## Unreleased
+## [7.0.0] - 2026-09-26
+
+Requires `@oxy.so/core` ^2.2.0.
+
+**Sign-in happens in the dialog, by email** (the plan "Oxy sin passkeys", PR 2
+of 4): no passkey, and no auth.oxy.so window except the browser bridge.
 
 ### Changed
 
-- The `@oxy.so/core` peer range admits core 2 (`^1.19.0 || ^2.0.0`). Core 2.0.0
-  only removes the server-side `jwtSecret` option, which this package never
-  used.
+- `OxySignInPanel` is a sequence of steps, in the dialog of every app (web and
+  native) and on auth.oxy.so's `/login`: an email or username → "Check your
+  email" (one field takes the 6-digit code or the 10-character `XXXXX-XXXXX`
+  code and submits itself once complete; meanwhile the screen asks every 2 s
+  whether the email's link was opened in this browser, and signs in when it
+  was; "Send a new email" after a 30 s cooldown) → optionally "Use your password
+  instead" (with "Forgot it? Get a code by email") → the authenticator's code,
+  or a backup code, when the account has one. Errors are inline and never say
+  whether an account exists; a 429 counts down. The web split card with the
+  Commons QR stays (the QR on the first step only), and "Continue with Oxy"
+  stays on top on native and below `md`.
+- `OxySignUpPanel` creates the account in place on every platform — username
+  (availability checked) → email → its code → signed in — with "Create it in
+  Commons instead". Props: `{ onSignedIn, onSignIn }`.
+- `OxyDeleteAccountPanel` deletes an account without a key with a code by email
+  (+ the authenticator's code), and says where to go for a keyed account.
+  `OxyLinkCommonsPanel` confirms the link with a code by email (+ the
+  authenticator's). Both are for the account's settings, not auth pages.
+- "Manage your account" opens the `DeleteAccount` panel for an account without a
+  key (and on the web), and lists Password, Authenticator app and Link Commons
+  for it.
+- The request view's "Having trouble?" no longer offers a passkey.
+
+### Added
+
+- `OxyPasswordPanel` (set or change the password) and `OxyAuthenticatorPanel`
+  (set up an authenticator app from its QR and setup key, backup codes shown
+  once with "Copy codes", new backup codes, turn off), each confirmed with a
+  code by email or the current password (+ the authenticator's code).
+- Routes `DeleteAccount`, `LinkCommons`, `SignInPassword` and
+  `SignInAuthenticator` for `showBottomSheet`.
+- `useSignInMethods()` — `GET /users/me/sign-in-methods`.
+
+### Removed
+
+- `useOxy().continueOnAuth`, `signInWithPasskey`, `addPasskey`,
+  `removePasskey`; `useAuthMethods().passkeys`; `OxyCreateAccountPanel` and
+  `OxyRecoverAccountPanel` (recovering an account is signing in with a code);
+  `OxySignInPanelProps.onRecover`; the `@simplewebauthn/browser` dependency.
 
 ## [6.3.0] - 2026-09-26
 

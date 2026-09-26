@@ -1,13 +1,12 @@
 import { useCallback } from 'react';
-import { Linking } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import type { IdentityRootStatus } from '@oxy.so/contracts';
-import { AUTH_WEB_ORIGIN } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
 
 /**
- * How the signed-in account is kept (ADR 0029 D3): Commons' root, or a passkey
- * and a recovery email. `undefined` while unknown: nothing is shown on a guess.
+ * How the signed-in account is kept: Commons' root, or an email (with an
+ * optional password and authenticator). `undefined` while unknown: nothing is
+ * shown on a guess.
  */
 export function useIdentityRootStatus(): IdentityRootStatus | undefined {
   const { oxyServices, isAuthenticated } = useOxy();
@@ -21,11 +20,12 @@ export function useIdentityRootStatus(): IdentityRootStatus | undefined {
 }
 
 /**
- * Link Commons to this passkey account (ADR 0029 D3). It runs on
- * auth.oxy.so/link-commons, where Oxy passkeys are asserted, never in this app.
+ * Link Commons to this account: the SDK's own panel (`LinkCommons`), right in
+ * this app, confirmed with a code by email.
  */
 export function useOpenLinkCommons(): () => void {
+  const { showBottomSheet } = useOxy();
   return useCallback(() => {
-    Linking.openURL(`${AUTH_WEB_ORIGIN}/link-commons`).catch(() => undefined);
-  }, []);
+    showBottomSheet?.('LinkCommons');
+  }, [showBottomSheet]);
 }

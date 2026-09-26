@@ -1,4 +1,4 @@
-import { useAuth, useSecurityActivity, usePrivacySettings, useUpdatePrivacySettings } from "@oxy.so/services"
+import { useAuth, useOxy, useSecurityActivity, usePrivacySettings, useUpdatePrivacySettings } from "@oxy.so/services"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -12,10 +12,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 import { toast } from "@oxy.so/bloom"
 
 export function SecurityDemo() {
   const { isAuthenticated } = useAuth()
+  const { showBottomSheet } = useOxy()
   const { data: activity, isLoading: activityLoading } = useSecurityActivity()
   const { data: privacy, isLoading: privacyLoading } = usePrivacySettings()
   const updatePrivacy = useUpdatePrivacySettings()
@@ -45,6 +47,20 @@ export function SecurityDemo() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      {/* The SDK's own sign-in security panels */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Sign-in security</CardTitle>
+          <CardDescription>The SDK's panels, via useOxy().showBottomSheet()</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => showBottomSheet?.("SignInPassword")}>Password</Button>
+          <Button variant="outline" onClick={() => showBottomSheet?.("SignInAuthenticator")}>Authenticator app</Button>
+          <Button variant="outline" onClick={() => showBottomSheet?.("LinkCommons")}>Link Commons</Button>
+          <Button variant="destructive" onClick={() => showBottomSheet?.("DeleteAccount")}>Delete account</Button>
+        </CardContent>
+      </Card>
+
       {/* Security Activity */}
       <Card>
         <CardHeader>

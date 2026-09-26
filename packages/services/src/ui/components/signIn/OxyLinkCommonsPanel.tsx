@@ -1,14 +1,14 @@
 /**
- * Linking Commons to a passkey account (ADR 0029 D3), auth.oxy.so's
- * `/link-commons`:
+ * Linking Commons to an account that has no key of its own, from the account's
+ * settings (the account dialog's "Manage your account", or the Accounts app):
  *
  *   QR → Commons scans and signs with its key → both screens show the same
- *   code → the person confirms here with the passkey → linked
+ *   code → the person confirms it's them with a code sent to the account's
+ *   email (+ the authenticator's code) → linked
  *
  * Afterwards the account is self-custodied: its root is the key Commons holds,
- * its recovery email is deleted, and its phrase in Commons is how it gets back
- * in. The passkey keeps signing in on the web. The page must be signed in as
- * the account; the host renders sign-in first.
+ * its email, password and authenticator are deleted, and its phrase in Commons
+ * is how it gets back in. It must be rendered signed in as the account.
  */
 
 import type React from 'react';
@@ -21,11 +21,11 @@ import { Text } from '@oxy.so/bloom/typography';
 import { deriveIdentityLinkCode } from '@oxy.so/core';
 import type { IdentityLinkCreateResponse } from '@oxy.so/contracts';
 import { useOxy } from '../../context/OxyContext';
-import { PASSKEY_UNSUPPORTED_MESSAGE } from '../../context/passkeyFlow';
+import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import { useI18n } from '../../hooks/useI18n';
-import { isPasskeySupported, runAuthenticationCeremony } from '../../../webauthn/passkeyClient';
 import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
-import { AccountFlowAction, AccountFlowErrorLine, AccountFlowNote, describeAccountFlowError } from './accountFlowParts';
+import { ReauthStep } from './ReauthStep';
+import { AccountFlowAction, AccountFlowErrorLine, AccountFlowNote, describeSignInError } from './accountFlowParts';
 
 /** How often the page asks whether Commons has signed. */
 export const IDENTITY_LINK_POLL_MS = 2000;
@@ -39,6 +39,7 @@ type Step =
   | { name: 'opening' }
   | { name: 'qr'; link: IdentityLinkCreateResponse }
   | { name: 'matching'; link: IdentityLinkCreateResponse; code: string }
+  | { name: 'confirm'; link: IdentityLinkCreateResponse }
   | { name: 'expired' }
   | { name: 'done' };
 
@@ -52,9 +53,9 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
   const { t } = useI18n();
   const { user, oxyServices } = useOxy();
   const [step, setStep] = useState<Step>({ name: 'opening' });
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const alreadyLinked = Boolean(user?.publicKey);
+  const methods = useSignInMethods({ enabled: !alreadyLinked });
 
   const open = useCallback(() => {
     setError(null);
@@ -63,7 +64,7 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
       .createIdentityLink()
       .then((link) => setStep({ name: 'qr', link }))
       .catch((reason: unknown) => {
-        setError(describeAccountFlowError(reason, t));
+        setError(describeSignInError(reason, t));
         setStep({ name: 'expired' });
       });
   }, [oxyServices, t]);
@@ -111,23 +112,6 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
     };
   }, [link, oxyServices]);
 
-  // The ceremony opens the browser's passkey prompt, so it starts from the press.
-  const confirm = (confirmed: IdentityLinkCreateResponse) => {
-    if (pending) return;
-    setError(null);
-    setPending(true);
-    (async () => {
-      if (!isPasskeySupported()) throw new Error(PASSKEY_UNSUPPORTED_MESSAGE);
-      const options = await oxyServices.getIdentityLinkAssertionOptions(confirmed.linkId, confirmed.challenge);
-      const assertion = await runAuthenticationCeremony(options);
-      await oxyServices.completeIdentityLink(confirmed.linkId, assertion);
-      setStep({ name: 'done' });
-      onLinked?.();
-    })()
-      .catch((reason: unknown) => setError(describeAccountFlowError(reason, t)))
-      .finally(() => setPending(false));
-  };
-
   const cancel = (cancelled: IdentityLinkCreateResponse) => {
     void oxyServices.cancelIdentityLink(cancelled.linkId).catch(() => undefined);
     setStep({ name: 'expired' });
@@ -142,6 +126,26 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
   }
 
   switch (step.name) {
+    case 'confirm':
+      return (
+        <ReauthStep
+          title={t('linkCommons.confirmTitle')}
+          description={t('linkCommons.confirmDescription')}
+          action="link_commons"
+          totpEnabled={methods.data?.totpEnabled ?? false}
+          submitLabel={t('linkCommons.confirm')}
+          onSubmit={async (proof) => {
+            if (!proof.emailCode) throw new Error(t('reauth.errors.invalid'));
+            await oxyServices.completeIdentityLinkWithEmailCode(step.link.linkId, {
+              emailCode: proof.emailCode,
+              ...(proof.totpCode ? { totpCode: proof.totpCode } : {}),
+            });
+            setStep({ name: 'done' });
+            onLinked?.();
+          }}
+          secondary={{ label: t('linkCommons.cancel'), onPress: () => cancel(step.link) }}
+        />
+      );
     case 'done':
       return (
         <OxyAuthScreen>
@@ -167,9 +171,13 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
           >
             {`${step.code.slice(0, 3)} ${step.code.slice(3)}`}
           </Text>
-          {error ? <AccountFlowErrorLine message={error} /> : null}
-          <AccountFlowAction label={t('linkCommons.confirm')} onPress={() => confirm(step.link)} pending={pending} testID="link-commons-confirm" />
-          <Button appearance="plain" tone="neutral" size="lg" fullWidth disabled={pending} onPress={() => cancel(step.link)} testID="link-commons-cancel">
+          <AccountFlowAction
+            label={t('linkCommons.confirm')}
+            onPress={() => setStep({ name: 'confirm', link: step.link })}
+            pending={false}
+            testID="link-commons-confirm"
+          />
+          <Button appearance="plain" tone="neutral" size="lg" fullWidth onPress={() => cancel(step.link)} testID="link-commons-cancel">
             {t('linkCommons.cancel')}
           </Button>
         </OxyAuthScreen>

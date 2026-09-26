@@ -19,10 +19,10 @@
  * is not what a post-deploy curl gate is for.
  *
  * What it catches:
- *   - SPA renders blank / build totally broken   → `/`, `/login`, `/signup`, `/authorize` lose the SPA root marker.
+ *   - SPA renders blank / build totally broken   → `/`, `/login`, `/authorize` lose the SPA root marker.
  *   - `/authorize` not routed at all             → a PKCE-bound authorize URL stops answering 200 with the SPA shell.
  *   - `/device` not served                        → the link `codea login` prints stops answering 200 with the SPA shell.
- *   - the account pages not served                → `/signup`, `/recover`, `/delete-account` and `/link-commons` lose the SPA shell.
+ *   - the email link's page not served            → `/email-signin` loses the SPA shell.
  *   - FedCM manifest NOT removed                  → `/.well-known/web-identity` still serves the FedCM config JSON.
  *   - the browser bridge not served              → `/bridge` answers the SPA shell (or nothing) instead of its own tiny page.
  *
@@ -253,11 +253,8 @@ async function run(): Promise<void> {
   log(`\nauth.oxy.so smoke gate — target: ${PRIMARY_TARGET}\n`);
 
   await checkSpaPage(PRIMARY_TARGET, '/login');
-  await checkSpaPage(PRIMARY_TARGET, '/signup');
   await checkSpaPage(PRIMARY_TARGET, '/authorize');
-  await checkSpaPage(PRIMARY_TARGET, '/recover');
-  await checkSpaPage(PRIMARY_TARGET, '/delete-account');
-  await checkSpaPage(PRIMARY_TARGET, '/link-commons');
+  await checkSpaPage(PRIMARY_TARGET, '/email-signin');
   await checkAuthorizeWithPkce(PRIMARY_TARGET);
   await checkDeviceApproval(PRIMARY_TARGET);
   await checkBridgePage(PRIMARY_TARGET);

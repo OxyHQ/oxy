@@ -118,7 +118,7 @@ export {
     useRecentSecurityActivity,
     useInfiniteSecurityActivity,
 } from './ui/hooks/queries/useSecurityQueries';
-export { useAuthMethods } from './ui/hooks/queries/useAuthMethods';
+export { useAuthMethods, useSignInMethods } from './ui/hooks/queries/useAuthMethods';
 export {
     useUserSubscription,
     useUserPayments,
@@ -368,17 +368,17 @@ export { OxySignUpPanel } from './ui/components/signIn/OxySignUpPanel';
 export type { OxySignUpPanelProps } from './ui/components/signIn/OxySignUpPanel';
 export { OxyAccountPicker } from './ui/components/signIn/OxyAccountPicker';
 export type { OxyAccountPickerProps } from './ui/components/signIn/OxyAccountPicker';
-// auth.oxy.so's account pages (ADR 0029 D3): a passkey account is created,
-// recovered through its recovery email, deleted with its passkey, and linked
-// to Commons there.
-export { OxyCreateAccountPanel } from './ui/components/signIn/OxyCreateAccountPanel';
-export type { OxyCreateAccountPanelProps } from './ui/components/signIn/OxyCreateAccountPanel';
-export { OxyRecoverAccountPanel } from './ui/components/signIn/OxyRecoverAccountPanel';
-export type { OxyRecoverAccountPanelProps } from './ui/components/signIn/OxyRecoverAccountPanel';
+// The account's own sign-in security, for its settings (the Accounts app, and
+// the account dialog's "Manage your account" through the `DeleteAccount`,
+// `LinkCommons`, `SignInPassword` and `SignInAuthenticator` routes).
 export { OxyDeleteAccountPanel } from './ui/components/signIn/OxyDeleteAccountPanel';
 export type { OxyDeleteAccountPanelProps } from './ui/components/signIn/OxyDeleteAccountPanel';
 export { OxyLinkCommonsPanel } from './ui/components/signIn/OxyLinkCommonsPanel';
 export type { OxyLinkCommonsPanelProps } from './ui/components/signIn/OxyLinkCommonsPanel';
+export { OxyPasswordPanel } from './ui/components/signIn/OxyPasswordPanel';
+export type { OxyPasswordPanelProps } from './ui/components/signIn/OxyPasswordPanel';
+export { OxyAuthenticatorPanel } from './ui/components/signIn/OxyAuthenticatorPanel';
+export type { OxyAuthenticatorPanelProps } from './ui/components/signIn/OxyAuthenticatorPanel';
 export {
   OxyAuthScreen,
   OxyAuthScreenHeader,

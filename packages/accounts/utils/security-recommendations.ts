@@ -25,8 +25,8 @@ export interface SecurityRecommendationInput {
   biometricLoading: boolean;
   /**
    * How the account is kept (`GET /identity/root-status`), or `undefined` while
-   * unknown. A passkey account is recommended to link Commons (ADR 0029 D3):
-   * its own key, and its recovery phrase in place of the recovery email.
+   * unknown. An account without a key is recommended to link Commons: its own
+   * key, and its recovery phrase in place of its email.
    */
   rootStatus: IdentityRootStatus | undefined;
   sessions: ClientSession[] | undefined;

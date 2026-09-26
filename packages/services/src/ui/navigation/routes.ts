@@ -40,6 +40,10 @@ export type RouteName =
     | 'Notifications' // Per-channel notification preferences
     | 'ConnectedApps' // OAuth-authorized third-party apps the user can revoke
     | 'Preferences' // General user preferences (theme, reduce-motion, etc.)
+    | 'DeleteAccount' // Delete an account without a key, with a code by email
+    | 'LinkCommons' // Link Commons: the account becomes self-custodied
+    | 'SignInPassword' // Set or change the account's password
+    | 'SignInAuthenticator' // The account's authenticator app and backup codes
     | 'AccountDialog'; // Unified account switcher + sign-in surface (OxyAccountDialogScreen body)
 
 /**
@@ -110,6 +114,11 @@ const screenComponents: Record<RouteName, ComponentType<never>> = {
     Notifications: lazy(() => import('../screens/NotificationsScreen')),
     ConnectedApps: lazy(() => import('../screens/ConnectedAppsScreen')),
     Preferences: lazy(() => import('../screens/PreferencesScreen')),
+    // The account's own sign-in security, in its settings.
+    DeleteAccount: lazy(() => import('../screens/DeleteAccountScreen')),
+    LinkCommons: lazy(() => import('../screens/LinkCommonsScreen')),
+    SignInPassword: lazy(() => import('../screens/SignInPasswordScreen')),
+    SignInAuthenticator: lazy(() => import('../screens/SignInAuthenticatorScreen')),
     // Unified account switcher + sign-in surface. Its body lives in the
     // `OxyAccountDialogScreen` component (folded from the standalone dialog); the
     // surface stack provides the Dialog chrome around it.

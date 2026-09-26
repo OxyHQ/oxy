@@ -9,9 +9,8 @@
  * only the account dialog knows:
  *
  *  - which of the controller's facts map onto the surface's props;
- *  - which alternatives are genuine ones for the CURRENT presentation (the
- *    passkey ceremony is pointless once the request is already being confirmed,
- *    and a QR link is redundant while the QR itself is the primary visual);
+ *  - which alternatives are genuine ones for the CURRENT presentation (a QR
+ *    link is redundant while the QR itself is the primary visual);
  *  - the one piece of local intent the controller has no opinion on: leaving the
  *    acquisition surface via "I have Commons on another device".
  *
@@ -50,24 +49,9 @@ const SignInRequestView: React.FC<SignInRequestViewProps> = ({
   // leads — until the user explicitly asks for the QR anyway.
   const acquiring = !failed && commonsAvailability === 'unavailable' && !qrRequested;
 
-  // A ceremony is pointless once the request is already being confirmed, and a
-  // ceremony FAILURE is toasted by the container — this link never renders an
-  // error of its own (owner mandate).
-  const passkeyAction: OxySignInSurfaceAction[] =
-    alternatives.passkeyAvailable && signIn.phase !== 'authorized' && signIn.phase !== 'completed'
-      ? [
-          {
-            key: 'passkey-signin-link',
-            label: t('accountSwitcher.useIdentityOnDevice'),
-            onPress: alternatives.onSignInWithPasskey,
-          },
-        ]
-      : [];
-
   const troubleActions = ((): OxySignInSurfaceAction[] => {
-    // Nothing about the chosen route is actionable any more — only the
-    // authentication alternatives are.
-    if (failed) return passkeyAction;
+    // Nothing about the chosen route is actionable any more: "Try again" is.
+    if (failed) return [];
     if (acquiring) {
       return [
         {
@@ -75,7 +59,6 @@ const SignInRequestView: React.FC<SignInRequestViewProps> = ({
           label: t('accountSwitcher.showQrAnyway'),
           onPress: () => setQrRequested(true),
         },
-        ...passkeyAction,
       ];
     }
     return [
@@ -89,7 +72,6 @@ const SignInRequestView: React.FC<SignInRequestViewProps> = ({
               onPress: alternatives.onShowQr,
             },
           ]),
-      ...passkeyAction,
       {
         key: 'get-commons-link',
         label: t('accountSwitcher.getCommons'),

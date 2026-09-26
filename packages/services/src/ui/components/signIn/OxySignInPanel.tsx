@@ -1,39 +1,44 @@
 /**
  * THE Oxy sign-in screen. The account dialog every Oxy app opens and the
  * auth.oxy.so page render this one component; only where it is mounted
- * differs (`host`).
+ * differs (`host`). Sign-in happens IN it, on every origin: no window opens.
  *
- *   picker   a returning device: "Choose an account", then "Use another account"
- *   entry    the header, the Commons way in, the passkey, and the way in for
- *            someone with no account. On the web, from `md`, the screen is
- *            Bloom `AuthCard`'s split card and the Commons way in is the
- *            embedded QR over its photo carousel, in the right column (the
- *            account dialog grows to that card); below `md` it is "Continue
- *            with Oxy" at the top. The passkey belongs to `oxy.so`: on
- *            auth.oxy.so (`page`) it runs here — the username with its Continue,
- *            a username-first ceremony that takes a hardware security key with
- *            no resident credential too, and the discoverable passkey — and in
- *            an app's dialog it opens auth.oxy.so's window for that one step, as
- *            does "Create account". On native it is "Continue with Oxy" ("Get
- *            Commons" without Commons).
+ *   picker        a returning device: "Choose an account", then "Use another account"
+ *   identifier    the header, the Commons way in, and "Email or username" with its
+ *                 Continue. On the web, from `md`, the screen is Bloom `AuthCard`'s
+ *                 split card and the Commons way in is the embedded QR over its
+ *                 photo carousel, in the right column (the account dialog grows to
+ *                 that card); below `md` it is "Continue with Oxy" at the top. On
+ *                 native it is "Continue with Oxy" ("Get Commons" without Commons).
+ *   check-email   one email carries a code and a link. The code is typed here (6
+ *                 digits, or the 10-character long code); meanwhile the screen asks
+ *                 whether the link was opened in this browser, and signs in when it was.
+ *   password      the alternative for an account that has one.
+ *   second-factor the authenticator's code, or a backup code, when the account has one.
  *
- * `signInMethods.ts` owns which blocks a platform gets.
+ * Every answer is the same whether or not the account exists: the email step
+ * says "if an account matches".
  */
 
 import type React from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Text as RNText, StyleSheet, View } from 'react-native';
 import { View as CssView } from 'react-native-css/components';
 import { AuthMediaCarousel } from '@oxy.so/bloom/auth-card';
 import { Button } from '@oxy.so/bloom/button';
 import { Divider } from '@oxy.so/bloom/divider';
-import { RiKey2Line } from '@oxy.so/bloom/icons/RiKey2Line';
-import { RiQrCodeLine } from '@oxy.so/bloom/icons/RiQrCodeLine';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { TextField, TextFieldHint, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import type { SwitcherContextRow } from '@oxy.so/core';
+import {
+  EMAIL_SIGNIN_LONG_CODE_LENGTH,
+  SIGN_IN_ERROR_CODES,
+  TOTP_DIGITS,
+  isSecondFactorRequired,
+  type LoginResult,
+  type SignInStepResult,
+} from '@oxy.so/contracts';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../../context/OxyContext';
 import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
@@ -47,20 +52,38 @@ import { SIGN_IN_SLIDES } from './artwork';
 import { InlineCommonsQr } from './InlineCommonsQr';
 import { OxyAccountPicker } from './OxyAccountPicker';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthSplit, OxyAuthTerms } from './OxyAuthScreen';
-import { RATE_LIMIT_SECONDS, describePasskeyError, isRateLimited } from './passkeyError';
+import {
+  AccountFlowAction,
+  AccountFlowField,
+  AccountFlowNote,
+  describeSignInError,
+  errorCode,
+  formatSignInCodeInput,
+  isCompleteSignInCode,
+  isRateLimited,
+  retryAfterSeconds,
+} from './accountFlowParts';
 import { resolveSignInMethods } from './signInMethods';
 
 /** Bloom `AuthCard`'s split card width, which the account dialog grows to for it. */
 const SPLIT_WIDTH = 880;
+/** How often the check-email step asks whether the link was opened in this browser. */
+export const EMAIL_SIGNIN_POLL_MS = 2000;
+/** How long after an email "Send a new email" waits. */
+export const EMAIL_RESEND_COOLDOWN_SECONDS = 30;
+
+type Step =
+  | { name: 'start' }
+  | { name: 'check-email'; identifier: string; requestId: string; requestSecret: string }
+  | { name: 'password'; identifier: string }
+  | { name: 'second-factor'; challengeId: string; identifier: string };
 
 export interface OxySignInPanelProps {
   /** This screen signed the origin in. */
   onSignedIn: () => void;
-  /** "New to Oxy? Create one". */
+  /** "Don't have an account? Create account". */
   onCreateAccount: () => void;
-  /** "Lost your passkey? Recover your account" — auth.oxy.so's page only. */
-  onRecover?: () => void;
-  /** A handle to pre-fill, skipping the picker (a re-authentication). */
+  /** An email or username to pre-fill, skipping the picker (a re-authentication). */
   loginHint?: string;
   /** The app being continued to, when there is one. */
   appName?: string | null;
@@ -76,7 +99,6 @@ export interface OxySignInPanelProps {
 export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   onSignedIn,
   onCreateAccount,
-  onRecover,
   loginHint,
   appName = null,
   host = 'page',
@@ -84,21 +106,27 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   const theme = useTheme();
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const { accountDialogController: controller, openAccountDialog, signInWithPasskey, continueOnAuth } = useOxy();
+  const { accountDialogController: controller, openAccountDialog, oxyServices, handleWebSession } = useOxy();
   const snapshot = useAccountDialogSnapshot(controller);
   const { principals, activeContext } = useDeviceSwitcher();
 
   const methods = resolveSignInMethods({
     web: isWebBrowser(),
-    host,
     commonsAvailability: snapshot.commonsAvailability,
   });
 
   const [showForm, setShowForm] = useState(Boolean(loginHint));
+  const [step, setStep] = useState<Step>({ name: 'start' });
   const [identifier, setIdentifier] = useState(loginHint ?? '');
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [secondFactorCode, setSecondFactorCode] = useState('');
+  const [useBackupCode, setUseBackupCode] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [rateLimitSeconds, setRateLimitSeconds] = useState(0);
+  const [resendSeconds, setResendSeconds] = useState(0);
   const blocked = pending || rateLimitSeconds > 0;
 
   // The countdown after a 429: one tick a second until the person may retry.
@@ -107,6 +135,13 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     const timer = setTimeout(() => setRateLimitSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
     return () => clearTimeout(timer);
   }, [rateLimitSeconds]);
+
+  // The wait before another email may be asked for.
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const timer = setTimeout(() => setResendSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [resendSeconds]);
 
   // On a page, a request the controller runs (the embedded QR, or one shown in
   // the dialog opened over it) finishes the page's sign-in too. Only one that
@@ -122,21 +157,8 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     if (host === 'page') openAccountDialog('qr');
   }, [host, openAccountDialog]);
 
-  // These open a window or leave the page, so they run straight from the
-  // press, before any await.
   const continueWithOxy = () => {
     void controller?.signInWithOxy();
-    showRequest();
-  };
-  // The passkey is `oxy.so`'s: in an app it runs in auth.oxy.so's window.
-  const passkeyOnOxy = () => {
-    void continueOnAuth('signin').then((result) => {
-      if (result.status === 'signed-in') onSignedIn();
-      else if (result.status === 'failed') toast.error(t('signin.errors.failed'));
-    });
-  };
-  const useAnotherDevice = () => {
-    void controller?.showQr();
     showRequest();
   };
   const getCommons = () => {
@@ -145,38 +167,184 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       .catch(() => toast.error(t('accountSwitcher.linkOpenFailed')));
   };
 
-  const runPasskey = async (username: string | undefined, failToast: string) => {
+  const fail = useCallback(
+    (reason: unknown) => {
+      if (isRateLimited(reason)) setRateLimitSeconds(retryAfterSeconds(reason));
+      else setError(describeSignInError(reason, t));
+    },
+    [t],
+  );
+
+  // One sign-in ends once: the typed code and the opened link can race.
+  const finishingRef = useRef(false);
+  const finish = useCallback(
+    async (result: SignInStepResult, from: string): Promise<void> => {
+      if (finishingRef.current) return;
+      if (isSecondFactorRequired(result)) {
+        setError(null);
+        setSecondFactorCode('');
+        setUseBackupCode(false);
+        setStep({ name: 'second-factor', challengeId: result.challengeId, identifier: from });
+        return;
+      }
+      finishingRef.current = true;
+      try {
+        await handleWebSession(result as LoginResult);
+      } catch (reason) {
+        finishingRef.current = false;
+        throw reason;
+      }
+      onSignedIn();
+    },
+    [handleWebSession, onSignedIn],
+  );
+
+  /** Send the sign-in email and show "Check your email". */
+  const startEmail = (name: string) => {
     if (blocked) return;
     setError(null);
+    setNotice(null);
     setPending(true);
-    try {
-      await signInWithPasskey({ username });
-      onSignedIn();
-    } catch (err) {
-      if (isRateLimited(err)) {
-        setRateLimitSeconds(RATE_LIMIT_SECONDS);
-      } else {
-        const message = describePasskeyError(err, t);
-        setError(message);
-        toast.error(failToast, { description: message });
-      }
-    } finally {
-      setPending(false);
-    }
+    oxyServices
+      .startEmailSignIn(name)
+      .then((started) => {
+        if (started.retryLater) {
+          setError(t('signin.checkEmail.retryLater'));
+          return;
+        }
+        setCode('');
+        setResendSeconds(EMAIL_RESEND_COOLDOWN_SECONDS);
+        if (step.name === 'check-email') setNotice(t('signin.checkEmail.resent'));
+        setStep({ name: 'check-email', identifier: name, requestId: started.requestId, requestSecret: started.requestSecret });
+      })
+      .catch(fail)
+      .finally(() => setPending(false));
   };
-  const submitUsername = () => {
-    const username = identifier.trim();
-    if (username) void runPasskey(username, t('signin.errors.failed'));
-    else setError(t('signin.username.required'));
+
+  const submitIdentifier = () => {
+    const name = identifier.trim();
+    if (!name) {
+      setError(t('signin.identifier.required'));
+      return;
+    }
+    startEmail(name);
+  };
+
+  const submitCode = (typed: string) => {
+    if (step.name !== 'check-email' || blocked) return;
+    if (!isCompleteSignInCode(typed)) {
+      setError(t('signin.errors.codeInvalid'));
+      return;
+    }
+    const request = step;
+    setError(null);
+    setNotice(null);
+    setPending(true);
+    oxyServices
+      .confirmEmailSignIn({ requestId: request.requestId, requestSecret: request.requestSecret, code: typed.trim() })
+      .then((result) => finish(result, request.identifier))
+      .catch((reason: unknown) => {
+        setCode('');
+        fail(reason);
+      })
+      .finally(() => setPending(false));
+  };
+
+  const submitPassword = () => {
+    if (step.name !== 'password' || blocked) return;
+    if (!password) {
+      setError(t('signin.password.required'));
+      return;
+    }
+    const name = step.identifier;
+    setError(null);
+    setPending(true);
+    oxyServices
+      .signInWithPassword({ identifier: name, password })
+      .then((result) => finish(result, name))
+      .catch(fail)
+      .finally(() => setPending(false));
+  };
+
+  const submitSecondFactor = (typed: string) => {
+    if (step.name !== 'second-factor' || blocked) return;
+    const value = typed.trim();
+    if (!value) {
+      setError(t('signin.errors.secondFactorInvalid'));
+      return;
+    }
+    const challenge = step;
+    setError(null);
+    setPending(true);
+    oxyServices
+      .completeSecondFactor({ challengeId: challenge.challengeId, code: value })
+      .then((session) => finish(session, challenge.identifier))
+      .catch((reason: unknown) => {
+        setSecondFactorCode('');
+        fail(reason);
+      })
+      .finally(() => setPending(false));
+  };
+
+  // The poll below finishes through the latest `finish` without restarting
+  // when a parent re-renders with a new `onSignedIn`.
+  const finishRef = useRef(finish);
+  useEffect(() => {
+    finishRef.current = finish;
+  }, [finish]);
+
+  // While "Check your email" shows, ask whether the link was opened in this
+  // browser; stop when the step goes, and on a request that is gone. A session
+  // the server handed over is always committed, even if the step went away
+  // meanwhile: the request is spent, so it would otherwise be lost.
+  const emailRequest = step.name === 'check-email' ? step : null;
+  const requestId = emailRequest?.requestId ?? null;
+  const requestSecret = emailRequest?.requestSecret ?? null;
+  const requestIdentifier = emailRequest?.identifier ?? '';
+  useEffect(() => {
+    if (!requestId || !requestSecret) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      if (stopped) return;
+      try {
+        const result = await oxyServices.collectEmailSignIn({ requestId, requestSecret });
+        if (!('status' in result)) {
+          await finishRef.current(result, requestIdentifier);
+          return;
+        }
+        if (stopped) return;
+      } catch (reason) {
+        if (stopped) return;
+        // A spent, expired or unknown request never approves: stop asking.
+        if (errorCode(reason) === SIGN_IN_ERROR_CODES.requestInvalid) return;
+      }
+      if (!stopped) timer = setTimeout(() => void poll(), EMAIL_SIGNIN_POLL_MS);
+    };
+    timer = setTimeout(() => void poll(), EMAIL_SIGNIN_POLL_MS);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [requestId, requestSecret, requestIdentifier, oxyServices]);
+
+  const backToIdentifier = () => {
+    setError(null);
+    setNotice(null);
+    setCode('');
+    setPassword('');
+    setStep({ name: 'start' });
+  };
+  const toPassword = (name: string) => {
+    setError(null);
+    setNotice(null);
+    setPassword('');
+    setStep({ name: 'password', identifier: name });
   };
 
   // A returning device starts at WHO. Not while adding an account from inside
   // a signed-in app: the rows are the accounts it would add.
   const pickerAllowed = host === 'dialog' ? !snapshot.hasSession : activeContext !== null;
-  const reauthenticate = (context: SwitcherContextRow) => {
-    setIdentifier(context.handle ?? '');
-    setShowForm(true);
-  };
   const selectContext = async (context: SwitcherContextRow) => {
     const outcome = await controller?.chooseContext(context.contextId).catch(() => 'failed' as const);
     switch (outcome) {
@@ -194,8 +362,12 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
         return;
       case 'failed':
         // The pair could not be activated as it stands: sign in as it explicitly.
-        if (methods.passkey === 'here' && context.handle) reauthenticate(context);
-        else toast.error(t('accountSwitcher.toasts.activateFailed'));
+        if (context.handle) {
+          setIdentifier(context.handle);
+          setShowForm(true);
+        } else {
+          toast.error(t('accountSwitcher.toasts.activateFailed'));
+        }
         return;
       default:
         return;
@@ -203,7 +375,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   };
 
   const showsPicker = pickerAllowed && !showForm && principals.length > 0;
-  // The web entry is the split card from `md`. In the account dialog it grows
+  // The web screen is the split card from `md`. In the account dialog it grows
   // the dialog to that card; below `md` the dialog is a bottom sheet, which a
   // width does not touch.
   const splits = methods.commons === 'qr';
@@ -227,158 +399,279 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   }
 
   const shownError = rateLimitSeconds > 0 ? t('signin.errors.rateLimited', { seconds: rateLimitSeconds }) : error;
+  const clearError = () => {
+    if (error) setError(null);
+  };
 
-  const adding = host === 'dialog' && snapshot.hasSession;
-  const title = adding ? t('signin.addAccountTitle') : t('signin.title');
-  const description = adding
-    ? t('signin.addAccountSubtitle')
-    : appName
-      ? t('signin.subtitleToApp', { app: appName })
-      : t('signin.subtitle');
-  const noAccount = (
-    <Text style={[styles.note, styles.noAccount, { color: theme.colors.textSecondary }]}>
-      {t('signin.noAccount')}{' '}
-      <RNText
-        accessibilityRole="link"
-        onPress={onCreateAccount}
-        style={[styles.noAccountLink, { color: theme.colors.text }]}
-        testID="create-account-link"
-      >
-        {t('signin.createAccount')}
-      </RNText>
-    </Text>
-  );
-  // One solid action per screen: the username's Continue when there is one.
-  const commonsAppearance = methods.passkey === 'here' ? 'outline' : 'solid';
-
-  const continueWithOxyButton = (
-    <Button
-      appearance={commonsAppearance}
-      tone={commonsAppearance === 'solid' ? 'action' : 'neutral'}
-      size="lg"
-      fullWidth
-      onPress={continueWithOxy}
-      testID="continue-with-oxy"
-    >
-      {t('accountSwitcher.continueWithOxy')}
-    </Button>
-  );
-
-  const passkeyButton = (
-    <Button
-      appearance="outline"
-      tone="neutral"
-      size="lg"
-      fullWidth
-      leadingIcon={RiKey2Line}
-      disabled={methods.passkey === 'here' && blocked}
-      onPress={methods.passkey === 'here' ? () => void runPasskey(undefined, t('signin.errors.failed')) : passkeyOnOxy}
-      testID="passkey-sign-in"
-    >
-      {t('signin.methods.passkey')}
-    </Button>
-  );
-
-  const form = (
-    <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
-      <OxyAuthScreenHeader title={title} description={description} />
-
-      {/* Below `md` this screen is the phone a QR would be scanned with. */}
-      {splits ? <CssView className="md:hidden">{continueWithOxyButton}</CssView> : null}
-
-      {methods.commons === 'continue' ? continueWithOxyButton : null}
-      {methods.commons === 'get-commons' ? (
-        <View style={styles.stack}>
-          <Text style={[styles.note, { color: theme.colors.textSecondary }]}>{t('accountSwitcher.commonsNotInstalled')}</Text>
-          <Button appearance="solid" tone="action" size="lg" fullWidth onPress={getCommons} testID="get-commons-button">
-            {t('accountSwitcher.getCommons')}
-          </Button>
-        </View>
-      ) : null}
-
-      {methods.passkey === 'here' ? (
-        <View style={styles.stack}>
-          <View style={styles.field}>
-            <TextFieldLabel nativeID="username-label">{t('signin.username.label')}</TextFieldLabel>
-            <TextField invalid={shownError !== null} disabled={blocked} radius={999} style={styles.input}>
-              <TextFieldInput
-                testID="username"
-                label={t('signin.username.label')}
-                value={identifier}
-                onValueChange={(value) => {
-                  setIdentifier(value);
-                  if (error) setError(null);
-                }}
-                placeholder={t('signin.username.placeholder')}
-                autoComplete="username"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoFocus={Platform.OS === 'web'}
-                returnKeyType="go"
-                onSubmitEditing={submitUsername}
-                aria-required
-              />
-            </TextField>
-            {shownError ? <TextFieldHint invalid>{shownError}</TextFieldHint> : null}
-          </View>
-          {noAccount}
-          <Button
-            appearance="solid"
-            tone="action"
-            size="lg"
-            fullWidth
-            loading={pending}
+  let form: React.ReactNode;
+  switch (step.name) {
+    case 'check-email': {
+      const request = step;
+      form = (
+        <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
+          <OxyAuthScreenHeader
+            title={t('signin.checkEmail.title')}
+            description={t('signin.checkEmail.description', { identifier: request.identifier })}
+          />
+          <AccountFlowField
+            label={t('signin.checkEmail.codeLabel')}
+            value={code}
+            onChange={(value) => {
+              const typed = formatSignInCodeInput(value);
+              setCode(typed);
+              clearError();
+              if (isCompleteSignInCode(typed)) submitCode(typed);
+            }}
+            onSubmit={() => submitCode(code)}
+            error={shownError}
             disabled={blocked}
-            onPress={submitUsername}
-            testID="username-continue"
-          >
-            {t('signin.actions.continue')}
-          </Button>
-        </View>
-      ) : null}
+            placeholder="000000"
+            autoComplete="one-time-code"
+            maxLength={EMAIL_SIGNIN_LONG_CODE_LENGTH + 1}
+            hint={t('signin.checkEmail.codeHint')}
+            testID="signin-code"
+          />
+          {notice ? <AccountFlowNote testID="signin-notice">{notice}</AccountFlowNote> : null}
+          <AccountFlowAction
+            label={t('signin.actions.continue')}
+            onPress={() => submitCode(code)}
+            pending={pending}
+            disabled={rateLimitSeconds > 0}
+            testID="signin-code-continue"
+          />
+          <View style={styles.links}>
+            <SubtleLink
+              label={
+                resendSeconds > 0
+                  ? t('signin.checkEmail.resendIn', { seconds: resendSeconds })
+                  : t('signin.checkEmail.resend')
+              }
+              theme={theme}
+              onPress={() => startEmail(request.identifier)}
+              disabled={blocked || resendSeconds > 0}
+              testID="signin-resend"
+            />
+            <SubtleLink
+              label={t('signin.checkEmail.usePassword')}
+              theme={theme}
+              onPress={() => toPassword(request.identifier)}
+              disabled={pending}
+              testID="signin-use-password"
+            />
+            <SubtleLink
+              label={t('signin.checkEmail.differentAccount')}
+              theme={theme}
+              onPress={backToIdentifier}
+              disabled={pending}
+              testID="signin-different-account"
+            />
+          </View>
+        </OxyAuthScreen>
+      );
+      break;
+    }
+    case 'password': {
+      const request = step;
+      form = (
+        <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
+          <OxyAuthScreenHeader title={t('signin.password.title')} description={request.identifier} />
+          <AccountFlowField
+            label={t('signin.password.label')}
+            value={password}
+            onChange={(value) => {
+              setPassword(value);
+              clearError();
+            }}
+            onSubmit={submitPassword}
+            error={shownError}
+            disabled={blocked}
+            autoComplete="current-password"
+            secureTextEntry
+            testID="signin-password"
+          />
+          <AccountFlowAction
+            label={t('signin.actions.continue')}
+            onPress={submitPassword}
+            pending={pending}
+            disabled={rateLimitSeconds > 0}
+            testID="signin-password-continue"
+          />
+          <View style={styles.links}>
+            <SubtleLink
+              label={t('signin.password.forgot')}
+              theme={theme}
+              onPress={() => startEmail(request.identifier)}
+              disabled={blocked}
+              testID="signin-password-forgot"
+            />
+            <SubtleLink
+              label={t('signin.checkEmail.differentAccount')}
+              theme={theme}
+              onPress={backToIdentifier}
+              disabled={pending}
+              testID="signin-different-account"
+            />
+          </View>
+        </OxyAuthScreen>
+      );
+      break;
+    }
+    case 'second-factor':
+      form = (
+        <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
+          <OxyAuthScreenHeader
+            title={t('signin.secondFactor.title')}
+            description={useBackupCode ? t('signin.secondFactor.backupDescription') : t('signin.secondFactor.description')}
+          />
+          <AccountFlowField
+            key={useBackupCode ? 'backup' : 'totp'}
+            label={useBackupCode ? t('signin.secondFactor.backupLabel') : t('signin.secondFactor.label')}
+            value={secondFactorCode}
+            onChange={(value) => {
+              if (useBackupCode) {
+                setSecondFactorCode(value);
+                clearError();
+                return;
+              }
+              const digits = value.replace(/\D/g, '').slice(0, TOTP_DIGITS);
+              setSecondFactorCode(digits);
+              clearError();
+              if (digits.length === TOTP_DIGITS) submitSecondFactor(digits);
+            }}
+            onSubmit={() => submitSecondFactor(secondFactorCode)}
+            error={shownError}
+            disabled={blocked}
+            placeholder={useBackupCode ? 'xxxxx-xxxxx' : '000000'}
+            autoComplete="one-time-code"
+            keyboardType={useBackupCode ? 'default' : 'number-pad'}
+            maxLength={useBackupCode ? 11 : TOTP_DIGITS}
+            testID="signin-second-factor"
+          />
+          <AccountFlowAction
+            label={t('signin.actions.continue')}
+            onPress={() => submitSecondFactor(secondFactorCode)}
+            pending={pending}
+            disabled={rateLimitSeconds > 0}
+            testID="signin-second-factor-continue"
+          />
+          <View style={styles.links}>
+            <SubtleLink
+              label={useBackupCode ? t('signin.secondFactor.useAuthenticator') : t('signin.secondFactor.useBackup')}
+              theme={theme}
+              onPress={() => {
+                setUseBackupCode(!useBackupCode);
+                setSecondFactorCode('');
+                setError(null);
+              }}
+              disabled={pending}
+              testID="signin-toggle-backup"
+            />
+            <SubtleLink
+              label={t('signin.checkEmail.differentAccount')}
+              theme={theme}
+              onPress={backToIdentifier}
+              disabled={pending}
+              testID="signin-different-account"
+            />
+          </View>
+        </OxyAuthScreen>
+      );
+      break;
+    default: {
+      const adding = host === 'dialog' && snapshot.hasSession;
+      const title = adding ? t('signin.addAccountTitle') : t('signin.title');
+      const description = adding
+        ? t('signin.addAccountSubtitle')
+        : appName
+          ? t('signin.subtitleToApp', { app: appName })
+          : t('signin.subtitle');
 
-      {/* The alternatives to the screen's primary way in, always under it. In an
-          app's dialog, from `md`, the QR beside it IS the primary way in. */}
-      {methods.passkey === 'window' ? (
-        <CssView className="md:hidden">
-          <Divider>{t('signin.orContinueWith')}</Divider>
-        </CssView>
-      ) : (
-        <Divider>{t('signin.orContinueWith')}</Divider>
-      )}
-
-      {methods.passkey === 'none' ? (
-        <Button
-          appearance="outline"
-          tone="neutral"
-          size="lg"
-          fullWidth
-          leadingIcon={RiQrCodeLine}
-          onPress={useAnotherDevice}
-          testID="scan-qr"
-        >
-          {t('accountSwitcher.scanQr')}
+      const continueWithOxyButton = (
+        <Button appearance="outline" tone="neutral" size="lg" fullWidth onPress={continueWithOxy} testID="continue-with-oxy">
+          {t('accountSwitcher.continueWithOxy')}
         </Button>
-      ) : (
-        passkeyButton
-      )}
+      );
+      const divider = <Divider>{t('signin.orContinueWith')}</Divider>;
 
-      {methods.passkey === 'here' ? null : noAccount}
-      {onRecover ? (
-        <SubtleLink label={t('signin.recoverLink')} theme={theme} onPress={onRecover} testID="recover-link" />
-      ) : null}
-      <OxyAuthTerms />
-    </OxyAuthScreen>
-  );
+      form = (
+        <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
+          <OxyAuthScreenHeader title={title} description={description} />
 
-  if (!splits) return form;
+          {/* The Commons way in, then the email. On the web from `md` the QR
+              beside the form IS the Commons way in; below `md` this screen is
+              the phone a QR would be scanned with. */}
+          {splits ? (
+            <CssView className="gap-6 md:hidden">
+              {continueWithOxyButton}
+              {divider}
+            </CssView>
+          ) : null}
+          {methods.commons === 'continue' ? (
+            <View style={styles.stack}>
+              {continueWithOxyButton}
+              {divider}
+            </View>
+          ) : null}
+          {methods.commons === 'get-commons' ? (
+            <View style={styles.stack}>
+              <Text style={[styles.note, { color: theme.colors.textSecondary }]}>{t('accountSwitcher.commonsNotInstalled')}</Text>
+              <Button appearance="outline" tone="neutral" size="lg" fullWidth onPress={getCommons} testID="get-commons-button">
+                {t('accountSwitcher.getCommons')}
+              </Button>
+              {divider}
+            </View>
+          ) : null}
+
+          <View style={styles.stack}>
+            <AccountFlowField
+              label={t('signin.identifier.label')}
+              value={identifier}
+              onChange={(value) => {
+                setIdentifier(value);
+                clearError();
+              }}
+              onSubmit={submitIdentifier}
+              error={shownError}
+              disabled={blocked}
+              placeholder={t('signin.identifier.placeholder')}
+              autoComplete="username"
+              keyboardType="email-address"
+              autoFocus={Platform.OS === 'web'}
+              testID="signin-identifier"
+            />
+            <Text style={[styles.note, styles.noAccount, { color: theme.colors.textSecondary }]}>
+              {t('signin.noAccount')}{' '}
+              <RNText
+                accessibilityRole="link"
+                onPress={onCreateAccount}
+                style={[styles.noAccountLink, { color: theme.colors.text }]}
+                testID="create-account-link"
+              >
+                {t('signin.createAccount')}
+              </RNText>
+            </Text>
+            <AccountFlowAction
+              label={t('signin.actions.continue')}
+              onPress={submitIdentifier}
+              pending={pending}
+              disabled={rateLimitSeconds > 0}
+              testID="signin-identifier-continue"
+            />
+          </View>
+          <OxyAuthTerms />
+        </OxyAuthScreen>
+      );
+    }
+  }
+
+  if (!splits) return <>{form}</>;
   return (
     <OxyAuthSplit
       bare={host === 'dialog'}
       aside={
         <>
           <AuthMediaCarousel slides={SIGN_IN_SLIDES} style={StyleSheet.absoluteFill} />
-          <InlineCommonsQr controller={controller} />
+          {step.name === 'start' ? <InlineCommonsQr controller={controller} /> : null}
         </>
       }
     >
@@ -391,8 +684,8 @@ const styles = StyleSheet.create({
   stack: {
     gap: 12,
   },
-  field: {
-    gap: 6,
+  links: {
+    gap: 4,
   },
   note: {
     fontSize: 14,
@@ -404,8 +697,5 @@ const styles = StyleSheet.create({
   },
   noAccountLink: {
     textDecorationLine: 'underline',
-  },
-  input: {
-    height: 40,
   },
 });

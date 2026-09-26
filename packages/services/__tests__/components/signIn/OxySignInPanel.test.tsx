@@ -1,18 +1,19 @@
 /**
- * `OxySignInPanel` / `OxySignUpPanel` / `OxyAccountPicker` — THE sign-in screens,
- * the ones the account dialog renders (`host="dialog"`) and auth.oxy.so renders
- * as a page (`host="page"`).
+ * `OxySignInPanel` / `OxyAccountPicker` — THE sign-in screen, the one the
+ * account dialog renders (`host="dialog"`) and auth.oxy.so renders as a page
+ * (`host="page"`): an email or username, then the code or link from the email,
+ * the password, and the authenticator — all in place.
  *
- * The headless `AccountDialogController` is a double; the passkey ceremony is
- * `useOxy().signInWithPasskey`. Layout (the `md:` split, which of the QR and
- * "Continue with Oxy" shows) is NativeWind and not observable in jsdom, so these
- * tests assert what each platform OFFERS and what each action DOES.
+ * The headless `AccountDialogController` and `oxyServices` are doubles.
+ * Layout (the `md:` split, which of the QR and "Continue with Oxy" shows) is
+ * NativeWind and not observable in jsdom, so these tests assert what each
+ * platform OFFERS and what each action DOES.
  */
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Linking } from 'react-native';
 import { toast } from '@oxy.so/bloom';
-import type { DeviceDirectory } from '@oxy.so/contracts';
+import type { DeviceDirectory, LoginSessionResult } from '@oxy.so/contracts';
 import type { AccountDialogSnapshot, SignInFlowState } from '@oxy.so/core';
 import { resolveActiveContext } from '@oxy.so/core';
 
@@ -104,9 +105,30 @@ const controller = {
   cancelSignIn: jest.fn(),
 };
 
-const signInWithPasskey = jest.fn(async (_opts?: { username?: string }) => undefined);
+const SESSION: LoginSessionResult = {
+  sessionId: 'sess-1',
+  deviceId: 'dev-1',
+  expiresAt: '2030-01-01T00:00:00.000Z',
+  accessToken: 'access-1',
+  deviceSecret: 'secret-1',
+  user: { id: 'user-1', username: 'ada' },
+};
+const REQUEST = { requestId: 'req-1', requestSecret: 'S'.repeat(43), expiresAt: 1_900_000_000_000 };
+const CHALLENGE = { secondFactorRequired: true as const, challengeId: 'C'.repeat(43), expiresAt: 1_900_000_000_000 };
+const PENDING = { status: 'pending' as const, expiresAt: 1_900_000_000_000 };
+const apiError = (code: string, status = 401, details?: Record<string, unknown>) =>
+  Object.assign(new Error(code), { code, status, ...(details ? { details } : {}) });
+
+const oxyServices = {
+  getFileDownloadUrl: (id: string) => `https://cdn/${id}`,
+  startEmailSignIn: jest.fn(async (_identifier: string): Promise<Record<string, unknown>> => REQUEST),
+  confirmEmailSignIn: jest.fn(async (_request: unknown): Promise<unknown> => SESSION),
+  collectEmailSignIn: jest.fn(async (_request: unknown): Promise<unknown> => PENDING),
+  signInWithPassword: jest.fn(async (_request: unknown): Promise<unknown> => SESSION),
+  completeSecondFactor: jest.fn(async (_request: unknown): Promise<unknown> => SESSION),
+};
+const handleWebSession = jest.fn(async (_session: unknown) => undefined);
 const openAccountDialog = jest.fn();
-const continueOnAuth = jest.fn(async (_screen: string) => ({ status: 'redirecting' as const }));
 const invalidateQueries = jest.fn();
 
 jest.mock('../../../src/ui/context/OxyContext', () => ({
@@ -114,9 +136,8 @@ jest.mock('../../../src/ui/context/OxyContext', () => ({
   useOxy: () => ({
     accountDialogController: controller,
     openAccountDialog,
-    signInWithPasskey,
-    continueOnAuth,
-    oxyServices: { getFileDownloadUrl: (id: string) => `https://cdn/${id}` },
+    oxyServices,
+    handleWebSession,
   }),
   useOptionalOxy: () => null,
 }));
@@ -149,9 +170,11 @@ jest.mock('../../../src/ui/utils/isWebBrowser', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import { OxySignInPanel } from '../../../src/ui/components/signIn/OxySignInPanel';
-// eslint-disable-next-line import/first
-import { OxySignUpPanel } from '../../../src/ui/components/signIn/OxySignUpPanel';
+import {
+  EMAIL_RESEND_COOLDOWN_SECONDS,
+  EMAIL_SIGNIN_POLL_MS,
+  OxySignInPanel,
+} from '../../../src/ui/components/signIn/OxySignInPanel';
 // eslint-disable-next-line import/first
 import { InlineCommonsQr } from '../../../src/ui/components/signIn/InlineCommonsQr';
 
@@ -160,181 +183,396 @@ const onCreateAccount = jest.fn();
 const renderPanel = (props: Partial<React.ComponentProps<typeof OxySignInPanel>> = {}) =>
   render(<OxySignInPanel onSignedIn={onSignedIn} onCreateAccount={onCreateAccount} {...props} />);
 
-const typeUsername = (value: string) => fireEvent.change(screen.getByTestId('username'), { target: { value } });
+const type = (testID: string, value: string) => fireEvent.change(screen.getByTestId(testID), { target: { value } });
+const press = (testID: string) => fireEvent.click(screen.getByTestId(testID));
+const alertText = () => screen.getByRole('alert').textContent;
+
+/** Identifier → "Check your email". */
+const reachCheckEmail = async (identifier = 'ada@example.com') => {
+  type('signin-identifier', identifier);
+  press('signin-identifier-continue');
+  await screen.findByTestId('signin-code');
+};
 
 beforeEach(() => {
   jest.clearAllMocks();
   listeners = [];
   snapshot = makeSnapshot();
   isWebBrowserMock.mockReturnValue(true);
-  signInWithPasskey.mockImplementation(async () => undefined);
+  oxyServices.startEmailSignIn.mockImplementation(async () => REQUEST);
+  oxyServices.confirmEmailSignIn.mockImplementation(async () => SESSION);
+  oxyServices.collectEmailSignIn.mockImplementation(async () => PENDING);
+  oxyServices.signInWithPassword.mockImplementation(async () => SESSION);
+  oxyServices.completeSecondFactor.mockImplementation(async () => SESSION);
+  handleWebSession.mockImplementation(async () => undefined);
   controller.chooseContext.mockImplementation(async () => 'signing-in');
 });
 
-describe('on auth.oxy.so — the passkey runs right here', () => {
-  it('offers the username, its Continue, then "or continue with" a passkey', () => {
+
+describe('the entry — an email or username, and the Commons way in', () => {
+  it('on the web: the QR, "Continue with Oxy" below `md`, the email field and its Continue', () => {
     renderPanel();
 
     expect(screen.getByText('Sign in')).toBeTruthy();
-    expect(screen.getByTestId('username')).toBeTruthy();
-    expect(screen.getByTestId('username-continue')).toBeTruthy();
-    expect(screen.getByText('or continue with')).toBeTruthy();
-    expect(screen.getByTestId('passkey-sign-in')).toBeTruthy();
-    // The Commons way in: the QR from `md`, "Continue with Oxy" below it.
     expect(screen.getByTestId('inline-commons-qr')).toBeTruthy();
     expect(screen.getByTestId('continue-with-oxy')).toBeTruthy();
+    expect(screen.getByText('or continue with')).toBeTruthy();
+    expect(screen.getByTestId('signin-identifier')).toBeTruthy();
+    expect(screen.getByTestId('signin-identifier-continue')).toBeTruthy();
+    expect(screen.getByTestId('create-account-link')).toBeTruthy();
     expect(screen.getByText('Terms of Service')).toBeTruthy();
+    // No passkey, no window, no recovery page.
+    expect(screen.queryByTestId('passkey-sign-in')).toBeNull();
+    expect(screen.queryByTestId('recover-link')).toBeNull();
   });
 
-  // Username-first is what takes a hardware security key: the server scopes
-  // the ceremony to that account's credentials, resident or not.
-  it('signs in username-first and reports it', async () => {
-    renderPanel();
-    typeUsername(' alice ');
-    fireEvent.click(screen.getByTestId('username-continue'));
-
-    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(signInWithPasskey).toHaveBeenCalledWith({ username: 'alice' });
+  it('is the same in an app\'s dialog: sign-in happens here, "Continue with Oxy" runs here', () => {
+    renderPanel({ host: 'dialog' });
+    expect(screen.getByTestId('signin-identifier')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('continue-with-oxy'));
+    expect(controller.signInWithOxy).toHaveBeenCalledTimes(1);
+    expect(openAccountDialog).not.toHaveBeenCalled();
   });
 
-  it('asks for a username instead of running a ceremony for nobody', () => {
-    renderPanel();
-    fireEvent.click(screen.getByTestId('username-continue'));
+  it('on native: "Continue with Oxy", then the email field — no QR', () => {
+    isWebBrowserMock.mockReturnValue(false);
+    renderPanel({ host: 'dialog' });
 
-    expect(signInWithPasskey).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert').textContent).toBe('Please enter your username.');
+    expect(screen.queryByTestId('inline-commons-qr')).toBeNull();
+    expect(screen.getByTestId('continue-with-oxy')).toBeTruthy();
+    expect(screen.getByTestId('signin-identifier')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('continue-with-oxy'));
+    expect(controller.signInWithOxy).toHaveBeenCalledTimes(1);
   });
 
-  it('signs in with a discoverable passkey — no username', async () => {
-    renderPanel();
-    fireEvent.click(screen.getByTestId('passkey-sign-in'));
+  it('on native without Commons: "Get Commons", and still the email field', async () => {
+    isWebBrowserMock.mockReturnValue(false);
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    snapshot = makeSnapshot({ commonsAvailability: 'unavailable' });
+    renderPanel({ host: 'dialog' });
 
-    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(signInWithPasskey).toHaveBeenCalledWith({ username: undefined });
+    expect(screen.queryByTestId('continue-with-oxy')).toBeNull();
+    expect(screen.getByTestId('signin-identifier')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('get-commons-button'));
+    await waitFor(() => expect(openURL).toHaveBeenCalledTimes(1));
+    openURL.mockRestore();
   });
 
-  it('reports a dismissed prompt inline and as a toast, and signs nobody in', async () => {
-    signInWithPasskey.mockRejectedValueOnce(Object.assign(new Error('timed out'), { name: 'NotAllowedError' }));
+  it('asks for an email or username instead of sending nothing', () => {
     renderPanel();
-    fireEvent.click(screen.getByTestId('passkey-sign-in'));
-
-    await waitFor(() =>
-      expect(screen.getByRole('alert').textContent).toBe("Passkey prompt dismissed. Try again when you're ready."),
-    );
-    expect(toast.error).toHaveBeenCalled();
-    expect(onSignedIn).not.toHaveBeenCalled();
-  });
-
-  it('holds every method for the countdown after a 429', async () => {
-    signInWithPasskey.mockRejectedValueOnce({ status: 429 });
-    renderPanel();
-    typeUsername('alice');
-    fireEvent.click(screen.getByTestId('username-continue'));
-
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Too many attempts. Try again in 60s.'));
-    expect((screen.getByTestId('username-continue') as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByTestId('passkey-sign-in') as HTMLButtonElement).disabled).toBe(true);
+    press('signin-identifier-continue');
+    expect(oxyServices.startEmailSignIn).not.toHaveBeenCalled();
+    expect(alertText()).toBe('Enter your email or username.');
   });
 
   it('pre-fills a login hint and skips the account picker', () => {
     snapshot = makeSnapshot({ directory: directory('ctx-alice') });
     renderPanel({ loginHint: 'alice' });
 
-    expect((screen.getByTestId('username') as HTMLInputElement).value).toBe('alice');
+    expect((screen.getByTestId('signin-identifier') as HTMLInputElement).value).toBe('alice');
     expect(screen.queryByText('Choose an account')).toBeNull();
   });
 
   it('leads to account creation from "Create account"', () => {
     renderPanel();
-    fireEvent.click(screen.getByTestId('create-account-link'));
+    press('create-account-link');
     expect(onCreateAccount).toHaveBeenCalledTimes(1);
   });
 });
 
-describe("in an app's dialog on the web — sign-in happens here", () => {
-  it('shows the QR and "Continue with Oxy" here, and the passkey without a username', () => {
-    renderPanel({ host: 'dialog' });
+describe('"Check your email" — the code or the link', () => {
+  it('sends the email and says where it went, without saying whether the account exists', async () => {
+    renderPanel();
+    await reachCheckEmail(' ada ');
 
-    expect(screen.getByTestId('inline-commons-qr')).toBeTruthy();
-    expect(screen.getByTestId('continue-with-oxy')).toBeTruthy();
-    expect(screen.getByTestId('passkey-sign-in')).toBeTruthy();
-    expect(screen.getByTestId('create-account-link')).toBeTruthy();
-    expect(screen.queryByTestId('username')).toBeNull();
+    expect(oxyServices.startEmailSignIn).toHaveBeenCalledWith('ada');
+    expect(screen.getByText('Check your email')).toBeTruthy();
+    expect(screen.getByText('If an account matches ada, we sent it a code and a sign-in link.')).toBeTruthy();
+    // The QR belongs to the entry only; the photo carousel stays.
+    expect(screen.queryByTestId('inline-commons-qr')).toBeNull();
+    expect(screen.getByTestId('auth-media-carousel')).toBeTruthy();
   });
 
-  it('runs "Continue with Oxy" here, never in a window', () => {
-    renderPanel({ host: 'dialog' });
-    fireEvent.click(screen.getByTestId('continue-with-oxy'));
+  it('signs in once the 6-digit code is typed — no press needed', async () => {
+    renderPanel();
+    await reachCheckEmail();
+    type('signin-code', '123456');
 
-    expect(controller.signInWithOxy).toHaveBeenCalledTimes(1);
-    expect(continueOnAuth).not.toHaveBeenCalled();
-  });
-
-  it("opens auth.oxy.so's window only for the passkey, and reports the sign-in", async () => {
-    continueOnAuth.mockResolvedValueOnce({ status: 'signed-in' } as never);
-    renderPanel({ host: 'dialog' });
-    fireEvent.click(screen.getByTestId('passkey-sign-in'));
-
-    expect(continueOnAuth).toHaveBeenCalledWith('signin');
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(signInWithPasskey).not.toHaveBeenCalled();
+    expect(oxyServices.confirmEmailSignIn).toHaveBeenCalledWith({
+      requestId: REQUEST.requestId,
+      requestSecret: REQUEST.requestSecret,
+      code: '123456',
+    });
+    expect(handleWebSession).toHaveBeenCalledWith(SESSION);
   });
 
-  it('says so when the window could not sign in, and stays', async () => {
-    continueOnAuth.mockResolvedValueOnce({ status: 'failed', reason: 'idp-error' } as never);
-    renderPanel({ host: 'dialog' });
-    fireEvent.click(screen.getByTestId('passkey-sign-in'));
+  it('takes the 10-character long code in the same field, with or without its dash, any case', async () => {
+    renderPanel();
+    await reachCheckEmail();
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    // Being typed with its dash: never mistaken for 6 digits.
+    type('signin-code', '23456-');
+    expect(oxyServices.confirmEmailSignIn).not.toHaveBeenCalled();
+    type('signin-code', '23456-abcde');
+
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
+    expect(oxyServices.confirmEmailSignIn).toHaveBeenCalledWith(expect.objectContaining({ code: '23456-ABCDE' }));
+  });
+
+  it('takes a pasted long code without its dash', async () => {
+    renderPanel();
+    await reachCheckEmail();
+    type('signin-code', 'k7m2pq9xrt');
+
+    await waitFor(() => expect(oxyServices.confirmEmailSignIn).toHaveBeenCalledWith(expect.objectContaining({ code: 'K7M2PQ9XRT' })));
+  });
+
+  it('says a wrong code is wrong, clears it, and stays', async () => {
+    oxyServices.confirmEmailSignIn.mockRejectedValueOnce(apiError('EMAIL_CODE_INVALID'));
+    renderPanel();
+    await reachCheckEmail();
+    type('signin-code', '000000');
+
+    await waitFor(() => expect(alertText()).toBe("That code isn't right, or it has expired."));
+    expect((screen.getByTestId('signin-code') as HTMLInputElement).value).toBe('');
+    expect(onSignedIn).not.toHaveBeenCalled();
+    expect(handleWebSession).not.toHaveBeenCalled();
+  });
+
+  it('signs in when the email\'s link is opened in this browser (the collect poll)', async () => {
+    jest.useFakeTimers();
+    try {
+      renderPanel({ host: 'dialog' });
+      await reachCheckEmail();
+
+      await act(async () => {
+        jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS);
+      });
+      expect(oxyServices.collectEmailSignIn).toHaveBeenCalledWith({
+        requestId: REQUEST.requestId,
+        requestSecret: REQUEST.requestSecret,
+      });
+      expect(onSignedIn).not.toHaveBeenCalled();
+
+      oxyServices.collectEmailSignIn.mockResolvedValueOnce(SESSION);
+      await act(async () => {
+        jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS);
+      });
+      expect(handleWebSession).toHaveBeenCalledWith(SESSION);
+      expect(onSignedIn).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('commits a session the link handed over even when the dialog re-renders meanwhile', async () => {
+    jest.useFakeTimers();
+    try {
+      let handOver: (value: unknown) => void = () => undefined;
+      const view = renderPanel({ host: 'dialog' });
+      await reachCheckEmail();
+      oxyServices.collectEmailSignIn.mockImplementationOnce(
+        () => new Promise((resolve) => {
+          handOver = resolve;
+        }),
+      );
+      await act(async () => {
+        jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS);
+      });
+      // The parent re-renders with a new callback while the collect is in flight.
+      const nextOnSignedIn = jest.fn();
+      view.rerender(<OxySignInPanel host="dialog" onSignedIn={nextOnSignedIn} onCreateAccount={onCreateAccount} />);
+      await act(async () => {
+        handOver(SESSION);
+      });
+
+      expect(handleWebSession).toHaveBeenCalledWith(SESSION);
+      expect(nextOnSignedIn).toHaveBeenCalledTimes(1);
+      expect(oxyServices.collectEmailSignIn).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('stops asking once the step goes away', async () => {
+    jest.useFakeTimers();
+    try {
+      const view = renderPanel();
+      await reachCheckEmail();
+      view.unmount();
+      await act(async () => {
+        jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS * 3);
+      });
+      expect(oxyServices.collectEmailSignIn).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('holds "Send a new email" for its cooldown, then sends a new one', async () => {
+    jest.useFakeTimers();
+    try {
+      renderPanel();
+      await reachCheckEmail();
+
+      const resend = screen.getByTestId('signin-resend') as HTMLButtonElement;
+      expect(resend.disabled).toBe(true);
+      expect(screen.getByText(`Send a new email in ${EMAIL_RESEND_COOLDOWN_SECONDS}s`)).toBeTruthy();
+
+      for (let i = 0; i < EMAIL_RESEND_COOLDOWN_SECONDS; i += 1) {
+        // biome-ignore lint/nursery/noAwaitInLoop: one tick per second, in order
+        await act(async () => {
+          jest.advanceTimersByTime(1000);
+        });
+      }
+      expect((screen.getByTestId('signin-resend') as HTMLButtonElement).disabled).toBe(false);
+      oxyServices.startEmailSignIn.mockResolvedValueOnce({ ...REQUEST, requestId: 'req-2' });
+      press('signin-resend');
+      await waitFor(() => expect(screen.getByTestId('signin-notice').textContent).toBe('We sent a new email.'));
+      expect(oxyServices.startEmailSignIn).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('counts down after a 429 and holds the code until it may retry', async () => {
+    oxyServices.confirmEmailSignIn.mockRejectedValueOnce(apiError('SIGNIN_LOCKED', 429, { retryAfterSeconds: 42 }));
+    renderPanel();
+    await reachCheckEmail();
+    type('signin-code', '111111');
+
+    await waitFor(() => expect(alertText()).toBe('Too many attempts. Try again in 42s.'));
+    expect((screen.getByTestId('signin-code-continue') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('goes back to the entry with "Use a different account"', async () => {
+    renderPanel();
+    await reachCheckEmail();
+    press('signin-different-account');
+    expect(screen.getByTestId('signin-identifier')).toBeTruthy();
+  });
+
+  it('says so when this device asked for too many emails', async () => {
+    oxyServices.startEmailSignIn.mockResolvedValueOnce({ ...REQUEST, retryLater: true });
+    renderPanel();
+    type('signin-identifier', 'ada');
+    press('signin-identifier-continue');
+
+    await waitFor(() => expect(alertText()).toBe('We sent several emails already. Wait a few minutes and try again.'));
+    expect(screen.queryByTestId('signin-code')).toBeNull();
+  });
+});
+
+describe('the password, instead of the email', () => {
+  it('signs in with the password for the same identifier', async () => {
+    renderPanel();
+    await reachCheckEmail('ada');
+    press('signin-use-password');
+    type('signin-password', 'correct horse battery');
+    press('signin-password-continue');
+
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
+    expect(oxyServices.signInWithPassword).toHaveBeenCalledWith({ identifier: 'ada', password: 'correct horse battery' });
+    expect(handleWebSession).toHaveBeenCalledWith(SESSION);
+  });
+
+  it('answers a wrong password without saying which half was wrong', async () => {
+    oxyServices.signInWithPassword.mockRejectedValueOnce(apiError('SIGNIN_INVALID_CREDENTIALS'));
+    renderPanel();
+    await reachCheckEmail('ada');
+    press('signin-use-password');
+    type('signin-password', 'nope');
+    press('signin-password-continue');
+
+    await waitFor(() => expect(alertText()).toBe("That username, email or password isn't right."));
     expect(onSignedIn).not.toHaveBeenCalled();
   });
 
-  it('has no recovery link of its own: recovery is on auth.oxy.so', () => {
-    renderPanel({ host: 'dialog' });
-    expect(screen.queryByTestId('recover-link')).toBeNull();
+  it('"Forgot it?" sends the email and goes back to the code', async () => {
+    renderPanel();
+    await reachCheckEmail('ada');
+    press('signin-use-password');
+    press('signin-password-forgot');
+
+    await screen.findByTestId('signin-code');
+    expect(oxyServices.startEmailSignIn).toHaveBeenCalledTimes(2);
+    expect(oxyServices.startEmailSignIn).toHaveBeenLastCalledWith('ada');
   });
 });
 
-describe('recovering an account', () => {
-  it('on a page, hands recovery to the host', () => {
-    const onRecover = jest.fn();
-    renderPanel({ host: 'page', onRecover });
-    fireEvent.click(screen.getByTestId('recover-link'));
-    expect(onRecover).toHaveBeenCalledTimes(1);
-    expect(continueOnAuth).not.toHaveBeenCalled();
+describe('the authenticator — the second step', () => {
+  it('asks for the app\'s code after the email code, and signs in with it', async () => {
+    oxyServices.confirmEmailSignIn.mockResolvedValueOnce(CHALLENGE);
+    renderPanel();
+    await reachCheckEmail();
+    type('signin-code', '123456');
+
+    await screen.findByTestId('signin-second-factor');
+    expect(screen.getByText('Two-step verification')).toBeTruthy();
+    expect(handleWebSession).not.toHaveBeenCalled();
+
+    type('signin-second-factor', '654321');
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
+    expect(oxyServices.completeSecondFactor).toHaveBeenCalledWith({ challengeId: CHALLENGE.challengeId, code: '654321' });
+    expect(handleWebSession).toHaveBeenCalledWith(SESSION);
   });
 
-  it('on native, leaves recovery to Commons', () => {
-    isWebBrowserMock.mockReturnValue(false);
-    renderPanel({ host: 'dialog' });
-    expect(screen.queryByTestId('recover-link')).toBeNull();
-  });
-});
+  it('asks after the password too', async () => {
+    oxyServices.signInWithPassword.mockResolvedValueOnce(CHALLENGE);
+    renderPanel();
+    await reachCheckEmail('ada');
+    press('signin-use-password');
+    type('signin-password', 'correct horse battery');
+    press('signin-password-continue');
 
-describe('on native — Commons carries the identity', () => {
-  beforeEach(() => isWebBrowserMock.mockReturnValue(false));
-
-  it('continues with Oxy as the one solid action, with another device under it', () => {
-    renderPanel({ host: 'dialog' });
-
-    expect(screen.queryByTestId('username')).toBeNull();
-    expect(screen.queryByTestId('passkey-sign-in')).toBeNull();
-    expect(screen.queryByTestId('inline-commons-qr')).toBeNull();
-    fireEvent.click(screen.getByTestId('continue-with-oxy'));
-    expect(controller.signInWithOxy).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByTestId('scan-qr'));
-    expect(controller.showQr).toHaveBeenCalledTimes(1);
+    await screen.findByTestId('signin-second-factor');
+    expect(onSignedIn).not.toHaveBeenCalled();
   });
 
-  it('leads with getting Commons when it is not installed', async () => {
-    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
-    snapshot = makeSnapshot({ commonsAvailability: 'unavailable' });
-    renderPanel({ host: 'dialog' });
+  it('asks after the link too', async () => {
+    jest.useFakeTimers();
+    try {
+      oxyServices.collectEmailSignIn.mockResolvedValueOnce(CHALLENGE);
+      renderPanel();
+      await reachCheckEmail();
+      await act(async () => {
+        jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS);
+      });
+      expect(screen.getByTestId('signin-second-factor')).toBeTruthy();
+      expect(handleWebSession).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 
-    expect(screen.queryByTestId('continue-with-oxy')).toBeNull();
-    fireEvent.click(screen.getByTestId('get-commons-button'));
-    await waitFor(() => expect(openURL).toHaveBeenCalledTimes(1));
-    openURL.mockRestore();
+  it('takes a backup code instead', async () => {
+    oxyServices.confirmEmailSignIn.mockResolvedValueOnce(CHALLENGE);
+    renderPanel();
+    await reachCheckEmail();
+    type('signin-code', '123456');
+    await screen.findByTestId('signin-second-factor');
+
+    press('signin-toggle-backup');
+    expect(screen.getByText('Enter one of your backup codes. Each one works once.')).toBeTruthy();
+    type('signin-second-factor', 'abcde-fgh23');
+    press('signin-second-factor-continue');
+
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
+    expect(oxyServices.completeSecondFactor).toHaveBeenCalledWith({ challengeId: CHALLENGE.challengeId, code: 'abcde-fgh23' });
+  });
+
+  it('says a wrong authenticator code is wrong', async () => {
+    oxyServices.confirmEmailSignIn.mockResolvedValueOnce(CHALLENGE);
+    oxyServices.completeSecondFactor.mockRejectedValueOnce(apiError('SECOND_FACTOR_INVALID'));
+    renderPanel();
+    await reachCheckEmail();
+    type('signin-code', '123456');
+    await screen.findByTestId('signin-second-factor');
+    type('signin-second-factor', '000000');
+
+    await waitFor(() => expect(alertText()).toBe("That code isn't right. Try the current one."));
+    expect(onSignedIn).not.toHaveBeenCalled();
   });
 });
 
@@ -387,13 +625,13 @@ describe('a returning device — the account picker', () => {
     expect(invalidateQueries).toHaveBeenCalledTimes(1);
   });
 
-  it('on a page, a pair that cannot be activated falls back to signing in as it explicitly', async () => {
+  it('a pair that cannot be activated falls back to signing in as it explicitly', async () => {
     controller.chooseContext.mockResolvedValueOnce('failed');
     snapshot = makeSnapshot({ directory: directory('ctx-alice'), hasSession: true });
     renderPanel({ host: 'page' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Alice' }));
-    await waitFor(() => expect((screen.getByTestId('username') as HTMLInputElement).value).toBe('alice'));
+    await waitFor(() => expect((screen.getByTestId('signin-identifier') as HTMLInputElement).value).toBe('alice'));
     expect(onSignedIn).not.toHaveBeenCalled();
   });
 });
@@ -473,32 +711,5 @@ describe('InlineCommonsQr — the embedded QR', () => {
     layOut(128);
     second.unmount();
     expect(controller.cancelSignIn).not.toHaveBeenCalled();
-  });
-});
-
-describe('OxySignUpPanel', () => {
-  it("on the web, creates the account in auth.oxy.so's window", () => {
-    const onCreateOnWeb = jest.fn();
-    render(<OxySignUpPanel onSignIn={jest.fn()} onCreateOnWeb={onCreateOnWeb} />);
-    fireEvent.click(screen.getByTestId('signup-open-identity'));
-    expect(onCreateOnWeb).toHaveBeenCalledTimes(1);
-  });
-
-  it('on native, creates the identity in Commons when it is installed', async () => {
-    isWebBrowserMock.mockReturnValue(false);
-    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
-    snapshot = makeSnapshot({ commonsAvailability: 'available' });
-    render(<OxySignUpPanel onSignIn={jest.fn()} onCreateOnWeb={jest.fn()} />);
-
-    fireEvent.click(screen.getByTestId('signup-commons'));
-    await waitFor(() => expect(openURL).toHaveBeenCalledWith('oxycommons://create-identity'));
-    openURL.mockRestore();
-  });
-
-  it('goes back to signing in', () => {
-    const onSignIn = jest.fn();
-    render(<OxySignUpPanel onSignIn={onSignIn} onCreateOnWeb={jest.fn()} />);
-    fireEvent.click(screen.getByTestId('back-to-sign-in'));
-    expect(onSignIn).toHaveBeenCalledTimes(1);
   });
 });

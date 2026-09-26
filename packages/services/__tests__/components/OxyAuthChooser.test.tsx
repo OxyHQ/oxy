@@ -20,14 +20,14 @@
  *  - the active request renders the route-appropriate primary surface (the QR
  *    plate, or a glyph for a route that lives on the phone) plus a status line
  *    derived ONLY from `snapshot.signIn.progress` — never a timed sequence;
- *  - every alternative (a QR from another device, a passkey on this device,
- *    getting Commons) stays behind "Having trouble?" until the user asks or
+ *  - every alternative (a QR from another device, getting Commons) stays behind "Having trouble?" until the user asks or
  *    `signIn.routeFailed` says the chosen route could not be carried out.
  *
  * Error-surfacing contract (owner mandate: NO error renders inline inside the
- * dialog): every failure — account-switch, passkey sign-in ceremony, passkey
- * account creation, username-availability check — fires a Bloom `toast.error(...)`
- * at the point of failure and paints NO inline banner/text.
+ * dialog): every failure of the account switch and the device flow fires a
+ * Bloom `toast.error(...)` at the point of failure and paints NO inline
+ * banner/text. (The email sign-in and sign-up screens report a wrong code or
+ * password in place, next to the field — see `signIn/`.)
  */
 
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
@@ -198,7 +198,6 @@ const controller = {
 };
 
 const openAvatarPicker = jest.fn();
-const continueOnAuth = jest.fn(async (_screen: string) => ({ status: 'redirecting' as const }));
 const closeAccountDialog = jest.fn();
 const showBottomSheet = jest.fn();
 const logout = jest.fn(async (): Promise<{ status: 'signed-out' } | { status: 'failed'; error: unknown }> => ({
@@ -228,7 +227,6 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
     logout,
     logoutAll: jest.fn(async () => undefined),
     openAvatarPicker,
-    continueOnAuth,
     user: mockUser,
     oxyServices: { getFileDownloadUrl: (id: string) => `https://cdn/${id}` },
   }),
@@ -917,7 +915,6 @@ describe('OxyAuthChooser', () => {
       render(<OxyAuthChooser />);
 
       expect(buttonLabels()).toEqual(['New to Oxy? Create one', 'Having trouble?']);
-      expect(screen.queryByTestId('passkey-signin-link')).toBeNull();
       expect(screen.queryByTestId('get-commons-link')).toBeNull();
     });
 
@@ -964,18 +961,7 @@ describe('OxyAuthChooser', () => {
       // No "Having trouble?" gate any more — the alternatives ARE the content.
       expect(screen.queryByRole('button', { name: 'Having trouble?' })).toBeNull();
       expect(screen.getByTestId('scan-qr-link')).toBeTruthy();
-      expect(screen.getByTestId('passkey-signin-link')).toBeTruthy();
       expect(screen.getByTestId('get-commons-link')).toBeTruthy();
-    });
-
-    it('sends the disclosed passkey link to auth.oxy.so, in this tab', () => {
-      snapshot = requestSnapshot({ route: 'qr' });
-      render(<OxyAuthChooser />);
-
-      fireEvent.click(screen.getByRole('button', { name: 'Having trouble?' }));
-      fireEvent.click(screen.getByTestId('passkey-signin-link'));
-
-      expect(continueOnAuth).toHaveBeenCalledWith('signin');
     });
 
     it('leads with "Get Commons" — the genuine primary route — when Commons is not installed', () => {
@@ -1015,10 +1001,8 @@ describe('OxyAuthChooser', () => {
       expect(screen.queryByText('Sign-in was declined in Commons.')).toBeNull();
       expect(screen.queryByText('Authorization was denied.')).toBeNull();
       expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
-      // A failed request has no working primary route, so the alternatives are
-      // already revealed rather than parked behind the disclosure.
+      // A failed request has nothing behind a disclosure: "Try again" is the way on.
       expect(screen.queryByRole('button', { name: 'Having trouble?' })).toBeNull();
-      expect(screen.getByTestId('passkey-signin-link')).toBeTruthy();
     });
 
     it('toasts the SAME sign-in error only once even if the controller re-notifies (deduped)', async () => {
@@ -1103,21 +1087,28 @@ describe('OxyAuthChooser', () => {
   });
 
   describe('signup view', () => {
-    it("on web, offers one action: create the account in auth.oxy.so's window", () => {
+    it('creates the account right here: a username first, with Commons as the alternative', () => {
       snapshot = makeSnapshot({ view: 'signup' });
       render(<OxyAuthChooser />);
 
-      expect(screen.queryByTestId('signup-username-input')).toBeNull();
-      fireEvent.click(screen.getByTestId('signup-open-identity'));
-      expect(continueOnAuth).toHaveBeenCalledWith('signup');
+      expect(screen.getByTestId('signup-username')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Create it in Commons instead' })).toBeTruthy();
     });
 
-    it('offers Commons identity creation on native', () => {
+    it('is the same on native', () => {
       isWebBrowserMock.mockReturnValue(false);
       snapshot = makeSnapshot({ view: 'signup' });
       render(<OxyAuthChooser />);
 
-      expect(screen.getByRole('button', { name: /Create your identity in Commons|Get Commons/ })).toBeTruthy();
+      expect(screen.getByTestId('signup-username')).toBeTruthy();
+    });
+
+    it('goes back to signing in', () => {
+      snapshot = makeSnapshot({ view: 'signup' });
+      render(<OxyAuthChooser />);
+
+      fireEvent.click(screen.getByTestId('back-to-sign-in'));
+      expect(controller.setView).toHaveBeenCalledWith('signin');
     });
   });
 });
