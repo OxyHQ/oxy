@@ -32,7 +32,7 @@ because the fifth is the one nobody writes down:
 | Machine API key (`oxy_sk_…`) | Oxy | [machine-credential-rotation.md](./machine-credential-rotation.md) |
 | A customer's BYOK provider credential | the customer; encrypted custody in Kaana PostgreSQL/KMS | [byok-provider-connection-rotation.md](./byok-provider-connection-rotation.md) |
 | Oxy → Kaana edge-signing key | Oxy private key; Kaana public verification set | [kaana-edge-signing-key-rotation.md](./kaana-edge-signing-key-rotation.md) |
-| Service-token signing key, and `ACCESS_TOKEN_SECRET` / `REFRESH_TOKEN_SECRET` | Oxy | [service-token-signing-key-rotation.md](./service-token-signing-key-rotation.md) |
+| Service-token signing key, and `ACCESS_TOKEN_SECRET` / `REFRESH_TOKEN_SECRET` / `FEDCM_TOKEN_SECRET` | Oxy | [service-token-signing-key-rotation.md](./service-token-signing-key-rotation.md) |
 | AWS access keys, RDS credentials, the ECS task role, the ALB certificate, KMS keys | infra | **`~/Oxy/oxy-infra`**, `docs/runbooks/` there |
 The retired Oxy-to-Alia proxy credential has no live consumer and therefore no
 rotation runbook. Deployment explicitly removes its historical task binding.

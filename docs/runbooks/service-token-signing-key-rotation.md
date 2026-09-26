@@ -20,6 +20,26 @@ tokens are refused everywhere since 2026-09-25 (#877). Rotating
 key rotates additively (last section). Production refuses to boot without the
 signing key, and a partial binding set fails boot too.
 
+## The session secrets at a glance
+
+All three live at `/oxy/oxy-api/<NAME>` (`SecureString`) and are bound only into
+the `oxy-api` task. No other service holds a copy.
+
+| Secret | What it signs | Rotated without overlap |
+|---|---|---|
+| `ACCESS_TOKEN_SECRET` | 15-minute user access tokens (HS256), socket auth, and — through an HMAC-derived key (`utils/mediaToken.ts`) — 15-minute private-media URL tokens | Tokens issued in the last 15 minutes are refused once. Clients re-mint; the server re-signs a session's stored access token through its refresh token. Private-media URLs handed out in the last 15 minutes stop loading until the client fetches new ones. Nobody is signed out. |
+| `REFRESH_TOKEN_SECRET` | The refresh token stored on each `sessions` row (HS256, 7-day sliding session). It is never handed to a client: `SessionService.getAccessToken` reads it from the row and passes it to `refreshTokens`, which checks the signature before the row lookup. MCP OAuth refresh tokens are opaque and hashed, and are **not** signed with this key. | **Every session fails its next re-mint** once its stored access token expires, because `refreshTokens` refuses the old signature and returns nothing. In practice this signs every user out. Do not rotate it without first adding a previous-key fallback to `validateRefreshToken` (kept for 7 days, one `SESSION_EXPIRES_IN`) — each successful refresh re-signs the row under the new key, so the fallback drains on its own. |
+| `FEDCM_TOKEN_SECRET` | Nothing. The FedCM and `/sso` surfaces that used it were deleted, and no code reads it. The task definition still binds it, and it is **not** in the deploy sync allowlist, so only SSM holds its value. | No effect. |
+
+**Both GitHub and SSM must hold the new value** for `ACCESS_TOKEN_SECRET` and
+`REFRESH_TOKEN_SECRET`. The GitHub Actions secret is the source that every
+`deploy-aws.yml` run copies into SSM; SSM is what a task reads at launch. Change
+only SSM and the next deploy quietly restores the old key. Change only GitHub and
+nothing happens until a deploy runs, while any task ECS relaunches in between
+still gets the old value. Set both, then deploy straight away (`gh workflow run
+deploy-aws.yml -R OxyHQ/oxy --ref main`). Compare values by SHA-256 digest, never
+by printing them.
+
 ## Exact SSM and task-definition bindings required
 
 Do not generate values in a deploy workflow and never copy
@@ -115,12 +135,18 @@ openssl rand -base64 64
    which is the only readable evidence (the value never is). If the timestamp did
    not move, the write did not happen.
 
-3. **Deploy**, so the sync step writes SSM and a new task definition revision
-   launches with the new value. Do not hand-edit SSM as the primary path: the next
-   deploy's sync overwrites it from the GitHub secret, so a hand-edit that is not
-   mirrored in GitHub is reverted at a time nobody is watching.
+3. **Write the same value to SSM** from the same source, without echoing it:
+   `bash .github/scripts/put-secure-parameter.sh /oxy/oxy-api/ACCESS_TOKEN_SECRET overwrite < new.secret`.
+   Confirm the SSM digest equals the digest of what you set in GitHub. An SSM
+   write that is not mirrored in GitHub is reverted by the next deploy's sync, at
+   a time nobody is watching.
 
-4. **Service tokens are unaffected** by this rotation; only user access tokens
+4. **Deploy immediately** (`gh workflow run deploy-aws.yml -R OxyHQ/oxy --ref main`)
+   so every task relaunches on the new value. Wait for any deploy already in
+   progress to finish first: runs are serialized, and one that started before
+   step 2 carries the old GitHub value into its sync.
+
+5. **Service tokens are unaffected** by this rotation; only user access tokens
    re-mint.
 
 ## How to verify it took
