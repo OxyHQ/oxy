@@ -208,7 +208,22 @@ export interface AtprotoStartInput {
 
 export async function startAtprotoLink(input: AtprotoStartInput): Promise<{ authorizeUrl: string; expiresAt: Date }> {
   const identifier = input.handle.trim().replace(/^@/, '');
-  if (!identifier) throw new LinkedAccountStartRefusal('handle is required');
+  if (!identifier) throw new LinkedAccountStartRefusal('handle_unresolvable', 'handle is required');
+  const client = await atprotoClient();
+
+  // Resolve the identity on its own first, with the library's own resolver
+  // (the one `authorize` uses, and caches), so "no such account" is decided
+  // HERE and every later failure is about the account's authorization server —
+  // never reported to the user as a typo in their handle.
+  try {
+    await client.oauthResolver.identityResolver.resolve(identifier);
+  } catch (error) {
+    logger.info('[LinkedAccounts] atproto handle did not resolve', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new LinkedAccountStartRefusal('handle_unresolvable', 'that handle could not be resolved to a Bluesky account');
+  }
+
   const challenge = await mintChallenge({
     userId: input.userId,
     network: 'atproto',
@@ -216,16 +231,55 @@ export async function startAtprotoLink(input: AtprotoStartInput): Promise<{ auth
     returnTo: input.returnTo,
   });
   try {
-    const client = await atprotoClient();
     const url = await client.authorize(identifier, { state: challenge.id, scope: ATPROTO_LINK_SCOPE });
     return { authorizeUrl: url.toString(), expiresAt: challenge.expiresAt };
   } catch (error) {
     await discardChallenge(challenge.id);
-    logger.info('[LinkedAccounts] atproto authorize failed', {
+    const refusal = await classifyAuthorizeFailure(error);
+    // Both outcomes are about Oxy and the provider, not about the user: a
+    // rejection (`invalid_client_metadata`, say) means every Bluesky link is
+    // failing until someone fixes Oxy's side. Warn, so it is seen.
+    logger.warn('[LinkedAccounts] atproto authorization server did not start the flow', {
+      reason: refusal.reason,
       error: error instanceof Error ? error.message : String(error),
+      ...oauthErrorFields(error),
     });
-    throw new LinkedAccountStartRefusal('that handle could not be resolved to a Bluesky account');
+    throw refusal;
   }
+}
+
+/** The OAuth `error` code and HTTP status of an authorization-server refusal, for the log. */
+function oauthErrorFields(error: unknown): { oauthError?: string; status?: number } {
+  const candidate = error as { error?: unknown; status?: unknown } | null;
+  return {
+    ...(typeof candidate?.error === 'string' ? { oauthError: candidate.error } : {}),
+    ...(typeof candidate?.status === 'number' ? { status: candidate.status } : {}),
+  };
+}
+
+/**
+ * Why `authorize` failed once the identity had resolved, from the library's
+ * own error types:
+ *
+ * - `OAuthResponseError` — the authorization server ANSWERED an OAuth error
+ *   (the PAR request). A 4xx (`invalid_client_metadata`, `invalid_request`…)
+ *   is `provider_rejected`; a 5xx is `provider_unavailable`.
+ * - `OAuthResolverError` — the PDS's protected-resource or the authorization
+ *   server's metadata could not be read: `provider_unavailable`.
+ * - Anything else (a transport failure) is `provider_unavailable` too.
+ */
+async function classifyAuthorizeFailure(error: unknown): Promise<LinkedAccountStartRefusal> {
+  const { OAuthResponseError, OAuthResolverError } = await loadAtprotoOAuthModule();
+  if (error instanceof OAuthResponseError) {
+    const status = error.status;
+    return status >= 400 && status < 500
+      ? new LinkedAccountStartRefusal('provider_rejected', `the Bluesky authorization server refused Oxy (${error.error ?? status})`)
+      : new LinkedAccountStartRefusal('provider_unavailable', `the Bluesky authorization server failed (${status})`);
+  }
+  if (error instanceof OAuthResolverError) {
+    return new LinkedAccountStartRefusal('provider_unavailable', "the account's authorization server could not be resolved");
+  }
+  return new LinkedAccountStartRefusal('provider_unavailable', 'the Bluesky authorization server could not be reached');
 }
 
 function pdsHost(didDoc: { service?: unknown }): string | null {

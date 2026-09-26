@@ -120,3 +120,44 @@ export const LINKED_ACCOUNT_CALLBACK_ERRORS = [
 ] as const;
 
 export type LinkedAccountCallbackError = (typeof LINKED_ACCOUNT_CALLBACK_ERRORS)[number];
+
+/**
+ * Why `POST /linked-accounts/:network/start` refused, as `details.reason` on
+ * its 400 (`{ error: 'BAD_REQUEST', message, details: { reason } }`). The
+ * message is for logs; show the user a text chosen from the reason.
+ *
+ * - `instance_invalid`: the ActivityPub `instance` is not a server name.
+ * - `instance_unreachable`: the server does not resolve to a public address, or
+ *   could not be connected to.
+ * - `handle_unresolvable`: the atproto handle or DID does not resolve to an
+ *   account. The only reason that means "check what you typed".
+ * - `provider_rejected`: the other network answered and refused Oxy's
+ *   request — for atproto an authorization-server error such as
+ *   `invalid_client_metadata`; for a Mastodon-API server a refused app
+ *   registration (often: not a Mastodon-compatible server). Nothing the user
+ *   typed is wrong.
+ * - `provider_unavailable`: the other network could not be asked right now
+ *   (its OAuth metadata did not load, a 5xx, a timeout). Try again later.
+ *
+ * A refusal with no `details.reason` (a bad `returnTo`, a missing field) is a
+ * client bug, not something to show.
+ */
+export const LINKED_ACCOUNT_START_ERROR_REASONS = [
+  'instance_invalid',
+  'instance_unreachable',
+  'handle_unresolvable',
+  'provider_rejected',
+  'provider_unavailable',
+] as const;
+
+export type LinkedAccountStartErrorReason = (typeof LINKED_ACCOUNT_START_ERROR_REASONS)[number];
+
+export const linkedAccountStartErrorReasonSchema = z.enum(LINKED_ACCOUNT_START_ERROR_REASONS);
+
+/** The `details` of a start refusal. */
+export const linkedAccountStartErrorDetailsSchema = z
+  .object({ reason: linkedAccountStartErrorReasonSchema })
+  .strict();
+
+export type LinkedAccountStartErrorDetails = z.infer<typeof linkedAccountStartErrorDetailsSchema>;
+

@@ -610,9 +610,12 @@ export const SEED_APPS: SeedAppSpec[] = [
     // `federation:identities:resolve` maps the accounts a user followed
     // elsewhere to Oxy user ids (`/federation/identities/lookup|resolve`)
     // without `federation:write`'s signing authority. `notifications:write`
-    // tells the user the migration finished (`system` notification). The
-    // privileged ones are why this is a staff-run seed and not a self-service
-    // registration.
+    // tells the user the migration finished (`system` notification).
+    // `federation:instance-fetch` has Oxy's instance actor sign Move's GETs of
+    // a Mastodon outbox or `following` when the instance runs authorized fetch
+    // (`POST /federation/instance-fetch/sign`): GET only, the instance key only,
+    // so Move holds no key and can speak as nobody. The privileged ones are why
+    // this is a staff-run seed and not a self-service registration.
     scopes: [
       'user:read',
       'linked-accounts:read',
@@ -620,6 +623,7 @@ export const SEED_APPS: SeedAppSpec[] = [
       'files:user-media:write',
       'federation:identities:resolve',
       'notifications:write',
+      'federation:instance-fetch',
     ],
   },
   {

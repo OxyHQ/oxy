@@ -49,9 +49,25 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 jest.mock('../../utils/userCache', () => ({ __esModule: true, default: { invalidate: jest.fn() } }));
-jest.mock('../../services/linkedAccounts/atprotoClientLoader', () => ({
-  loadAtprotoOAuthModule: () => Promise.reject(new Error('the real atproto client is not loaded in tests')),
-}));
+// The real module is ESM and cannot load under ts-jest, so the loader hands out
+// only the two error classes Oxy classifies a failed start by, shaped as
+// `@atproto/oauth-client` defines them. No `NodeOAuthClient`: the client is the
+// double below, so building a real one fails loudly.
+jest.mock('../../services/linkedAccounts/atprotoClientLoader', () => {
+  class OAuthResolverError extends Error {}
+  class OAuthResponseError extends Error {
+    readonly error?: string;
+    constructor(readonly response: { status: number }, readonly payload: { error?: string }) {
+      super(`OAuth "${payload.error}" error`);
+      this.error = payload.error;
+    }
+    get status(): number {
+      return this.response.status;
+    }
+  }
+  const module = { OAuthResolverError, OAuthResponseError };
+  return { loadAtprotoOAuthModule: () => Promise.resolve(module) };
+});
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
@@ -61,6 +77,8 @@ import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import userCache from '../../utils/userCache';
 import { setLinkedAccountTransportForTesting, UnsafeHostError } from '../../services/linkedAccounts/http';
+import { loadAtprotoOAuthModule } from '../../services/linkedAccounts/atprotoClientLoader';
+import { logger } from '../../utils/logger';
 import {
   atprotoSessionsInFlight,
   atprotoStoresForTesting,
@@ -107,6 +125,9 @@ const fakeFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const form = request.method === 'POST' ? await request.text() : '';
   switch (`${request.method} ${url.pathname}`) {
     case 'POST /api/v1/apps':
+      // A `notmastodon-*` server has no app registration; a `down-*` one is failing.
+      if (server.host.startsWith('notmastodon-')) return json({ error: 'not found' }, 404);
+      if (server.host.startsWith('down-')) return json({ error: 'unavailable' }, 503);
       server.registrations += 1;
       // A `race-*` server answers slowly, so concurrent starts overlap.
       if (server.host.startsWith('race-')) await new Promise((resolve) => setTimeout(resolve, 100));
@@ -500,11 +521,32 @@ describe('start — input and returnTo validation', () => {
 
   it('refuses private, malformed and IP-literal instances before contacting them', async () => {
     const user = await newUser();
-    for (const instanceName of ['intranet.example', 'localhost', '127.0.0.1', 'http://mastodon.example', 'mastodon.example:8443', 'https://u:p@mastodon.example']) {
+    for (const instanceName of ['localhost', '127.0.0.1', 'http://mastodon.example', 'mastodon.example:8443', 'https://u:p@mastodon.example']) {
       const res = await call('POST', '/activitypub/start', { user, body: { instance: instanceName, clientId: client, returnTo: RETURN_TO } });
       expect(res.status).toBe(400);
+      expect(res.body.details).toEqual({ reason: 'instance_invalid' });
     }
+    const unreachable = await call('POST', '/activitypub/start', { user, body: { instance: 'intranet.example', clientId: client, returnTo: RETURN_TO } });
+    expect(unreachable.status).toBe(400);
+    expect(unreachable.body.details).toEqual({ reason: 'instance_unreachable' });
     expect(instances.has('intranet.example')).toBe(false);
+  });
+
+  it('tells a server that refuses Oxy from one that is down, and warns about both', async () => {
+    const user = await newUser();
+    const refused = await call('POST', '/activitypub/start', { user, body: { instance: `notmastodon-${randomUUID().slice(0, 8)}.example`, clientId: client, returnTo: RETURN_TO } });
+    expect(refused.status).toBe(400);
+    expect(refused.body.details).toEqual({ reason: 'provider_rejected' });
+    const down = await call('POST', '/activitypub/start', { user, body: { instance: `down-${randomUUID().slice(0, 8)}.example`, clientId: client, returnTo: RETURN_TO } });
+    expect(down.status).toBe(400);
+    expect(down.body.details).toEqual({ reason: 'provider_unavailable' });
+    expect(jest.mocked(logger.warn)).toHaveBeenCalledWith('[LinkedAccounts] Mastodon app registration refused', expect.objectContaining({ status: 404 }));
+  });
+
+  it('a refusal the client caused carries no reason to show the user', async () => {
+    const res = await call('POST', '/activitypub/start', { user: await newUser(), body: { instance: 'mastodon.example', clientId: client, returnTo: 'https://evil.example/linked' } });
+    expect(res.status).toBe(400);
+    expect(res.body.details).toBeUndefined();
   });
 
   it('requires a session', async () => {
@@ -600,6 +642,76 @@ describe('atproto', () => {
 
     // atproto links are never ActivityPub aliases.
     expect(await aliasesForUser(user)).toEqual([]);
+  });
+
+  describe('a refused start says why — a typo, or the provider refusing Oxy', () => {
+    afterEach(() => setAtprotoClientForTesting(fakeAtproto));
+
+    /** The double, with `authorize` or the identity resolver replaced. */
+    function withFailure(failure: { resolve?: unknown; authorize?: unknown }): void {
+      setAtprotoClientForTesting({
+        ...fakeAtproto,
+        async authorize(input, options) {
+          if (failure.authorize) throw failure.authorize;
+          return fakeAtproto.authorize(input, options);
+        },
+        oauthResolver: {
+          identityResolver: {
+            async resolve(identifier) {
+              if (failure.resolve) throw failure.resolve;
+              return fakeAtproto.oauthResolver.identityResolver.resolve(identifier);
+            },
+          },
+        },
+      });
+    }
+
+    async function startFor(user: string): Promise<Result> {
+      return call('POST', '/atproto/start', { user, body: { handle: 'carol.bsky.social', clientId: client, returnTo: RETURN_TO } });
+    }
+
+    async function openChallenges(user: string): Promise<number> {
+      const rows = await getDb().select({ id: linkedAccountOauthChallenges.id }).from(linkedAccountOauthChallenges).where(eq(linkedAccountOauthChallenges.userId, user));
+      return rows.length;
+    }
+
+    it('an unresolvable handle is handle_unresolvable, before any challenge exists', async () => {
+      const { OAuthResolverError } = await loadAtprotoOAuthModule();
+      withFailure({ resolve: new OAuthResolverError('Failed to resolve identity: carol.bsky.social') });
+      const user = await newUser();
+      const res = await startFor(user);
+      expect(res.status).toBe(400);
+      expect(res.body.details).toEqual({ reason: 'handle_unresolvable' });
+      expect(await openChallenges(user)).toBe(0);
+    });
+
+    it('invalid_client_metadata from the authorization server is provider_rejected, logged at warn', async () => {
+      const { OAuthResponseError } = await loadAtprotoOAuthModule();
+      withFailure({ authorize: new OAuthResponseError({ status: 400 } as never, { error: 'invalid_client_metadata' }) });
+      const user = await newUser();
+      const res = await startFor(user);
+      expect(res.status).toBe(400);
+      expect(res.body.details).toEqual({ reason: 'provider_rejected' });
+      expect(jest.mocked(logger.warn)).toHaveBeenCalledWith(
+        '[LinkedAccounts] atproto authorization server did not start the flow',
+        expect.objectContaining({ reason: 'provider_rejected', oauthError: 'invalid_client_metadata', status: 400 }),
+      );
+      expect(await openChallenges(user)).toBe(0);
+    });
+
+    it('a failing authorization server or unreadable metadata is provider_unavailable', async () => {
+      const { OAuthResponseError, OAuthResolverError } = await loadAtprotoOAuthModule();
+      for (const failure of [
+        new OAuthResponseError({ status: 503 } as never, { error: 'server_error' }),
+        new OAuthResolverError('Failed to resolve OAuth server metadata for resource: https://pds.example'),
+        new TypeError('fetch failed'),
+      ]) {
+        withFailure({ authorize: failure });
+        const res = await startFor(await newUser());
+        expect(res.status).toBe(400);
+        expect(res.body.details).toEqual({ reason: 'provider_unavailable' });
+      }
+    });
   });
 
   it('returns a denied authorization to the registered returnTo', async () => {

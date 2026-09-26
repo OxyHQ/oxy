@@ -5,7 +5,7 @@ import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const RELEASES = Object.freeze([
-  { directory: 'contracts', name: '@oxy.so/contracts', version: '1.5.0' },
+  { directory: 'contracts', name: '@oxy.so/contracts', version: '2.1.0' },
   { directory: 'federation', name: '@oxy.so/federation', version: '2.1.0' },
 ]);
 const registry = 'https://registry.npmjs.org';

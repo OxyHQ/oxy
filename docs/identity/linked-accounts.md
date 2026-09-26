@@ -36,7 +36,8 @@ Oxy's database.
 
 Oxy asks for the smallest scope each network offers: `read:accounts` on the
 Mastodon API and `atproto` on Bluesky. Oxy Move imports public data (outboxes,
-public XRPC) and needs no token.
+public XRPC) and needs no token. A server in authorized-fetch mode is read with
+a signature from Oxy's instance actor; see [instance-fetch.md](instance-fetch.md).
 
 Three secrets are stored, and each is registered in `protectedColumns.ts`:
 
@@ -101,6 +102,20 @@ All routes are under `/linked-accounts`.
    - A challenge row is created: the SHA-256 of `state`, the PKCE material, the
      user, and `returnTo`. It expires after 10 minutes, and `db/expiry.ts` sweeps
      it.
+   - A refusal the user can act on is a 400 whose `details.reason` names why
+     (`LINKED_ACCOUNT_START_ERROR_REASONS` in contracts), so an app shows the
+     right text instead of blaming the input:
+
+     | `reason` | When | Log |
+     |---|---|---|
+     | `instance_invalid` | `instance` is not a server name | — |
+     | `instance_unreachable` | it resolves to a private address, or no connection could be made | warn (transport) |
+     | `handle_unresolvable` | the atproto handle or DID does not resolve. Oxy resolves the identity with the library's own resolver BEFORE `authorize`, so this is the only reason that means "check what you typed" | info |
+     | `provider_rejected` | the other network answered and refused Oxy: an atproto `OAuthResponseError` with a 4xx (`invalid_client_metadata`…), or a Mastodon-API server refusing the app registration (often: not Mastodon-API) | warn |
+     | `provider_unavailable` | the other network could not be asked: an atproto `OAuthResolverError` (PDS or authorization-server metadata), a 5xx, a timeout; a Mastodon-API 5xx or 429 | warn |
+
+     A refusal the client caused (a bad `returnTo`, a missing field) has no
+     `reason`.
 2. The browser opens `authorizeUrl` and signs in at the other network.
 3. **`GET /:network/callback`** needs no session: the spent challenge row
    authenticates the request. The challenge is spent in one transaction

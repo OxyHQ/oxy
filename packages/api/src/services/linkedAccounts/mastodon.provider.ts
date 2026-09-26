@@ -109,7 +109,15 @@ async function ensureAppRegistration(host: string): Promise<AppRegistration> {
     });
     const body = (await readJson(response)) as { client_id?: unknown; client_secret?: unknown } | null;
     if (!response.ok || typeof body?.client_id !== 'string' || typeof body.client_secret !== 'string') {
-      throw new LinkedAccountStartRefusal('That server did not accept an app registration; is it a Mastodon-compatible server?');
+      // The server answered and did not register Oxy. A 5xx or 429 is the
+      // server being down or busy; anything else (a 4xx, a 2xx that is not a
+      // Mastodon app) is a refusal — often a server that is not Mastodon-API.
+      const unavailable = response.status >= 500 || response.status === 429;
+      logger.warn('[LinkedAccounts] Mastodon app registration refused', { host, status: response.status });
+      throw new LinkedAccountStartRefusal(
+        unavailable ? 'provider_unavailable' : 'provider_rejected',
+        `the server did not accept an app registration (HTTP ${response.status}); is it a Mastodon-compatible server?`,
+      );
     }
     const registration = { clientId: body.client_id, clientSecret: body.client_secret, redirectUri };
     await tx
@@ -132,11 +140,11 @@ interface StartInput {
 
 export async function startMastodonLink(input: StartInput): Promise<{ authorizeUrl: string; expiresAt: Date }> {
   const host = parseInstanceHost(input.instance);
-  if (!host) throw new LinkedAccountStartRefusal('instance must be a server name such as mastodon.social');
+  if (!host) throw new LinkedAccountStartRefusal('instance_invalid', 'instance must be a server name such as mastodon.social');
   try {
     await linkedAccountTransport().assertPublicHost(host);
   } catch {
-    throw new LinkedAccountStartRefusal('instance is not a reachable public server');
+    throw new LinkedAccountStartRefusal('instance_unreachable', 'instance is not a reachable public server');
   }
 
   let registration: AppRegistration;
@@ -148,7 +156,7 @@ export async function startMastodonLink(input: StartInput): Promise<{ authorizeU
       host,
       error: error instanceof Error ? error.message : String(error),
     });
-    throw new LinkedAccountStartRefusal('instance could not be reached');
+    throw new LinkedAccountStartRefusal('instance_unreachable', 'instance could not be reached');
   }
 
   const state = randomToken();
