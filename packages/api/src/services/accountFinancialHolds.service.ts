@@ -29,6 +29,17 @@
  *     legally required financial records while deleting optional payload data" is
  *     what that boundary implements.
  *
+ * ## An empty, never-used wallet is not a hold
+ *
+ * Every account may get a `wallets` row it never touches, and that row alone
+ * used to turn a deletion into an archive. A wallet counts as a hold only when
+ * it carries anything: a non-zero balance, a payout address, any change since
+ * it was created, any `transactions` row naming the account (either side), or
+ * any row in a table that references `wallets`. Otherwise it is DISPOSABLE:
+ * {@link deleteDisposableWallets} removes it inside the deletion transaction,
+ * re-checking the same conditions in the DELETE itself, before the `users`
+ * row goes.
+ *
  * ## The blocking set is DERIVED, never listed
  *
  * {@link listRestrictingReferences} reads `pg_constraint` for every foreign key
@@ -95,6 +106,7 @@ export async function listRestrictingReferences(): Promise<RestrictingReference[
 /** Reset the cached introspection. For tests that create tables mid-run. */
 export function resetRestrictingReferenceCache(): void {
   cachedReferences = undefined;
+  cachedWalletReferences = undefined;
 }
 
 /** One blocking table and how many of its rows name this account. */
@@ -156,6 +168,12 @@ export interface AccountFinancialHolds {
    * stronger.
    */
   readonly retainedRecords: readonly RetainedRecordCount[];
+  /**
+   * The account's wallets that are empty and were never used — not holds, and
+   * not in {@link retainedRecords}: the hard delete removes them first
+   * ({@link deleteDisposableWallets}). See the module header.
+   */
+  readonly disposableWalletIds: readonly string[];
   /** True when Stripe would keep charging a deleted customer. */
   readonly hasLiveSubscription: boolean;
   /** True when a credential of this account is still active in Kaana custody. */
@@ -198,6 +216,17 @@ export async function describeAccountFinancialHolds(
     }
   }
 
+  const disposableWalletIds = await findDisposableWallets(accountId);
+  if (disposableWalletIds.length > 0) {
+    const index = retainedRecords.findIndex((record) => record.table === 'wallets' && record.column === 'user_id');
+    const walletRecord = retainedRecords[index];
+    if (walletRecord) {
+      const kept = walletRecord.rows - disposableWalletIds.length;
+      if (kept > 0) retainedRecords[index] = { ...walletRecord, rows: kept };
+      else retainedRecords.splice(index, 1);
+    }
+  }
+
   const subscriptions = await executeRows<{ id: string }>(
     db,
     sql`
@@ -237,10 +266,115 @@ export async function describeAccountFinancialHolds(
     heldReservations: Number(held[0]?.total ?? '0'),
     liveProviderConnections: providerConnections.map((row) => row.id),
     retainedRecords,
+    disposableWalletIds,
     hasLiveSubscription: subscriptions.length > 0,
     hasLiveProviderConnection: providerConnections.length > 0,
     blocksHardDelete: retainedRecords.length > 0,
   };
+}
+
+/** A foreign key into `wallets` (any delete action): a row there means the wallet was used. */
+let cachedWalletReferences: RestrictingReference[] | undefined;
+
+async function listWalletReferences(): Promise<RestrictingReference[]> {
+  if (cachedWalletReferences !== undefined) return cachedWalletReferences;
+  const rows = await executeRows<{ table_name: string; column_name: string }>(
+    getDb(),
+    sql`
+      select child.relname as table_name, att.attname as column_name
+      from pg_constraint c
+      join pg_class child on child.oid = c.conrelid
+      join pg_class parent on parent.oid = c.confrelid
+      join lateral unnest(c.conkey) as k(attnum) on true
+      join pg_attribute att on att.attrelid = c.conrelid and att.attnum = k.attnum
+      where c.contype = 'f' and parent.relname = 'wallets'
+      order by child.relname, att.attname
+    `
+  );
+  cachedWalletReferences = rows.map((row) => ({ table: row.table_name, column: row.column_name }));
+  return cachedWalletReferences;
+}
+
+/**
+ * The SQL predicate a wallet row must meet to be disposable, on the row alone:
+ * a zero balance, no payout address, and never updated since it was created.
+ * Shared by the read and by the DELETE that re-checks it.
+ */
+function untouchedWallet(alias: string) {
+  return sql.raw(
+    `${alias}.balance = 0 and ${alias}.address is null and ${alias}.updated_at = ${alias}.created_at`
+  );
+}
+
+/**
+ * The account's wallets that are empty and never used (module header). Strict:
+ * any `transactions` row naming the account, on either side, keeps every
+ * wallet as a hold, and so does any row referencing the wallet.
+ */
+async function findDisposableWallets(accountId: string): Promise<string[]> {
+  const db = getDb();
+  const ledger = await executeRows<{ total: string }>(
+    db,
+    sql`select count(*)::text as total from transactions where user_id = ${accountId} or recipient_id = ${accountId}`
+  );
+  if (Number(ledger[0]?.total ?? '0') > 0) return [];
+
+  const candidates = await executeRows<{ id: string }>(
+    db,
+    sql`select w.id from wallets w where w.user_id = ${accountId} and ${untouchedWallet('w')}`
+  );
+  const references = await listWalletReferences();
+  const disposable: string[] = [];
+  for (const candidate of candidates) {
+    let used = false;
+    for (const reference of references) {
+      const rows = await executeRows<{ total: string }>(
+        db,
+        sql`
+          select count(*)::text as total
+          from ${sql.raw(quoteIdentifier(reference.table))}
+          where ${sql.raw(quoteIdentifier(reference.column))} = ${candidate.id}
+        `
+      );
+      if (Number(rows[0]?.total ?? '0') > 0) {
+        used = true;
+        break;
+      }
+    }
+    if (!used) disposable.push(candidate.id);
+  }
+  return disposable;
+}
+
+/**
+ * Delete the disposable wallets inside the transaction that deletes the
+ * account, re-checking in the DELETE itself that each is still untouched and
+ * that no ledger row names the account. Anything that changed since the holds
+ * were read makes the whole deletion fail (and roll back) rather than destroy a
+ * wallet that now carries value.
+ */
+export async function deleteDisposableWallets(
+  tx: Transaction,
+  accountId: string,
+  walletIds: readonly string[],
+): Promise<void> {
+  if (walletIds.length === 0) return;
+  const deleted = await executeRows<{ id: string }>(
+    tx,
+    sql`
+      delete from wallets w
+      where w.user_id = ${accountId}
+        and w.id = any(${sql.param([...walletIds])}::text[])
+        and ${untouchedWallet('w')}
+        and not exists (
+          select 1 from transactions t where t.user_id = ${accountId} or t.recipient_id = ${accountId}
+        )
+      returning w.id
+    `
+  );
+  if (deleted.length !== walletIds.length) {
+    throw new ConflictError('A wallet of this account changed during its deletion. Try again.');
+  }
 }
 
 /**

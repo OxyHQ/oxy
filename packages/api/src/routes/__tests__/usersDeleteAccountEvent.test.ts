@@ -74,11 +74,12 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountEventDeliveries, accountEvents } from '../../db/schema/accountEvents';
 import { applications } from '../../db/schema/applications';
 import { users } from '../../db/schema/users';
+import { wallets } from '../../db/schema/wallets';
 import { errorHandler } from '../../middleware/errorHandler';
 import { ACCOUNT_EVENT_FEED_SETTLE_MS } from '../../services/accountEvents.service';
 import accountEventRoutes from '../accountEvents';
@@ -156,7 +157,7 @@ async function seed() {
     .values({
       username: `leaving-${suffix}`,
       email: `leaving-${suffix}@example.test`,
-      publicKey: `02${'ab'.repeat(32)}`,
+      publicKey: `02${randomBytes(32).toString('hex')}`,
     })
     .returning({ id: users.id, username: users.username });
   const [mention] = await getDb()
@@ -219,6 +220,38 @@ describe('DELETE /users/me records an account.deleted event', () => {
     expect(response.status).toBe(401);
     expect(await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.id))).toHaveLength(1);
     expect(await getDb().select().from(accountEvents).where(eq(accountEvents.userId, person.id))).toHaveLength(0);
+  });
+});
+
+describe('DELETE /users/me and a wallet', () => {
+  beforeEach(() => {
+    signatureValid = true;
+    currentServiceAppId = undefined;
+  });
+
+  it('deletes an account whose wallet is empty and never used — the wallet goes with it', async () => {
+    const { person } = await seed();
+    currentUserId = person.id;
+    const [wallet] = await getDb().insert(wallets).values({ userId: person.id }).returning({ id: wallets.id });
+
+    const response = await call('DELETE', '/users/me', deleteBody(person.username!));
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ retained: false });
+    expect(await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.id))).toHaveLength(0);
+    expect(await getDb().select({ id: wallets.id }).from(wallets).where(eq(wallets.id, wallet.id))).toHaveLength(0);
+  });
+
+  it('archives, as before, an account whose wallet holds a balance — the wallet is kept', async () => {
+    const { person } = await seed();
+    currentUserId = person.id;
+    const [wallet] = await getDb().insert(wallets).values({ userId: person.id, balance: '1.5' }).returning({ id: wallets.id });
+
+    const response = await call('DELETE', '/users/me', deleteBody(person.username!));
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ retained: true });
+    const [row] = await getDb().select({ status: users.accountStatus }).from(users).where(eq(users.id, person.id));
+    expect(row).toEqual({ status: 'archived' });
+    expect(await getDb().select({ id: wallets.id }).from(wallets).where(eq(wallets.id, wallet.id))).toHaveLength(1);
   });
 });
 
