@@ -56,7 +56,7 @@ export default function RotateKeyCurrentPhraseScreen() {
   }, [phraseWords, currentPhraseRef, router, t]);
 
   return (
-    <KeyboardAwareScrollViewWrapper reserveTabBarFootprint contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollViewWrapper reserveTabBarFootprint reserveTopInset contentContainerStyle={styles.content}>
       <StackHeader
         title={t('rotateKey.currentPhrase.title')}
         subtitle={t('rotateKey.currentPhrase.subtitle')}

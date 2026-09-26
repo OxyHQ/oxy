@@ -12,6 +12,7 @@ import { useFollow, useFollowForButton } from '../hooks/useFollow';
 import { useFollowStore } from '../stores/followStore';
 import type { OxyServices, BulkFollowResult, BulkUnfollowResult } from '@oxy.so/core';
 import { useShallow } from 'zustand/react/shallow';
+import { describeFollowAllButton, describeFollowButton } from './followButtonAccessibility';
 
 const DEFAULT_FOLLOW_ALL_LABEL = 'Follow all';
 const DEFAULT_FOLLOWED_ALL_LABEL = 'Following';
@@ -32,6 +33,12 @@ interface FollowButtonBaseProps {
 export interface SingleFollowButtonProps extends FollowButtonBaseProps {
   userId: string;
   initiallyFollowing?: boolean;
+  /**
+   * The account's handle, with or without the `@`. A screen reader then hears
+   * "Following @nate" rather than a bare "Following"; omit it and the name
+   * still follows the state.
+   */
+  username?: string;
   userIds?: never;
 }
 
@@ -59,6 +66,7 @@ const FollowButtonInner = memo(function FollowButtonInner({
   userId,
   oxyServices,
   initiallyFollowing,
+  username,
   size = 'medium',
   onFollowChange,
   style,
@@ -106,6 +114,12 @@ const FollowButtonInner = memo(function FollowButtonInner({
   const isBusy = isLoading || !isKnown;
   const showFollowing = isKnown && isFollowing;
   const showSpinner = showLoadingState && isBusy;
+  const { accessibilityLabel, accessibilityHint } = describeFollowButton({
+    isKnown,
+    isFollowing: showFollowing,
+    isPending: isLoading,
+    username,
+  });
 
   return (
     <BloomFollowButton
@@ -117,6 +131,8 @@ const FollowButtonInner = memo(function FollowButtonInner({
       style={style}
       textStyle={textStyle}
       label={isKnown || showSpinner ? 'Follow' : ''}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
     />
   );
 });
@@ -226,10 +242,19 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
   }, [disabled, isLoading, allFollowing, followAllUsers, unfollowAllUsers, onFollowChange, onBulkFollow, onBulkUnfollow, preventParentActions]);
 
   const showSpinner = showLoadingState && isLoading;
+  const { accessibilityLabel, accessibilityHint } = describeFollowAllButton({
+    allFollowing,
+    isPending: Boolean(isLoading),
+    count: userIds.length,
+    followAllLabel,
+    followedAllLabel,
+  });
 
   return (
     <BloomFollowButton
       following={allFollowing}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       onFollowChange={() => { void handlePress(); }}
       label={followAllLabel}
       followingLabel={followedAllLabel}
