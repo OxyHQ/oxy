@@ -38,6 +38,11 @@ interface JwtPayload {
 export type AuthRefreshReason = 'preflight' | 'response-401';
 export type AuthRefreshHandler = (reason: AuthRefreshReason) => Promise<string | null>;
 export type AccessTokenProvider = () => string | null;
+/**
+ * Supplies a bearer for a request made while this client holds NO user session
+ * — `null` to send it anonymous. See {@link HttpService.setAnonymousAuthProvider}.
+ */
+export type AnonymousAuthProvider = () => Promise<string | null>;
 
 /**
  * A low-level authenticated request whose response body remains unread.
@@ -378,6 +383,7 @@ export class HttpService {
   private noFresherTokenThan: string | null = null;
   private authRefreshHandler: AuthRefreshHandler | null = null;
   private accessTokenProvider: AccessTokenProvider | null = null;
+  private anonymousAuthProvider: AnonymousAuthProvider | null = null;
   private deviceSecretMintInFlight: Promise<DeviceSecretMintOutcome> | null = null;
   /**
    * Bumped by every {@link endSession}. A re-mint captures it before its first
@@ -1191,7 +1197,7 @@ export class HttpService {
   private async getAuthHeader(): Promise<string | null> {
     const accessToken = this.syncAccessTokenFromProvider();
     if (!accessToken) {
-      return null;
+      return this.getAnonymousAuthHeader();
     }
 
     try {
@@ -1218,6 +1224,23 @@ export class HttpService {
       return `Bearer ${accessToken}`;
     } catch (error) {
       this.logger.error('Error processing token:', error);
+      return null;
+    }
+  }
+
+  /**
+   * The bearer for a request that has no user session behind it, from the
+   * {@link AnonymousAuthProvider} if one is installed. Never throws: a provider
+   * that fails sends the request anonymous, exactly as it went before any
+   * provider existed.
+   */
+  private async getAnonymousAuthHeader(): Promise<string | null> {
+    if (!this.anonymousAuthProvider) return null;
+    try {
+      const token = await this.anonymousAuthProvider();
+      return token ? `Bearer ${token}` : null;
+    } catch (error) {
+      this.logger.debug('Anonymous auth provider failed; sending the request anonymous:', error);
       return null;
     }
   }
@@ -1563,6 +1586,17 @@ export class HttpService {
 
   setAccessTokenProvider(provider: AccessTokenProvider | null): void {
     this.accessTokenProvider = provider;
+  }
+
+  /**
+   * Authenticate requests that carry no user session with the bearer this
+   * provider returns — in practice a backend's own service token (see
+   * `OxyConfig.serviceIdentity`). A user session always wins: the provider is
+   * consulted only when there is no access token, and never for `skipAuth`
+   * requests. `null` removes it.
+   */
+  setAnonymousAuthProvider(provider: AnonymousAuthProvider | null): void {
+    this.anonymousAuthProvider = provider;
   }
 
   clearTokens(): void {
