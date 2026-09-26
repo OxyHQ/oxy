@@ -148,7 +148,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   sessionMode = 'account',
   webAuthMode = 'popup',
   backgroundSession = false,
-  deviceCredentialStorage = 'persistent',
   platformStorage,
   onAuthStateChange,
   onError,
@@ -169,17 +168,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
 
   // The device-first persisted auth-state store (per-origin device credential on
   // web; SecureStore session blob on native). Built ONCE per provider mount.
-  //
-  // `deviceCredentialStorage` is mount-time configuration for the same reason
-  // `sessionMode` is: it decides where the durable credential lives, and letting
-  // it change mid-flight would mean a session that started ephemeral could begin
-  // writing one.
   const authStoreRef = useRef<AuthStateStore | null>(null);
   if (!authStoreRef.current) {
-    authStoreRef.current = createPlatformAuthStateStore({
-      sessionMode,
-      storage: deviceCredentialStorage,
-    });
+    authStoreRef.current = createPlatformAuthStateStore({ sessionMode });
   }
   const authStore = authStoreRef.current;
 

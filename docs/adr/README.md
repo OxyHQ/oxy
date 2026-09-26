@@ -14,7 +14,7 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 |---|---|---|
 | [0001](0001-multi-principal-device-model.md) | #937 | A device holds principals, and principals hold account contexts — `device_principals` + `device_account_contexts` replace the flat `device_session_accounts` projection. |
 | [0002](0002-global-account-context.md) | #937 | One globally active context per device, activated through one endpoint. |
-| [0003](0003-browser-device-session-hub.md) | #937 | `auth.oxy.so` becomes the browser's first-party DeviceSession hub, holding an opaque `__Host-oxy-device` handle; relying-party origins stay zero-cookie. |
+| [0003](0003-browser-device-session-hub.md) | #937 | Superseded (2026-09-26): the browser DeviceSession hub was never deployed and is deleted; no origin holds a cookie. |
 | [0004](0004-single-oxy-runtime-provider.md) | #937 | One headless `OxyRuntime` owns session truth behind one public `OxyProvider`; React is an adapter over it. |
 | [0005](0005-oxy-is-the-single-control-plane.md) | #972 | Oxy is the single control plane for accounts, applications, credentials, permissions, customer billing and Console; the inference data plane owns no customer. |
 | [0006](0006-oxy-kaana-boundary.md) | #972 | The data plane executes inference and stores only immutable references to Oxy ids; the responsibility matrix gives every domain one source of truth. |

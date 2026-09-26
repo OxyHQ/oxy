@@ -7,13 +7,11 @@ import { OxyProvider } from "@oxy.so/services"
 import { getBloomThemeCSS } from "@/lib/bloom-css"
 import { getApiBaseUrl } from "@/lib/oxy-api-client"
 import { OXY_CLIENT_ID } from "@/lib/oxy-client"
-import { isBrowserHubEnabled } from "@/lib/hub-client"
 import { DocumentLanguage } from "@/lib/i18n/document-language"
 import { AuthLayout } from "@/src/pages/layout"
 import { LoginPage } from "@/src/pages/login"
 import { SignUpPage } from "@/src/pages/signup"
 import { AuthorizePage } from "@/src/pages/authorize"
-import { HubAuthorizePage } from "@/src/pages/hub-authorize"
 import { McpLinkPage } from "@/src/pages/mcp-link"
 import { DevicePage } from "@/src/pages/device"
 import { RecoverPage } from "@/src/pages/recover"
@@ -34,25 +32,6 @@ const styleEl = document.createElement("style")
 styleEl.textContent = getBloomThemeCSS()
 document.head.appendChild(styleEl)
 
-/**
- * Whether this build serves `/authorize` from the browser hub (issue #937
- * Phase 5, ADR 0003).
- *
- * Read ONCE, here, from the build's own env — one flag for the whole lane. OFF
- * is the default and means `auth.oxy.so` behaves byte-for-byte as it does
- * today: the SDK's per-origin `{deviceId, deviceSecret}`, the normal cold boot,
- * and not one `/hub/*` request. Flipping it ON is the BROWSER-VERIFICATION
- * GATE — it comes out when somebody has actually run Chrome, Safari and
- * Firefox, private windows, and third-party cookies blocked against the lane,
- * never on reasoning.
- */
-const BROWSER_HUB_ENABLED = isBrowserHubEnabled(import.meta.env)
-
-/** The one place the flag chooses a page. */
-function AuthorizeRoute() {
-    return BROWSER_HUB_ENABLED ? <HubAuthorizePage /> : <AuthorizePage />
-}
-
 function App() {
     return (
         <BloomThemeProvider mode="system" colorPreset="oxy">
@@ -72,17 +51,6 @@ function App() {
                     // consent and recover (ADR 0024 D1): nothing third-party runs
                     // here, and the edge's analytics beacon is blocked by this
                     // origin's CSP (`oxy.pages-headers.json` → `sensitive`).
-                    // With the browser hub ON, the durable credential for this
-                    // browser profile is the server-side DeviceSession behind
-                    // `__Host-oxy-device`, so this origin persists none of its
-                    // own. Two durable credentials for one origin is the dual
-                    // authority ADR 0003 exists to remove — revoking the hub
-                    // while a localStorage secret still mints would make a
-                    // sign-out look like it worked. OFF (the default) leaves the
-                    // provider byte-for-byte as it was.
-                    deviceCredentialStorage={
-                        BROWSER_HUB_ENABLED ? "ephemeral" : "persistent"
-                    }
                 >
                     <DocumentLanguage />
                     <BrowserRouter>
@@ -91,10 +59,10 @@ function App() {
                             <Route element={<AuthLayout />}>
                                 <Route path="/login" element={<LoginPage />} />
                                 <Route path="/signup" element={<SignUpPage />} />
-                                <Route path="/authorize" element={<AuthorizeRoute />} />
+                                <Route path="/authorize" element={<AuthorizePage />} />
                                 <Route path="/auth/login" element={<LoginPage />} />
                                 <Route path="/auth/signup" element={<SignUpPage />} />
-                                <Route path="/auth/authorize" element={<AuthorizeRoute />} />
+                                <Route path="/auth/authorize" element={<AuthorizePage />} />
                                 {/* Adding another account to an existing MCP
                                     connection. Not an OAuth request: there is no
                                     relying party and no redirect — the person

@@ -2686,10 +2686,8 @@ router.post(
       hasPkce: Boolean(codeChallenge),
     });
 
-    // Typed against the contract and parsed on the way out: this response now
-    // has TWO independently deployed consumers — the IdP SPA and, since the
-    // browser hub (issue #937 Phase 5), its edge layer — so the shape is a
-    // contract rather than an implementation detail of one page.
+    // Typed against the contract: the IdP SPA is an independently deployed
+    // consumer, so the shape is a contract rather than an implementation detail.
     const dto: OauthAuthorizeCodeResponse = {
       code: rawCode,
       state: state ?? null,

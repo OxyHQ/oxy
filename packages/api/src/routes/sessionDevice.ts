@@ -261,8 +261,7 @@ const activateLimiter = rateLimit({
 
 // Everything below this line operates on the shared Oxy device, so a
 // third-party OAuth bearer is refused outright — see the middleware's own
-// docblock for why the verdict is the registry's and re-read per request. The
-// browser hub router applies the same guard for the same reason.
+// docblock for why the verdict is the registry's and re-read per request.
 router.use(requireSameSiteOrigin, authMiddleware, requireFirstPartyDeviceAccess);
 
 /**

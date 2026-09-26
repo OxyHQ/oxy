@@ -1,5 +1,14 @@
 # Changelog: `@oxy.so/contracts`
 
+## 2.0.0
+
+### Removed
+
+- `browserHub`: `BROWSER_HUB_COOKIE_NAME`, `BROWSER_HUB_COOKIE_ATTRIBUTES`,
+  `BROWSER_HUB_HANDLE_TTL_MS` and every `browserHub*` / `hub*` schema and type.
+  The browser DeviceSession hub was never deployed and is deleted (ADR 0003
+  superseded); no origin holds a cookie.
+
 ## 1.5.0
 
 ### Added

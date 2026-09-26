@@ -25,9 +25,9 @@ It does **not** own account management: every `/settings/*` path permanently red
 
 Session authority and transport live entirely in `api.oxy.so`: `deviceId` + `deviceSecret` persisted first-party by the client, minted/refreshed via `POST /session/device/token` (no bearer, no cookies — possession of the secret is the proof). The server-side model is `DeviceSession` (`/session/device/*` + the `session_state` socket event) — see [device-session.md](./device-session.md). There is no refresh-token family. FedCM and the legacy silent/cross-domain restore machinery were deleted from the IdP and the SDK.
 
-One cookie exists on this origin and nowhere else: `__Host-oxy-device`, the browser hub handle (issue #937 Phase 5, [ADR 0003](../adr/0003-browser-device-session-hub.md)). Its server and edge layers are built; **no code on this page's app calls them yet**, so nothing described below has changed. Relying-party origins remain zero-cookie. See [SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § The browser hub.
+This origin sets no cookie, like every other Oxy origin: it persists its own `{deviceId, deviceSecret}` in `localStorage`. The browser hub cookie of [ADR 0003](../adr/0003-browser-device-session-hub.md) was never deployed and is deleted.
 
-The multi-person evolution of that model — principals, account contexts, one globally active context, and the browser DeviceSession hub this IdP is becoming — is specified in [principals-and-account-contexts.md](./principals-and-account-contexts.md) and the records under [`docs/adr/`](../adr/). Where the two disagree, the ADRs describe the target and this page describes what is deployed.
+The multi-person evolution of that model — principals, account contexts, and one globally active context — is specified in [principals-and-account-contexts.md](./principals-and-account-contexts.md) and the records under [`docs/adr/`](../adr/). Where the two disagree, the ADRs describe the target and this page describes what is deployed.
 
 ## Provider mount — `OxyProvider`, device-first like every app
 
@@ -65,7 +65,7 @@ The chooser ("Choose an account to continue") uses the SAME device-first SDK cha
 2. The SDK's `OxyAccountPicker` renders those rows on `/login` (inside `OxySignInPanel`), `/authorize`, `/device` and `/mcp/link`, grouped by person: the same organization reachable through two people is two rows, and the operator is named once anybody holds more than one account.
 3. Selecting the active context continues immediately; selecting any other calls `activateContext(contextId)` — the pair, never an account id — which re-plants the active bearer, then proceeds. A refusal (including a context id the server has since healed away) falls back to `/login?login_hint=…` for explicit re-auth.
 
-The app's own pages (login, signup, authorize, device, MCP link) are a static Vite SPA with history-fallback — no dynamic routes and no advanced-mode worker. The one Pages Functions *directory* on this origin is `functions/hub/*`, the browser hub, which serves no page and which none of the routes above calls.
+The app's own pages (login, signup, authorize, device, MCP link) are a static Vite SPA with history-fallback — no dynamic routes and no advanced-mode worker. The only Pages Function on this origin is the root `functions/_middleware.ts`, which records edge activity and serves no page.
 
 ## API endpoints the IdP calls
 

@@ -234,10 +234,7 @@ Build-vs-source distinction: production/Docker consumes the built `dist/` (the D
 - `packages/core/src/session/identityPin.ts` / `identitySession.ts` — the `sessionMode: 'identity'` pin store + `resolveIdentityPin`/`establishIdentitySession` (issue #691 Phase 1)
 - `packages/core/src/utils/commonsDelivery.ts` — `selectCommonsDelivery` (issue #691 Phase 4 automatic delivery decision)
 - `packages/api/src/utils/applicationCapabilities.ts` — `APPLICATION_CAPABILITIES`, `IDENTITY_APPROVAL_CAPABILITY`, `hasApplicationCapability` (staff-only `Application.capabilities` vocabulary)
-- `packages/contracts/src/browserHub.ts` — `BROWSER_HUB_COOKIE_NAME` / `BROWSER_HUB_COOKIE_ATTRIBUTES` / `BROWSER_HUB_HANDLE_TTL_MS` and both hub wire surfaces (the API's `browserHub*`, the edge's `hub*`), kept as separate shapes so a refactor cannot move a credential across the boundary without a type changing
-- `packages/api/src/routes/browserHub.ts` + `deviceSession.service.ts`'s `issueHubHandle` / `resolveHubDeviceId` / `revokeHubHandle` — the hub's server half
-- `packages/auth/hub/` (`cookie.ts`, `upstream.ts`, `handlers.ts`) + `packages/auth/functions/hub/*.ts` — the hub's edge half at `auth.oxy.so`
-- `packages/api/src/middleware/firstPartyDeviceAccess.ts` — `requireFirstPartyDeviceAccess`, shared by `/session/device/*` and `/session/browser-hub/*`
+- `packages/api/src/middleware/firstPartyDeviceAccess.ts` — `requireFirstPartyDeviceAccess`, for `/session/device/*`
 - `packages/core/src/boot/sessionColdBoot.ts` — `runSessionColdBoot` (device-first cold boot, the SOLE restore chain)
 - `packages/core/src/utils/oauthPkce.ts` — `generatePkcePair`, `generateOAuthState`, `buildOAuthAuthorizeUrl` (third-party OAuth + PKCE helpers)
 - `packages/services/src/ui/oauth/` — `browserAuthTransport.ts` (`startWebOAuthSignIn`, popup-vs-redirect entry point), `completeOAuthCode.ts` (the one code→session completion path both transports share), `oauthPopup.ts` (popup lifecycle)

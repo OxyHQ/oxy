@@ -9,7 +9,6 @@ import usersRouter from "./routes/users";
 import notificationsRouter from "./routes/notifications.routes";
 import sessionRouter from "./routes/session";
 import sessionDeviceRouter from "./routes/sessionDevice";
-import browserHubRouter from "./routes/browserHub";
 import dotenv from "dotenv";
 import searchRoutes from "./routes/search";
 import { rateLimiter, serviceCredentialLimiter, authRateLimiter, userRateLimiter, federationServiceLimiter, bruteForceProtection, securityHeaders } from "./middleware/security";
@@ -703,11 +702,6 @@ app.use("/profiles", profilesRouter);
 app.use("/users/me/app-data", userRateLimiter, userDataRouter);
 app.use("/users", userRateLimiter, usersRouter); // Per-user rate limiting for authenticated routes
 app.use("/session/device", userRateLimiter, sessionDeviceRouter);
-// The browser DeviceSession hub (issue #937 Phase 5). Mounted BEFORE `/session`
-// so its own router owns the prefix: three of its four endpoints carry no
-// bearer and no cookie — the raw hub handle in the body is the credential — and
-// the fourth is bearer-gated with its own same-site origin guard.
-app.use("/session/browser-hub", userRateLimiter, browserHubRouter);
 app.use("/session", userRateLimiter, sessionRouter);
 // `authMiddleware` FIRST, not after `userRateLimiter`: `userRateLimiter`'s
 // keyGenerator/skip both read `(req as AuthRequest).user`, which privacyRoutes'

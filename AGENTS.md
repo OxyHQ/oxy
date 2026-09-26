@@ -46,8 +46,8 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 
 **Identity, auth, privacy** — auth-and-identity.md#auth--session-contract
 - `displayName` is optional; the one fallback is the handle via `getNormalizedUserHandle` — #user-identity-contract
-- RP origins are zero-cookie; only `auth.oxy.so` holds `__Host-oxy-device`; no third-party cookies, iframes, FedCM, `prompt=none` or silent redirects.
-- The SDK never navigates the top-level window on its own; silent restore and hub sync are deleted, not gated.
+- Zero cookies on every origin, `auth.oxy.so` included; no third-party cookies, iframes, FedCM, `prompt=none` or silent redirects.
+- The SDK never navigates the top-level window on its own; silent restore is deleted, not gated.
 - ONE `OxyProvider` from `@oxy.so/services` with a registered `clientId`; no app-local restore or sign-in screen.
 - App backends use `@oxy.so/core/server`; no local auth middleware; socket rooms from `socket.user.id`.
 - App backend clients use `oxyServices.createLinkedClient({ baseURL })`; no local token plumbing.

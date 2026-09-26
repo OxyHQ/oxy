@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.1.1
+
+### Changed
+
+- `@oxy.so/contracts` admits `^2.0.0`: 2.0 removes only the browser-hub
+  schemas, which this package never imported.
+
 ## 2.1.0
 
 ### Added
