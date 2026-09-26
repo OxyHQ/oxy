@@ -2,6 +2,25 @@
 
 ## 0.3.3
 
+### Fixed
+
+- A generated app now builds natively on its first local `expo prebuild` +
+  `./gradlew assembleRelease`. It configured `expo-splash-screen` with no image
+  and shipped no icon, so `:app:processReleaseResources` failed on
+  `drawable/splashscreen_logo`. The frontend now adopts `@oxy.so/expo-splash`
+  (the shared splash, its "from Oxy" branding plugin and the `_layout` hold/hide
+  helpers) and ships a placeholder mark — app icon, Android adaptive layers,
+  splash logo and favicon — as SVG sources with `scripts/render-app-icons.mjs`
+  to regenerate the PNGs.
+- lightningcss is pinned to exactly 1.30.1 in the root `overrides` and
+  `resolutions`. react-native-css 3.0.x is ABI-locked to it, and the 1.32 a fresh
+  install resolves fails the native Metro bundle with "failed to deserialize
+  Specifier".
+- The root `.gitignore` now ignores `packages/frontend/android/` and `ios/`,
+  where prebuild writes them; `/android/` only matched the repository root.
+- The frontend `android`/`ios` scripts run `expo run:<platform>` (a local native
+  build) instead of `expo start`.
+
 ### Changed
 
 - Generated apps take `@oxy.so/bloom` `^4.25.1`, the workspace catalog's range.

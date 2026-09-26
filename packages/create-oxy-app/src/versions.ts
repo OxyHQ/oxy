@@ -27,6 +27,7 @@ export const VERSIONS = {
 
   oxyContracts: '^1.0.0', // @oxy.so/contracts
   oxyAppPreset: '^2.0.1', // @oxy.so/app-preset
+  oxyExpoSplash: '^1.0.0', // @oxy.so/expo-splash — the shared native splash + "from Oxy" branding
 
   // --- Expo SDK 57 core ---
   expo: '^57.0.6',
@@ -78,6 +79,11 @@ export const VERSIONS = {
   tailwindcss: '4.3.2',
   tailwindPostcss: '4.3.2', // @tailwindcss/postcss — runs Tailwind over global.css on the web build
   reactNativeCss: '^3.0.6', // react-native-css (NativeWind 5 runtime)
+  // EXACT, and forced over the whole tree by the root overrides/resolutions:
+  // react-native-css 3.0.x is ABI-locked to lightningcss 1.30.1's native serde
+  // structs, and 1.32 (what a fresh install resolves) fails the native Metro
+  // bundle — so `assembleRelease` — with "failed to deserialize Specifier".
+  lightningcss: '1.30.1',
 
   // --- Data / realtime ---
   reactQuery: '^5.101.0', // @tanstack/react-query

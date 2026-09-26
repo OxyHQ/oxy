@@ -5,8 +5,8 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "export:web": "expo export --platform web",
     "prebuild": "expo prebuild",
@@ -19,6 +19,7 @@
     "@oxy.so/app-preset": "{{v.oxyAppPreset}}",
     "@oxy.so/bloom": "{{v.oxyBloom}}",
     "@oxy.so/core": "{{v.oxyCore}}",
+    "@oxy.so/expo-splash": "{{v.oxyExpoSplash}}",
     "@oxy.so/services": "{{v.oxyServices}}",
     "@react-native-async-storage/async-storage": "{{v.asyncStorage}}",
     "@tanstack/query-async-storage-persister": "{{v.queryAsyncStoragePersister}}",
