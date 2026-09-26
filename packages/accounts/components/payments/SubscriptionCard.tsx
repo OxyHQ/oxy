@@ -1,7 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { Text, StyleSheet, TouchableOpacity } from 'react-native';
 import type { Subscription } from '@oxy.so/services';
-import { useOxy } from '@oxy.so/services';
 import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 import { AccountCard } from '@/components/ui';
@@ -15,14 +13,12 @@ interface SubscriptionCardProps {
 }
 
 /**
- * "Subscription" section: shows the active plan, its status / next billing
- * date, and a manage / upgrade CTA that opens the PremiumSubscription bottom
- * sheet.
+ * "Subscription" section: shows the active plan and its status / next billing
+ * date.
  */
 export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
   const colors = useColors();
   const { t } = useTranslation();
-  const { showBottomSheet } = useOxy();
 
   const getPlanName = useCallback((plan: string): string => {
     const key = `payments.subscription.plans.${plan}`;
@@ -62,10 +58,6 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
     return null;
   }, []);
 
-  const handleManageSubscription = useCallback(() => {
-    showBottomSheet?.('PremiumSubscription');
-  }, [showBottomSheet]);
-
   const isActivePaidPlan = subscription?.plan !== 'basic' && subscription?.status === 'active';
 
   const items = useMemo(() => {
@@ -78,25 +70,11 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
       icon: 'credit-card-outline',
       iconColor: isActivePaidPlan ? colors.success : colors.sidebarIconPayments,
       title: planName,
-      subtitle: isActivePaidPlan
-        ? nextBilling
-          ? t('payments.subscription.nextBilling', { date: nextBilling })
-          : status
-        : t('payments.subscription.upgrade'),
-      customContent: (
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.card }]}
-          onPress={handleManageSubscription}
-          accessibilityRole="button"
-          accessibilityLabel={subscription?.plan !== 'basic' ? t('a11y.manageSubscription') : t('a11y.upgradeSubscription')}
-        >
-          <Text style={[styles.buttonText, { color: colors.text }]}>
-            {subscription?.plan !== 'basic' ? t('payments.subscription.manage') : t('payments.subscription.upgradeCta')}
-          </Text>
-        </TouchableOpacity>
-      ),
+      subtitle: isActivePaidPlan && nextBilling
+        ? t('payments.subscription.nextBilling', { date: nextBilling })
+        : status,
     }];
-  }, [subscription, colors, isActivePaidPlan, getPlanName, getSubscriptionStatus, getNextBillingDate, handleManageSubscription, t]);
+  }, [subscription, colors, isActivePaidPlan, getPlanName, getSubscriptionStatus, getNextBillingDate, t]);
 
   return (
     <Section title={t('payments.sections.subscription')}>
@@ -106,15 +84,3 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
     </Section>
   );
 }
-
-const styles = StyleSheet.create({
-  button: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  buttonText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-});

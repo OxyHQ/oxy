@@ -40,10 +40,10 @@ async function postEvent(event: NormalizedAppEvent, token: string): Promise<Resp
 export async function deliverNormalizedAppEvent(event: NormalizedAppEvent): Promise<void> {
   const parsed = normalizedAppEventSchema.parse(event);
   const client = requiredInboxServiceClient();
-  let response = await postEvent(parsed, await client.getServiceToken());
+  let response = await postEvent(parsed, await client.serviceToken());
   if (response.status === 401) {
     client.invalidateServiceToken();
-    response = await postEvent(parsed, await client.getServiceToken());
+    response = await postEvent(parsed, await client.serviceToken());
   }
   if (!response.ok) {
     throw new Error(`Alia rejected ${parsed.appId} event (${response.status})`);

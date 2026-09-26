@@ -13,8 +13,8 @@ is the job of Oxy Move, which reads the link through a service route.
 Code: `packages/api/src/routes/linkedAccounts.ts`,
 `packages/api/src/services/linkedAccounts/`, and
 `packages/api/src/db/schema/userLinkedAccounts.ts`. Wire types are in
-`@oxy.so/contracts` (`linkedAccounts.ts`). The SDK is the `linkedAccounts`
-mixin in `@oxy.so/core`.
+`@oxy.so/contracts` (`linkedAccounts.ts`). The SDK is `oxy.linkedAccounts`
+in `@oxy.so/core` (`forUser` is on `OxyServer`).
 
 ## Oxy keeps no third-party token
 

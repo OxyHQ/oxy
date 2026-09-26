@@ -79,8 +79,8 @@ export function usePrivacyCounts({ userId }: UsePrivacyCountsArgs): UsePrivacyCo
     const requestedUserId = userId;
     try {
       const [blockedUsers, restrictedUsers] = await Promise.all([
-        oxyServices.getBlockedUsers(),
-        oxyServices.getRestrictedUsers(),
+        oxyServices.privacy.blocked(),
+        oxyServices.privacy.restricted(),
       ]);
 
       if (activePrivacyUserIdRef.current !== requestedUserId) return;

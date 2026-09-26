@@ -79,7 +79,7 @@ describe('HttpService RequestQueue deadlock', () => {
 
     expect(await settlesWithin(mint, 500)).toBe(true);
 
-    releases.forEach((release) => release());
+    for (const release of releases) release();
     await Promise.all([slowA, slowB]);
   });
 

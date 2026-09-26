@@ -11,7 +11,6 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 const HelpSupportScreen: React.FC<BaseScreenProps> = ({
     onClose,
     goBack,
-    navigate,
 }) => {
     const { t } = useI18n();
 
@@ -23,14 +22,6 @@ const HelpSupportScreen: React.FC<BaseScreenProps> = ({
             toast.error(t('help.contactError') || 'Failed to open email client');
         });
     }, [t]);
-
-    const handleFAQ = useMemo(() => () => {
-        if (navigate) {
-            navigate('FAQ');
-        } else {
-            toast.info(t('help.faqComing') || 'FAQ coming soon');
-        }
-    }, [navigate, t]);
 
     const handleReportBug = useMemo(() => () => {
         Linking.openURL('mailto:bugs@oxy.so?subject=Bug Report').catch(() => {
@@ -62,12 +53,6 @@ const HelpSupportScreen: React.FC<BaseScreenProps> = ({
             <View className="px-screen-margin pb-space-24">
                     {/* Help Options */}
                     <SettingsListGroup title={t('help.options') || 'Get Help'}>
-                        <SettingsListItem
-                            icon={<SettingsIcon name="help-circle" color={bloomTheme.colors.info} />}
-                            title={t('help.faq.title') || 'Frequently Asked Questions'}
-                            description={t('help.faq.subtitle') || 'Find answers to common questions'}
-                            onPress={handleFAQ}
-                        />
                         <SettingsListItem
                             icon={<SettingsIcon name="email" color={bloomTheme.colors.success} />}
                             title={t('help.contact.title') || 'Contact Support'}

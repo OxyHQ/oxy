@@ -3,9 +3,8 @@
  *
  * SINGLE SOURCE OF TRUTH for the reputation ledger's wire shapes: the closed
  * value sets (`REPUTATION_CATEGORIES`, `TRUST_TIERS`, …), the response entities
- * (`ReputationTransaction`, the two balance views, `ReputationDispute`,
- * `ReputationRule`, the leaderboard entry) and the request bodies the write
- * endpoints accept. The API validates its OUTPUT against these schemas and its
+ * (`ReputationTransaction`, the two balance views, `ReputationRule`, the
+ * leaderboard entry) and the award body. The API validates its OUTPUT against these schemas and its
  * INPUT with the same request schemas the SDK's input types are derived from;
  * `@oxy.so/core`'s reputation mixin imports every type from here rather than
  * declaring its own.
@@ -91,15 +90,13 @@ export const reputationCategorySchema = z.enum(REPUTATION_CATEGORIES);
  * Transaction lifecycle status.
  *
  * - `active`   — counts toward the balance.
- * - `disputed` — under dispute; still counts until the dispute resolves.
- * - `reversed` — superseded by a compensating reversal transaction; excluded.
- * - `voided`   — administratively excluded with no compensating entry.
+ * - `reversed` — superseded by a compensating reversal transaction (written
+ *                only by policy-driven code, never by a person); the pair nets
+ *                to zero.
  */
 export const REPUTATION_TRANSACTION_STATUSES = [
     'active',
-    'disputed',
     'reversed',
-    'voided',
 ] as const;
 
 export type ReputationTransactionStatus = (typeof REPUTATION_TRANSACTION_STATUSES)[number];
@@ -136,19 +133,6 @@ export type ReputationTargetEntityType = (typeof REPUTATION_TARGET_ENTITY_TYPES)
 
 export const reputationTargetEntityTypeSchema = z.enum(REPUTATION_TARGET_ENTITY_TYPES);
 
-/** Dispute lifecycle status. */
-export const REPUTATION_DISPUTE_STATUSES = [
-    'open',
-    'accepted',
-    'rejected',
-    'needs_review',
-] as const;
-
-export type ReputationDisputeStatus = (typeof REPUTATION_DISPUTE_STATUSES)[number];
-
-export const reputationDisputeStatusSchema = z.enum(REPUTATION_DISPUTE_STATUSES);
-
-/** Influence context selecting which capped weight axis to read. */
 export const REPUTATION_INFLUENCE_CONTEXTS = [
     'default',
     'report',
@@ -167,11 +151,10 @@ export const reputationInfluenceContextSchema = z.enum(REPUTATION_INFLUENCE_CONT
 /**
  * A single immutable entry in the reputation ledger.
  *
- * The ledger is append-only: transactions are NEVER deleted. A correction is
- * expressed either as a compensating REVERSAL (the original is marked
- * `reversed` and a new `active` transaction with negated points and
- * `reversedTransactionId` pointing at it is appended) or a VOID (the original is
- * marked `voided` and excluded from the balance, with no compensating entry).
+ * The ledger is append-only: transactions are NEVER deleted. A correction is a
+ * compensating REVERSAL (the original is marked `reversed` and a new `active`
+ * transaction with negated points and `reversedTransactionId` pointing at it is
+ * appended), written only by policy-driven code — never by a person.
  */
 export interface ReputationTransaction {
     /** The transaction's Mongo `_id` as a string. */
@@ -210,12 +193,12 @@ export interface ReputationTransaction {
      *
      * Names third parties (the attestor who physically met the subject, the
      * staking voucher, a resolved validation's juror roster), which is why the
-     * ledger read is owner-or-staff rather than public.
+     * ledger is readable by its subject alone.
      */
     metadata?: Record<string, unknown>;
-    /** The user who caused this change (the liker, the reporting user, staff). */
+    /** The user who caused this change (the liker, the reporting user). */
     createdByUserId?: string;
-    /** Staff/service principal who reviewed (reversed/voided) this transaction. */
+    /** The principal whose policy-driven action reversed this transaction. */
     reviewedByUserId?: string;
     /** ISO 8601 timestamp the transaction was reviewed at, if reviewed. */
     reviewedAt?: string;
@@ -325,8 +308,8 @@ const balanceSummaryShape = {
 };
 
 /**
- * The PUBLIC view of a user's reputation — everything a caller who is neither
- * the subject nor platform staff receives from `GET /reputation/:userId/balance`.
+ * The PUBLIC view of a user's reputation — everything a caller who is not the
+ * subject receives from `GET /reputation/:userId/balance`.
  *
  * Deliberately limited to the two signals the already-public
  * `GET /reputation/leaderboard` publishes per user, so an untokened read of a
@@ -344,7 +327,7 @@ export const reputationBalanceSummarySchema: z.ZodType<ReputationBalanceSummary>
 
 /**
  * The SUBJECT view of a user's reputation — the cached, recomputable snapshot in
- * full, served only to the subject themselves and to platform staff.
+ * full, served only to the subject themselves.
  *
  * Everything beyond {@link ReputationBalanceSummary} is the platform's internal
  * judgement about the person and is withheld from third parties: `reliability`
@@ -353,9 +336,8 @@ export const reputationBalanceSummarySchema: z.ZodType<ReputationBalanceSummary>
  * decomposition (which exposes sanction history the total alone hides), and the
  * timestamps (a timing oracle for the subject's last reputation event).
  *
- * Reach this type by reading YOUR OWN balance (`getMyReputationBalance`), by
- * narrowing a {@link ReputationBalanceView} with {@link isFullReputationBalance},
- * or from the staff-only `recalculateReputation`.
+ * Reach this type by reading YOUR OWN balance (`oxy.reputation.balance()`), or
+ * by narrowing a {@link ReputationBalanceView} with {@link isFullReputationBalance}.
  */
 export interface ReputationBalance extends ReputationBalanceSummary {
     /** Sum of positive points only. */
@@ -417,7 +399,7 @@ export const reputationBalanceSchema: z.ZodType<ReputationBalance> = z.object({
 
 /**
  * What `GET /reputation/:userId/balance` may return for an ARBITRARY subject:
- * the full {@link ReputationBalance} when the caller is that subject or staff,
+ * the full {@link ReputationBalance} when the caller is that subject,
  * the {@link ReputationBalanceSummary} otherwise.
  *
  * The server decides at request time from the caller's token, so a client asking
@@ -514,52 +496,14 @@ type _PublicFieldsStayReachableOnTheView = AssertTrue<
 >;
 
 /* -------------------------------------------------------------------------- */
-/*  Dispute, rule, leaderboard, influence                                     */
+/*  Rule, leaderboard, influence                                              */
 /* -------------------------------------------------------------------------- */
 
-/** A user-initiated dispute against a specific reputation transaction. */
-export interface ReputationDispute {
-    /** The dispute's Mongo `_id` as a string. */
-    id: string;
-    /** The transaction being disputed. */
-    transactionId: string;
-    /** The user raising the dispute. */
-    userId: string;
-    /** Why the user believes the transaction is wrong. */
-    reason: string;
-    status: ReputationDisputeStatus;
-    /** Optional supporting evidence (URLs / references). */
-    evidence?: string[];
-    /** ISO 8601 timestamp the dispute was resolved at, if resolved. */
-    resolvedAt?: string;
-    /** Staff principal who resolved the dispute, if resolved. */
-    resolvedByUserId?: string;
-    /** ISO 8601 creation timestamp. */
-    createdAt: string;
-    /** ISO 8601 last-update timestamp. */
-    updatedAt: string;
-}
-
-export const reputationDisputeSchema: z.ZodType<ReputationDispute> = z.object({
-    id: z.string(),
-    transactionId: z.string(),
-    userId: z.string(),
-    reason: z.string(),
-    status: reputationDisputeStatusSchema,
-    evidence: z.array(z.string()).optional(),
-    resolvedAt: z.string().optional(),
-    resolvedByUserId: z.string().optional(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-});
-
 /**
- * A configurable reputation award/penalty rule, keyed by `actionType`. The
- * `GET /reputation/rules` response emits no timestamps.
+ * A reputation award/penalty rule, keyed by `actionType`. Rules are defined in
+ * Oxy's code and versioned; no endpoint edits them.
  */
 export interface ReputationRule {
-    /** The rule's Mongo `_id` as a string. */
-    id: string;
     /** Unique action key (e.g. `post_created`). */
     actionType: string;
     /** Signed points the rule awards (may be negative for penalties). */
@@ -569,17 +513,25 @@ export interface ReputationRule {
     description: string;
     /** Per (user, actionType) cooldown in minutes; 0 disables the cooldown. */
     cooldownInMinutes: number;
-    isEnabled: boolean;
 }
 
 export const reputationRuleSchema: z.ZodType<ReputationRule> = z.object({
-    id: z.string(),
     actionType: z.string(),
     points: z.number(),
     category: reputationCategorySchema,
     description: z.string(),
     cooldownInMinutes: z.number(),
-    isEnabled: z.boolean(),
+});
+
+/** `GET /reputation/rules` — the rules in code and their version. */
+export interface ReputationRulesResponse {
+    version: number;
+    rules: ReputationRule[];
+}
+
+export const reputationRulesResponseSchema: z.ZodType<ReputationRulesResponse> = z.object({
+    version: z.number().int(),
+    rules: z.array(reputationRuleSchema),
 });
 
 /**
@@ -644,21 +596,6 @@ export const reputationInfluenceResultSchema: z.ZodType<ReputationInfluenceResul
     influence: reputationInfluenceSchema,
 });
 
-/**
- * `POST /reputation/transactions/:id/reverse` — the now-`reversed` original plus
- * the compensating `active` reversal entry.
- */
-export interface ReverseReputationTransactionResult {
-    original: ReputationTransaction;
-    reversal: ReputationTransaction;
-}
-
-export const reverseReputationTransactionResultSchema: z.ZodType<ReverseReputationTransactionResult> =
-    z.object({
-        original: reputationTransactionSchema,
-        reversal: reputationTransactionSchema,
-    });
-
 /* -------------------------------------------------------------------------- */
 /*  Request bodies                                                            */
 /* -------------------------------------------------------------------------- */
@@ -666,11 +603,10 @@ export const reverseReputationTransactionResultSchema: z.ZodType<ReverseReputati
 /**
  * `POST /reputation/award`.
  *
- * Awarding is restricted to service tokens carrying the privileged
- * `reputation:write` scope (the canonical path — a source app reports an
- * action) and to platform staff; regular users may NOT award reputation. When
- * called with a service token, `applicationId` / `credentialId` are resolved
- * from the token and any client-supplied values for those two are ignored.
+ * Only a source app awards: a service token carrying the privileged
+ * `reputation:write` scope reports an action, priced by the rule in code. No
+ * person — user or Oxy staff — may award. `applicationId` / `credentialId` are
+ * resolved from the token; client-supplied values for those two are ignored.
  */
 export interface AwardReputationInput {
     /** The subject whose reputation changes (`_id` or publicKey). */
@@ -707,89 +643,3 @@ export const awardReputationSchema: z.ZodType<AwardReputationInput> = z.object({
     reason: z.string().trim().max(500).optional(),
     metadata: z.record(z.unknown()).optional(),
 });
-
-/**
- * `POST /reputation/disputes` — open a dispute. The disputer is the
- * authenticated user and must be the disputed transaction's subject.
- */
-export interface CreateReputationDisputeInput {
-    /** The transaction being disputed. */
-    transactionId: string;
-    /** Why the transaction is believed to be wrong (1..1000 chars). */
-    reason: string;
-    /** Optional supporting evidence (URLs / references; max 20). */
-    evidence?: string[];
-}
-
-export const createReputationDisputeSchema: z.ZodType<CreateReputationDisputeInput> = z.object({
-    transactionId: z.string().trim().min(1),
-    reason: z.string().trim().min(1).max(1000),
-    evidence: z.array(z.string().trim().min(1)).max(20).optional(),
-});
-
-/** `POST /reputation/disputes/:id/resolve` (staff). */
-export interface ResolveReputationDisputeInput {
-    /** Accepting reverses the disputed transaction; rejecting restores it. */
-    status: 'accepted' | 'rejected';
-}
-
-export const resolveReputationDisputeSchema: z.ZodType<ResolveReputationDisputeInput> = z.object({
-    status: z.enum(['accepted', 'rejected']),
-});
-
-/**
- * `POST /reputation/rules` (staff) — create or update a rule, keyed by
- * `actionType`. `cooldownInMinutes` and `isEnabled` may be omitted; the server
- * fills them in (see {@link UpsertReputationRuleRequest}).
- */
-export interface UpsertReputationRuleInput {
-    /** Unique action key (e.g. `post_created`). */
-    actionType: string;
-    /** Signed points the rule awards (may be negative). */
-    points: number;
-    /** Category the resulting transaction is filed under. */
-    category: ReputationCategory;
-    /** Human-readable description (1..500 chars). */
-    description: string;
-    /** Per (user, actionType) cooldown in minutes; defaults to 0. */
-    cooldownInMinutes?: number;
-    /** Whether the rule is active; defaults to true. */
-    isEnabled?: boolean;
-}
-
-/**
- * The upsert body AFTER the schema's defaults are applied — what the route
- * handler actually receives. Distinct from {@link UpsertReputationRuleInput},
- * where the defaulted fields are still optional.
- */
-export interface UpsertReputationRuleRequest extends UpsertReputationRuleInput {
-    cooldownInMinutes: number;
-    isEnabled: boolean;
-}
-
-export const upsertReputationRuleSchema: z.ZodType<
-    UpsertReputationRuleRequest,
-    z.ZodTypeDef,
-    UpsertReputationRuleInput
-> = z.object({
-    actionType: z.string().trim().min(1),
-    points: z.number(),
-    category: reputationCategorySchema,
-    description: z.string().trim().min(1).max(500),
-    cooldownInMinutes: z.number().int().min(0).default(0),
-    isEnabled: z.boolean().default(true),
-});
-
-/**
- * `POST /reputation/transactions/:id/reverse` and `.../void` (staff). The
- * reviewing principal is the authenticated user.
- */
-export interface ReverseReputationTransactionInput {
-    /** Optional human-readable reason (max 500 chars). */
-    reason?: string;
-}
-
-export const reverseReputationTransactionSchema: z.ZodType<ReverseReputationTransactionInput> =
-    z.object({
-        reason: z.string().trim().max(500).optional(),
-    });

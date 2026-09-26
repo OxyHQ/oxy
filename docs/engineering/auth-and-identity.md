@@ -56,7 +56,7 @@ Backend APIs use `@oxy.so/core/server` for request identity and security:
 
 **redirectUris (#216):** `redirectUris` is the SOLE canonical redirect field. `redirectUrls` removed entirely (no dual field, no migration). OAuth authorize validates `redirect_uri` exact-match (constant-time) against `application.redirectUris`. Console writes `redirectUris`.
 
-**SDK (@oxy.so/core — BREAKING):** Removed `OxyServices.developer.ts` + `developer` mixin. Replaced by `OxyServices.applications.ts` (getApplications/createApplication + members/credentials/usage methods). Exported interfaces: `Application`, `ApplicationMember`, `ApplicationCredential`, `ApplicationRole`, etc. `configureServiceAuth`/`getServiceToken`/`makeServiceRequest` are UNCHANGED — service token flow unaffected.
+**SDK (@oxy.so/core):** applications live in `oxy.apps` (`packages/core/src/api/apps.ts`: `list`/`get`/`create`/`update`/`delete`, `credentials.*`, `usage`) inside the account graph (`oxy.accounts`); types `Application`, `ApplicationCredential`, … are exported from `@oxy.so/core`. The service-token lane is `OxyServer` (`@oxy.so/core/server`).
 
 **Console:** `use-developer.ts` → `use-applications.ts`; apps list + tabbed app settings (General incl. redirectUris editor / Members / Credentials / Usage), permission-gated; staff-only fields never shown. Console now uses the shared SDK (bespoke axios client removed) + Bloom theming + macOS splash + app-name from manifest.json + app-logo/workspace-avatar uploads + invite-by-username/email + Manage-account link + docs→website.
 
@@ -86,7 +86,7 @@ Internal Oxy ecosystem apps authenticate via short-lived service JWTs (OAuth2 Cl
 1. Create an `Application` with `type: 'internal'` and an `ApplicationCredential` with `type: 'service'` (DB-only or Console staff view)
 2. Service exchanges `publicKey` (client_id) + `secret` → `POST /auth/service-token` → 1h JWT
 3. Service uses JWT as `Authorization: Bearer <token>` + `X-Oxy-User-Id: <userId>` for delegation
-4. `@oxy.so/core` `auth()` middleware recognizes `type: 'service'` JWTs (stateless, no session DB lookup)
+4. `@oxy.so/core/server` `middleware.auth()` recognizes `type: 'service'` JWTs (stateless, no session DB lookup)
 
 Service tokens are EdDSA only, verified against `/.well-known/jwks.json` (ADR 0012). HS256 is refused everywhere. `oxy-api` does not boot in production without `SERVICE_TOKEN_PRIVATE_KEY` + `SERVICE_TOKEN_SIGNING_KEY_ID`, and outside production it mints with a per-process ephemeral key. Decide "is this a service token?" with `verifyServiceToken`, never with `jwt.verify(…, ACCESS_TOKEN_SECRET)`.
 
@@ -259,31 +259,33 @@ the whole reason ADR 0026 prefers it to a shared secret.
 - `packages/api/src/services/serviceTokenMint.service.ts` — the ONE signer both paths share
 - `packages/api/src/models/Application.ts` — `isInternal`, `type` field
 - `packages/api/src/models/ApplicationCredential.ts` — `publicKey`, `secretHash`, `type: 'service'`
-- `packages/core/src/mixins/OxyServices.utility.ts` — `auth()` service token handling, `serviceAuth()` middleware
-- `packages/core/src/mixins/OxyServices.auth.ts` — `getServiceToken()`, `makeServiceRequest()`, `configureServiceAuth()`
+- `packages/core/src/server/middleware.ts` — `middleware.auth()` service token handling, `middleware.service()`
+- `packages/core/src/server/OxyServer.ts` — `serviceToken()`, `serviceRequest()`, `configureServiceAuth()`
 
 **Usage in consuming services:**
 ```typescript
-import { OxyServices } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 
-const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-oxy.configureServiceAuth('oxy_dk_...', 'secret...');
+const oxy = new OxyServer({
+  baseURL: 'https://api.oxy.so',
+  serviceAuth: { apiKey: 'oxy_dk_...', apiSecret: 'secret...' },
+});
 
 // Auto-cached, auto-refreshed service token
-const token = await oxy.getServiceToken();
+const token = await oxy.serviceToken();
 
-// Or use makeServiceRequest for delegation
-const result = await oxy.makeServiceRequest('POST', '/some/endpoint', data, userId);
+// Or act as a user
+const result = await oxy.serviceRequest('POST', '/some/endpoint', data, { actAs: userId });
 ```
 
 **Middleware for protecting internal endpoints:**
 ```typescript
 // Only allows service tokens (rejects user JWTs and API keys)
-app.use('/internal', oxy.serviceAuth());
+app.use('/internal', oxy.middleware.service());
 ```
 
 **A refusal is always observable to the host, and never to the client.** Every
-branch of `auth()` that rejects a PRESENTED credential records
+branch of `middleware.auth()` that rejects a PRESENTED credential records
 `req.oxyAuthRefusal` (`{ code, stage, reason, status, optional }`, read it with
 `getOxyAuthRefusal` from `@oxy.so/core/server`), logs one `warn` carrying that
 code, and calls the optional `onRefusal` observer — on the `optional: true`
@@ -346,9 +348,9 @@ Envelope schema (in `@oxy.so/contracts`): `{version, type:'identity'|'profile', 
 
 Domain verification = a **badge** only (`alsoKnownAs` in DID). NOT domain-as-handle.
 
-### Core Identity Mixin (`OxyServices.identity.ts`)
+### Core identity namespace (`oxy.identity`, `packages/core/src/api/identity.ts`)
 
-Registered in `MIXIN_PIPELINE` + `AllMixinInstances`. Methods: `resolveDid`, `getMyDid`, `listAuthMethods`, `getIdentityRootStatus`, `createIdentityLink`/`getIdentityLink`/`signIdentityLink`/`completeIdentityLinkWithEmailCode`/`cancelIdentityLink`, `rotateKey`, `signRecord`, `publishRecord`, `getRecord`, `verifyRecord`, `exportMyData`, `requestDomainVerification`, `verifyDomain`, `listDomains`, `removeDomain`. Cache-sweeps `/users/me` + DID cache after mutations. Exports new types + `canonicalize` + `buildSignedRecord`.
+`resolveDid`, `did` (getter), `authMethods`, `rootStatus`, `rotateKey`, `export` (signed bundle), `links.*` (Commons ↔ an account without a key; `links.complete` confirms with an emailed code), `domains.*` (`requestVerification`/`verify`/`list`/`remove`), `backup.*`. Cache-sweeps `/users/me` + DID cache after mutations. Heavy crypto loads on first use from `@oxy.so/core/crypto`.
 
 ## Accounts without a key — email, code, password, authenticator (ADR 0030)
 
@@ -420,21 +422,21 @@ Rather than a menu of transports, the RP asks Oxy to DELIVER the pending request
 
 ### SDK methods (core + services)
 
-- `@oxy.so/core` `OxyServices.auth.ts`: `startCommonsSignIn({ clientId, oauth? })`, poll (reuse `pollSessionStatus`), `signInWithSharedIdentity`, `deliverCommonsSignIn(authorizeCode)` (bearer, Phase 4 push delivery), `finalizeCommonsOAuth(sessionToken)` (Phase 3); Commons-side `getCommonsApprovalInfo` / `approveCommonsSignIn` / `denyCommonsSignIn` / `markCommonsApprovalOpened(authorizeCode)` (Phase 4 progress ping, no bearer, best-effort) / `registerPushToken` / `unregisterPushToken`.
-- `@oxy.so/services`: `OxyAccountDialog` surfaces `authorizeCode` + the structured `qrPayload` — renders the QR on web (QR only; shared-key is native-only) and deep-links Commons on the same device natively; `AccountDialogController` (`@oxy.so/core`) drives `selectCommonsDelivery` end to end.
+- `@oxy.so/core` `oxy.auth.commons` (`packages/core/src/api/auth.ts`): `start({ clientId, oauth? })`, `poll`, `deliver(authorizeCode)` (bearer, Phase 4 push delivery), `finalizeOAuth(sessionToken)` (Phase 3); Commons-side `approvalInfo` / `approve` / `deny` / `markOpened(authorizeCode)` (Phase 4 progress ping, no bearer, best-effort). Also `oxy.auth.signInWithSharedIdentity`, and `oxy.notifications.registerPushToken` / `unregisterPushToken`.
+- `@oxy.so/services`: `OxyAccountDialog` surfaces `authorizeCode` + the structured `qrPayload` — renders the QR on web (QR only; shared-key is native-only) and deep-links Commons on the same device natively; `AccountDialogController` (`@oxy.so/core/session`) drives `selectCommonsDelivery` end to end.
 
 ## Auth (device-first)
 
 Auth is device-first: `deviceId` + `deviceSecret` as transport (mint via `POST /session/device/token`; no refresh-token family, no `#oxy_boot` bootstrap), `DeviceSession` as server authority, one `OxyProvider` (`@oxy.so/services`) on web and native. No origin holds a cookie, `auth.oxy.so` included — see the Auth / Session Contract above. Canonical docs: `docs/auth/index.md` (start there — it is the one page answerable for being right, and it names what is built, what is not, and what is unverified) + `docs/SESSION-ARCHITECTURE.md` (see also `docs/auth/device-session.md`, `docs/auth/integration-guide.md`, and the ADRs under `docs/adr/`). `docs/architecture/` holds closed plan records that predate the multi-principal model — provenance, not mechanism. The full contract lives in "Auth / Session Contract" above — legacy browser-federation/SSO machinery (FedCM etc.) and the refresh/bootstrap transport were deleted end to end; do not reintroduce any of it.
 
-- **Invalidated bearer token = local sign-out in `@oxy.so/services`**: `HttpService` clears tokens on 401 and emits `onTokensChanged(null)`. `OxyContext` MUST treat that as authoritative when a user is currently authenticated: clear session state, clear managed accounts, and disable private fetches until a new token/session is restored. Never let `isAuthenticated` remain true after `oxyServices.getAccessToken()` becomes null. Consumer apps gate private work with SDK state only: `useAuth().canUsePrivateApi` / `useAuth().isPrivateApiPending`.
-- **A sign-out outranks anything already in flight.** `OxyServices.clearTokens()` is `HttpService.endSession()`: it bumps a session epoch, and a re-mint that started before it (device-secret arm, native shared-keychain arm, the handler's own plant) plants nothing — the device-secret arm persists the rotated secret only if the store still holds the credential it presented, so a store the sign-out cleared stays clear — and the native shared-keychain arm stays off until a token is planted again. A LATER device-secret mint is deliberately not blocked: it is how a signed-out tab joins a sign-in made in another tab. `OxyRuntime.clearSession()` does the same for projections: one whose profile fetch was in flight publishes nothing, because the revision guard cannot see a local teardown that left `SessionClient` at the same revision. A plain `HttpService.clearTokens()` (a linked client mirroring its parent) ends nothing.
+- **Invalidated bearer token = local sign-out in `@oxy.so/services`**: `HttpService` clears tokens on 401 and emits `session.onChange(null)`. `OxyContext` MUST treat that as authoritative when a user is currently authenticated: clear session state, clear managed accounts, and disable private fetches until a new token/session is restored. Never let `isAuthenticated` remain true after `oxyServices.session.accessToken` becomes null. Consumer apps gate private work with SDK state only: `useAuth().canUsePrivateApi` / `useAuth().isPrivateApiPending`.
+- **A sign-out outranks anything already in flight.** `oxy.session.clear()` is `HttpService.endSession()`: it bumps a session epoch, and a re-mint that started before it (device-secret arm, native shared-keychain arm, the handler's own plant) plants nothing — the device-secret arm persists the rotated secret only if the store still holds the credential it presented, so a store the sign-out cleared stays clear — and the native shared-keychain arm stays off until a token is planted again. A LATER device-secret mint is deliberately not blocked: it is how a signed-out tab joins a sign-in made in another tab. `OxyRuntime.clearSession()` does the same for projections: one whose profile fetch was in flight publishes nothing, because the revision guard cannot see a local teardown that left `SessionClient` at the same revision. A plain `HttpService.clearTokens()` (a linked client mirroring its parent) ends nothing.
 
 ## Sign-In Token Planting
 
-`@oxy.so/core` `OxyServices.verifyChallenge()` now calls `setTokens(accessToken, refreshToken ?? '')` internally before returning — matching the behaviour of `claimSessionByToken`. Consumers (including `services` `useAuthOperations.performSignIn`) no longer need to hand-plant the token or fall back to the bearer-protected `getTokenBySession` after `verifyChallenge`. Just await `verifyChallenge` and proceed; the SDK has already planted the token.
+`@oxy.so/core` `oxy.auth.verifyChallenge()` plants the access token internally before returning — matching `oxy.auth.claimSession`. Consumers (including `services` `useAuthOperations.performSignIn`) never hand-plant the token or fall back to the bearer-protected `getTokenBySession` after it. Just await `verifyChallenge` and proceed.
 
-**Token-less new-identity onboarding**: the 401 fix (avoiding bearer-protected `getTokenBySession` for a brand-new identity that has no session yet) is preserved — `verifyChallenge`'s internal `setTokens` call handles it.
+**Token-less new-identity onboarding**: the 401 fix (avoiding bearer-protected `getTokenBySession` for a brand-new identity that has no session yet) is preserved — `verifyChallenge`'s internal token plant handles it.
 
 ## External MCP connections — several accounts, one connector (ADR 0020)
 

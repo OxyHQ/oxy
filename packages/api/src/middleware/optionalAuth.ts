@@ -100,7 +100,7 @@ export function getMediaViewerUserId(req: AuthenticatedRequest): string | undefi
 /**
  * The HTTP header a calling SERVICE sets to name the end-user (viewer) it is
  * acting on behalf of for personalization. Mirrors the platform convention used
- * by `@oxy.so/core` `makeServiceRequest(..., userId)` and `@oxy.so/core/server`.
+ * by `OxyServer.serviceRequest(..., { actAs: userId })` from `@oxy.so/core/server`.
  */
 const OXY_USER_ID_HEADER = 'x-oxy-user-id';
 

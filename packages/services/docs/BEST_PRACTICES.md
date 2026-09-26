@@ -65,7 +65,7 @@ Oxy automatically handles token persistence, but you can customize it:
 localStorage.setItem('token', token);
 
 // ✅ GOOD: Let Oxy handle it
-await oxyServices.setTokens(token);
+await oxyServices.session.setAccessToken(token);
 ```
 
 ## Error Handling
@@ -77,7 +77,7 @@ import { OxyAuthenticationError } from '@oxy.so/services';
 
 async function fetchUserData() {
   try {
-    const user = await oxyServices.getCurrentUser();
+    const user = await oxyServices.users.me();
     return user;
   } catch (error) {
     if (error instanceof OxyAuthenticationError) {
@@ -131,7 +131,7 @@ async function fetchWithRetry(fn: () => Promise<any>, retries = 3) {
 }
 
 // Usage
-const user = await fetchWithRetry(() => oxyServices.getCurrentUser());
+const user = await fetchWithRetry(() => oxyServices.users.me());
 ```
 
 ## Performance
@@ -142,26 +142,26 @@ Oxy automatically caches responses, but you can optimize:
 
 ```typescript
 // ✅ GOOD: Let Oxy cache automatically
-const user = await oxyServices.getUserById(userId); // Cached automatically
+const user = await oxyServices.users.get(userId); // Cached automatically
 
 // ✅ GOOD: Clear cache when needed
-oxyServices.clearCache(); // Clear all cache
-oxyServices.clearCacheEntry('user:123'); // Clear specific entry
+oxyServices.cache.clear(); // Clear all cache
+oxyServices.cache.delete('user:123'); // Clear specific entry
 ```
 
 ### ✅ DO: Batch Related Requests
 
 ```typescript
 // ❌ BAD: Sequential requests
-const user = await oxyServices.getUserById(userId);
-const followers = await oxyServices.getUserFollowers(userId);
-const following = await oxyServices.getUserFollowing(userId);
+const user = await oxyServices.users.get(userId);
+const followers = await oxyServices.follows.followers(userId);
+const following = await oxyServices.follows.following(userId);
 
 // ✅ GOOD: Parallel requests
 const [user, followersData, followingData] = await Promise.all([
-  oxyServices.getUserById(userId),
-  oxyServices.getUserFollowers(userId),
-  oxyServices.getUserFollowing(userId)
+  oxyServices.users.get(userId),
+  oxyServices.follows.followers(userId),
+  oxyServices.follows.following(userId)
 ]);
 ```
 
@@ -175,7 +175,7 @@ const [offset, setOffset] = useState(0);
 const loadMore = async () => {
   if (!hasMore) return;
   
-  const result = await oxyServices.getUserFollowers(userId, {
+  const result = await oxyServices.follows.followers(userId, {
     limit: 20,
     offset
   });
@@ -190,8 +190,8 @@ const loadMore = async () => {
 
 ```typescript
 // ✅ GOOD: Use appropriate image variants
-const thumbUrl = oxyServices.getFileDownloadUrl(fileId, 'thumb'); // Small thumbnail
-const fullUrl = oxyServices.getFileDownloadUrl(fileId, 'full'); // Full size
+const thumbUrl = oxyServices.assets.publicUrl(fileId, 'thumb'); // Small thumbnail
+const fullUrl = oxyServices.assets.publicUrl(fileId, 'full'); // Full size
 
 // Use thumbnails in lists, full size in detail views
 <Image source={{ uri: thumbUrl }} /> // List view
@@ -202,25 +202,9 @@ const fullUrl = oxyServices.getFileDownloadUrl(fileId, 'full'); // Full size
 
 ### ✅ DO: Validate User Input
 
-```typescript
-const handleSignUp = async (username: string, email: string, password: string) => {
-  // Validate input
-  if (!username || username.length < 3) {
-    throw new Error('Username must be at least 3 characters');
-  }
-  
-  if (!email || !email.includes('@')) {
-    throw new Error('Invalid email address');
-  }
-  
-  if (!password || password.length < 8) {
-    throw new Error('Password must be at least 8 characters');
-  }
-  
-  // Proceed with signup
-  await oxyServices.signUp(username, email, password);
-};
-```
+Validate what your own forms send to your own backend. Sign-in and sign-up
+input is validated by `OxyAccountDialog` and the API — apps do not build those
+forms.
 
 ### ✅ DO: Use Environment Variables
 
@@ -269,7 +253,7 @@ function UserProfile({ userId }: { userId: string }) {
     
     const fetchUser = async () => {
       try {
-        const userData = await oxyServices.getUserById(userId);
+        const userData = await oxyServices.users.get(userId);
         if (!cancelled) {
           setUser(userData);
         }
@@ -312,7 +296,7 @@ export function useUserProfile(userId: string) {
     const fetchUser = async () => {
       try {
         setLoading(true);
-        const userData = await oxyServices.getUserById(userId);
+        const userData = await oxyServices.users.get(userId);
         setUser(userData);
         setError(null);
       } catch (err: any) {
@@ -393,26 +377,21 @@ test('handles authentication error', async () => {
 
 ```typescript
 // services/userService.ts
-import { oxyClient } from '@oxy.so/core';
+import type { OxyServices } from '@oxy.so/core';
 
-export const userService = {
-  async getUserProfile(userId: string) {
-    return await oxyClient.getUserById(userId);
-  },
-  
-  async updateProfile(updates: any) {
-    return await oxyClient.updateProfile(updates);
-  },
-  
-  async getFollowers(userId: string, pagination?: any) {
-    return await oxyClient.getUserFollowers(userId, pagination);
-  },
-};
+// Take the provider's client; never construct a second one.
+export const userService = (oxy: OxyServices) => ({
+  getUserProfile: (userId: string) => oxy.users.get(userId),
+  updateProfile: (updates: Parameters<OxyServices['users']['updateMe']>[0]) => oxy.users.updateMe(updates),
+  getFollowers: (userId: string, params?: { limit?: number; offset?: number }) => oxy.follows.followers(userId, params),
+});
 
 // Usage in components
+import { useOxy } from '@oxy.so/services';
 import { userService } from '@/services/userService';
 
-const user = await userService.getUserProfile(userId);
+const { oxyServices } = useOxy();
+const user = await userService(oxyServices).getUserProfile(userId);
 ```
 
 ### ✅ DO: Create Type-Safe Wrappers
@@ -428,8 +407,10 @@ export interface UserProfile {
 }
 
 // services/userService.ts
-export async function getUserProfile(userId: string): Promise<UserProfile> {
-  const user = await oxyClient.getUserById(userId);
+import type { OxyServices } from '@oxy.so/core';
+
+export async function getUserProfile(oxy: OxyServices, userId: string): Promise<UserProfile> {
+  const user = await oxy.users.get(userId);
   return {
     id: user.id,
     name: user.name,
@@ -469,7 +450,7 @@ const handleFollow = async (userId: string) => {
   setIsFollowing(true);
   
   try {
-    await oxyServices.followUser(userId);
+    await oxyServices.follows.follow(userId);
   } catch (error) {
     // Revert on error
     setIsFollowing(false);

@@ -22,6 +22,11 @@ interface AssetState {
   
   // Actions
   setAsset: (asset: Asset) => void;
+  /**
+   * Merge what an API call returned about an asset (an upload, a link change,
+   * a restore — each returns only part of the record) into what is known.
+   */
+  mergeAsset: (patch: Partial<Asset> & { id: string }) => void;
   setAssets: (assets: Asset[]) => void;
   removeAsset: (assetId: string) => void;
   
@@ -78,6 +83,16 @@ export const useAssetStore = create<AssetState>((set, get) => ({
       }));
     },
     
+    mergeAsset: (patch) => {
+      set((state) => ({
+        assets: {
+          ...state.assets,
+          // A partial record stays partial until a full read replaces it.
+          [patch.id]: { ...state.assets[patch.id], ...patch } as Asset,
+        },
+      }));
+    },
+
     setAssets: (assets: Asset[]) => {
       set((state) => {
         const assetMap = assets.reduce((acc, asset) => {

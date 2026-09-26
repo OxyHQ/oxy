@@ -11,7 +11,7 @@
  * SECURITY (anti-phishing): ONLY the `code` is extracted. The `app` / `origin`
  * / `nonce` fields carried in the payload are NEVER trusted for display — the
  * approval screen re-resolves the requesting application's identity server-side
- * via `oxyServices.getCommonsApprovalInfo(code)`. `exp` is used only as a fast
+ * via `oxyServices.auth.commons.approvalInfo(code)`. `exp` is used only as a fast
  * client-side "this link is already stale" check; the server-reported expiry is
  * authoritative.
  *

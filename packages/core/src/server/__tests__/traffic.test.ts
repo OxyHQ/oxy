@@ -6,13 +6,13 @@ import { createEcosystemTraffic } from '../traffic';
  * Named `mock*` because ts-jest hoists `jest.mock` above the imports and only
  * lets a factory close over a binding with that prefix.
  */
-const mockClients: Array<{ configureServiceAuth: jest.Mock; getServiceToken: jest.Mock }> = [];
+const mockClients: Array<{ configureServiceAuth: jest.Mock; serviceToken: jest.Mock }> = [];
 
-jest.mock('../../OxyServices', () => ({
-  OxyServices: jest.fn(() => {
+jest.mock('../OxyServer', () => ({
+  OxyServer: jest.fn(() => {
     const client = {
       configureServiceAuth: jest.fn(),
-      getServiceToken: jest.fn(async () => 'token-from-workload'),
+      serviceToken: jest.fn(async () => 'token-from-workload'),
     };
     mockClients.push(client);
     return client;
@@ -21,7 +21,7 @@ jest.mock('../../OxyServices', () => ({
 
 function lastClient() {
   const client = mockClients[mockClients.length - 1];
-  if (!client) throw new Error('No OxyServices was built.');
+  if (!client) throw new Error('No OxyServer was built.');
   return client;
 }
 
@@ -94,7 +94,7 @@ it('rejects a partial activity credential instead of mixing it with service cred
   const previous = { ...process.env };
   try {
     process.env.OXY_ACTIVITY_API_KEY = 'activity-key';
-    delete process.env.OXY_ACTIVITY_API_SECRET;
+    Reflect.deleteProperty(process.env, 'OXY_ACTIVITY_API_SECRET');
     process.env.OXY_SERVICE_API_KEY = 'service-key';
     process.env.OXY_SERVICE_API_SECRET = 'service-secret';
     expect(() => createEcosystemTraffic({ service: 'homiio', region: 'us-west-2' })).toThrow('complete OXY_ACTIVITY');
@@ -132,7 +132,7 @@ describe('ecosystem activity credentials', () => {
     await traffic.stop();
 
     expect(lastClient().configureServiceAuth).toHaveBeenCalledWith('service-key', 'service-secret');
-    expect(lastClient().getServiceToken).toHaveBeenCalled();
+    expect(lastClient().serviceToken).toHaveBeenCalled();
   });
 
   it('lets an explicit credential win over the environment', async () => {
@@ -147,7 +147,7 @@ describe('ecosystem activity credentials', () => {
 
     expect(authorizations(sent)).not.toContain('Bearer token-from-workload');
     expect(authorizations(sent)).toContain('Bearer explicit-token');
-    expect(lastClient().getServiceToken).not.toHaveBeenCalled();
+    expect(lastClient().serviceToken).not.toHaveBeenCalled();
   });
 
   it('refuses a process with no credential and nothing to attest', () => {
@@ -171,10 +171,10 @@ describe('ecosystem activity credentials', () => {
     const traffic = createEcosystemTraffic({ service: 'mention', region: 'us-west-2' });
     await traffic.stop();
 
-    // Unconfigured on purpose: that is what sends `getServiceToken()` down the
+    // Unconfigured on purpose: that is what sends `serviceToken()` down the
     // workload path instead of handing it half a credential.
     expect(lastClient().configureServiceAuth).not.toHaveBeenCalled();
-    expect(lastClient().getServiceToken).toHaveBeenCalled();
+    expect(lastClient().serviceToken).toHaveBeenCalled();
     expect(authorizations(sent)).toContain('Bearer token-from-workload');
   });
 });

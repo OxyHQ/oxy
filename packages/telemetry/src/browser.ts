@@ -3,6 +3,12 @@ import { OXY_ACTIVITY_ID_HEADER, OXY_EDGE_REGION_HEADER } from './index.js';
 export const DEFAULT_ACTIVITY_ID_ROTATION_MS = 5 * 60 * 1_000;
 export const DEFAULT_EDGE_TRACE_TIMEOUT_MS = 1_000;
 export const DEFAULT_EDGE_CACHE_MS = 15_000;
+/**
+ * How long `peekEdgeRegionHeader` trusts a known PoP before refreshing it in the
+ * background. A client's serving PoP rarely changes within minutes, and the
+ * peek never blocks, so this only bounds the trace traffic.
+ */
+export const DEFAULT_EDGE_PEEK_REFRESH_MS = 10 * 60_000;
 
 interface TraceResponse {
   ok: boolean;
@@ -13,6 +19,7 @@ export interface BrowserTelemetryOptions {
   activityIdRotationMs?: number;
   edgeTraceTimeoutMs?: number;
   edgeCacheMs?: number;
+  edgePeekRefreshMs?: number;
   now?: () => number;
   crypto?: Pick<Crypto, 'getRandomValues' | 'randomUUID'>;
   location?: Pick<Location, 'hostname' | 'protocol'>;
@@ -22,6 +29,12 @@ export interface BrowserTelemetryOptions {
 export interface BrowserTelemetry {
   getActivityIdHeader(): Record<string, string>;
   getEdgeRegionHeader(): Promise<Record<string, string>>;
+  /**
+   * The last known edge-region header, synchronously, never waiting on the
+   * trace: `{}` until the first discovery lands. A stale or missing value
+   * starts a refresh in the background.
+   */
+  peekEdgeRegionHeader(): Record<string, string>;
   getHeaders(): Promise<Record<string, string>>;
 }
 
@@ -91,9 +104,30 @@ export function createBrowserTelemetry(options: BrowserTelemetryOptions = {}): B
     return edgePop ? { [OXY_EDGE_REGION_HEADER]: edgePop } : {};
   };
 
+  let peekedPop: string | null = null;
+  let peekRefreshAt = -Infinity;
+  let peekInFlight = false;
+
+  const peekEdgeRegionHeader = (): Record<string, string> => {
+    const now = (options.now ?? Date.now)();
+    if (!peekInFlight && (now < peekRefreshAt || now - peekRefreshAt >= (options.edgePeekRefreshMs ?? DEFAULT_EDGE_PEEK_REFRESH_MS))) {
+      peekRefreshAt = now;
+      peekInFlight = true;
+      void discoverEdgePop()
+        .then((pop) => {
+          if (pop) peekedPop = pop;
+        })
+        .finally(() => {
+          peekInFlight = false;
+        });
+    }
+    return peekedPop ? { [OXY_EDGE_REGION_HEADER]: peekedPop } : {};
+  };
+
   return {
     getActivityIdHeader,
     getEdgeRegionHeader,
+    peekEdgeRegionHeader,
     async getHeaders(): Promise<Record<string, string>> {
       return { ...await getEdgeRegionHeader(), ...getActivityIdHeader() };
     },
@@ -107,6 +141,9 @@ export const getBrowserActivityIdHeader = (): Record<string, string> =>
 
 export const getBrowserEdgeRegionHeader = (): Promise<Record<string, string>> =>
   defaultBrowserTelemetry.getEdgeRegionHeader();
+
+export const peekBrowserEdgeRegionHeader = (): Record<string, string> =>
+  defaultBrowserTelemetry.peekEdgeRegionHeader();
 
 export const getBrowserTelemetryHeaders = (): Promise<Record<string, string>> =>
   defaultBrowserTelemetry.getHeaders();

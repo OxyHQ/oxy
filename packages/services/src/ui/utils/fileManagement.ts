@@ -156,15 +156,3 @@ export async function convertDocumentPickerAssetToFile(
 	}
 }
 
-/**
- * Upload file raw - helper function for file uploads
- */
-export async function uploadFileRaw(
-	file: AssetUploadInput,
-	userId: string,
-	// biome-ignore lint/suspicious/noExplicitAny: OxyServices type cannot be fully resolved due to mixin composition pattern
-	oxyServices: any,
-	visibility?: "private" | "public" | "unlisted",
-) {
-	return await oxyServices.uploadRawFile(file, visibility);
-}

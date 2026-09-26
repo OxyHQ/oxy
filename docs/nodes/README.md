@@ -105,8 +105,8 @@ instructions.
 ## 4. F5a — node registration (one-way, Oxy → node)
 
 A node is registered as a **signed `type:'node'` record** — there is no special
-registration endpoint. `OxyServices.nodes.ts` `registerNode({ endpoint,
-nodePublicKey, mode })` (native-only): fetch the chain head (uncached, for fresh
+registration endpoint. `oxy.nodes.register({ endpoint,
+nodePublicKey, mode })` (`packages/core/src/api/nodes.ts`, native-only): fetch the chain head (uncached, for fresh
 `seq`/`prev`) → sign a v2 envelope (collection `app.oxy.node`, rkey `self`,
 last-writer-wins) via `SignatureService.signRecordV2` → `POST /identity/records`.
 `nodeRegistry.service.ts` `materializeNodeFromRecord` then projects the verified
@@ -124,9 +124,9 @@ Liveness: `probeLiveness(userId)` `safeFetch`es `GET ${endpoint}/.well-known/oxy
 `unreachable` + `lastError`. `sweepNodeLiveness()` re-probes least-recently-probed
 `active`/`unreachable` rows in the background (never `revoked`).
 
-SDK methods: `registerNode`, `getMyNode` (`GET /nodes/me`), `removeMyNode`
+SDK methods (`oxy.nodes`): `register`, `mine` (`GET /nodes/me`), `removeMine`
 (`DELETE /nodes/me`), `provisionManagedVault` (`POST /nodes/managed`),
-`notifyNodeIngest(userId)` (`POST /nodes/ingest/notify/:userId`).
+`notifyIngest(userId)` (`POST /nodes/ingest/notify/:userId`).
 
 ---
 
@@ -248,7 +248,7 @@ Public log/head used by ingest: `GET /identity/log/:userId` (`rl:nodes:log:`
 
 Shipped to `main` (see [Changelog](../CHANGELOG.md)): F5a API foundation
 (`89ce0422`), the `@oxy.so/node` server (`d9c74692`), F5b ingest (`c6fb8a86`), F5c
-managed vault registration (`964b265e`), and the `@oxy.so/core` nodes SDK mixin.
+managed vault registration (`964b265e`), and the `@oxy.so/core` nodes SDK (now `oxy.nodes`).
 
 Deferred:
 

@@ -23,8 +23,8 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
     user,
     isAuthenticated: true,
     oxyServices: {
-      deleteAccount: (...a: unknown[]) => deleteAccount(...a),
-      getFileDownloadUrl: () => undefined,
+      users: { deleteMe: (...a: unknown[]) => deleteAccount(...a) },
+      assets: { publicUrl: () => undefined },
     },
     activeSessionId: 's1',
     logout,

@@ -48,7 +48,7 @@ export const useLogoutSession = () => {
       }
       
       const sessionToLogout = targetSessionId || activeSessionId;
-      await oxyServices.logoutSession(activeSessionId, sessionToLogout);
+      await oxyServices.session.logout(activeSessionId, sessionToLogout);
       
       return sessionToLogout;
     },
@@ -101,7 +101,7 @@ export const useLogoutAll = () => {
         throw new Error('No active session');
       }
       
-      await oxyServices.logoutAllSessions(activeSessionId);
+      await oxyServices.session.logoutAll(activeSessionId);
       await clearSessionState();
     },
     onSuccess: () => {
@@ -129,7 +129,7 @@ export const useUpdateDeviceName = () => {
         throw new Error('No active session');
       }
       
-      return await oxyServices.updateDeviceName(activeSessionId, deviceName);
+      return await oxyServices.devices.rename(activeSessionId, deviceName);
     },
     onSuccess: () => {
       // Invalidate device and session queries
@@ -153,7 +153,7 @@ export const useRemoveDevice = () => {
   return useMutation({
     mutationKey: [...mutationKeys.session.removeDevice],
     mutationFn: async (deviceId: string) => {
-      await oxyServices.removeDevice(deviceId);
+      await oxyServices.devices.remove(deviceId);
       return deviceId;
     },
     onSuccess: () => {

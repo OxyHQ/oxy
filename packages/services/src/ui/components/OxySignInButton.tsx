@@ -228,7 +228,7 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
         if (cached && cached.clientId === clientId && cached.oxyServices === oxyServices) {
             return cached.promise;
         }
-        const promise = oxyServices.getPublicApplication(clientId).catch((error) => {
+        const promise = oxyServices.apps.getPublic(clientId).catch((error) => {
             // Only clear if this is still the live entry (a later resolve may have
             // replaced it after a clientId/oxyServices change).
             if (appResolutionRef.current?.promise === promise) {

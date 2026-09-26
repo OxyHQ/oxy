@@ -56,10 +56,10 @@ export function EmailSignInPage() {
             if (!cancelled) setOutcome(next)
         }
         ;(async () => {
-            const device = await oxyServices.readDeviceProof()
+            const device = await oxyServices.session.readDeviceProof()
             // No Oxy device in this browser: it is not the one that asked.
             if (!device) return settle("other-device")
-            await oxyServices.approveEmailSignInLink(token, device)
+            await oxyServices.auth.email.approveLink(token, device)
             settle("approved")
         })().catch((error: unknown) => {
             const code = (error as { code?: unknown } | null)?.code

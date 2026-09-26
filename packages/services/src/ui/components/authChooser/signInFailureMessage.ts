@@ -6,7 +6,7 @@
  * raw `signIn.error` is English or a server string, kept for diagnostics only.
  */
 
-import type { SignInFailureReason } from '@oxy.so/core';
+import type { SignInFailureReason } from '@oxy.so/core/session';
 import type { Translate } from './types';
 
 /** The toast for `failure`, or `null` when there is nothing to report. */

@@ -45,10 +45,10 @@ fixed by handing a service credential the ability to write here.
 
 ```ts
 // 1. Claim your namespace. First come; yours forever.
-await oxyServices.claimFollowNamespace('mercaria');
+await oxyServices.follows.claimNamespace('mercaria');
 
 // 2. Say what following one of your things means.
-await oxyServices.registerFollowKind({
+await oxyServices.follows.registerKind({
   kind: 'mercaria.store',
   label: 'Store',
   capabilities: {
@@ -67,7 +67,7 @@ private" produce the same row, and only one of them is a decision.
 
 ```ts
 // 3. Resolve a target, on the way into a screen.
-const { id } = await oxyServices.ensureFollowTarget({
+const { id } = await oxyServices.follows.ensureTarget({
   uri: `https://mercaria.example/stores/${store.id}`,
   kind: 'mercaria.store',
   metadata: { name: store.name, icon: store.iconFileId },
@@ -133,7 +133,7 @@ whatever it is keeping in step.
 
 **A namespace you claimed by mistake can be given back, while it is empty.**
 `DELETE /v2/follow-targets/namespaces/<namespace>` (or
-`oxyServices.releaseFollowNamespace('<namespace>')`), holder only, refused once
+`oxyServices.follows.releaseNamespace('<namespace>')`), holder only, refused once
 any kind is registered inside it. This exists because registration is
 client-side and a claim is first-come, so the first person to open a screen on
 *any* build triggers it — including a development build using a fallback client

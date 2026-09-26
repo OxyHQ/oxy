@@ -4,11 +4,11 @@ const mockGetServiceToken = jest.fn();
 const mockInvalidateServiceToken = jest.fn();
 jest.mock('../../capabilities/inbox-service-client', () => ({
   inboxServiceClient: () => ({
-    getServiceToken: (...args: unknown[]) => mockGetServiceToken(...args),
+    serviceToken: (...args: unknown[]) => mockGetServiceToken(...args),
     invalidateServiceToken: (...args: unknown[]) => mockInvalidateServiceToken(...args),
   }),
   requiredInboxServiceClient: () => ({
-    getServiceToken: (...args: unknown[]) => mockGetServiceToken(...args),
+    serviceToken: (...args: unknown[]) => mockGetServiceToken(...args),
     invalidateServiceToken: (...args: unknown[]) => mockInvalidateServiceToken(...args),
   }),
 }));

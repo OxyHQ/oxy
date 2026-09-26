@@ -1,4 +1,4 @@
-import type { PublicApplication } from '../mixins/OxyServices.connectedApps';
+import type { PublicApplication } from '../api/apps';
 
 export interface CommonsApprovalValidationInput {
   application: PublicApplication | null;

@@ -55,8 +55,8 @@ export function observeNodeHttp(
   const patches = [http, https].map(module => {
     const request = module.request;
     const get = module.get;
-    const wrappedRequest = function (...args: Parameters<typeof request>) { return safelyObserve(request.apply(module, args)); } as typeof request;
-    const wrappedGet = function (...args: Parameters<typeof get>) { return safelyObserve(get.apply(module, args)); } as typeof get;
+    const wrappedRequest = ((...args: Parameters<typeof request>) => safelyObserve(request.apply(module, args))) as typeof request;
+    const wrappedGet = ((...args: Parameters<typeof get>) => safelyObserve(get.apply(module, args))) as typeof get;
     module.request = wrappedRequest;
     module.get = wrappedGet;
     return () => {
@@ -65,5 +65,9 @@ export function observeNodeHttp(
     };
   });
   syncBuiltinESMExports();
-  return () => { patches.forEach(restore => restore()); restoreRequests.forEach(restore => restore()); syncBuiltinESMExports(); };
+  return () => {
+    for (const restore of patches) restore();
+    for (const restore of restoreRequests) restore();
+    syncBuiltinESMExports();
+  };
 }

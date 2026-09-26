@@ -94,8 +94,6 @@ export function deduplicateSessionsByUserId(
       if (isCurrentActive && !isExistingActive) {
         userSessionMap.set(session.userId, session);
       } else if (!isCurrentActive && isExistingActive) {
-        // Keep existing (active) session
-        continue;
       } else {
         // Neither is active, keep the one with more recent lastActive
         const existingTime = new Date(existing.lastActive).getTime();

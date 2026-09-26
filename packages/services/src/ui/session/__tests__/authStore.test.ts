@@ -7,7 +7,7 @@
  * background persist inside the vault can never change which session five other
  * apps boot into.
  */
-import type { AuthStateStore } from '@oxy.so/core';
+import type { AuthStateStore } from '@oxy.so/core/session';
 
 const CRED_STATE = { sessionId: 'sess-1', userId: 'user-1', deviceId: 'dev-1', deviceSecret: 'ds-1' };
 

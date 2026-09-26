@@ -1,12 +1,12 @@
 import type { AccountCategoryId } from '@oxy.so/contracts';
-import enUS from './locales/en-US.json';
+import enUS from './locales/en-US';
 import { translate } from './index';
 
 /**
  * Every account category's English name, keyed by its stable id.
  *
  * **The annotation is the point.** The vocabulary lives in `@oxy.so/contracts`
- * and the names live in `locales/en-US.json`, so they are two lists that must
+ * and the names live in `locales/en-US.ts`, so they are two lists that must
  * agree and nothing but a type can make them. Declaring the JSON node as a
  * TOTAL `Record<AccountCategoryId, string>` turns "somebody added a category at
  * Oxy and nobody wrote its English" into a `TS2741` naming the missing id, at

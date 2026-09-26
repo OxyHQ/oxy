@@ -16,7 +16,7 @@ export const useAuthMethods = (options?: { enabled?: boolean }) => {
 
   const query = useQuery<AuthMethodsResponse>({
     queryKey: queryKeys.authMethods.list(),
-    queryFn: () => oxyServices.listAuthMethods(),
+    queryFn: () => oxyServices.identity.authMethods(),
     enabled: options?.enabled !== false && !!activeSessionId,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
@@ -41,7 +41,7 @@ export const useSignInMethods = (options?: { enabled?: boolean }) => {
   const { oxyServices, activeSessionId, user } = useOxy();
   return useQuery<SignInMethods>({
     queryKey: queryKeys.signInMethods.current(user?.id),
-    queryFn: () => oxyServices.getSignInMethods(),
+    queryFn: () => oxyServices.auth.methods(),
     enabled: options?.enabled !== false && !!activeSessionId,
     staleTime: 60 * 1000,
   });

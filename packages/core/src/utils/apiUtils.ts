@@ -103,7 +103,7 @@ export function buildPaginationParams(params: PaginationParams): Record<string, 
 /**
  * Common API response wrapper
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   data: T;
   message?: string;
   success?: boolean;
@@ -116,7 +116,7 @@ export interface ErrorResponse {
   message: string;
   code: string;
   status: number;
-  details?: any;
+  details?: unknown;
 }
 
 /**
@@ -125,7 +125,7 @@ export interface ErrorResponse {
  * @param fallback Fallback value if parsing fails
  * @returns Parsed data or fallback
  */
-export function safeJsonParse<T>(data: any, fallback: T): T {
+export function safeJsonParse<T>(data: unknown, fallback: T): T {
   if (typeof data === 'string') {
     try {
       return JSON.parse(data);

@@ -28,69 +28,73 @@ function abortReason(signal: AbortSignal): unknown {
 
 /**
  * Request deduplication - prevents duplicate concurrent requests
- * 
- * When multiple requests with the same key are made simultaneously,
- * only one request is executed and all callers receive the same result.
- * 
+ *
+ * When multiple requests with the same key are made simultaneously, only one
+ * request is executed and all callers receive the same result.
+ *
+ * The shared work runs in its OWN abort domain, not the first caller's: each
+ * caller owns its cancellation, and the shared work is aborted only once every
+ * caller waiting on it has cancelled. Binding it to the first caller's signal
+ * meant one cancelled caller failed every other caller on the same key.
+ *
  * @example
  * ```typescript
  * const deduplicator = new RequestDeduplicator();
- * 
- * // Multiple calls with same key will share the same promise
- * const promise1 = deduplicator.deduplicate('user-123', () => fetchUser('123'));
- * const promise2 = deduplicator.deduplicate('user-123', () => fetchUser('123'));
- * // promise1 === promise2, only one API call is made
+ *
+ * // Multiple calls with same key share one in-flight call
+ * const promise1 = deduplicator.deduplicate('user-123', (signal) => fetchUser('123', signal));
+ * const promise2 = deduplicator.deduplicate('user-123', (signal) => fetchUser('123', signal));
  * ```
  */
 export class RequestDeduplicator {
-  private pendingRequests = new Map<string, Promise<any>>();
+  private pending = new Map<string, { promise: Promise<unknown>; controller: AbortController; waiters: number }>();
 
   /**
    * Deduplicate a request by key
    * @param key Unique key for the request
-   * @param requestFn Function that returns a promise
-   * @returns Promise that will be shared if key already exists
+   * @param requestFn Runs the work; its signal aborts once every caller has cancelled
+   * @param signal This caller's cancellation
    */
   async deduplicate<T>(
     key: string,
-    requestFn: () => Promise<T>,
+    requestFn: (signal: AbortSignal) => Promise<T>,
     signal?: AbortSignal
   ): Promise<T> {
     if (signal?.aborted) {
       throw abortReason(signal);
     }
 
-    let promise = this.pendingRequests.get(key) as Promise<T> | undefined;
-    if (!promise) {
-      promise = requestFn().finally(() => {
-        this.pendingRequests.delete(key);
+    let entry = this.pending.get(key);
+    if (!entry) {
+      const controller = new AbortController();
+      const promise = requestFn(controller.signal).finally(() => {
+        if (this.pending.get(key) === entry) this.pending.delete(key);
       });
-      this.pendingRequests.set(key, promise);
+      // Ownership stays with the callers awaiting it; this only stops a
+      // rejection nobody is left to observe from surfacing as unhandled.
+      promise.catch(() => {});
+      entry = { promise, controller, waiters: 0 };
+      this.pending.set(key, entry);
     }
+    const shared = entry;
+    shared.waiters++;
 
-    // Callers SHARE the work but own their cancellation separately.
-    //
-    // Returning the shared promise directly meant one caller's abort rejected
-    // every other caller on the same key — including ones that never cancelled
-    // anything, and which had no way to tell that the failure was not theirs.
-    // Racing each caller's own signal against the shared work keeps the single
-    // in-flight request (the point of deduplication) while making cancellation
-    // per-caller. The shared promise is left running: another caller may still
-    // want it, and if nobody does its own abort domain ends it.
     if (!signal) {
-      return promise;
+      return shared.promise as Promise<T>;
     }
-
-    // `promise` is already owned by the map's `finally`, so attach a no-op
-    // catch to the copy we race: without it, a rejection settled by the race's
-    // loser surfaces as an unhandled rejection.
-    const shared = promise;
-    shared.catch(() => { /* ownership stays with the caller(s) awaiting it */ });
 
     return new Promise<T>((resolve, reject) => {
-      const onAbort = (): void => reject(abortReason(signal));
+      const onAbort = (): void => {
+        shared.waiters--;
+        if (shared.waiters === 0) {
+          // Nobody wants the result any more: free the key and end the work.
+          if (this.pending.get(key) === shared) this.pending.delete(key);
+          shared.controller.abort();
+        }
+        reject(abortReason(signal));
+      };
       signal.addEventListener('abort', onAbort, { once: true });
-      shared.then(
+      (shared.promise as Promise<T>).then(
         (value) => { signal.removeEventListener('abort', onAbort); resolve(value); },
         (error) => { signal.removeEventListener('abort', onAbort); reject(error); },
       );
@@ -101,14 +105,14 @@ export class RequestDeduplicator {
    * Clear all pending requests
    */
   clear(): void {
-    this.pendingRequests.clear();
+    this.pending.clear();
   }
 
   /**
    * Get number of pending requests
    */
   size(): number {
-    return this.pendingRequests.size;
+    return this.pending.size;
   }
 }
 
@@ -129,7 +133,7 @@ export class RequestDeduplicator {
  * ```
  */
 export class RequestQueue {
-  private queue: Array<() => Promise<any>> = [];
+  private queue: Array<() => Promise<unknown>> = [];
   private running = 0;
   private maxConcurrent: number;
   private maxQueueSize: number;
@@ -297,29 +301,29 @@ export class SimpleLogger {
     return levels.indexOf(level) <= levels.indexOf(this.level);
   }
 
-  private formatMessage(...args: any[]): any[] {
+  private formatMessage(...args: unknown[]): unknown[] {
     return this.prefix ? [`[${this.prefix}]`, ...args] : args;
   }
 
-  error(...args: any[]): void {
+  error(...args: unknown[]): void {
     if (this.shouldLog('error')) {
       console.error(...this.formatMessage(...args));
     }
   }
 
-  warn(...args: any[]): void {
+  warn(...args: unknown[]): void {
     if (this.shouldLog('warn')) {
       console.warn(...this.formatMessage(...args));
     }
   }
 
-  info(...args: any[]): void {
+  info(...args: unknown[]): void {
     if (this.shouldLog('info')) {
       console.info(...this.formatMessage(...args));
     }
   }
 
-  debug(...args: any[]): void {
+  debug(...args: unknown[]): void {
     if (this.shouldLog('debug')) {
       console.log(...this.formatMessage(...args));
     }

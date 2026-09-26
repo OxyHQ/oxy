@@ -1,5 +1,5 @@
-import { useCallback, useMemo } from 'react';
-import { translate as coreTranslate } from '@oxy.so/core';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { getLocalesVersion, subscribeLocales, translate as coreTranslate } from '@oxy.so/core';
 import { useLocale } from './locale';
 import enAuth from './locales/en';
 import esAuth from './locales/es';
@@ -75,6 +75,8 @@ interface UseTranslationResult {
 /** The translation function, the page's locale, and its setter (see `AUTH_DICTS` for resolution). */
 export function useTranslation(): UseTranslationResult {
   const { locale, setLocale } = useLocale();
+  // Core's non-English dictionaries load on demand; re-translate when one lands.
+  const localesVersion = useSyncExternalStore(subscribeLocales, getLocalesVersion, getLocalesVersion);
 
   const dict = useMemo(() => AUTH_DICTS[locale], [locale]);
 
@@ -95,7 +97,10 @@ export function useTranslation(): UseTranslationResult {
 
       return key;
     },
-    [dict, locale],
+    // `localesVersion` is read by nothing inside: it is here so `t` changes identity
+    // when a lazily loaded dictionary lands, re-rendering memoised consumers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dict, locale, localesVersion],
   );
 
   return { t, locale, setLocale };

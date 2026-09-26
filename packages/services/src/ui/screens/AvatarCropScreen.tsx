@@ -358,11 +358,11 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
             if (!imageFileId) {
                 throw new Error('No file id to resolve for cropping');
             }
-            const resolved = await oxyServices.assetGetUrl(imageFileId);
-            if (!resolved?.url) {
+            const resolved = await oxyServices.assets.url(imageFileId);
+            if (!resolved) {
                 throw new Error('No download URL returned for the selected image');
             }
-            return resolved.url;
+            return resolved;
         },
     });
 

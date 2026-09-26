@@ -27,7 +27,7 @@ export const useSecurityActivity = (
         throw new Error('No active session');
       }
 
-      const response = await oxyServices.getSecurityActivity(
+      const response = await oxyServices.devices.securityActivity(
         options?.limit,
         options?.offset,
         options?.eventType
@@ -54,7 +54,8 @@ export const useRecentSecurityActivity = (limit = 10) => {
         throw new Error('No active session');
       }
 
-      return await oxyServices.getRecentSecurityActivity(limit);
+      const page = await oxyServices.devices.securityActivity(limit, 0);
+      return page.data;
     },
     enabled: !!activeSessionId,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -85,7 +86,7 @@ export const useInfiniteSecurityActivity = (
       }
 
       const offset = typeof pageParam === 'number' ? pageParam : 0;
-      return await oxyServices.getSecurityActivity(
+      return await oxyServices.devices.securityActivity(
         limit,
         offset,
         options?.eventType

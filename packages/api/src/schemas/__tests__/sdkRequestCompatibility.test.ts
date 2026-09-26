@@ -24,7 +24,7 @@
  * control is what proves it does not.
  */
 
-import type { OxyResponsesRequest } from '@oxy.so/core';
+import type { OxyResponsesRequest } from '@oxy.so/core/inference';
 import { normalizeResponsesRequest, responsesRequestSchema } from '../inferenceEdge.schemas';
 
 /**

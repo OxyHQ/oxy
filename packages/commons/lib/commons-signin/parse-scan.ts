@@ -18,7 +18,7 @@
  * re-resolved / re-verified server-side.
  */
 
-import { parseIdPayload, parseAttestPayload } from '@oxy.so/core';
+import { parseIdPayload, parseAttestPayload } from '@oxy.so/core/civic';
 import { parseApprovalLink } from './parse-approval-link';
 
 /** The branch a scanned string resolves to. */

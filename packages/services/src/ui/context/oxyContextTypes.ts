@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { LoginSessionResult } from '@oxy.so/contracts';
-import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, AccountDialogController, AccountDialogView, ApiError, SessionClient, SessionMode } from '@oxy.so/core';
+import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, ApiError } from '@oxy.so/core';
+import type { AccountDialogController, AccountDialogView, SessionClient, SessionMode } from '@oxy.so/core/session';
 import type { UseFollowHook } from '../hooks/useFollow.types';
 import type { useLanguageManagement } from '../hooks/useLanguageManagement';
 import type { RouteName } from '../navigation/routes';

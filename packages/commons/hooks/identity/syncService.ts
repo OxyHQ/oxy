@@ -1,5 +1,5 @@
 import { isInvalidSessionError } from '@oxy.so/services';
-import { KeyManager, SignatureService } from '@oxy.so/core';
+import { KeyManager, SignatureService } from '@oxy.so/core/crypto';
 import type { User, OxyServices } from '@oxy.so/core';
 import { isAlreadyRegisteredError } from './identityErrors';
 
@@ -69,7 +69,7 @@ const checkRegistration = async (
   if (signal?.aborted) throw new Error('Sync aborted');
 
   try {
-    const { registered } = await oxyServices.checkPublicKeyRegistered(publicKey);
+    const { registered } = await oxyServices.auth.isKeyRegistered(publicKey);
     return registered;
   } catch {
     // If check fails, assume not registered and attempt registration
@@ -89,7 +89,7 @@ const registerIdentity = async (
 
   try {
     const { signature, timestamp } = await SignatureService.createRegistrationSignature();
-    await oxyServices.register(publicKey, signature, timestamp);
+    await oxyServices.auth.registerKey(publicKey, signature, timestamp);
   } catch (error: unknown) {
     // Already registered is not an error
     if (!isAlreadyRegisteredError(error)) {

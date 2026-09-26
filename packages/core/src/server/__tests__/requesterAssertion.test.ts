@@ -9,7 +9,7 @@
 
 import { generateKeyPairSync, randomUUID, sign as signBytes, type KeyObject } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
-import { OxyServices } from '../../OxyServices';
+import { OxyServer } from '../OxyServer';
 import {
   createOxyJwksKeyResolver,
   createOxyRequesterAssertionAuth,
@@ -185,9 +185,10 @@ describe('createOxyRequesterAssertionAuth', () => {
   }
 
   function harness(introspect: (input: unknown) => Promise<OxyRequesterAssertionIntrospection>) {
+    const introspect$ = jest.fn(introspect);
     const introspector = {
-      introspectRequesterAssertion: jest.fn(introspect),
-      getBaseURL: () => 'https://api.oxy.so',
+      agency: { introspectRequesterAssertion: introspect$ },
+      baseURL: 'https://api.oxy.so',
     };
     const middleware = createOxyRequesterAssertionAuth(introspector, {
       audience: 'alia',
@@ -213,7 +214,7 @@ describe('createOxyRequesterAssertionAuth', () => {
     const result = await run({ headers: {}, serviceApp });
     expect(result.next).toHaveBeenCalledTimes(1);
     expect(result.request.userId).toBeUndefined();
-    expect(introspector.introspectRequesterAssertion).not.toHaveBeenCalled();
+    expect(introspector.agency.introspectRequesterAssertion).not.toHaveBeenCalled();
   });
 
   it('attaches the requester only after live introspection succeeds', async () => {
@@ -225,7 +226,7 @@ describe('createOxyRequesterAssertionAuth', () => {
     expect(result.request.userId).toBe('requester-1');
     expect(result.request.user).toEqual({ id: 'requester-1' });
     expect(result.request.oxyRequester).toMatchObject({ userId: 'requester-1', agentId: 'sindi-agent', jti: value.jti });
-    expect(introspector.introspectRequesterAssertion).toHaveBeenCalledWith({
+    expect(introspector.agency.introspectRequesterAssertion).toHaveBeenCalledWith({
       assertion,
       presenter: { applicationId: 'homiio-app', credentialId: 'sindi-credential' },
     });
@@ -251,7 +252,7 @@ describe('createOxyRequesterAssertionAuth', () => {
       expect(result.statusCode).toBe(400);
       expect(result.next).not.toHaveBeenCalled();
     }
-    expect(introspector.introspectRequesterAssertion).not.toHaveBeenCalled();
+    expect(introspector.agency.introspectRequesterAssertion).not.toHaveBeenCalled();
   });
 
   it('refuses an assertion presented by another application or credential without spending it', async () => {
@@ -264,7 +265,7 @@ describe('createOxyRequesterAssertionAuth', () => {
       expect(result.statusCode).toBe(401);
       expect(result.body?.code).toBe('presenter_mismatch');
     }
-    expect(introspector.introspectRequesterAssertion).not.toHaveBeenCalled();
+    expect(introspector.agency.introspectRequesterAssertion).not.toHaveBeenCalled();
   });
 
   it('refuses forged, expired and wrong-audience assertions before introspection', async () => {
@@ -280,7 +281,7 @@ describe('createOxyRequesterAssertionAuth', () => {
       expect(result.statusCode).toBe(401);
       expect(result.body?.code).toBe(code);
     }
-    expect(introspector.introspectRequesterAssertion).not.toHaveBeenCalled();
+    expect(introspector.agency.introspectRequesterAssertion).not.toHaveBeenCalled();
   });
 
   it('refuses a replayed (inactive) assertion and a mismatched introspection answer', async () => {
@@ -303,8 +304,8 @@ describe('createOxyRequesterAssertionAuth', () => {
   it('reports each rejection with ids only', async () => {
     const events: unknown[] = [];
     const introspector = {
-      introspectRequesterAssertion: jest.fn(async () => ({ active: false })),
-      getBaseURL: () => 'https://api.oxy.so',
+      agency: { introspectRequesterAssertion: jest.fn(async () => ({ active: false })) },
+      baseURL: 'https://api.oxy.so',
     };
     const middleware = createOxyRequesterAssertionAuth(introspector, {
       audience: 'alia',
@@ -327,14 +328,14 @@ describe('createOxyRequesterAssertionAuth', () => {
   });
 });
 
-describe('OxyServices requester assertion calls', () => {
+describe('OxyServer requester assertion calls', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('mints with the product service token and sends the subject token only in the body', async () => {
-    const oxy = new OxyServices({ baseURL: 'http://test.invalid' });
-    jest.spyOn(oxy, 'getServiceToken').mockResolvedValue('product-service-token');
-    const spy = jest.spyOn(oxy, 'makeRequest').mockResolvedValue({ assertion: 'a', expiresAt: 'e', requesterAccountId: 'u', agentId: 'g' } as never);
-    await oxy.mintRequesterAssertion({ agentId: 'sindi-agent', subjectToken: 'human-bearer' });
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    jest.spyOn(oxy, 'serviceToken').mockResolvedValue('product-service-token');
+    const spy = jest.spyOn(oxy, 'request').mockResolvedValue({ assertion: 'a', expiresAt: 'e', requesterAccountId: 'u', agentId: 'g' } as never);
+    await oxy.agency.mintRequesterAssertion({ agentId: 'sindi-agent', subjectToken: 'human-bearer' });
     const [method, url, data, options] = spy.mock.calls[0] ?? [];
     expect(method).toBe('POST');
     expect(url).toBe('/internal/native-agents/requester-assertions');
@@ -345,11 +346,11 @@ describe('OxyServices requester assertion calls', () => {
   });
 
   it('introspects with the audience service token and never retries a consuming call', async () => {
-    const oxy = new OxyServices({ baseURL: 'http://test.invalid' });
-    jest.spyOn(oxy, 'getServiceToken').mockResolvedValue('alia-service-token');
-    const spy = jest.spyOn(oxy, 'makeRequest').mockResolvedValue({ active: false } as never);
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    jest.spyOn(oxy, 'serviceToken').mockResolvedValue('alia-service-token');
+    const spy = jest.spyOn(oxy, 'request').mockResolvedValue({ active: false } as never);
     const presenter = { applicationId: 'homiio-app', credentialId: 'sindi-credential' };
-    await expect(oxy.introspectRequesterAssertion({ assertion: 'signed', presenter })).resolves.toEqual({ active: false });
+    await expect(oxy.agency.introspectRequesterAssertion({ assertion: 'signed', presenter })).resolves.toEqual({ active: false });
     const [method, url, data, options] = spy.mock.calls[0] ?? [];
     expect([method, url]).toEqual(['POST', '/internal/native-agents/requester-assertions/introspect']);
     expect(data).toEqual({ assertion: 'signed', presenter });

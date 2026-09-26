@@ -13,27 +13,19 @@
  * - Request queuing
  */
 
-import { TTLCache, registerCacheForCleanup } from './utils/cache';
+import { TTLCache, registerCacheForCleanup, unregisterCacheFromCleanup } from './utils/cache';
 import { RequestDeduplicator, RequestQueue, SimpleLogger } from './utils/requestUtils';
 import { retryAsync } from './utils/asyncUtils';
 import { createCancelledError, ErrorCodes, handleHttpError, isCancelledError, parseHttpErrorBody } from './utils/errorUtils';
-import { jwtDecode } from 'jwt-decode';
-import { isReactNative } from '@oxy.so/protocol';
+import { decodeTokenClaims } from './utils/tokenClaims';
+import { isReactNative } from '@oxy.so/protocol/random';
 import { computeIdentityTag, fnv1a32 } from './utils/cacheKey';
 import { redactUrlQuery } from './utils/redactUrl';
 import type { OxyConfig } from './models/interfaces';
 import type { DeviceSecretMintOutcome } from './session/refresh';
 import { OxyAuthenticationError } from './OxyServices.errors';
-import { getBrowserEdgeRegionHeader } from './utils/edgeRegion';
+import { peekBrowserEdgeRegionHeader } from './utils/edgeRegion';
 import { getBrowserActivityIdHeader } from './utils/activityId';
-
-interface JwtPayload {
-  exp?: number;
-  userId?: string;
-  id?: string;
-  sessionId?: string;
-  [key: string]: unknown;
-}
 
 export type AuthRefreshReason = 'preflight' | 'response-401';
 export type AuthRefreshHandler = (reason: AuthRefreshReason) => Promise<string | null>;
@@ -150,6 +142,12 @@ interface RequestConfig extends RequestOptions {
  * endpoint surfaces as an `AbortError` quickly rather than blocking the
  * request queue.
  */
+/** Methods whose calls concurrent callers may share (read-only). */
+const SAFE_METHODS: ReadonlySet<string> = new Set(['GET']);
+
+/** Methods safe to re-send after a transient failure (RFC 9110 §9.2.2). */
+const IDEMPOTENT_METHODS: ReadonlySet<string> = new Set(['GET', 'PUT', 'DELETE']);
+
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000;
 
 /**
@@ -220,17 +218,13 @@ const TOKEN_REFRESH_LEAD_SECONDS = 60;
  * lead window. `false` for an expired, opaque or no-`exp` token.
  */
 function isInsideRefreshLeadWindow(token: string): boolean {
-  try {
-    const decoded = jwtDecode<JwtPayload>(token);
-    if (typeof decoded.exp !== 'number') {
-      return false;
-    }
-    const now = Math.floor(Date.now() / 1000);
-    // `<=`: the proactive scheduler fires at exactly `exp - lead`.
-    return decoded.exp > now && decoded.exp - now <= TOKEN_REFRESH_LEAD_SECONDS;
-  } catch {
+  const decoded = decodeTokenClaims(token);
+  if (typeof decoded?.exp !== 'number') {
     return false;
   }
+  const now = Math.floor(Date.now() / 1000);
+  // `<=`: the proactive scheduler fires at exactly `exp - lead`.
+  return decoded.exp > now && decoded.exp - now <= TOKEN_REFRESH_LEAD_SECONDS;
 }
 
 /**
@@ -325,7 +319,7 @@ function linkAbort(parent: AbortSignal, child: AbortController): () => void {
 export class HttpService {
   private baseURL: string;
   private tokenStore: TokenStore;
-  private cache: TTLCache<any>;
+  private cache: TTLCache<unknown>;
   /**
    * When true, the per-instance GET response cache is OFF: GET responses are
    * never read from nor written to {@link cache}, so every request hits the
@@ -448,7 +442,7 @@ export class HttpService {
     this.cacheDisabled =
       config.enableCache === false ||
       (typeof config.cacheTTL === 'number' && config.cacheTTL <= 0);
-    this.cache = new TTLCache<any>(config.cacheTTL && config.cacheTTL > 0 ? config.cacheTTL : 5 * 60 * 1000);
+    this.cache = new TTLCache<unknown>(config.cacheTTL && config.cacheTTL > 0 ? config.cacheTTL : 5 * 60 * 1000);
     if (!this.cacheDisabled) {
       registerCacheForCleanup(this.cache);
     }
@@ -563,8 +557,14 @@ export class HttpService {
       signal,
       cache: cacheRequested = method === 'GET',
       cacheTTL,
-      deduplicate = true,
-      retry = this.config.enableRetry !== false,
+      // Only reads are shared by default. A write's body can be opaque
+      // (`FormData`, `URLSearchParams` key as empty objects), so two different
+      // uploads used to collapse into one call and the second caller got the
+      // first file's result.
+      deduplicate = SAFE_METHODS.has(method),
+      // Only idempotent methods are re-sent by default: re-sending a POST after a
+      // 5xx or a dropped connection can apply it twice.
+      retry = this.config.enableRetry !== false && IDEMPOTENT_METHODS.has(method),
       maxRetries = this.config.maxRetries || 3,
     } = config;
 
@@ -600,7 +600,9 @@ export class HttpService {
     // 401 retry re-enters request() with a fresh config, so it re-resolves
     // this here with the refreshed token.
     const authHeader = config.skipAuth ? null : await this.getAuthHeader();
-    const edgeRegionHeader = await getBrowserEdgeRegionHeader();
+    // Never awaited: the PoP is a hint, and waiting on its trace fetch put up
+    // to a second in front of requests.
+    const edgeRegionHeader = peekBrowserEdgeRegionHeader();
     const activityIdHeader = getBrowserActivityIdHeader();
 
     // A request the caller has ALREADY abandoned takes no queue slot and makes
@@ -611,43 +613,32 @@ export class HttpService {
       throw createCancelledError('Request cancelled before it was sent');
     }
 
-    // ONE abort domain for the whole call, linked to the caller's signal ONCE.
-    //
-    // The bug this replaces: the controller used to be built INSIDE `requestFn`
-    // — the function `retryAsync` re-invokes — and the caller's signal was
-    // linked to each new controller with a bare `addEventListener`. An `abort`
-    // event fires once, so on attempt 2 the caller's already-fired signal could
-    // not abort the freshly built controller, and the request the caller had
-    // cancelled went out for real. Hoisting the linkage means a cancellation
-    // arrives once and is then true for every attempt, including ones not yet
-    // started.
-    const callController = new AbortController();
-    const disposeCallerLink = signal ? linkAbort(signal, callController) : undefined;
-
-    /**
-     * Which of our own timers fired, so a timeout can be told apart from a
-     * cancellation. Both reach us from `fetch` as an indistinguishable
-     * `AbortError`, and collapsing them (as this used to) is what let the retry
-     * predicate treat an abandoned request as a transient failure.
-     */
-    let timedOut = false;
-
-    // Request function
-    const requestFn = async (): Promise<T> => {
+    // One network attempt, inside the call's abort domain `domain`: the caller's
+    // own signal, or — when deduplicated — the shared work's, which aborts only
+    // once every caller waiting on it has cancelled.
+    const attempt = async (domain: AbortSignal): Promise<T> => {
       const startTime = Date.now();
       // Re-checked per attempt so no retry can issue a network call after the
       // caller gave up — belt to `retryAsync`'s braces, and the one that holds
       // if a custom `shouldRetry` ever says yes to a cancellation.
-      if (callController.signal.aborted) {
+      if (domain.aborted) {
         throw createCancelledError('Request cancelled');
       }
+
+      /**
+       * Whether OUR timer fired, so a timeout can be told apart from a
+       * cancellation. Both reach us from `fetch` as an indistinguishable
+       * `AbortError`, and collapsing them is what let the retry predicate treat
+       * an abandoned request as a transient failure.
+       */
+      let timedOut = false;
 
       // This attempt's controller carries its own timeout and inherits the
       // call-wide abort domain. Declared OUTSIDE the `try` so the `finally`
       // that releases them can see them — the timer and the listener are
       // exactly what leaked when they lived inside it.
       const controller = new AbortController();
-      const disposeCallLink = linkAbort(callController.signal, controller);
+      const disposeCallLink = linkAbort(domain, controller);
       const timeoutId = timeout
         ? setTimeout(() => {
             timedOut = true;
@@ -677,20 +668,20 @@ export class HttpService {
 
         // Add authorization header if available
         if (authHeader) {
-          headers['Authorization'] = authHeader;
+          headers.Authorization = authHeader;
         }
 
         // Merge custom headers if provided
         if (config.headers) {
-          Object.entries(config.headers).forEach(([key, value]) => {
+          for (const [key, value] of Object.entries(config.headers)) {
             // For FormData, explicitly remove Content-Type if user tries to set it
             // The browser/fetch API will set it automatically with the boundary
             if (isFormData && key.toLowerCase() === 'content-type') {
               this.logger.debug('Ignoring Content-Type header for FormData - will be set automatically');
-              return;
+              continue;
             }
             headers[key] = value;
-          });
+          }
         }
 
         // This is Cloudflare's coarse serving PoP (for example `mad`), never an
@@ -751,7 +742,12 @@ export class HttpService {
               // deduplicated retry would resolve to the still-pending original
               // and await itself (deadlock). Opting the retry out of dedupe makes
               // it a fresh request.
-              return this.request<T>({ ...config, _isAuthRetry: true, retry: false, deduplicate: false });
+              //
+              // `bypassQueue: true` is REQUIRED too: this attempt still holds its
+              // queue slot, so a queued retry waits for a slot while holding one.
+              // With every slot held by a 401 (a revoked session under load) no
+              // retry could ever start and the whole client stalled.
+              return this.request<T>({ ...config, _isAuthRetry: true, retry: false, deduplicate: false, bypassQueue: true });
             }
             // Refresh failed or no token — clear tokens
             this.tokenStore.clearTokens();
@@ -805,7 +801,7 @@ export class HttpService {
         
         if (config.responseType === 'blob') {
           responseData = await response.blob();
-        } else if (contentType && contentType.includes('application/json')) {
+        } else if (contentType?.includes('application/json')) {
           // Use response.json() directly for better performance
           try {
             responseData = await response.json();
@@ -889,50 +885,57 @@ export class HttpService {
       }
     };
 
-    // Wrap with retry if enabled.
+    // Composition: dedupe(retry(queue(attempt))). A queue slot is network
+    // occupancy only — each attempt takes one and releases it — so neither the
+    // retry backoff sleep nor a deduplicated caller waiting on shared work holds
+    // a slot while doing nothing.
     //
-    // `retryOnTimeout` defaults to false in `retryAsync`, which is what makes
-    // the pathological total unreachable: a timeout now costs ONE attempt
-    // instead of four-plus-backoff (~28s at the 5s default), and a cancellation
-    // costs none. `deadline` bounds whatever retries do happen by wall clock
-    // rather than by attempts x timeout + backoff.
-    const requestWithRetry = retry
-      ? () => retryAsync(requestFn, {
-          maxRetries,
-          baseDelay: this.config.retryDelay || 1000,
-          retryOnTimeout: config.retryOnTimeout ?? false,
-          deadline: config.deadline !== undefined ? Date.now() + config.deadline : undefined,
-        })
-      : requestFn;
+    // `retryOnTimeout` defaults to false in `retryAsync`: a timeout costs ONE
+    // attempt, a cancellation none. `deadline` bounds whatever retries do happen
+    // by wall clock rather than by attempts x timeout + backoff.
+    const runAttempt = (domain: AbortSignal): Promise<T> =>
+      // Control-plane calls the auth lane depends on (`bypassQueue`, e.g. the
+      // device-secret mint) run DIRECTLY — a queued mint could never acquire a
+      // slot when every slot is parked awaiting it.
+      config.bypassQueue ? attempt(domain) : this.requestQueue.enqueue(() => attempt(domain), domain);
+    const execute = (domain: AbortSignal): Promise<T> =>
+      retry
+        ? retryAsync(() => runAttempt(domain), {
+            maxRetries,
+            baseDelay: this.config.retryDelay || 1000,
+            retryOnTimeout: config.retryOnTimeout ?? false,
+            deadline: config.deadline !== undefined ? Date.now() + config.deadline : undefined,
+          })
+        : runAttempt(domain);
 
-    // Wrap with deduplication if enabled (use optimized key generation)
-    const dedupeKey = deduplicate ? this.generateCacheKey(method, url, data || params) : null;
-    const finalRequest = dedupeKey
-      ? () => this.deduplicator.deduplicate(dedupeKey, requestWithRetry, callController.signal)
-      : requestWithRetry;
-
-    try {
-      // Execute the request. Control-plane calls the auth lane depends on
-      // (`bypassQueue`, e.g. the device-secret mint) run DIRECTLY — a queued mint
-      // could never acquire a slot when every slot is parked awaiting it.
-      const result = config.bypassQueue
-        ? await finalRequest()
-        : await this.requestQueue.enqueue(finalRequest, callController.signal);
-
-      // Cache the result if caching is enabled
-      if (cache && cacheKey && result) {
-        this.cache.set(cacheKey, result, cacheTTL);
-        this.warnIfCacheOversized();
+    let result: T;
+    if (deduplicate) {
+      // The cache key IS the dedupe key (same method, url, payload, identity);
+      // computed once per call.
+      const dedupeKey = cacheKey ?? this.generateCacheKey(method, url, data || params);
+      result = await this.deduplicator.deduplicate(dedupeKey, execute, signal);
+    } else {
+      // The call's own abort domain, linked to the caller's signal ONCE, so a
+      // cancellation arrives once and is then true for every attempt, including
+      // ones not yet started. Released however the call ends: a caller signal
+      // that outlives the request (a React Query signal) would otherwise accrue
+      // one listener per request.
+      const callController = new AbortController();
+      const disposeCallerLink = signal ? linkAbort(signal, callController) : undefined;
+      try {
+        result = await execute(callController.signal);
+      } finally {
+        disposeCallerLink?.();
       }
-
-      return result;
-    } finally {
-      // The call-wide link to the CALLER's signal, released once the call is
-      // over however it ended. Without this a caller signal that outlives the
-      // request — the normal case for a React Query query signal — accrues one
-      // listener per request for its whole lifetime.
-      disposeCallerLink?.();
     }
+
+    // Cache the result if caching is enabled
+    if (cache && cacheKey && result) {
+      this.cache.set(cacheKey, result, cacheTTL);
+      this.warnIfCacheOversized();
+    }
+
+    return result;
   }
 
   /**
@@ -1169,11 +1172,11 @@ export class HttpService {
     }
 
     const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
+    for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) {
         searchParams.append(key, String(value));
       }
-    });
+    }
 
     const queryString = searchParams.toString();
     return queryString ? `${base}${base.includes('?') ? '&' : '?'}${queryString}` : base;
@@ -1201,7 +1204,8 @@ export class HttpService {
     }
 
     try {
-      const decoded = jwtDecode<JwtPayload>(accessToken);
+      const decoded = decodeTokenClaims(accessToken);
+      if (!decoded) throw new Error('opaque token');
       const currentTime = Math.floor(Date.now() / 1000);
 
       // If the token expires within the refresh lead window, refresh it.
@@ -1353,12 +1357,8 @@ export class HttpService {
     if (!token) {
       return false;
     }
-    try {
-      const decoded = jwtDecode<JwtPayload>(token);
-      return typeof decoded.exp === 'number' && decoded.exp <= Math.floor(Date.now() / 1000);
-    } catch {
-      return false;
-    }
+    const exp = decodeTokenClaims(token)?.exp;
+    return typeof exp === 'number' && exp <= Math.floor(Date.now() / 1000);
   }
 
   /**
@@ -1486,7 +1486,9 @@ export class HttpService {
     // Authentication is owned by this SDK instance. A caller cannot replace
     // the bearer with a different session or leak one across linked apps.
     headers.set('Authorization', authHeader);
-    const edgeRegionHeader = await getBrowserEdgeRegionHeader();
+    // Never awaited: the PoP is a hint, and waiting on its trace fetch put up
+    // to a second in front of requests.
+    const edgeRegionHeader = peekBrowserEdgeRegionHeader();
     for (const [name, value] of Object.entries(edgeRegionHeader)) headers.set(name, value);
     const activityIdHeader = getBrowserActivityIdHeader();
     for (const [name, value] of Object.entries(activityIdHeader)) headers.set(name, value);
@@ -1681,13 +1683,7 @@ export class HttpService {
    * identity-scoped variant `<key> id=*`.
    */
   clearCacheEntry(key: string): void {
-    this.cache.delete(key);
-    const identityVariantPrefix = `${key}${HttpService.CACHE_IDENTITY_DELIM}`;
-    for (const existing of this.cache.keys()) {
-      if (existing.startsWith(identityVariantPrefix)) {
-        this.cache.delete(existing);
-      }
-    }
+    this.invalidateCache({ keys: [key] });
   }
 
   /**
@@ -1699,14 +1695,39 @@ export class HttpService {
    * deleted entries (for observability in tests).
    */
   clearCacheByPrefix(prefix: string): number {
-    let removed = 0;
-    for (const key of this.cache.keys()) {
-      if (key.startsWith(prefix)) {
-        this.cache.delete(key);
-        removed++;
+    return this.invalidateCache({ prefixes: [prefix] });
+  }
+
+  /**
+   * Invalidate a set of LOGICAL keys (each with every identity-scoped variant,
+   * see `clearCacheEntry`) and key prefixes in ONE pass over the cache. A
+   * mutation touching many resources (a bulk follow) costs one scan, not one
+   * per resource.
+   * @returns Number of entries deleted
+   */
+  invalidateCache({ keys = [], prefixes = [] }: { keys?: readonly string[]; prefixes?: readonly string[] }): number {
+    if (keys.length === 0 && prefixes.length === 0) return 0;
+    const exact = new Set(keys);
+    const delim = HttpService.CACHE_IDENTITY_DELIM;
+    return this.cache.deleteWhere((stored) => {
+      const cut = stored.lastIndexOf(delim);
+      if (exact.has(cut === -1 ? stored : stored.slice(0, cut))) return true;
+      for (const prefix of prefixes) {
+        if (stored.startsWith(prefix)) return true;
       }
-    }
-    return removed;
+      return false;
+    });
+  }
+
+  /**
+   * Release this client: its response cache leaves the global cleanup sweep and
+   * is emptied, pending shared calls are forgotten, and the session ends.
+   */
+  dispose(): void {
+    unregisterCacheFromCleanup(this.cache);
+    this.cache.clear();
+    this.deduplicator.clear();
+    this.endSession();
   }
 
   getCacheStats() {

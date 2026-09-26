@@ -14,7 +14,7 @@
  *     gate + the on-device identity signature.
  *   - Nothing from the payload is ever rendered. The approval screen re-resolves
  *     the requesting application server-side from the code
- *     (`getCommonsApprovalInfo`), which is the only trusted identity source.
+ *     (`auth.commons.approvalInfo`), which is the only trusted identity source.
  *   - The `approvalUrl` is parsed with the SAME strict, dependency-free
  *     {@link parseApprovalLink} the QR scanner and deep links use, so the
  *     accepted scheme/host set is defined exactly once. Anything else — a

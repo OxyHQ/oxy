@@ -27,12 +27,10 @@ interface FollowServicesMock {
 
 const makeServices = (): { mock: FollowServicesMock; services: OxyServices } => {
   const mock: FollowServicesMock = {
-    getFollowStatuses: jest.fn(async (ids: string[]) =>
+    follows: { statuses: jest.fn(async (ids: string[]) =>
       Object.fromEntries(ids.map((id) => [id, false])),
-    ),
-    followUser: jest.fn(async () => ({ message: 'ok' })),
-    unfollowUser: jest.fn(async () => ({ message: 'ok' })),
-    getCurrentUserId: jest.fn(() => 'viewer-1'),
+    ), follow: jest.fn(async () => ({ message: 'ok' })), unfollow: jest.fn(async () => ({ message: 'ok' })) },
+    session: { get userId() { return (jest.fn(() => 'viewer-1'))(); } },
   };
   return { mock, services: mock as unknown as OxyServices };
 };
@@ -59,7 +57,7 @@ describe('setFollowStatuses (seed-only-if-absent)', () => {
 describe('resolveFollowStatuses (micro-batched)', () => {
   it('coalesces every id requested in one tick into a SINGLE call', async () => {
     const { mock, services } = makeServices();
-    mock.getFollowStatuses.mockImplementation(async (ids) =>
+    mock.follows.statuses.mockImplementation(async (ids) =>
       Object.fromEntries(ids.map((id) => [id, id === 'u1'])),
     );
 
@@ -69,8 +67,8 @@ describe('resolveFollowStatuses (micro-batched)', () => {
 
     await flush();
 
-    expect(mock.getFollowStatuses).toHaveBeenCalledTimes(1);
-    expect(mock.getFollowStatuses).toHaveBeenCalledWith(['u1', 'u2', 'u3']);
+    expect(mock.follows.statuses).toHaveBeenCalledTimes(1);
+    expect(mock.follows.statuses).toHaveBeenCalledWith(['u1', 'u2', 'u3']);
     expect(useFollowStore.getState().followingUsers).toEqual({ u1: true, u2: false, u3: false });
   });
 
@@ -82,8 +80,8 @@ describe('resolveFollowStatuses (micro-batched)', () => {
     store.resolveFollowStatuses(['u1', 'u2'], services);
     await flush();
 
-    expect(mock.getFollowStatuses).toHaveBeenCalledTimes(1);
-    expect(mock.getFollowStatuses).toHaveBeenCalledWith(['u2']);
+    expect(mock.follows.statuses).toHaveBeenCalledTimes(1);
+    expect(mock.follows.statuses).toHaveBeenCalledWith(['u2']);
     // The seeded false is preserved; u2 resolved.
     expect(useFollowStore.getState().followingUsers).toEqual({ u1: false, u2: false });
   });
@@ -96,7 +94,7 @@ describe('resolveFollowStatuses (micro-batched)', () => {
     store.resolveFollowStatuses(['u1', 'u2'], services);
     await flush();
 
-    expect(mock.getFollowStatuses).not.toHaveBeenCalled();
+    expect(mock.follows.statuses).not.toHaveBeenCalled();
   });
 });
 
@@ -104,7 +102,7 @@ describe('toggleFollowUser (optimistic)', () => {
   it('writes the new value BEFORE the await and reconciles on success', async () => {
     const { mock, services } = makeServices();
     let resolveFollow: (value: FollowMutationResult) => void = () => {};
-    mock.followUser.mockReturnValueOnce(
+    mock.follows.follow.mockReturnValueOnce(
       new Promise<FollowMutationResult>((resolve) => { resolveFollow = resolve; }),
     );
 
@@ -129,7 +127,7 @@ describe('toggleFollowUser (optimistic)', () => {
 
   it('rolls back to the prior definite value on error', async () => {
     const { mock, services } = makeServices();
-    mock.followUser.mockRejectedValueOnce(new Error('boom'));
+    mock.follows.follow.mockRejectedValueOnce(new Error('boom'));
 
     const store = useFollowStore.getState();
     store.setFollowStatuses({ u1: false });
@@ -144,7 +142,7 @@ describe('toggleFollowUser (optimistic)', () => {
 
   it('rolls back to UNKNOWN when there was no prior value', async () => {
     const { mock, services } = makeServices();
-    mock.followUser.mockRejectedValueOnce(new Error('nope'));
+    mock.follows.follow.mockRejectedValueOnce(new Error('nope'));
 
     const store = useFollowStore.getState();
     const accepted = await store.toggleFollowUser('u1', services, false);
@@ -159,7 +157,7 @@ describe('resetFollowState', () => {
   it('clears store data and in-flight micro-batch coordination', async () => {
     const { mock, services } = makeServices();
     let resolveBatch: ((value: Record<string, boolean>) => void) | undefined;
-    mock.getFollowStatuses.mockImplementation(
+    mock.follows.statuses.mockImplementation(
       () => new Promise<Record<string, boolean>>((resolve) => { resolveBatch = resolve; }),
     );
 

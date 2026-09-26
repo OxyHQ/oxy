@@ -2,7 +2,7 @@
  * Present-requester assertions (ADR 0025).
  *
  * A first-party product backend holding a signed-in person's live Oxy session
- * trades it with Oxy (`OxyServices.mintRequesterAssertion`) for a one-use,
+ * trades it with Oxy (`server.agency.mintRequesterAssertion`) for a one-use,
  * short-lived `OXY-REQUESTER+JWT`, and sends that — never the person's bearer —
  * to the audience service (Alia) beside its own service token. The audience
  * mounts {@link createOxyRequesterAssertionAuth} after `createOxyAuthMiddleware`
@@ -291,12 +291,15 @@ export interface OxyRequesterAssertionIntrospection {
   readonly expiresAt?: string;
 }
 
+/** What the audience middleware needs of its `OxyServer`. */
 export interface OxyRequesterAssertionIntrospector {
-  introspectRequesterAssertion(input: {
-    assertion: string;
-    presenter: { applicationId: string; credentialId: string };
-  }): Promise<OxyRequesterAssertionIntrospection>;
-  getBaseURL(): string;
+  readonly baseURL: string;
+  readonly agency: {
+    introspectRequesterAssertion(input: {
+      assertion: string;
+      presenter: { applicationId: string; credentialId: string };
+    }): Promise<OxyRequesterAssertionIntrospection>;
+  };
 }
 
 /** What the audience learns about the present requester. */
@@ -358,8 +361,8 @@ function singleHeader(req: Request, name: string): string | null | 'invalid' {
  * token. Mount it after `createOxyAuthMiddleware`. Without the header it does
  * nothing, so it composes with every other lane.
  *
- * `introspector` must be an `OxyServices` configured with THIS service's own
- * credential (`configureServiceAuth`): Oxy only lets the audience's application
+ * `introspector` is this service's `OxyServer`, holding THIS service's own
+ * credential: Oxy only lets the audience's application
  * consume an assertion.
  */
 export function createOxyRequesterAssertionAuth(
@@ -371,7 +374,7 @@ export function createOxyRequesterAssertionAuth(
   const resolver = (): ((keyId: string) => Promise<KeyObject | undefined>) => {
     resolvePublicKey ??= createOxyJwksKeyResolver({
       jwksUrl: options.jwksUrl
-        ?? new URL('/capabilities/.well-known/jwks.json', introspector.getBaseURL()).toString(),
+        ?? new URL('/capabilities/.well-known/jwks.json', introspector.baseURL).toString(),
     });
     return resolvePublicKey;
   };
@@ -429,7 +432,7 @@ export function createOxyRequesterAssertionAuth(
 
     let introspection: OxyRequesterAssertionIntrospection;
     try {
-      introspection = await introspector.introspectRequesterAssertion({
+      introspection = await introspector.agency.introspectRequesterAssertion({
         assertion,
         presenter: { applicationId: serviceApp.appId, credentialId: serviceApp.credentialId },
       });

@@ -80,7 +80,7 @@ jest.mock('@oxy.so/protocol', () => {
     loadAsyncStorage: async () => ({ default: asyncStorage }),
     loadSharedIdentityBridge: async () => null,
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    loadNodeCrypto: async () => require('crypto'),
+    loadNodeCrypto: async () => require('node:crypto'),
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     getRandomBytesRN: (n: number) => require('expo-crypto').getRandomBytes(n),
   };
@@ -111,7 +111,7 @@ describe('KeyManager safety invariants', () => {
     // KeyManager refuses to operate on 'web'; pretend we're on iOS for tests.
     setPlatformOS('ios');
     // navigator.product is checked by some helpers; set it for RN-detection.
-    (globalThis as any).navigator = { product: 'ReactNative' };
+    (globalThis as { navigator?: unknown }).navigator = { product: 'ReactNative' };
   });
 
   beforeEach(async () => {
@@ -213,7 +213,7 @@ describe('KeyManager safety invariants', () => {
       await KeyManager.createIdentity();
       const store = (await import('expo-secure-store' as string)) as unknown as SecureStoreTestHandle;
       // Tamper with the stored public key
-      store.__setRaw__(V2_PUB, '04' + 'b'.repeat(128), PRIMARY_SVC);
+      store.__setRaw__(V2_PUB, `04${'b'.repeat(128)}`, PRIMARY_SVC);
       resetCaches();
       expect(await KeyManager.hasIdentity()).toBe(false);
     });
@@ -228,7 +228,7 @@ describe('KeyManager safety invariants', () => {
     it('returns false when the stored keys do not match', async () => {
       await KeyManager.createIdentity();
       const store = (await import('expo-secure-store' as string)) as unknown as SecureStoreTestHandle;
-      store.__setRaw__(V2_PUB, '04' + 'c'.repeat(128), PRIMARY_SVC);
+      store.__setRaw__(V2_PUB, `04${'c'.repeat(128)}`, PRIMARY_SVC);
       resetCaches();
       expect(await KeyManager.verifyIdentityIntegrity()).toBe(false);
     });
@@ -248,7 +248,7 @@ describe('KeyManager safety invariants', () => {
       const store = (await import('expo-secure-store' as string)) as unknown as SecureStoreTestHandle;
       // Corrupt the primary public key (so integrity fails), but leave the
       // broken primary in place. The backup will not match.
-      store.__setRaw__(V2_PUB, '04' + 'd'.repeat(128), PRIMARY_SVC);
+      store.__setRaw__(V2_PUB, `04${'d'.repeat(128)}`, PRIMARY_SVC);
       // Tamper with the backup too — write a backup from a completely
       // different identity.
       const otherPair = await KeyManager.generateKeyPair();

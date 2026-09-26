@@ -1,5 +1,29 @@
 # Changelog: `@oxy.so/api`
 
+## Unreleased
+
+### Removed
+
+- **Breaking:** reputation staff routes — `POST /reputation/rules`,
+  `POST /reputation/transactions/:id/reverse`, `POST /reputation/transactions/:id/void`,
+  `POST /reputation/:userId/recalculate`, `GET /reputation/disputes`,
+  `POST /reputation/disputes/:id/resolve` — and disputes (`POST /reputation/disputes`,
+  `GET /reputation/:userId/disputes`). Staff get no special view of a balance,
+  a ledger or influence weights. `POST /reputation/award` takes a service token only.
+- Reputation rules are code (`src/services/reputationRules.ts`, versioned);
+  `GET /reputation/rules` returns `{ version, rules }`. Migration
+  `0119_reputation_rules_in_code` (post-deploy) drops `reputation_rules` and
+  `reputation_disputes`.
+- `GET /auth/lookup/:username`, `GET /accounts/:id/children`,
+  `GET /users/me/data` (use `GET /users/me/export`) and the
+  `/accounts/service/channels*` provisioning routes with their
+  `accounts:provision` scope.
+
+### Fixed
+
+- A reversed confirmed report no longer counts toward report accuracy through
+  its compensating entry.
+
 ## 2.0.0
 
 ### Licence: this package moves to the Breathe License 1.0

@@ -1,7 +1,7 @@
 /**
  * Drives the on-demand "Verify" action on the credential detail screen (Fase 4).
  *
- * `oxyServices.verifyCredential(recordId)` re-checks the credential's signature
+ * `oxyServices.civic.credentials.verify(recordId)` re-checks the credential's signature
  * against a CURRENT verification method of the issuer DID (server-side, from the
  * stored envelope) and confirms it is neither revoked nor expired, resolving to
  * `{ valid, reason?, credential }`. It does NOT throw on an untrusted credential
@@ -55,7 +55,7 @@ export function useVerifyCredential(recordId: string | null): UseVerifyCredentia
     setState('verifying');
     setReasonCode(null);
     try {
-      const res = await oxyServices.verifyCredential(recordId);
+      const res = await oxyServices.civic.credentials.verify(recordId);
       setResult(res);
       if (res.valid) {
         setState('valid');

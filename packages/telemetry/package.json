@@ -134,6 +134,8 @@
     "@types/jest": "^30.0.0",
     "jest": "^30.5.1",
     "jest-environment-jsdom": "catalog:",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "catalog:",
     "ts-jest": "^29.4.12",
     "typescript": "^5.9.2"
   }

@@ -177,7 +177,7 @@ would then be enforced against a value that is not true.
 Merged source contains the reviewed exact-route bootstrap, but its presence does
 not prove an operator applied it. The last recorded production readback was
 empty on 2026-08-17. For any entry visible to the caller now,
-`oxy.inference().getModel(id)` returns its conservative policy projection. Query
+`createInferenceClient(oxy).getModel(id)` (`@oxy.so/core/inference`) returns its conservative policy projection. Query
 the live audience rather than assuming either the dated empty state or source
 bootstrap reflects current production.
 

@@ -12,7 +12,7 @@
  *      one entry into it.
  *   2. The surface resolves with the cropped JPEG, with `{ removed: true }` when
  *      the user removed their photo, or `undefined` when they cancelled.
- *   3. A crop is uploaded as a NEW file via `oxyServices.assetUpload` and set as
+ *   3. A crop is uploaded as a NEW file via `oxyServices.assets.upload` and set as
  *      the avatar; a removal clears the avatar field.
  *
  * `expo-image-manipulator` is required for the crop step and `expo-image-picker`
@@ -36,7 +36,7 @@ interface UseAvatarPickerOptions {
   queryClient: QueryClient;
 }
 
-/** Upload result shape returned by oxyServices.assetUpload (single-file path). */
+/** Upload result shape returned by oxyServices.assets.upload (single-file path). */
 interface AssetUploadResult {
   file?: { id?: string };
   files?: Array<{ id?: string }>;
@@ -65,13 +65,13 @@ export function useAvatarPicker({
   const finalizeCroppedAvatar = useCallback(
     async (cropped: AvatarCropResult) => {
       try {
-        const uploadResult = (await oxyServices.assetUpload(
+        const uploadResult = (await oxyServices.assets.upload(
           {
             uri: cropped.uri,
             type: cropped.mime,
             name: `avatar-${Date.now()}.jpg`,
           },
-          'public',
+          { visibility: 'public' },
         )) as AssetUploadResult;
 
         const newFileId = extractUploadedFileId(uploadResult);

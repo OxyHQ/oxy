@@ -12,7 +12,7 @@
  * Not a test file (no `.test.ts` suffix) — imported by the suites.
  */
 
-import { KeyManager } from '@oxy.so/core';
+import { KeyManager } from '@oxy.so/core/crypto';
 import { signedRecordSigningInput, signMessage, computeRecordId } from '@oxy.so/protocol';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 

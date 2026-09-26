@@ -82,7 +82,7 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
     setError(null);
     setPending(true);
     oxyServices
-      .enrollTotp()
+      .auth.totp.enroll()
       .then((enrollment) => {
         setCode('');
         setStep({ name: 'enroll', enrollment });
@@ -143,7 +143,7 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
           submitLabel={t('signInSecurity.totp.enable')}
           validate={() => (new RegExp(`^\\d{${TOTP_DIGITS}}$`).test(code.trim()) ? null : t('signin.errors.secondFactorInvalid'))}
           onSubmit={async (reauth) => {
-            const codes = await oxyServices.confirmTotp(code.trim(), reauth);
+            const codes = await oxyServices.auth.totp.confirm(code.trim(), reauth);
             refresh();
             toast.success(t('signInSecurity.totp.enabled'));
             setStep({ name: 'codes', codes });
@@ -186,7 +186,7 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
           totpEnabled
           submitLabel={t('signInSecurity.totp.regenerate')}
           onSubmit={async (reauth) => {
-            const codes = await oxyServices.regenerateTotpBackupCodes(reauth);
+            const codes = await oxyServices.auth.totp.regenerateBackupCodes(reauth);
             refresh();
             setStep({ name: 'codes', codes });
           }}
@@ -204,7 +204,7 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
           submitLabel={t('signInSecurity.totp.disable')}
           destructive
           onSubmit={async (reauth) => {
-            await oxyServices.disableTotp(reauth);
+            await oxyServices.auth.totp.disable(reauth);
             refresh();
             toast.success(t('signInSecurity.totp.disabled'));
             setStep({ name: 'status' });

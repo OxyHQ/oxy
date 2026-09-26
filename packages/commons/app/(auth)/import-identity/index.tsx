@@ -1,10 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import {
-  RecoveryPhraseService,
-  IdentityAlreadyExistsError,
-  IdentityUnavailableError,
-} from '@oxy.so/core';
+import { RecoveryPhraseService, IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core/crypto';
 import { useColors } from '@/hooks/useColors';
 import { ImportPhraseStep } from '@/components/auth/ImportPhraseStep';
 import { extractAuthErrorMessage } from '@/utils/auth/errorUtils';

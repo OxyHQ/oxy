@@ -38,14 +38,14 @@ export async function ensureValidToken(
   _activeSessionId: string | null | undefined,
   syncSession?: () => Promise<unknown>
 ): Promise<void> {
-  if (oxyServices.hasValidToken()) {
+  if (oxyServices.session.isAuthenticated) {
     return;
   }
 
   if (syncSession) {
     try {
       await syncSession();
-      if (oxyServices.hasValidToken()) {
+      if (oxyServices.session.isAuthenticated) {
         return;
       }
     } catch (syncError) {

@@ -64,7 +64,7 @@ export function ProfileScreen() {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      oxyServices.getUserFollowers(user.id)
+      oxyServices.follows.followers(user.id)
         .then(result => setFollowers(result.followers));
     }
   }, [isAuthenticated, user]);
@@ -140,8 +140,8 @@ function AvatarUpload() {
       const blob = await response.blob();
       const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
       
-      const uploaded = await oxyServices.uploadRawFile(file, 'public');
-      await oxyServices.updateProfile({ avatar: uploaded.file.id });
+      const uploaded = await oxyServices.assets.upload(file, { visibility: 'public' });
+      await oxyServices.users.updateMe({ avatar: uploaded.file.id });
     }
   };
 
@@ -218,8 +218,10 @@ For server components, use the core API directly:
 
 ```typescript
 // app/api/users/route.ts
-import { oxyClient } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 import { NextResponse } from 'next/server';
+
+const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -230,7 +232,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const user = await oxyClient.getUserById(userId);
+    const user = await oxy.users.get(userId);
     return NextResponse.json(user);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -276,7 +278,7 @@ function FileUpload() {
     if (!file) return;
 
     try {
-      const uploaded = await oxyServices.uploadRawFile(file, 'public');
+      const uploaded = await oxyServices.assets.upload(file, { visibility: 'public' });
       console.log('Uploaded:', uploaded);
     } catch (error) {
       console.error('Upload failed:', error);
@@ -304,24 +306,14 @@ bun add @oxy.so/services express
 ```typescript
 // server.ts
 import express from 'express';
-import { oxyClient } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 
 const app = express();
-app.use(express.json());
+const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
 
-// Authentication endpoint
-app.post('/api/auth/signin', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    const session = await oxyClient.signIn(username, password);
-    res.json(session);
-  } catch (error: any) {
-    res.status(401).json({ error: error.message });
-  }
-});
-
-// Protected route using middleware
-app.use('/api/protected', oxyClient.auth());
+// Sign-in happens in the client (OxyProvider / OxyAccountDialog); the backend
+// only verifies the Oxy bearer the client sends.
+app.use('/api/protected', oxy.middleware.auth());
 
 app.get('/api/protected/user', (req: any, res) => {
   res.json({ user: req.user });
@@ -335,16 +327,16 @@ app.listen(3000, () => {
 ### Custom Instance
 
 ```typescript
-import { OxyServices } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 
-const oxy = new OxyServices({
+const oxy = new OxyServer({
   baseURL: process.env.OXY_API_URL || 'https://api.oxy.so'
 });
 
 // Use in routes
 app.get('/api/users/:id', async (req, res) => {
   try {
-    const user = await oxy.getUserById(req.params.id);
+    const user = await oxy.users.get(req.params.id);
     res.json(user);
   } catch (error: any) {
     res.status(404).json({ error: error.message });
@@ -355,7 +347,7 @@ app.get('/api/users/:id', async (req, res) => {
 ### Advanced: Custom Error Handling
 
 ```typescript
-app.use('/api/protected', oxyClient.auth({
+app.use('/api/protected', oxy.middleware.auth({
   debug: process.env.NODE_ENV === 'development',
   onError: (error) => {
     console.error('Auth error:', error);
@@ -379,56 +371,29 @@ bun add @oxy.so/services
 
 ```typescript
 // composables/useOxy.ts
-import { ref, onMounted } from 'vue';
-import { oxyClient } from '@oxy.so/core';
+import { ref } from 'vue';
+import { OxyServices, type User } from '@oxy.so/core';
+
+// One client for the app. Sign-in is the standard OAuth + PKCE flow against
+// auth.oxy.so (see docs/auth/integration-guide.md); plant the token it returns.
+export const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 
 export function useOxy() {
-  const user = ref(null);
-  const isAuthenticated = ref(false);
-  const loading = ref(false);
+  const user = ref<User | null>(null);
+  const isAuthenticated = ref(oxy.session.isAuthenticated);
 
-  const login = async (username: string, password: string) => {
-    loading.value = true;
-    try {
-      const session = await oxyClient.signIn(username, password);
-      await oxyClient.setTokens(session.token);
-      user.value = session.user;
-      isAuthenticated.value = true;
-    } catch (error) {
-      console.error('Login failed:', error);
-      throw error;
-    } finally {
-      loading.value = false;
-    }
+  const fetchUser = async () => {
+    user.value = await oxy.users.me();
+    isAuthenticated.value = true;
   };
 
-  const logout = async () => {
-    await oxyClient.logout();
+  const signOut = () => {
+    oxy.session.clear();
     user.value = null;
     isAuthenticated.value = false;
   };
 
-  const fetchUser = async () => {
-    try {
-      user.value = await oxyClient.getCurrentUser();
-      isAuthenticated.value = true;
-    } catch (error) {
-      isAuthenticated.value = false;
-    }
-  };
-
-  onMounted(() => {
-    fetchUser();
-  });
-
-  return {
-    user,
-    isAuthenticated,
-    loading,
-    login,
-    logout,
-    oxyServices: oxyClient
-  };
+  return { user, isAuthenticated, fetchUser, signOut };
 }
 ```
 
@@ -551,7 +516,7 @@ const [data, setData] = useState(null);
 
 useEffect(() => {
   if (isAuthenticated) {
-    oxyServices.getCurrentUser()
+    oxyServices.users.me()
       .then(setData)
       .catch(console.error);
   }
@@ -564,7 +529,7 @@ useEffect(() => {
 import { OxyAuthenticationError } from '@oxy.so/services';
 
 try {
-  await oxyServices.getCurrentUser();
+  await oxyServices.users.me();
 } catch (error) {
   if (error instanceof OxyAuthenticationError) {
     // Handle auth errors

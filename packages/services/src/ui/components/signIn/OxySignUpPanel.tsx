@@ -96,14 +96,14 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
       return;
     }
     run(async () => {
-      const { available } = await oxyServices.checkUsernameAvailability(handle);
+      const { available } = await oxyServices.auth.checkUsername(handle);
       if (!available) throw new UsernameTakenError();
       setStep({ name: 'email' });
     });
   };
 
   const sendCode = async (address: string) => {
-    const { verificationId } = await oxyServices.startEmailVerification({ purpose: 'signup', email: address });
+    const { verificationId } = await oxyServices.auth.email.startVerification({ purpose: 'signup', email: address });
     setStep({ name: 'code', verificationId });
   };
 
@@ -120,7 +120,7 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
   // The code step reports this promise's failure in place.
   const createAccount = async ({ ticket }: EmailVerificationConfirmResponse): Promise<void> => {
     try {
-      const session = await oxyServices.signUp({ username: username.trim(), email, emailTicket: ticket });
+      const session = await oxyServices.auth.signUp({ username: username.trim(), email, emailTicket: ticket });
       await handleWebSession(session);
       writeSignInFlow(flowOwner, SIGN_UP_FLOW_KEY, undefined);
     } catch (reason) {

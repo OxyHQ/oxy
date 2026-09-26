@@ -35,7 +35,6 @@ import { validationRequests } from '../../db/schema/validationRequests';
 import { users } from '../../db/schema/users';
 import { buildUserDid } from '../did.service';
 import { signRecordEnvelope, verifyAndStoreRecord } from '../signedRecord.service';
-import { reputationService } from '../reputation.service';
 import {
   openPersonhoodAudit,
   resolvePersonhoodAuditOutcome,
@@ -161,7 +160,6 @@ async function ledgerRows(userId: string) {
 
 beforeAll(async () => {
   await connectPostgres();
-  await reputationService.seedDefaultRules();
 });
 
 afterAll(async () => {

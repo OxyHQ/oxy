@@ -68,7 +68,7 @@ export async function completeOAuthCode(
   }
 
   try {
-    const result = await input.oxyServices.exchangeOAuthCode({
+    const result = await input.oxyServices.auth.oauth.exchangeCode({
       code: input.code,
       clientId: input.clientId,
       redirectUri: input.redirectUri,

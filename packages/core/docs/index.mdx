@@ -14,12 +14,15 @@ The platform-agnostic foundation of the Oxy SDK. **Zero React, zero React Native
 
 `@oxy.so/core` is the universal client, session, and crypto layer for the Oxy platform. The UI SDK (`@oxy.so/services`, for Expo/RN and web via React Native Web) builds on top of it. Use core directly when you need API access from a Node server, an Edge runtime, a service worker, or anywhere React is not in play.
 
-The package ships two public entry points:
+Entry points:
 
-- `@oxy.so/core` — `OxyServices` client + mixins, `SessionClient` and the device-first cold boot, models, error types, platform helpers, `KeyManager` / `SignatureService` / `RecoveryPhraseService`, OAuth + PKCE helpers, and the shared color/theme/error utilities used across the Oxy ecosystem
-- `@oxy.so/core/server` — Express-only helpers for request identity, rate limiting, CORS, SSRF-safe fetch, and constant-time secret comparison
+- `@oxy.so/core` — the `OxyServices` client and its namespaces, `OxyApiError`, models, OAuth + PKCE helpers, and the shared utilities
+- `@oxy.so/core/session` — `SessionClient`, the account dialog controller and the device-first cold boot
+- `@oxy.so/core/crypto` — `KeyManager` / `SignatureService` / `RecoveryPhraseService` and the primitives under them
+- `@oxy.so/core/civic`, `@oxy.so/core/inference`, `@oxy.so/core/logger`
+- `@oxy.so/core/server` — `OxyServer` and the Express helpers for request identity, rate limiting, CORS, SSRF-safe fetch, and constant-time secret comparison
 
-All client/runtime symbols below are reachable from the package root. Server-only Express helpers live under `@oxy.so/core/server` so browser and React Native bundles never import Express.
+Each heavy piece has its own entry so an app ships only what it uses; browser and React Native bundles never import Express.
 
 ## Install
 
@@ -40,39 +43,23 @@ const oxy = new OxyServices({
   cloudURL: 'https://cloud.oxy.so',
 });
 
-oxy.setTokens('ACCESS_TOKEN');
-const me: User = await oxy.getCurrentUser();
+oxy.session.setAccessToken('ACCESS_TOKEN');
+const me: User = await oxy.users.me();
 ```
 
 ## Core concepts
 
-### OxyServices and mixins
+### OxyServices and its namespaces
 
-`OxyServices` is composed from feature-specific mixins (`src/mixins/`); methods live directly on the instance:
-
-| Mixin | Source | Representative methods |
-|-------|--------|------------------------|
-| Auth | `OxyServices.auth.ts` | `signIn`, `signUp`, `requestChallenge`, `verifyChallenge`, `getServiceToken` |
-| Device session mint | `OxyServices.deviceBoot.ts` | `mintFromDeviceSecret` (zero-cookie `{deviceId, deviceSecret}` → access token) |
-| User | `OxyServices.user.ts` | `getCurrentUser`, `getUserById`, `getProfileByUsername`, `updateProfile` |
-| Assets | `OxyServices.assets.ts` | `assetUpload`, `getFileDownloadUrl`, `listUserFiles` |
-| Privacy | `OxyServices.privacy.ts` | `getPrivacySettings`, `updatePrivacySettings` |
-| Contacts | `OxyServices.contacts.ts` | `discoverContacts` (privacy-first, hashed identifiers) |
-| Security | `OxyServices.security.ts` | sessions, devices, 2FA, security activity |
-| Payment | `OxyServices.payment.ts` | payment methods, billing |
-| Accounts | `OxyServices.accounts.ts` | account graph (orgs, projects, shared accounts), `switchToAccount` |
-| Connected apps | `OxyServices.connectedApps.ts` | OAuth grants list / revoke |
-| Identity | `OxyServices.identity.ts` | DID resolution, signed records, domain verification |
-
-All methods return typed promises; errors throw `ApiError` subclasses you can narrow with helpers like `isInvalidSessionError`, `isRateLimitError`.
+`OxyServices` is a small client plus one namespace per API area — `oxy.users`, `oxy.assets`, `oxy.follows`, `oxy.auth`, `oxy.identity`, … — each created on first use. Every call rejects with `OxyApiError` (`status`, `code`, `details`). The full map, conventions and the server client are in [API](./api.mdx).
 
 ### Device-first sessions
 
 The server-side `DeviceSession` is the single session authority: one document per device holding the signed-in accounts, the active account, and a revision counter. Core owns the client half of that contract:
 
-- **`SessionClient`** (`src/session/`) — fetches `GET /session/device/state`, mutates via `POST /session/device/{add,switch,signout}`, and applies `session_state` socket pushes (room `device:<deviceId>`, token-free payload) so every Oxy app on the same device syncs instantly.
-- **`runSessionColdBoot`** (`src/boot/sessionColdBoot.ts`) — deterministic, short-circuit cold boot. Restores silently when device state exists; otherwise resolves logged-out. It never redirects to a login page.
-- **Zero-cookie transport** — every successful sign-in returns `deviceId` + a 256-bit `deviceSecret`, persisted first-party (localStorage per web origin; SecureStore on native). `mintFromDeviceSecret` (`OxyServices.deviceBoot.ts`) POSTs `{ deviceId, deviceSecret }` to `POST /session/device/token` (no bearer, no cookies) to mint/refresh a short access token and rotate the secret in-use. There is no cookie, no refresh-token family, and no `#oxy_boot` bootstrap hop. Full API and socket contract: [device sessions](../../../docs/auth/device-session.md).
+- **`SessionClient`** (`@oxy.so/core/session`) — fetches `GET /session/device/state`, mutates via `POST /session/device/{add,switch,signout}`, and applies `session_state` socket pushes (room `device:<deviceId>`, token-free payload) so every Oxy app on the same device syncs instantly.
+- **`runSessionColdBoot`** (`@oxy.so/core/session`) — deterministic, short-circuit cold boot. Restores silently when device state exists; otherwise resolves logged-out. It never redirects to a login page.
+- **Zero-cookie transport** — every successful sign-in returns `deviceId` + a 256-bit `deviceSecret`, persisted first-party (localStorage per web origin; SecureStore on native). `oxy.devices.mintToken` POSTs `{ deviceId, deviceSecret }` to `POST /session/device/token` (no bearer, no cookies) to mint/refresh a short access token and rotate the secret in-use. There is no cookie, no refresh-token family, and no `#oxy_boot` bootstrap hop. Full API and socket contract: [device sessions](../../../docs/auth/device-session.md).
 
 React apps do not use `SessionClient` directly — `OxyProvider` from `@oxy.so/services` wires it up.
 
@@ -142,58 +129,56 @@ names from `name.first`, `name.last`, `name.full`, or `username`.
 For backend-to-backend calls inside the Oxy ecosystem, register an `Application` with an `ApplicationCredential` of `type: 'service'` and use the OAuth2 client-credentials flow. The credential's `publicKey` (`oxy_dk_…`) is the client id; the secret is shown once at create/rotate time:
 
 ```ts
-const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-oxy.configureServiceAuth('oxy_dk_…', 'secret…');
+import { OxyServer } from '@oxy.so/core/server';
+
+const oxy = new OxyServer({
+  baseURL: 'https://api.oxy.so',
+  serviceAuth: { apiKey: 'oxy_dk_…', apiSecret: 'secret…' },
+});
 
 // Auto-cached, auto-refreshed service JWT.
-const token = await oxy.getServiceToken();
+const token = await oxy.serviceToken();
 
-// Or delegate as a specific user with one call:
-const result = await oxy.makeServiceRequest('POST', '/some/endpoint', body, userId);
+// Or act as a specific user with one call:
+const result = await oxy.serviceRequest('POST', '/some/endpoint', body, { actAs: userId });
 ```
 
-The API recognises service tokens (`type: 'service'` in the JWT payload) statelessly — no session lookup, no DB round-trip. Wrap protected endpoints with `oxy.serviceAuth()` middleware. See [Service Tokens](../../../docs/SERVICE_TOKENS.md).
+The API recognises service tokens (`type: 'service'` in the JWT payload) statelessly — no session lookup, no DB round-trip. Wrap protected endpoints with `oxy.middleware.service()`. See [Service Tokens](../../../docs/SERVICE_TOKENS.md).
 
 ### HTTP service
 
-`OxyServices` shares a single `HttpService` instance (`oxy.httpService`) that handles:
-
-- Bearer token attachment + refresh
-- Request deduplication
-- Per-prefix in-memory cache (`clearCacheByPrefix` clears specific paths)
-- Retry with exponential backoff for 5xx / network errors
-- Request queuing during token refresh
+`OxyServices` shares a single `HttpService` instance (`oxy.http`) that handles bearer refresh, identity-scoped GET caching (`oxy.cache`), deduplication of concurrent GETs, retry of idempotent methods, and a bounded request queue. Details in [API → The transport](./api.mdx#the-transport).
 
 ## Common patterns
 
 ### Sign in with a recovery phrase
 
 ```ts
-import { OxyServices, RecoveryPhraseService, SignatureService } from '@oxy.so/core';
+import { OxyServices } from '@oxy.so/core';
+import { RecoveryPhraseService, SignatureService } from '@oxy.so/core/crypto';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 
 const publicKey = await RecoveryPhraseService.restoreFromPhrase(mnemonic);
 
-const { challenge } = await oxy.requestChallenge(publicKey);
+const { challenge } = await oxy.auth.requestChallenge(publicKey);
 const signed = await SignatureService.signChallenge(challenge);
-const session = await oxy.verifyChallenge(
+const session = await oxy.auth.verifyChallenge(
   signed.publicKey,
   challenge,
   signed.challenge, // the signature over the auth message
   signed.timestamp,
 );
-// verifyChallenge plants the access token internally — no manual setTokens needed.
+// verifyChallenge plants the access token itself.
 ```
 
 ### Update profile and bust the cache
 
 ```ts
-await oxy.updateProfile({ name: { first: 'Ada' } });
-// updateProfile already clears `GET:/users/me`, `GET:/session/user/`,
-// and `GET:/profiles/username/` — but if you have custom cached
-// reads, call clearCacheByPrefix yourself.
-oxy.httpService.clearCacheByPrefix('GET:/my-custom-endpoint/');
+await oxy.users.updateMe({ name: { first: 'Ada' } });
+// updateMe already clears every cached read of this user; for your own
+// cached reads through oxy.request, clear them yourself.
+oxy.cache.deletePrefix('GET:/my-custom-endpoint/');
 ```
 
 ### Privacy-first contact discovery
@@ -208,7 +193,7 @@ const sha256Hex = async (input: string) => {
 };
 
 const emailHashes = await Promise.all(emails.map(sha256Hex));
-const matches = await oxy.discoverContacts(emailHashes, []);
+const matches = await oxy.contacts.discover(emailHashes, []);
 // Only matching Oxy users come back; raw emails never leave the device.
 ```
 
@@ -227,4 +212,4 @@ Treat the private key as load-bearing — never log it, never send it over the w
 
 ## API surface
 
-The auto-generated TypeDoc reference (see the **API Reference** section in the sidebar) covers every exported symbol, including all mixin methods, type aliases, and helper utilities.
+The auto-generated TypeDoc reference (see the **API Reference** section in the sidebar) covers every exported symbol: the namespace classes, type aliases, and helper utilities.

@@ -147,7 +147,7 @@ describe('deep-link preservation across the authorize round trip', () => {
     });
 
     const result = await tryCompleteOAuthReturn({
-      oxyServices: { exchangeOAuthCode } as never,
+      oxyServices: { auth: { oauth: { exchangeCode: exchangeOAuthCode } } } as never,
       clientId: 'oxy_dk_test',
       commitSession,
     });
@@ -179,7 +179,7 @@ describe('deep-link preservation across the authorize round trip', () => {
     });
 
     const result = await tryCompleteOAuthReturn({
-      oxyServices: { exchangeOAuthCode } as never,
+      oxyServices: { auth: { oauth: { exchangeCode: exchangeOAuthCode } } } as never,
       clientId: 'oxy_dk_test',
       commitSession,
     });

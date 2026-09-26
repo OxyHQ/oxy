@@ -94,14 +94,15 @@ export default function DataScreen() {
     });
   }, [t]);
 
-  const downloadFormat = useCallback(async (format: 'json' | 'csv') => {
+  // The signed export (GET /users/me/export): one JSON bundle of everything the
+  // account holds, signed so it can be verified away from Oxy.
+  const downloadExport = useCallback(async () => {
     if (!oxyServices) return;
     setIsDownloading(true);
     try {
-      const blob = await oxyServices.downloadAccountData(format);
-      const filename = `account-data-${Date.now()}.${format}`;
-      const mimeType = format === 'json' ? 'application/json' : 'text/csv';
-      await saveBlob(blob, filename, mimeType);
+      const bundle = await oxyServices.identity.export();
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      await saveBlob(blob, `account-data-${Date.now()}.json`, 'application/json');
       toast.success(t('data.download.successMessage'));
     } catch (error) {
       const message = error instanceof Error ? error.message : t('data.download.failedDefault');
@@ -117,11 +118,10 @@ export default function DataScreen() {
       t('data.download.promptMessage'),
       [
         { text: t('common.cancel'), style: 'cancel' },
-        { text: 'JSON', onPress: () => downloadFormat('json') },
-        { text: 'CSV', onPress: () => downloadFormat('csv') },
+        { text: t('data.download.confirm'), onPress: () => downloadExport() },
       ]
     );
-  }, [downloadFormat, t]);
+  }, [downloadExport, t]);
 
   // Handle delete account. An account WITHOUT a key confirms with a code by
   // email in the SDK's own panel. A keyed account's deletion is signed with its

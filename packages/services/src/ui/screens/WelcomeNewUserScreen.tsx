@@ -60,7 +60,7 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
     // user removes their photo, which a "last non-empty value" mirror could not
     // represent.
     const avatarUri = currentUser?.avatar
-        ? oxyServices.getFileDownloadUrl(currentUser.avatar, 'thumb')
+        ? oxyServices.assets.publicUrl(currentUser.avatar, 'thumb')
         : undefined;
 
     // API DTO contract: explicit displayName, else the normalized handle.

@@ -11,7 +11,7 @@ bun add @oxy.so/core
 ## Contents
 
 - **OxyServices API client** — all API methods for interacting with OxyHQ services
-- **Device-first session engine** — `SessionClient` (`src/session/`), `runSessionColdBoot`, and the device-session mixin that back `OxyProvider` in `@oxy.so/services`
+- **Device-first session engine** — `SessionClient` (`src/session/`), `runSessionColdBoot` and `oxy.devices.mintToken` (all in `@oxy.so/core/session` + the client), which back `OxyProvider` in `@oxy.so/services`
 - **OAuth helpers** — `generatePkcePair`, `generateOAuthState`, `buildOAuthAuthorizeUrl` for third-party "Sign in with Oxy" (see [docs/auth/integration-guide.md](../../docs/auth/integration-guide.md))
 - **Crypto** — KeyManager, SignatureService, RecoveryPhraseService
 - **Models and types** — User, ApiError, ClientSession, and more
@@ -27,19 +27,25 @@ bun add @oxy.so/core
 
 The package exposes two public entry points:
 
-- `@oxy.so/core` — main entry (API client, session, crypto, models, shared utilities, i18n, platform, device)
-- `@oxy.so/core/server` — Express-only helpers (`createOxyRateLimit`, `createOxyAuthMiddleware`, `requireOxyAuth`, `getOxyUserId`, `getRequiredOxyUserId`, `createOxyCors`, `createOxySecurityHeaders`, `buildOxyCspDirectives`, `safeFetch`, `verifySecret`, and request types)
+- `@oxy.so/core` — the `OxyServices` client and its namespaces, `OxyApiError`, models, shared utilities, i18n, platform helpers
+- `@oxy.so/core/session` — `SessionClient`, the account dialog controller, auth-state stores, cold boot
+- `@oxy.so/core/crypto` — `KeyManager`, `SignatureService`, `RecoveryPhraseService` and the primitives under them
+- `@oxy.so/core/civic`, `@oxy.so/core/inference`, `@oxy.so/core/logger`
+- `@oxy.so/core/server` — `OxyServer` (service tokens, `middleware.*`) and the Express helpers (`createOxyRateLimit`, `createOxyAuthMiddleware`, `requireOxyAuth`, `getOxyUserId`, `getRequiredOxyUserId`, `createOxyCors`, `createOxySecurityHeaders`, `buildOxyCspDirectives`, `safeFetch`, `verifySecret`, and request types)
 
-All client/runtime symbols (including `SessionClient`, `KeyManager`, `SignatureService`, `RecoveryPhraseService`, and the shared color / theme / error / network / debug helpers) are re-exported from the package root. Server-only Express helpers live under `@oxy.so/core/server` so React Native and browser bundles never import Express.
+Heavy pieces have their own entries so an app ships only what it uses; React Native and browser bundles never import Express. The full API map is [docs/api.mdx](./docs/api.mdx).
 
 ## Usage
 
 ```ts
-import { OxyServices, oxyClient, KeyManager } from '@oxy.so/core';
-import type { User, ApiError } from '@oxy.so/core';
+import { OxyServices } from '@oxy.so/core';
+import { KeyManager } from '@oxy.so/core/crypto';
+import type { User } from '@oxy.so/core';
+
+const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 
 // Get user
-const user = await oxyClient.getUserById('123');
+const user: User = await oxy.users.get('123');
 
 // Crypto (KeyManager methods are static)
 const hasIdentity = await KeyManager.hasIdentity();

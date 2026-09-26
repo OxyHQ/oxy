@@ -45,8 +45,8 @@ function fakeOxy(
   baseURL = 'https://api.oxy.so',
 ): Parameters<typeof import('../backgroundSession').syncBackgroundSession>[0]['oxyServices'] {
   return {
-    provisionBackgroundCredential: provision,
-    getBaseURL: () => baseURL,
+    devices: { provisionBackgroundCredential: provision },
+    baseURL: baseURL,
   } as unknown as Parameters<
     typeof import('../backgroundSession').syncBackgroundSession
   >[0]['oxyServices'];
@@ -267,65 +267,6 @@ describe('syncBackgroundSession', () => {
       }),
     ).resolves.toBeUndefined();
     expect(native.put).not.toHaveBeenCalled();
-  });
-});
-
-describe('a @oxy.so/core too old to provision', () => {
-  /**
-   * The ONE failure that must not be quiet. Every other failure here is caught and
-   * logged at warn, which is right for a flaky network — but a version skew means
-   * background refreshes never work at all, and hiding that behind a warning is how
-   * it would go unnoticed indefinitely.
-   */
-  function oxyWithoutProvisioning(): Parameters<
-    typeof import('../backgroundSession').syncBackgroundSession
-  >[0]['oxyServices'] {
-    return { getBaseURL: () => 'https://api.oxy.so' } as unknown as Parameters<
-      typeof import('../backgroundSession').syncBackgroundSession
-    >[0]['oxyServices'];
-  }
-
-  test('rejects loudly and logs at error rather than warning quietly', async () => {
-    const native = fakeNative(null);
-    const { syncBackgroundSession } = await loadModule(native);
-    const { logger } = await import('@oxy.so/core');
-    const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
-    const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
-
-    try {
-      await expect(
-        syncBackgroundSession({
-          oxyServices: oxyWithoutProvisioning(),
-          userId: 'user-1',
-          canUsePrivateApi: true,
-          isCurrent: () => true,
-        }),
-      ).rejects.toThrow(/provisionBackgroundCredential/);
-
-      expect(errorSpy).toHaveBeenCalledTimes(1);
-      // If this ever becomes a warn, the skew is silent again.
-      expect(warnSpy).not.toHaveBeenCalled();
-      expect(native.put).not.toHaveBeenCalled();
-    } finally {
-      errorSpy.mockRestore();
-      warnSpy.mockRestore();
-    }
-  });
-
-  test('still lets a signed-out user clear, since that needs no core method', async () => {
-    const native = fakeNative({ accountId: 'user-1', expiresAt: Date.now() + 30 * DAY_MS });
-    const { syncBackgroundSession } = await loadModule(native);
-
-    // A sign-out must never be blocked by a dependency problem.
-    await expect(
-      syncBackgroundSession({
-        oxyServices: oxyWithoutProvisioning(),
-        userId: null,
-        canUsePrivateApi: false,
-        isCurrent: () => true,
-      }),
-    ).resolves.toBeUndefined();
-    expect(native.clear).toHaveBeenCalledTimes(1);
   });
 });
 

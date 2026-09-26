@@ -13,15 +13,19 @@ import {
 function fakeOxy() {
   const listeners = new Set<(t: string | null) => void>();
   return {
-    makeRequest: jest.fn().mockResolvedValue({ ok: true }),
-    getBaseURL: jest.fn().mockReturnValue('https://api.oxy.so'),
-    getAccessToken: jest.fn().mockReturnValue('tok'),
-    setTokens: jest.fn(),
-    onTokensChanged: jest.fn((l: (t: string | null) => void) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    }),
-    _emit: (t: string | null) => listeners.forEach((l) => l(t)),
+    request: jest.fn().mockResolvedValue({ ok: true }),
+    baseURL: 'https://api.oxy.so',
+    session: {
+      accessToken: 'tok',
+      setAccessToken: jest.fn(),
+      onChange: jest.fn((l: (t: string | null) => void) => {
+        listeners.add(l);
+        return () => listeners.delete(l);
+      }),
+    },
+    _emit: (t: string | null) => {
+      for (const l of listeners) l(t);
+    },
   };
 }
 
@@ -30,11 +34,11 @@ describe('createSessionClientHost', () => {
     const oxy = fakeOxy();
     const host = createSessionClientHost(oxy as never);
     await host.makeRequest('GET', '/session/device/state', undefined, { cache: false });
-    expect(oxy.makeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, { cache: false });
+    expect(oxy.request).toHaveBeenCalledWith('GET', '/session/device/state', undefined, { cache: false });
     expect(host.getBaseURL()).toBe('https://api.oxy.so');
     expect(host.getAccessToken()).toBe('tok');
     host.setTokens('new');
-    expect(oxy.setTokens).toHaveBeenCalledWith('new');
+    expect(oxy.session.setAccessToken).toHaveBeenCalledWith('new');
   });
 
   test('getCurrentAccountId reflects setCurrentAccountId', () => {
@@ -198,7 +202,7 @@ describe('createSessionClient', () => {
 
   test('uses the injected transport (not a hard-coded one) when the client bootstraps', async () => {
     const oxy = fakeOxy();
-    oxy.makeRequest.mockResolvedValue({ state, activeToken: null });
+    oxy.request.mockResolvedValue({ state, activeToken: null });
     const transport = fakeTransport();
 
     const { client } = createSessionClient(oxy as never, transport);

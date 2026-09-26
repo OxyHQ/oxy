@@ -18,11 +18,11 @@ export function useAgencySettings(accountId: string | null) {
     queryFn: async () => {
       if (!accountId) throw new Error('An account is required');
       const [catalogs, grants, policies, authorizations, auditEvents] = await Promise.all([
-        oxyServices.listAvailableCapabilityCatalogs(accountId),
-        oxyServices.listDelegationGrants(accountId),
-        oxyServices.listAccountCapabilityPolicies(accountId),
-        oxyServices.listCapabilityExecutionAuthorizations(accountId),
-        oxyServices.listCapabilityAuditEvents(accountId),
+        oxyServices.agency.catalogs(accountId),
+        oxyServices.agency.grants.list(accountId),
+        oxyServices.agency.policies.list(accountId),
+        oxyServices.agency.authorizations.list(accountId),
+        oxyServices.agency.auditEvents(accountId),
       ]);
       return { catalogs, grants, policies, authorizations, auditEvents };
     },
@@ -48,13 +48,13 @@ function useAgencyMutation<TInput, TResult>(
 export function useCreateDelegationGrant(accountId: string) {
   const { oxyServices } = useOxy();
   return useAgencyMutation(accountId, ['agency', 'grant', 'create'], (input: CreateDelegationGrantInput) =>
-    oxyServices.createDelegationGrant(input));
+    oxyServices.agency.grants.create(input));
 }
 
 export function useRevokeDelegationGrant(accountId: string) {
   const { oxyServices } = useOxy();
   return useAgencyMutation(accountId, ['agency', 'grant', 'revoke'], (grantId: string) =>
-    oxyServices.revokeDelegationGrant(grantId, accountId));
+    oxyServices.agency.grants.revoke(grantId, accountId));
 }
 
 export function useUpdateDelegationGrant(accountId: string) {
@@ -63,7 +63,7 @@ export function useUpdateDelegationGrant(accountId: string) {
     accountId,
     ['agency', 'grant', 'update'],
     ({ grantId, input }: { grantId: string; input: UpdateDelegationGrantInput }) =>
-      oxyServices.updateDelegationGrant(grantId, accountId, input),
+      oxyServices.agency.grants.update(grantId, accountId, input),
   );
 }
 
@@ -73,18 +73,18 @@ export function usePutAccountCapabilityPolicy(accountId: string) {
     accountId,
     ['agency', 'policy', 'put'],
     ({ appId, policy }: { appId: string; policy: PutAccountCapabilityPolicyInput }) =>
-      oxyServices.putAccountCapabilityPolicy(appId, policy),
+      oxyServices.agency.policies.put(appId, policy),
   );
 }
 
 export function useDeleteAccountCapabilityPolicy(accountId: string) {
   const { oxyServices } = useOxy();
   return useAgencyMutation(accountId, ['agency', 'policy', 'delete'], (appId: string) =>
-    oxyServices.deleteAccountCapabilityPolicy(appId, accountId));
+    oxyServices.agency.policies.delete(appId, accountId));
 }
 
 export function useRevokeExecutionAuthorization(accountId: string) {
   const { oxyServices } = useOxy();
   return useAgencyMutation(accountId, ['agency', 'authorization', 'revoke'], (authorizationId: string) =>
-    oxyServices.revokeCapabilityExecutionAuthorization(authorizationId, accountId));
+    oxyServices.agency.authorizations.revoke(authorizationId, accountId));
 }

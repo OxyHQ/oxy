@@ -58,13 +58,13 @@ function makeContext(
   const commitSession = jest.fn().mockResolvedValue(undefined);
   const base: WebOAuthTransportContext = {
     mode: 'popup',
-    oxyServices: { exchangeOAuthCode } as unknown as OxyServices,
+    oxyServices: { auth: { oauth: { exchangeCode: exchangeOAuthCode } } } as unknown as OxyServices,
     clientId: CLIENT_ID,
     authorizeBaseUrl: AUTHORIZE_BASE_URL,
     identityBound: false,
     commitSession,
   };
-  return { ...base, ...overrides, exchangeOAuthCode, commitSession };
+  return { ...base, ...overrides, auth: { oauth: { exchangeCode: exchangeOAuthCode } }, commitSession };
 }
 
 /** Wait for the transport to finish preparing PKCE and navigate the popup. */
@@ -120,7 +120,7 @@ describe('startWebOAuthSignIn', () => {
 
       // The verifier the main window replays is the one behind the challenge it
       // sent — the popup never saw either.
-      const exchangeArgs = context.exchangeOAuthCode.mock.calls[0][0];
+      const exchangeArgs = context.auth.oauth.exchangeCode.mock.calls[0][0];
       expect(exchangeArgs.code).toBe('code-1');
       expect(exchangeArgs.redirectUri).toBe(REDIRECT_URI);
       await expect(computeCodeChallenge(exchangeArgs.codeVerifier)).resolves.toBe(
@@ -192,7 +192,7 @@ describe('startWebOAuthSignIn', () => {
         url.searchParams.get('state'),
       );
       expect(sessionStorage.getItem(OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY)).toBeTruthy();
-      expect(context.exchangeOAuthCode).not.toHaveBeenCalled();
+      expect(context.auth.oauth.exchangeCode).not.toHaveBeenCalled();
     });
 
     it('falls back to a full-page redirect when the popup cannot be navigated', async () => {
@@ -235,7 +235,7 @@ describe('startWebOAuthSignIn', () => {
         reason: 'idp-error',
         description: 'user declined',
       });
-      expect(context.exchangeOAuthCode).not.toHaveBeenCalled();
+      expect(context.auth.oauth.exchangeCode).not.toHaveBeenCalled();
       expect(popup.close).toHaveBeenCalled();
     });
 
@@ -251,7 +251,7 @@ describe('startWebOAuthSignIn', () => {
       );
 
       await expect(pending).resolves.toEqual({ status: 'failed', reason: 'state-mismatch' });
-      expect(context.exchangeOAuthCode).not.toHaveBeenCalled();
+      expect(context.auth.oauth.exchangeCode).not.toHaveBeenCalled();
       expect(context.commitSession).not.toHaveBeenCalled();
     });
 
@@ -267,12 +267,12 @@ describe('startWebOAuthSignIn', () => {
 
       expect(result).toEqual({ status: 'timed-out' });
       expect(popup.close).toHaveBeenCalled();
-      expect(context.exchangeOAuthCode).not.toHaveBeenCalled();
+      expect(context.auth.oauth.exchangeCode).not.toHaveBeenCalled();
     });
 
     it('reports a failed exchange', async () => {
       const context = makeContext();
-      context.exchangeOAuthCode.mockRejectedValue(new Error('invalid_grant'));
+      context.auth.oauth.exchangeCode.mockRejectedValue(new Error('invalid_grant'));
       const popup = fakePopup();
 
       const pending = startWebOAuthSignIn(context, { redirectUri: REDIRECT_URI, popup });

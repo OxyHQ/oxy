@@ -195,7 +195,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
     const seq = ++usernameCheckSeqRef.current;
     debounceTimerRef.current = setTimeout(async () => {
       try {
-        const result = await oxyServices.checkUsernameAvailability(value);
+        const result = await oxyServices.auth.checkUsername(value);
         if (seq !== usernameCheckSeqRef.current) return;
         setUsernameStatus(result.available ? 'available' : 'taken');
         setUsernameMessage(

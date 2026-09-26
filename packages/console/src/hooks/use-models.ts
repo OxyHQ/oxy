@@ -36,7 +36,7 @@ const queryKeys = {
 /**
  * `GET /models` — the customer-safe catalogue.
  *
- * `makeRequest` unwraps the `{ data, count }` envelope, so this resolves to the
+ * `oxyServices.request` unwraps the `{ data, count }` envelope, so this resolves to the
  * entry array itself.
  */
 export function useModelCatalogue() {
@@ -44,7 +44,7 @@ export function useModelCatalogue() {
 
   return useQuery({
     queryKey: queryKeys.catalogue,
-    queryFn: () => oxyServices.makeRequest<Array<ModelCatalogueEntry>>('GET', '/models'),
+    queryFn: () => oxyServices.request<Array<ModelCatalogueEntry>>('GET', '/models'),
     staleTime: 1000 * 60 * 5,
     retry: 1,
   });
@@ -60,7 +60,7 @@ export function useRoutingProfiles() {
   return useQuery({
     queryKey: queryKeys.routingProfiles,
     queryFn: () =>
-      oxyServices.makeRequest<Array<RoutingProfile>>('GET', '/models/routing-profiles'),
+      oxyServices.request<Array<RoutingProfile>>('GET', '/models/routing-profiles'),
     staleTime: 1000 * 60 * 5,
     retry: 1,
   });

@@ -65,11 +65,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, theme, 
         enabled: !!userId,
         retry: false,
         queryFn: async () => {
-            // Follower/following counts come from the `useFollow` hook; the stats
-            // read is kept for parity (it warms server-side counters) but its
-            // result is not surfaced in this view, so it is not bound.
+            // Follower/following counts come from the `useFollow` hook.
             const [profileRes, reputationRes] = await Promise.all([
-                oxyServices.getUserById(userId).catch((err: unknown) => {
+                oxyServices.users.get(userId).catch((err: unknown) => {
                     if (isOwnProfile) return currentUser;
                     logger.error(
                         'Profile loading error',
@@ -79,13 +77,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, theme, 
                     throw err;
                 }),
                 (isOwnProfile
-                    ? oxyServices.getMyReputationBalance()
-                    : oxyServices.getReputationBalance(userId))
+                    ? oxyServices.reputation.balance()
+                    : oxyServices.reputation.balance(userId))
                     .then((balance): { total: number | undefined } => ({ total: balance.total }))
                     .catch((): { total: number | undefined } => ({ total: undefined })),
-                oxyServices.getUserStats
-                    ? oxyServices.getUserStats(userId).catch(() => ({ postCount: 0, commentCount: 0 }))
-                    : Promise.resolve({ postCount: 0, commentCount: 0 }),
             ]);
             if (!profileRes) {
                 throw new Error('Profile data is not available');
@@ -203,7 +198,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, theme, 
                             // `bun run build` and therefore every publish of this package.
                             source={
                                 profile?.avatar
-                                    ? (oxyServices.getFileDownloadUrl(profile.avatar, 'thumb') ?? undefined)
+                                    ? (oxyServices.assets.publicUrl(profile.avatar, 'thumb') ?? undefined)
                                     : undefined
                             }
                             name={displayName}

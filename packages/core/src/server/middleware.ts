@@ -1,0 +1,1520 @@
+/**
+ * The Express and Socket.IO middleware `OxyServer` mounts
+ * (`server.middleware.auth()`, `.socket()`, `.service()`, `.requireScope()`),
+ * and the Ed25519 service-token and account-event verification they share.
+ *
+ * Node only; reachable solely from `@oxy.so/core/server`.
+ */
+import { jwtDecode } from 'jwt-decode';
+import type { JsonWebKey } from 'node:crypto';
+import type { ApiError, User } from '../models/interfaces';
+import { loadNodeCrypto } from '@oxy.so/protocol';
+import { logger } from '../logger';
+import { toOxyApiError } from '../OxyServices.errors';
+import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '../utils/oxyServiceEnvironment';
+
+interface JwtPayload {
+  exp?: number;
+  userId?: string;
+  id?: string;
+  sessionId?: string;
+  type?: string;
+  appId?: string;
+  credentialId?: string;
+  ownerAccountId?: string;
+  appName?: string;
+  scopes?: string[];
+  tier?: string;
+  aud?: string | string[];
+  iss?: string;
+  environment?: string;
+  nbf?: number;
+  [key: string]: unknown;
+}
+
+/**
+ * Result from the service-acting-as verification endpoint.
+ * Confirms that a given service app holds an active delegation grant for
+ * the supplied user, along with the explicit scope list the grant covers.
+ *
+ * The API side stores this as an ordinary `app_grants` row — the SAME revocable
+ * record the OAuth consent screen writes and the "Connected apps" UI lists and
+ * deletes — whose `scopes` name `acting-as:offline`. There is deliberately no
+ * separate delegation table: a second store would be a second revocation
+ * surface, and a user who disconnects an application in "Connected apps" means
+ * it, so one revoke has to end everything.
+ *
+ * `scopes` is what THAT USER consented to, not what the application may do in
+ * general. `requireScope` intersects it with the token's own app-wide scopes for
+ * a delegated request, and the intersection is the effective authority.
+ *
+ * The SDK never inspects the grant directly — it round-trips through
+ * `GET /internal/service-acting-as/verify?appId=...&userId=...` so the
+ * authoritative store stays server-side.
+ */
+export interface ServiceActingAsVerification {
+  authorized: boolean;
+  scopes: string[];
+}
+
+/** The SET `events` member Oxy uses for an account deletion. */
+export const OXY_ACCOUNT_DELETED_EVENT_URI = 'https://oxy.so/events/account.deleted';
+
+/**
+ * A verified account event from Oxy (OxyHQ/Mention#1169): a person deleted
+ * their Oxy account and every relying application must erase what it holds
+ * for them. Returned by `verifyAccountEvent` only after the signature, `typ`,
+ * issuer and audience all check out.
+ */
+export interface OxyAccountEvent {
+  /** The event id (`jti`). Stable across webhook retries and the pull feed: dedupe on it. */
+  eventId: string;
+  type: 'account.deleted';
+  /** The deleted Oxy account. */
+  userId: string;
+  /**
+   * The account's handle at deletion time, for relying parties that address
+   * the person by handle (an ActivityPub actor URI). `null` when the account had
+   * none, or when the token predates the field.
+   */
+  username: string | null;
+  /** ISO-8601 time the deletion committed. */
+  occurredAt: string;
+  /** `true` when Oxy archived the row to keep financial records. Erase either way. */
+  retained: boolean;
+  /** The application the event was addressed to (`aud`). */
+  applicationId: string;
+  /** Seconds since the epoch the token was issued at (`iat`). */
+  issuedAt: number;
+}
+
+/** One entry of the account-event pull feed (`GET /account-events`). */
+export interface OxyAccountEventFeedItem {
+  eventId: string;
+  type: 'account.deleted';
+  userId: string;
+  username: string | null;
+  occurredAt: string;
+  retained: boolean;
+  /** The same signed token the webhook carries. Verify it with `verifyAccountEvent`. */
+  token: string;
+}
+
+export interface OxyAccountEventFeedPage {
+  events: OxyAccountEventFeedItem[];
+  /** Pass back as `after` to continue; unchanged when the page is empty. */
+  nextCursor: string | null;
+}
+
+export interface VerifyAccountEventOptions {
+  /**
+   * The application id the token must be addressed to. Defaults to the `appId`
+   * of this client's configured service credential.
+   */
+  audience?: string;
+  /** Defaults to `/.well-known/jwks.json` on this client's API origin. */
+  jwksUrl?: string;
+}
+
+/** Why an account event token was refused. `message` never contains the token. */
+export class OxyAccountEventError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OxyAccountEventError';
+  }
+}
+
+/**
+ * Service app metadata attached to requests authenticated with service tokens.
+ *
+ * Every field comes from the token's SIGNED payload and is populated only after
+ * the signature, `iss`/`aud`/`type` binding and expiry all pass — so a verifier
+ * holding this object can name the responsible principals without a lookup of
+ * its own. Together with `credentialId` and `ownerAccountId` it is the canonical
+ * attribution tuple of ADR 0007 minus the delegated user.
+ *
+ * `scopes` are the EFFECTIVE scopes: the credential's own scopes intersected
+ * with the owning application's grant at mint time (the API's `intersectScopes`
+ * is the single authority for that intersection — nothing re-intersects here).
+ * Route-level checks narrow further via `requireScope()`.
+ *
+ * A delegated end user is NOT a field of this type, and must never become one.
+ * It lives in `req.serviceActingAs` / `req.userId`, is authorised per request,
+ * and is attribution only.
+ */
+export interface ServiceApp {
+  appId: string;
+  appName: string;
+  scopes: string[];
+  /**
+   * `internal` when the caller is one of Oxy's own applications: app to app it
+   * is trusted outright — {@link requireScope} passes and it may act for a user
+   * without a delegation grant. `external` keeps every scope and grant rule.
+   * What the USER may do (their accounts, plan, limits) is still for the
+   * receiving service to decide. A token without the claim reads as `external`.
+   */
+  tier: 'internal' | 'external';
+  /** The credentialId of the specific service credential that minted this token. */
+  credentialId: string;
+  /**
+   * The Oxy account that owns `appId` and is financially responsible for it.
+   * The BILLING principal — never a user id, and never the delegated
+   * `X-Oxy-User-Id` (ADR 0007).
+   */
+  ownerAccountId: string;
+  /** Test/live isolation (F2.0): which `ApplicationCredential.environment` minted this token. */
+  environment: OxyServiceEnvironment;
+}
+
+/**
+ * Why a request's credential was refused, recorded on the request itself.
+ *
+ * The middleware answers a fixed, deliberately uninformative body to the
+ * client; this is the other half of that trade. A refusal is ALWAYS observable
+ * to the HOST: it is logged at `warn` with a stable `code`, handed to
+ * `onRefusal`, and left on `req.oxyAuthRefusal` for the host's own logs.
+ *
+ * It exists because the opposite cost was measured: Oxy served
+ * `{"keys":[]}` from `/.well-known/jwks.json` with no Ed25519 signing key
+ * bound, every service token failed `Oxy service-token key set is unavailable`,
+ * and on the OPTIONAL path that failure fell straight through to `next()`.
+ * The host then answered its own generic 401 and logged nothing at all, so the
+ * one fact that named the fault — an empty key set — existed nowhere. Hours.
+ *
+ * **Nothing here is ever sent to a client, and `reason` never contains the
+ * token, a signature, a secret or a session id.** It carries the SDK's own
+ * failure message (`kid` unknown, audience mismatch, key set unavailable) plus
+ * the ids already considered safe to log elsewhere in this middleware.
+ */
+export interface OxyAuthRefusal {
+  /** Stable, greppable code. Matches the `code` a non-optional refusal answers. */
+  code: string;
+  /** Which credential lane refused. */
+  stage: 'token' | 'service-token' | 'session';
+  /** Human-readable cause. Never a token, signature, secret or session id. */
+  reason: string;
+  /** The status a NON-optional mount would have answered with. */
+  status: number;
+  /**
+   * `true` when the middleware was mounted with `optional: true`, so this
+   * refusal did not produce a response — the request continued unauthenticated
+   * and whatever the host does next (typically its own generic 401) is the
+   * only thing the client sees.
+   */
+  optional: boolean;
+}
+
+/**
+ * Expected JWT audience for tokens issued by the Oxy auth service.
+ */
+const OXY_JWT_AUDIENCE = 'oxy-api';
+/**
+ * Expected JWT issuer for tokens issued by the Oxy auth service.
+ */
+export const OXY_JWT_ISSUER = 'oxy-auth';
+
+/**
+ * Sentinel error classes for service-token verification. Using classes (not
+ * message strings) makes the catch site below safe to extend: a new failure
+ * mode added later cannot silently fall through to the generic 500 branch.
+ */
+class ServiceTokenStructureError extends Error {
+  constructor(message = 'Service token has malformed structure') {
+    super(message);
+    this.name = 'ServiceTokenStructureError';
+  }
+}
+
+class ServiceTokenSignatureError extends Error {
+  constructor(message = 'Service token signature is invalid') {
+    super(message);
+    this.name = 'ServiceTokenSignatureError';
+  }
+}
+
+class ServiceTokenClaimError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ServiceTokenClaimError';
+  }
+}
+
+function isOxyServiceEnvironment(value: unknown): value is OxyServiceEnvironment {
+  return (
+    typeof value === 'string' &&
+    (OXY_SERVICE_ENVIRONMENTS as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * Options for `server.middleware.auth()`.
+ */
+export interface AuthMiddlewareOptions {
+  /** Enable debug logging (default: false) */
+  debug?: boolean;
+  /** Custom error handler - receives error object, can return response */
+  onError?: (error: ApiError) => unknown;
+  /** Load full user profile from API (default: false for performance) */
+  loadUser?: boolean;
+  /** Optional auth - attach user if token present but don't block (default: false) */
+  optional?: boolean;
+  /**
+   * Called whenever a PRESENTED credential is refused, on the optional path as
+   * well as the blocking one. Runs before the response (if any) and after
+   * `req.oxyAuthRefusal` is set, so a host can raise its own alert or carry the
+   * code into its request log. Throwing from it is swallowed — an observer must
+   * not be able to turn a refusal into a 500.
+   *
+   * Refusal is about a credential that was offered and rejected: a request with
+   * NO `Authorization` header is not refused and does not reach this.
+   */
+  onRefusal?: (refusal: OxyAuthRefusal) => void;
+  /**
+   * Public JWKS endpoint used for Ed25519 service-token verification. Defaults
+   * to `/.well-known/jwks.json` on this Oxy client's configured API origin.
+   */
+  serviceTokenJwksUrl?: string;
+  /**
+   * Expected JWT issuer. Defaults to `'oxy-auth'`. Override only if you run
+   * a private fork of the Oxy auth server under a different `iss` claim.
+   */
+  expectedIssuer?: string;
+  /**
+   * Expected JWT audience. Defaults to `'oxy-api'`. Override only if your
+   * private fork mints tokens for a different audience.
+   */
+  expectedAudience?: string;
+}
+
+
+/**
+ * What the middleware needs from the server it is mounted on. `OxyServer`
+ * builds it; every member is resolved at call time, so a test can spy on the
+ * server's own methods.
+ */
+export interface OxyMiddlewareHost {
+  readonly baseURL: string;
+  readonly jwksCache: ServiceTokenJwksCache;
+  validateSession(
+    sessionId: string,
+    options?: { deviceFingerprint?: string; useHeaderValidation?: boolean },
+  ): Promise<{ valid: boolean; user?: User } | null>;
+  verifyActingAs(appId: string, userId: string): Promise<ServiceActingAsVerification | null>;
+}
+
+/** Build the middleware set for one server. See `OxyServer.middleware`. */
+export function createOxyMiddleware(host: OxyMiddlewareHost) {
+  /**
+   * Express.js authentication middleware
+   *
+   * Validates JWT tokens against the Oxy API and attaches user data to requests.
+   * Uses server-side session validation for security (not just JWT decode).
+   *
+   * **Design note — jwtDecode vs jwt.verify:**
+   * This middleware uses `jwtDecode()` (decode-only, NO signature check) for
+   * user tokens, because third-party apps mounting `server.middleware.auth()` do not hold
+   * the Oxy signing secret. **Every claim in a user token is therefore
+   * attacker-controlled and proves nothing on its own.** The identity comes
+   * from somewhere else entirely:
+   * - A user token MUST carry a `sessionId`. That session is validated
+   *   server-side on every request via `session.validate()`, and the user id
+   *   is read off the VALIDATED SESSION — never off the token. A token whose
+   *   `userId` claim disagrees with the session is refused
+   *   (`SESSION_USER_MISMATCH`); a token with no `sessionId` at all is
+   *   refused outright (`SESSION_REQUIRED`). There is no local-claims path.
+   * - Service tokens (type: 'service') ARE stateless, so they use Ed25519
+   *   verification against Oxy's public JWKS and are additionally checked
+   *   for `aud`, `iss`, `type`, time, attribution and scope claims. The
+   *   algorithm is pinned to EdDSA and never read from the token: an HS256,
+   *   `none` or any other JOSE header is refused before any key lookup.
+   * - The backend's own `authMiddleware` uses `jwt.verify()` because it has
+   *   direct access to `ACCESS_TOKEN_SECRET`.
+   *
+   * **Why session-less user tokens are refused rather than trusted:**
+   * every user access token the Oxy API issues carries a `sessionId` (see
+   * `packages/api/src/utils/sessionUtils.ts`, `generateSessionTokens` — the
+   * only mint site for user tokens, including the OAuth code exchange). So
+   * refusing session-less user tokens costs nothing legitimate, while
+   * accepting them let anyone authenticate as anyone by hand-rolling a JWT
+   * with a `userId` claim and a garbage signature.
+   *
+   * **Why the claimed user id is cross-checked against the session:**
+   * `GET /session/validate/:sessionId` is UNAUTHENTICATED and does not bind
+   * the bearer token — it returns whoever owns the session id it was handed.
+   * Trusting the token's `userId` claim after a successful validation would
+   * therefore let a caller holding ANY live session id (their own, for
+   * instance) pair it with a forged `userId` and be trusted as that user.
+   * `authSocket()` has always cross-checked this; the HTTP middleware now
+   * does too.
+   *
+   * **Service-token delegation (X-Oxy-User-Id):**
+   * When a service token is accompanied by `X-Oxy-User-Id`, the SDK calls
+   * `verifyActingAs(appId, userId)` to confirm an explicit delegation
+   * grant exists before attaching `req.userId`. A missing/expired grant
+   * results in a 403 — there is no fail-open path.
+   *
+   * @example
+   * ```typescript
+   * import { OxyServer } from '@oxy.so/core/server';
+   *
+   * const server = new OxyServer({ baseURL: 'https://api.oxy.so' });
+   *
+   * // Protect all routes under /protected
+   * app.use('/protected', server.middleware.auth());
+   *
+   * // Access user in route handler
+   * app.get('/protected/me', (req, res) => {
+   *   res.json({ userId: req.userId, user: req.user });
+   * });
+   *
+   * // Load full user profile from API
+   * app.use('/admin', server.middleware.auth({ loadUser: true }));
+   *
+   * // Optional auth - attach user if present, don't block if absent
+   * app.use('/public', server.middleware.auth({ optional: true }));
+   *
+   * // Require a specific scope on a service-token-protected route
+   * app.use('/internal/files', server.middleware.service(), server.middleware.requireScope('files:write'));
+   * ```
+   *
+   * @param options Optional configuration
+   * @returns Express middleware function
+   */
+  function auth(options: AuthMiddlewareOptions = {}) {
+    const {
+      debug = false,
+      onError,
+      onRefusal,
+      loadUser = false,
+      optional = false,
+      serviceTokenJwksUrl = new URL('/.well-known/jwks.json', host.baseURL).toString(),
+      expectedIssuer = OXY_JWT_ISSUER,
+      expectedAudience = OXY_JWT_AUDIENCE,
+    } = options;
+
+    /**
+     * Make a refusal observable to the HOST, without telling the client
+     * anything it is not already told.
+     *
+     * Called at the top of every branch that rejects a PRESENTED credential,
+     * including the ones `optional` then swallows — those are the expensive
+     * ones, because they leave no trace anywhere else. The response bodies
+     * below are untouched by design: what a client sees does not change.
+     *
+     * `warn`, not `debug`: a debug-gated reason is only there for whoever
+     * already suspects this middleware, and the failure mode this exists for
+     * is the one where nobody does. The volume is bounded by refusals, and a
+     * host drowning in them has a fault worth the lines.
+     */
+    const recordRefusal = (
+      req: AuthReq,
+      refusal: { code: string; stage: OxyAuthRefusal['stage']; reason: string; status: number },
+    ): void => {
+      const recorded: OxyAuthRefusal = { ...refusal, optional };
+      req.oxyAuthRefusal = recorded;
+      logger.warn(`[oxy.auth] refused ${recorded.code}: ${recorded.reason}`, {
+        component: 'auth',
+        method: 'auth',
+        code: recorded.code,
+        stage: recorded.stage,
+        reason: recorded.reason,
+        status: recorded.status,
+        // Says whether the client will see this status or the host's own
+        // generic answer — the difference that made the JWKS outage invisible.
+        optional: recorded.optional,
+        path: req.path,
+      });
+      if (onRefusal) {
+        try {
+          onRefusal(recorded);
+        } catch (observerError) {
+          logger.warn('[oxy.auth] onRefusal observer threw', {
+            component: 'auth',
+            method: 'auth',
+          }, observerError);
+        }
+      }
+    };
+
+    // Return an async middleware function
+    return async (req: AuthReq, res: AuthRes, next: AuthNext) => {
+      try {
+        // Extract token from Authorization header.
+        // Node/Express normalizes `Authorization` to a string; we guard
+        // against the (legal but unusual) string[] case anyway.
+        const rawAuthHeader = req.headers.authorization;
+        const authHeader = Array.isArray(rawAuthHeader) ? rawAuthHeader[0] : rawAuthHeader;
+        const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+
+        if (debug) {
+          logger.debug(`[oxy.auth] ${req.method} ${req.path} | token: ${!!token}`, {
+            component: 'auth',
+            method: 'auth',
+          });
+        }
+
+        if (!token) {
+          if (optional) {
+            req.userId = null;
+            req.user = null;
+            return next();
+          }
+
+          const error = {
+            error: 'MISSING_TOKEN',
+            message: 'Access token required',
+            code: 'MISSING_TOKEN',
+            status: 401
+          };
+          if (onError) return onError(error);
+          return res.status(401).json(error);
+        }
+
+        // Decode token to extract claims
+        let decoded: JwtPayload;
+        try {
+          decoded = jwtDecode<JwtPayload>(token);
+        } catch (decodeError) {
+          recordRefusal(req, {
+            code: 'INVALID_TOKEN_FORMAT',
+            stage: 'token',
+            reason: 'Bearer credential is not a decodable JWT',
+            status: 401,
+          });
+          if (debug) {
+            logger.debug('[oxy.auth] Token decode failed', {
+              component: 'auth',
+              method: 'auth',
+            }, decodeError);
+          }
+          if (optional) {
+            req.userId = null;
+            req.user = null;
+            return next();
+          }
+
+          const error = {
+            error: 'INVALID_TOKEN_FORMAT',
+            message: 'Invalid token format',
+            code: 'INVALID_TOKEN_FORMAT',
+            status: 401
+          };
+          if (onError) return onError(error);
+          return res.status(401).json(error);
+        }
+
+        // Handle service tokens (internal service-to-service auth)
+        // Service tokens are stateless JWTs with type: 'service' — requires signature verification
+        if (decoded.type === 'service') {
+          // Verify JWT signature, then audience / issuer / type / appId claims.
+          //
+          // Signature verification uses Node crypto rather than
+          // `jsonwebtoken` because this file also ships into RN/web bundles.
+          // The middleware itself runs on Node hosts; `loadNodeCrypto` is
+          // per-platform, so Metro never bundles a Node built-in reference.
+          try {
+            await verifyServiceTokenSignature(token, {
+              jwksUrl: serviceTokenJwksUrl,
+              cache: host.jwksCache,
+            });
+            verifyServiceTokenClaims(decoded, {
+              audience: expectedAudience,
+              issuer: expectedIssuer,
+            });
+          } catch (verifyError) {
+            // Structure + signature + claim errors all map to 401. Anything
+            // else (e.g. Node crypto failing to load on a misconfigured host)
+            // genuinely IS a 500.
+            if (
+              verifyError instanceof ServiceTokenStructureError ||
+              verifyError instanceof ServiceTokenSignatureError ||
+              verifyError instanceof ServiceTokenClaimError
+            ) {
+              const code = verifyError instanceof ServiceTokenClaimError
+                ? 'INVALID_SERVICE_TOKEN_CLAIMS'
+                : 'INVALID_SERVICE_TOKEN';
+              // The SDK's own message is the whole diagnostic value here —
+              // "signing key is unknown" (rotated/unpublished kid), "key set
+              // is unavailable" (JWKS empty, unreachable or malformed) and
+              // "audience mismatch" are three different outages that answer
+              // the client identically.
+              recordRefusal(req, {
+                code,
+                stage: 'service-token',
+                reason: `${verifyError.name}: ${verifyError.message}`,
+                status: 401,
+              });
+              if (debug) {
+                logger.debug('[oxy.auth] Service token rejected', {
+                  component: 'auth',
+                  method: 'auth.serviceToken',
+                  reason: verifyError.name,
+                  detail: verifyError.message,
+                });
+              }
+              if (optional) {
+                req.userId = null;
+                req.user = null;
+                return next();
+              }
+              const error = {
+                error: code,
+                message: verifyError.message,
+                code,
+                status: 401,
+              };
+              if (onError) return onError(error);
+              return res.status(401).json(error);
+            }
+
+            logger.error('[oxy.auth] Unexpected error during service token verification', verifyError, {
+              component: 'auth',
+              method: 'auth.serviceToken',
+            });
+            const error = {
+              error: 'AUTH_INTERNAL_ERROR',
+              message: 'Internal authentication error',
+              code: 'AUTH_INTERNAL_ERROR',
+              status: 500,
+            };
+            if (onError) return onError(error);
+            return res.status(500).json(error);
+          }
+
+          // Check expiration — reject tokens at exact expiry second (use <=)
+          const now = Math.floor(Date.now() / 1000);
+          if (!Number.isInteger(decoded.exp) || (decoded.exp as number) <= now) {
+            recordRefusal(req, {
+              code: 'TOKEN_EXPIRED',
+              stage: 'service-token',
+              reason: Number.isInteger(decoded.exp)
+                ? 'Service token expired'
+                : 'Service token has no integer exp claim',
+              status: 401,
+            });
+            if (optional) {
+              req.userId = null;
+              req.user = null;
+              return next();
+            }
+            const error = { error: 'TOKEN_EXPIRED', message: 'Service token expired', code: 'TOKEN_EXPIRED', status: 401 };
+            if (onError) return onError(error);
+            return res.status(401).json(error);
+          }
+          if (decoded.nbf !== undefined && (!Number.isInteger(decoded.nbf) || decoded.nbf > now)) {
+            recordRefusal(req, {
+              code: 'INVALID_SERVICE_TOKEN_CLAIMS',
+              stage: 'service-token',
+              reason: 'Service token is not yet valid (nbf)',
+              status: 401,
+            });
+            const error = { error: 'INVALID_SERVICE_TOKEN_CLAIMS', message: 'Service token is not yet valid', code: 'INVALID_SERVICE_TOKEN_CLAIMS', status: 401 };
+            if (onError) return onError(error);
+            return res.status(401).json(error);
+          }
+
+          // Validate required service token fields. All of them are
+          // required, `ownerAccountId` included: an optional billing
+          // principal is one fallback away from being resolved from the
+          // delegated user, which is the exact confusion ADR 0007 forbids.
+          const appId = decoded.appId;
+          const credentialId = decoded.credentialId;
+          const ownerAccountId = decoded.ownerAccountId;
+          const environment = decoded.environment;
+          if (
+            !isExactNonEmptyServiceClaim(appId) ||
+            !isExactNonEmptyServiceClaim(decoded.appName) ||
+            !isExactNonEmptyServiceClaim(credentialId) ||
+            !isExactNonEmptyServiceClaim(ownerAccountId) ||
+            !isOxyServiceEnvironment(environment)
+            || !Array.isArray(decoded.scopes)
+            || !decoded.scopes.every((scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim())
+            || new Set(decoded.scopes).size !== decoded.scopes.length
+          ) {
+            recordRefusal(req, {
+              code: 'INVALID_SERVICE_TOKEN',
+              stage: 'service-token',
+              // Names the field rather than its value: an exact-match claim
+              // failing on invisible whitespace reads as "present" in a log
+              // that only says which claims were missing.
+              reason: `Service token claims unusable (${[
+                !isExactNonEmptyServiceClaim(appId) ? 'appId' : null,
+                !isExactNonEmptyServiceClaim(decoded.appName) ? 'appName' : null,
+                !isExactNonEmptyServiceClaim(credentialId) ? 'credentialId' : null,
+                !isExactNonEmptyServiceClaim(ownerAccountId) ? 'ownerAccountId' : null,
+                !isOxyServiceEnvironment(environment) ? 'environment' : null,
+                !Array.isArray(decoded.scopes) ? 'scopes' : null,
+              ].filter((field) => field !== null).join(', ') || 'scopes'})`,
+              status: 401,
+            });
+            if (optional) {
+              req.userId = null;
+              req.user = null;
+              return next();
+            }
+            const error = { error: 'INVALID_SERVICE_TOKEN', message: 'Invalid service token: missing required claims', code: 'INVALID_SERVICE_TOKEN', status: 401 };
+            if (onError) return onError(error);
+            return res.status(401).json(error);
+          }
+
+          const tier: ServiceApp['tier'] = decoded.tier === 'internal' ? 'internal' : 'external';
+
+          // Read delegated user ID from header
+          const oxyUserIdRaw = req.headers['x-oxy-user-id'];
+          const oxyUserId = isExactNonEmptyServiceClaim(oxyUserIdRaw) ? oxyUserIdRaw : null;
+          if (oxyUserIdRaw !== undefined && oxyUserId === null) {
+            recordRefusal(req, {
+              code: 'INVALID_SERVICE_TOKEN_CLAIMS',
+              stage: 'service-token',
+              reason: 'X-Oxy-User-Id is not an exact non-empty id',
+              status: 401,
+            });
+            const error = {
+              error: 'INVALID_SERVICE_TOKEN_CLAIMS',
+              message: 'Delegated user id must be an exact non-empty id',
+              code: 'INVALID_SERVICE_TOKEN_CLAIMS',
+              status: 401,
+            };
+            if (onError) return onError(error);
+            return res.status(401).json(error);
+          }
+
+          // One of Oxy's own applications acts for a user without a grant:
+          // inside the ecosystem that is trust, not consent. It still acts
+          // with the USER's authority only — what that user may do is for the
+          // receiving service to check.
+          if (oxyUserId && tier === 'internal') {
+            req.userId = oxyUserId;
+            req.user = { id: oxyUserId } as User;
+            req.serviceActingAs = { userId: oxyUserId, scopes: [] };
+          } else if (oxyUserId) {
+            // C3: an EXTERNAL service may only act as a user when an explicit
+            // ServiceActingAs grant exists for that (appId, userId) pair.
+            // Without the grant we MUST refuse — silently attaching
+            // `req.userId = oxyUserId` would let any service impersonate
+            // any user simply by setting the header.
+            const grant = await host.verifyActingAs(appId, oxyUserId);
+            if (!grant || !grant.authorized) {
+              logger.warn('[oxy.auth] Service token rejected — no delegation grant', {
+                component: 'auth',
+                method: 'auth.serviceToken',
+                appId,
+                attemptedUserId: oxyUserId,
+              });
+              // A verifier with no service credentials of its own cannot
+              // reach the verify endpoint at all, so `null` here can mean
+              // "no grant" OR "this host cannot ask". Both refuse, and both
+              // are worth naming on the request.
+              recordRefusal(req, {
+                code: 'SERVICE_ACTING_AS_UNAUTHORIZED',
+                stage: 'service-token',
+                reason: `No delegation grant for app ${appId} acting as ${oxyUserId} (or this verifier could not reach the grant check)`,
+                status: 403,
+              });
+              const error = {
+                error: 'SERVICE_ACTING_AS_UNAUTHORIZED',
+                message: 'Service not authorized to act as this user',
+                code: 'SERVICE_ACTING_AS_UNAUTHORIZED',
+                status: 403,
+              };
+              if (onError) return onError(error);
+              return res.status(403).json(error);
+            }
+
+            // ATTRIBUTION ONLY. `req.userId` answers "on whose behalf", never
+            // "who pays": the billing principal stays `req.serviceApp
+            // .ownerAccountId`, which this branch does not touch. Read it
+            // through `getOxyBillingPrincipal` (`@oxy.so/core/server`), whose
+            // return type a user id cannot satisfy (ADR 0007).
+            req.userId = oxyUserId;
+            req.user = { id: oxyUserId } as User;
+            req.serviceActingAs = { userId: oxyUserId, scopes: grant.scopes };
+          } else {
+            // No X-Oxy-User-Id means the service is acting as itself.
+            req.userId = null;
+            req.user = null;
+          }
+
+          req.accessToken = token;
+          req.serviceApp = {
+            appId,
+            appName: decoded.appName,
+            credentialId,
+            ownerAccountId,
+            scopes: Array.isArray(decoded.scopes) ? decoded.scopes : [],
+            environment,
+            tier,
+          };
+
+          if (debug) {
+            logger.debug(`[oxy.auth] Service token OK app=${decoded.appName} delegateUser=${oxyUserId || '(none)'}`, {
+              component: 'auth',
+              method: 'auth.serviceToken',
+            });
+          }
+
+          return next();
+        }
+
+        // The CLAIMED user id. Never trusted as an identity — it is only ever
+        // compared against the id the validated session resolves to.
+        const claimedUserId = readStringClaim(decoded.userId) ?? readStringClaim(decoded.id);
+        if (!claimedUserId) {
+          recordRefusal(req, {
+            code: 'INVALID_TOKEN_PAYLOAD',
+            stage: 'token',
+            reason: 'Token carries no usable user id claim',
+            status: 401,
+          });
+          if (optional) {
+            req.userId = null;
+            req.user = null;
+            return next();
+          }
+
+          const error = {
+            error: 'INVALID_TOKEN_PAYLOAD',
+            message: 'Token missing user ID',
+            code: 'INVALID_TOKEN_PAYLOAD',
+            status: 401
+          };
+          if (onError) return onError(error);
+          return res.status(401).json(error);
+        }
+
+        // Check token expiration locally first (fast path)
+        // Reject tokens at exact expiry second (use <=)
+        if (decoded.exp && decoded.exp <= Math.floor(Date.now() / 1000)) {
+          recordRefusal(req, {
+            code: 'TOKEN_EXPIRED',
+            stage: 'token',
+            reason: 'User access token expired',
+            status: 401,
+          });
+          if (optional) {
+            req.userId = null;
+            req.user = null;
+            return next();
+          }
+
+          const error = {
+            error: 'TOKEN_EXPIRED',
+            message: 'Token expired',
+            code: 'TOKEN_EXPIRED',
+            status: 401
+          };
+          if (onError) return onError(error);
+          return res.status(401).json(error);
+        }
+
+        // A server-validated session is MANDATORY for a user token. The JWT
+        // signature is not verified on this path, so a bare decoded token
+        // proves nothing: without the session round-trip a forged token could
+        // claim any user id. Mirrors `authSocket()`, which has always
+        // required this.
+        const sessionId = readStringClaim(decoded.sessionId);
+        if (!sessionId) {
+          recordRefusal(req, {
+            code: 'SESSION_REQUIRED',
+            stage: 'token',
+            reason: 'User access token is not bound to a session',
+            status: 401,
+          });
+          if (optional) {
+            req.userId = null;
+            req.user = null;
+            return next();
+          }
+
+          const error = {
+            error: 'SESSION_REQUIRED',
+            message: 'Access token is not bound to a session',
+            code: 'SESSION_REQUIRED',
+            status: 401
+          };
+          if (onError) return onError(error);
+          return res.status(401).json(error);
+        }
+
+        // Validate the token against the Oxy API. This proves the session is
+        // real and unrevoked, AND yields the identity it belongs to.
+        try {
+          const validationResult = await host.validateSession(sessionId, {
+            useHeaderValidation: true,
+          });
+
+          if (!validationResult || !validationResult.valid || !validationResult.user) {
+            recordRefusal(req, {
+              code: 'INVALID_SESSION',
+              stage: 'session',
+              reason: 'Session is invalid, revoked or expired',
+              status: 401,
+            });
+            if (optional) {
+              req.userId = null;
+              req.user = null;
+              return next();
+            }
+
+            const error = {
+              error: 'INVALID_SESSION',
+              message: 'Session invalid or expired',
+              code: 'INVALID_SESSION',
+              status: 401
+            };
+            if (onError) return onError(error);
+            return res.status(401).json(error);
+          }
+
+          // The session — not the token — is the source of truth for identity.
+          const validatedUserId = getUserIdentityId(validationResult.user);
+          if (!validatedUserId) {
+            recordRefusal(req, {
+              code: 'INVALID_SESSION',
+              stage: 'session',
+              reason: 'Session did not resolve to a usable identity',
+              status: 401,
+            });
+            if (optional) {
+              req.userId = null;
+              req.user = null;
+              return next();
+            }
+
+            const error = {
+              error: 'INVALID_SESSION',
+              message: 'Session did not resolve to a usable identity',
+              code: 'INVALID_SESSION',
+              status: 401
+            };
+            if (onError) return onError(error);
+            return res.status(401).json(error);
+          }
+
+          if (validatedUserId !== claimedUserId) {
+            // Session-id/claim confusion: the caller presented a live session
+            // that belongs to somebody else. Worth a warning — it has no
+            // benign cause. Ids only; never the token or the payload.
+            logger.warn('[oxy.auth] Token rejected — claimed user does not own the session', {
+              component: 'auth',
+              method: 'auth',
+              claimedUserId,
+              validatedUserId,
+            });
+            recordRefusal(req, {
+              code: 'SESSION_USER_MISMATCH',
+              stage: 'session',
+              reason: 'Token user claim does not own the presented session',
+              status: 401,
+            });
+
+            if (optional) {
+              req.userId = null;
+              req.user = null;
+              return next();
+            }
+
+            const error = {
+              error: 'SESSION_USER_MISMATCH',
+              message: 'Token user does not match the session',
+              code: 'SESSION_USER_MISMATCH',
+              status: 401
+            };
+            if (onError) return onError(error);
+            return res.status(401).json(error);
+          }
+
+          req.userId = validatedUserId;
+          req.accessToken = token;
+          req.sessionId = sessionId;
+          // Session validation already returned the full user, so `loadUser`
+          // costs no extra round-trip.
+          req.user = loadUser ? validationResult.user : ({ id: validatedUserId } as User);
+
+          if (debug) {
+            logger.debug(`[oxy.auth] OK user=${validatedUserId} session=${sessionId}`, {
+              component: 'auth',
+              method: 'auth',
+            });
+          }
+
+          return next();
+        } catch (validationError) {
+          recordRefusal(req, {
+            code: 'SESSION_VALIDATION_ERROR',
+            stage: 'session',
+            // Name and transport code only. The message of a failed
+            // `validateSession` can carry the request URL, and that URL
+            // contains the session id — which is a credential.
+            reason: `Session validation call failed (${describeErrorSafely(validationError)})`,
+            status: 401,
+          });
+          if (debug) {
+            logger.debug('[oxy.auth] Session validation failed', {
+              component: 'auth',
+              method: 'auth',
+            }, validationError);
+          }
+
+          if (optional) {
+            req.userId = null;
+            req.user = null;
+            return next();
+          }
+
+          const error = {
+            error: 'SESSION_VALIDATION_ERROR',
+            message: 'Session validation failed',
+            code: 'SESSION_VALIDATION_ERROR',
+            status: 401
+          };
+          if (onError) return onError(error);
+          return res.status(401).json(error);
+        }
+      } catch (error) {
+        const handled = toOxyApiError(error) as Error & {
+          code?: string;
+          status?: number;
+          details?: Record<string, unknown>;
+        };
+        const apiError: ApiError = {
+          message: handled.message || 'Authentication error',
+          code: handled.code ?? 'AUTH_ERROR',
+          status: handled.status ?? 500,
+          details: handled.details,
+        };
+
+        if (debug) {
+          logger.debug('[oxy.auth] Error', {
+            component: 'auth',
+            method: 'auth',
+          }, apiError);
+        }
+
+        if (onError) return onError(apiError);
+        return res.status(apiError.status).json(apiError);
+      }
+    };
+  }
+
+  /**
+   * Socket.IO authentication middleware factory
+   *
+   * Returns a middleware function for Socket.IO that validates JWT tokens
+   * from the handshake auth object and attaches user data to the socket.
+   *
+   * Uses `jwtDecode()` + API session validation (same rationale as `auth()`).
+   *
+   * @example
+   * ```typescript
+   * import { OxyServer } from '@oxy.so/core/server';
+   * import { Server } from 'socket.io';
+   *
+   * const server = new OxyServer({ baseURL: 'https://api.oxy.so' });
+   * const io = new Server(server);
+   *
+   * // Authenticate all socket connections
+   * io.use(server.middleware.socket());
+   *
+   * io.on('connection', (socket) => {
+   *   console.log('Authenticated user:', socket.data.userId);
+   * });
+   * ```
+   */
+  function socket(options: { debug?: boolean } = {}) {
+    const { debug = false } = options;
+
+    return async (socket: SocketLike, next: (err?: Error) => void) => {
+      try {
+        const token = socket.handshake?.auth?.token;
+
+        if (!token) {
+          return next(new Error('Authentication required'));
+        }
+
+        let decoded: JwtPayload;
+        try {
+          decoded = jwtDecode<JwtPayload>(token);
+        } catch (decodeError) {
+          if (debug) {
+            logger.debug('[oxy.authSocket] Token decode failed', {
+              component: 'auth',
+              method: 'authSocket',
+            }, decodeError);
+          }
+          return next(new Error('Invalid token'));
+        }
+
+        const claimedUserId = readStringClaim(decoded.userId) ?? readStringClaim(decoded.id);
+        if (!claimedUserId) {
+          return next(new Error('Invalid token payload'));
+        }
+
+        // Check expiration — reject tokens at exact expiry second (use <=)
+        if (decoded.exp && decoded.exp <= Math.floor(Date.now() / 1000)) {
+          return next(new Error('Token expired'));
+        }
+
+        // A server-validated session is mandatory. A bare decoded JWT proves
+        // nothing — the signature is not verified here, so without a session
+        // round-trip a forged token could claim any user id.
+        const sessionId = readStringClaim(decoded.sessionId);
+        if (!sessionId) {
+          return next(new Error('Session required'));
+        }
+
+        let userId = claimedUserId;
+        try {
+          const result = await host.validateSession(sessionId, {
+            useHeaderValidation: true,
+          });
+          if (!result || !result.valid || !result.user) {
+            return next(new Error('Session invalid'));
+          }
+
+          // The session is the source of truth. The client-claimed user id
+          // must match the server-validated identity, otherwise a valid
+          // session could be paired with a forged user id.
+          const validatedUserId = getUserIdentityId(result.user);
+          if (!validatedUserId || validatedUserId !== claimedUserId) {
+            return next(new Error('Session user mismatch'));
+          }
+
+          userId = validatedUserId;
+        } catch (validateErr) {
+          if (debug) {
+            logger.debug('[oxy.authSocket] Session validation failed', {
+              component: 'auth',
+              method: 'authSocket',
+            }, validateErr);
+          }
+          return next(new Error('Session validation failed'));
+        }
+
+        // Attach user data to socket. We expose BOTH `socket.data.userId`
+        // (the official Socket.IO data slot) and `socket.user` because
+        // every consumer in this ecosystem (Mention, Allo, api/server.ts)
+        // reads from `socket.user.id`.
+        socket.data = socket.data || {};
+        socket.data.userId = userId;
+        socket.data.sessionId = sessionId;
+        socket.data.token = token;
+
+        socket.user = { id: userId, userId, sessionId };
+
+        if (debug) {
+          logger.debug(`[oxy.authSocket] OK user=${userId}`, {
+            component: 'auth',
+            method: 'authSocket',
+          });
+        }
+
+        next();
+      } catch (err) {
+        if (debug) {
+          logger.debug('[oxy.authSocket] Error', {
+            component: 'auth',
+            method: 'authSocket',
+          }, err);
+        }
+        next(new Error('Authentication error'));
+      }
+    };
+  }
+  /**
+   * Express.js middleware that only allows service tokens.
+   * Use this for internal-only endpoints that should not be accessible
+   * to regular users or API key consumers.
+   *
+   * @example
+   * ```typescript
+   * // Protect internal endpoints
+   * app.use('/internal', server.middleware.service());
+   *
+   * app.post('/internal/trigger', (req, res) => {
+   *   console.log('Service app:', req.serviceApp);
+   *   console.log('Acting on behalf of user:', req.userId);
+   * });
+   * ```
+   */
+  function service(options: {
+    debug?: boolean;
+    /** Observe refusals on the service lane; forwarded straight to `auth()`. */
+    onRefusal?: (refusal: OxyAuthRefusal) => void;
+    serviceTokenJwksUrl?: string;
+    expectedIssuer?: string;
+    expectedAudience?: string;
+  } = {}) {
+    const innerAuth = auth({ ...options });
+
+    return async (req: AuthReq, res: AuthRes, next: AuthNext) => {
+      await innerAuth(req, res, () => {
+        if (!req.serviceApp) {
+          return res.status(403).json({
+            error: 'Service token required',
+            message: 'This endpoint is only accessible to internal services',
+            code: 'SERVICE_TOKEN_REQUIRED',
+          });
+        }
+        next();
+      });
+    };
+  }
+
+  /**
+   * Express.js middleware that enforces a specific service-token scope.
+   *
+   * Mount AFTER `auth()` / `serviceAuth()` — relies on `req.serviceApp` and
+   * (when delegation is in effect) `req.serviceActingAs.scopes`. App-only
+   * service requests require the app scope. Delegated user requests require
+   * BOTH the app scope and the per-user delegation scope.
+   *
+   * The intersection is the point, not a redundancy, because the two scope
+   * lists answer different questions and neither implies the other:
+   *
+   *   `serviceApp.scopes`      what the PLATFORM allows this application to do
+   *                            (credential ∩ application ceiling, at mint time)
+   *   `serviceActingAs.scopes` what THIS USER allowed it to do (`app_grants`)
+   *
+   * Requiring only the app scope would let an application do to a user
+   * something that user never consented to; requiring only the grant would let
+   * a user hand an application authority staff never gave it, so a revoked
+   * platform scope would keep working for every user who had already
+   * consented. Effective authority is the intersection, and this is where it
+   * is taken.
+   *
+   * Requests authenticated as a regular user (no service token) are rejected
+   * with 403 — scope-protected endpoints are service-to-service by design.
+   *
+   * @example
+   * ```typescript
+   * app.use(
+   *   '/internal/files',
+   *   server.middleware.service(),
+   *   server.middleware.requireScope('files:write'),
+   * );
+   * ```
+   */
+  function requireScope(scope: string) {
+    if (typeof scope !== 'string' || scope.length === 0) {
+      throw new Error('requireScope: scope must be a non-empty string');
+    }
+
+    return (req: AuthReq, res: AuthRes, next: AuthNext): void => {
+      const appScopes = req.serviceApp?.scopes ?? [];
+      const delegatedScopes = req.serviceActingAs?.scopes ?? [];
+
+      if (!req.serviceApp) {
+        res.status(403).json({
+          error: 'SERVICE_TOKEN_REQUIRED',
+          message: 'Scope-protected endpoint requires a service token',
+          code: 'SERVICE_TOKEN_REQUIRED',
+          status: 403,
+        });
+        return;
+      }
+
+      // Oxy's own applications are trusted app to app; scopes are the
+      // external lane.
+      if (req.serviceApp.tier === 'internal') {
+        next();
+        return;
+      }
+
+      const appHasScope = appScopes.includes(scope);
+      const delegationHasScope = delegatedScopes.includes(scope);
+      const hasRequiredScope = req.serviceActingAs
+        ? appHasScope && delegationHasScope
+        : appHasScope;
+
+      if (hasRequiredScope) {
+        next();
+        return;
+      }
+
+      logger.warn('[oxy.auth] Service token missing required scope', {
+        component: 'auth',
+        method: 'requireScope',
+        appId: req.serviceApp.appId,
+        required: scope,
+      });
+      res.status(403).json({
+        error: 'INSUFFICIENT_SCOPE',
+        message: `Required scope '${scope}' not granted`,
+        code: 'INSUFFICIENT_SCOPE',
+        status: 403,
+      });
+    };
+  }
+
+  return { auth, socket, service, requireScope };
+}
+
+/** The middleware set `OxyServer.middleware` exposes. */
+export type OxyMiddleware = ReturnType<typeof createOxyMiddleware>;
+
+
+// ---------------------------------------------------------------------------
+// Service token verification helpers
+// ---------------------------------------------------------------------------
+
+export interface ServiceTokenPublicJwk {
+  readonly kty: 'OKP';
+  readonly crv: 'Ed25519';
+  readonly x: string;
+  readonly use: 'sig';
+  readonly alg: 'EdDSA';
+  readonly kid: string;
+}
+
+function isExactNonEmptyServiceClaim(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.trim() === value;
+}
+
+export interface ServiceTokenJwksCache {
+  keys: Map<string, ServiceTokenPublicJwk>;
+  expiresAt: number;
+  lastAttemptAt: number;
+  pending?: Promise<void>;
+}
+
+const JWKS_CACHE_MS = 5 * 60 * 1000;
+const JWKS_UNKNOWN_KID_REFRESH_MS = 60 * 1000;
+const JWKS_FETCH_TIMEOUT_MS = 5_000;
+const JWKS_MAX_BYTES = 64 * 1024;
+const JWKS_MAX_KEYS = 20;
+
+export function parseJsonSegment(segment: string): Record<string, unknown> {
+  if (!/^[A-Za-z0-9_-]+$/.test(segment)) throw new ServiceTokenStructureError('Service token segment is not base64url');
+  const bytes = Buffer.from(segment, 'base64url');
+  if (bytes.toString('base64url') !== segment) throw new ServiceTokenStructureError('Service token segment is not canonical base64url');
+  try {
+    const value = JSON.parse(bytes.toString('utf8')) as unknown;
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('not an object');
+    return value as Record<string, unknown>;
+  } catch {
+    throw new ServiceTokenStructureError('Service token segment is not a JSON object');
+  }
+}
+
+function parseServiceTokenJwks(value: unknown): Map<string, ServiceTokenPublicJwk> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new ServiceTokenSignatureError('Oxy JWKS is malformed');
+  const keys = (value as { keys?: unknown }).keys;
+  if (!Array.isArray(keys) || keys.length === 0 || keys.length > JWKS_MAX_KEYS) throw new ServiceTokenSignatureError('Oxy JWKS has an invalid key set');
+  const result = new Map<string, ServiceTokenPublicJwk>();
+  for (const value of keys) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new ServiceTokenSignatureError('Oxy JWKS contains a malformed key');
+    const key = value as Record<string, unknown>;
+    if (
+      key.kty !== 'OKP'
+      || key.crv !== 'Ed25519'
+      || typeof key.x !== 'string'
+      || key.x.length === 0
+      || key.use !== 'sig'
+      || key.alg !== 'EdDSA'
+      || typeof key.kid !== 'string'
+      || !/^[A-Za-z0-9._-]{1,128}$/.test(key.kid)
+      || Object.prototype.hasOwnProperty.call(key, 'd')
+      || result.has(key.kid)
+    ) throw new ServiceTokenSignatureError('Oxy JWKS contains an unsupported or duplicate key');
+    const x = Buffer.from(key.x, 'base64url');
+    if (x.length !== 32 || x.toString('base64url') !== key.x) {
+      throw new ServiceTokenSignatureError('Oxy JWKS contains an invalid Ed25519 key');
+    }
+    result.set(key.kid, key as unknown as ServiceTokenPublicJwk);
+  }
+  return result;
+}
+
+async function refreshServiceTokenJwks(url: string, cache: ServiceTokenJwksCache): Promise<void> {
+  if (cache.pending) return cache.pending;
+  cache.lastAttemptAt = Date.now();
+  cache.pending = (async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), JWKS_FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        signal: controller.signal,
+        redirect: 'error',
+      });
+      if (!response.ok) throw new ServiceTokenSignatureError(`Oxy JWKS returned HTTP ${response.status}`);
+      const source = await response.text();
+      if (Buffer.byteLength(source, 'utf8') > JWKS_MAX_BYTES) throw new ServiceTokenSignatureError('Oxy JWKS exceeds the size limit');
+      cache.keys = parseServiceTokenJwks(JSON.parse(source) as unknown);
+      cache.expiresAt = Date.now() + JWKS_CACHE_MS;
+    } finally {
+      clearTimeout(timeout);
+    }
+  })();
+  try {
+    await cache.pending;
+  } finally {
+    cache.pending = undefined;
+  }
+}
+
+export async function resolveServiceTokenPublicKey(
+  kid: string,
+  url: string,
+  cache: ServiceTokenJwksCache,
+): Promise<ServiceTokenPublicJwk> {
+  const now = Date.now();
+  const cached = cache.keys.get(kid);
+  if (cached && cache.expiresAt > now) return cached;
+  const mayRefresh = cache.expiresAt <= now || now - cache.lastAttemptAt >= JWKS_UNKNOWN_KID_REFRESH_MS;
+  if (mayRefresh) {
+    try {
+      await refreshServiceTokenJwks(url, cache);
+    } catch {
+      const stillValid = cache.keys.get(kid);
+      if (stillValid && cache.expiresAt > Date.now()) return stillValid;
+      throw new ServiceTokenSignatureError('Oxy service-token key set is unavailable');
+    }
+  }
+  const resolved = cache.keys.get(kid);
+  if (!resolved || cache.expiresAt <= Date.now()) throw new ServiceTokenSignatureError('Service token signing key is unknown');
+  return resolved;
+}
+
+/**
+ * Ed25519 verification against Oxy's published JWKS (ADR 0012). The algorithm
+ * is pinned: the header must be exactly `{ alg: 'EdDSA', typ: 'JWT', kid }`,
+ * so HS256, `none` and every other header is refused before any key lookup.
+ */
+async function verifyServiceTokenSignature(
+  token: string,
+  options: { jwksUrl: string; cache: ServiceTokenJwksCache },
+): Promise<void> {
+  const nodeCrypto = await loadNodeCrypto();
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    throw new ServiceTokenStructureError(`Service token must have 3 parts, got ${parts.length}`);
+  }
+  const [headerB64, payloadB64, signatureB64] = parts;
+  if (!headerB64 || !payloadB64 || !signatureB64) {
+    throw new ServiceTokenStructureError('Service token has empty segment');
+  }
+  const header = parseJsonSegment(headerB64);
+  if (
+    Object.keys(header).length !== 3
+    || header.alg !== 'EdDSA'
+    || header.typ !== 'JWT'
+    || typeof header.kid !== 'string'
+    || !/^[A-Za-z0-9._-]{1,128}$/.test(header.kid)
+  ) throw new ServiceTokenStructureError('Service token JOSE header is not supported');
+  const jwk = await resolveServiceTokenPublicKey(header.kid, options.jwksUrl, options.cache);
+  let publicKey: Awaited<ReturnType<typeof nodeCrypto.createPublicKey>>;
+  try {
+    publicKey = nodeCrypto.createPublicKey({ key: jwk as unknown as JsonWebKey, format: 'jwk' });
+  } catch {
+    throw new ServiceTokenSignatureError('Service token public key is invalid');
+  }
+  const signature = Buffer.from(signatureB64, 'base64url');
+  if (signature.toString('base64url') !== signatureB64 || signature.length !== 64) throw new ServiceTokenStructureError('Service token signature is malformed');
+  if (!nodeCrypto.verify(null, Buffer.from(`${headerB64}.${payloadB64}`), publicKey, signature)) throw new ServiceTokenSignatureError();
+}
+
+/**
+ * Read a JWT claim that is only usable as a non-empty string.
+ *
+ * A decoded payload is attacker-controlled JSON: a claim the type declares as
+ * `string` can arrive as a number, an object, or `null`. Narrowing here keeps
+ * those values out of URL construction and identity comparison, so an
+ * unexpected shape becomes a 401 rather than a stringified surprise.
+ */
+/**
+ * A short, log-safe description of a thrown value: its class name and, when the
+ * transport attached one, its `code` (`ECONNREFUSED`, `ETIMEDOUT`, `ENOTFOUND`
+ * …). Never the message — a failed request's message can quote the URL it was
+ * made against, and a session-validation URL contains the session id.
+ */
+function describeErrorSafely(error: unknown): string {
+  if (!(error instanceof Error)) return typeof error;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && /^[A-Za-z0-9_]{1,40}$/.test(code)
+    ? `${error.name}: ${code}`
+    : error.name;
+}
+
+function readStringClaim(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/**
+ * Resolve the canonical user id from a validated session's user object.
+ *
+ * The API serializer emits `id`, but some upstream shapes carry the raw Mongo
+ * `_id` instead. We accept either, but only a non-empty string — anything else
+ * means the validated identity is unusable and the caller must reject.
+ */
+function getUserIdentityId(user: User): string | null {
+  const candidate = (user as { id?: unknown; _id?: unknown }).id
+    ?? (user as { id?: unknown; _id?: unknown })._id;
+  return typeof candidate === 'string' && candidate.length > 0 ? candidate : null;
+}
+
+/**
+ * Verify that a decoded service-token payload carries the expected `aud`,
+ * `iss`, and `type` claims. Throws `ServiceTokenClaimError` on mismatch.
+ * This is the defence against the H4 vulnerability where a recovery / 2FA /
+ * access token signed by the same shared secret could be replayed as a
+ * service token because no claim binding existed.
+ */
+function verifyServiceTokenClaims(
+  decoded: JwtPayload,
+  expected: { audience: string; issuer: string },
+): void {
+  if (decoded.type !== 'service') {
+    throw new ServiceTokenClaimError(`Service token has unexpected type '${String(decoded.type)}'`);
+  }
+  if (decoded.iss !== expected.issuer) {
+    throw new ServiceTokenClaimError(`Service token issuer mismatch: expected '${expected.issuer}', got '${String(decoded.iss)}'`);
+  }
+  const aud = decoded.aud;
+  if (Array.isArray(aud)) {
+    if (!aud.includes(expected.audience)) {
+      throw new ServiceTokenClaimError(`Service token audience does not include '${expected.audience}'`);
+    }
+  } else if (aud !== expected.audience) {
+    throw new ServiceTokenClaimError(`Service token audience mismatch: expected '${expected.audience}', got '${String(aud)}'`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Local request/response/socket typing
+//
+// Express's types are an optional peer (we don't want to take a hard dep on
+// `@types/express` from a platform-agnostic SDK). The structural subset below
+// captures everything this middleware actually touches, so consumers get type
+// checking without us coupling to Express's full surface.
+// ---------------------------------------------------------------------------
+
+interface AuthReq {
+  method?: string;
+  path?: string;
+  headers: Record<string, string | string[] | undefined>;
+  query?: Record<string, unknown>;
+  userId?: string | null;
+  user?: User | null;
+  accessToken?: string;
+  sessionId?: string | null;
+  serviceApp?: ServiceApp;
+  serviceActingAs?: { userId: string; scopes: string[] };
+  oxyAuthRefusal?: OxyAuthRefusal;
+}
+
+interface AuthRes {
+  status(code: number): AuthRes;
+  json(body: unknown): unknown;
+}
+
+type AuthNext = (err?: unknown) => void;
+
+interface SocketLike {
+  handshake?: { auth?: { token?: string } };
+  data?: Record<string, unknown>;
+  user?: { id: string; userId: string; sessionId?: string | null };
+}
+

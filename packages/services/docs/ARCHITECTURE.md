@@ -106,7 +106,7 @@ Entry points: `useOxy().openAccountDialog(view?)` inside React, `ProfileButton` 
 
 ### OxySignInButton
 
-[src/ui/components/OxySignInButton.tsx](../src/ui/components/OxySignInButton.tsx) — the public "Sign in with Oxy" button. On first press it resolves the registered `Application` via `oxyServices.getPublicApplication(clientId)` (`GET /auth/oauth/client/:clientId`) and routes by type:
+[src/ui/components/OxySignInButton.tsx](../src/ui/components/OxySignInButton.tsx) — the public "Sign in with Oxy" button. On first press it resolves the registered `Application` via `oxyServices.apps.getPublic(clientId)` (`GET /auth/oauth/client/:clientId`) and routes by type:
 
 - **Official apps** (`first_party` / `internal` / `system` / `isOfficial`) → opens the account dialog (`openAccountDialog('signin')`).
 - **`third_party`** → standard OAuth 2.0 Authorization Code + PKCE redirect to `auth.oxy.so/authorize`, built with `generatePkcePair` / `generateOAuthState` / `buildOAuthAuthorizeUrl` from `@oxy.so/core`. On web, the CSRF `state` and PKCE `code_verifier` persist across the redirect under `OXY_OAUTH_STATE_STORAGE_KEY` / `OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY` (sessionStorage); on native the flow completes inside a `WebBrowser` auth session and surfaces the handshake via `onOAuthResult` (`OxyOAuthResult`).

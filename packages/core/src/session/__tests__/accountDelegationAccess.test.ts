@@ -1,5 +1,5 @@
 import { ACCOUNT_KINDS } from "@oxy.so/contracts";
-import type { AccountMember } from "../../mixins/OxyServices.accounts";
+import type { AccountMember } from "../../api/accounts";
 import { canSwitchIntoAccount } from "../accountSwitchTargets";
 import { resolveAccountDelegationAccess } from "../accountDelegationAccess";
 

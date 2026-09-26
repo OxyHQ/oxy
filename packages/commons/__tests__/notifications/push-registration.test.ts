@@ -21,12 +21,16 @@ const EXPO_TOKEN = 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]';
 const RAW_DEVICE_TOKEN = '740f4707bebcf74f9b7c25d48e3358945f6aa01da5ddb387462c7eaf61bb78ad';
 
 function makeRegistry(): PushTokenRegistry & {
-  registerPushToken: jest.Mock<Promise<void>, [RegisterPushTokenInput]>;
-  unregisterPushToken: jest.Mock<Promise<void>, [string]>;
+  notifications: {
+    registerPushToken: jest.Mock<Promise<void>, [RegisterPushTokenInput]>;
+    unregisterPushToken: jest.Mock<Promise<void>, [string]>;
+  };
 } {
   return {
-    registerPushToken: jest.fn<Promise<void>, [RegisterPushTokenInput]>(async () => undefined),
-    unregisterPushToken: jest.fn<Promise<void>, [string]>(async () => undefined),
+    notifications: {
+      registerPushToken: jest.fn<Promise<void>, [RegisterPushTokenInput]>(async () => undefined),
+      unregisterPushToken: jest.fn<Promise<void>, [string]>(async () => undefined),
+    },
   };
 }
 
@@ -51,8 +55,8 @@ describe('registerInstallationPushToken', () => {
     const outcome = await registerInstallationPushToken(registry, makeEnvironment(), OPTIONS);
 
     expect(outcome).toEqual({ status: 'registered', expoPushToken: EXPO_TOKEN });
-    expect(registry.registerPushToken).toHaveBeenCalledTimes(1);
-    expect(registry.registerPushToken).toHaveBeenCalledWith({
+    expect(registry.notifications.registerPushToken).toHaveBeenCalledTimes(1);
+    expect(registry.notifications.registerPushToken).toHaveBeenCalledWith({
       expoPushToken: EXPO_TOKEN,
       platform: 'android',
       clientId: OPTIONS.clientId,
@@ -68,7 +72,7 @@ describe('registerInstallationPushToken', () => {
       channels: CHANNELS,
     });
 
-    expect(registry.registerPushToken).toHaveBeenCalledWith({
+    expect(registry.notifications.registerPushToken).toHaveBeenCalledWith({
       expoPushToken: EXPO_TOKEN,
       platform: 'android',
       clientId: OPTIONS.clientId,
@@ -80,7 +84,7 @@ describe('registerInstallationPushToken', () => {
 
     await registerInstallationPushToken(registry, makeEnvironment(), OPTIONS);
 
-    const [input] = registry.registerPushToken.mock.calls[0];
+    const [input] = registry.notifications.registerPushToken.mock.calls[0];
     expect(input.expoPushToken).toMatch(/^Expo(nent)?PushToken\[.+\]$/);
     expect(input.expoPushToken).not.toBe(RAW_DEVICE_TOKEN);
   });
@@ -94,7 +98,7 @@ describe('registerInstallationPushToken', () => {
     const outcome = await registerInstallationPushToken(registry, environment, OPTIONS);
 
     expect(outcome).toEqual({ status: 'skipped', reason: 'permission-not-granted' });
-    expect(registry.registerPushToken).not.toHaveBeenCalled();
+    expect(registry.notifications.registerPushToken).not.toHaveBeenCalled();
     // A token is not even minted without permission.
     expect(environment.getExpoPushToken).not.toHaveBeenCalled();
   });
@@ -109,7 +113,7 @@ describe('registerInstallationPushToken', () => {
     );
 
     expect(outcome).toEqual({ status: 'skipped', reason: 'no-token' });
-    expect(registry.registerPushToken).not.toHaveBeenCalled();
+    expect(registry.notifications.registerPushToken).not.toHaveBeenCalled();
   });
 
   it('sends nothing on a platform Oxy does not deliver push to', async () => {
@@ -121,7 +125,7 @@ describe('registerInstallationPushToken', () => {
     const outcome = await registerInstallationPushToken(registry, environment, OPTIONS);
 
     expect(outcome).toEqual({ status: 'skipped', reason: 'unsupported-platform' });
-    expect(registry.registerPushToken).not.toHaveBeenCalled();
+    expect(registry.notifications.registerPushToken).not.toHaveBeenCalled();
     expect(environment.hasNotificationPermission).not.toHaveBeenCalled();
   });
 
@@ -137,7 +141,7 @@ describe('registerInstallationPushToken', () => {
     // Android drops a push whose channel does not exist yet, so the ORDER is the
     // guarantee: the channel must exist before the server can ever send to it.
     expect(channelMock.mock.invocationCallOrder[0]).toBeLessThan(
-      (registry.registerPushToken as jest.Mock).mock.invocationCallOrder[0],
+      (registry.notifications.registerPushToken as jest.Mock).mock.invocationCallOrder[0],
     );
   });
 
@@ -154,13 +158,13 @@ describe('registerInstallationPushToken', () => {
     expect(accountCall).toBeGreaterThanOrEqual(0);
     expect(channelMock.mock.calls[accountCall][0]).toMatchObject({ name: ACCOUNT_CHANNEL.name });
     expect(channelMock.mock.invocationCallOrder[accountCall]).toBeLessThan(
-      (registry.registerPushToken as jest.Mock).mock.invocationCallOrder[0],
+      (registry.notifications.registerPushToken as jest.Mock).mock.invocationCallOrder[0],
     );
   });
 
   it('propagates a registry rejection so the caller can log it', async () => {
     const registry = makeRegistry();
-    registry.registerPushToken.mockRejectedValue(new Error('registerPushToken expects an Expo push token'));
+    registry.notifications.registerPushToken.mockRejectedValue(new Error('registerPushToken expects an Expo push token'));
 
     await expect(
       registerInstallationPushToken(registry, makeEnvironment(), OPTIONS),
@@ -175,7 +179,7 @@ describe('retireInstallationPushToken', () => {
     const outcome = await retireInstallationPushToken(registry, makeEnvironment());
 
     expect(outcome).toEqual({ status: 'retired', expoPushToken: EXPO_TOKEN });
-    expect(registry.unregisterPushToken).toHaveBeenCalledWith(EXPO_TOKEN);
+    expect(registry.notifications.unregisterPushToken).toHaveBeenCalledWith(EXPO_TOKEN);
   });
 
   it('does nothing when there is no token to retire', async () => {
@@ -187,6 +191,6 @@ describe('retireInstallationPushToken', () => {
     );
 
     expect(outcome).toEqual({ status: 'skipped', reason: 'no-token' });
-    expect(registry.unregisterPushToken).not.toHaveBeenCalled();
+    expect(registry.notifications.unregisterPushToken).not.toHaveBeenCalled();
   });
 });

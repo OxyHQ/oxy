@@ -1,3 +1,5 @@
+import { handleHttpError } from './utils/errorUtils';
+
 /**
  * Custom error types for better error handling
  */
@@ -156,3 +158,74 @@ export class OxyAuthenticationTimeoutError extends OxyAuthenticationError {
   }
 }
 
+
+/**
+ * The one error every `OxyServices` call rejects with.
+ *
+ * `status` is the HTTP status (0 when no response arrived: a network failure,
+ * a timeout or a cancellation), `code` the API's machine code when it sent one
+ * (else a transport code such as `TIMEOUT`, `NETWORK_ERROR`, `CANCELLED`), and
+ * `details` the API's structured detail. The original error is `cause`.
+ */
+export class OxyApiError extends Error {
+  public readonly status: number;
+  public readonly code: string;
+  public readonly details?: Record<string, unknown>;
+  /** The raw response, when one arrived. */
+  public readonly response?: { status: number; statusText: string; data?: unknown };
+  /** True when the caller cancelled the request (never a failure). */
+  public readonly cancelled: boolean;
+  /** True when the request timed out. */
+  public readonly timeout: boolean;
+
+  constructor(
+    message: string,
+    init: {
+      status: number;
+      code: string;
+      details?: Record<string, unknown>;
+      response?: { status: number; statusText: string; data?: unknown };
+      cancelled?: boolean;
+      timeout?: boolean;
+      cause?: unknown;
+    },
+  ) {
+    super(message);
+    this.name = 'OxyApiError';
+    this.status = init.status;
+    this.code = init.code;
+    this.details = init.details;
+    this.response = init.response;
+    this.cancelled = init.cancelled ?? false;
+    this.timeout = init.timeout ?? false;
+    if (init.cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = init.cause;
+    }
+  }
+}
+
+/**
+ * Normalise anything a request rejected with into an `OxyApiError`. An error
+ * that already is one (or a typed SDK error such as `OxyAuthenticationError`)
+ * passes through unchanged.
+ */
+export function toOxyApiError(error: unknown): Error {
+  if (error instanceof OxyApiError || error instanceof OxyAuthenticationError) {
+    return error;
+  }
+  const api = handleHttpError(error);
+  const source = (error && typeof error === 'object' ? error : {}) as {
+    response?: { status: number; statusText: string; data?: unknown };
+    cancelled?: boolean;
+    timeout?: boolean;
+  };
+  return new OxyApiError(api.message?.trim() || 'An unexpected error occurred', {
+    status: api.status,
+    code: api.code,
+    details: api.details,
+    response: source.response,
+    cancelled: source.cancelled === true,
+    timeout: source.timeout === true,
+    cause: error,
+  });
+}

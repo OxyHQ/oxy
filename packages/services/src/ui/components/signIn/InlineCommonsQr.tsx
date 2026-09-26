@@ -22,7 +22,7 @@ import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
 import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
-import type { AccountDialogController } from '@oxy.so/core';
+import type { AccountDialogController } from '@oxy.so/core/session';
 import { useI18n } from '../../hooks/useI18n';
 import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
 

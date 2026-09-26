@@ -473,7 +473,7 @@ function buildHero(
   return {
     displayName,
     addressLine,
-    avatarUrl: user.avatar ? oxyServices.getFileDownloadUrl(user.avatar, 'thumb') : undefined,
+    avatarUrl: user.avatar ? oxyServices.assets.publicUrl(user.avatar, 'thumb') : undefined,
     accentHex: resolveAccentHex(user.color ?? null, fallbackAccent),
   };
 }

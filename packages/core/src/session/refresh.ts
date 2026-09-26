@@ -164,8 +164,8 @@ export async function refreshDeviceSecretArm(deps: {
 }): Promise<DeviceSecretMintOutcome> {
   const { oxy, store } = deps;
   const pin = deps.pin ?? null;
-  return oxy.httpService.runSingleFlightDeviceSecretMint(async () => {
-    const epoch = oxy.httpService.getSessionEpoch();
+  return oxy.http.runSingleFlightDeviceSecretMint(async () => {
+    const epoch = oxy.http.getSessionEpoch();
     const persisted = await store.load();
     if (!persisted?.deviceId || !persisted?.deviceSecret) {
       return { status: 'no-secret' };
@@ -176,10 +176,10 @@ export async function refreshDeviceSecretArm(deps: {
       // Unpinned callers pass NO third argument at all, so the account-mode call
       // shape (and therefore the request body) is untouched by this feature.
       mint = pin
-        ? await oxy.mintFromDeviceSecret(persisted.deviceId, persisted.deviceSecret, {
+        ? await oxy.devices.mintToken(persisted.deviceId, persisted.deviceSecret, {
             accountId: pin.accountId,
           })
-        : await oxy.mintFromDeviceSecret(persisted.deviceId, persisted.deviceSecret);
+        : await oxy.devices.mintToken(persisted.deviceId, persisted.deviceSecret);
     } catch (error) {
       // 429 keeps the credential like any other transient failure — the secret
       // was never judged — but it must NOT retry on the transient cadence. The
@@ -190,7 +190,7 @@ export async function refreshDeviceSecretArm(deps: {
       // requests. Telling HttpService lengthens the next cooldown to one attempt
       // per limiter window, which lets the budget drain and the session heal.
       if (extractErrorStatus(error) === 429) {
-        oxy.httpService.noteRefreshRateLimited();
+        oxy.http.noteRefreshRateLimited();
         return { status: 'transient' };
       }
       if (extractErrorStatus(error) === 401) {
@@ -229,7 +229,7 @@ export async function refreshDeviceSecretArm(deps: {
       expiresAt: mint.expiresAt,
       ...(bound ? { sessionId: bound.sessionId, userId: bound.accountId } : {}),
     };
-    if (oxy.httpService.getSessionEpoch() !== epoch) {
+    if (oxy.http.getSessionEpoch() !== epoch) {
       // Signed out while minting. A store that still holds the presented
       // secret takes the server's `nextDeviceSecret` (the token-null lane keeps
       // the store so a reload can restore); a store the sign-out cleared must
@@ -246,10 +246,10 @@ export async function refreshDeviceSecretArm(deps: {
     if (!persistedOk) {
       return { status: 'persist-failed' };
     }
-    if (oxy.httpService.getSessionEpoch() !== epoch) {
+    if (oxy.http.getSessionEpoch() !== epoch) {
       return { status: 'session-ended' };
     }
-    oxy.setTokens(mint.accessToken);
+    oxy.session.setAccessToken(mint.accessToken);
     return {
       status: 'ok',
       token: mint.accessToken,
@@ -287,7 +287,7 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
   const identity = deps.identity ?? null;
   // The shared keychain is never an identity-bound client's recovery path.
   const allowSharedKeyFallback = identity ? false : (deps.allowSharedKeyFallback ?? isNative());
-  const epoch = oxy.httpService.getSessionEpoch();
+  const epoch = oxy.http.getSessionEpoch();
   // Resolved per call: a re-established identity session can move the pin, and a
   // replaced/removed local key clears it (in which case arm 1 must NOT mint —
   // an unpinned mint would adopt whatever account the device switched to).
@@ -359,14 +359,14 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
 
   // Never after a sign-out: the shared keychain holds an identity KEY, not a
   // session, and using it here would sign the user straight back in.
-  if (allowSharedKeyFallback && !oxy.httpService.hasSessionEnded()) {
+  if (allowSharedKeyFallback && !oxy.http.hasSessionEnded()) {
     try {
       // Planted here, not by the sign-in: a sign-out that lands while the
       // challenge round-trips must win, or the shared keychain signs the user
       // straight back in.
-      const session = await oxy.signInWithSharedIdentity({ plantTokens: false });
+      const session = await oxy.auth.signInWithSharedIdentity({ plantTokens: false });
       if (session?.accessToken) {
-        if (oxy.httpService.getSessionEpoch() !== epoch) {
+        if (oxy.http.getSessionEpoch() !== epoch) {
           return null;
         }
         // Repopulate the fast device-secret lane from the shared-key re-mint.
@@ -380,10 +380,10 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
             expiresAt: session.expiresAt,
           });
         }
-        if (oxy.httpService.getSessionEpoch() !== epoch) {
+        if (oxy.http.getSessionEpoch() !== epoch) {
           return null;
         }
-        oxy.setTokens(session.accessToken);
+        oxy.session.setAccessToken(session.accessToken);
         return session.accessToken;
       }
     } catch (error) {
@@ -444,9 +444,9 @@ export function createAuthRefreshHandler(deps: RefreshDeps): AuthRefreshHandler 
  * Returns a disposer that removes it.
  */
 export function installAuthRefreshHandler(deps: RefreshDeps): () => void {
-  deps.oxy.httpService.setAuthRefreshHandler(createAuthRefreshHandler(deps));
+  deps.oxy.http.setAuthRefreshHandler(createAuthRefreshHandler(deps));
   return () => {
-    deps.oxy.httpService.setAuthRefreshHandler(null);
+    deps.oxy.http.setAuthRefreshHandler(null);
   };
 }
 
@@ -497,10 +497,10 @@ export function startTokenRefreshScheduler(oxy: OxyServices): TokenRefreshSchedu
   /** Schedule the next re-mint from the current token's expiry (the healthy path). */
   const scheduleFromExpiry = (): void => {
     clearTimer();
-    if (disposed || !oxy.getAccessToken()) {
+    if (disposed || !oxy.session.accessToken) {
       return;
     }
-    const expSeconds = oxy.getAccessTokenExpiry();
+    const expSeconds = oxy.session.accessTokenExpiry;
     if (expSeconds === null) {
       return;
     }
@@ -508,7 +508,7 @@ export function startTokenRefreshScheduler(oxy: OxyServices): TokenRefreshSchedu
     // The server already answered this token's refresh with this very token:
     // asking again before `exp` only gets it back again. Ask just after expiry,
     // when the server rotates (see REMINT_AFTER_EXPIRY_MS).
-    if (untilExpiryMs > 0 && oxy.httpService.isAwaitingCurrentTokenExpiry?.()) {
+    if (untilExpiryMs > 0 && oxy.http.isAwaitingCurrentTokenExpiry?.()) {
       armTimer(untilExpiryMs + REMINT_AFTER_EXPIRY_MS);
       return;
     }
@@ -521,11 +521,11 @@ export function startTokenRefreshScheduler(oxy: OxyServices): TokenRefreshSchedu
     clearTimer();
     // Another lane (a request-time preflight) already asked, and the server
     // answered with this same token: re-arm for just past expiry instead.
-    if (oxy.httpService.isAwaitingCurrentTokenExpiry?.()) {
+    if (oxy.http.isAwaitingCurrentTokenExpiry?.()) {
       scheduleFromExpiry();
       return;
     }
-    void oxy.httpService.refreshAccessToken('preflight')
+    void oxy.http.refreshAccessToken('preflight')
       .then((token) => Boolean(token))
       .catch(() => false)
       .then((ok) => {
@@ -554,10 +554,10 @@ export function startTokenRefreshScheduler(oxy: OxyServices): TokenRefreshSchedu
   };
 
   const onFocus = (): void => {
-    if (disposed || !oxy.getAccessToken()) {
+    if (disposed || !oxy.session.accessToken) {
       return;
     }
-    const expSeconds = oxy.getAccessTokenExpiry();
+    const expSeconds = oxy.session.accessTokenExpiry;
     if (expSeconds === null) {
       return;
     }
@@ -572,8 +572,8 @@ export function startTokenRefreshScheduler(oxy: OxyServices): TokenRefreshSchedu
   // Re-arm only on a token that actually CHANGED. The mint plants the token it
   // returns even when that is the token already held, and treating the repeat
   // as new re-armed from an in-lead-window expiry, i.e. at the 1s floor.
-  let lastSeenToken = oxy.getAccessToken();
-  const unsubscribeTokens = oxy.onTokensChanged((token) => {
+  let lastSeenToken = oxy.session.accessToken;
+  const unsubscribeTokens = oxy.session.onChange((token) => {
     if (disposed || token === lastSeenToken) {
       return;
     }

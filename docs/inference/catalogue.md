@@ -104,12 +104,13 @@ with an inference credential; either works.
 The id is **two path segments**, not one: a canonical model id contains a slash,
 so a single `:id` segment would never match it.
 
-From the SDK (`@oxy.so/core`):
+From the SDK (`@oxy.so/core/inference`):
 
 ```typescript
 import type { ModelCatalogueEntry, RoutingProfile } from '@oxy.so/contracts';
+import { createInferenceClient } from '@oxy.so/core/inference';
 
-const inference = oxy.inference();   // or new OxyInferenceClient({ credential: 'oxy_sk_…' })
+const inference = createInferenceClient(oxy);   // or new OxyInferenceClient({ credential: 'oxy_sk_…' })
 
 const models: ModelCatalogueEntry[] = await inference.listModels();
 const one: ModelCatalogueEntry = await inference.getModel('acme/some-model');

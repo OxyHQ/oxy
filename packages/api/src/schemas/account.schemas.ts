@@ -165,54 +165,6 @@ export const transferAccountOwnershipSchema = z.object({
   userId: z.string().trim().min(1),
 });
 
-// ===========================================================================
-// Service-scoped channel provisioning (`accounts:provision`)
-//
-// These are the SERVICE half of the account surface: an application acting for
-// a user it names, rather than a user acting for themselves. `kind` is absent
-// from the create body on purpose — the route hardcodes `channel` (see
-// `routes/accounts.ts`), so the credential cannot mint an account of a kind
-// anyone could later act as.
-// ===========================================================================
-
-/** POST /accounts/service/channels — mint a channel under `ownerUserId`. */
-export const provisionChannelSchema = z
-  .object({
-    /**
-     * The human whose tree the channel is created under, and who is recorded as
-     * its `owner` member. Named by the service; there is no ambient caller
-     * identity on a service token.
-     */
-    ownerUserId: z.string().trim().min(1),
-    username: usernameSchema,
-    name: z
-      .object({
-        first: z.string().trim().max(100).optional(),
-        last: z.string().trim().max(100).optional(),
-        displayName: z.string().trim().max(100).optional(),
-      })
-      .optional(),
-    bio: z.string().trim().max(500).optional(),
-    description: z.string().trim().max(1000).optional(),
-    avatar: z.string().optional(),
-  })
-  .strict();
-
-/** Route params for the service member endpoints. */
-export const provisionChannelMemberParams = z.object({
-  id: z.string().trim().min(1),
-  memberUserId: z.string().trim().min(1),
-});
-
-/** POST /accounts/service/channels/:id/members — grant membership on a channel. */
-export const provisionChannelMemberSchema = z
-  .object({
-    memberUserId: z.string().trim().min(1),
-    role: z.enum(assignableRoles as [typeof assignableRoles[number], ...typeof assignableRoles]),
-    inherit: z.boolean().optional(),
-  })
-  .strict();
-
 /**
  * `GET /accounts/:id/audit` — the account-scoped audit union's query.
  *

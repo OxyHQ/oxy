@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isChildWindow, tryCloseChildWindow } from "@/lib/child-window";
 import { useSearchParams, Link, useNavigate, Navigate } from "react-router-dom";
-import type { PublicApplication, SwitcherContextRow } from "@oxy.so/core";
+import type { PublicApplication } from '@oxy.so/core';
+import type { SwitcherContextRow } from '@oxy.so/core/session';
 import {
   mcpOAuthClientInfoResponseSchema,
   publicApplicationSchema,
@@ -36,7 +37,7 @@ import {
 /**
  * The requesting-application + auth-request resolution state. The signed-in
  * USER, the access token, and the device session id come from the device-first
- * SDK (`useOxy().user` / `oxyServices.getAccessToken()` / `useDeviceSwitcher`)
+ * SDK (`useOxy().user` / `oxyServices.session.accessToken` / `useDeviceSwitcher`)
  * — the IdP no longer resolves per-account bearers itself.
  */
 type AuthorizeData = {
@@ -261,7 +262,7 @@ function AuthorizeRequest() {
   const hasUsableBearer =
     isAuthenticated ||
     activeContext !== null ||
-    !!oxyServices.getAccessToken();
+    !!oxyServices.session.accessToken;
 
   // The additional no-session lane (issue #691). A request that carries a full
   // PKCE binding can be created with its OAuth context already attached, be
@@ -530,7 +531,7 @@ function AuthorizeRequest() {
       }
       setChooserDismissed(true);
       autoApproveAttemptedRef.current = true;
-      await maybeAutoApprove(oxyServices.getAccessToken(), context.accountId);
+      await maybeAutoApprove(oxyServices.session.accessToken, context.accountId);
     } catch {
       gotoLoginWithHint(context.handle ?? undefined);
     } finally {
@@ -553,7 +554,7 @@ function AuthorizeRequest() {
       return;
     }
     autoApproveAttemptedRef.current = true;
-    void maybeAutoApprove(oxyServices.getAccessToken(), activeContext.subject.accountId);
+    void maybeAutoApprove(oxyServices.session.accessToken, activeContext.subject.accountId);
   }, [
     contextCount,
     directoryLoading,
@@ -806,7 +807,7 @@ function AuthorizeRequest() {
     try {
       // The bearer is ALWAYS the SDK's active-account token (planted at sign-in /
       // account switch) — never a per-row bearer.
-      const accessToken = oxyServices.getAccessToken();
+      const accessToken = oxyServices.session.accessToken;
 
       if (!accessToken) {
         setData((prev) => ({

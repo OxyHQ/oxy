@@ -19,7 +19,8 @@ import QRCode from 'react-native-qrcode-svg';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
-import type { CommonsDeliveryRoute, SignInProgress } from '@oxy.so/core';
+import type { CommonsDeliveryRoute } from '@oxy.so/core';
+import type { SignInProgress } from '@oxy.so/core/session';
 import { authChooserStyles as styles } from './styles';
 import type { Theme, Translate } from './types';
 

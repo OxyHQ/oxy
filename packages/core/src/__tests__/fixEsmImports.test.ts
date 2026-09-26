@@ -10,7 +10,7 @@
  * the keyword is followed by a parenthesis, not whitespace. Every dynamic
  * import therefore shipped extensionless in `dist/esm`.
  *
- * `OxyServices.getServiceToken()` loads `../server/workloadIdentity` that way
+ * `OxyServer.serviceToken()` loads `../server/workloadIdentity` that way
  * to decide whether this process can attest its workload identity (ADR 0026),
  * and it does so inside a `try/catch` that reads any failure as "cannot attest
  * here". So in every ESM consumer of the BUILT package the ADR 0026 fallback
@@ -61,7 +61,7 @@ describe('fix-esm-imports', () => {
   it('adds .js to a dynamic relative import', () => {
     const out = runOnFixture({
       'server/workloadIdentity.js': 'export const canAttestWorkloadIdentity = () => true;\n',
-      'mixins/auth.js': [
+      'api/auth.js': [
         'export async function canUse() {',
         "  const { canAttestWorkloadIdentity } = await import('../server/workloadIdentity');",
         '  return canAttestWorkloadIdentity();',
@@ -70,47 +70,47 @@ describe('fix-esm-imports', () => {
       ].join('\n'),
     });
 
-    expect(out['mixins/auth.js']).toContain("await import('../server/workloadIdentity.js')");
+    expect(out['api/auth.js']).toContain("await import('../server/workloadIdentity.js')");
   });
 
   it('rewrites every dynamic import in a file, not only the first', () => {
     const out = runOnFixture({
       'server/workloadIdentity.js': 'export const a = 1;\nexport const b = 2;\n',
-      'mixins/auth.js': [
+      'api/auth.js': [
         "const first = await import('../server/workloadIdentity');",
         "const second = await import('../server/workloadIdentity');",
         '',
       ].join('\n'),
     });
 
-    const matches = out['mixins/auth.js'].match(/workloadIdentity\.js/g) ?? [];
+    const matches = out['api/auth.js'].match(/workloadIdentity\.js/g) ?? [];
     expect(matches).toHaveLength(2);
     // And nothing was left extensionless.
-    expect(out['mixins/auth.js']).not.toMatch(/workloadIdentity'/);
+    expect(out['api/auth.js']).not.toMatch(/workloadIdentity'/);
   });
 
   it('tolerates whitespace between the keyword and the parenthesis', () => {
     const out = runOnFixture({
       'server/workloadIdentity.js': 'export const a = 1;\n',
-      'mixins/auth.js': "const m = await import(\n  '../server/workloadIdentity'\n);\n",
+      'api/auth.js': "const m = await import(\n  '../server/workloadIdentity'\n);\n",
     });
 
-    expect(out['mixins/auth.js']).toContain("'../server/workloadIdentity.js'");
+    expect(out['api/auth.js']).toContain("'../server/workloadIdentity.js'");
   });
 
   it('resolves a dynamic directory import to its index', () => {
     const out = runOnFixture({
       'server/index.js': 'export const a = 1;\n',
-      'mixins/auth.js': "const m = await import('../server');\n",
+      'api/auth.js': "const m = await import('../server');\n",
     });
 
-    expect(out['mixins/auth.js']).toContain("'../server/index.js'");
+    expect(out['api/auth.js']).toContain("'../server/index.js'");
   });
 
   it('still rewrites the static forms, and leaves bare and already-suffixed specifiers alone', () => {
     const out = runOnFixture({
       'server/workloadIdentity.js': 'export const a = 1;\n',
-      'mixins/auth.js': [
+      'api/auth.js': [
         "import { a } from '../server/workloadIdentity';",
         "import '../server/workloadIdentity';",
         "export { a as b } from '../server/workloadIdentity';",
@@ -119,10 +119,10 @@ describe('fix-esm-imports', () => {
         "const late = await import('./sibling.js');",
         '',
       ].join('\n'),
-      'mixins/sibling.js': 'export const s = 1;\n',
+      'api/sibling.js': 'export const s = 1;\n',
     });
 
-    const source = out['mixins/auth.js'];
+    const source = out['api/auth.js'];
     expect(source.match(/workloadIdentity\.js/g) ?? []).toHaveLength(3);
     expect(source).toContain("import { createHash } from 'node:crypto';");
     expect(source).toContain("import { z } from 'zod';");

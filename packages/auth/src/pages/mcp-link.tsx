@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
-import type { SwitcherContextRow } from "@oxy.so/core";
+import type { SwitcherContextRow } from '@oxy.so/core/session';
 import { getNormalizedUserHandle } from "@oxy.so/core";
 import { OxyAccountPicker, OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader, useDeviceSwitcher, useOxy } from "@oxy.so/services";
 
@@ -53,11 +53,11 @@ export function McpLinkPage() {
   const hasUsableBearer =
     isAuthenticated ||
     activeContext !== null ||
-    !!oxyServices.getAccessToken();
+    !!oxyServices.session.accessToken;
 
   const describe = useCallback(
     async (accountId: string | undefined) => {
-      const accessToken = oxyServices.getAccessToken();
+      const accessToken = oxyServices.session.accessToken;
       if (!intent || !accessToken) return;
       describedForAccount.current = accountId ?? null;
       setLoading(true);
@@ -129,7 +129,7 @@ export function McpLinkPage() {
   }
 
   async function handleApprove(): Promise<void> {
-    const accessToken = oxyServices.getAccessToken();
+    const accessToken = oxyServices.session.accessToken;
     if (!intent || !accessToken) return;
     setSubmitting(true);
     setError(null);

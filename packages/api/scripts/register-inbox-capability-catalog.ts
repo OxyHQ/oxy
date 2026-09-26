@@ -3,7 +3,7 @@ import { requiredInboxServiceClient } from '../src/capabilities/inbox-service-cl
 
 async function main(): Promise<void> {
   const apiUrl = process.env.OXY_API_URL ?? 'https://api.oxy.so';
-  const token = await requiredInboxServiceClient().getServiceToken();
+  const token = await requiredInboxServiceClient().serviceToken();
 
   const response = await fetch(`${apiUrl.replace(/\/$/, '')}/capabilities/catalogs/register`, {
     method: 'POST',

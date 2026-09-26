@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -10,6 +10,7 @@ import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useSettingToggles } from '../hooks/useSettingToggle';
 import { useOxy } from '../context/OxyContext';
+import { useCurrentUser } from '../hooks/queries/useAccountQueries';
 import type { User } from '@oxy.so/core';
 
 interface SearchSettings {
@@ -29,7 +30,6 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({
 
     useSurfaceHeader({ title: t('searchSettings.title') || 'Search Settings' });
     const bloomTheme = useTheme();
-    const [isLoading, setIsLoading] = useState(true);
 
     // Use the existing useSettingToggles hook for toggle management
     const { values: settings, toggle, savingKeys, setValues } = useSettingToggles<SearchSettings>({
@@ -42,7 +42,7 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({
                 searchPersonalization: 'dataSharing',
             };
 
-            await oxyServices.updateProfile({
+            await oxyServices.users.updateMe({
                 privacySettings: {
                     [fieldMap[key]]: value,
                 },
@@ -53,31 +53,19 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({
 
     const isSaving = savingKeys.size > 0;
 
-    // Load initial settings
+    // The profile comes from the shared React Query cache (the same entry every
+    // account surface reads), not a fetch of its own on every mount.
+    const currentUser = useCurrentUser({ enabled: Boolean(user?.id) });
+    const isLoading = Boolean(user?.id) && currentUser.isPending;
+    const privacySettings = (currentUser.data as (User & { privacySettings?: { autoFilter?: boolean; dataSharing?: boolean } }) | undefined)
+        ?.privacySettings;
     useEffect(() => {
-        const loadSettings = async () => {
-            try {
-                setIsLoading(true);
-                if (user?.id && oxyServices) {
-                    const userData = await oxyServices.getCurrentUser() as User & { privacySettings?: { autoFilter?: boolean; dataSharing?: boolean } };
-                    const privacySettings = userData?.privacySettings || {};
-
-                    setValues({
-                        safeSearch: privacySettings.autoFilter ?? false,
-                        searchPersonalization: privacySettings.dataSharing ?? true,
-                    });
-                }
-            } catch (error) {
-                if (__DEV__) {
-                    console.error('Failed to load search settings:', error);
-                }
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        loadSettings();
-    }, [user?.id, oxyServices, setValues]);
+        if (!privacySettings) return;
+        setValues({
+            safeSearch: privacySettings.autoFilter ?? false,
+            searchPersonalization: privacySettings.dataSharing ?? true,
+        });
+    }, [privacySettings, setValues]);
 
     if (isLoading) {
         return (

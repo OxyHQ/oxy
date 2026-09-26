@@ -18,7 +18,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
-import { deriveIdentityLinkCode } from '@oxy.so/core';
+import { deriveIdentityLinkCode } from '@oxy.so/core/crypto';
 import type { IdentityLinkCreateResponse } from '@oxy.so/contracts';
 import { useOxy } from '../../context/OxyContext';
 import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
@@ -61,7 +61,7 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
     setError(null);
     setStep({ name: 'opening' });
     oxyServices
-      .createIdentityLink()
+      .identity.links.create()
       .then((link) => setStep({ name: 'qr', link }))
       .catch((reason: unknown) => {
         setError(describeSignInError(reason, t));
@@ -90,7 +90,7 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
         return;
       }
       try {
-        const state = await oxyServices.getIdentityLink(link.linkId);
+        const state = await oxyServices.identity.links.get(link.linkId);
         if (stopped) return;
         if (state.status === 'signed' && state.publicKey) {
           setStep({ name: 'matching', link, code: deriveIdentityLinkCode(link.linkId, state.publicKey) });
@@ -113,7 +113,7 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
   }, [link, oxyServices]);
 
   const cancel = (cancelled: IdentityLinkCreateResponse) => {
-    void oxyServices.cancelIdentityLink(cancelled.linkId).catch(() => undefined);
+    void oxyServices.identity.links.cancel(cancelled.linkId).catch(() => undefined);
     setStep({ name: 'expired' });
   };
 
@@ -136,7 +136,7 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
           submitLabel={t('linkCommons.confirm')}
           onSubmit={async (proof) => {
             if (!proof.emailCode) throw new Error(t('reauth.errors.invalid'));
-            await oxyServices.completeIdentityLinkWithEmailCode(step.link.linkId, {
+            await oxyServices.identity.links.complete(step.link.linkId, {
               emailCode: proof.emailCode,
               ...(proof.totpCode ? { totpCode: proof.totpCode } : {}),
             });

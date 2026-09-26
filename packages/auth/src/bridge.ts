@@ -2,7 +2,7 @@
  * Entry of `auth.oxy.so/bridge` (see `lib/bridge.ts`). No React, no UI: it runs,
  * posts one message to the app that opened it, and closes.
  */
-import { createWebAuthStateStore } from "@oxy.so/core"
+import { createWebAuthStateStore } from '@oxy.so/core/session';
 import {
   BRIDGE_ERROR_MESSAGE_TYPE,
   createBridgeApi,

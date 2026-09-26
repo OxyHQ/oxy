@@ -60,7 +60,7 @@ export default function DevicesScreen() {
           onPress: async () => {
             try {
               setActionLoading(deviceId);
-              await oxyServices?.removeDevice(deviceId);
+              await oxyServices?.devices.remove(deviceId);
               // Refresh devices list
               await refetch();
               // On native, surface a success toast (web's list refresh is its own confirmation).

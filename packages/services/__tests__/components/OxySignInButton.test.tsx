@@ -44,7 +44,7 @@ let webAuthMode: WebAuthMode = 'popup';
 
 const mockRuntime = () => ({
   openAccountDialog,
-  oxyServices: { getPublicApplication },
+  oxyServices: { apps: { getPublic: getPublicApplication } },
   clientId,
   webAuthMode,
   startWebOAuthSignIn,

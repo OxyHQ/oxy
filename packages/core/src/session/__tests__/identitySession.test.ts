@@ -31,16 +31,17 @@ const SESSION: SessionLoginResponse = {
 };
 
 interface OxyOverrides {
-  requestChallenge?: OxyServices['requestChallenge'];
-  verifyChallenge?: OxyServices['verifyChallenge'];
+  requestChallenge?: OxyServices['auth']['requestChallenge'];
+  verifyChallenge?: OxyServices['auth']['verifyChallenge'];
 }
 
 function makeOxy(overrides: OxyOverrides = {}): OxyServices {
   return {
-    requestChallenge:
-      overrides.requestChallenge
+    auth: {
+      requestChallenge: overrides.requestChallenge
       ?? (async () => ({ challenge: 'chal-1', expiresAt: '2030-01-01T00:00:00.000Z' })),
-    verifyChallenge: overrides.verifyChallenge ?? (async () => SESSION),
+      verifyChallenge: overrides.verifyChallenge ?? (async () => SESSION),
+    },
   } as unknown as OxyServices;
 }
 

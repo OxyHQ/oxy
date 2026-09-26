@@ -70,7 +70,7 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), replace: 
 jest.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: jest.fn() }) }));
 jest.mock('@oxy.so/bloom/surfaces', () => ({ alert: jest.fn() }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: { error: jest.fn() } }));
-jest.mock('@oxy.so/core', () => ({ KeyManager: { hasIdentity: jest.fn(), deleteIdentity: jest.fn() } }));
+jest.mock('@oxy.so/core/crypto', () => ({ KeyManager: { hasIdentity: jest.fn(), deleteIdentity: jest.fn() } }));
 jest.mock('@/lib/account/delete-account-flow', () => ({ runAccountDeletion: jest.fn() }));
 jest.mock('@/lib/notifications/push-registration', () => ({ retireVaultPushToken: jest.fn() }));
 jest.mock('@/hooks/useOnboardingStatus', () => ({

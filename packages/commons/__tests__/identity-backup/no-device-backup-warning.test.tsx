@@ -10,7 +10,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
-import { KeyManager } from '@oxy.so/core';
+import { KeyManager } from '@oxy.so/core/crypto';
 import { __resetAsyncStorage, __seedAsyncStorage } from '@/__mocks__/async-storage';
 import { __getMockRouter } from '@/__mocks__/expo-router';
 import { LocaleProvider } from '@/lib/i18n/locale-context';

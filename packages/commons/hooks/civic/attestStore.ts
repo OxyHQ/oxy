@@ -44,7 +44,7 @@ export interface AttestSubmitParams {
 }
 
 /** The single SDK capability the submit needs (narrow keeps tests honest). */
-type AttestSubmitServices = Pick<OxyServices, 'submitRealLifeAttestation'>;
+type AttestSubmitServices = { civic: Pick<OxyServices['civic'], 'attest'> };
 
 export interface AttestFlowState {
   status: AttestFlowStatus;
@@ -114,7 +114,7 @@ export const useAttestStore = create<AttestFlowStore>((set, get) => {
   ) => {
     const current = ++submission;
     try {
-      const result = await oxyServices.submitRealLifeAttestation({
+      const result = await oxyServices.civic.attest({
         subjectDid: params.subjectDid,
         context: params.context,
         nonce: params.nonce,

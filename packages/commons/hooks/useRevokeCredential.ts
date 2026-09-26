@@ -66,7 +66,7 @@ export function useRevokeCredential(biometricReason: string): UseRevokeCredentia
 
       setState('revoking');
       try {
-        const res = await oxyServices.revokeCredential(credential.id);
+        const res = await oxyServices.civic.credentials.revoke(credential.id);
         setResult(res);
         setState('done');
         void queryClient.invalidateQueries({

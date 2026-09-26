@@ -249,9 +249,6 @@ async function seedSession(userId: string, deviceId: string): Promise<void> {
 
 beforeAll(async () => {
   await connectPostgres();
-  // The civic award rules (`personhood_vouched`, `vouch_slashed`,
-  // `real_life_attested`) — `award` refuses an action with no enabled rule.
-  await reputationService.seedDefaultRules();
 });
 
 afterAll(async () => {

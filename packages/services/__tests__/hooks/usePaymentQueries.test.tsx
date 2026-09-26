@@ -92,10 +92,7 @@ const TRANSACTIONS_FIXTURE: WalletTransactionsResponse = {
 };
 
 const makeServices = (): MockOxyServices => ({
-  getCurrentUserSubscription: jest.fn(async () => SUBSCRIPTION_FIXTURE),
-  getUserPayments: jest.fn(async () => PAYMENTS_FIXTURE),
-  getCurrentUserWallet: jest.fn(async () => WALLET_FIXTURE),
-  getCurrentUserWalletTransactions: jest.fn(async () => TRANSACTIONS_FIXTURE),
+  billing: { subscription: jest.fn(async () => SUBSCRIPTION_FIXTURE), payments: jest.fn(async () => PAYMENTS_FIXTURE), wallet: jest.fn(async () => WALLET_FIXTURE), walletTransactions: jest.fn(async () => TRANSACTIONS_FIXTURE) },
 });
 
 const defaultMockState = (): MockOxyState => ({
@@ -167,7 +164,7 @@ describe('payment query hooks', () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(mockState.oxyServices.getCurrentUserSubscription).toHaveBeenCalledTimes(1);
+      expect(mockState.oxyServices.billing.subscription).toHaveBeenCalledTimes(1);
       expect(authenticatedApiCallMock).toHaveBeenCalled();
 
       const data = result.current.data;
@@ -184,7 +181,7 @@ describe('payment query hooks', () => {
       });
 
       expect(result.current.fetchStatus).toBe('idle');
-      expect(mockState.oxyServices.getCurrentUserSubscription).not.toHaveBeenCalled();
+      expect(mockState.oxyServices.billing.subscription).not.toHaveBeenCalled();
     });
 
     it('honours an explicit enabled: false override even when authenticated', () => {
@@ -193,7 +190,7 @@ describe('payment query hooks', () => {
       });
 
       expect(result.current.fetchStatus).toBe('idle');
-      expect(mockState.oxyServices.getCurrentUserSubscription).not.toHaveBeenCalled();
+      expect(mockState.oxyServices.billing.subscription).not.toHaveBeenCalled();
     });
 
     it('does not call the SDK without a scoped active account id', () => {
@@ -204,7 +201,7 @@ describe('payment query hooks', () => {
       });
 
       expect(result.current.fetchStatus).toBe('idle');
-      expect(mockState.oxyServices.getCurrentUserSubscription).not.toHaveBeenCalled();
+      expect(mockState.oxyServices.billing.subscription).not.toHaveBeenCalled();
     });
   });
 
@@ -216,7 +213,7 @@ describe('payment query hooks', () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(mockState.oxyServices.getUserPayments).toHaveBeenCalledTimes(1);
+      expect(mockState.oxyServices.billing.payments).toHaveBeenCalledTimes(1);
       expect(result.current.data).toHaveLength(1);
       expect(result.current.data?.[0]?.amount).toBe(9.99);
       expect(result.current.data?.[0]?.status).toBe('completed');
@@ -231,7 +228,7 @@ describe('payment query hooks', () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(mockState.oxyServices.getCurrentUserWallet).toHaveBeenCalledTimes(1);
+      expect(mockState.oxyServices.billing.wallet).toHaveBeenCalledTimes(1);
       expect(result.current.data?.balance).toBe(42.5);
       expect(result.current.data?.address).toBeNull();
     });
@@ -246,7 +243,7 @@ describe('payment query hooks', () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(mockState.oxyServices.getCurrentUserWalletTransactions).toHaveBeenCalledWith({
+      expect(mockState.oxyServices.billing.walletTransactions).toHaveBeenCalledWith({
         limit: 5,
         offset: undefined,
       });
@@ -269,7 +266,7 @@ describe('payment query hooks', () => {
       await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
 
       // Two distinct offsets => two independent fetches.
-      expect(mockState.oxyServices.getCurrentUserWalletTransactions).toHaveBeenCalledTimes(2);
+      expect(mockState.oxyServices.billing.walletTransactions).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -285,7 +282,7 @@ describe('payment query hooks', () => {
     mockState = {
       oxyServices: {
         ...makeServices(),
-        getCurrentUserWallet: jest.fn(async () => secondWallet),
+        billing: { wallet: jest.fn(async () => secondWallet) },
       },
       isAuthenticated: true,
       activeSessionId: 'sess-2',
@@ -298,8 +295,8 @@ describe('payment query hooks', () => {
 
     await waitFor(() => expect(secondResult.current.isSuccess).toBe(true));
 
-    expect(firstServices.getCurrentUserWallet).toHaveBeenCalledTimes(1);
-    expect(mockState.oxyServices.getCurrentUserWallet).toHaveBeenCalledTimes(1);
+    expect(firstServices.billing.wallet).toHaveBeenCalledTimes(1);
+    expect(mockState.oxyServices.billing.wallet).toHaveBeenCalledTimes(1);
     expect(secondResult.current.data?.userId).toBe('u2');
     expect(queryClient.getQueryData(queryKeys.payments.wallet('u1'))).toEqual(WALLET_FIXTURE);
     expect(queryClient.getQueryData(queryKeys.payments.wallet('u2'))).toEqual(secondWallet);

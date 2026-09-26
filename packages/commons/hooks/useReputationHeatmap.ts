@@ -42,11 +42,10 @@ export function useReputationHeatmap(
       if (!userId) {
         throw new Error('No user id to resolve activity for');
       }
-      const transactions = await oxyServices.getReputationTransactions(
-        userId,
-        HEATMAP_ACTIVITY_LIMIT,
-        0,
-      );
+      const transactions = await oxyServices.reputation.transactions(userId, {
+        limit: HEATMAP_ACTIVITY_LIMIT,
+        offset: 0,
+      });
       const active = transactions.filter((transaction) => transaction.status === 'active');
       return bucketByDay(active, (transaction) => transaction.createdAt);
     },

@@ -22,12 +22,12 @@ export function createSessionClientHost(
   let currentAccountId: string | null = null;
   let deviceCredential: DeviceCredential | null = null;
   return {
-    makeRequest: (method, url, data, options) => oxyServices.makeRequest(method, url, data, options),
-    getBaseURL: () => oxyServices.getBaseURL(),
-    getAccessToken: () => oxyServices.getAccessToken(),
+    makeRequest: (method, url, data, options) => oxyServices.request(method, url, data, options),
+    getBaseURL: () => oxyServices.baseURL,
+    getAccessToken: () => oxyServices.session.accessToken,
     getDeviceCredential: () => deviceCredential,
-    onTokensChanged: (listener) => oxyServices.onTokensChanged(listener),
-    setTokens: (accessToken) => oxyServices.setTokens(accessToken),
+    onTokensChanged: (listener) => oxyServices.session.onChange(listener),
+    setTokens: (accessToken) => oxyServices.session.setAccessToken(accessToken),
     getCurrentAccountId: () => currentAccountId,
     setCurrentAccountId: (id) => {
       currentAccountId = id;

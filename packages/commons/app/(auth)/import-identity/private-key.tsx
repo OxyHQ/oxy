@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { KeyManager, IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core';
+import { KeyManager, IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core/crypto';
 import { useColors } from '@/hooks/useColors';
 import { Fonts } from '@/constants/theme';
 import { withAlpha } from '@oxy.so/bloom/theme';

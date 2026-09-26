@@ -171,7 +171,7 @@ describe('SessionClient projection into OxyContext (Task 1 — additive, inert u
     await waitFor(() => expect(sink.current).not.toBeNull());
 
     const getUsersByIdsSpy = jest
-      .spyOn(requireContext(sink).oxyServices, 'getUsersByIds')
+      .spyOn(requireContext(sink).oxyServices.users, 'getMany')
       .mockResolvedValue([buildUser('a1'), buildUser('a2')]);
 
     act(() => {
@@ -198,7 +198,7 @@ describe('SessionClient projection into OxyContext (Task 1 — additive, inert u
     renderProvider(sink);
     await waitFor(() => expect(sink.current).not.toBeNull());
 
-    const getUsersByIdsSpy = jest.spyOn(requireContext(sink).oxyServices, 'getUsersByIds');
+    const getUsersByIdsSpy = jest.spyOn(requireContext(sink).oxyServices.users, 'getMany');
 
     act(() => {
       fake.fire();

@@ -1,0 +1,161 @@
+/**
+ * `verifyChallenge` token-planting regression tests.
+ *
+ * `OxyServices.verifyChallenge()` returns a `SessionLoginResponse` carrying the
+ * first `accessToken` minted by `POST /auth/verify`. It must
+ * plant that token internally — mirroring its sibling `claimSessionByToken` —
+ * so callers (e.g. @oxy.so/services' `useAuthOperations.performSignIn`) end up
+ * with an authenticated client. Session IDs are not public token-minting
+ * credentials, so the initial bearer must come from the verify response body.
+ *
+ * These tests stub `makeRequest` so the planting logic is exercised end-to-end
+ * against a real OxyServices instance, with token state observed via the public
+ * `hasValidToken()` / `getAccessToken()` surface.
+ */
+
+import { OxyServices } from '../../OxyServices';
+
+interface VerifyResponse {
+  sessionId: string;
+  deviceId: string;
+  expiresAt: string;
+  accessToken?: string;
+  user: { id: string; username: string };
+}
+
+function makeOxy(): OxyServices {
+  return new OxyServices({ baseURL: 'https://api.oxy.so' });
+}
+
+describe('OxyServices.verifyChallenge token planting', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('plants the access token from the /auth/verify response body', async () => {
+    const oxy = makeOxy();
+    expect(oxy.session.isAuthenticated).toBe(false);
+
+    jest.spyOn(oxy, 'request').mockImplementation(async (_method, url) => {
+      if (url === '/auth/verify') {
+        return {
+          sessionId: 'sess_1',
+          deviceId: 'dev_1',
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          accessToken: 'access_verify',
+          user: { id: 'user_1', username: 'tester' },
+        } as never;
+      }
+      throw new Error(`unexpected request to ${url}`);
+    });
+
+    const session = await oxy.auth.verifyChallenge('pubkey', 'challenge', 'sig', 123, 'Device', 'fp');
+
+    // Response still carries the access token for callers that want it.
+    expect(session.accessToken).toBe('access_verify');
+    // ...and it is now planted on the client so subsequent requests are
+    // authenticated without a second round-trip.
+    expect(oxy.session.isAuthenticated).toBe(true);
+    expect(oxy.session.accessToken).toBe('access_verify');
+  });
+
+  it('plants the access token when no refresh token is present', async () => {
+    const oxy = makeOxy();
+
+    jest.spyOn(oxy, 'request').mockImplementation(async (_method, url) => {
+      if (url === '/auth/verify') {
+        return {
+          sessionId: 'sess_2',
+          deviceId: 'dev_2',
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          accessToken: 'access_only',
+          user: { id: 'user_2', username: 'tester2' },
+        } as never;
+      }
+      throw new Error(`unexpected request to ${url}`);
+    });
+
+    const session = await oxy.auth.verifyChallenge('pubkey', 'challenge', 'sig', 456);
+
+    expect(session.accessToken).toBe('access_only');
+    expect(oxy.session.isAuthenticated).toBe(true);
+    expect(oxy.session.accessToken).toBe('access_only');
+  });
+
+  it('does NOT plant (and stays unauthenticated) when the response carries no access token', async () => {
+    const oxy = makeOxy();
+
+    jest.spyOn(oxy, 'request').mockImplementation(async (_method, url) => {
+      if (url === '/auth/verify') {
+        // Token-less new identity (onboarding) — no access token in the body.
+        return {
+          sessionId: 'sess_3',
+          deviceId: 'dev_3',
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          user: { id: 'user_3', username: 'tester3' },
+        } as VerifyResponse as never;
+      }
+      throw new Error(`unexpected request to ${url}`);
+    });
+
+    const session = await oxy.auth.verifyChallenge('pubkey', 'challenge', 'sig', 789);
+
+    expect(session.accessToken).toBeUndefined();
+    // No token to plant — the client stays unauthenticated. Crucially the
+    // method does NOT reach for the bearer-protected session-token endpoint.
+    expect(oxy.session.isAuthenticated).toBe(false);
+  });
+
+  it('matches claimSessionByToken: both plant access tokens via the same path', async () => {
+    const oxy = makeOxy();
+
+    jest.spyOn(oxy, 'request').mockImplementation(async (_method, url) => {
+      if (url === '/auth/session/claim') {
+        return {
+          accessToken: 'access_claim',
+          sessionId: 'sess_claim',
+          deviceId: 'dev_claim',
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          user: { id: 'user_claim', username: 'claimed' },
+        } as never;
+      }
+      throw new Error(`unexpected request to ${url}`);
+    });
+
+    await oxy.auth.claimSession('session-token-abc');
+
+    expect(oxy.session.isAuthenticated).toBe(true);
+    expect(oxy.session.accessToken).toBe('access_claim');
+  });
+
+  /**
+   * `plantTokens: false` is for a caller that must decide AFTER the response
+   * whether the session is still wanted — the account dialog, whose user may
+   * have cancelled while the request was in flight. It still gets the bearer in
+   * the response; the client just is not switched to it.
+   */
+  it('leaves the client untouched with plantTokens: false, on both paths', async () => {
+    const oxy = makeOxy();
+
+    jest.spyOn(oxy, 'request').mockImplementation(async (_method, url) => {
+      const body = {
+        sessionId: 'sess_x',
+        deviceId: 'dev_x',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        user: { id: 'user_x', username: 'x' },
+      };
+      if (url === '/auth/verify') return { ...body, accessToken: 'access_verify' } as never;
+      if (url === '/auth/session/claim') return { ...body, accessToken: 'access_claim' } as never;
+      throw new Error(`unexpected request to ${url}`);
+    });
+
+    const verified = await oxy.auth.verifyChallenge('pubkey', 'challenge', 'sig', 1, undefined, undefined, undefined, {
+      plantTokens: false,
+    });
+    const claimed = await oxy.auth.claimSession('session-token-abc', { plantTokens: false });
+
+    expect(verified.accessToken).toBe('access_verify');
+    expect(claimed.accessToken).toBe('access_claim');
+    expect(oxy.session.isAuthenticated).toBe(false);
+  });
+});

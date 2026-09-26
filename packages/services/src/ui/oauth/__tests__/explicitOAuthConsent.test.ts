@@ -44,16 +44,16 @@ function makeContext(
 		platform,
 		mode: "popup",
 		oxyServices: {
-			getPublicApplication,
-			exchangeOAuthCode,
+			apps: { getPublic: getPublicApplication },
+			auth: { oauth: { exchangeCode: exchangeOAuthCode } },
 		} as unknown as OxyServices,
 		clientId: CLIENT_ID,
 		identityBound: false,
 		expectedUserId: USER_ID,
 		commitSession,
 		...overrides,
-		getPublicApplication,
-		exchangeOAuthCode,
+		apps: { getPublic: getPublicApplication },
+		auth: { oauth: { exchangeCode: exchangeOAuthCode } },
 	};
 }
 
@@ -148,7 +148,7 @@ describe("requestOAuthConsent", () => {
 		expect(authorizeUrl?.searchParams.get("code_challenge_method")).toBe(
 			"S256",
 		);
-		const exchange = context.exchangeOAuthCode.mock.calls[0][0];
+		const exchange = context.auth.oauth.exchangeCode.mock.calls[0][0];
 		await expect(computeCodeChallenge(exchange.codeVerifier)).resolves.toBe(
 			authorizeUrl?.searchParams.get("code_challenge"),
 		);
@@ -167,7 +167,7 @@ describe("requestOAuthConsent", () => {
 				scopes: EXACT_SCOPES,
 			}),
 		).resolves.toEqual({ status: "failed", reason: "native-callback-invalid" });
-		expect(wrongTarget.exchangeOAuthCode).not.toHaveBeenCalled();
+		expect(wrongTarget.auth.oauth.exchangeCode).not.toHaveBeenCalled();
 
 		const wrongState = makeContext("native");
 		openNative.mockResolvedValueOnce({
@@ -179,7 +179,7 @@ describe("requestOAuthConsent", () => {
 				scopes: EXACT_SCOPES,
 			}),
 		).resolves.toEqual({ status: "failed", reason: "state-mismatch" });
-		expect(wrongState.exchangeOAuthCode).not.toHaveBeenCalled();
+		expect(wrongState.auth.oauth.exchangeCode).not.toHaveBeenCalled();
 		expect(wrongState.commitSession).not.toHaveBeenCalled();
 	});
 
@@ -199,7 +199,7 @@ describe("requestOAuthConsent", () => {
 					scopes,
 				}),
 			).resolves.toEqual({ status: "failed", reason: "invalid-scopes" });
-			expect(context.getPublicApplication).not.toHaveBeenCalled();
+			expect(context.apps.getPublic).not.toHaveBeenCalled();
 			expect(openNative).not.toHaveBeenCalled();
 		},
 	);
@@ -213,7 +213,7 @@ describe("requestOAuthConsent", () => {
 			}),
 		).resolves.toEqual({ status: "failed", reason: "scope-not-configured" });
 		expect(openNative).not.toHaveBeenCalled();
-		expect(context.exchangeOAuthCode).not.toHaveBeenCalled();
+		expect(context.auth.oauth.exchangeCode).not.toHaveBeenCalled();
 	});
 
 	it.each([
@@ -228,14 +228,14 @@ describe("requestOAuthConsent", () => {
 			await expect(
 				requestOAuthConsent(context, { redirectUri, scopes: EXACT_SCOPES }),
 			).resolves.toEqual({ status: "failed", reason: "invalid-redirect-uri" });
-			expect(context.getPublicApplication).not.toHaveBeenCalled();
+			expect(context.apps.getPublic).not.toHaveBeenCalled();
 			expect(openNative).not.toHaveBeenCalled();
 		},
 	);
 
 	it("does not commit or report consent when OAuth returns another user", async () => {
 		const context = makeContext("native");
-		context.exchangeOAuthCode.mockResolvedValue({
+		context.auth.oauth.exchangeCode.mockResolvedValue({
 			sessionId: "other-session",
 			accessToken: "other-token",
 			user: { id: "another-user" },
