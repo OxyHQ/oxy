@@ -7,7 +7,7 @@
 > types are in `@oxy.so/contracts`.
 >
 > Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Identity device backup](device-backup.md) · [Phase 2: stop sharing the Android UID (plan)](phase-2-shared-uid-migration.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
-> [External identities and aliases](external-identities.md) · [Linked accounts](linked-accounts.md) · [Account events (deletion → relying parties)](account-events.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
+> [External identities and aliases](external-identities.md) · [Linked accounts](linked-accounts.md) · [Account events (deletion → relying parties)](account-events.md) · [Deleted accounts' stored uploads](account-storage-deletion.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
 
 ---
 

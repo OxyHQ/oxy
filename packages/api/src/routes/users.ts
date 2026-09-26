@@ -47,6 +47,11 @@ import {
   describeAccountFinancialHolds,
 } from '../services/accountFinancialHolds.service';
 import { recordAccountDeletedEvent, type RecordedAccountEvent } from '../services/accountEvents.service';
+import {
+  recordAccountStorageDeletion,
+  type RecordedAccountStorageDeletion,
+} from '../services/accountStorageDeletion.service';
+import fileCache from '../utils/fileCache';
 import { validate } from '../middleware/validate';
 import {
   optionalUserOrServiceAuth,
@@ -1636,7 +1641,13 @@ router.delete(
       // it: every relying party holding this person's data is told to erase
       // (OxyHQ/Mention#1169). The archive keeps financial records, not the
       // person's data anywhere else.
+      //
+      // Uploads are optional data, not financial records: the archive deletes
+      // the asset rows itself (the `users` cascade that removes them on a hard
+      // delete never fires here) and records their storage for deletion, in the
+      // same commit (OxyHQ/Mention#1178).
       let archivedEvent: RecordedAccountEvent | undefined;
+      let archivedStorage: RecordedAccountStorageDeletion | undefined;
       await archiveAccountForRetention(userId, {
         withinTransaction: async (tx) => {
           archivedEvent = await recordAccountDeletedEvent(tx, {
@@ -1644,10 +1655,12 @@ router.delete(
             username: user.username ?? null,
             retained: true,
           });
+          archivedStorage = await recordAccountStorageDeletion(tx, userId, { removeAssetRows: true });
         },
       });
       userCache.invalidate(userId);
       await graphCache.invalidate(userId);
+      for (const fileId of archivedStorage?.fileIds ?? []) fileCache.invalidate(fileId);
 
       logger.info('Account archived with retained financial records', {
         userId,
@@ -1655,6 +1668,8 @@ router.delete(
         retainedRecords: holds.retainedRecords,
         accountEventId: archivedEvent?.eventId,
         accountEventRecipients: archivedEvent?.recipients,
+        storageDeletionFiles: archivedStorage?.fileIds.length ?? 0,
+        storageDeletionTargets: archivedStorage?.targets ?? 0,
       });
 
       sendSuccess(res, {
@@ -1677,24 +1692,33 @@ router.delete(
     // transaction, and before the row goes: its recipients are read from the
     // account's grants and sessions, which cascade with it. So the event exists
     // exactly when the deletion committed (OxyHQ/Mention#1169).
-    const deletedEvent = await getDb().transaction(async (tx) => {
+    //
+    // The account's uploads go with it: the asset rows cascade, so their
+    // storage keys are recorded for deletion first, in the same transaction
+    // (OxyHQ/Mention#1178). The objects themselves are deleted by
+    // `accountStorageDeletion.worker.ts`.
+    const { deletedEvent, storage } = await getDb().transaction(async (tx) => {
       const recorded = await recordAccountDeletedEvent(tx, {
         userId,
         username: user.username ?? null,
         retained: false,
       });
+      const recordedStorage = await recordAccountStorageDeletion(tx, userId, { removeAssetRows: false });
       await tx.delete(users).where(eq(users.id, userId));
-      return recorded;
+      return { deletedEvent: recorded, storage: recordedStorage };
     });
 
     userCache.invalidate(userId);
     await graphCache.invalidate(userId);
+    for (const fileId of storage.fileIds) fileCache.invalidate(fileId);
 
     logger.info('Account deleted', {
       userId,
       username: user.username,
       accountEventId: deletedEvent.eventId,
       accountEventRecipients: deletedEvent.recipients,
+      storageDeletionFiles: storage.fileIds.length,
+      storageDeletionTargets: storage.targets,
     });
 
     sendSuccess(res, {
