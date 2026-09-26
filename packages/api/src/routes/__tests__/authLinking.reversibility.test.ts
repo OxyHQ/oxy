@@ -30,9 +30,12 @@ let currentUserId = '';
 
 const mockInvalidate = jest.fn();
 
+let mockApplicationId: string | undefined;
+
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: unknown }, _res: unknown, next: () => void) => {
+  authMiddleware: (req: { user?: unknown; oxyToken?: { applicationId?: string } }, _res: unknown, next: () => void) => {
     req.user = { _id: currentUserId };
+    if (mockApplicationId) req.oxyToken = { applicationId: mockApplicationId };
     next();
   },
 }));
@@ -63,6 +66,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
 import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
+import { applications } from '../../db/schema/applications';
 import authLinkingRouter from '../authLinking';
 import SignatureService from '../../services/signature.service';
 import { buildDidDocument, buildUserDid, OXY_DID } from '../../services/did.service';
@@ -416,6 +420,26 @@ describe('a root is never unlinked (ADR 0024 D8)', () => {
     expect((await storedUser(currentUserId)).publicKey).toBe(publicKey);
     expect((await storedAuthMethods(currentUserId)).some((m) => m.type === 'identity')).toBe(true);
     expect((await storedDidDocument(currentUserId)).controller).toEqual([buildUserDid(currentUserId)]);
+  });
+});
+
+describe("a third-party application's token", () => {
+  it('can remove no sign-in method and link no root, but still reads', async () => {
+    await addIdentity(currentUserId, generateSecp256k1KeyPair().publicKey.toLowerCase());
+    const credentialID = await addPasskey(currentUserId, 'Second');
+    const [app] = await getDb()
+      .insert(applications)
+      .values({ name: 'Third party', type: 'third_party', ownerAccountId: currentUserId, createdByUserId: currentUserId })
+      .returning({ id: applications.id });
+    mockApplicationId = app.id;
+    try {
+      expect((await request(server, 'DELETE', `/auth/link/webauthn/${credentialID}`)).status).toBe(403);
+      expect((await storedAuthMethods(currentUserId)).some((m) => m.methodCredentialId === credentialID)).toBe(true);
+      expect((await request(server, 'POST', '/auth/link', { type: 'identity', publicKey: '04'.padEnd(130, 'a') })).status).toBe(403);
+      expect((await request(server, 'GET', '/auth/methods')).status).toBe(200);
+    } finally {
+      mockApplicationId = undefined;
+    }
   });
 });
 

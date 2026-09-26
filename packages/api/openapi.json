@@ -6968,7 +6968,7 @@
           "Authentication"
         ],
         "summary": "Unlink ONE passkey (by its public credential id) from the current account.",
-        "description": "Passkeys are per-credential, so this needs the specific id rather than the\ngeneric per-type unlink. Removes the `user_auth_methods` row AND the\n`webauthn_credentials` row, keeping at least one usable auth method overall.\n\nRegistered BEFORE `DELETE /link/:type` so the two-segment webauthn path is not\nshadowed by the single-segment `:type` route.",
+        "description": "Passkeys are per-credential, so this needs the specific id rather than the\ngeneric per-type unlink. Removes the `user_auth_methods` row AND the\n`webauthn_credentials` row, keeping at least one usable auth method overall.\nA third-party token is refused (`requireFirstPartyForChanges`).",
         "parameters": [
           {
             "name": "credentialID",

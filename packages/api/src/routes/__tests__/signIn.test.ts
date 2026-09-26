@@ -58,7 +58,7 @@ import deviceSessionService from '../../services/deviceSession.service';
 import { _resetInMemoryStateForTests } from '../../services/loginLockout.service';
 import { storePassword } from '../../services/password.service';
 import { confirmTotp, enrollTotp, totpCodeAt, verifySecondFactor } from '../../services/totp.service';
-import { SIGNIN_CODE_FAILURES_PER_DAY, startEmailSignIn } from '../../services/emailSignIn.service';
+import { SIGNIN_CODE_FAILURES_PER_DAY, confirmEmailSignIn, startEmailSignIn } from '../../services/emailSignIn.service';
 import { EMAIL_SENDS_PER_HOUR } from '../../services/accountEmail.service';
 import { logger } from '../../utils/logger';
 import signInRouter from '../signIn';
@@ -650,6 +650,49 @@ describe('email codes are capped per requester', () => {
     );
     expect(res.status).toBe(200);
     expect(await sessionCount(victim.id)).toBe(1);
+  });
+});
+
+describe('the per-account code ceiling', () => {
+  it('past it, only the requester that started the request, or a device the account is on, may still try', async () => {
+    const victim = await account();
+    const wrongFor = (right: string) => (right === '000000' ? '000001' : '000000');
+    // Fifty wrong attempts, spread over ten requesters so none hits its own cap.
+    const burner = await startEmailSignIn({ identifier: victim.username }, 'burner');
+    const burnerCode = mailFor(victim.email as string).code;
+    for (let requester = 0; requester < 10; requester += 1) {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        await confirmEmailSignIn({ ...burner, code: wrongFor(burnerCode), requesterKey: `rotating-${requester}` }).catch(() => undefined);
+      }
+    }
+
+    // A new request: a requester that did NOT start it is refused even with the right code…
+    mockSendSignIn.mockClear();
+    const owners = await startEmailSignIn({ identifier: victim.username }, 'owner-ip');
+    const right = mailFor(victim.email as string).code;
+    await expect(confirmEmailSignIn({ ...owners, code: right, requesterKey: 'fresh-rotated-ip' })).rejects.toMatchObject({
+      code: 'EMAIL_CODE_INVALID',
+    });
+    // …while the one that started it still gets its attempt.
+    await expect(confirmEmailSignIn({ ...owners, code: right, requesterKey: 'owner-ip' })).resolves.toBe(victim.id);
+  });
+
+  it('lets a device the account is already signed in on through the ceiling', async () => {
+    const victim = await account();
+    const { app } = await browserDevice();
+    const first = await start(victim.username, app);
+    await post('/signin/email/confirm', { requestId: first.requestId, requestSecret: first.requestSecret, code: mailFor(victim.email as string).code, device: app });
+    const burner = await startEmailSignIn({ identifier: victim.username }, 'burner');
+    const burnerCode = mailFor(victim.email as string).code;
+    for (let requester = 0; requester < 10; requester += 1) {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        await confirmEmailSignIn({ ...burner, code: burnerCode === '000000' ? '000001' : '000000', requesterKey: `rotating-${requester}` }).catch(() => undefined);
+      }
+    }
+    mockSendSignIn.mockClear();
+    const again = await startEmailSignIn({ identifier: victim.username, device: app }, 'owner-ip');
+    const right = mailFor(victim.email as string).code;
+    await expect(confirmEmailSignIn({ ...again, code: right, requesterKey: 'another-ip', device: app })).resolves.toBe(victim.id);
   });
 });
 

@@ -30,9 +30,10 @@
  *   than 500.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { and, count, eq, gt, ne, sql } from 'drizzle-orm';
 import { authMiddleware, type AuthRequest } from '../middleware/auth.js';
+import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess.js';
 import { getDb, type Database } from '../config/postgres.js';
 import { authChallenges } from '../db/schema/authChallenges.js';
 import { identityBackups } from '../db/schema/identityBackups.js';
@@ -198,6 +199,20 @@ async function revokeOtherSessions(req: Request, userId: string): Promise<void> 
 
 // All routes require authentication
 router.use(authMiddleware);
+
+/**
+ * Every CHANGE to how the account signs in — linking or rotating a root,
+ * removing a sign-in method — is the account's own: a third-party
+ * application's token is refused (security review of #1421). Reads stay open.
+ */
+function requireFirstPartyForChanges(req: AuthRequest, res: Response, next: NextFunction): void {
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    next();
+    return;
+  }
+  requireFirstPartyDeviceAccess(req, res, next);
+}
+router.use(requireFirstPartyForChanges);
 
 /**
  * GET /api/auth/methods
@@ -549,9 +564,7 @@ router.post('/link', validate({ body: linkAuthMethodSchema }), asyncHandler(asyn
  * Passkeys are per-credential, so this needs the specific id rather than the
  * generic per-type unlink. Removes the `user_auth_methods` row AND the
  * `webauthn_credentials` row, keeping at least one usable auth method overall.
- *
- * Registered BEFORE `DELETE /link/:type` so the two-segment webauthn path is not
- * shadowed by the single-segment `:type` route.
+ * A third-party token is refused (`requireFirstPartyForChanges`).
  */
 router.delete('/link/webauthn/:credentialID', validate({ params: unlinkWebauthnParams }), asyncHandler(async (req: AuthRequest, res: Response) => {
   const userId = req.user?._id?.toString();

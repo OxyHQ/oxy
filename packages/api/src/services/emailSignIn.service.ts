@@ -47,6 +47,7 @@ import { clearFailures, reserveAttempt } from './loginLockout.service';
 import { resolveProvenDevice, resolveProvenDeviceId } from './deviceJoin.service';
 import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
 import { normalizeSignInIdentifier } from '../utils/signInIdentifier';
+import { getEphemeral, setEphemeral } from '../utils/ephemeralKeyValue';
 
 /** Code attempts one requester gets per account per day, across its sign-in requests. */
 export const SIGNIN_CODE_FAILURES_PER_DAY = 10;
@@ -54,6 +55,15 @@ export const SIGNIN_CODE_FAILURES_PER_DAY = 10;
 export const SIGNIN_CODE_ACCOUNT_CEILING_PER_DAY = 50;
 const SIGNIN_CODE_REQUESTER_SCOPE = 'signin-code-requester';
 const SIGNIN_CODE_ACCOUNT_SCOPE = 'signin-code-account';
+
+function starterKey(requestId: string): string {
+  return `signin-starter:${requestId}`;
+}
+
+/** The requester's hashed IP, hashed again for the ephemeral store. */
+function requesterFingerprint(requesterKey: string): string {
+  return serverHmacHex(SERVER_KEY_LABELS.lockoutIdentifier, `starter|${requesterKey}`);
+}
 
 function sha256Hex(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -161,6 +171,9 @@ export async function startEmailSignIn(
       .returning({ id: emailSignInRequests.id });
     return { requestId: row.id, code: verification.code, expiresAt: verification.expiresAt };
   });
+  // Who started it, kept only in Redis for the request's life (never in the
+  // database): the one requester the per-account ceiling never refuses.
+  await setEphemeral(starterKey(requestId), requesterFingerprint(requesterKey), Math.ceil(EMAIL_SIGNIN_LINK_TTL_MS / 1000));
 
   if (target.sendTo) {
     sendSignInEmail(target.sendTo, { code, linkToken, username: target.username }).catch((error: unknown) => {
@@ -178,9 +191,19 @@ export async function startEmailSignIn(
  * against the code's attempts (committed before the error is thrown).
  */
 export async function confirmEmailSignIn(
-  input: { requestId: string; requestSecret: string; code: string; requesterKey: string },
+  input: {
+    requestId: string;
+    requestSecret: string;
+    code: string;
+    requesterKey: string;
+    device?: { deviceId: string; deviceSecret: string };
+  },
   now: Date = new Date(),
 ): Promise<string> {
+  const [starter, provenDevice] = await Promise.all([
+    getEphemeral(starterKey(input.requestId)),
+    resolveProvenDevice(input.device),
+  ]);
   const outcome = await getDb().transaction(async (tx) => {
     const [request] = await tx
       .select({
@@ -208,9 +231,10 @@ export async function confirmEmailSignIn(
     //   cap. The requester is the hashed IP, kept only in the lockout store
     //   (Redis / memory), never persisted;
     // - per account: SIGNIN_CODE_ACCOUNT_CEILING_PER_DAY, looser, bounding
-    //   guesses from many requesters together. It never refuses a requester's
-    //   FIRST attempt of the day, so failures from OTHER requesters can never
-    //   by themselves stop the owner's right code.
+    //   guesses from many requesters together. Past it, only the requester
+    //   that STARTED this request, or a device the account is already signed
+    //   in on, may still try — so failures from others can never stop the
+    //   owner's right code, and rotating IPs buys an attacker nothing.
     // Past a cap even the right code is refused with the same generic error;
     // the link — which needs the requester's own browser — still signs in. A
     // decoy counts on keys of its own.
@@ -227,7 +251,10 @@ export async function confirmEmailSignIn(
       maxAttempts: SIGNIN_CODE_ACCOUNT_CEILING_PER_DAY,
       windowSeconds: 24 * 60 * 60,
     });
-    const refuse = perRequester.locked || (perAccount.locked && perRequester.attempts > 1);
+    const exempt =
+      starter === requesterFingerprint(input.requesterKey) ||
+      Boolean(request.userId && provenDevice?.accountIds.includes(request.userId));
+    const refuse = perRequester.locked || (perAccount.locked && !exempt);
     const checked = await consumeEmailCode(
       tx,
       { verificationId: request.verificationId, code: input.code, purpose: 'signin', refuse },

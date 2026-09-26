@@ -31,13 +31,42 @@ const router = Router();
 /** Lockout scope for the public deviceSecret mint (per-deviceId sliding window). */
 const DEVICE_TOKEN_LOCKOUT_SCOPE = 'device-token';
 /**
- * Attempts per device per window. Every attempt is reserved before the check
- * and a proven secret resets the count, so this also bounds how many official
- * apps can mint for one browser device AT THE SAME INSTANT — hence above the
- * default five. A 256-bit secret is not guessable either way; the lockout is
- * defence in depth.
+ * Mint attempts are reserved atomically BEFORE the secret is checked, in two
+ * buckets, and a proven secret resets both:
+ *
+ * - per (device, requester): {@link DEVICE_TOKEN_MAX_ATTEMPTS} — the requester
+ *   is the hashed IP, kept only in the lockout store. A stranger who knows a
+ *   deviceId locks only their own bucket, never the browser's mint. It is above
+ *   the default five because the official apps of one browser share an IP and
+ *   may mint for one device at the same instant;
+ * - per device: {@link DEVICE_TOKEN_DEVICE_CEILING}, a much looser ceiling on
+ *   guesses from everywhere together.
+ *
+ * A 256-bit secret is not guessable either way; this is defence in depth.
  */
 const DEVICE_TOKEN_MAX_ATTEMPTS = 20;
+const DEVICE_TOKEN_DEVICE_CEILING = 200;
+
+function mintRequesterKey(deviceId: string, req: Request): string {
+  return `${deviceId}|${hashedIpKey(req)}`;
+}
+
+async function reserveMintAttempt(scope: string, deviceId: string, req: Request) {
+  const perRequester = await reserveAttempt({
+    scope: `${scope}-requester`,
+    identifier: mintRequesterKey(deviceId, req),
+    maxAttempts: DEVICE_TOKEN_MAX_ATTEMPTS,
+  });
+  if (perRequester.locked) return perRequester;
+  return reserveAttempt({ scope, identifier: deviceId, maxAttempts: DEVICE_TOKEN_DEVICE_CEILING });
+}
+
+async function clearMintAttempts(scope: string, deviceId: string, req: Request): Promise<void> {
+  await Promise.all([
+    clearFailures({ scope: `${scope}-requester`, identifier: mintRequesterKey(deviceId, req) }),
+    clearFailures({ scope, identifier: deviceId }),
+  ]);
+}
 
 const deviceTokenLimiter = rateLimit({
   prefix: 'rl:session:device-token:',
@@ -96,7 +125,7 @@ router.post(
 
     // Reserved atomically BEFORE the secret is checked, so parallel guesses
     // share one budget; a proven secret resets it.
-    const lockout = await reserveAttempt({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId, maxAttempts: DEVICE_TOKEN_MAX_ATTEMPTS });
+    const lockout = await reserveMintAttempt(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
     if (lockout.locked) {
       if (typeof lockout.retryAfterSeconds === 'number') {
         res.setHeader('Retry-After', String(lockout.retryAfterSeconds));
@@ -113,7 +142,7 @@ router.post(
 
     // The secret matched — clear the failure counter regardless of whether the
     // device currently has a live active session.
-    await clearFailures({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+    await clearMintAttempts(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
 
     // A pinned mint resolves the named account instead of the active one. The
     // resolver returns null both when the account is not registered on this
@@ -234,7 +263,7 @@ router.post(
 
     // Reserved atomically BEFORE the secret is checked, so parallel guesses
     // share one budget; a proven secret resets it.
-    const lockout = await reserveAttempt({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId, maxAttempts: DEVICE_TOKEN_MAX_ATTEMPTS });
+    const lockout = await reserveMintAttempt(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
     if (lockout.locked) {
       if (typeof lockout.retryAfterSeconds === 'number') {
         res.setHeader('Retry-After', String(lockout.retryAfterSeconds));
@@ -252,7 +281,7 @@ router.post(
       res.status(400).json({ error: outcome.reason });
       return;
     }
-    await clearFailures({ scope: DEVICE_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+    await clearMintAttempts(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
     res.json({ data: deviceJoinCodeResponseSchema.parse({ code: outcome.code, expiresIn: outcome.expiresIn }) });
   }),
 );
@@ -313,7 +342,7 @@ router.post(
     const { deviceId, secret } = parsed.data;
 
     // Reserved atomically BEFORE the secret is checked (see above).
-    const lockout = await reserveAttempt({ scope: BACKGROUND_TOKEN_LOCKOUT_SCOPE, identifier: deviceId, maxAttempts: DEVICE_TOKEN_MAX_ATTEMPTS });
+    const lockout = await reserveMintAttempt(BACKGROUND_TOKEN_LOCKOUT_SCOPE, deviceId, req);
     if (lockout.locked) {
       if (typeof lockout.retryAfterSeconds === 'number') {
         res.setHeader('Retry-After', String(lockout.retryAfterSeconds));
@@ -327,13 +356,13 @@ router.post(
       if (outcome.reason !== 'background_credential_invalid') {
         // The credential was proven — a dead bound account must not count as
         // secret guessing.
-        await clearFailures({ scope: BACKGROUND_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+        await clearMintAttempts(BACKGROUND_TOKEN_LOCKOUT_SCOPE, deviceId, req);
       }
       res.status(401).json({ error: outcome.reason });
       return;
     }
 
-    await clearFailures({ scope: BACKGROUND_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+    await clearMintAttempts(BACKGROUND_TOKEN_LOCKOUT_SCOPE, deviceId, req);
     logger.info('device.token.mint', { mint_source: 'background', deviceId });
     res.json({
       data: {
