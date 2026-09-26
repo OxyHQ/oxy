@@ -90,7 +90,6 @@ const OxyProvider: FC<OxyProviderProps> = ({
     queryClient: providedQueryClient,
     requireAuth = 'off',
     backgroundSession = false,
-    deviceCredentialStorage = 'persistent',
     language,
 }) => {
 
@@ -240,7 +239,6 @@ const OxyProvider: FC<OxyProviderProps> = ({
                 sessionMode={sessionMode}
                 webAuthMode={webAuthMode}
                 backgroundSession={backgroundSession}
-                deviceCredentialStorage={deviceCredentialStorage}
                 platformStorage={platformStorage}
                 onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
             >

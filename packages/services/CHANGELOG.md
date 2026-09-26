@@ -1,5 +1,15 @@
 # Changelog
 
+## [6.0.0] - 2026-09-26
+
+### Removed
+
+- `OxyProvider`'s `deviceCredentialStorage` prop and the `'ephemeral'` auth
+  store. Its one caller was auth.oxy.so with the browser hub on; the hub is
+  deleted, and every origin persists its device credential.
+- The dead hub-sync lane: `maybeSyncHubAfterCommit` and
+  `legacyRedirectLanes` (`allowsAutomaticIdpRedirect`), which nothing called.
+
 ## [5.1.0] - 2026-09-26
 
 Requires `@oxy.so/bloom` `^4.26.0`, and includes 4.0.7's fixes (the

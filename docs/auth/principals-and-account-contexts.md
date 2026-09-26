@@ -109,7 +109,7 @@ Each is a separate operation, and conflating any two of them is a bug:
    the same account.
 4. **Sign out every Oxy app on this device/browser profile** — revokes the
    DeviceSession with its credentials, application sessions, principals,
-   contexts, sockets and browser hub session.
+   contexts and sockets.
 5. **Sign out everywhere** — every DeviceSession, native installation and
    browser session belonging to the user.
 

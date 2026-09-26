@@ -7,16 +7,10 @@
 # call it makes. A Worker declines its default hostname outright with
 # `workers_dev = false`, which is why the two static apps have moved.
 #
-# `auth` HAS NOT MOVED, and not by omission. It is the only app here with a
-# Cloudflare Pages Functions DIRECTORY — `packages/auth/functions/hub/*`, the
-# browser DeviceSession hub — and `functions/` has no Worker equivalent that a
-# config change can reach: Pages compiles that directory into routes itself,
-# while a Worker needs a `main` script that dispatches `/hub/*` and falls
-# through to the asset binding for everything else. The logic is already
-# portable (`packages/auth/hub/handlers.ts` depends on nothing Worker-specific
-# and is covered by `bun test`), so the move is possible — but it is a rewrite
-# of the routing layer of the IdP that has no staging environment, and it does
-# not belong in the same change as two static asset deploys.
+# `auth` HAS NOT MOVED yet. It is the only app here with a Cloudflare Pages
+# Functions directory — `packages/auth/functions/_middleware.ts`, the edge
+# activity middleware — which a Worker would have to run from a `main` script in
+# front of the asset binding. That move is its own change.
 name: Deploy Frontends to Cloudflare
 
 on:
@@ -83,10 +77,8 @@ jobs:
       # fresh releases and blocks a deterministic deploy.
       - run: bun install --frozen-lockfile --minimum-release-age=0
       # Build the Vite SPA into packages/auth/dist. The IdP is static apart from
-      # ONE Pages Functions directory: `packages/auth/functions/hub/*`, the
-      # browser DeviceSession hub (issue #937 Phase 5, ADR 0003). The former
-      # `/api/device-accounts` function deleted in the 2c cutover stays deleted —
-      # the chooser is served by the device-first SDK.
+      # its Pages Functions directory, which holds only the edge activity
+      # middleware (`packages/auth/functions/_middleware.ts`).
       #
       # `wrangler pages deploy` compiles `./functions` from the WORKING DIRECTORY,
       # which the deploy step below sets to `packages/auth`. It must stay a

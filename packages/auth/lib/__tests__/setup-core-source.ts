@@ -25,8 +25,6 @@ import { getCommonsApprovalBlockingReason } from "../../../core/src/utils/common
 import { getNormalizedUserHandle } from "../../../core/src/utils/userHandle"
 import { translate } from "../../../core/src/i18n"
 import { selectCommonsDelivery } from "../../../core/src/utils/commonsDelivery"
-import { buildSwitcherRows } from "../../../core/src/session/deviceSwitcherRows"
-import { projectDevicePrincipals } from "../../../core/src/session/deviceDirectory"
 import { OxyServices } from "../../../core/src/OxyServices"
 import {
     WEB_IDENTITY_PRF_INPUT,
@@ -63,8 +61,6 @@ mock.module("@oxy.so/core", () => ({
     // The hub authorize page renders the chooser from the hub's directory
     // through the SAME projection the SDK's own switcher uses — one ordering and
     // grouping rule, not a second one for the IdP.
-    buildSwitcherRows,
-    projectDevicePrincipals,
     // The web identity carrier (`lib/identity/`): the holder crypto itself, and
     // the isolated client its ceremonies run on.
     OxyServices,

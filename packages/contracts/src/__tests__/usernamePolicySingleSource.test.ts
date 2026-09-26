@@ -124,14 +124,6 @@ const ALLOWED: ReadonlyMap<string, string> = new Map([
     "Rewrites bare `@handle` mentions in REMOTE post text to their origin server; the handles are other servers'.",
   ],
   [
-    'packages/auth/hub/cookie.ts',
-    'A browser-hub cookie handle: an opaque base64url token the API issues, checked before it is written into a `Set-Cookie`. Not a name anybody holds.',
-  ],
-  [
-    'packages/api/src/routes/__tests__/browserHub.test.ts',
-    'Asserts the shape of the browser-hub handle above.',
-  ],
-  [
     'packages/api/src/routes/profiles.ts',
     'A READ path, and it COERCES rather than validates — `/profiles/username/al ice` serves `alice`. Left deliberately: it must keep resolving 73k federated handles and every row written under an earlier rule, and narrowing it to the policy would 400 accounts that exist. The coercion is a real bug with its own issue; it is not this rule.',
   ],

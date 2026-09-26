@@ -97,8 +97,6 @@ unscoped wraps, v1 proofs, transfer v1, `/device-transfer`, `DELETE
 
 - **Holder host**: done (ADR 0028) — `id.oxy.so` is gone and `auth.oxy.so` is
   the holder. Every credential stays on RP ID `oxy.so`.
-- **Browser SSO hub** (#937, ADR 0003): still behind `VITE_OXY_BROWSER_HUB`;
-  passkey sign-in on the holder host does not establish a hub session.
 - **Commons "sign this" approvals** for roots kept only in Commons: not built.
 
 ## Not verifiable from source

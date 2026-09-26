@@ -750,6 +750,13 @@
       "when": 1790376192492,
       "tag": "0107_retire_oxy_identity_app",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1790384951405,
+      "tag": "0108_drop_browser_hub_handle",
+      "breakpoints": true
     }
   ]
 }

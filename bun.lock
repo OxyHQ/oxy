@@ -212,7 +212,7 @@
     },
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "devDependencies": {
         "expo": "catalog:",
         "nativewind": "catalog:",
@@ -220,7 +220,7 @@
       },
       "peerDependencies": {
         "@oxy.so/bloom": "^2.0.0 || ^3.0.0 || ^4.2.0",
-        "@oxy.so/services": "^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0",
+        "@oxy.so/services": "^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0",
         "babel-plugin-module-resolver": "*",
         "babel-preset-expo": "*",
         "eslint": ">=9.0.0",
@@ -439,7 +439,7 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "1.5.0",
+      "version": "2.0.0",
       "dependencies": {
         "zod": "^3.25.64",
       },
@@ -565,9 +565,9 @@
     },
     "packages/federation": {
       "name": "@oxy.so/federation",
-      "version": "2.1.0",
+      "version": "2.1.1",
       "dependencies": {
-        "@oxy.so/contracts": "^1.0.0",
+        "@oxy.so/contracts": "^1.0.0 || ^2.0.0",
         "@oxy.so/core": "^1.0.0",
       },
       "devDependencies": {
@@ -668,7 +668,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "5.1.0",
+      "version": "6.0.0",
       "dependencies": {
         "@expo/config-plugins": "catalog:",
         "@oxy.so/contracts": "workspace:^",
