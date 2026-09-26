@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import type { IdentityRootStatus } from '@oxy.so/contracts';
 import { alert } from '@oxy.so/bloom';
+import type { IdentityRootStatus } from '@oxy.so/contracts';
 import type { ClientSession, SecurityActivity } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
-import { useOpenIdentity } from '@/hooks/useIdentityRootStatus';
+import { useOpenLinkCommons } from '@/hooks/useIdentityRootStatus';
 import type { PrioritizedGroupedItem } from '@/components/sections/types';
 import {
   selectSecurityRecommendations,
@@ -45,7 +45,7 @@ export function useSecurityRecommendations({
   const colors = useColors();
   const router = useRouter();
   const { t } = useTranslation();
-  const openIdentity = useOpenIdentity();
+  const openLinkCommons = useOpenLinkCommons();
 
   return useMemo(() => {
     const descriptors = selectSecurityRecommendations({
@@ -82,26 +82,15 @@ export function useSecurityRecommendations({
             },
             showChevron: true,
           };
-        case 'secure-account':
+        case 'link-commons':
           return {
             id: descriptor.id,
             priority: descriptor.priority,
             icon: 'shield-key-outline',
             iconColor: colors.warning,
-            title: t('security.recommendations.secureAccount'),
-            subtitle: t('security.recommendations.secureAccountSubtitle'),
-            onPress: openIdentity,
-            showChevron: true,
-          };
-        case 'recovery-phrase':
-          return {
-            id: descriptor.id,
-            priority: descriptor.priority,
-            icon: 'form-textbox-password',
-            iconColor: colors.warning,
-            title: t('security.recommendations.recoveryPhrase'),
-            subtitle: t('security.recommendations.recoveryPhraseSubtitle'),
-            onPress: openIdentity,
+            title: t('security.recommendations.linkCommons'),
+            subtitle: t('security.recommendations.linkCommonsSubtitle'),
+            onPress: openLinkCommons,
             showChevron: true,
           };
         case 'old-sessions':
@@ -160,7 +149,7 @@ export function useSecurityRecommendations({
     deviceCount,
     securityActivities,
     router,
-    openIdentity,
+    openLinkCommons,
     t,
     colors.warning,
     colors.error,

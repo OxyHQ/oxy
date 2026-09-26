@@ -115,3 +115,31 @@ export async function runPasskeyAdd(deps: RunPasskeyAddDeps): Promise<void> {
   }
   deps.onLinked();
 }
+
+/** Injected dependencies for {@link runPasskeyRegisterSignIn}. */
+export interface RunPasskeyRegisterSignInDeps {
+  isSupported: () => boolean;
+  getRegisterOptions: () => Promise<unknown>;
+  runCeremony: (optionsJSON: unknown) => Promise<unknown>;
+  registerVerify: (response: unknown) => Promise<PasskeyRegisterVerifyResult>;
+  commit: (result: LoginSessionResult) => Promise<void>;
+}
+
+/**
+ * Register a passkey SIGNED OUT and sign in with the account it belongs to —
+ * a new passkey account (username + confirmed recovery email), or a recovery's
+ * new passkey (ADR 0029 D3). Options, ceremony, verify, then commit; the verify
+ * must mint a session, since there is no bearer to link to.
+ */
+export async function runPasskeyRegisterSignIn(deps: RunPasskeyRegisterSignInDeps): Promise<void> {
+  if (!deps.isSupported()) {
+    throw new Error(PASSKEY_UNSUPPORTED_MESSAGE);
+  }
+  const options = await deps.getRegisterOptions();
+  const response = await deps.runCeremony(options);
+  const result = await deps.registerVerify(response);
+  if (!('sessionId' in result)) {
+    throw new Error('The passkey was registered without signing in.');
+  }
+  await deps.commit(result);
+}

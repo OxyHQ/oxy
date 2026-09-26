@@ -1,15 +1,17 @@
 /**
- * A fresh use of an account's EXISTING passkey, bound to one root-proof challenge.
+ * A fresh use of an account's EXISTING passkey, bound to one challenge.
  *
- * ADR 0024 D8: a keyless account's first root is linked only when the person
+ * ADR 0024 D8: a passkey account links Commons' root only when the person
  * proves, right now, the factor the account already has. A bearer — however
- * recent — is a session, not that proof. The holder signs the SAME challenge
+ * recent — is a session, not that proof. The browser signs the SAME challenge
  * with its WebAuthn ceremony (`clientDataJSON.challenge` = base64url of the
- * 32 challenge bytes) as the new root signs in its proof, so the two cannot be
- * collected separately and combined.
+ * 32 challenge bytes) as the root signs in its proof, so the two cannot be
+ * collected separately and combined. Deleting a passkey account asks for the
+ * same (`accountPasskeyAssertion.service.ts`).
  *
- * The challenge itself is burned by the root proof that accompanies this
- * assertion (`identityProof.service.ts`), in the same transaction.
+ * The challenge itself is burned by the caller — the root proof that
+ * accompanies a link (`identityProof.service.ts`), or the deletion's own
+ * challenge row — in the same transaction.
  */
 
 import { and, eq } from 'drizzle-orm';
@@ -81,8 +83,7 @@ export async function verifyFreshPasskeyAssertion(
       expectedChallenge,
       expectedOrigin: clientData.origin,
       expectedRPID: getWebauthnRpId(),
-      // Root establishment unwraps under PRF, which the holder always runs with
-      // user verification; a presence-only assertion is not that person.
+      // A presence-only assertion is not that person.
       requireUserVerification: true,
       credential: {
         id: credential.credentialID,

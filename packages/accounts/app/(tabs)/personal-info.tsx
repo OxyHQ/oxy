@@ -72,7 +72,6 @@ export default function PersonalInfoScreen() {
       iconColor: colors.sidebarIconSecurity,
       title: t('personalInfo.fields.email'),
       value: userEmail,
-      onPress: () => handleEditField('email'),
     },
     {
       id: 'phone',
@@ -115,7 +114,6 @@ export default function PersonalInfoScreen() {
       title: t('personalInfo.fields.email'),
       subtitle: userEmail,
       showChevron: false,
-      onPress: () => handleEditField('email'),
     },
     {
       id: 'phone',

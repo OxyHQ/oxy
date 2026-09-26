@@ -3,8 +3,7 @@
  * workspace build.
  *
  * Auth component tests import `@oxy.so/core` at runtime (`authorize.tsx` →
- * `getNormalizedUserHandle`, the i18n translator, the hub's directory
- * projection, etc.). The package `exports` point at `dist/`, so an unbuilt workspace fails
+ * `getNormalizedUserHandle`, the i18n translator, etc.). The package `exports` point at `dist/`, so an unbuilt workspace fails
  * with `Cannot find module '@oxy.so/core'`.
  *
  * Importing the full `@oxy.so/core` entry from source is not viable here — it
@@ -25,31 +24,6 @@ import { getCommonsApprovalBlockingReason } from "../../../core/src/utils/common
 import { getNormalizedUserHandle } from "../../../core/src/utils/userHandle"
 import { translate } from "../../../core/src/i18n"
 import { selectCommonsDelivery } from "../../../core/src/utils/commonsDelivery"
-import { OxyServices } from "../../../core/src/OxyServices"
-import {
-    WEB_IDENTITY_PRF_INPUT,
-    WebIdentityUnlockError,
-    deriveIdentityFromRecoveryMaterial,
-    generateWebIdentity,
-    isUsablePrfOutput,
-    parseRecoveryMaterial,
-    sealWebIdentity,
-    unlockWebIdentity,
-    wipeBytes,
-    wipeOpenedIdentity,
-} from "../../../core/src/crypto/webIdentityCarrier"
-import {
-    buildMoveQrPayload,
-    createMoveCommitment,
-    deriveMoveKey,
-    deriveMoveSas,
-    digestMoveCiphertext,
-    generateMoveEphemeralKeyPair,
-    sealIdentityForMove,
-    verifyMoveReceipt,
-} from "../../../core/src/crypto/identityMove"
-import { digestIdentityPayload, signIdentityProof } from "../../../core/src/crypto/identityProof"
-import { normalizeInlineText } from "../../../core/src/utils/textNormalization"
 
 mock.module("@oxy.so/core", () => ({
     getNormalizedUserHandle,
@@ -58,31 +32,4 @@ mock.module("@oxy.so/core", () => ({
     // The shared "one primary delivery route" decision the OAuth-bound Commons
     // lane (`lib/commons-oauth-request.ts`) reuses rather than re-deciding.
     selectCommonsDelivery,
-    // The hub authorize page renders the chooser from the hub's directory
-    // through the SAME projection the SDK's own switcher uses — one ordering and
-    // grouping rule, not a second one for the IdP.
-    // The web identity carrier (`lib/identity/`): the holder crypto itself, and
-    // the isolated client its ceremonies run on.
-    OxyServices,
-    WEB_IDENTITY_PRF_INPUT,
-    WebIdentityUnlockError,
-    deriveIdentityFromRecoveryMaterial,
-    generateWebIdentity,
-    isUsablePrfOutput,
-    parseRecoveryMaterial,
-    sealWebIdentity,
-    unlockWebIdentity,
-    wipeBytes,
-    wipeOpenedIdentity,
-    buildMoveQrPayload,
-    createMoveCommitment,
-    deriveMoveKey,
-    deriveMoveSas,
-    digestMoveCiphertext,
-    generateMoveEphemeralKeyPair,
-    sealIdentityForMove,
-    verifyMoveReceipt,
-    digestIdentityPayload,
-    signIdentityProof,
-    normalizeInlineText,
 }))

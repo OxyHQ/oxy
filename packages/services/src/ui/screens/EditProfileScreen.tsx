@@ -90,12 +90,6 @@ const EditProfileScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
                         onPress={() => goToField('username')}
                     />
                     <SettingsListItem
-                        icon={<SettingsIcon name="email" color={bloomTheme.colors.success} />}
-                        title={t('editProfile.items.email.title') || 'Email'}
-                        description={user?.email || notSet}
-                        onPress={() => goToField('email')}
-                    />
-                    <SettingsListItem
                         icon={<SettingsIcon name="phone" color={bloomTheme.colors.warning} />}
                         title={t('editProfile.items.phone.title') || 'Phone Number'}
                         description={user?.phone || notSet}

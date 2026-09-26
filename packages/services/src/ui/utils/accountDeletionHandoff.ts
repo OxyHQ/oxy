@@ -100,12 +100,12 @@ export async function runAccountDeletionHandoff(
     return 'handled';
   }
 
-  const site = `${AUTH_WEB_ORIGIN.replace(/^https?:\/\//, '')}/identity`;
+  const site = `${AUTH_WEB_ORIGIN.replace(/^https?:\/\//, '')}/delete-account`;
   await surfaces.confirm({
     title: text('deleteAccount.handoff.elsewhereTitle', 'Delete your account where your identity is'),
     description: text(
       'deleteAccount.handoff.elsewhereMessage',
-      `Deleting your account needs your identity key, and it isn't on this device. Open Oxy Commons on the device that holds your identity and go to Settings > Delete account, or open ${site} in a browser that holds it.`,
+      `Deleting your account needs your identity key, and it isn't on this device. Open Oxy Commons on the device that holds it and go to Settings > Delete account. An account that uses a passkey is deleted at ${site}.`,
       { site },
     ),
     confirmLabel: text('deleteAccount.handoff.gotIt', 'Got it'),

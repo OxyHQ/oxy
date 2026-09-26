@@ -1,6 +1,6 @@
 # ADR 0029 — One Oxy session: the dialog in every app, auth.oxy.so's window on the web
 
-- Status: accepted; D1 is implemented, D2–D4 are being built in follow-up changes
+- Status: accepted; D1 and D3 are implemented (the web account — username, passkey, recovery email — its recovery by email, its deletion with the passkey, and linking Commons from two devices); D2 and D4 are being built in follow-up changes
 - Date: 2026-09-26
 - Decided by: the owner (product direction), recorded here
 - Changes: ADR 0028 D1b (Oxy apps went to auth.oxy.so in the same tab);

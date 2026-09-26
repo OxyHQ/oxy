@@ -38,7 +38,7 @@ import { Linking, Platform } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { AUTH_WEB_ORIGIN, getNormalizedUserHandle, type OxyAuthScreen, type User } from '@oxy.so/core';
+import { getNormalizedUserHandle, type OxyAuthScreen, type User } from '@oxy.so/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../context/OxyContext';
 import { useDeviceSwitcher } from '../hooks/useDeviceSwitcher';
@@ -419,7 +419,6 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
       onSignOut: () => {
         void handleSignOut();
       },
-      onOpenIdentity: passkeyMode === 'hub' ? () => openUrl(`${AUTH_WEB_ORIGIN}/identity`) : undefined,
       customItems: (consumerHooks?.menuItems ?? []).map((item) => ({
         ...item,
         onPress: () => {
@@ -428,7 +427,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
         },
       })),
     };
-  }, [consumerHooks, onComplete, showBottomSheet, handleSignOut, openExternal, passkeyMode]);
+  }, [consumerHooks, onComplete, showBottomSheet, handleSignOut, openExternal]);
 
   if (!controller) {
     return null;

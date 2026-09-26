@@ -50,7 +50,26 @@
     "createInCommons": "Crea la teva identitat a Commons",
     "createAccount": "Crear compte",
     "backToSignInLink": "Ja tens compte? Inicia sessió",
-    "webSubtitle": "Sense contrasenya. El teu dispositiu crea una passkey i el teu compte rep una frase de recuperació que només guardes tu."
+    "webSubtitle": "Sense contrasenya: el teu dispositiu crea una passkey i un correu de recuperació et torna l'accés si la perds.",
+    "username": {
+      "label": "Nom d'usuari",
+      "placeholder": "elteunom",
+      "required": "Tria un nom d'usuari.",
+      "taken": "Aquest nom d'usuari ja està agafat."
+    },
+    "email": {
+      "title": "El teu correu de recuperació",
+      "subtitle": "Si perds la passkey, t'hi enviem un codi per tornar a entrar. No s'utilitza per a res més.",
+      "label": "Correu",
+      "placeholder": "tu@exemple.com",
+      "invalid": "Escriu un correu vàlid."
+    },
+    "passkey": {
+      "title": "Crea la teva passkey",
+      "subtitle": "Hi inicies la sessió: l'empremta, la cara o el bloqueig de pantalla. No cal recordar res.",
+      "action": "Crea la passkey"
+    },
+    "commonsInstead": "Vols guardar la teva pròpia clau? Fes servir Commons"
   },
   "accountSwitcher": {
     "loading": "S'estan carregant els comptes...",
@@ -225,7 +244,63 @@
     "help": "Ajuda i comentaris",
     "signOut": "Tancar sessió",
     "privacy": "Política de privacitat",
-    "terms": "Condicions del servei",
-    "identity": "La teva identitat"
+    "terms": "Condicions del servei"
+  },
+  "recover": {
+    "title": "Recupera el compte",
+    "subtitle": "Escriu el nom d'usuari o el correu de recuperació. Enviarem un codi al correu de recuperació del compte.",
+    "identifier": {
+      "label": "Usuari o correu",
+      "placeholder": "elteunom",
+      "required": "Escriu l'usuari o el correu."
+    },
+    "commonsNote": "El teu compte fa servir Commons? Recupera-lo a Commons amb la frase de recuperació.",
+    "passkey": {
+      "title": "Afegeix una passkey nova",
+      "subtitle": "Per a @{{username}}. Treu les passkeys perdudes més tard a la configuració de seguretat del compte.",
+      "action": "Crea la passkey"
+    },
+    "backToSignIn": "Torna a iniciar la sessió"
+  },
+  "emailCode": {
+    "title": "Mira el correu",
+    "sentTo": "Hem enviat un codi de 6 xifres a {{email}}.",
+    "sentIfAccount": "Si aquest compte té un correu de recuperació, li hem enviat un codi de 6 xifres.",
+    "label": "Codi",
+    "resend": "Envia un codi nou",
+    "resent": "T'hem enviat un codi nou.",
+    "changeEmail": "Fes servir un altre correu",
+    "errors": {
+      "codeInvalid": "Aquest codi no és correcte o ha caducat.",
+      "tooManyAttempts": "Massa codis incorrectes. Demana-ne un de nou.",
+      "expired": "Ha passat massa temps. Torna a començar.",
+      "unavailable": "Oxy no pot enviar correus ara. Torna-ho a provar més tard.",
+      "rateLimited": "Massa codis. Torna-ho a provar més tard."
+    }
+  },
+  "deleteAccount": {
+    "passkey": {
+      "subtitle": "Confirma amb la passkey. @{{username}} i tot el que conté s'eliminen per sempre.",
+      "action": "Elimina amb passkey",
+      "done": "El teu compte s'ha eliminat.",
+      "closeWindow": "Pots tancar aquesta finestra.",
+      "commons": "Aquest compte fa servir Commons: elimina'l a Oxy Commons, Configuració > Elimina el compte, amb la seva clau."
+    }
+  },
+  "linkCommons": {
+    "title": "Vincula Commons",
+    "subtitle": "Guarda la teva pròpia clau: vincula Commons i aquest compte serà només teu. El seu correu de recuperació s'elimina, i la frase de recuperació de Commons és com hi tornes a entrar.",
+    "scan": "Al mòbil, obre Commons, tria «Tinc un compte d'Oxy al web» i escaneja aquest codi.",
+    "waiting": "Esperant Commons…",
+    "compareTitle": "Comprova el codi",
+    "compare": "Commons mostra el mateix codi. Si no és així, cancel·la.",
+    "confirm": "Sí, vincula Commons",
+    "cancel": "Cancel·la",
+    "doneTitle": "Commons està vinculat",
+    "done": "Aquest compte ara és d'autocustòdia. El seu correu de recuperació s'ha eliminat: la frase de recuperació de Commons és com hi tornes a entrar.",
+    "already": "Aquest compte ja fa servir Commons.",
+    "expired": "Aquest codi ha caducat.",
+    "renew": "Mostra un codi nou",
+    "failed": "No s'ha pogut vincular Commons. Torna-ho a provar."
   }
 }

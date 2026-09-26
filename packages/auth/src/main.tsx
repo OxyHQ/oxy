@@ -15,8 +15,8 @@ import { AuthorizePage } from "@/src/pages/authorize"
 import { McpLinkPage } from "@/src/pages/mcp-link"
 import { DevicePage } from "@/src/pages/device"
 import { RecoverPage } from "@/src/pages/recover"
-import { IdentityPage } from "@/src/pages/identity"
-import { PrfCheckPage } from "@/src/pages/prf-check"
+import { DeleteAccountPage } from "@/src/pages/delete-account"
+import { LinkCommonsPage } from "@/src/pages/link-commons"
 import "@/app/globals.css"
 
 function ExternalRedirect({ url }: { url: string }) {
@@ -75,13 +75,13 @@ function App() {
                                     which kept the secret, finishes by polling. */}
                                 <Route path="/device" element={<DevicePage />} />
                                 <Route path="/auth/device" element={<DevicePage />} />
-                                {/* The web identity carrier (ADR 0028): recovering an
-                                    account, and the person's identity — the recovery
-                                    phrase, the move to Commons, deletion. */}
+                                {/* A passkey account's own pages (ADR 0029 D3): getting
+                                    it back through its recovery email, deleting it
+                                    with its passkey, and linking Commons — only here,
+                                    where Oxy passkeys are asserted. */}
                                 <Route path="/recover" element={<RecoverPage />} />
-                                <Route path="/identity" element={<IdentityPage />} />
-                                <Route path="/identity/move" element={<IdentityPage intent="move" />} />
-                                <Route path="/prf-check" element={<PrfCheckPage />} />
+                                <Route path="/delete-account" element={<DeleteAccountPage />} />
+                                <Route path="/link-commons" element={<LinkCommonsPage />} />
                             </Route>
 
                             {/* Account management lives on accounts.oxy.so — the IdP no longer

@@ -356,6 +356,25 @@ class SmtpOutboundService {
   }
 
   /**
+   * Send mail from Oxy itself (`Oxy <noreply@…>`) — a verification code, an
+   * account notice — to one address. Not stored in any mailbox and never
+   * queued: what it carries is short-lived, so a send that fails now is
+   * reported now rather than delivered stale.
+   */
+  async sendSystem(message: { to: string; subject: string; text: string; html: string }): Promise<void> {
+    await this.deliverThroughRelays({
+      messageId: `<${uuidv4()}@${EMAIL_DOMAIN}>`,
+      from: `Oxy <noreply@${EMAIL_DOMAIN}>`,
+      to: message.to,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+      headers: { 'Auto-Submitted': 'auto-generated' },
+      ...SECURE_MAIL_CONTENT_OPTIONS,
+    });
+  }
+
+  /**
    * Send an MDN (Message Disposition Notification) per RFC 3798.
    * This is a multipart/report message with a human-readable part and a machine-readable
    * disposition-notification part.

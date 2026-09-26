@@ -50,12 +50,15 @@ these before proposing a change to the model:
 Stated here rather than left for a reader to infer from silence. Each is an
 accepted gap with a named reason, not an oversight:
 
-- **The personal root's web holder is `auth.oxy.so`** ([ADR 0028](../adr/0028-the-identity-carrier-is-auth-oxy-so.md),
-  changing 0024 D1/D2). Accounts are created with their root, sign-in never
-  unlocks it, recovery needs only the root. The accepted differences from the
-  old minimal host — the full SDK graph, `style-src 'unsafe-inline'` for
-  react-native-web, no release manifest yet — are listed in the ADR. Inventory,
-  invariants and open items: [holders-and-recovery.md](../identity/holders-and-recovery.md).
+- **Web accounts are a username, a passkey and a recovery email**
+  ([ADR 0029](../adr/0029-one-oxy-session.md) D3, changing 0024 D3–D6 and D9):
+  there is no web identity carrier. They are created, recovered (a code to the
+  recovery email, then a new passkey) and deleted (with the passkey) on
+  `auth.oxy.so`, the one origin that asserts Oxy passkeys (RP ID `oxy.so`).
+  Commons is the self-custody way. The accepted differences of `auth.oxy.so`
+  from a minimal host — the full SDK graph, `style-src 'unsafe-inline'` for
+  react-native-web, no release manifest yet — are listed in ADR 0028.
+  Inventory, invariants and open items: [holders-and-recovery.md](../identity/holders-and-recovery.md).
 
 - **The native shared DeviceSession credential is BUILT and UNVERIFIED ON A
   DEVICE.** A sibling official app's `deviceId` + `deviceSecret` now lives in a

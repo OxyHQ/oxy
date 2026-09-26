@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { LoginSessionResult } from '@oxy.so/contracts';
 import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, AccountDialogController, AccountDialogView, ApiError, SessionClient, SessionMode, OxyAuthScreen } from '@oxy.so/core';
 import type { UseFollowHook } from '../hooks/useFollow.types';
 import type { useLanguageManagement } from '../hooks/useLanguageManagement';
@@ -104,7 +105,12 @@ export interface OxyContextState {
   removePasskey: (credentialId: string) => Promise<void>;
 
   revokeSuspiciousSignIn: () => Promise<void>;
-  handleWebSession: (session: SessionLoginResponse) => Promise<void>;
+  /**
+   * Commit a session a first-party sign-in minted on THIS origin — an OAuth
+   * code exchange, or a passkey registration on auth.oxy.so (sign-up,
+   * recovery) — as the active one.
+   */
+  handleWebSession: (session: SessionLoginResponse | LoginSessionResult) => Promise<void>;
 
   /**
    * Run a WEB third-party OAuth sign-in (authorization code + PKCE) end to end

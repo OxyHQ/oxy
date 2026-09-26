@@ -374,9 +374,9 @@ export const SEED_APPS: SeedAppSpec[] = [
     description: 'Official Oxy authentication app and third-party OAuth Identity Provider.',
     websiteUrl: 'https://auth.oxy.so',
     type: 'first_party',
-    // The auth app is the third-party OAuth IdP and the web identity carrier
-    // (the sealed web envelope, recovery, the move to Commons, account
-    // deletion — routes that accept NO origin but this one), and it consumes
+    // The auth app is the third-party OAuth IdP and the one origin where web
+    // accounts are created, recovered and deleted and passkeys asserted
+    // (routes that accept NO origin but this one, ADR 0029), and it consumes
     // Sign-in-with-Oxy as its own Relying Party, so it registers its own origin
     // as the redirect surface.
     redirectUris: ['https://auth.oxy.so'],

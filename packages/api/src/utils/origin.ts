@@ -1,3 +1,5 @@
+import { getAuthWebOrigin } from '../config/env';
+
 /**
  * Canonical origin-normalisation helper shared across the CORS/CSRF origin
  * guard, the dynamic origin registry, and the auth surface (`auth.ts`).
@@ -108,4 +110,16 @@ export function isOxyApexOrigin(origin: string): boolean {
     return false;
   }
   return hostname === 'oxy.so' || hostname.endsWith('.oxy.so');
+}
+
+/**
+ * auth.oxy.so (and loopback, in every environment): the one origin that creates
+ * and recovers accounts and asserts the passkey (ADR 0029 D1, D3).
+ */
+export function isAuthWebOrigin(origin: string): boolean {
+  if (isLoopbackOrigin(origin)) {
+    return true;
+  }
+  const normalised = normaliseOrigin(origin);
+  return normalised !== null && normalised === normaliseOrigin(getAuthWebOrigin());
 }

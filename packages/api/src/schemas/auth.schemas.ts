@@ -9,7 +9,6 @@ export const registerPublicKeySchema = z.object({
   publicKey: z.string().trim().min(1),
   signature: z.string().trim().min(1),
   timestamp: z.number(),
-  email: z.string().trim().email().optional(),
   username: usernameSchema.optional(),
   // Optional and unenforced for now — see the comment at the check site in
   // `SessionController.register` for why and what flips it to required.
@@ -43,11 +42,6 @@ export const verifyChallengeSchema = z.object({
  */
 export const checkUsernameParams = z.object({
   username: usernameSchema,
-});
-
-// GET /auth/check-email/:email
-export const checkEmailParams = z.object({
-  email: z.string().trim().email(),
 });
 
 // GET /auth/check-publickey/:publicKey

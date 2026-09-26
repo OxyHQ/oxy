@@ -115,7 +115,9 @@ Default limits are generous, but a few sensitive routes are tightened:
 |-------|-------|
 | `/auth/login`, `/auth/signup` | 10 / minute / IP |
 | `/auth/challenge`, `/auth/verify` (public-key auth) | 10 and 5 / minute / IP |
-| `/auth/check-username`, `/auth/lookup`, `/auth/check-email`, `/auth/check-publickey` | 10 / minute / IP |
+| `/auth/check-username`, `/auth/lookup`, `/auth/check-publickey` | 10 / minute / IP |
+| `/auth/email/verify/start` (auth.oxy.so only) | 20 / hour / hashed IP, 5 codes / hour / hashed email |
+| `/auth/email/verify/confirm` (auth.oxy.so only) | 60 / hour / hashed IP, 5 wrong codes / verification |
 | `/auth/service-token` | 10 / 5 minutes / IP |
 | `/contacts/discover` | 5 / minute / user |
 

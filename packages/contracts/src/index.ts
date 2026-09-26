@@ -549,25 +549,6 @@ export type {
 } from './keyRecovery';
 
 export {
-    // Schemas — web identity carrier (one identity, two carriers)
-    WEB_IDENTITY_ENVELOPE_VERSION,
-    WEB_IDENTITY_SECRET_KINDS,
-    webIdentityPublicKeySchema,
-    webauthnCredentialIdSchema,
-    webauthnRpIdSchema,
-    webIdentityWrapSchema,
-    webIdentityEnvelopeSchema,
-    webIdentityEnvelopeUploadSchema,
-    webIdentityHolderSchema,
-    webIdentityEnvelopeResponseSchema,
-    webIdentityEnvelopeProofFieldsSchema,
-    webIdentityEnvelopeActionSchema,
-    webIdentityEnvelopePutSchema,
-    webauthnAssertionResponseSchema,
-    webIdentityEnvelopeEstablishSchema,
-} from './webIdentityCarrier';
-
-export {
     // Identity proofs (ADR 0024 D7) — the one signed format for root operations
     IDENTITY_PROOF_VERSION,
     IDENTITY_PROOF_DOMAIN,
@@ -583,19 +564,6 @@ export {
     identityProofChallengeResponseSchema,
     identityRootStatusSchema,
 } from './identityProof';
-export {
-    // Signed-out recovery (ADR 0024 D5)
-    IDENTITY_RECOVERY_TTL_MS,
-    identityRecoveryChallengeResponseSchema,
-    identityRecoveryStartRequestSchema,
-    identityRecoveryCompleteRequestSchema,
-} from './identityRecovery';
-export type {
-    IdentityRecoveryChallengeResponse,
-    IdentityRecoveryStartRequest,
-    IdentityRecoveryStartResponse,
-    IdentityRecoveryCompleteRequest,
-} from './identityRecovery';
 export type {
     IdentityProofAction,
     IdentityErrorCode,
@@ -605,51 +573,6 @@ export type {
     IdentityProofChallengeResponse,
     IdentityRootStatus,
 } from './identityProof';
-
-export {
-    // Schemas — moving a web identity into Commons
-    IDENTITY_MOVE_TTL_MS,
-    IDENTITY_MOVE_STATUSES,
-    IDENTITY_MOVE_QR_PREFIX,
-    identityMoveRevealRequestSchema,
-    buildMoveCommitmentInput,
-    buildMoveSasInput,
-    buildMoveSealPayload,
-    buildMoveCiphertextDigestInput,
-    buildMoveReceiptMessage,
-    identityMoveIdSchema,
-    identityMoveEphemeralKeySchema,
-    identityMoveCreateRequestSchema,
-    identityMoveCreateResponseSchema,
-    identityMoveJoinRequestSchema,
-    identityMoveSealRequestSchema,
-    identityMoveReceiptRequestSchema,
-    identityMoveStateSchema,
-} from './identityMove';
-
-export type {
-    IdentityMoveStatus,
-    IdentityMoveCreateRequest,
-    IdentityMoveCreateResponse,
-    IdentityMoveJoinRequest,
-    IdentityMoveSealRequest,
-    IdentityMoveReceiptRequest,
-    IdentityMoveRevealRequest,
-    IdentityMoveState,
-} from './identityMove';
-
-export type {
-    WebIdentityWrap,
-    WebIdentityEnvelope,
-    WebIdentitySecretKind,
-    WebIdentityHolder,
-    WebIdentityEnvelopeAction,
-    WebauthnAssertionResponse,
-    WebIdentityEnvelopeUpload,
-    WebIdentityEnvelopeResponse,
-    WebIdentityEnvelopePut,
-    WebIdentityEnvelopeEstablish,
-} from './webIdentityCarrier';
 
 export {
     // Shared primitives
@@ -716,6 +639,8 @@ export {
     webauthnLoginOptionsRequestSchema,
     webauthnRegisterVerifyRequestSchema,
     webauthnLoginVerifyRequestSchema,
+    webauthnCredentialIdSchema,
+    webauthnAssertionResponseSchema,
 } from './webauthn';
 
 export type {
@@ -723,7 +648,56 @@ export type {
     WebauthnLoginOptionsRequest,
     WebauthnRegisterVerifyRequest,
     WebauthnLoginVerifyRequest,
+    WebauthnAssertionResponse,
 } from './webauthn';
+
+export {
+    // Recovery email of a passkey account (ADR 0029 D3)
+    EMAIL_VERIFICATION_PURPOSES,
+    EMAIL_CODE_LENGTH,
+    EMAIL_CODE_TTL_MS,
+    EMAIL_CODE_MAX_ATTEMPTS,
+    EMAIL_TICKET_TTL_MS,
+    EMAIL_VERIFICATION_ERROR_CODES,
+    emailAddressSchema,
+    emailTicketSchema,
+    emailVerificationStartRequestSchema,
+    emailVerificationStartResponseSchema,
+    emailVerificationConfirmRequestSchema,
+    emailVerificationConfirmResponseSchema,
+} from './accountEmail';
+
+export {
+    // Linking Commons to a passkey account (ADR 0029 D3)
+    IDENTITY_LINK_STATUSES,
+    IDENTITY_LINK_QR_PREFIX,
+    identityLinkIdSchema,
+    buildIdentityLinkQrPayload,
+    parseIdentityLinkQrPayload,
+    identityLinkCreateResponseSchema,
+    identityLinkStateSchema,
+    identityLinkProofRequestSchema,
+    identityLinkOptionsRequestSchema,
+    identityLinkCompleteRequestSchema,
+} from './identityLink';
+
+export type {
+    IdentityLinkStatus,
+    IdentityLinkCreateResponse,
+    IdentityLinkState,
+    IdentityLinkProofRequest,
+    IdentityLinkOptionsRequest,
+    IdentityLinkCompleteRequest,
+} from './identityLink';
+
+export type {
+    EmailVerificationPurpose,
+    EmailVerificationStartRequest,
+    EmailVerificationStartResponse,
+    EmailVerificationConfirmRequest,
+    EmailVerificationConfirmResponse,
+    EmailVerificationErrorCode,
+} from './accountEmail';
 
 export {
     // Schemas — transparency log (checkpoints + inclusion proofs)

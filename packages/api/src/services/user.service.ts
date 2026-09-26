@@ -895,7 +895,6 @@ export class UserService {
     // Allowed fields for updates
     const allowedFields = [
       'name',
-      'email',
       'username',
       'avatar',
       'color',
@@ -1076,16 +1075,6 @@ export class UserService {
     // Validate uniqueness constraints
     await this.validateUniqueFields(userId, filteredUpdates);
 
-    // Track email change for security logging
-    const nextEmail = stringOrUndefined(filteredUpdates.email);
-    const [existingEmailRow] = await db
-      .select({ email: users.email })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-    const oldEmail = existingEmailRow?.email ?? undefined;
-    const emailChanged = !!nextEmail && nextEmail !== oldEmail;
-
     const columnUpdates = buildUserColumnUpdates(filteredUpdates);
     const locations = Array.isArray(filteredUpdates.locations)
       ? filteredUpdates.locations
@@ -1135,15 +1124,8 @@ export class UserService {
     try {
       const updatedFields = Object.keys(filteredUpdates);
 
-      // Log email change if it occurred
-      if (emailChanged && oldEmail && nextEmail) {
-        await securityActivityService.logEmailChange(userId, oldEmail, nextEmail, req);
-      }
-
-      // Log profile update (excluding email which is logged separately)
-      const profileFields = updatedFields.filter(field => field !== 'email');
-      if (profileFields.length > 0) {
-        await securityActivityService.logProfileUpdate(userId, profileFields, req);
+      if (updatedFields.length > 0) {
+        await securityActivityService.logProfileUpdate(userId, updatedFields, req);
       }
     } catch (error) {
       // Don't fail the update if logging fails
@@ -1158,35 +1140,21 @@ export class UserService {
   }
 
   /**
-   * Validate unique fields (email, username).
+   * Validate the unique username.
    *
-   * Both lookups are written against the EXPRESSION their unique index is built
-   * on — `lower(btrim(...))`, see `db/schema/users.ts`. A plain `email = $1` is
-   * correct-looking, case-sensitive, and would let ` Alice@x.com ` through to
-   * fail as a 500 on the constraint instead of a 400 here.
+   * The lookup is written against the EXPRESSION its unique index is built on —
+   * `lower(btrim(...))`, see `db/schema/users.ts`. A plain `username = $1` is
+   * correct-looking, case-sensitive, and would let ` Alice ` through to fail as
+   * a 500 on the constraint instead of a 400 here.
+   *
+   * The recovery email is not a profile field: it is set only by a verified
+   * sign-up and removed when Commons is linked (ADR 0029 D3).
    */
   private async validateUniqueFields(
     userId: string,
     updates: Record<string, unknown>
   ): Promise<void> {
     const db = getDb();
-
-    const email = stringOrUndefined(updates.email);
-    if (email) {
-      const [existing] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(
-          and(
-            sql`lower(btrim(${users.email})) = lower(btrim(${email}))`,
-            ne(users.id, userId)
-          )
-        )
-        .limit(1);
-      if (existing) {
-        throw new Error('Email already exists');
-      }
-    }
 
     const username = stringOrUndefined(updates.username);
     if (username) {
@@ -2355,7 +2323,6 @@ function buildUserColumnUpdates(
     // already had.
     if ('displayName' in name) set.nameDisplay = blankToNull(name.displayName);
   }
-  if (typeof filtered.email === 'string') set.email = blankToNull(filtered.email);
   if (typeof filtered.username === 'string') set.username = blankToNull(filtered.username);
   if (typeof filtered.avatar === 'string') set.avatar = blankToNull(filtered.avatar);
   if (typeof filtered.color === 'string') set.color = filtered.color;

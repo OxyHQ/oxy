@@ -50,7 +50,26 @@
     "createInCommons": "Créez votre identité dans Commons",
     "createAccount": "Créer un compte",
     "backToSignInLink": "Vous avez déjà un compte ? Connectez-vous",
-    "webSubtitle": "Pas de mot de passe. Votre appareil crée une clé d’accès et votre compte reçoit une phrase de récupération que vous seul conservez."
+    "webSubtitle": "Sans mot de passe : votre appareil crée une passkey, et un e-mail de récupération vous permet de revenir si vous la perdez.",
+    "username": {
+      "label": "Nom d'utilisateur",
+      "placeholder": "votrenom",
+      "required": "Choisissez un nom d'utilisateur.",
+      "taken": "Ce nom d'utilisateur est déjà pris."
+    },
+    "email": {
+      "title": "Votre e-mail de récupération",
+      "subtitle": "Si vous perdez votre passkey, nous vous y envoyons un code pour revenir. Il ne sert à rien d'autre.",
+      "label": "E-mail",
+      "placeholder": "vous@exemple.com",
+      "invalid": "Saisissez une adresse e-mail valide."
+    },
+    "passkey": {
+      "title": "Créez votre passkey",
+      "subtitle": "Elle sert à vous connecter : empreinte, visage ou verrouillage d'écran. Rien à retenir.",
+      "action": "Créer la passkey"
+    },
+    "commonsInstead": "Vous voulez garder votre propre clé ? Utilisez Commons"
   },
   "accountSwitcher": {
     "loading": "Chargement des comptes...",
@@ -225,7 +244,63 @@
     "help": "Aide et commentaires",
     "signOut": "Se déconnecter",
     "privacy": "Politique de confidentialité",
-    "terms": "Conditions d'utilisation",
-    "identity": "Votre identité"
+    "terms": "Conditions d'utilisation"
+  },
+  "recover": {
+    "title": "Récupérez votre compte",
+    "subtitle": "Saisissez votre nom d'utilisateur ou votre e-mail de récupération. Nous enverrons un code à l'e-mail de récupération du compte.",
+    "identifier": {
+      "label": "Nom d'utilisateur ou e-mail",
+      "placeholder": "votrenom",
+      "required": "Saisissez votre nom d'utilisateur ou votre e-mail."
+    },
+    "commonsNote": "Votre compte utilise Commons ? Récupérez-le dans Commons avec votre phrase de récupération.",
+    "passkey": {
+      "title": "Ajoutez une nouvelle passkey",
+      "subtitle": "Pour @{{username}}. Retirez les passkeys perdues plus tard dans les réglages de sécurité de votre compte.",
+      "action": "Créer la passkey"
+    },
+    "backToSignIn": "Revenir à la connexion"
+  },
+  "emailCode": {
+    "title": "Consultez vos e-mails",
+    "sentTo": "Nous avons envoyé un code à 6 chiffres à {{email}}.",
+    "sentIfAccount": "Si ce compte a un e-mail de récupération, nous y avons envoyé un code à 6 chiffres.",
+    "label": "Code",
+    "resend": "Envoyer un nouveau code",
+    "resent": "Nous avons envoyé un nouveau code.",
+    "changeEmail": "Utiliser un autre e-mail",
+    "errors": {
+      "codeInvalid": "Ce code n'est pas bon, ou il a expiré.",
+      "tooManyAttempts": "Trop de codes erronés. Demandez-en un nouveau.",
+      "expired": "Trop de temps a passé. Recommencez.",
+      "unavailable": "Oxy ne peut pas envoyer d'e-mails pour le moment. Réessayez plus tard.",
+      "rateLimited": "Trop de codes. Réessayez plus tard."
+    }
+  },
+  "deleteAccount": {
+    "passkey": {
+      "subtitle": "Confirmez avec votre passkey. @{{username}} et tout son contenu sont supprimés définitivement.",
+      "action": "Supprimer avec la passkey",
+      "done": "Votre compte est supprimé.",
+      "closeWindow": "Vous pouvez fermer cette fenêtre.",
+      "commons": "Ce compte utilise Commons : supprimez-le dans Oxy Commons, Réglages > Supprimer le compte, avec sa clé."
+    }
+  },
+  "linkCommons": {
+    "title": "Associer Commons",
+    "subtitle": "Gardez votre propre clé : associez Commons et ce compte n'appartient qu'à vous. Son e-mail de récupération est supprimé, et votre phrase de récupération dans Commons vous permet d'y revenir.",
+    "scan": "Sur votre téléphone, ouvrez Commons, choisissez « J’ai un compte Oxy sur le web » et scannez ce code.",
+    "waiting": "En attente de Commons…",
+    "compareTitle": "Vérifiez le code",
+    "compare": "Commons affiche le même code. Sinon, annulez.",
+    "confirm": "Oui, associer Commons",
+    "cancel": "Annuler",
+    "doneTitle": "Commons est associé",
+    "done": "Ce compte est désormais en autogarde. Son e-mail de récupération a été supprimé : votre phrase de récupération dans Commons vous permet d’y revenir.",
+    "already": "Ce compte utilise déjà Commons.",
+    "expired": "Ce code a expiré.",
+    "renew": "Afficher un nouveau code",
+    "failed": "Commons n'a pas pu être associé. Réessayez."
   }
 }

@@ -1,6 +1,6 @@
 /**
  * The four enumeration-sensitive identifier lookups on `/auth`, against a REAL
- * Postgres: `check-username`, `check-email`, `check-publickey` and `lookup`.
+ * Postgres: `check-username`, `check-publickey` and `lookup`.
  *
  * These had NO suite before the Postgres port, and they are exactly where the
  * port CHANGES observable behaviour, so they get one now. `users` is unique on
@@ -155,35 +155,6 @@ describe('GET /auth/check-username/:username', () => {
       expect(res.status).toBe(400);
     }
   );
-});
-
-describe('GET /auth/check-email/:email', () => {
-  it('reports a registered email as unavailable', async () => {
-    const email = `${randomUUID()}@example.com`;
-    await account({ email });
-
-    const res = await get(`/auth/check-email/${encodeURIComponent(email)}`);
-
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({
-      available: false,
-      message: 'Email is already registered',
-    });
-  });
-
-  it('matches CASE-INSENSITIVELY, as the lowercase setter used to guarantee', async () => {
-    const email = `${randomUUID()}@example.com`;
-    await account({ email });
-
-    const res = await get(`/auth/check-email/${encodeURIComponent(email.toUpperCase())}`);
-
-    expect((res.body.data as { available: boolean }).available).toBe(false);
-  });
-
-  it('reports an unused email as available', async () => {
-    const res = await get(`/auth/check-email/${encodeURIComponent(`${randomUUID()}@example.com`)}`);
-    expect((res.body.data as { available: boolean }).available).toBe(true);
-  });
 });
 
 describe('GET /auth/check-publickey/:publicKey', () => {

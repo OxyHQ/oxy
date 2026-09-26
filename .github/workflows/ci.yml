@@ -870,7 +870,7 @@ jobs:
         run: bun scripts/check-openapi-fresh.mjs
 
   # The platform packages' suites: contracts, db, protocol, core, ship, node,
-  # federation and the identity origin, on one runner with one install.
+  # and federation, on one runner with one install.
   #
   # The suites run in dependency order and each one sees AT LEAST the workspace
   # builds its own job used to make, never fewer: a suite that ran against

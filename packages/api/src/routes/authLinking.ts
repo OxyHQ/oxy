@@ -53,14 +53,10 @@ import { extractTokenFromRequest, decodeToken } from '../middleware/authUtils.js
 import userCache from '../utils/userCache.js';
 import { buildUserDid } from '../services/did.service.js';
 import { buildAuthMethodEntries } from '../utils/authMethodEntries.js';
-import { identityWebEnvelopes } from '../db/schema/identityWebEnvelopes.js';
-import { verifyIdentityProof } from '../services/identityProof.service.js';
-import { verifyFreshPasskeyAssertion } from '../services/webauthnFreshAssertion.service.js';
-import { isOxyApexOrigin } from '../utils/origin.js';
+import { linkRootToAccount } from '../services/identityLink.service.js';
 import { ApiError } from '../utils/error.js';
 import {
   IDENTITY_ERROR_CODES,
-  IDENTITY_PROOF_ACTIONS,
   authMethodsResponseSchema,
   rotateKeyChallengeResponseSchema,
   rotateKeyCompleteRequestSchema,
@@ -477,10 +473,6 @@ router.post('/rotate/complete', rotateCompleteLimiter, validate({ body: rotateKe
       await tx.update(users).set({ publicKey: canonicalNewPublicKey }).where(eq(users.id, userId));
 
       await tx.delete(identityBackups).where(eq(identityBackups.userId, userId));
-      // The web holder sealed the OLD root; after the swap it could only ever
-      // read as absent. Removing it in the same transaction means a restored or
-      // stale client can never be handed ciphertext of a root that lost authority.
-      await tx.delete(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, userId));
     });
   } catch (error) {
     // The read-then-check in step 5 is not atomic with this write; the unique
@@ -510,15 +502,18 @@ router.post('/rotate/complete', rotateCompleteLimiter, validate({ body: rotateKe
 /**
  * POST /api/auth/link
  * Link a root (`publicKey`) to a personal account that has NONE — first link only
- * (ADR 0024 D8).
+ * (ADR 0024 D8). Both factors in one request; linking Commons from another device
+ * relays them through `routes/identityLink.ts`. Either way `linkRootToAccount`.
  *
  * - An account whose root is this key: idempotent with a root proof, and heals a
  *   missing `identity` method row.
  * - An account with a DIFFERENT root: 409. Replacing a root is
  *   `POST /auth/rotate/*`, which needs the old root's proof too.
- * - A keyless account: a root proof (`link_identity`, one-use challenge) AND a
- *   fresh assertion by one of the account's existing passkeys over the same
- *   challenge. A bearer plus a key generated a moment ago is not authority.
+ * - A keyless (passkey) account: a root proof (`link_identity`, one-use
+ *   challenge) AND a fresh assertion by one of the account's existing passkeys,
+ *   made on auth.oxy.so, over the same challenge. A bearer plus a key generated a
+ *   moment ago is not authority. The first link deletes the recovery email
+ *   (ADR 0029 D3).
  */
 router.post('/link', validate({ body: linkAuthMethodSchema }), asyncHandler(async (req: AuthRequest, res: Response) => {
   const userId = req.user?._id?.toString();
@@ -535,73 +530,9 @@ router.post('/link', validate({ body: linkAuthMethodSchema }), asyncHandler(asyn
   }
 
   try {
-    await getDb().transaction(async (tx) => {
-      const [account] = await tx
-        .select({ kind: users.kind, publicKey: users.publicKey })
-        .from(users)
-        .where(eq(users.id, userId))
-        .for('update')
-        .limit(1);
-      if (!account) {
-        throw new BadRequestError('User not found');
-      }
-      if (account.kind !== 'personal') {
-        throw new ApiError(403, 'Only a personal account has a root', IDENTITY_ERROR_CODES.notPersonal);
-      }
-      const current = account.publicKey?.trim().toLowerCase() || null;
-      if (current && current !== safePublicKey) {
-        throw new ApiError(409, 'This account already has an identity', IDENTITY_ERROR_CODES.rootAlreadyLinked);
-      }
-
-      if (!current) {
-        if (!body.assertion) {
-          throw new ApiError(401, 'Confirm with one of this account’s passkeys', IDENTITY_ERROR_CODES.freshFactorRequired);
-        }
-        await verifyFreshPasskeyAssertion(tx, {
-          userId,
-          response: body.assertion,
-          challengeHex: body.proof.challenge,
-          allowOrigin: isOxyApexOrigin,
-        });
-      }
-      await verifyIdentityProof(tx, {
-        userId,
-        actor: userId,
-        action: IDENTITY_PROOF_ACTIONS.link,
-        rootPublicKey: safePublicKey,
-        mintedRoot: current,
-        payloadDigest: null,
-        expectedRevision: null,
-        proof: body.proof,
-      });
-
-      if (!current) {
-        const [existingUser] = await tx
-          .select({ id: users.id })
-          .from(users)
-          .where(publicKeyMatches(safePublicKey))
-          .limit(1);
-        if (existingUser && existingUser.id !== userId) {
-          throw new ApiError(409, 'This identity is already linked to another account', IDENTITY_ERROR_CODES.rootLinkedElsewhere);
-        }
-        await tx.update(users).set({ publicKey: safePublicKey }).where(eq(users.id, userId));
-      }
-
-      // The key on the account and its `user_auth_methods` row are ONE fact.
-      const [existingMethod] = await tx
-        .select({ id: userAuthMethods.id, methodPublicKey: userAuthMethods.methodPublicKey })
-        .from(userAuthMethods)
-        .where(and(eq(userAuthMethods.userId, userId), eq(userAuthMethods.type, 'identity')))
-        .limit(1);
-      if (!existingMethod) {
-        await tx.insert(userAuthMethods).values({ userId, type: 'identity', methodPublicKey: safePublicKey });
-      } else if (existingMethod.methodPublicKey?.toLowerCase() !== safePublicKey) {
-        await tx
-          .update(userAuthMethods)
-          .set({ methodPublicKey: safePublicKey })
-          .where(eq(userAuthMethods.id, existingMethod.id));
-      }
-    });
+    await getDb().transaction((tx) =>
+      linkRootToAccount(tx, { userId, publicKey: safePublicKey, proof: body.proof, assertion: body.assertion }),
+    );
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new ApiError(409, 'This identity is already linked to another account', IDENTITY_ERROR_CODES.rootLinkedElsewhere);
@@ -659,33 +590,6 @@ router.delete('/link/webauthn/:credentialID', validate({ params: unlinkWebauthnP
     // Removing the last remaining auth method would lock the account out.
     if (posture.total <= 1) {
       throw new BadRequestError('Cannot unlink last authentication method - account would become inaccessible');
-    }
-
-    // A passkey may also be a ROOT HOLDER: a wrap in the web envelope. Login
-    // methods are not the only thing to count (ADR 0024 D6). Its wrap goes with
-    // it — a removed passkey must not keep opening the root — and the envelope's
-    // LAST wrap is never removed this way: removing the web holder itself is a
-    // root-proven `DELETE /identity/web-envelope`.
-    const [envelope] = await tx
-      .select({ publicKey: identityWebEnvelopes.publicKey, wraps: identityWebEnvelopes.wraps, revision: identityWebEnvelopes.revision })
-      .from(identityWebEnvelopes)
-      .where(eq(identityWebEnvelopes.userId, userId))
-      .for('update')
-      .limit(1);
-    const root = posture.publicKey?.trim().toLowerCase() ?? null;
-    if (envelope && root && envelope.publicKey === root && envelope.wraps.some((wrap) => wrap.credentialId === credentialID)) {
-      const remaining = envelope.wraps.filter((wrap) => wrap.credentialId !== credentialID);
-      if (remaining.length === 0) {
-        throw new ApiError(
-          409,
-          'This passkey is the only one that opens your identity on the web. Add another passkey or remove the web copy first.',
-          IDENTITY_ERROR_CODES.lastWebHolder,
-        );
-      }
-      await tx
-        .update(identityWebEnvelopes)
-        .set({ wraps: remaining, revision: envelope.revision + 1 })
-        .where(eq(identityWebEnvelopes.userId, userId));
     }
 
     await tx

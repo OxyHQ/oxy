@@ -42,12 +42,23 @@ describe('webauthnRegisterOptions', () => {
   it('POSTs to /auth/webauthn/register/options with the username', async () => {
     const options = { challenge: 'c', rp: { id: 'oxy.so' } };
     makeRequest.mockResolvedValueOnce(options);
-    const result = await oxy.webauthnRegisterOptions('alice');
+    const result = await oxy.webauthnRegisterOptions({ username: 'alice' });
     expect(result).toBe(options);
     expect(makeRequest).toHaveBeenCalledWith(
       'POST',
       '/auth/webauthn/register/options',
       { username: 'alice' },
+      { cache: false, skipAuth: true },
+    );
+  });
+
+  it('sends a recovery ticket signed out', async () => {
+    makeRequest.mockResolvedValueOnce({ challenge: 'c' });
+    await oxy.webauthnRegisterOptions({ recoveryTicket: 't'.repeat(43) });
+    expect(makeRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/webauthn/register/options',
+      { recoveryTicket: 't'.repeat(43) },
       { cache: false, skipAuth: true },
     );
   });
@@ -61,6 +72,48 @@ describe('webauthnRegisterOptions', () => {
       {},
       { cache: false },
     );
+  });
+});
+
+describe('email verification', () => {
+  let oxy: OxyServices;
+  let makeRequest: jest.SpyInstance;
+
+  beforeEach(() => {
+    oxy = new OxyServices({ baseURL: 'http://test.invalid' });
+    makeRequest = jest.spyOn(oxy, 'makeRequest');
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it('starts a verification signed out and parses its id', async () => {
+    makeRequest.mockResolvedValueOnce({ verificationId: 'v-1', expiresAt: 1_900_000_000_000 });
+    await expect(oxy.startEmailVerification({ purpose: 'signup', email: 'ada@example.com' })).resolves.toEqual({
+      verificationId: 'v-1',
+      expiresAt: 1_900_000_000_000,
+    });
+    expect(makeRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/email/verify/start',
+      { purpose: 'signup', email: 'ada@example.com' },
+      { cache: false, skipAuth: true },
+    );
+  });
+
+  it('confirms a code into a ticket', async () => {
+    const confirmed = { ticket: 'T'.repeat(43), expiresAt: 1_900_000_000_000, username: 'ada' };
+    makeRequest.mockResolvedValueOnce(confirmed);
+    await expect(oxy.confirmEmailVerification('v-1', '123456')).resolves.toEqual(confirmed);
+    expect(makeRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/email/verify/confirm',
+      { verificationId: 'v-1', code: '123456' },
+      { cache: false, skipAuth: true },
+    );
+  });
+
+  it('refuses a malformed answer rather than handing on a ticket it cannot read', async () => {
+    makeRequest.mockResolvedValueOnce({ ticket: 'short', expiresAt: 1 });
+    await expect(oxy.confirmEmailVerification('v-1', '123456')).rejects.toThrow();
   });
 });
 
@@ -201,5 +254,26 @@ describe('webauthnLoginVerify', () => {
     makeRequest.mockResolvedValueOnce({ nope: true });
     await expect(oxy.webauthnLoginVerify(GET_RESPONSE)).rejects.toThrow();
     expect(setTokens).not.toHaveBeenCalled();
+  });
+});
+
+describe('deleting a passkey account', () => {
+  let oxy: OxyServices;
+  let makeRequest: jest.SpyInstance;
+
+  beforeEach(() => {
+    oxy = new OxyServices({ baseURL: 'http://test.invalid' });
+    makeRequest = jest.spyOn(oxy, 'makeRequest');
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it('asks for the options, then deletes with the assertion and the confirmation', async () => {
+    makeRequest.mockResolvedValueOnce({ challenge: 'c' }).mockResolvedValueOnce({ message: 'deleted' });
+
+    await expect(oxy.getAccountDeletionOptions()).resolves.toEqual({ challenge: 'c' });
+    await expect(oxy.deleteAccountWithPasskey('ada', GET_RESPONSE)).resolves.toEqual({ message: 'deleted' });
+
+    expect(makeRequest).toHaveBeenNthCalledWith(1, 'POST', '/users/me/delete/options', undefined, { cache: false });
+    expect(makeRequest).toHaveBeenNthCalledWith(2, 'DELETE', '/users/me', { confirmText: 'ada', assertion: GET_RESPONSE }, { cache: false });
   });
 });

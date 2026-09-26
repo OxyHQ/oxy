@@ -323,10 +323,10 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
             );
             return;
         }
-        // Web: deleting an account is signed with its identity key, which only
-        // auth.oxy.so can unseal — the deletion happens there, never on this page.
+        // Web: a passkey account confirms its deletion with its passkey, which
+        // only auth.oxy.so asserts — the deletion happens there, never on this page.
         if (isWebBrowser()) {
-            await Linking.openURL(`${AUTH_WEB_ORIGIN}/identity`).catch(() => {
+            await Linking.openURL(`${AUTH_WEB_ORIGIN}/delete-account`).catch(() => {
                 toast.error(t('accountSwitcher.linkOpenFailed'));
             });
             return;

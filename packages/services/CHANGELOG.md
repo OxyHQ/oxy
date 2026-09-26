@@ -1,5 +1,37 @@
 # Changelog
 
+## [6.1.0] - 2026-09-26
+
+Requires `@oxy.so/core` `^1.18.0`.
+
+**Web accounts are a username, a passkey and a recovery email** (ADR 0029 D3):
+no web identity, no web recovery phrase.
+
+### Added
+
+- `OxyCreateAccountPanel` (username → recovery email → its code → passkey),
+  `OxyRecoverAccountPanel` (username or email → the code sent to the recovery
+  email → a new passkey) and `OxyDeleteAccountPanel` (typed username → a
+  passkey assertion): auth.oxy.so's `/signup`, `/recover` and
+  `/delete-account`, built from the sign-in shell.
+- `OxyLinkCommonsPanel`: auth.oxy.so's `/link-commons` — a QR Commons scans
+  and signs, the code both devices show, then the passkey. The account
+  becomes self-custodied and its recovery email is deleted.
+- `useOxy().handleWebSession` takes a `LoginSessionResult` too (a passkey
+  registration's session).
+
+### Changed
+
+- "Delete account" on the web opens `auth.oxy.so/delete-account`; the native
+  handoff's "elsewhere" copy points there for a passkey account.
+
+### Removed
+
+- The account menu's "Your identity" row (`onOpenIdentity`): there is no web
+  identity to open.
+- Editing the email in `EditProfileScreen` / `EditProfileFieldScreen`: the
+  recovery email is not a profile field.
+
 ## [6.0.0] - 2026-09-26
 
 **Web sign-in in auth.oxy.so's window** (ADR 0029 D1). On the web, an app's

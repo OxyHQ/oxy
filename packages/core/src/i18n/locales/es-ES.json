@@ -58,7 +58,26 @@
     "createInCommons": "Crea tu identidad en Commons",
     "createAccount": "Crear cuenta",
     "backToSignInLink": "¿Ya tienes cuenta? Inicia sesión",
-    "webSubtitle": "Sin contraseña. Tu dispositivo crea una passkey y tu cuenta recibe una frase de recuperación que solo guardas tú."
+    "webSubtitle": "Sin contraseña: tu dispositivo crea una passkey y un email de recuperación te devuelve el acceso si la pierdes.",
+    "username": {
+      "label": "Nombre de usuario",
+      "placeholder": "tunombre",
+      "required": "Elige un nombre de usuario.",
+      "taken": "Ese nombre de usuario ya está en uso."
+    },
+    "email": {
+      "title": "Tu email de recuperación",
+      "subtitle": "Si pierdes tu passkey, te enviamos aquí un código para volver a entrar. No se usa para nada más.",
+      "label": "Email",
+      "placeholder": "tu@ejemplo.com",
+      "invalid": "Escribe un email válido."
+    },
+    "passkey": {
+      "title": "Crea tu passkey",
+      "subtitle": "Con ella inicias sesión: tu huella, tu cara o el bloqueo de pantalla. No hay nada que recordar.",
+      "action": "Crear passkey"
+    },
+    "commonsInstead": "¿Quieres guardar tu propia clave? Usa Commons"
   },
   "profile": {
     "title": "Perfil",
@@ -86,30 +105,20 @@
     "search": "Buscar idiomas"
   },
   "recover": {
-    "title": "Recuperar cuenta",
-    "username": {
-      "label": "Usuario",
-      "placeholder": "Introduce tu usuario",
-      "errorRequired": "Por favor, introduce tu usuario.",
-      "helper": "Introduce tu usuario o correo electrónico"
+    "title": "Recupera tu cuenta",
+    "subtitle": "Escribe tu nombre de usuario o tu email de recuperación. Enviaremos un código al email de recuperación de la cuenta.",
+    "identifier": {
+      "label": "Usuario o email",
+      "placeholder": "tunombre",
+      "required": "Escribe tu usuario o tu email."
     },
-    "verify": {
-      "title": "Verificar código",
-      "action": "Verificar código"
+    "commonsNote": "¿Tu cuenta usa Commons? Recupérala en Commons con tu frase de recuperación.",
+    "passkey": {
+      "title": "Añade una passkey nueva",
+      "subtitle": "Para @{{username}}. Quita las passkeys perdidas después en los ajustes de seguridad de tu cuenta.",
+      "action": "Crear passkey"
     },
-    "enterCode": "Introduce el código de 6 dígitos de tu app de autenticación.",
-    "newPassword": "Establecer nueva contraseña",
-    "resetSuccess": "¡Tu contraseña ha sido restablecida! Ahora puedes iniciar sesión.",
-    "noEmail": "Ya no enviamos correos de recuperación. Por favor, usa tu frase de recuperación para restaurar tu identidad. Contacta con soporte si necesitas ayuda.",
-    "password": {
-      "minLength": "La contraseña debe tener al menos 8 caracteres",
-      "mismatch": "Las contraseñas no coinciden",
-      "resetFailed": "Error al restablecer la contraseña"
-    },
-    "missingCode": "Falta el código",
-    "whatsNextTitle": "¿Qué sigue?",
-    "whatsNextBody": "Ahora puedes restablecer tu contraseña o volver para iniciar sesión con tus credenciales.",
-    "completeSecure": "La recuperación de tu cuenta se ha completado de forma segura."
+    "backToSignIn": "Volver a iniciar sesión"
   },
   "editProfile": {
     "title": "Editar perfil",
@@ -1617,8 +1626,7 @@
     "help": "Ayuda y comentarios",
     "signOut": "Cerrar sesión",
     "privacy": "Política de privacidad",
-    "terms": "Términos del servicio",
-    "identity": "Tu identidad"
+    "terms": "Términos del servicio"
   },
   "accounts": {
     "activeAccount": {
@@ -1835,9 +1843,16 @@
       "openCommons": "Abrir Oxy Commons",
       "commonsOpenFailed": "No se pudo abrir Oxy Commons. Ábrelo tú y ve a Ajustes > Eliminar cuenta.",
       "elsewhereTitle": "Elimina tu cuenta donde está tu identidad",
-      "elsewhereMessage": "Eliminar tu cuenta necesita tu clave de identidad, y no está en este dispositivo. Abre Oxy Commons en el dispositivo que guarda tu identidad y ve a Ajustes > Eliminar cuenta, o abre {{site}} en un navegador que la guarde.",
+      "elsewhereMessage": "Eliminar tu cuenta necesita tu clave de identidad, y no está en este dispositivo. Abre Oxy Commons en el dispositivo que la guarda y ve a Ajustes > Eliminar cuenta. Una cuenta con passkey se elimina en {{site}}.",
       "gotIt": "Entendido",
       "identityUnreadable": "No se pudo leer el almacén de identidad de este dispositivo. Desbloquea el dispositivo e inténtalo de nuevo."
+    },
+    "passkey": {
+      "subtitle": "Confirma con tu passkey. @{{username}} y todo lo que contiene se eliminan para siempre.",
+      "action": "Eliminar con passkey",
+      "done": "Tu cuenta se ha eliminado.",
+      "closeWindow": "Puedes cerrar esta ventana.",
+      "commons": "Esta cuenta usa Commons: elimínala en Oxy Commons, Ajustes > Eliminar cuenta, con su clave."
     }
   },
   "manageAccount": {
@@ -2076,5 +2091,37 @@
     "allow": "Continuar a {{app}}",
     "deny": "Cancelar",
     "disclaimer": "Al continuar, {{app}} podrá iniciar sesión con tu cuenta de Oxy. Puedes gestionar las apps conectadas cuando quieras en los ajustes de tu cuenta de Oxy."
+  },
+  "emailCode": {
+    "title": "Revisa tu email",
+    "sentTo": "Hemos enviado un código de 6 dígitos a {{email}}.",
+    "sentIfAccount": "Si esta cuenta tiene un email de recuperación, le hemos enviado un código de 6 dígitos.",
+    "label": "Código",
+    "resend": "Enviar un código nuevo",
+    "resent": "Te hemos enviado un código nuevo.",
+    "changeEmail": "Usar otro email",
+    "errors": {
+      "codeInvalid": "Ese código no es correcto o ha caducado.",
+      "tooManyAttempts": "Demasiados códigos incorrectos. Pide uno nuevo.",
+      "expired": "Ha pasado demasiado tiempo. Empieza de nuevo.",
+      "unavailable": "Oxy no puede enviar emails ahora. Inténtalo más tarde.",
+      "rateLimited": "Demasiados códigos. Inténtalo más tarde."
+    }
+  },
+  "linkCommons": {
+    "title": "Vincula Commons",
+    "subtitle": "Guarda tu propia clave: vincula Commons y esta cuenta será solo tuya. Su email de recuperación se elimina y tu frase de recuperación en Commons es cómo vuelves a entrar.",
+    "scan": "En tu móvil, abre Commons, elige «Tengo una cuenta de Oxy en la web» y escanea este código.",
+    "waiting": "Esperando a Commons…",
+    "compareTitle": "Comprueba el código",
+    "compare": "Commons muestra el mismo código. Si no es así, cancela.",
+    "confirm": "Sí, vincular Commons",
+    "cancel": "Cancelar",
+    "doneTitle": "Commons está vinculado",
+    "done": "Esta cuenta ahora es de autocustodia. Su email de recuperación se ha eliminado: tu frase de recuperación en Commons es cómo vuelves a entrar.",
+    "already": "Esta cuenta ya usa Commons.",
+    "expired": "Este código ha caducado.",
+    "renew": "Mostrar un código nuevo",
+    "failed": "No se ha podido vincular Commons. Inténtalo de nuevo."
   }
 }

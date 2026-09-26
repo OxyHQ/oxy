@@ -30,10 +30,10 @@ interface ImportPhraseStepProps {
    */
   onImportPrivateKey?: () => void;
   /**
-   * Optional handler for moving an identity kept on the web (`auth.oxy.so/identity`) onto
-   * this device by scanning the code the web shows.
+   * Optional handler for "I have an Oxy account on the web": link that
+   * passkey account to this phone by scanning auth.oxy.so/link-commons.
    */
-  onMoveFromWeb?: () => void;
+  onLinkWebAccount?: () => void;
   backgroundColor: string;
   textColor: string;
 }
@@ -50,7 +50,7 @@ export function ImportPhraseStep({
   isLoading,
   onRestoreFromBackup,
   onImportPrivateKey,
-  onMoveFromWeb,
+  onLinkWebAccount,
   backgroundColor,
   textColor,
 }: ImportPhraseStepProps) {
@@ -80,8 +80,8 @@ export function ImportPhraseStep({
 
         <Button appearance="solid" tone="accent" onPress={onImport} disabled={isLoading} loading={isLoading} className="mt-space-32">{t('auth.importStep.import')}</Button>
 
-        {onMoveFromWeb && (
-          <Button appearance="subtle" onPress={onMoveFromWeb} disabled={isLoading}>{t('identityMove.entry')}</Button>
+        {onLinkWebAccount && (
+          <Button appearance="subtle" onPress={onLinkWebAccount} disabled={isLoading}>{t('linkAccount.entry')}</Button>
         )}
 
         {onRestoreFromBackup && (

@@ -35,7 +35,9 @@ const SOURCE_EXTENSIONS = ['.ts', '.tsx'];
  * — do not delete the check.
  */
 const MIN_FILES_SCANNED = 20;
-const MIN_VALUE_IMPORTS = 5;
+// Four since the web identity carrier left (ADR 0029 D3): `getNormalizedUserHandle`,
+// `getCommonsApprovalBlockingReason`, `selectCommonsDelivery`, `translate`.
+const MIN_VALUE_IMPORTS = 4;
 
 /** Every `.ts`/`.tsx` file under the app source roots, excluding test folders. */
 function collectSourceFiles(): string[] {
